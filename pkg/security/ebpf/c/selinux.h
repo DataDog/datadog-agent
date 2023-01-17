@@ -42,8 +42,6 @@ struct bpf_map_def SEC("maps/selinux_write_buffer") selinux_write_buffer = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct selinux_write_buffer_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/selinux_enforce_status") selinux_enforce_status = {
@@ -51,8 +49,6 @@ struct bpf_map_def SEC("maps/selinux_enforce_status") selinux_enforce_status = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u16),
     .max_entries = 2,
-    .pinning = 0,
-    .namespace = "",
 };
 
 #define SELINUX_ENFORCE_STATUS_DISABLE_KEY 0
@@ -74,9 +70,11 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
         char curr = copy->buffer[i];
         if (curr == 0) {
             return 0;
-        } else if ('0' < curr && curr <= '9') {
+        }
+        if ('0' < curr && curr <= '9') {
             return 1;
-        } else if (curr != '0') {
+        }
+        if (curr != '0') {
             return 0;
         }
     }
@@ -171,11 +169,18 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 
 int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SELINUX);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID)
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_SELINUX);
         return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_INVALID) {
+        return 0;
+    }
 
     struct selinux_event_t event = {};
     event.event_kind = syscall->selinux.event_kind;

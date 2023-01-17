@@ -1,4 +1,4 @@
-/// Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -7,7 +7,6 @@ package profiling
 
 import (
 	"sync"
-	"time"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
@@ -20,12 +19,10 @@ var (
 )
 
 const (
-	// ProfileURLTemplate constant template for expected profiling endpoint URL.
-	ProfileURLTemplate = "https://intake.profile.%s/v1/input"
+	// ProfilingURLTemplate constant template for expected profiling endpoint URL.
+	ProfilingURLTemplate = "https://intake.profile.%s/v1/input"
 	// ProfilingLocalURLTemplate is the constant used to compute the URL of the local trace agent
 	ProfilingLocalURLTemplate = "http://%v/profiling/v1/input"
-	// DefaultProfilingPeriod defines the default profiling period
-	DefaultProfilingPeriod = 5 * time.Minute
 )
 
 // Start initiates profiling with the supplied parameters;
@@ -47,10 +44,11 @@ func Start(settings Settings) error {
 	options := []profiler.Option{
 		profiler.WithEnv(settings.Env),
 		profiler.WithService(settings.Service),
-		profiler.WithURL(settings.Site),
+		profiler.WithURL(settings.ProfilingURL),
 		profiler.WithPeriod(settings.Period),
 		profiler.WithProfileTypes(types...),
 		profiler.CPUDuration(settings.CPUDuration),
+		profiler.WithDeltaProfiles(settings.WithDeltaProfiles),
 		profiler.WithTags(settings.Tags...),
 	}
 
@@ -68,7 +66,7 @@ func Start(settings Settings) error {
 
 	if err == nil {
 		running = true
-		log.Debugf("Profiling started! Submitting to: %s", settings.Site)
+		log.Debugf("Profiling started! Submitting to: %s", settings.ProfilingURL)
 	}
 
 	return err

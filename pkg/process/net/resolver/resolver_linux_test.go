@@ -1,60 +1,65 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package resolver
 
 import (
-	"net"
+	"os"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestLocalResolver(t *testing.T) {
 	assert := assert.New(t)
 
 	resolver := &LocalResolver{}
-	containers := []*containers.Container{
+	containers := []*model.Container{
 		{
-			ID: "container-1",
-			AddressList: []containers.NetworkAddress{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
 				{
-					IP:       net.ParseIP("10.0.2.15"),
+					Ip:       "10.0.2.15",
 					Port:     32769,
-					Protocol: "tcp",
+					Protocol: model.ConnectionType_tcp,
 				},
 				{
-					IP:       net.ParseIP("172.17.0.4"),
+					Ip:       "172.17.0.4",
 					Port:     6379,
-					Protocol: "tcp",
+					Protocol: model.ConnectionType_tcp,
 				},
 			},
 		},
 		{
-			ID: "container-2",
-			AddressList: []containers.NetworkAddress{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
 				{
-					IP:       net.ParseIP("172.17.0.2"),
+					Ip:       "172.17.0.2",
 					Port:     80,
-					Protocol: "tcp",
+					Protocol: model.ConnectionType_tcp,
 				},
 			},
 		},
 		{
-			ID: "container-3",
-			AddressList: []containers.NetworkAddress{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
 				{
-					IP:       net.ParseIP("10.0.2.15"),
+					Ip:       "10.0.2.15",
 					Port:     32769,
-					Protocol: "udp",
+					Protocol: model.ConnectionType_udp,
 				},
 			},
 		},
 	}
 
 	// Generate network address => container ID map
-	resolver.LoadAddrs(containers)
+	resolver.LoadAddrs(containers, nil)
 
 	connections := &model.Connections{
 		Conns: []*model.Connection{
@@ -101,15 +106,14 @@ func TestLocalResolver(t *testing.T) {
 }
 
 func TestResolveLoopbackConnections(t *testing.T) {
-	rootNs, err := util.GetNetNsInoFromPid("/proc", 1)
-	require.NoError(t, err)
-
-	tests := []struct {
+	type resolveTest struct {
 		name            string
 		conn            *model.Connection
 		expectedLaddrID string
 		expectedRaddrID string
-	}{
+	}
+
+	tests := []resolveTest{
 		{
 			name: "raddr resolution with nat",
 			conn: &model.Connection{
@@ -311,30 +315,6 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedRaddrID: "",
 		},
 		{
-			name: "cross namespace with dnat to loopback",
-			conn: &model.Connection{
-				Pid:   21,
-				NetNS: rootNs,
-				Laddr: &model.Addr{
-					Ip:   "127.0.0.1",
-					Port: 8181,
-				},
-				Raddr: &model.Addr{
-					Ip:   "10.10.10.10",
-					Port: 22222,
-				},
-				Direction: model.ConnectionDirection_outgoing,
-				IpTranslation: &model.IPTranslation{
-					ReplDstIP:   "169.254.169.254",
-					ReplDstPort: 80,
-					ReplSrcIP:   "10.10.10.10",
-					ReplSrcPort: 22222,
-				},
-			},
-			expectedLaddrID: "foo21",
-			expectedRaddrID: "foo20",
-		},
-		{
 			name: "zero src netns failed resolution",
 			conn: &model.Connection{
 				Pid:   22,
@@ -372,55 +352,49 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		},
 	}
 
+	if os.Getuid() == 0 {
+		rootNs, err := util.GetNetNsInoFromPid("/proc", 1)
+		require.NoError(t, err)
+		tests = append(tests, resolveTest{
+			name: "cross namespace with dnat to loopback",
+			conn: &model.Connection{
+				Pid:   21,
+				NetNS: rootNs,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8181,
+				},
+				Raddr: &model.Addr{
+					Ip:   "10.10.10.10",
+					Port: 22222,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplDstIP:   "169.254.169.254",
+					ReplDstPort: 80,
+					ReplSrcIP:   "10.10.10.10",
+					ReplSrcPort: 22222,
+				},
+			},
+			expectedLaddrID: "foo21",
+			expectedRaddrID: "foo20",
+		})
+	}
+
 	resolver := &LocalResolver{}
-	resolver.LoadAddrs(
-		[]*containers.Container{
-			{
-				ID:   "foo1",
-				Pids: []int32{1},
-			},
-			{
-				ID:   "foo2",
-				Pids: []int32{2},
-			},
-			{
-				ID:   "foo3",
-				Pids: []int32{3},
-			},
-			{
-				ID:   "foo4",
-				Pids: []int32{4},
-			},
-			{
-				ID:   "foo5",
-				Pids: []int32{5},
-			},
-			{
-				ID:   "foo6",
-				Pids: []int32{6},
-			},
-			{
-				ID:   "foo7",
-				Pids: []int32{7},
-			},
-			{
-				ID:   "bar",
-				Pids: []int32{20},
-			},
-			{
-				ID:   "foo20",
-				Pids: []int32{20},
-			},
-			{
-				ID:   "foo21",
-				Pids: []int32{21},
-			},
-			{
-				ID:   "foo22",
-				Pids: []int32{22},
-			},
-		},
-	)
+	resolver.LoadAddrs(nil, map[int]string{
+		1:  "foo1",
+		2:  "foo2",
+		3:  "foo3",
+		4:  "foo4",
+		5:  "foo5",
+		6:  "foo6",
+		7:  "foo7",
+		8:  "bar",
+		20: "foo20",
+		21: "foo21",
+		22: "foo22",
+	})
 
 	conns := &model.Connections{}
 	for _, te := range tests {

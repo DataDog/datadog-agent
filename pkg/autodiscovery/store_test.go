@@ -28,12 +28,12 @@ func TestServiceToConfig(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 		Hosts:         map[string]string{"bridge": "127.0.0.1"},
 	}
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "bar"})
-	assert.Equal(t, countConfigsForService(s, service.GetEntity()), 2)
-	s.removeConfigsForService(service.GetEntity())
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
-	assert.Equal(t, countConfigsForService(s, service.GetEntity()), 1)
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "foo"})
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "bar"})
+	assert.Equal(t, countConfigsForService(s, service.GetServiceID()), 2)
+	s.removeConfigsForService(service.GetServiceID())
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "foo"})
+	assert.Equal(t, countConfigsForService(s, service.GetServiceID()), 1)
 }
 
 func TestTemplateToConfig(t *testing.T) {
@@ -52,4 +52,38 @@ func TestTemplateToConfig(t *testing.T) {
 	s.addConfigForTemplate("digest1", integration.Config{Name: "foo"})
 	assert.Equal(t, countConfigsForTemplate(s, "digest1"), 1)
 	assert.Equal(t, countConfigsForTemplate(s, "digest2"), 1)
+}
+
+func TestRemoveServiceForADID(t *testing.T) {
+	store := newStore()
+	svc1 := dummyService{
+		ID:            "foo",
+		ADIdentifiers: []string{"redis", "docker://foo"},
+		Hosts:         map[string]string{"bridge": "127.0.0.1"},
+	}
+
+	svc2 := dummyService{
+		ID:            "bar",
+		ADIdentifiers: []string{"redis", "docker://bar"},
+		Hosts:         map[string]string{"bridge": "127.0.0.1"},
+	}
+
+	store.setADIDForServices("redis", svc1.GetServiceID())
+	store.setADIDForServices("docker://foo", svc1.GetServiceID())
+
+	store.setADIDForServices("redis", svc2.GetServiceID())
+	store.setADIDForServices("docker://bar", svc2.GetServiceID())
+
+	store.removeServiceForADID(svc1.GetServiceID(), svc1.ADIdentifiers)
+
+	entities, found := store.getServiceEntitiesForADID("redis")
+	assert.True(t, found)
+	assert.EqualValues(t, map[string]struct{}{"bar": {}}, entities)
+
+	entities, found = store.getServiceEntitiesForADID("docker://bar")
+	assert.True(t, found)
+	assert.EqualValues(t, map[string]struct{}{"bar": {}}, entities)
+
+	_, found = store.getServiceEntitiesForADID("docker://foo")
+	assert.False(t, found)
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package v2
@@ -13,9 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
 )
 
 func TestGetTask(t *testing.T) {
@@ -27,8 +29,8 @@ func TestGetTask(t *testing.T) {
 	require.Nil(t, err)
 
 	ts, _, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	expected := &Task{
 		ClusterName: "default",
@@ -128,8 +130,8 @@ func TestGetTaskWithTags(t *testing.T) {
 	require.Nil(t, err)
 
 	ts, _, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	expected := &Task{
 		ClusterName: "ecs-cluster",
@@ -242,6 +244,7 @@ func TestGetContainerStats(t *testing.T) {
 			fixture:     "./testdata/container_stats.json",
 			containerID: "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d98",
 			expectedStats: &ContainerStats{
+				Timestamp: "2019-10-25T10:07:01.006590487Z",
 				CPU: CPUStats{
 					System: 3951680000000,
 					Usage: CPUUsage{
@@ -343,6 +346,7 @@ func TestGetContainerStats(t *testing.T) {
 			fixture:     "./testdata/container_stats_empty_net_stats.json",
 			containerID: "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d98",
 			expectedStats: &ContainerStats{
+				Timestamp: "2019-10-25T10:07:01.006590487Z",
 				CPU: CPUStats{
 					System: 3951680000000,
 					Usage: CPUUsage{
@@ -449,8 +453,8 @@ func TestGetContainerStats(t *testing.T) {
 			require.Nil(t, err)
 
 			ts, _, err := ecsinterface.Start()
-			defer ts.Close()
 			require.Nil(t, err)
+			defer ts.Close()
 
 			metadata, err := NewClient(ts.URL).GetContainerStats(ctx, test.containerID)
 			assert.Equal(test.expectedStats, metadata)
@@ -465,5 +469,4 @@ func TestGetContainerStats(t *testing.T) {
 			}
 		})
 	}
-
 }

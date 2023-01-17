@@ -28,12 +28,13 @@ const (
 // CheckLogger is the object responsible for logging the information generated
 // during the running of the check
 type CheckLogger struct {
-	Check check.Check
+	Check                     check.Check
+	shouldLog, lastVerboseLog bool
 }
 
 // CheckStarted is used to log that the check is about to run
 func (cl *CheckLogger) CheckStarted() {
-	if shouldLog, _ := shouldLogCheck(cl.Check.ID()); shouldLog {
+	if cl.shouldLog, cl.lastVerboseLog = shouldLogCheck(cl.Check.ID()); cl.shouldLog {
 		log.Infoc("Running check...", "check", cl.Check)
 		return
 	}
@@ -45,8 +46,8 @@ func (cl *CheckLogger) CheckStarted() {
 func (cl *CheckLogger) CheckFinished() {
 	message := checkEndPrefix
 
-	if shouldLog, lastVerboseLog := shouldLogCheck(cl.Check.ID()); shouldLog {
-		if lastVerboseLog {
+	if cl.shouldLog {
+		if cl.lastVerboseLog {
 			message += fmt.Sprintf(
 				", next runs will be logged every %v runs",
 				config.Datadog.GetInt64(loggingFrequencyConfigKey),
@@ -75,7 +76,7 @@ func (cl *CheckLogger) Debug(message string) {
 
 // shouldLogCheck returns if we should log the check start/stop message with higher
 // verbosity and if this is the end of the initial series of check log statements
-func shouldLogCheck(id check.ID) (bool, bool) {
+func shouldLogCheck(id check.ID) (shouldLog, lastVerboseLog bool) {
 	loggingFrequency := uint64(config.Datadog.GetInt64(loggingFrequencyConfigKey))
 
 	// If this is the first time we see the check, log it
@@ -85,12 +86,14 @@ func shouldLogCheck(id check.ID) (bool, bool) {
 		return true, false
 	}
 
-	// We print a special message when we change logging frequency
-	lastVerboseLog := stats.TotalRuns == initialCheckLoggingSeriesLimit
+	// `currentRun` is `stats.TotalRuns` + 1 as the first run would be 0.
+	currentRun := stats.TotalRuns + 1
 
+	// We print a special message when we change logging frequency
+	lastVerboseLog = currentRun == initialCheckLoggingSeriesLimit
 	// We log the first `initialCheckLoggingSeriesLimit` times, then every `loggingFrequency` times
-	if stats.TotalRuns <= initialCheckLoggingSeriesLimit ||
-		stats.TotalRuns%loggingFrequency == 0 {
+	if currentRun <= initialCheckLoggingSeriesLimit ||
+		currentRun%loggingFrequency == 0 {
 
 		return true, lastVerboseLog
 	}

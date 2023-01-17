@@ -54,7 +54,7 @@ type MemoryStats struct {
 	MinThreshold      *uint64 // cgroupv2 only
 	LowThreshold      *uint64 // cgroupv1: mapped to soft_limit
 	HighThreshold     *uint64 // cgroupv2 only
-	SwapLimit         *uint64
+	SwapLimit         *uint64 // Memory+Swap (thus >= Limit)
 	SwapHighThreshold *uint64 // cgroupv2 only
 
 	PSISome PSIStats
@@ -85,7 +85,6 @@ type CPUStats struct {
 // cgroupv1: pid
 // cgroupv2: pid
 type PIDStats struct {
-	PIDs                    []int
 	HierarchicalThreadCount *uint64 // Number of threads in cgroups + all children
 	HierarchicalThreadLimit *uint64 // Maximum number of threads in cgroups + all children
 }

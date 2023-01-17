@@ -105,3 +105,7 @@ func cpuTimeUser(pid int32) (float64, error) {
 	time := float64(userSecs) + (float64(userNsecs) / float64(time.Second))
 	return time, nil
 }
+
+func getpid() int {
+	return os.Getpid()
+}

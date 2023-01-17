@@ -1,15 +1,92 @@
 # package `autodiscovery`
 
-This package is a core piece of the agent. It is responsible for collecting check configurations from different sources (see package [config providers](https://github.com/DataDog/datadog-agent/tree/main/pkg/autodiscovery/providers)) and then schedule or unschedule integration configurations with the help of the schedulers.
+This package manages configuration for dynamic entities like pods and containers.
 
-It is also responsible for listening to container-related events and resolve template configurations that would match them.
+## Architecture
 
-## `AutoConfig`
+The high-level architecture of this package is implemented by the AutoConfig type, and looks like this:
 
-As a central component, `AutoConfig` owns and orchestrates several key modules:
+```
+Kubernetes
+    API──────┐
+             │
+Cluster      │ ┌────────────────┐
+  Agent────┐ │ │ Workload Meta  │
+           │ │ └──┬──────────┬──┘
+ Static    │ │    │          │
+  Files──┐ │ │    │          │
+         │ │ │    │          │
+    ┌────▼─▼─▼────▼──┐    ┌──▼─────────────┐
+    │Config Providers│    │   Listeners    │
+    └──┬─────┬───────┘    └────────┬───────┘
+       │     │                     │
+       │     │                     │
+       │     │templates    services│
+       │     └────────► │ ◄────────┤
+       │                │          │
+       │            reconcile      │
+       │                │          │
+       │non-template    │          │
+       │configs         │          │
+       │                │          │
+       │                ▼          │
+       │         ┌─────────────┐   │
+       └────────►│metascheduler│◄──┘
+                 └─────────────┘
+```
 
-- it owns a reference to a [`MetaScheduler`](https://github.com/DataDog/datadog-agent/blob/main/pkg/autodiscovery/scheduler) that dispatches integrations configs for scheduling or unscheduling to all registered schedulers. There are 3 scheduler implementations: checks scheduler and logs scheduler in the agent, and cluster checks dispatcher in the cluster agent.
-- it stores a list of [`ConfigProviders`](https://github.com/DataDog/datadog-agent/blob/main/pkg/autodiscovery/providers) and poll them according to their poll policy via [`configPollers`](https://github.com/DataDog/datadog-agent/blob/main/pkg/autodiscovery/config_poller.go)
-- it owns [`ServiceListener`](https://github.com/DataDog/datadog-agent/blob/main/pkg/autodiscovery/listeners) used to listen to lifecycle events of containers and other kind of services like network devices, kubernetes Endpoints and Service objects
-- it uses the `ConfigResolver` that resolves a configuration template to an actual configuration based on a service matching the template. A template matches a service if they have in common at least one AD identifier element
-- it uses a `store` component to safely store and retrieve all data and mappings needed for the autodiscovery lifecycle
+## Config Providers
+
+The [config providers](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/autodiscovery/providers) draw configuration information from many sources
+
+* Kubernetes (for Endpoints and Services, run only on the cluster agent)
+* cluster agent (for cluster checks and endpoints checks);
+* static files (`conf.d/<integration>.d/conf.yaml`); and
+* the workloadmeta service.
+
+The providers extract configuration from entities' tags, labels, etc. in the form of [`integration.Config`](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/autodiscovery/integration#Config) values.
+
+Some configs are "templates", meaning that they must be resolved with a service to generate a full, non-template config.
+Other configs are not templates, and simply contain settings and options for the agent.
+Specifically, a config is considered a template if it has _AD identifiers_ attached.
+These are strings that identify the services to which the config applies.
+
+## Listeners and Services
+
+The [listeners](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners) monitor entities, known as "services" in this package, such as pods, containers, or tasks.
+
+Each service has two entity identifiers: the AD service ID (from `svc.GetServiceID()`) and the Tagger entity (`svc.GetTaggerEntity()`).
+These both uniquely identify an entity, but using different syntax.
+
+<!-- NOTE: a similar table appears in pkg/tagger/README.md; please keep both in sync -->
+| *Service*                         | *Service ID*                                                      | *Tagger Entity*                                                    |
+|-----------------------------------|-------------------------------------------------------------------|--------------------------------------------------------------------|
+| workloadmeta.KindContainer        | `<runtime>://<sha>`                                               | `container_id://<sha>`                                             |
+| workloadmeta.KindGardenContainer  | `garden_container://<sha>`                                        | `container_id://<sha>`                                             |
+| workloadmeta.KindKubernetesPod    | `kubernetes_pod://<uid>`                                          | `kubernetes_pod_uid://<uid>`                                       |
+| workloadmeta.KindECSTask          | `ecs_task://<task-id>`                                            | `ecs_task://<task-id>`                                             |
+| CloudFoundry LRP                  | `<processGuid>/<svcName>/<instanceGuid>` or `<appGuid>/<svcName>` | `<processGuid>/<svcName>/<instanceGuid>`  or `<appGuid>/<svcName>` |
+| Container runtime or orchestrator | `_<name>` e.g., `_containerd`                                     | (none)                                                             |
+| Kubernetes Endpoint               | `kube_endpoint_uid://<namespace>/<name>/<ip>`                     | `kube_endpoint_uid://<namespace>/<name>/<ip>`                      |
+| Kubernetes Service                | `kube_service://<namespace>/<name>`                               | `kube_service://<namespace>/<name>`                                |
+| SNMP Config                       | config hash                                                       | config hash                                                        |
+
+## MetaScheduler
+
+The metascheduler handles notifying consumers of new or removed configs.
+It can notify in three circumstances:
+
+1. When a config provider detects a non-template configuration, that is published immediately by the metascheduler.
+2. Whenever template configurations or services change, these are reconciled by matching AD identifiers, any new or removed configs are published by the metascheduler.
+3. For every service, a "service config" -- one with no provider and no configuration -- is published by the metascheduler.
+   Only service configs have an entity defined.
+
+## Resolving Templates
+
+Entities that contain their own configuration are reconciled using an AD identifier unique to that entity.
+For example, a new container might be detected first by a listener, creating a new service with an AD identifier containing its SHA.
+Soon after, the relevant config provider detects the container, extracts configuration from its labels, and creates an `integration.Config` containing the same AD identifier.
+
+The reconciliation process combines the service and the Config, resolving the template, and schedules the resolved config.
+In the process, [template variables](https://docs.datadoghq.com/agent/faq/template_variables/) are expanded based on values from the service.
+The resulting config is then scheduled with the MetaScheduler.

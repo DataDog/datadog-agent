@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package grpc
 
 import (
@@ -6,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestMain(m *testing.M) {
@@ -25,8 +31,7 @@ func TestGetDDAgentClientTimeout(t *testing.T) {
 }
 
 func TestGetDDAgentClientWithCmdPort0(t *testing.T) {
-	os.Setenv("DD_CMD_PORT", "-1")
-	defer os.Unsetenv("DD_CMD_PORT")
+	t.Setenv("DD_CMD_PORT", "-1")
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 

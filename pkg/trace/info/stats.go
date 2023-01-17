@@ -11,12 +11,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ReceiverStats is used to store all the stats per tags.
@@ -53,11 +54,11 @@ func (rs *ReceiverStats) Acc(recent *ReceiverStats) {
 	recent.Unlock()
 }
 
-// Publish updates stats about per-tag stats
-func (rs *ReceiverStats) Publish() {
+// PublishAndReset updates stats about per-tag stats
+func (rs *ReceiverStats) PublishAndReset() {
 	rs.RLock()
 	for _, tagStats := range rs.Stats {
-		tagStats.publish()
+		tagStats.publishAndReset()
 	}
 	rs.RUnlock()
 }
@@ -81,39 +82,26 @@ func (rs *ReceiverStats) Languages() []string {
 	return langs
 }
 
-// Reset resets the ReceiverStats internal data
-func (rs *ReceiverStats) Reset() {
+// LogAndResetStats logs one-line summaries of ReceiverStats and resets internal data. Problematic stats are logged as warnings.
+func (rs *ReceiverStats) LogAndResetStats() {
 	rs.Lock()
-	for key, tagStats := range rs.Stats {
-		// If a tagStats was empty, let's drop it.
-		// That's a way to avoid over-time leaks.
-		if tagStats.isEmpty() {
-			delete(rs.Stats, key)
-		}
-		tagStats.reset()
-	}
-	rs.Unlock()
-}
-
-// LogStats logs one-line summaries of ReceiverStats. Problematic stats are logged as warnings.
-func (rs *ReceiverStats) LogStats() {
-	rs.RLock()
-	defer rs.RUnlock()
+	defer rs.Unlock()
 
 	if len(rs.Stats) == 0 {
 		log.Info("No data received")
 		return
 	}
 
-	for _, ts := range rs.Stats {
+	for k, ts := range rs.Stats {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
-			log.Infof("%v -> %s", tags, ts.infoString())
+			log.Infof("%v -> %s\n", tags, ts.infoString())
 			warnString := ts.WarnString()
 			if len(warnString) > 0 {
-				log.Warnf("%v -> %s. Enable debug logging for more details.", tags, warnString)
+				log.Warnf("%v -> %s. Enable debug logging for more details.\n", tags, warnString)
 			}
 		}
+		delete(rs.Stats, k)
 	}
 }
 
@@ -124,7 +112,7 @@ type TagStats struct {
 }
 
 func newTagStats(tags Tags) *TagStats {
-	return &TagStats{tags, Stats{TracesDropped: &TracesDropped{}, SpansMalformed: &SpansMalformed{}}}
+	return &TagStats{Tags: tags, Stats: NewStats()}
 }
 
 // AsTags returns all the tags contained in the TagStats.
@@ -132,48 +120,56 @@ func (ts *TagStats) AsTags() []string {
 	return (&ts.Tags).toArray()
 }
 
-func (ts *TagStats) publish() {
-	// Atomically load the stats from ts
-	tracesReceived := atomic.LoadInt64(&ts.TracesReceived)
-	tracesFiltered := atomic.LoadInt64(&ts.TracesFiltered)
-	tracesPriorityNone := atomic.LoadInt64(&ts.TracesPriorityNone)
-	clientDroppedP0Spans := atomic.LoadInt64(&ts.ClientDroppedP0Spans)
-	clientDroppedP0Traces := atomic.LoadInt64(&ts.ClientDroppedP0Traces)
-	tracesBytes := atomic.LoadInt64(&ts.TracesBytes)
-	spansReceived := atomic.LoadInt64(&ts.SpansReceived)
-	spansDropped := atomic.LoadInt64(&ts.SpansDropped)
-	spansFiltered := atomic.LoadInt64(&ts.SpansFiltered)
-	eventsExtracted := atomic.LoadInt64(&ts.EventsExtracted)
-	eventsSampled := atomic.LoadInt64(&ts.EventsSampled)
-	requestsMade := atomic.LoadInt64(&ts.PayloadAccepted)
-	requestsRejected := atomic.LoadInt64(&ts.PayloadRefused)
+func (ts *TagStats) publishAndReset() {
+	// Atomically load and reset any metrics used multiple times from ts
+	tracesReceived := ts.TracesReceived.Swap(0)
 
 	// Publish the stats
 	tags := ts.Tags.toArray()
 
 	metrics.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_filtered", tracesFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNone, append(tags, "priority:none"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_bytes", tracesBytes, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_received", spansReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_dropped", spansDropped, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_filtered", spansFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_refused", requestsRejected, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_spans", clientDroppedP0Spans, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_traces", clientDroppedP0Traces, tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_filtered",
+		ts.TracesFiltered.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_priority",
+		ts.TracesPriorityNone.Swap(0), append(tags, "priority:none"), 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_bytes",
+		ts.TracesBytes.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_received",
+		ts.SpansReceived.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_dropped",
+		ts.SpansDropped.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_filtered",
+		ts.SpansFiltered.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.events_extracted",
+		ts.EventsExtracted.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.events_sampled",
+		ts.EventsSampled.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.payload_accepted",
+		ts.PayloadAccepted.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.payload_refused",
+		ts.PayloadRefused.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_spans",
+		ts.ClientDroppedP0Spans.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_traces",
+		ts.ClientDroppedP0Traces.Swap(0), tags, 1)
 
-	for reason, count := range ts.TracesDropped.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
+	for reason, counter := range ts.TracesDropped.tagCounters() {
+		metrics.Count("datadog.trace_agent.normalizer.traces_dropped",
+			counter.Swap(0), append(tags, "reason:"+reason), 1)
 	}
-	for reason, count := range ts.SpansMalformed.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+reason), 1)
+
+	for reason, counter := range ts.SpansMalformed.tagCounters() {
+		metrics.Count("datadog.trace_agent.normalizer.spans_malformed",
+			counter.Swap(0), append(tags, "reason:"+reason), 1)
 	}
-	for priority, count := range ts.TracesPerSamplingPriority.TagValues() {
-		metrics.Count("datadog.trace_agent.receiver.traces_priority", count, append(tags, "priority:"+priority), 1)
+
+	for priority, counter := range ts.TracesPerSamplingPriority.tagCounters() {
+		count := counter.Swap(0)
+		if count > 0 {
+			metrics.Count("datadog.trace_agent.receiver.traces_priority",
+				count, append(tags, "priority:"+priority), 1)
+		}
 	}
 }
 
@@ -198,38 +194,49 @@ func mapToString(m map[string]int64) string {
 
 // TracesDropped contains counts for reasons traces have been dropped
 type TracesDropped struct {
+	// all atomic values are included as values in this struct, to simplify umarshaling and
+	// initialization of the type.  The atomic values _must_ occur first in the struct.
+
 	// DecodingError is when the agent fails to decode a trace payload
-	DecodingError int64
+	DecodingError atomic.Int64
 	// PayloadTooLarge specifies the number of traces dropped due to the payload
 	// being too large to be accepted.
-	PayloadTooLarge int64
+	PayloadTooLarge atomic.Int64
 	// EmptyTrace is when the trace contains no spans
-	EmptyTrace int64
+	EmptyTrace atomic.Int64
 	// TraceIDZero is when any spans in a trace have TraceId=0
-	TraceIDZero int64
+	TraceIDZero atomic.Int64
 	// SpanIDZero is when any span has SpanId=0
-	SpanIDZero int64
+	SpanIDZero atomic.Int64
 	// ForeignSpan is when a span in a trace has a TraceId that is different than the first span in the trace
-	ForeignSpan int64
+	ForeignSpan atomic.Int64
 	// Timeout is when a request times out.
-	Timeout int64
+	Timeout atomic.Int64
 	// EOF is when an unexpected EOF is encountered, this can happen because the client has aborted
 	// or because a bad payload (i.e. shorter than claimed in Content-Length) was sent.
-	EOF int64
+	EOF atomic.Int64
+}
+
+func (s *TracesDropped) tagCounters() map[string]*atomic.Int64 {
+	return map[string]*atomic.Int64{
+		"payload_too_large": &s.PayloadTooLarge,
+		"decoding_error":    &s.DecodingError,
+		"empty_trace":       &s.EmptyTrace,
+		"trace_id_zero":     &s.TraceIDZero,
+		"span_id_zero":      &s.SpanIDZero,
+		"foreign_span":      &s.ForeignSpan,
+		"timeout":           &s.Timeout,
+		"unexpected_eof":    &s.EOF,
+	}
 }
 
 // tagValues converts TracesDropped into a map representation with keys matching standardized names for all reasons
 func (s *TracesDropped) tagValues() map[string]int64 {
-	return map[string]int64{
-		"payload_too_large": atomic.LoadInt64(&s.PayloadTooLarge),
-		"decoding_error":    atomic.LoadInt64(&s.DecodingError),
-		"empty_trace":       atomic.LoadInt64(&s.EmptyTrace),
-		"trace_id_zero":     atomic.LoadInt64(&s.TraceIDZero),
-		"span_id_zero":      atomic.LoadInt64(&s.SpanIDZero),
-		"foreign_span":      atomic.LoadInt64(&s.ForeignSpan),
-		"timeout":           atomic.LoadInt64(&s.Timeout),
-		"unexpected_eof":    atomic.LoadInt64(&s.EOF),
+	v := make(map[string]int64)
+	for tag, counter := range s.tagCounters() {
+		v[tag] = counter.Load()
 	}
+	return v
 }
 
 func (s *TracesDropped) String() string {
@@ -238,48 +245,59 @@ func (s *TracesDropped) String() string {
 
 // SpansMalformed contains counts for reasons malformed spans have been accepted after applying automatic fixes
 type SpansMalformed struct {
+	// all atomic values are included as values in this struct, to simplify umarshaling and
+	// initialization of the type.  The atomic values _must_ occur first in the struct.
+
 	// DuplicateSpanID is when one or more spans in a trace have the same SpanId
-	DuplicateSpanID int64
+	DuplicateSpanID atomic.Int64
 	// ServiceEmpty is when a span has an empty Service field
-	ServiceEmpty int64
+	ServiceEmpty atomic.Int64
 	// ServiceTruncate is when a span's Service is truncated for exceeding the max length
-	ServiceTruncate int64
+	ServiceTruncate atomic.Int64
 	// ServiceInvalid is when a span's Service doesn't conform to Datadog tag naming standards
-	ServiceInvalid int64
+	ServiceInvalid atomic.Int64
 	// SpanNameEmpty is when a span's Name is empty
-	SpanNameEmpty int64
+	SpanNameEmpty atomic.Int64
 	// SpanNameTruncate is when a span's Name is truncated for exceeding the max length
-	SpanNameTruncate int64
+	SpanNameTruncate atomic.Int64
 	// SpanNameInvalid is when a span's Name doesn't conform to Datadog tag naming standards
-	SpanNameInvalid int64
+	SpanNameInvalid atomic.Int64
 	// ResourceEmpty is when a span's Resource is empty
-	ResourceEmpty int64
+	ResourceEmpty atomic.Int64
 	// TypeTruncate is when a span's Type is truncated for exceeding the max length
-	TypeTruncate int64
+	TypeTruncate atomic.Int64
 	// InvalidStartDate is when a span's Start date is invalid
-	InvalidStartDate int64
+	InvalidStartDate atomic.Int64
 	// InvalidDuration is when a span's Duration is invalid
-	InvalidDuration int64
+	InvalidDuration atomic.Int64
 	// InvalidHTTPStatusCode is when a span's metadata contains an invalid http status code
-	InvalidHTTPStatusCode int64
+	InvalidHTTPStatusCode atomic.Int64
+}
+
+func (s *SpansMalformed) tagCounters() map[string]*atomic.Int64 {
+	return map[string]*atomic.Int64{
+		"duplicate_span_id":        &s.DuplicateSpanID,
+		"service_empty":            &s.ServiceEmpty,
+		"service_truncate":         &s.ServiceTruncate,
+		"service_invalid":          &s.ServiceInvalid,
+		"span_name_empty":          &s.SpanNameEmpty,
+		"span_name_truncate":       &s.SpanNameTruncate,
+		"span_name_invalid":        &s.SpanNameInvalid,
+		"resource_empty":           &s.ResourceEmpty,
+		"type_truncate":            &s.TypeTruncate,
+		"invalid_start_date":       &s.InvalidStartDate,
+		"invalid_duration":         &s.InvalidDuration,
+		"invalid_http_status_code": &s.InvalidHTTPStatusCode,
+	}
 }
 
 // tagValues converts SpansMalformed into a map representation with keys matching standardized names for all reasons
 func (s *SpansMalformed) tagValues() map[string]int64 {
-	return map[string]int64{
-		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
-		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
-		"service_truncate":         atomic.LoadInt64(&s.ServiceTruncate),
-		"service_invalid":          atomic.LoadInt64(&s.ServiceInvalid),
-		"span_name_empty":          atomic.LoadInt64(&s.SpanNameEmpty),
-		"span_name_truncate":       atomic.LoadInt64(&s.SpanNameTruncate),
-		"span_name_invalid":        atomic.LoadInt64(&s.SpanNameInvalid),
-		"resource_empty":           atomic.LoadInt64(&s.ResourceEmpty),
-		"type_truncate":            atomic.LoadInt64(&s.TypeTruncate),
-		"invalid_start_date":       atomic.LoadInt64(&s.InvalidStartDate),
-		"invalid_duration":         atomic.LoadInt64(&s.InvalidDuration),
-		"invalid_http_status_code": atomic.LoadInt64(&s.InvalidHTTPStatusCode),
+	v := make(map[string]int64)
+	for reason, counter := range s.tagCounters() {
+		v[reason] = counter.Load()
 	}
+	return v
 }
 
 func (s *SpansMalformed) String() string {
@@ -294,35 +312,43 @@ const maxAbsPriority = 10
 type samplingPriorityStats struct {
 	// counts holds counters for each priority in position maxAbsPriorityValue + priority.
 	// Priority values are expected to be in the range [-10, 10].
-	counts [maxAbsPriority*2 + 1]int64
+	counts [maxAbsPriority*2 + 1]atomic.Int64
 }
 
 // CountSamplingPriority increments the counter of observed traces with the given sampling priority by 1
 func (s *samplingPriorityStats) CountSamplingPriority(p sampler.SamplingPriority) {
 	if p >= (-1*maxAbsPriority) && p <= maxAbsPriority {
-		atomic.AddInt64(&s.counts[maxAbsPriority+p], 1)
+		s.counts[maxAbsPriority+p].Inc()
 	}
 }
 
 // reset sets stats to 0
 func (s *samplingPriorityStats) reset() {
 	for i := range s.counts {
-		atomic.StoreInt64(&s.counts[i], 0)
+		s.counts[i].Store(0)
 	}
 }
 
 // update absorbs recent stats on top of existing ones.
 func (s *samplingPriorityStats) update(recent *samplingPriorityStats) {
 	for i := range s.counts {
-		atomic.AddInt64(&s.counts[i], atomic.LoadInt64(&recent.counts[i]))
+		s.counts[i].Add(recent.counts[i].Load())
 	}
+}
+
+func (s *samplingPriorityStats) tagCounters() map[string]*atomic.Int64 {
+	stats := make(map[string]*atomic.Int64)
+	for i := range s.counts {
+		stats[strconv.Itoa(i-maxAbsPriority)] = &s.counts[i]
+	}
+	return stats
 }
 
 // TagValues returns a map with the number of traces that have been observed for each priority tag
 func (s *samplingPriorityStats) TagValues() map[string]int64 {
 	stats := make(map[string]int64)
 	for i := range s.counts {
-		count := atomic.LoadInt64(&s.counts[i])
+		count := s.counts[i].Load()
 		if count > 0 {
 			stats[strconv.Itoa(i-maxAbsPriority)] = count
 		}
@@ -332,117 +358,93 @@ func (s *samplingPriorityStats) TagValues() map[string]int64 {
 
 // Stats holds the metrics that will be reported every 10s by the agent.
 // Its fields require to be accessed in an atomic way.
+//
+// Use NewStats to initialise.
 type Stats struct {
+	// all atomic values are included as values in this struct, to simplify umarshaling and
+	// initialization of the type.  The atomic values _must_ occur first in the struct.
+
 	// TracesReceived is the total number of traces received, including the dropped ones.
-	TracesReceived int64
+	TracesReceived atomic.Int64
+	// TracesFiltered is the number of traces filtered.
+	TracesFiltered atomic.Int64
+	// TracesPriorityNone is the number of traces with no sampling priority.
+	TracesPriorityNone atomic.Int64
+	// TracesPerPriority holds counters for each priority in position MaxAbsPriorityValue + priority.
+	TracesPerSamplingPriority samplingPriorityStats
+	// ClientDroppedP0Traces number of P0 traces dropped by client.
+	ClientDroppedP0Traces atomic.Int64
+	// ClientDroppedP0Spans number of P0 spans dropped by client.
+	ClientDroppedP0Spans atomic.Int64
+	// TracesBytes is the amount of data received on the traces endpoint (raw data, encoded, compressed).
+	TracesBytes atomic.Int64
+	// SpansReceived is the total number of spans received, including the dropped ones.
+	SpansReceived atomic.Int64
+	// SpansDropped is the number of spans dropped.
+	SpansDropped atomic.Int64
+	// SpansFiltered is the number of spans filtered.
+	SpansFiltered atomic.Int64
+	// EventsExtracted is the total number of APM events extracted from traces.
+	EventsExtracted atomic.Int64
+	// EventsSampled is the total number of APM events sampled.
+	EventsSampled atomic.Int64
+	// PayloadAccepted counts the number of payloads that have been accepted by the HTTP handler.
+	PayloadAccepted atomic.Int64
+	// PayloadRefused counts the number of payloads that have been rejected by the rate limiter.
+	PayloadRefused atomic.Int64
 	// TracesDropped contains stats about the count of dropped traces by reason
 	TracesDropped *TracesDropped
 	// SpansMalformed contains stats about the count of malformed traces by reason
 	SpansMalformed *SpansMalformed
-	// TracesFiltered is the number of traces filtered.
-	TracesFiltered int64
-	// TracesPriorityNone is the number of traces with no sampling priority.
-	TracesPriorityNone int64
-	// TracesPerPriority holds counters for each priority in position MaxAbsPriorityValue + priority.
-	TracesPerSamplingPriority samplingPriorityStats
-	// ClientDroppedP0Traces number of P0 traces dropped by client.
-	ClientDroppedP0Traces int64
-	// ClientDroppedP0Spans number of P0 spans dropped by client.
-	ClientDroppedP0Spans int64
-	// TracesBytes is the amount of data received on the traces endpoint (raw data, encoded, compressed).
-	TracesBytes int64
-	// SpansReceived is the total number of spans received, including the dropped ones.
-	SpansReceived int64
-	// SpansDropped is the number of spans dropped.
-	SpansDropped int64
-	// SpansFiltered is the number of spans filtered.
-	SpansFiltered int64
-	// EventsExtracted is the total number of APM events extracted from traces.
-	EventsExtracted int64
-	// EventsSampled is the total number of APM events sampled.
-	EventsSampled int64
-	// PayloadAccepted counts the number of payloads that have been accepted by the HTTP handler.
-	PayloadAccepted int64
-	// PayloadRefused counts the number of payloads that have been rejected by the rate limiter.
-	PayloadRefused int64
+}
+
+// NewStats returns new, ready to use stats.
+func NewStats() Stats {
+	return Stats{
+		TracesDropped:  new(TracesDropped),
+		SpansMalformed: new(SpansMalformed),
+	}
 }
 
 func (s *Stats) update(recent *Stats) {
-	atomic.AddInt64(&s.TracesReceived, atomic.LoadInt64(&recent.TracesReceived))
-	atomic.AddInt64(&s.TracesDropped.DecodingError, atomic.LoadInt64(&recent.TracesDropped.DecodingError))
-	atomic.AddInt64(&s.TracesDropped.EmptyTrace, atomic.LoadInt64(&recent.TracesDropped.EmptyTrace))
-	atomic.AddInt64(&s.TracesDropped.TraceIDZero, atomic.LoadInt64(&recent.TracesDropped.TraceIDZero))
-	atomic.AddInt64(&s.TracesDropped.SpanIDZero, atomic.LoadInt64(&recent.TracesDropped.SpanIDZero))
-	atomic.AddInt64(&s.TracesDropped.ForeignSpan, atomic.LoadInt64(&recent.TracesDropped.ForeignSpan))
-	atomic.AddInt64(&s.TracesDropped.PayloadTooLarge, atomic.LoadInt64(&recent.TracesDropped.PayloadTooLarge))
-	atomic.AddInt64(&s.TracesDropped.Timeout, atomic.LoadInt64(&recent.TracesDropped.Timeout))
-	atomic.AddInt64(&s.TracesDropped.EOF, atomic.LoadInt64(&recent.TracesDropped.EOF))
-	atomic.AddInt64(&s.SpansMalformed.DuplicateSpanID, atomic.LoadInt64(&recent.SpansMalformed.DuplicateSpanID))
-	atomic.AddInt64(&s.SpansMalformed.ServiceEmpty, atomic.LoadInt64(&recent.SpansMalformed.ServiceEmpty))
-	atomic.AddInt64(&s.SpansMalformed.ServiceTruncate, atomic.LoadInt64(&recent.SpansMalformed.ServiceTruncate))
-	atomic.AddInt64(&s.SpansMalformed.ServiceInvalid, atomic.LoadInt64(&recent.SpansMalformed.ServiceInvalid))
-	atomic.AddInt64(&s.SpansMalformed.SpanNameEmpty, atomic.LoadInt64(&recent.SpansMalformed.SpanNameEmpty))
-	atomic.AddInt64(&s.SpansMalformed.SpanNameTruncate, atomic.LoadInt64(&recent.SpansMalformed.SpanNameTruncate))
-	atomic.AddInt64(&s.SpansMalformed.SpanNameInvalid, atomic.LoadInt64(&recent.SpansMalformed.SpanNameInvalid))
-	atomic.AddInt64(&s.SpansMalformed.ResourceEmpty, atomic.LoadInt64(&recent.SpansMalformed.ResourceEmpty))
-	atomic.AddInt64(&s.SpansMalformed.TypeTruncate, atomic.LoadInt64(&recent.SpansMalformed.TypeTruncate))
-	atomic.AddInt64(&s.SpansMalformed.InvalidStartDate, atomic.LoadInt64(&recent.SpansMalformed.InvalidStartDate))
-	atomic.AddInt64(&s.SpansMalformed.InvalidDuration, atomic.LoadInt64(&recent.SpansMalformed.InvalidDuration))
-	atomic.AddInt64(&s.SpansMalformed.InvalidHTTPStatusCode, atomic.LoadInt64(&recent.SpansMalformed.InvalidHTTPStatusCode))
-	atomic.AddInt64(&s.TracesFiltered, atomic.LoadInt64(&recent.TracesFiltered))
-	atomic.AddInt64(&s.TracesPriorityNone, atomic.LoadInt64(&recent.TracesPriorityNone))
-	atomic.AddInt64(&s.ClientDroppedP0Traces, atomic.LoadInt64(&recent.ClientDroppedP0Traces))
-	atomic.AddInt64(&s.ClientDroppedP0Spans, atomic.LoadInt64(&recent.ClientDroppedP0Spans))
-	atomic.AddInt64(&s.TracesBytes, atomic.LoadInt64(&recent.TracesBytes))
-	atomic.AddInt64(&s.SpansReceived, atomic.LoadInt64(&recent.SpansReceived))
-	atomic.AddInt64(&s.SpansDropped, atomic.LoadInt64(&recent.SpansDropped))
-	atomic.AddInt64(&s.SpansFiltered, atomic.LoadInt64(&recent.SpansFiltered))
-	atomic.AddInt64(&s.EventsExtracted, atomic.LoadInt64(&recent.EventsExtracted))
-	atomic.AddInt64(&s.EventsSampled, atomic.LoadInt64(&recent.EventsSampled))
-	atomic.AddInt64(&s.PayloadAccepted, atomic.LoadInt64(&recent.PayloadAccepted))
-	atomic.AddInt64(&s.PayloadRefused, atomic.LoadInt64(&recent.PayloadRefused))
+	s.TracesReceived.Add(recent.TracesReceived.Load())
+	s.TracesDropped.DecodingError.Add(recent.TracesDropped.DecodingError.Load())
+	s.TracesDropped.EmptyTrace.Add(recent.TracesDropped.EmptyTrace.Load())
+	s.TracesDropped.TraceIDZero.Add(recent.TracesDropped.TraceIDZero.Load())
+	s.TracesDropped.SpanIDZero.Add(recent.TracesDropped.SpanIDZero.Load())
+	s.TracesDropped.ForeignSpan.Add(recent.TracesDropped.ForeignSpan.Load())
+	s.TracesDropped.PayloadTooLarge.Add(recent.TracesDropped.PayloadTooLarge.Load())
+	s.TracesDropped.Timeout.Add(recent.TracesDropped.Timeout.Load())
+	s.TracesDropped.EOF.Add(recent.TracesDropped.EOF.Load())
+	s.SpansMalformed.DuplicateSpanID.Add(recent.SpansMalformed.DuplicateSpanID.Load())
+	s.SpansMalformed.ServiceEmpty.Add(recent.SpansMalformed.ServiceEmpty.Load())
+	s.SpansMalformed.ServiceTruncate.Add(recent.SpansMalformed.ServiceTruncate.Load())
+	s.SpansMalformed.ServiceInvalid.Add(recent.SpansMalformed.ServiceInvalid.Load())
+	s.SpansMalformed.SpanNameEmpty.Add(recent.SpansMalformed.SpanNameEmpty.Load())
+	s.SpansMalformed.SpanNameTruncate.Add(recent.SpansMalformed.SpanNameTruncate.Load())
+	s.SpansMalformed.SpanNameInvalid.Add(recent.SpansMalformed.SpanNameInvalid.Load())
+	s.SpansMalformed.ResourceEmpty.Add(recent.SpansMalformed.ResourceEmpty.Load())
+	s.SpansMalformed.TypeTruncate.Add(recent.SpansMalformed.TypeTruncate.Load())
+	s.SpansMalformed.InvalidStartDate.Add(recent.SpansMalformed.InvalidStartDate.Load())
+	s.SpansMalformed.InvalidDuration.Add(recent.SpansMalformed.InvalidDuration.Load())
+	s.SpansMalformed.InvalidHTTPStatusCode.Add(recent.SpansMalformed.InvalidHTTPStatusCode.Load())
+	s.TracesFiltered.Add(recent.TracesFiltered.Load())
+	s.TracesPriorityNone.Add(recent.TracesPriorityNone.Load())
+	s.ClientDroppedP0Traces.Add(recent.ClientDroppedP0Traces.Load())
+	s.ClientDroppedP0Spans.Add(recent.ClientDroppedP0Spans.Load())
+	s.TracesBytes.Add(recent.TracesBytes.Load())
+	s.SpansReceived.Add(recent.SpansReceived.Load())
+	s.SpansDropped.Add(recent.SpansDropped.Load())
+	s.SpansFiltered.Add(recent.SpansFiltered.Load())
+	s.EventsExtracted.Add(recent.EventsExtracted.Load())
+	s.EventsSampled.Add(recent.EventsSampled.Load())
+	s.PayloadAccepted.Add(recent.PayloadAccepted.Load())
+	s.PayloadRefused.Add(recent.PayloadRefused.Load())
 	s.TracesPerSamplingPriority.update(&recent.TracesPerSamplingPriority)
 }
 
-func (s *Stats) reset() {
-	atomic.StoreInt64(&s.TracesReceived, 0)
-	atomic.StoreInt64(&s.TracesDropped.PayloadTooLarge, 0)
-	atomic.StoreInt64(&s.TracesDropped.DecodingError, 0)
-	atomic.StoreInt64(&s.TracesDropped.EmptyTrace, 0)
-	atomic.StoreInt64(&s.TracesDropped.TraceIDZero, 0)
-	atomic.StoreInt64(&s.TracesDropped.SpanIDZero, 0)
-	atomic.StoreInt64(&s.TracesDropped.ForeignSpan, 0)
-	atomic.StoreInt64(&s.TracesDropped.Timeout, 0)
-	atomic.StoreInt64(&s.TracesDropped.EOF, 0)
-	atomic.StoreInt64(&s.SpansMalformed.DuplicateSpanID, 0)
-	atomic.StoreInt64(&s.SpansMalformed.ServiceEmpty, 0)
-	atomic.StoreInt64(&s.SpansMalformed.ServiceTruncate, 0)
-	atomic.StoreInt64(&s.SpansMalformed.ServiceInvalid, 0)
-	atomic.StoreInt64(&s.SpansMalformed.SpanNameEmpty, 0)
-	atomic.StoreInt64(&s.SpansMalformed.SpanNameTruncate, 0)
-	atomic.StoreInt64(&s.SpansMalformed.SpanNameInvalid, 0)
-	atomic.StoreInt64(&s.SpansMalformed.ResourceEmpty, 0)
-	atomic.StoreInt64(&s.SpansMalformed.TypeTruncate, 0)
-	atomic.StoreInt64(&s.SpansMalformed.InvalidStartDate, 0)
-	atomic.StoreInt64(&s.SpansMalformed.InvalidDuration, 0)
-	atomic.StoreInt64(&s.SpansMalformed.InvalidHTTPStatusCode, 0)
-	atomic.StoreInt64(&s.TracesFiltered, 0)
-	atomic.StoreInt64(&s.TracesPriorityNone, 0)
-	atomic.StoreInt64(&s.ClientDroppedP0Traces, 0)
-	atomic.StoreInt64(&s.ClientDroppedP0Spans, 0)
-	atomic.StoreInt64(&s.TracesBytes, 0)
-	atomic.StoreInt64(&s.SpansReceived, 0)
-	atomic.StoreInt64(&s.SpansDropped, 0)
-	atomic.StoreInt64(&s.SpansFiltered, 0)
-	atomic.StoreInt64(&s.EventsExtracted, 0)
-	atomic.StoreInt64(&s.EventsSampled, 0)
-	atomic.StoreInt64(&s.PayloadAccepted, 0)
-	atomic.StoreInt64(&s.PayloadRefused, 0)
-	s.TracesPerSamplingPriority.reset()
-}
-
 func (s *Stats) isEmpty() bool {
-	tracesBytes := atomic.LoadInt64(&s.TracesBytes)
+	tracesBytes := s.TracesBytes.Load()
 
 	return tracesBytes == 0
 }
@@ -450,12 +452,12 @@ func (s *Stats) isEmpty() bool {
 // infoString returns a string representation of the Stats struct containing standard operational stats (not problems)
 func (s *Stats) infoString() string {
 	// Atomically load the stats
-	tracesReceived := atomic.LoadInt64(&s.TracesReceived)
-	tracesFiltered := atomic.LoadInt64(&s.TracesFiltered)
+	tracesReceived := s.TracesReceived.Load()
+	tracesFiltered := s.TracesFiltered.Load()
 	// Omitting priority information, use expvar or metrics for debugging purpose
-	tracesBytes := atomic.LoadInt64(&s.TracesBytes)
-	eventsExtracted := atomic.LoadInt64(&s.EventsExtracted)
-	eventsSampled := atomic.LoadInt64(&s.EventsSampled)
+	tracesBytes := s.TracesBytes.Load()
+	eventsExtracted := s.EventsExtracted.Load()
+	eventsSampled := s.EventsSampled.Load()
 
 	return fmt.Sprintf("traces received: %d, traces filtered: %d, "+
 		"traces amount: %d bytes, events extracted: %d, events sampled: %d",

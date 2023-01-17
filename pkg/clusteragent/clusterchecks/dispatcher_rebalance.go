@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package clusterchecks
@@ -22,27 +23,18 @@ import (
 // the 0.9 value is tentative and could be changed
 const tolerationMargin float64 = 0.9
 
+// Weight holds a node name and the corresponding busyness score
 type Weight struct {
 	nodeName string
 	busyness int
 }
 
+// Weights is an array of node weights
 type Weights []Weight
 
 func (w Weights) Len() int           { return len(w) }
 func (w Weights) Less(i, j int) bool { return w[i].busyness > w[j].busyness }
 func (w Weights) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
-
-type RebalancingDecision struct {
-	CheckID     string
-	CheckWeight int
-
-	SourceNodeName string
-	SourceDiff     int
-
-	DestNodeName string
-	DestDiff     int
-}
 
 func (d *dispatcher) calculateAvg() (int, error) {
 	busyness := 0

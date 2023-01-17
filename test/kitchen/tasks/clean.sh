@@ -9,27 +9,32 @@ set -euxo pipefail
 # These should not be printed out
 set +x
 if [ -z ${AZURE_CLIENT_ID+x} ]; then
-  export AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text)
+  AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_id --with-decryption --query "Parameter.Value" --out text)
+  export AZURE_CLIENT_ID
 fi
 if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-  export AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text)
+  AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_secret --with-decryption --query "Parameter.Value" --out text)
+  export AZURE_CLIENT_SECRET
 fi
 if [ -z ${AZURE_TENANT_ID+x} ]; then
-  export AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text)
+  AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_tenant_id --with-decryption --query "Parameter.Value" --out text)
+  export AZURE_TENANT_ID
 fi
 if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-  export AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
+  AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_subscription_id --with-decryption --query "Parameter.Value" --out text)
+  export AZURE_SUBSCRIPTION_ID
 fi
 if [ -z ${DD_PIPELINE_ID+x} ]; then
-  export DD_PIPELINE_ID='none'
+  DD_PIPELINE_ID='none'
+  export DD_PIPELINE_ID
 fi
 
-if [ -z ${AZURE_SUBSCRIPTION_ID+x} -o -z ${AZURE_TENANT_ID+x} -o -z ${AZURE_CLIENT_SECRET+x} -o -z ${AZURE_CLIENT_ID+x} ]; then
+if [ -z ${AZURE_SUBSCRIPTION_ID+x} ] || [ -z ${AZURE_TENANT_ID+x} ] || [ -z ${AZURE_CLIENT_SECRET+x} ] || [ -z ${AZURE_CLIENT_ID+x} ]; then
   printf "You are missing some of the necessary credentials. Exiting."
   exit 1
 fi
 
-az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID > /dev/null
+az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID" > /dev/null
 set -x
 
 if [ ${CLEAN_ALL+x} ]; then
@@ -46,9 +51,9 @@ fi
 for group in $groups; do
   echo "az group delete -n $group -y"
   if [ ${CLEAN_ASYNC+x} ]; then
-    ( az group delete -n $group -y || true ) &
+    ( az group delete -n "$group" -y || true ) &
   else
-    ( az group delete -n $group -y || true )
+    ( az group delete -n "$group" -y || true )
   fi
   printf "\n\n"
 done
@@ -62,8 +67,8 @@ fi
 for vm in $vms; do
   echo "az vm delete --ids $vm -y"
   if [ ${CLEAN_ASYNC+x} ]; then
-    (az vm delete --ids $vm -y || true) &
+    (az vm delete --ids "$vm" -y || true) &
   else
-    (az vm delete --ids $vm -y || true)
+    (az vm delete --ids "$vm" -y || true)
   fi
 done

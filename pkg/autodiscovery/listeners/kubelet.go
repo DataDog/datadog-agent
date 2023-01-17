@@ -9,25 +9,15 @@
 package listeners
 
 import (
-	"encoding/json"
-	"fmt"
 	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-)
-
-const (
-	newPodAnnotationFormat              = "ad.datadoghq.com/%s.instances"
-	legacyPodAnnotationFormat           = "service-discovery.datadoghq.com/%s.instances"
-	newPodAnnotationCheckNamesFormat    = "ad.datadoghq.com/%s.check_names"
-	legacyPodAnnotationCheckNamesFormat = "service-discovery.datadoghq.com/%s.check_names"
 )
 
 func init() {
@@ -41,13 +31,14 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener() (ServiceListener, error) {
+func NewKubeletListener(Config) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		[]workloadmeta.Source{workloadmeta.SourceKubelet},
+		workloadmeta.SourceNodeOrchestrator,
+		workloadmeta.EventTypeAll,
 	)
 
 	var err error
@@ -59,10 +50,7 @@ func NewKubeletListener() (ServiceListener, error) {
 	return l, nil
 }
 
-func (l *KubeletListener) processPod(
-	entity workloadmeta.Entity,
-	creationTime integration.CreationTime,
-) {
+func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
 	pod := entity.(*workloadmeta.KubernetesPod)
 
 	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
@@ -73,18 +61,17 @@ func (l *KubeletListener) processPod(
 			continue
 		}
 
-		l.createContainerService(pod, &podContainer, container, creationTime)
+		l.createContainerService(pod, &podContainer, container)
 
 		containers = append(containers, container)
 	}
 
-	l.createPodService(pod, containers, creationTime)
+	l.createPodService(pod, containers)
 }
 
 func (l *KubeletListener) createPodService(
 	pod *workloadmeta.KubernetesPod,
 	containers []*workloadmeta.Container,
-	creationTime integration.CreationTime,
 ) {
 	var ports []ContainerPort
 	for _, container := range containers {
@@ -106,7 +93,6 @@ func (l *KubeletListener) createPodService(
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
-		creationTime:  creationTime,
 		ready:         true,
 	}
 
@@ -118,7 +104,6 @@ func (l *KubeletListener) createContainerService(
 	pod *workloadmeta.KubernetesPod,
 	podContainer *workloadmeta.OrchestratorContainer,
 	container *workloadmeta.Container,
-	creationTime integration.CreationTime,
 ) {
 	// we need to take the container name and image from the pod spec, as
 	// the information from the container in the workloadmeta store might
@@ -137,7 +122,11 @@ func (l *KubeletListener) createContainerService(
 		return
 	}
 
-	if !container.State.FinishedAt.IsZero() {
+	// Note: Docker containers can have a "FinishedAt" time set even when
+	// they're running. That happens when they've been stopped and then
+	// restarted. "FinishedAt" corresponds to the last time the container was
+	// stopped.
+	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Now().Sub(finishedAt) > excludeAge {
@@ -160,10 +149,9 @@ func (l *KubeletListener) createContainerService(
 
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
 	svc := &service{
-		entity:       container,
-		creationTime: creationTime,
-		ready:        pod.Ready,
-		ports:        ports,
+		entity: container,
+		ready:  pod.Ready,
+		ports:  ports,
 		extraConfig: map[string]string{
 			"pod_name":  pod.Name,
 			"namespace": pod.Namespace,
@@ -188,67 +176,24 @@ func (l *KubeletListener) createContainerService(
 	}
 
 	adIdentifier := containerName
-
-	// Check for custom AD identifiers
-	if customADID, found := utils.GetCustomCheckID(pod.Annotations, containerName); found {
+	if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, containerName); found {
 		adIdentifier = customADID
 		svc.adIdentifiers = append(svc.adIdentifiers, customADID)
 	}
 
-	// Add container uid as ID
-	svc.adIdentifiers = append(svc.adIdentifiers, entity)
-
-	// Cache check names if the pod template is annotated
-	if podHasADTemplate(pod.Annotations, adIdentifier) {
-		var err error
-		svc.checkNames, err = getCheckNamesFromAnnotations(pod.Annotations, adIdentifier)
-		if err != nil {
-			log.Error(err.Error())
-		}
-	}
-
-	svc.adIdentifiers = append(svc.adIdentifiers, containerImg.RawName)
+	svc.adIdentifiers = append(svc.adIdentifiers, entity, containerImg.RawName)
 
 	if len(containerImg.ShortName) > 0 && containerImg.ShortName != containerImg.RawName {
 		svc.adIdentifiers = append(svc.adIdentifiers, containerImg.ShortName)
 	}
 
+	var err error
+	svc.checkNames, err = utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
+	if err != nil {
+		log.Error(err.Error())
+	}
+
 	svcID := buildSvcID(container.GetID())
 	podSvcID := buildSvcID(pod.GetID())
 	l.AddService(svcID, svc, podSvcID)
-}
-
-// podHasADTemplate looks in pod annotations and looks for annotations containing an
-// AD template. It does not try to validate it, just having the `instance` fields is
-// OK to return true.
-func podHasADTemplate(annotations map[string]string, containerName string) bool {
-	if _, found := annotations[fmt.Sprintf(newPodAnnotationFormat, containerName)]; found {
-		return true
-	}
-	if _, found := annotations[fmt.Sprintf(legacyPodAnnotationFormat, containerName)]; found {
-		return true
-	}
-	return false
-}
-
-// getCheckNamesFromAnnotations unmarshals the json string of check names
-// defined in pod annotations and returns a slice of check names
-func getCheckNamesFromAnnotations(annotations map[string]string, containerName string) ([]string, error) {
-	if checkNamesJSON, found := annotations[fmt.Sprintf(newPodAnnotationCheckNamesFormat, containerName)]; found {
-		checkNames := []string{}
-		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %v", err)
-		}
-		return checkNames, nil
-	}
-	if checkNamesJSON, found := annotations[fmt.Sprintf(legacyPodAnnotationCheckNamesFormat, containerName)]; found {
-		checkNames := []string{}
-		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %v", err)
-		}
-		return checkNames, nil
-	}
-	return nil, nil
 }

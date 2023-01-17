@@ -13,12 +13,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func newTestSpan() *pb.Span {
@@ -79,7 +81,7 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	s.Service = ""
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, traceutil.DefaultServiceName, s.Service)
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeEmptyServiceWithLang(t *testing.T) {
@@ -89,7 +91,7 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 	ts.Lang = "java"
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Service, fmt.Sprintf("unnamed-%s-service", ts.Lang))
-	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: 1})
+	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)})
 	tsExpected.Lang = ts.Lang
 	assert.Equal(t, tsExpected, ts)
 }
@@ -100,7 +102,7 @@ func TestNormalizeLongService(t *testing.T) {
 	s.Service = strings.Repeat("CAMEMBERT", 100)
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Service, s.Service[:traceutil.MaxServiceLen])
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceTruncate: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceTruncate: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeNamePassThru(t *testing.T) {
@@ -118,7 +120,7 @@ func TestNormalizeEmptyName(t *testing.T) {
 	s.Name = ""
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, traceutil.DefaultSpanName)
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeLongName(t *testing.T) {
@@ -127,7 +129,7 @@ func TestNormalizeLongName(t *testing.T) {
 	s.Name = strings.Repeat("CAMEMBERT", 100)
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, s.Name[:traceutil.MaxNameLen])
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameTruncate: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameTruncate: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeNameNoAlphanumeric(t *testing.T) {
@@ -136,7 +138,7 @@ func TestNormalizeNameNoAlphanumeric(t *testing.T) {
 	s.Name = "/"
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, traceutil.DefaultSpanName)
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameInvalid: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameInvalid: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeNameForMetrics(t *testing.T) {
@@ -170,7 +172,7 @@ func TestNormalizeEmptyResource(t *testing.T) {
 	s.Resource = ""
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Resource, s.Name)
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{ResourceEmpty: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{ResourceEmpty: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeTraceIDPassThru(t *testing.T) {
@@ -187,7 +189,7 @@ func TestNormalizeNoTraceID(t *testing.T) {
 	s := newTestSpan()
 	s.TraceID = 0
 	assert.Error(t, normalize(ts, s))
-	assert.Equal(t, tsDropped(&info.TracesDropped{TraceIDZero: 1}), ts)
+	assert.Equal(t, tsDropped(&info.TracesDropped{TraceIDZero: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeComponent2Name(t *testing.T) {
@@ -234,7 +236,7 @@ func TestNormalizeNoSpanID(t *testing.T) {
 	s := newTestSpan()
 	s.SpanID = 0
 	assert.Error(t, normalize(ts, s))
-	assert.Equal(t, tsDropped(&info.TracesDropped{SpanIDZero: 1}), ts)
+	assert.Equal(t, tsDropped(&info.TracesDropped{SpanIDZero: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeStart(t *testing.T) {
@@ -255,7 +257,7 @@ func TestNormalizeStart(t *testing.T) {
 		assert.NoError(t, normalize(ts, s))
 		assert.True(t, s.Start >= minStart)
 		assert.True(t, s.Start <= time.Now().UnixNano()-s.Duration)
-		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
+		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: *atomic.NewInt64(1)}), ts)
 	})
 
 	t.Run("too-small-with-large-duration", func(t *testing.T) {
@@ -265,7 +267,7 @@ func TestNormalizeStart(t *testing.T) {
 		s.Duration = time.Now().UnixNano() * 2
 		minStart := time.Now().UnixNano()
 		assert.NoError(t, normalize(ts, s))
-		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
+		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: *atomic.NewInt64(1)}), ts)
 		assert.True(t, s.Start >= minStart, "start should have been reset to current time")
 		assert.True(t, s.Start <= time.Now().UnixNano(), "start should have been reset to current time")
 	})
@@ -295,7 +297,7 @@ func TestNormalizeNegativeDuration(t *testing.T) {
 	s.Duration = -50
 	assert.NoError(t, normalize(ts, s))
 	assert.EqualValues(t, s.Duration, 0)
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeLargeDuration(t *testing.T) {
@@ -304,7 +306,7 @@ func TestNormalizeLargeDuration(t *testing.T) {
 	s.Duration = int64(math.MaxInt64)
 	assert.NoError(t, normalize(ts, s))
 	assert.EqualValues(t, s.Duration, 0)
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeErrorPassThru(t *testing.T) {
@@ -357,7 +359,7 @@ func TestNormalizeTypeTooLong(t *testing.T) {
 	s := newTestSpan()
 	s.Type = strings.Repeat("sql", 1000)
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{TypeTruncate: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{TypeTruncate: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeServiceTag(t *testing.T) {
@@ -397,7 +399,7 @@ func TestNormalizeTraceEmpty(t *testing.T) {
 	ts, trace := newTagStats(), pb.Trace{}
 	err := normalizeTrace(ts, trace)
 	assert.Error(t, err)
-	assert.Equal(t, tsDropped(&info.TracesDropped{EmptyTrace: 1}), ts)
+	assert.Equal(t, tsDropped(&info.TracesDropped{EmptyTrace: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
@@ -409,7 +411,7 @@ func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 	trace := pb.Trace{span1, span2}
 	err := normalizeTrace(ts, trace)
 	assert.Error(t, err)
-	assert.Equal(t, tsDropped(&info.TracesDropped{ForeignSpan: 1}), ts)
+	assert.Equal(t, tsDropped(&info.TracesDropped{ForeignSpan: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeTraceInvalidSpan(t *testing.T) {
@@ -420,7 +422,7 @@ func TestNormalizeTraceInvalidSpan(t *testing.T) {
 	trace := pb.Trace{span1, span2}
 	err := normalizeTrace(ts, trace)
 	assert.NoError(t, err)
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
@@ -431,7 +433,7 @@ func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
 	trace := pb.Trace{span1, span2}
 	err := normalizeTrace(ts, trace)
 	assert.NoError(t, err)
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{DuplicateSpanID: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{DuplicateSpanID: *atomic.NewInt64(1)}), ts)
 }
 
 func TestNormalizeTrace(t *testing.T) {
@@ -491,6 +493,19 @@ func TestNormalizeChunkNotPopulatingSamplingPriority(t *testing.T) {
 	chunk.Priority = int32(sampler.PriorityAutoDrop)
 	normalizeChunk(chunk, root)
 	assert.EqualValues(sampler.PriorityAutoDrop, chunk.Priority)
+}
+
+func TestNormalizePopulatePriorityFromAnySpan(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Priority = int32(sampler.PriorityNone)
+	chunk.Spans = []*pb.Span{newTestSpan(), newTestSpan(), newTestSpan()}
+	chunk.Spans[0].Metrics = nil
+	chunk.Spans[2].Metrics = nil
+	traceutil.SetMetric(chunk.Spans[1], "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
+	normalizeChunk(chunk, root)
+	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
 }
 
 func BenchmarkNormalization(b *testing.B) {

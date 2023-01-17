@@ -2,7 +2,7 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
+set +x
 
 test "$1" || {
     echo "Must provide a ssh IP or DNS as \$1"
@@ -16,7 +16,7 @@ test "${COMMIT_ID}" || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}")
+SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=CI_* DD_API_KEY DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master} ARGO_WORKFLOW DATADOG_AGENT_SITE DATADOG_AGENT_API_KEY DATADOG_AGENT_APP_KEY")
 
 function _ssh() {
     ssh "${SSH_OPTS[@]}" -lcore "${MACHINE}" "$@"
@@ -52,7 +52,7 @@ _ssh git -C /home/core/datadog-agent checkout "${COMMIT_ID}"
 
 if [[ -n ${DOCKER_REGISTRY_URL+x} ]] && [[ -n ${DOCKER_REGISTRY_LOGIN+x} ]] && [[ -n ${DOCKER_REGISTRY_PWD+x} ]]; then
     oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
-    _ssh_logged \"sudo docker login --username \\\"${DOCKER_REGISTRY_LOGIN}\\\" --password \\\"${DOCKER_REGISTRY_PWD}\\\" \\\"${DOCKER_REGISTRY_URL}\\\"\"
+    _ssh_logged \"sudo docker login --username \\\""${DOCKER_REGISTRY_LOGIN}"\\\" --password \\\""${DOCKER_REGISTRY_PWD}"\\\" \\\""${DOCKER_REGISTRY_URL}"\\\"\"
     eval "$oldstate"
 else
     _ssh_logged \"sudo mkdir -p /root/.docker \&\& sudo touch /root/.docker/config.json\"
@@ -71,6 +71,8 @@ _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submi
 set +e
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
 EXIT_CODE=$?
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/24-argo-to-ci-setup.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/25-argo-to-ci.sh
 set -e
 export MACHINE
 ./04-send-dd-event.sh $EXIT_CODE

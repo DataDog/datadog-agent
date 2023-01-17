@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -29,9 +30,10 @@ func TestGetHostname(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias(ctx)
+	aliases, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
-	assert.Equal(t, expected, val)
+	require.Len(t, aliases, 1)
+	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/latest/meta-data/instance-id")
 }
 

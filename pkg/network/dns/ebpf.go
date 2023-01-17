@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package dns
@@ -5,13 +11,17 @@ package dns
 import (
 	"math"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/ebpf/manager"
-	"golang.org/x/sys/unix"
 )
+
+const funcName = "socket__dns_filter"
+const probeUID = "dns"
 
 type ebpfProgram struct {
 	*manager.Manager
@@ -27,7 +37,13 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
-			{Section: string(probes.SocketDnsFilter)},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.SocketDNSFilter),
+					EBPFFuncName: funcName,
+					UID:          probeUID,
+				},
+			},
 		},
 	}
 
@@ -49,6 +65,10 @@ func (e *ebpfProgram) Init() error {
 		})
 	}
 
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
 	return e.InitWithOptions(e.bytecode, manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -57,10 +77,13 @@ func (e *ebpfProgram) Init() error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probes.SocketDnsFilter),
+					EBPFSection:  string(probes.SocketDNSFilter),
+					EBPFFuncName: funcName,
+					UID:          probeUID,
 				},
 			},
 		},
-		ConstantEditors: constantEditors,
+		ConstantEditors:           constantEditors,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	})
 }

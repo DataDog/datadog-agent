@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
@@ -10,37 +11,39 @@ package module
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service/tuf"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
+	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/statsd"
+)
+
+const (
+	statsdPoolSize = 64
 )
 
 // Module represents the system-probe module for the runtime security agent
@@ -49,10 +52,9 @@ type Module struct {
 	wg               sync.WaitGroup
 	probe            *sprobe.Probe
 	config           *sconfig.Config
-	ruleSets         [2]*rules.RuleSet
-	currentRuleSet   uint64
-	reloading        uint64
-	statsdClient     *statsd.Client
+	currentRuleSet   *atomic.Value
+	reloading        *atomic.Bool
+	statsdClient     statsd.ClientInterface
 	apiServer        *APIServer
 	grpcServer       *grpc.Server
 	listener         net.Listener
@@ -60,11 +62,15 @@ type Module struct {
 	sigupChan        chan os.Signal
 	ctx              context.Context
 	cancelFnc        context.CancelFunc
-	cancelSubscriber context.CancelFunc
-	rulesLoaded      func(rs *rules.RuleSet)
+	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
 	policiesVersions []string
-
-	selfTester *SelfTester
+	policyProviders  []rules.PolicyProvider
+	policyLoader     *rules.PolicyLoader
+	policyOpts       rules.PolicyLoaderOpts
+	selfTester       *selftests.SelfTester
+	policyMonitor    *PolicyMonitor
+	sendStatsChan    chan chan bool
+	eventSender      EventSender
 }
 
 // Register the runtime security agent module
@@ -76,46 +82,17 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-func (m *Module) sanityChecks() error {
-	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
-		return err
-	}
-
-	version, err := skernel.NewKernelVersion()
-	if err != nil {
-		return err
-	}
-
-	if version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Confidentiality {
-		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
-	}
-
-	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
-
-	if m.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
-		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		m.config.ERPCDentryResolutionEnabled = false
-	}
-
-	return nil
-}
-
 // Init initializes the module
 func (m *Module) Init() error {
-	if err := m.sanityChecks(); err != nil {
-		return err
-	}
-
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
 	ln, err := net.Listen("unix", m.config.SocketPath)
 	if err != nil {
-		return errors.Wrap(err, "unable to register security runtime module")
+		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
 	if err := os.Chmod(m.config.SocketPath, 0700); err != nil {
-		return errors.Wrap(err, "unable to register security runtime module")
+		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
 
 	m.listener = ln
@@ -125,33 +102,44 @@ func (m *Module) Init() error {
 		defer m.wg.Done()
 
 		if err := m.grpcServer.Serve(ln); err != nil {
-			log.Error(err)
+			seclog.Errorf("error launching the grpc server: %v", err)
 		}
 	}()
 
 	// start api server
+	sapi.RegisterVTCodec()
 	m.apiServer.Start(m.ctx)
 
-	m.probe.SetEventHandler(m)
+	// monitor policies
+	if m.config.PolicyMonitorEnabled {
+		m.policyMonitor.Start(m.ctx)
+	}
+
+	m.probe.AddEventHandler(model.UnknownEventType, m)
+	m.probe.AddActivityDumpHandler(m)
+
+	// initialize extra event monitors
+	if m.config.EventMonitoring {
+		InitEventMonitors(m)
+	}
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
-	if err := m.probe.Init(m.statsdClient); err != nil {
-		return errors.Wrap(err, "failed to init probe")
+	if err := m.probe.Init(); err != nil {
+		return fmt.Errorf("failed to init probe: %w", err)
 	}
+
+	// policy loader
+	m.policyLoader = rules.NewPolicyLoader()
 
 	return nil
 }
 
 // Start the module
 func (m *Module) Start() error {
-	// start the manager and its probes / perf maps
-	if err := m.probe.Start(); err != nil {
-		return errors.Wrap(err, "failed to start probe")
-	}
-
-	if err := m.Reload(); err != nil {
-		return err
+	// setup the manager and its probes / perf maps
+	if err := m.probe.Setup(); err != nil {
+		return fmt.Errorf("failed to setup probe: %w", err)
 	}
 
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
@@ -160,8 +148,83 @@ func (m *Module) Start() error {
 		return err
 	}
 
+	if err := m.probe.Start(); err != nil {
+		return err
+	}
+
+	// runtime security is disabled but might be used by other component like process
+	if !m.config.IsRuntimeEnabled() {
+		if m.config.EventMonitoring {
+			// Currently select process related event type.
+			// TODO external monitors should be allowed to select the event types
+			return m.probe.SelectProbes([]eval.EventType{
+				model.ForkEventType.String(),
+				model.ExecEventType.String(),
+				model.ExitEventType.String(),
+			})
+		}
+		return nil
+	}
+
+	if m.config.SelfTestEnabled && m.selfTester != nil {
+		_ = m.RunSelfTest(true)
+	}
+
+	var policyProviders []rules.PolicyProvider
+
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		seclog.Errorf("failed to parse agent version: %v", err)
+	}
+
+	var macroFilters []rules.MacroFilter
+	var ruleFilters []rules.RuleFilter
+
+	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
+	if err != nil {
+		seclog.Errorf("failed to create agent version filter: %v", err)
+	} else {
+		macroFilters = append(macroFilters, agentVersionFilter)
+		ruleFilters = append(ruleFilters, agentVersionFilter)
+	}
+
+	kv, err := m.probe.GetKernelVersion()
+	if err != nil {
+		seclog.Errorf("failed to create rule filter model: %v", err)
+	}
+	ruleFilterModel := NewRuleFilterModel(kv)
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+	macroFilters = append(macroFilters, seclRuleFilter)
+	ruleFilters = append(ruleFilters, seclRuleFilter)
+
+	m.policyOpts = rules.PolicyLoaderOpts{
+		MacroFilters: macroFilters,
+		RuleFilters:  ruleFilters,
+	}
+
+	// directory policy provider
+	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir); err != nil {
+		seclog.Errorf("failed to load policies: %s", err)
+	} else {
+		policyProviders = append(policyProviders, provider)
+	}
+
+	// add remote config as config provider if enabled
+	if m.config.RemoteConfigurationEnabled {
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent", agentVersion)
+		if err != nil {
+			seclog.Errorf("will be unable to load remote policy: %s", err)
+		} else {
+			policyProviders = append(policyProviders, rcPolicyProvider)
+		}
+	}
+
+	if err := m.LoadPolicies(policyProviders, true); err != nil {
+		seclog.Errorf("failed to load policies: %s", err)
+	}
+
 	m.wg.Add(1)
-	go m.metricsSender()
+	go m.statsSender()
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
@@ -170,35 +233,25 @@ func (m *Module) Start() error {
 		defer m.wg.Done()
 
 		for range m.sigupChan {
-			log.Info("Reload configuration")
-
-			if err := m.Reload(); err != nil {
-				log.Errorf("failed to reload configuration: %s", err)
+			if err := m.ReloadPolicies(); err != nil {
+				seclog.Errorf("failed to reload policies: %s", err)
 			}
 		}
 	}()
 
-	if m.config.EnableRemoteConfig {
-		cancelSubscriber, err := service.NewGRPCSubscriber(pbgo.Product_RUNTIME_SECURITY, func(config *pbgo.ConfigResponse) error {
-			log.Infof("Fetched config version %d from remote config management", config.DirectoryTargets.Version)
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
 
-			for _, targetFile := range config.TargetFiles {
-				policyFile, err := os.Create(filepath.Join(m.config.PoliciesDir, filepath.Base(tuf.TrimHash(targetFile.Path))))
-				if err != nil {
-					return err
-				}
-
-				if _, err := policyFile.Write(targetFile.Raw); err != nil {
-					return err
-				}
+		for range m.policyLoader.NewPolicyReady() {
+			if err := m.ReloadPolicies(); err != nil {
+				seclog.Errorf("failed to reload policies: %s", err)
 			}
-
-			return m.Reload()
-		})
-		if err != nil {
-			return errors.Wrap(err, "failed to subscribe to remote config management")
 		}
-		m.cancelSubscriber = cancelSubscriber
+	}()
+
+	for _, provider := range m.policyProviders {
+		provider.Start()
 	}
 
 	return nil
@@ -206,7 +259,7 @@ func (m *Module) Start() error {
 
 func (m *Module) displayReport(report *sprobe.Report) {
 	content, _ := json.Marshal(report)
-	log.Debugf("Policy report: %s", content)
+	seclog.Debugf("Policy report: %s", content)
 }
 
 func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
@@ -222,10 +275,18 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
+	if m.config.NetworkEnabled {
+		if eventTypes, exists := categories[model.NetworkCategory]; exists {
+			for _, eventType := range eventTypes {
+				enabled[eventType] = true
+			}
+		}
+	}
+
 	if m.config.RuntimeEnabled {
 		// everything but FIM
 		for _, category := range model.GetAllCategories() {
-			if category == model.FIMCategory {
+			if category == model.FIMCategory || category == model.NetworkCategory {
 				continue
 			}
 
@@ -238,23 +299,6 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 	}
 
 	return enabled
-}
-
-func logMultiErrors(msg string, m *multierror.Error) {
-	var errorLevel bool
-	for _, err := range m.Errors {
-		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
-				errorLevel = true
-			}
-		}
-	}
-
-	if errorLevel {
-		log.Errorf(msg, m.Error())
-	} else {
-		log.Warnf(msg, m.Error())
-	}
 }
 
 func getPoliciesVersions(rs *rules.RuleSet) []string {
@@ -274,50 +318,70 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
-// Reload the rule set
-func (m *Module) Reload() error {
+// ReloadPolicies reloads the policies
+func (m *Module) ReloadPolicies() error {
+	seclog.Infof("reload policies")
+
+	return m.LoadPolicies(m.policyProviders, true)
+}
+
+func (m *Module) newRuleOpts() (opts rules.Opts) {
+	opts.
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(m.getEventTypeEnabled()).
+		WithReservedRuleIDs(events.AllCustomRuleIDs()).
+		WithLogger(seclog.DefaultLogger)
+	return
+}
+
+func (m *Module) newEvalOpts() (evalOpts eval.Opts) {
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithLegacyFields(model.SECLLegacyFields)
+	return evalOpts
+}
+
+func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*rules.RuleSet, *multierror.Error) {
+	evalOpts := m.newEvalOpts()
+	evalOpts.WithVariables(model.SECLVariables)
+
+	opts := m.newRuleOpts()
+	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+		"process": func() rules.VariableProvider {
+			return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+				return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
+			}, nil)
+		},
+	})
+
+	// approver ruleset
+	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
+
+	// load policies
+	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+
+	return approverRuleSet, loadApproversErrs
+}
+
+// LoadPolicies loads the policies
+func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
+	seclog.Infof("load policies")
+
 	m.Lock()
 	defer m.Unlock()
 
-	atomic.StoreUint64(&m.reloading, 1)
-	defer atomic.StoreUint64(&m.reloading, 0)
+	m.reloading.Store(true)
+	defer m.reloading.Store(false)
 
-	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	newRuleSetOpts := func() *rules.Opts {
-		return rules.NewOptsWithParams(
-			model.SECLConstants,
-			sprobe.SECLVariables,
-			sprobe.SupportedDiscarders,
-			m.getEventTypeEnabled(),
-			sprobe.AllCustomRuleIDs(),
-			model.SECLLegacyAttributes,
-			&seclog.PatternLogger{})
-	}
+	// load policies
+	m.policyLoader.SetProviders(policyProviders)
 
-	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
-
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
-
-	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
-	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
-
-	if loadErr.ErrorOrNil() != nil {
-		logMultiErrors("error while loading policies: %+v", loadErr)
-	} else if loadApproversErr.ErrorOrNil() != nil {
-		logMultiErrors("error while loading policies for Approvers: %+v", loadApproversErr)
-	}
-
-	monitor := m.probe.GetMonitor()
-	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErr)
-
-	if m.selfTester != nil {
-		if err := m.selfTester.CreateTargetFileIfNeeded(); err != nil {
-			log.Errorf("failed to create self-test target file: %+v", err)
-		}
-		m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
+	approverRuleSet, loadApproversErrs := m.getApproverRuleset(policyProviders)
+	// non fatal error, just log
+	if loadApproversErrs != nil {
+		logLoadingErrors("error while loading policies for approvers: %+v", loadApproversErrs)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
@@ -325,16 +389,40 @@ func (m *Module) Reload() error {
 		return err
 	}
 
-	m.policiesVersions = getPoliciesVersions(ruleSet)
+	opts := m.newRuleOpts()
+	opts.
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				scoper := func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(ctx.Event.(*model.Event).ProcessCacheEntry)
+				}
+				return m.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
+			},
+		})
 
-	ruleSet.AddListener(m)
-	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet)
+	evalOpts := m.newEvalOpts()
+	evalOpts.WithVariables(model.SECLVariables)
+
+	// standard ruleset
+	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts)
+
+	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
 
-	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
-	m.ruleSets[currentRuleSet] = ruleSet
-	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
+	// update current policies related module attributes
+	m.policiesVersions = getPoliciesVersions(ruleSet)
+	m.policyProviders = policyProviders
+	m.currentRuleSet.Store(ruleSet)
+
+	// notify listeners
+	if m.rulesLoaded != nil {
+		m.rulesLoaded(ruleSet, loadApproversErrs)
+	}
+
+	// add module as listener for ruleset events
+	ruleSet.AddListener(m)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
@@ -342,28 +430,40 @@ func (m *Module) Reload() error {
 		return err
 	}
 
+	// set the rate limiters
+	m.rateLimiter.Apply(ruleSet, events.AllCustomRuleIDs())
+
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
 	ruleIDs = append(ruleIDs, ruleSet.ListRuleIDs()...)
-	ruleIDs = append(ruleIDs, sprobe.AllCustomRuleIDs()...)
+	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	m.apiServer.Apply(ruleIDs)
-	m.rateLimiter.Apply(ruleIDs)
 
 	m.displayReport(report)
 
-	// report that a new policy was loaded
-	monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+	if sendLoadedReport {
+		ReportRuleSetLoaded(m.eventSender, m.statsdClient, ruleSet, loadApproversErrs)
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
+	}
 
 	return nil
 }
 
 // Close the module
 func (m *Module) Close() {
+	signal.Stop(m.sigupChan)
 	close(m.sigupChan)
-	if m.cancelSubscriber != nil {
-		m.cancelSubscriber()
+
+	for _, provider := range m.policyProviders {
+		_ = provider.Close()
 	}
+
+	// close the policy loader and all the related providers
+	if m.policyLoader != nil {
+		m.policyLoader.Close()
+	}
+
 	m.cancelFnc()
 
 	if m.grpcServer != nil {
@@ -376,47 +476,54 @@ func (m *Module) Close() {
 	}
 
 	if m.selfTester != nil {
-		_ = m.selfTester.Cleanup()
+		_ = m.selfTester.Close()
 	}
 
-	m.probe.Close()
-
 	m.wg.Wait()
+
+	// all the go routines should be stopped now we can safely call close the probe and remove the eBPF programs
+	m.probe.Close()
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	if atomic.LoadUint64(&m.reloading) == 1 {
+	if m.reloading.Load() {
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
-		seclog.Trace(err)
-	}
+	m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType)
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
-func (m *Module) HandleEvent(event *sprobe.Event) {
+func (m *Module) HandleEvent(event *model.Event) {
+	// if the event should have been discarded in kernel space, we don't need to evaluate it
+	if event.SavedByActivityDumps {
+		return
+	}
+
 	if ruleSet := m.GetRuleSet(); ruleSet != nil {
 		ruleSet.Evaluate(event)
 	}
 }
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
-func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
-	m.SendEvent(rule, event, func() []string { return nil }, "")
+func (m *Module) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
+	m.eventSender.SendEvent(rule, event, func() []string { return nil }, "")
 }
 
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
-	// prepare the event
-	m.probe.OnRuleMatch(rule, event.(*sprobe.Event))
+	ev := event.(*model.Event)
+
+	// ensure that all the fields are resolved before sending
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
-	service := event.(*sprobe.Event).GetProcessServiceTag()
+	service := ev.FieldHandlers.GetProcessServiceTag(ev)
 
-	id := event.(*sprobe.Event).ContainerContext.ID
+	id := ev.ContainerContext.ID
 
 	extTagsCb := func() []string {
 		var tags []string
@@ -433,10 +540,10 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
-	if m.selfTester != nil {
-		m.selfTester.SendEventIfExpecting(rule, event)
+	// send if not selftest related events
+	if m.selfTester == nil || !m.selfTester.IsExpectedEvent(rule, event, m.probe) {
+		m.eventSender.SendEvent(rule, event, extTagsCb, service)
 	}
-	m.SendEvent(rule, event, extTagsCb, service)
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
@@ -448,7 +555,41 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 	}
 }
 
-func (m *Module) metricsSender() {
+// SendProcessEvent sends a process event using the provided EventSender interface
+func (m *Module) SendProcessEvent(data []byte) {
+	m.eventSender.SendProcessEventData(data)
+}
+
+// SendProcessEventData implements the EventSender interface forwarding a process event to the APIServer
+func (m *Module) SendProcessEventData(data []byte) {
+	m.apiServer.SendProcessEvent(data)
+}
+
+// HandleActivityDump sends an activity dump to the backend
+func (m *Module) HandleActivityDump(dump *sapi.ActivityDumpStreamMessage) {
+	m.apiServer.SendActivityDump(dump)
+}
+
+// SendStats send stats
+func (m *Module) SendStats() {
+	ackChan := make(chan bool, 1)
+	m.sendStatsChan <- ackChan
+	<-ackChan
+}
+
+func (m *Module) sendStats() {
+	if err := m.probe.SendStats(); err != nil {
+		seclog.Debugf("failed to send probe stats: %s", err)
+	}
+	if err := m.rateLimiter.SendStats(); err != nil {
+		seclog.Debugf("failed to send rate limiter stats: %s", err)
+	}
+	if err := m.apiServer.SendStats(); err != nil {
+		seclog.Debugf("failed to send api server stats: %s", err)
+	}
+}
+
+func (m *Module) statsSender() {
 	defer m.wg.Done()
 
 	statsTicker := time.NewTicker(m.config.StatsPollingInterval)
@@ -459,20 +600,11 @@ func (m *Module) metricsSender() {
 
 	for {
 		select {
+		case ackChan := <-m.sendStatsChan:
+			m.sendStats()
+			ackChan <- true
 		case <-statsTicker.C:
-			if os.Getenv("RUNTIME_SECURITY_TESTSUITE") == "true" {
-				continue
-			}
-
-			if err := m.probe.SendStats(); err != nil {
-				log.Debug(err)
-			}
-			if err := m.rateLimiter.SendStats(); err != nil {
-				log.Debug(err)
-			}
-			if err := m.apiServer.SendStats(); err != nil {
-				log.Debug(err)
-			}
+			m.sendStats()
 		case <-heartbeatTicker.C:
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 
@@ -486,6 +618,11 @@ func (m *Module) metricsSender() {
 				_ = m.statsdClient.Gauge(metrics.MetricSecurityAgentRuntimeRunning, 1, tags, 1)
 			} else if m.config.FIMEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
+			}
+
+			// Event monitoring may run independently of CWS products
+			if m.config.EventMonitoring {
+				_ = m.statsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():
 			return
@@ -513,29 +650,35 @@ func (m *Module) GetProbe() *sprobe.Probe {
 
 // GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
-	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
+	if ruleSet := m.currentRuleSet.Load(); ruleSet != nil {
+		return ruleSet.(*rules.RuleSet)
+	}
+	return nil
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet)) {
+func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multierror.Error)) {
 	m.rulesLoaded = cb
 }
 
-// NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *sconfig.Config) (module.Module, error) {
-	var statsdClient *statsd.Client
-	var err error
-	if cfg != nil {
-		statsdAddr := os.Getenv("STATSD_URL")
-		if statsdAddr == "" {
-			statsdAddr = cfg.StatsdAddr
-		}
+func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, error) {
+	if len(opts) != 0 && opts[0].StatsdClient != nil {
+		return opts[0].StatsdClient, nil
+	}
 
-		if statsdClient, err = statsd.New(statsdAddr); err != nil {
-			return nil, err
-		}
-	} else {
-		log.Warn("metrics won't be sent to DataDog")
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		statsdAddr = cfg.StatsdAddr
+	}
+
+	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
+}
+
+// NewModule instantiates a runtime security system-probe module
+func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
+	statsdClient, err := getStatdClient(cfg, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	probe, err := sprobe.NewProbe(cfg, statsdClient)
@@ -545,32 +688,89 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	// custom limiters
-	limits := make(map[rules.RuleID]Limit)
-
-	var selfTester *SelfTester
-	if cfg.SelfTestEnabled {
-		selfTester = NewSelfTester()
+	selfTester, err := selftests.NewSelfTester()
+	if err != nil {
+		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
 
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
+		currentRuleSet: new(atomic.Value),
+		reloading:      atomic.NewBool(false),
 		statsdClient:   statsdClient,
 		apiServer:      NewAPIServer(cfg, probe, statsdClient),
 		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
-		currentRuleSet: 1,
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
 		selfTester:     selfTester,
+		policyMonitor:  NewPolicyMonitor(statsdClient),
+		sendStatsChan:  make(chan chan bool, 1),
 	}
 	m.apiServer.module = m
 
-	seclog.SetPatterns(cfg.LogPatterns)
+	if len(opts) > 0 && opts[0].EventSender != nil {
+		m.eventSender = opts[0].EventSender
+	} else {
+		m.eventSender = m
+	}
+
+	seclog.SetPatterns(cfg.LogPatterns...)
+	seclog.SetTags(cfg.LogTags...)
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 
 	return m, nil
+}
+
+// RunSelfTest runs the self tests
+func (m *Module) RunSelfTest(sendLoadedReport bool) error {
+	prevProviders, providers := m.policyProviders, m.policyProviders
+	if len(prevProviders) > 0 {
+		defer func() {
+			if err := m.LoadPolicies(prevProviders, false); err != nil {
+				seclog.Errorf("failed to load policies: %s", err)
+			}
+		}()
+	}
+
+	// add selftests as provider
+	providers = append(providers, m.selfTester)
+
+	if err := m.LoadPolicies(providers, false); err != nil {
+		return err
+	}
+
+	success, fails, err := m.selfTester.RunSelfTest()
+	if err != nil {
+		return err
+	}
+
+	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
+
+	// send the report
+	if m.config.SelfTestSendReport {
+		ReportSelfTest(m.eventSender, m.statsdClient, success, fails)
+	}
+
+	return nil
+}
+
+func logLoadingErrors(msg string, m *multierror.Error) {
+	var errorLevel bool
+	for _, err := range m.Errors {
+		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
+				errorLevel = true
+			}
+		}
+	}
+
+	if errorLevel {
+		seclog.Errorf(msg, m.Error())
+	} else {
+		seclog.Warnf(msg, m.Error())
+	}
 }

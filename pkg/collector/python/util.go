@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
@@ -16,7 +17,7 @@ import "C"
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -51,7 +52,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		output, _ = ioutil.ReadAll(stdout)
+		output, _ = io.ReadAll(stdout)
 	}()
 
 	stderr, err := cmd.StderrPipe()
@@ -64,7 +65,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		outputErr, _ = ioutil.ReadAll(stderr)
+		outputErr, _ = io.ReadAll(stderr)
 	}()
 
 	cmd.Start() //nolint:errcheck

@@ -30,7 +30,7 @@ func (c *StubCheck) Stop() {}
 func (c *StubCheck) Cancel() {}
 
 // Configure is a noop
-func (c *StubCheck) Configure(integration.Data, integration.Data, string) error { return nil }
+func (c *StubCheck) Configure(uint64, integration.Data, integration.Data, string) error { return nil }
 
 // Interval returns a duration of one second
 func (c *StubCheck) Interval() time.Duration { return 1 * time.Second }
@@ -49,3 +49,9 @@ func (c *StubCheck) GetSenderStats() (SenderStats, error) { return NewSenderStat
 
 // IsTelemetryEnabled returns false
 func (c *StubCheck) IsTelemetryEnabled() bool { return false }
+
+// InitConfig returns the init_config configuration of the check
+func (c *StubCheck) InitConfig() string { return "" }
+
+// InstanceConfig returns the instance configuration of the check
+func (c *StubCheck) InstanceConfig() string { return "" }

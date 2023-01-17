@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -16,6 +17,20 @@ var unlinkProbes = []*manager.Probe{
 			UID:          SecurityAgentUID,
 			EBPFSection:  "kprobe/vfs_unlink",
 			EBPFFuncName: "kprobe_vfs_unlink",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_unlinkat",
+			EBPFFuncName: "kprobe_do_unlinkat",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/do_unlinkat",
+			EBPFFuncName: "kretprobe_do_unlinkat",
 		},
 	},
 }

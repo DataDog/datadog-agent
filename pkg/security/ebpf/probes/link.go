@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -16,6 +17,20 @@ var linkProbes = []*manager.Probe{
 			UID:          SecurityAgentUID,
 			EBPFSection:  "kprobe/vfs_link",
 			EBPFFuncName: "kprobe_vfs_link",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_linkat",
+			EBPFFuncName: "kprobe_do_linkat",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/do_linkat",
+			EBPFFuncName: "kretprobe_do_linkat",
 		},
 	},
 }

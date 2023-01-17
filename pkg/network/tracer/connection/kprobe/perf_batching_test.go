@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package kprobe
@@ -7,14 +13,16 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 const (
-	numTestCPUs = 4
+	numTestCPUs        = 4
+	pidMax      uint32 = 1 << 22 // PID_MAX_LIMIT on 64 bit systems
 )
 
 func TestPerfBatchManagerExtract(t *testing.T) {
@@ -67,8 +75,8 @@ func TestGetPendingConns(t *testing.T) {
 
 	batch := new(netebpf.Batch)
 	batch.Id = 0
-	batch.C0.Tup.Pid = 1
-	batch.C1.Tup.Pid = 2
+	batch.C0.Tup.Pid = pidMax + 1
+	batch.C1.Tup.Pid = pidMax + 2
 	batch.Len = 2
 
 	cpu := 0
@@ -81,12 +89,22 @@ func TestGetPendingConns(t *testing.T) {
 	buffer := network.NewConnectionBuffer(256, 256)
 	manager.GetPendingConns(buffer)
 	pendingConns := buffer.Connections()
-	assert.Len(t, pendingConns, 2)
-	assert.Equal(t, uint32(1), pendingConns[0].Pid)
-	assert.Equal(t, uint32(2), pendingConns[1].Pid)
+	assert.GreaterOrEqual(t, len(pendingConns), 2)
+	for _, pid := range []uint32{pidMax + 1, pidMax + 2} {
+		found := false
+		for p := range pendingConns {
+			if pendingConns[p].Pid == pid {
+				found = true
+				pendingConns = append(pendingConns[:p], pendingConns[p+1:]...)
+				break
+			}
+		}
+
+		assert.True(t, found, "could not find batched connection for pid %d", pid)
+	}
 
 	// Now let's pretend a new connection was added to the batch on eBPF side
-	batch.C2.Tup.Pid = 3
+	batch.C2.Tup.Pid = pidMax + 3
 	batch.Len++
 	updateBatch()
 
@@ -94,8 +112,16 @@ func TestGetPendingConns(t *testing.T) {
 	buffer.Reset()
 	manager.GetPendingConns(buffer)
 	pendingConns = buffer.Connections()
-	assert.Len(t, pendingConns, 1)
-	assert.Equal(t, uint32(3), pendingConns[0].Pid)
+	assert.GreaterOrEqual(t, len(pendingConns), 1)
+	var found bool
+	for _, p := range pendingConns {
+		if p.Pid == pidMax+3 {
+			found = true
+			break
+		}
+	}
+
+	assert.True(t, found, "could not find batched connection for pid %d", pidMax+3)
 }
 
 func TestPerfBatchStateCleanup(t *testing.T) {
@@ -137,11 +163,12 @@ func newEmptyBatchManager() *perfBatchManager {
 }
 
 func newTestBatchManager(t *testing.T) (*perfBatchManager, func()) {
-	ctr, err := New(testConfig(), nil)
+	ctr, err := New(testConfig(), nil, nil)
 	require.NoError(t, err)
 
 	tr := ctr.(*kprobeTracer)
-	tr.Start(func(_ []network.ConnectionStats) {})
+	// do not start tracer, so we don't pick up on any connections outside the test
+
 	manager := tr.closeConsumer.batchManager
 	doneFn := func() { tr.Stop() }
 	return manager, doneFn

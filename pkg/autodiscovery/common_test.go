@@ -14,22 +14,22 @@ import (
 )
 
 type dummyService struct {
-	ID            string
-	ADIdentifiers []string
-	Hosts         map[string]string
-	Ports         []listeners.ContainerPort
-	Pid           int
-	Hostname      string
-	CreationTime  integration.CreationTime
-	CheckNames    []string
+	ID              string
+	ADIdentifiers   []string
+	Hosts           map[string]string
+	Ports           []listeners.ContainerPort
+	Pid             int
+	Hostname        string
+	CheckNames      []string
+	filterTemplates func(map[string]integration.Config)
 }
 
-// GetEntity returns the service entity name
-func (s *dummyService) GetEntity() string {
+// GetServiceID returns the service entity name
+func (s *dummyService) GetServiceID() string {
 	return s.ID
 }
 
-// GetEntity returns the service entity name
+// GetTaggerEntity returns the tagger entity ID for the entity corresponding to this service
 func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
@@ -49,9 +49,9 @@ func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, err
 	return s.Ports, nil
 }
 
-// GetTags returns mil
-func (s *dummyService) GetTags() ([]string, string, error) {
-	return nil, "", nil
+// GetTags returns the tags for this service
+func (s *dummyService) GetTags() ([]string, error) {
+	return nil, nil
 }
 
 // GetPid return a dummy pid
@@ -62,11 +62,6 @@ func (s *dummyService) GetPid(context.Context) (int, error) {
 // GetHostname return a dummy hostname
 func (s *dummyService) GetHostname(context.Context) (string, error) {
 	return s.Hostname, nil
-}
-
-// GetCreationTime return a dummy creation time
-func (s *dummyService) GetCreationTime() integration.CreationTime {
-	return s.CreationTime
 }
 
 // IsReady returns if the service is ready
@@ -85,6 +80,13 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, nil
+func (s *dummyService) GetExtraConfig(key string) (string, error) {
+	return "", nil
+}
+
+// FilterTemplates calls filterTemplates, if not nil
+func (s *dummyService) FilterTemplates(configs map[string]integration.Config) {
+	if s.filterTemplates != nil {
+		(s.filterTemplates)(configs)
+	}
 }

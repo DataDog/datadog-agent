@@ -17,15 +17,15 @@ import (
 )
 
 const (
-	// SectorSize is exported in github.com/shirou/gopsutil/disk (but not working!)
+	// SectorSize is used here to substitute non-exporeted from github.com/shirou/gopsutil/v3/disk package constant named "sectorSize"
 	SectorSize       = 512
 	kB               = (1 << 10)
 	iostatsCheckName = "io"
 )
 
 // Configure the IOstats check
-func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.Data, source string) error {
-	if err := c.CommonConfigure(data, source); err != nil {
+func (c *IOCheck) commonConfigure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	if err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source); err != nil {
 		return err
 	}
 

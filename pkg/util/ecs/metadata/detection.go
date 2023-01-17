@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package metadata
@@ -16,14 +17,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
-	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
+	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
 
 func detectAgentV1URL() (string, error) {
@@ -42,7 +43,7 @@ func detectAgentV1URL() (string, error) {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
-		gw, err := providers.ContainerImpl().GetDefaultGateway()
+		gw, err := system.GetDefaultGateway(config.Datadog.GetString("proc_root"))
 		if err != nil {
 			log.Debugf("Could not get docker default gateway: %s", err)
 		}
@@ -106,6 +107,7 @@ func testURLs(urls []string, timeout time.Duration) string {
 		if err != nil {
 			continue
 		}
+		defer r.Body.Close()
 		if r.StatusCode != http.StatusOK {
 			continue
 		}
@@ -122,9 +124,17 @@ func testURLs(urls []string, timeout time.Duration) string {
 }
 
 func getAgentV3URLFromEnv() (string, error) {
-	agentURL, found := os.LookupEnv(v3.DefaultMetadataURIEnvVariable)
+	agentURL, found := os.LookupEnv(v3or4.DefaultMetadataURIv3EnvVariable)
 	if !found {
 		return "", fmt.Errorf("Could not initialize client: missing metadata v3 URL")
+	}
+	return agentURL, nil
+}
+
+func getAgentV4URLFromEnv() (string, error) {
+	agentURL, found := os.LookupEnv(v3or4.DefaultMetadataURIv4EnvVariable)
+	if !found {
+		return "", fmt.Errorf("Could not initialize client: missing metadata v4 URL")
 	}
 	return agentURL, nil
 }

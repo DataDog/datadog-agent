@@ -3,114 +3,144 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
-	"path"
+	"runtime"
 	"sort"
 	"strings"
 
-	"github.com/avast/retry-go"
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
-	probe             *Probe
-	DentryResolver    *DentryResolver
-	MountResolver     *MountResolver
-	ContainerResolver *ContainerResolver
-	TimeResolver      *TimeResolver
+	manager           *manager.Manager
+	MountResolver     *resolvers.MountResolver
+	ContainerResolver *resolvers.ContainerResolver
+	TimeResolver      *resolvers.TimeResolver
+	UserGroupResolver *resolvers.UserGroupResolver
+	TagsResolver      *resolvers.TagsResolver
+	DentryResolver    *resolvers.DentryResolver
 	ProcessResolver   *ProcessResolver
-	UserGroupResolver *UserGroupResolver
-	TagsResolver      *TagsResolver
+	NamespaceResolver *NamespaceResolver
+	CgroupsResolver   *resolvers.CgroupsResolver
+	TCResolver        *resolvers.TCResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
-	dentryResolver, err := NewDentryResolver(probe)
+	dentryResolver, err := resolvers.NewDentryResolver(probe.Config, probe.StatsdClient, probe.Erpc)
 	if err != nil {
 		return nil, err
 	}
 
-	timeResolver, err := NewTimeResolver()
+	timeResolver, err := resolvers.NewTimeResolver()
 	if err != nil {
 		return nil, err
 	}
 
-	userGroupResolver, err := NewUserGroupResolver()
+	userGroupResolver, err := resolvers.NewUserGroupResolver()
+	if err != nil {
+		return nil, err
+	}
+
+	namespaceResolver, err := NewNamespaceResolver(probe)
+	if err != nil {
+		return nil, err
+	}
+
+	cgroupsResolver, err := resolvers.NewCgroupsResolver()
+	if err != nil {
+		return nil, err
+	}
+
+	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient, cgroupsResolver, resolvers.MountResolverOpts{UseProcFS: true})
+	if err != nil {
+		return nil, err
+	}
+
+	tcResolver := resolvers.NewTCResolver(config)
+
+	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
+		probe.scrubber, NewProcessResolverOpts(probe.Config.EnvsWithValue))
 	if err != nil {
 		return nil, err
 	}
 
 	resolvers := &Resolvers{
-		probe:             probe,
-		DentryResolver:    dentryResolver,
-		MountResolver:     NewMountResolver(probe),
+		manager:           probe.Manager,
+		MountResolver:     mountResolver,
+		ContainerResolver: &resolvers.ContainerResolver{},
 		TimeResolver:      timeResolver,
-		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
-		TagsResolver:      NewTagsResolver(config),
+		TagsResolver:      resolvers.NewTagsResolver(config),
+		DentryResolver:    dentryResolver,
+		NamespaceResolver: namespaceResolver,
+		CgroupsResolver:   cgroupsResolver,
+		TCResolver:        tcResolver,
+		ProcessResolver:   processResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
-	if err != nil {
-		return nil, err
-	}
-
-	resolvers.ProcessResolver = processResolver
+	resolvers.ProcessResolver.resolvers = resolvers
 
 	return resolvers, nil
 }
 
-// resolveBasename resolves the inode to a filename
+// resolveBasename resolves an inode/mount ID pair to a file basename
 func (r *Resolvers) resolveBasename(e *model.FileFields) string {
-	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
+	return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID)
 }
 
-// resolveFileFieldsPath resolves the inode to a full path
-func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
+// resolveFileFieldsPath resolves an inode/mount ID pair to a full path
+func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err
 	}
 
-	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
-	if mountErr != nil {
-		return pathStr, mountErr
+	if e.IsFileless() {
+		return pathStr, err
 	}
 
+	mountPath, err := r.MountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		}
+		return pathStr, err
+	}
+
+	rootPath, err := r.MountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		}
+		return pathStr, err
+	}
+	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
 	}
-	pathStr = path.Join(mountPath, pathStr)
+
+	if mountPath != "/" {
+		pathStr = mountPath + pathStr
+	}
 
 	return pathStr, err
-}
-
-// ResolveFileFieldsUser resolves the user id of the file to a username
-func (r *Resolvers) ResolveFileFieldsUser(e *model.FileFields) string {
-	if len(e.User) == 0 {
-		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
-	}
-	return e.User
-}
-
-// ResolveFileFieldsGroup resolves the group id of the file to a group name
-func (r *Resolvers) ResolveFileFieldsGroup(e *model.FileFields) string {
-	if len(e.Group) == 0 {
-		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
-	}
-	return e.Group
 }
 
 // ResolveCredentialsUser resolves the user id of the process to a username
@@ -172,22 +202,33 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	return r.DentryResolver.Start(r.probe)
+	if err := r.DentryResolver.Start(r.manager); err != nil {
+		return err
+	}
+
+	return r.NamespaceResolver.Start(ctx)
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *Resolvers) Snapshot() error {
-	if err := retry.Do(r.snapshot, retry.Delay(0), retry.Attempts(5)); err != nil {
-		return errors.Wrap(err, "unable to snapshot processes")
+	if err := r.snapshot(); err != nil {
+		return fmt.Errorf("unable to snapshot processes: %w", err)
 	}
 
 	r.ProcessResolver.SetState(snapshotted)
+	r.NamespaceResolver.SetState(snapshotted)
 
-	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
+	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {
-		return errors.Wrap(err, "unable to snapshot SELinux")
+		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}
-	return snapshotSELinux(selinuxStatusMap)
+
+	if err := resolvers.SnapshotSELinux(selinuxStatusMap); err != nil {
+		return err
+	}
+
+	runtime.GC()
+	return nil
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
@@ -220,25 +261,28 @@ func (r *Resolvers) snapshot() error {
 		return createA < createB
 	})
 
-	cacheModified := false
-
 	for _, proc := range processes {
+		ppid, err := proc.Ppid()
+		if err != nil {
+			continue
+		}
+
+		if IsKThread(uint32(ppid), uint32(proc.Pid)) {
+			continue
+		}
+
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err := r.MountResolver.SyncCache(proc); err != nil {
+		if err = r.MountResolver.SyncCache(uint32(proc.Pid)); err != nil {
 			if !os.IsNotExist(err) {
-				log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't sync mount points", proc.Pid))
+				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
 		}
 
 		// Sync the process cache
-		cacheModified = r.ProcessResolver.SyncCache(proc)
-	}
+		r.ProcessResolver.SyncCache(proc)
 
-	// There is a possible race condition when a process starts right after we called process.AllProcesses
-	// and before we inserted the cache entry of its parent. Call Snapshot again until we do not modify the
-	// process cache anymore
-	if cacheModified {
-		return errors.New("cache modified")
+		// Sync the namespace cache
+		r.NamespaceResolver.SyncCache(proc)
 	}
 
 	return nil

@@ -11,7 +11,7 @@ import (
 	"crypto/tls"
 	"expvar"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptrace"
 	"strconv"
@@ -173,7 +173,7 @@ type HTTPTransaction struct {
 	// Headers are the HTTP headers used by the HTTPTransaction.
 	Headers http.Header
 	// Payload is the content delivered to the backend.
-	Payload *[]byte
+	Payload *BytesPayload
 	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
 	ErrorCount int
 
@@ -207,6 +207,7 @@ type Transaction interface {
 	GetPriority() Priority
 	GetEndpointName() string
 	GetPayloadSize() int
+	GetPointCount() int
 
 	// This method serializes the transaction to `TransactionsSerializer`.
 	// It forces a new implementation of `Transaction` to define how to
@@ -258,9 +259,17 @@ func (t *HTTPTransaction) GetEndpointName() string {
 // GetPayloadSize returns the size of the payload.
 func (t *HTTPTransaction) GetPayloadSize() int {
 	if t.Payload != nil {
-		return len(*t.Payload)
+		return t.Payload.Len()
 	}
 
+	return 0
+}
+
+// GetPointCount gets the number of points in the payload of this transaction.
+func (t *HTTPTransaction) GetPointCount() int {
+	if t.Payload != nil {
+		return t.Payload.GetPointCount()
+	}
 	return 0
 }
 
@@ -286,12 +295,12 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
-	reader := bytes.NewReader(*t.Payload)
+	reader := bytes.NewReader(t.Payload.GetContent())
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
 
-	req, err := http.NewRequest("POST", url, reader)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
@@ -299,7 +308,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
-	req = req.WithContext(ctx)
 	req.Header = t.Headers
 	resp, err := client.Do(req)
 
@@ -315,7 +323,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
 		return 0, nil, err
@@ -335,8 +343,11 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		tlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode)
 	}
 
-	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
-		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
+	// We want to retry 404s even if that means that the agent would retry
+	// payloads on endpoints that don’t exist at the intake it’s sending data
+	// to (example: a specific DD region, or a http proxy)
+	if resp.StatusCode == 400 || resp.StatusCode == 413 {
+		log.Errorf("Error code %q received while sending transaction to %q: %q, dropping it", resp.Status, logURL, truncateBodyForLog(body))
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
@@ -351,7 +362,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
-		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
+		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, truncateBodyForLog(body))
 	}
 
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName)
@@ -364,15 +375,15 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	if transactionsSuccess.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
-		log.Tracef("Url: %q payload: %s", logURL, string(body))
+		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
 	if transactionsSuccess.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
-		log.Tracef("Url: %q payload: %s", logURL, string(body))
+		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
-	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
+	log.Tracef("Successfully posted payload to %q: %q", logURL, truncateBodyForLog(body))
 	return resp.StatusCode, body, nil
 }
 
@@ -383,4 +394,17 @@ func (t *HTTPTransaction) SerializeTo(serializer TransactionsSerializer) error {
 	}
 	log.Trace("The transaction is not stored on disk because `storableOnDisk` is false.")
 	return nil
+}
+
+// truncateBodyForLog truncates body to prevent from logging a huge message
+// if body is more than 1000 bytes. 1000 bytes are enough to tell which tools a response comes.
+func truncateBodyForLog(body []byte) []byte {
+	if len(body) == 0 {
+		return []byte{}
+	}
+	limit := 1000
+	if len(body) < limit {
+		return body
+	}
+	return append(body[:limit], []byte("...")...)
 }

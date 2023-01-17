@@ -8,9 +8,10 @@ package event
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestMaxEPSSampler(t *testing.T) {

@@ -13,14 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func initStatus() {
-	InitStatus(config.CreateSources([]*config.LogSource{
-		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
-		config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
-		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+	InitStatus(util.CreateSources([]*sources.LogSource{
+		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+		sources.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
+		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
 	}))
 }
 
@@ -92,13 +94,13 @@ func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	defer Clear()
 	Clear()
-	var expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "SenderLatency": 0, "Warnings": ""}`
+	var expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "HttpDestinationStats": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "SenderLatency": 0, "Warnings": ""}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 
 	initStatus()
 	AddGlobalWarning("bar", "Unique Warning")
 	AddGlobalError("bar", "I am an error")
-	expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "SenderLatency": 0, "Warnings": "Unique Warning"}`
+	expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "HttpDestinationStats": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "SenderLatency": 0, "Warnings": "Unique Warning"}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 }
 
@@ -134,5 +136,5 @@ func TestStatusEndpoints(t *testing.T) {
 	initStatus()
 
 	status := Get()
-	assert.Equal(t, "Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com on port 10516", status.Endpoints[0])
+	assert.Equal(t, "Reliable: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com on port 10516", status.Endpoints[0])
 }

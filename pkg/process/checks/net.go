@@ -1,25 +1,28 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"sort"
-	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
-	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
+	putil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
 var (
@@ -31,52 +34,93 @@ var (
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
+
+	// ProcessAgentClientID process-agent unique ID
+	ProcessAgentClientID = "process-agent-unique-id"
 )
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
+	hostInfo               *HostInfo
+	maxConnsPerMessage     int
 	tracerClientID         string
 	networkID              string
-	notInitializedLogLimit *procutil.LogLimit
-	lastTelemetry          *model.CollectorConnectionsTelemetry
-	// store the last collection result by PID, currently used to populate network data for processes
-	// it's in format map[int32][]*model.Connections
-	lastConnsByPID atomic.Value
+	notInitializedLogLimit *putil.LogLimit
+
+	dockerFilter     *parser.DockerProxy
+	serviceExtractor *parser.ServiceExtractor
+	processData      *ProcessData
+
+	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
 }
 
+// ProcessConnRates describes connection rates for processes
+type ProcessConnRates map[int32]*model.ProcessNetworks
+
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
-	c.notInitializedLogLimit = procutil.NewLogLimit(1, time.Minute*10)
+func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) error {
+	c.hostInfo = hostInfo
+	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
+	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
-	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
+	c.tracerClientID = ProcessAgentClientID
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
-	net.SetSystemProbePath(cfg.SystemProbeAddress)
-	_, _ = net.GetRemoteSystemProbeUtil()
+	net.SetSystemProbePath(syscfg.SystemProbeAddress)
+	tu, err := net.GetRemoteSystemProbeUtil()
+
+	if err != nil {
+		log.Warnf("could not initiate connection with system probe: %s", err)
+	} else {
+		// Register process agent as a system probe's client
+		// This ensures we start recording data from now to the first call to `Run`
+		err = tu.Register(c.tracerClientID)
+		if err != nil {
+			log.Warnf("could not register process-agent to system-probe: %s", err)
+		}
+	}
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
+	c.processData = NewProcessData()
+	c.dockerFilter = parser.NewDockerProxy()
+	c.serviceExtractor = parser.NewServiceExtractor()
+	c.processData.Register(c.dockerFilter)
+	c.processData.Register(c.serviceExtractor)
 
-	// Run the check one time on init to register the client on the system probe
-	_, _ = c.Run(cfg, 0)
+	return nil
+}
+
+// IsEnabled returns true if the check is enabled by configuration
+func (c *ConnectionsCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (c *ConnectionsCheck) SupportsRunOptions() bool {
+	return false
 }
 
 // Name returns the name of the ConnectionsCheck.
-func (c *ConnectionsCheck) Name() string { return config.ConnectionsCheckName }
+func (c *ConnectionsCheck) Name() string { return ConnectionsCheckName }
 
-// RealTime indicates if this check only runs in real-time mode.
-func (c *ConnectionsCheck) RealTime() bool { return false }
+// Realtime indicates if this check only runs in real-time mode.
+func (c *ConnectionsCheck) Realtime() bool { return false }
 
-// Run runs the ConnectionsCheck to collect the live TCP connections on the
-// system. Currently only linux systems are supported as eBPF is used to gather
-// this information. For each connection we'll return a `model.Connection`
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
+
+// Run runs the ConnectionsCheck to collect the active network connections
+// and any closed network connections since the last Run.
+// For each connection we'll return a `model.Connection`
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
-func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
 	conns, err := c.getConnections()
@@ -89,17 +133,26 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
-	dockerproxy.NewFilter().Filter(conns)
+	err = c.processData.Fetch()
+	if err != nil {
+		log.Warnf("error collecting processes for filter and extraction: %s", err)
+	} else {
+		c.dockerFilter.Filter(conns)
+	}
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	connTel := c.diffTelemetry(conns.ConnTelemetry)
-
-	c.lastConnsByPID.Store(getConnectionsByPID(conns))
+	c.notifyProcessConnRates(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
+
+	groupID := nextGroupID()
+	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	return StandardRunResult(messages), nil
 }
+
+// Cleanup frees any resource held by the ConnectionsCheck before the agent exits
+func (c *ConnectionsCheck) Cleanup() {}
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil()
@@ -112,82 +165,36 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model.Connection {
-	// Process create-times required to construct unique process hash keys on the backend
-	createTimeForPID := Process.createTimesforPIDs(connectionPIDs(conns))
-	for _, conn := range conns {
-		if _, ok := createTimeForPID[conn.Pid]; !ok {
-			createTimeForPID[conn.Pid] = 0
-		}
-
-		conn.PidCreateTime = createTimeForPID[conn.Pid]
-	}
-	return conns
-}
-
-func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model.CollectorConnectionsTelemetry {
-	if tel == nil {
-		return nil
-	}
-	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
-	if c.lastTelemetry == nil {
-		c.lastTelemetry = &model.CollectorConnectionsTelemetry{}
-		c.saveTelemetry(tel)
-		return nil
-	}
-
-	cct := &model.CollectorConnectionsTelemetry{
-		KprobesTriggered:          tel.MonotonicKprobesTriggered - c.lastTelemetry.KprobesTriggered,
-		KprobesMissed:             tel.MonotonicKprobesMissed - c.lastTelemetry.KprobesMissed,
-		ConntrackRegisters:        tel.MonotonicConntrackRegisters - c.lastTelemetry.ConntrackRegisters,
-		ConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped - c.lastTelemetry.ConntrackRegistersDropped,
-		DnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
-		ConnsClosed:               tel.MonotonicConnsClosed - c.lastTelemetry.ConnsClosed,
-		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
-		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
-		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
-		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
-		DnsStatsDropped:           tel.DnsStatsDropped,
-	}
-	c.saveTelemetry(tel)
-	return cct
-}
-
-func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
-	if tel == nil || c.lastTelemetry == nil {
+func (c *ConnectionsCheck) notifyProcessConnRates(conns *model.Connections) {
+	if len(c.processConnRatesTransmitter.Chs) == 0 {
 		return
 	}
 
-	c.lastTelemetry.KprobesTriggered = tel.MonotonicKprobesTriggered
-	c.lastTelemetry.KprobesMissed = tel.MonotonicKprobesMissed
-	c.lastTelemetry.ConntrackRegisters = tel.MonotonicConntrackRegisters
-	c.lastTelemetry.ConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
-	c.lastTelemetry.DnsPacketsProcessed = tel.MonotonicDnsPacketsProcessed
-	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
-	c.lastTelemetry.UdpSendsProcessed = tel.MonotonicUdpSendsProcessed
-	c.lastTelemetry.UdpSendsMissed = tel.MonotonicUdpSendsMissed
-	c.lastTelemetry.DnsStatsDropped = tel.DnsStatsDropped
-}
+	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
 
-func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
-	if result := c.lastConnsByPID.Load(); result != nil {
-		return result.(map[int32][]*model.Connection)
-	}
-	return nil
-}
+	connRates := make(ProcessConnRates)
+	for _, c := range conns.Conns {
+		rates, ok := connRates[c.Pid]
+		if !ok {
+			connRates[c.Pid] = &model.ProcessNetworks{ConnectionRate: 1, BytesRate: float32(c.LastBytesReceived) + float32(c.LastBytesSent)}
+			continue
+		}
 
-// getConnectionsByPID groups a list of connection objects by PID
-func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection {
-	result := make(map[int32][]*model.Connection)
-	for _, conn := range conns.Conns {
-		result[conn.Pid] = append(result[conn.Pid], conn)
+		rates.BytesRate += float32(c.LastBytesSent) + float32(c.LastBytesReceived)
+		rates.ConnectionRate++
 	}
-	return result
+
+	for _, rates := range connRates {
+		rates.BytesRate /= float32(connCheckIntervalS)
+		rates.ConnectionRate /= float32(connCheckIntervalS)
+	}
+
+	c.processConnRatesTransmitter.Notify(connRates)
 }
 
 func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
 	dbentry := &model.DNSDatabaseEntry{
-		NameOffsets: make([]int32, len(entry.Names)),
+		NameOffsets: make([]int32, 0, len(entry.Names)),
 	}
 	for _, name := range entry.Names {
 		// at this point, the NameOffsets slice is actually a slice of indices into
@@ -268,23 +275,28 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
-	cfg *config.AgentConfig,
+	hostInfo *HostInfo,
+	maxConnsPerMessage int,
 	groupID int32,
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
-	connTelemetry *model.CollectorConnectionsTelemetry,
+	connTelemetryMap map[string]int64,
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
+	kernelHeaderFetchResult model.KernelHeaderFetchResult,
+	coreTelemetry map[string]model.COREResult,
 	domains []string,
 	routes []*model.Route,
+	tags []string,
 	agentCfg *model.AgentConfiguration,
+	serviceExtractor *parser.ServiceExtractor,
 ) []model.MessageBody {
-	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
+	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
-	if len(cxs) > cfg.MaxConnsPerMessage {
+	if len(cxs) > maxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
 		sort.Slice(cxs, func(i, j int) bool {
 			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
@@ -295,13 +307,15 @@ func batchConnections(
 	}
 
 	for len(cxs) > 0 {
-		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
+		batchSize := min(maxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
 
 		ctrIDForPID := make(map[int32]string)
 		batchDNS := make(map[string]*model.DNSDatabaseEntry)
 		namemap := make(map[string]int32)
 		namedb := make([]string, 0)
+
+		tagsEncoder := model.NewV2TagEncoder()
 
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
@@ -321,6 +335,16 @@ func batchConnections(
 			remapDNSStatsByDomain(c, namemap, &namedb, domains)
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
+			// tags remap
+			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx)
+
+			if len(tagsStr) > 0 {
+				c.Tags = nil
+				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
+			} else {
+				c.TagsIdx = -1
+			}
 		}
 
 		// remap route indices
@@ -370,17 +394,18 @@ func batchConnections(
 			}
 		}
 		cc := &model.CollectorConnections{
-			AgentConfiguration:    agentCfg,
-			HostName:              cfg.HostName,
-			NetworkId:             networkID,
-			Connections:           batchConns,
-			GroupId:               groupID,
-			GroupSize:             groupSize,
-			ContainerForPid:       ctrIDForPID,
-			EncodedDomainDatabase: encodedNameDb,
-			EncodedDnsLookups:     mappedDNSLookups,
-			ContainerHostType:     cfg.ContainerHostType,
-			Routes:                batchRoutes,
+			AgentConfiguration:     agentCfg,
+			HostName:               hostInfo.HostName,
+			NetworkId:              networkID,
+			Connections:            batchConns,
+			GroupId:                groupID,
+			GroupSize:              groupSize,
+			ContainerForPid:        ctrIDForPID,
+			EncodedDomainDatabase:  encodedNameDb,
+			EncodedDnsLookups:      mappedDNSLookups,
+			ContainerHostType:      hostInfo.ContainerHostType,
+			Routes:                 batchRoutes,
+			EncodedConnectionsTags: tagsEncoder.Buffer(),
 		}
 
 		// Add OS telemetry
@@ -393,8 +418,10 @@ func batchConnections(
 
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
-			cc.ConnTelemetry = connTelemetry
+			cc.ConnTelemetryMap = connTelemetryMap
 			cc.CompilationTelemetryByAsset = compilationTelemetry
+			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
+			cc.CORETelemetryByAsset = coreTelemetry
 		}
 		batches = append(batches, cc)
 
@@ -418,15 +445,16 @@ func groupSize(total, maxBatchSize int) int32 {
 	return int32(groupSize)
 }
 
-func connectionPIDs(conns []*model.Connection) []int32 {
-	ps := make(map[int32]struct{})
-	for _, c := range conns {
-		ps[c.Pid] = struct{}{}
+// converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string) []string {
+	tagCount := len(tagOffsets) + len(serviceCtx)
+	tagsStr := make([]string, 0, tagCount)
+	for _, t := range tagOffsets {
+		tagsStr = append(tagsStr, tags[t])
+	}
+	if serviceCtx != "" {
+		tagsStr = append(tagsStr, serviceCtx)
 	}
 
-	pids := make([]int32, 0, len(ps))
-	for pid := range ps {
-		pids = append(pids, pid)
-	}
-	return pids
+	return tagsStr
 }

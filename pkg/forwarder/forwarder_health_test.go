@@ -12,8 +12,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 )
 
 func TestHasValidAPIKey(t *testing.T) {
@@ -47,18 +48,23 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://custom.agent.datadoghq.com":     {"api_key3"},
 		"https://app.datadoghq.eu":               {"api_key4"},
 		"https://app.us2.datadoghq.com":          {"api_key5"},
+		"https://app.xx9.datadoghq.com":          {"api_key5"},
 		"https://custom.agent.us2.datadoghq.com": {"api_key6"},
 		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
 		"https://app.datadoghq.internal": {"api_key7"},
 		"https://app.myproxy.com":        {"api_key8"},
+		"https://app.ddog-gov.com":       {"api_key9"},
+		"https://custom.ddog-gov.com":    {"api_key10"},
 	}
 
 	expectedMap := map[string][]string{
 		"https://api.datadoghq.com":      {"api_key1", "api_key2", "api_key3"},
 		"https://api.datadoghq.eu":       {"api_key4"},
 		"https://api.us2.datadoghq.com":  {"api_key5", "api_key6"},
+		"https://api.xx9.datadoghq.com":  {"api_key5"},
 		"https://api.datadoghq.internal": {"api_key7"},
 		"https://app.myproxy.com":        {"api_key8"},
+		"https://api.ddog-gov.com":       {"api_key9", "api_key10"},
 	}
 
 	// just sort the expected map for easy comparison
@@ -91,12 +97,19 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
+
+	ts3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+	ts3.URL = "unreachable/url"
+
 	defer ts1.Close()
 	defer ts2.Close()
+	defer ts3.Close()
 
 	keysPerAPIEndpoint := map[string][]string{
 		ts1.URL: {"api_key1", "api_key2"},
 		ts2.URL: {"key3"},
+		ts3.URL: {"key4"},
 	}
 
 	fh := forwarderHealth{}
@@ -104,7 +117,10 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
 	assert.True(t, fh.hasValidAPIKey())
 
-	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending with _key1"))
-	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get("API key ending with _key2"))
+	assert.Equal(t, nil, apiKeyStatus.Get("API key ending with _key1"))
+	assert.Equal(t, &apiKeyInvalid, apiKeyFailure.Get("API key ending with _key1"))
+	assert.Equal(t, &apiKeyUnexpectedStatusCode, apiKeyStatus.Get("API key ending with _key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
+	assert.Equal(t, &apiKeyEndpointUnreachable, apiKeyStatus.Get("API key ending with key4"))
+
 }

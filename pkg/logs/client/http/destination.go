@@ -1,11 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package http
 
 import (
 	"bytes"
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
@@ -13,7 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -32,41 +39,86 @@ var (
 	errClient = errors.New("client error")
 	errServer = errors.New("server error")
 	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse  = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
+	tlmIdle   = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+
+	expVarIdleMsMapKey  = "idleMs"
+	expVarInUseMsMapKey = "inUseMs"
 )
 
 // emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
-var emptyPayload []byte
+var emptyPayload = message.Payload{}
 
 // Destination sends a payload over HTTP.
 type Destination struct {
+	// Config
 	url                 string
 	apiKey              string
 	contentType         string
 	host                string
-	contentEncoding     ContentEncoding
 	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
-	once                sync.Once
-	payloadChan         chan []byte
-	climit              chan struct{} // semaphore for limiting concurrent background sends
-	backoff             backoff.Policy
-	nbErrors            int
-	blockedUntil        time.Time
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
+
+	// Concurrency
+	climit chan struct{} // semaphore for limiting concurrent background sends
+	wg     sync.WaitGroup
+
+	// Retry
+	backoff        backoff.Policy
+	nbErrors       int
+	blockedUntil   time.Time
+	retryLock      sync.Mutex
+	shouldRetry    bool
+	lastRetryError error
+
+	// Telemetry
+	expVars       *expvar.Map
+	telemetryName string
 }
 
 // NewDestination returns a new Destination.
 // If `maxConcurrentBackgroundSends` > 0, then at most that many background payloads will be sent concurrently, else
 // there is no concurrency and the background sending pipeline will block while sending each payload.
 // TODO: add support for SOCKS5
-func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int) *Destination {
-	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends)
+func NewDestination(endpoint config.Endpoint,
+	contentType string,
+	destinationsContext *client.DestinationsContext,
+	maxConcurrentBackgroundSends int,
+	shouldRetry bool,
+	telemetryName string) *Destination {
+
+	return newDestination(endpoint,
+		contentType,
+		destinationsContext,
+		time.Second*10,
+		maxConcurrentBackgroundSends,
+		shouldRetry,
+		telemetryName)
 }
 
-func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int) *Destination {
-	if maxConcurrentBackgroundSends < 0 {
-		maxConcurrentBackgroundSends = 0
+func newDestination(endpoint config.Endpoint,
+	contentType string,
+	destinationsContext *client.DestinationsContext,
+	timeout time.Duration,
+	maxConcurrentBackgroundSends int,
+	shouldRetry bool,
+	telemetryName string) *Destination {
+
+	if maxConcurrentBackgroundSends <= 0 {
+		maxConcurrentBackgroundSends = 1
+	}
+
+	if endpoint.Origin == config.ServerlessIntakeOrigin {
+		shouldRetry = false
+	}
+
+	expVars := &expvar.Map{}
+	expVars.AddFloat(expVarIdleMsMapKey, 0)
+	expVars.AddFloat(expVarInUseMsMapKey, 0)
+	if telemetryName != "" {
+		metrics.DestinationExpVars.Set(telemetryName, expVars)
 	}
 
 	policy := backoff.NewPolicy(
@@ -82,13 +134,18 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		url:                 buildURL(endpoint),
 		apiKey:              endpoint.APIKey,
 		contentType:         contentType,
-		contentEncoding:     buildContentEncoding(endpoint),
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
+		wg:                  sync.WaitGroup{},
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
+		lastRetryError:      nil,
+		retryLock:           sync.Mutex{},
+		shouldRetry:         shouldRetry,
+		expVars:             expVars,
+		telemetryName:       telemetryName,
 	}
 }
 
@@ -102,42 +159,103 @@ func errorToTag(err error) string {
 	}
 }
 
-// Send sends a payload over HTTP,
-// the error returned can be retryable and it is the responsibility of the callee to retry.
-func (d *Destination) Send(payload []byte) error {
-	if d.blockedUntil.After(time.Now()) {
-		log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
-		d.waitForBackoff()
-	}
-
-	err := d.unconditionalSend(payload)
-
-	if _, ok := err.(*client.RetryableError); ok {
-		d.nbErrors = d.backoff.IncError(d.nbErrors)
-	} else {
-		d.nbErrors = d.backoff.DecError(d.nbErrors)
-	}
-
-	d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
-
-	return err
+// Start starts reading the input channel
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
+	stop := make(chan struct{})
+	go d.run(input, output, stop, isRetrying)
+	return stop
 }
 
-func (d *Destination) unconditionalSend(payload []byte) (err error) {
+func (d *Destination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}, isRetrying chan bool) {
+	var startIdle = time.Now()
+
+	for p := range input {
+		idle := float64(time.Since(startIdle) / time.Millisecond)
+		d.expVars.AddFloat(expVarIdleMsMapKey, idle)
+		tlmIdle.Add(idle, d.telemetryName)
+		var startInUse = time.Now()
+
+		d.sendConcurrent(p, output, isRetrying)
+
+		inUse := float64(time.Since(startInUse) / time.Millisecond)
+		d.expVars.AddFloat(expVarInUseMsMapKey, inUse)
+		tlmInUse.Add(inUse, d.telemetryName)
+		startIdle = time.Now()
+	}
+	// Wait for any pending concurrent sends to finish or terminate
+	d.wg.Wait()
+
+	d.updateRetryState(nil, isRetrying)
+	stopChan <- struct{}{}
+}
+
+func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
+	d.wg.Add(1)
+	d.climit <- struct{}{}
+	go func() {
+		defer func() {
+			<-d.climit
+			d.wg.Done()
+		}()
+		d.sendAndRetry(payload, output, isRetrying)
+	}()
+}
+
+// Send sends a payload over HTTP,
+func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
+	for {
+
+		d.retryLock.Lock()
+		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
+		if d.blockedUntil.After(time.Now()) {
+			log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
+			d.waitForBackoff()
+		}
+		d.retryLock.Unlock()
+
+		err := d.unconditionalSend(payload)
+
+		if err != nil {
+			metrics.DestinationErrors.Add(1)
+			metrics.TlmDestinationErrors.Inc()
+		}
+
+		if err == context.Canceled {
+			d.updateRetryState(nil, isRetrying)
+			log.Warnf("Could not send payload: %v", err)
+			return
+		}
+
+		if d.shouldRetry {
+			d.updateRetryState(err, isRetrying)
+			if d.lastRetryError != nil {
+				continue
+			}
+		}
+
+		metrics.LogsSent.Add(int64(len(payload.Messages)))
+		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
+		output <- payload
+		return
+	}
+}
+
+func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
 	}()
 
 	ctx := d.destinationsContext.Context()
 
-	encodedPayload, err := d.contentEncoding.encode(payload)
 	if err != nil {
 		return err
 	}
-	metrics.BytesSent.Add(int64(len(payload)))
-	metrics.EncodedBytesSent.Add(int64(len(encodedPayload)))
+	metrics.BytesSent.Add(int64(payload.UnencodedSize))
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize))
+	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
 
-	req, err := http.NewRequest("POST", d.url, bytes.NewReader(encodedPayload))
+	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {
 		// the request could not be built,
 		// this can happen when the method or the url are valid.
@@ -145,7 +263,9 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 	req.Header.Set("DD-API-KEY", d.apiKey)
 	req.Header.Set("Content-Type", d.contentType)
-	req.Header.Set("Content-Encoding", d.contentEncoding.name())
+	if payload.Encoding != "" {
+		req.Header.Set("Content-Encoding", payload.Encoding)
+	}
 	if d.protocol != "" {
 		req.Header.Set("DD-PROTOCOL", string(d.protocol))
 	}
@@ -171,60 +291,48 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 
 	defer resp.Body.Close()
-	response, err := ioutil.ReadAll(resp.Body)
+	response, err := io.ReadAll(resp.Body)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.
 		return err
 	}
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
 	}
-	if resp.StatusCode == 429 || resp.StatusCode >= 500 {
-		// the server could not serve the request, most likely because of an
-		// internal error or, (429) because it is overwhelmed
-		return client.NewRetryableError(errServer)
-	} else if resp.StatusCode >= 400 {
+	if resp.StatusCode == http.StatusBadRequest ||
+		resp.StatusCode == http.StatusUnauthorized ||
+		resp.StatusCode == http.StatusForbidden ||
+		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
 		return errClient
+	} else if resp.StatusCode > http.StatusBadRequest {
+		// the server could not serve the request, most likely because of an
+		// internal error. We should retry these requests.
+		return client.NewRetryableError(errServer)
 	} else {
 		return nil
 	}
 }
 
-// SendAsync sends a payload in background.
-func (d *Destination) SendAsync(payload []byte) {
-	d.once.Do(func() {
-		payloadChan := make(chan []byte, config.ChanSize)
-		d.sendInBackground(payloadChan)
-		d.payloadChan = payloadChan
-	})
-	d.payloadChan <- payload
-}
+func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
 
-// sendInBackground sends all payloads from payloadChan in background.
-func (d *Destination) sendInBackground(payloadChan chan []byte) {
-	ctx := d.destinationsContext.Context()
-	go func() {
-		for {
-			select {
-			case payload := <-payloadChan:
-				// if the channel is non-buffered then there is no concurrency and we block on sending each payload
-				if cap(d.climit) == 0 {
-					d.unconditionalSend(payload) //nolint:errcheck
-					break
-				}
-				d.climit <- struct{}{}
-				go func() {
-					d.unconditionalSend(payload) //nolint:errcheck
-					<-d.climit
-				}()
-			case <-ctx.Done():
-				return
-			}
+	if _, ok := err.(*client.RetryableError); ok {
+		d.nbErrors = d.backoff.IncError(d.nbErrors)
+		if isRetrying != nil && d.lastRetryError == nil {
+			isRetrying <- true
 		}
-	}()
+		d.lastRetryError = err
+	} else {
+		d.nbErrors = d.backoff.DecError(d.nbErrors)
+		if isRetrying != nil && d.lastRetryError != nil {
+			isRetrying <- false
+		}
+		d.lastRetryError = nil
+	}
 }
 
 func httpClientFactory(timeout time.Duration) func() *http.Client {
@@ -263,13 +371,6 @@ func buildURL(endpoint config.Endpoint) string {
 	return url.String()
 }
 
-func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {
-	if endpoint.UseCompression {
-		return NewGzipContentEncoding(endpoint.CompressionLevel)
-	}
-	return IdentityContentType
-}
-
 // CheckConnectivity check if sending logs through HTTP works
 func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
@@ -277,9 +378,9 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	ctx.Start()
 	defer ctx.Stop()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
-	err := destination.unconditionalSend(emptyPayload)
+	err := destination.unconditionalSend(&emptyPayload)
 	if err != nil {
 		log.Warnf("HTTP connectivity failure: %v", err)
 	} else {

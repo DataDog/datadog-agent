@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build secrets
 // +build secrets
 
 package secrets
@@ -34,6 +35,8 @@ func build(m *testing.M, outBin, pkg string) {
 }
 
 func TestMain(m *testing.M) {
+	testCheckRightsStub()
+
 	if runtime.GOOS == "windows" {
 		binExtension = ".exe"
 	}

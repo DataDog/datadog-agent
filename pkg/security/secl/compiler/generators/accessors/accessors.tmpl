@@ -1,0 +1,383 @@
+{{- range .BuildTags }}// {{.}}{{end}}
+
+// Code generated - DO NOT EDIT.
+
+package {{.Name}}
+
+import (
+	"net"
+	"reflect"
+	"unsafe"
+
+	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
+
+// suppress unused package warning
+var (
+	_ *unsafe.Pointer
+)
+
+func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
+	switch field {
+	{{range $Name, $Field := .Iterators}}
+	case "{{$Name}}":
+		return &{{$Field.ReturnType}}{}, nil
+	{{end}}
+	}
+
+	return nil, &eval.ErrIteratorNotSupported{Field: field}
+}
+
+func (m *Model) GetEventTypes() []eval.EventType {
+	return []eval.EventType{
+		{{range $Name, $Exists := .EventTypes}}
+			{{- if ne $Name "*"}}
+			eval.EventType("{{$Name}}"),
+			{{end -}}
+		{{end}}
+	}
+}
+
+func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+	switch field {
+	{{range $Name, $Field := .Fields}}
+	case "{{$Name}}":
+		return &{{$Field.GetEvaluatorType}}{
+			{{- if $Field.OpOverrides}}
+			OpOverrides: {{$Field.OpOverrides}},
+			{{- end}}
+			{{- if $Field.Iterator}}
+				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {	
+					{{if $Field.Handler}}
+						ev := ctx.Event.(*Event)
+					{{end}}
+
+					{{$Checks := $Field | GetChecks $.AllFields}}
+
+					if ptr := ctx.Cache[field]; ptr != nil {
+						if result := (*[]{{$Field.ReturnType}})(ptr); result != nil {
+							return *result
+						}
+					}
+
+					var results []{{$Field.ReturnType}}
+
+					iterator := &{{$Field.Iterator.ReturnType}}{}
+
+					value := iterator.Front(ctx)
+					for value != nil {
+						{{if $Field.Iterator.IsOrigTypePtr}}
+							element := (*{{$Field.Iterator.OrigType}})(value)
+						{{else}}
+							elementPtr := (*{{$Field.Iterator.OrigType}})(value)
+							element := *elementPtr
+						{{end}}
+
+						{{range $Check := $Checks}}
+							{{if $Field.Iterator.Name | HasPrefix $Check}}
+								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
+								{{$Check = $SubName | printf "element%s"}}
+								if !{{$Check}}() {
+									results = append(results, {{$Field.GetDefaultScalarReturnValue}})
+									value = iterator.Next()
+									continue
+								}
+							{{end}}
+						{{end}}
+
+						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+
+						{{$Return := $SubName | printf "element%s"}}
+						{{if $Field.Handler }}
+							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
+							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+							{{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
+						{{end}}
+
+						{{if eq $Field.ReturnType "int"}}
+							{{if $Field.IsLength}}
+							result := len({{".length" | TrimSuffix $Return}})
+							{{else}}
+							result := int({{$Return}})
+							{{end}}
+						{{else}}
+							result := {{$Return}}
+						{{end}}
+
+						{{if not $Field.GetArrayPrefix}}
+						results = append(results, result)
+						{{else}}
+						results = append(results, result...)
+						{{end}}
+
+						value = iterator.Next()
+					}
+
+					ctx.Cache[field] = unsafe.Pointer(&results)
+
+					return results
+				},
+			{{- else}}
+				{{- $ReturnType := $Field.ReturnType}}
+				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
+					ev := ctx.Event.(*Event)
+
+					{{$Return := $Field.Name | printf "ev.%s"}}
+
+					{{$Checks := $Field | GetChecks $.AllFields}}
+					{{range $Check := $Checks}}
+						{{$Check = $Check | printf "ev.%s"}}
+						if !{{$Check}}() {
+							return {{$Field.GetDefaultReturnValue}}
+						}
+					{{end}}
+					
+					{{- if $Field.Handler}}
+						{{$Ptr := "&"}}
+						{{$Parent := index $.AllFields $Field.Prefix}}
+						{{- if $Parent.IsOrigTypePtr}}
+							{{$Ptr = ""}}
+						{{end}}
+						{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Field.Prefix ")"}}
+					{{end}}
+
+					{{- if eq $ReturnType "int"}}
+						{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
+							result := make([]int, len({{$Return}}))
+							for i, v := range {{$Return}} {
+								result[i] = int(v)
+							}
+							return result
+						{{- else}}
+							{{- if ne $Field.OrigType "int"}}
+								return int({{$Return}})
+							{{- else}}
+								{{- if $Field.IsLength }}
+									{{$Return = ".length" | TrimSuffix $Return | printf "len(%s)"}}
+								{{end}}
+								return {{$Return}}
+							{{end -}}
+						{{end -}}
+					{{- else}}
+						return {{$Return}}
+					{{end -}}
+				},
+			{{end -}}
+			Field: field,
+			{{- if $Field.Iterator}}
+				{{- if gt $Field.Weight 0}}
+				Weight: {{$Field.Weight}} * eval.IteratorWeight,
+				{{else}}
+				Weight: eval.IteratorWeight,
+				{{end}}
+			{{else if $Field.Handler}}
+				{{- if gt $Field.Weight 0}}
+					Weight: {{$Field.Weight}} * eval.HandlerWeight,
+				{{else}}
+					Weight: eval.HandlerWeight,
+				{{end -}}
+			{{else}}
+				Weight: eval.FunctionWeight,
+			{{end}}
+		}, nil
+	{{end}}
+	}
+
+	return nil, &eval.ErrFieldNotFound{Field: field}
+}
+
+func (ev *Event) GetFields() []eval.Field {
+	return []eval.Field{
+		{{range $Name, $Field := .Fields}}
+			"{{$Name}}",
+		{{end}}
+	}
+}
+
+func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
+	switch field {
+		{{range $Name, $Field := .Fields}}
+		case "{{$Name}}":
+		{{if $Field.Iterator}}
+			var values []{{$Field.ReturnType}}
+
+			ctx := eval.NewContext(ev)
+
+			iterator := &{{$Field.Iterator.ReturnType}}{}
+			ptr := iterator.Front(ctx)
+
+			for ptr != nil {
+				{{if $Field.Iterator.IsOrigTypePtr}}
+					element := (*{{$Field.Iterator.OrigType}})(ptr)
+				{{else}}
+					elementPtr := (*{{$Field.Iterator.OrigType}})(ptr)
+					element := *elementPtr
+				{{end}}
+
+				{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+
+				{{$Return := $SubName | printf "element%s"}}
+				{{if $Field.Handler}}
+					{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
+					{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+					{{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
+				{{end}}
+
+				{{if $Field.IsLength}}
+				{{$Return = ".length" | TrimSuffix $Return}}
+				{{end}}
+
+				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
+					result := int({{$Return}})
+				{{else}}
+					{{if $Field.IsLength}}
+						result := len({{$Return}})
+					{{else}}
+						result := {{$Return}}
+					{{end}}
+				{{end}}
+
+				{{if not $Field.GetArrayPrefix}}
+				values = append(values, result)
+				{{else}}
+				values = append(values, result...)
+				{{end}}
+
+				ptr = iterator.Next()
+			}
+
+			return values, nil
+		{{else}}
+			{{$Return := $Field.Name | printf "ev.%s"}}
+			{{if $Field.IsLength}}
+			{{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}
+			{{end}}
+			{{if $Field.Handler}}
+				{{$Ptr := "&"}}
+				{{$Parent := index $.AllFields $Field.Prefix}}
+				{{- if $Parent.IsOrigTypePtr}}
+					{{$Ptr = ""}}
+				{{end}}
+
+				{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Field.Prefix ")"}}
+			{{end}}
+
+			{{if eq $Field.ReturnType "string"}}
+				return {{$Return}}, nil
+			{{else if eq $Field.ReturnType "int"}}
+				{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
+					result := make([]int, len({{$Return}}))
+					for i, v := range {{$Return}} {
+						result[i] = int(v)
+					}
+					return result, nil
+				{{- else}}
+					{{- if ne $Field.OrigType "int"}}
+						return int({{$Return}}), nil
+					{{- else}}
+						return {{$Return}}, nil
+					{{end -}}
+				{{end -}}
+			{{else if eq $Field.ReturnType "bool"}}
+				return {{$Return}}, nil
+            {{else if eq $Field.ReturnType "net.IPNet"}}
+                return {{$Return}}, nil
+			{{end}}
+		{{end}}
+		{{end}}
+		}
+
+		return nil, &eval.ErrFieldNotFound{Field: field}
+}
+
+func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
+	switch field {
+	{{range $Name, $Field := .Fields}}
+	case "{{$Name}}":
+		return "{{$Field.Event}}", nil
+	{{end}}
+	}
+
+	return "", &eval.ErrFieldNotFound{Field: field}
+}
+
+func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
+	switch field {
+		{{range $Name, $Field := .Fields}}
+
+		case "{{$Name}}":
+		{{if eq $Field.ReturnType "string"}}
+			return reflect.String, nil
+		{{else if eq $Field.ReturnType "int"}}
+			return reflect.Int, nil
+		{{else if eq $Field.ReturnType "bool"}}
+			return reflect.Bool, nil
+        {{else if eq $Field.ReturnType "net.IPNet"}}
+            return reflect.Struct, nil
+		{{end}}
+		{{end}}
+		}
+
+		return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+}
+
+func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
+	switch field {
+		{{range $Name, $Field := .Fields}}
+		{{$FieldName := $Field.Name | printf "ev.%s"}}
+		case "{{$Name}}":
+			{{- $Field | NewField $.AllFields}}
+		{{- if eq $Field.OrigType "string"}}
+			{{if $Field.IsLength}}
+				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
+			{{else}}
+			str, ok := value.(string)
+			if !ok {
+				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+			}
+			{{- if $Field.IsArray}}
+				{{$FieldName}} = append({{$FieldName}}, str)
+			{{else}}
+				{{$FieldName}} = str
+			{{end}}
+			return nil
+			{{end}}
+		{{else if eq $Field.BasicType "int"}}
+			{{if $Field.IsLength}}
+				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
+			{{else}}
+			v, ok := value.(int)
+			if !ok {
+				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+			}
+			{{- if $Field.IsArray}}
+				{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(v))
+			{{else}}
+				{{$FieldName}} = {{$Field.OrigType}}(v)
+			{{end}}
+			return nil
+			{{end}}
+		{{else if eq $Field.BasicType "bool"}}
+			var ok bool
+			if {{$FieldName}}, ok = value.(bool); !ok {
+				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+			}
+			return nil
+        {{else if eq $Field.BasicType "net.IPNet"}}
+            v, ok := value.(net.IPNet)
+            if !ok {
+                return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+            }
+			{{- if $Field.IsArray}}
+                {{$FieldName}} = append({{$FieldName}}, v)
+            {{else}}
+                {{$FieldName}} = v
+            {{end}}
+			return nil
+		{{end}}
+		{{end}}
+		}
+
+		return &eval.ErrFieldNotFound{Field: field}
+}

@@ -6,7 +6,9 @@
 package tagger
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	"context"
+
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -15,13 +17,13 @@ import (
 // Tagger is an interface for transparent access to both localTagger and
 // remoteTagger.
 type Tagger interface {
-	Init() error
+	Init(context.Context) error
 	Stop() error
 
 	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
-	AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error
+	AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entity string) ([]string, error)
-	List(cardinality collectors.TagCardinality) response.TaggerListResponse
+	List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)
 
 	Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent

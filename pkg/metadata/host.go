@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package metadata
@@ -13,7 +14,7 @@ import (
 
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // HostCollector fills and sends the old metadata payload used in the
@@ -21,8 +22,8 @@ import (
 type HostCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (hp *HostCollector) Send(ctx context.Context, s *serializer.Serializer) error {
-	hostnameData, _ := util.GetHostnameData(ctx)
+func (hp *HostCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
+	hostnameData, _ := hostname.GetWithProvider(ctx)
 	payload := v5.GetPayload(ctx, hostnameData)
 	if err := s.SendHostMetadata(payload); err != nil {
 		return fmt.Errorf("unable to submit host metadata payload, %s", err)

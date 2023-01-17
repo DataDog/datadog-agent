@@ -7,7 +7,7 @@ package legacy
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +20,7 @@ func TestGetAgentConfig(t *testing.T) {
 	require.Nil(t, err)
 
 	pyConfig := map[string]string{}
-	data, err := ioutil.ReadFile("./tests/config.json")
+	data, err := os.ReadFile("./tests/config.json")
 	require.Nil(t, err)
 	err = json.Unmarshal(data, &pyConfig)
 	require.Nil(t, err)

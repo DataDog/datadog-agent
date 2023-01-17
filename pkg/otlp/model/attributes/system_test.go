@@ -19,16 +19,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
 func TestSystemExtractTags(t *testing.T) {
 	sattrs := systemAttributes{
-		OSType: "WINDOWS",
+		OSType: "windows",
 	}
 
 	assert.Equal(t, []string{
-		fmt.Sprintf("%s:%s", conventions.AttributeOSType, "WINDOWS"),
+		fmt.Sprintf("%s:%s", conventions.AttributeOSType, "windows"),
 	}, sattrs.extractTags())
 }
 

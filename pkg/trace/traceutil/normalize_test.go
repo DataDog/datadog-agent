@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package traceutil
 
 import (
@@ -62,6 +67,10 @@ func TestNormalizeTag(t *testing.T) {
 		{"a" + string(unicode.ReplacementChar), "a"},
 		{"a" + string(unicode.ReplacementChar) + string(unicode.ReplacementChar), "a"},
 		{"a" + string(unicode.ReplacementChar) + string(unicode.ReplacementChar) + "b", "a_b"},
+		{
+			in:  "A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 000000000000",
+			out: "a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_0",
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			assert.Equal(t, tt.out, NormalizeTag(tt.in), tt.in)

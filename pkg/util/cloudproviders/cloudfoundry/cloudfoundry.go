@@ -15,6 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
+var (
+	// CloudProviderName is the name for this cloudprovider
+	CloudProviderName = "CloudFoundry"
+)
+
 // Define alias in order to mock in the tests
 var getFqdn = util.Fqdn
 

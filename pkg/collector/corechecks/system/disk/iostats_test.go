@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package disk
@@ -12,8 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/shirou/gopsutil/disk"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 var (
@@ -76,8 +80,23 @@ var (
 
 var sampleIdx = 0
 
-var ioSampler = func(names ...string) (map[string]disk.IOCountersStat, error) { return sampler(ioSamples, names...) }
-var ioSamplerDM = func(names ...string) (map[string]disk.IOCountersStat, error) { return sampler(ioSamplesDM, names...) }
+var (
+	ioSampler   = func(names ...string) (map[string]disk.IOCountersStat, error) { return sampler(ioSamples, names...) }
+	ioSamplerDM = func(names ...string) (map[string]disk.IOCountersStat, error) { return sampler(ioSamplesDM, names...) }
+)
+
+func SwapMemory() (*mem.SwapMemoryStat, error) {
+	return &mem.SwapMemoryStat{
+		Total:       100000,
+		Used:        40000,
+		Free:        60000,
+		UsedPercent: 40,
+		Sin:         21,
+		Sout:        22,
+		PgIn:        23,
+		PgOut:       24,
+	}, nil
+}
 
 func sampler(samples []map[string]disk.IOCountersStat, names ...string) (map[string]disk.IOCountersStat, error) {
 	idx := sampleIdx
@@ -88,8 +107,9 @@ func sampler(samples []map[string]disk.IOCountersStat, names ...string) (map[str
 
 func TestIOCheckDM(t *testing.T) {
 	ioCounters = ioSamplerDM
+	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil, "test")
+	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -102,6 +122,8 @@ func TestIOCheckDM(t *testing.T) {
 		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:dm0", "device_label:virtual-1"}).Return().Times(1)
 		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:dm0", "device_label:virtual-1"}).Return().Times(1)
 		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:dm0", "device_label:virtual-1"}).Return().Times(1)
+		mock.On("Rate", "system.io.block_in", 23.0, "", []string(nil)).Return().Times(1)
+		mock.On("Rate", "system.io.block_out", 24.0, "", []string(nil)).Return().Times(1)
 	}
 }
 
@@ -111,8 +133,9 @@ func TestIOCheck(t *testing.T) {
 	defer func() { nowNano = time.Now().UnixNano }()
 
 	ioCounters = ioSampler
+	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil, "test")
+	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -128,7 +151,9 @@ func TestIOCheck(t *testing.T) {
 		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-		expectedRates += 2
+		mock.On("Rate", "system.io.block_in", 23.0, "", []string(nil)).Return().Times(1)
+		mock.On("Rate", "system.io.block_out", 24.0, "", []string(nil)).Return().Times(1)
+		expectedRates += 4
 	}
 	mock.On("Commit").Return().Times(1)
 
@@ -159,7 +184,9 @@ func TestIOCheck(t *testing.T) {
 		mock.On("Gauge", "system.io.avg_q_sz", 0.03, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.util", 2.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.svctm", 0.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-		expectedRates += 4
+		mock.On("Rate", "system.io.block_in", 23.0, "", []string(nil)).Return().Times(1)
+		mock.On("Rate", "system.io.block_out", 24.0, "", []string(nil)).Return().Times(1)
+		expectedRates += 6
 		expectedGauges += 9
 	}
 
@@ -174,22 +201,36 @@ func TestIOCheck(t *testing.T) {
 
 func TestIOCheckBlacklist(t *testing.T) {
 	ioCounters = ioSampler
+	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil, "test")
+	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
-	//set blacklist
+	expectedRates := 0
+	expectedGauges := 0
+
+	// set blacklist
 	bl, err := regexp.Compile("sd.*")
 	if err != nil {
 		t.FailNow()
 	}
 	ioCheck.blacklist = bl
 
+	switch os := runtime.GOOS; os {
+	case "windows":
+		break
+	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
+		mock.On("Rate", "system.io.block_in", 23.0, "", []string(nil)).Return().Times(1)
+		mock.On("Rate", "system.io.block_out", 24.0, "", []string(nil)).Return().Times(1)
+		expectedRates += 2
+	}
+
 	mock.On("Commit").Return().Times(1)
 
 	ioCheck.Run()
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 0)
+	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
+	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }

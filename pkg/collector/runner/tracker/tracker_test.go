@@ -149,13 +149,10 @@ func TestRunningChecksTrackerRunningChecks(t *testing.T) {
 
 func TestRunningChecksTrackerRunningChecksValueClone(t *testing.T) {
 	tracker := NewRunningChecksTracker()
-	checks := make([]check.Check, 0)
 
 	for idx := 0; idx < 50; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
 		tracker.AddCheck(testCheck)
-
-		checks = append(checks, testCheck)
 	}
 
 	runningChecks := tracker.RunningChecks()

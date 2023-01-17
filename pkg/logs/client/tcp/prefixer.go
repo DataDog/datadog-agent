@@ -13,7 +13,7 @@ type prefixer struct {
 // newPrefixer returns a prefixer that prepends the given prefix to a message.
 func newPrefixer(prefix string) *prefixer {
 	return &prefixer{
-		prefix: append([]byte(prefix)),
+		prefix: []byte(prefix),
 	}
 }
 

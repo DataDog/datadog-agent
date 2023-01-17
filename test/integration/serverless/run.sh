@@ -1,237 +1,278 @@
 #!/bin/bash
 
-# Usage - run commands from repo root:
-# To check if new changes to the extension cause changes to any snapshots:
-#   BUILD_EXTENSION=true aws-vault exec sandbox-account-admin -- ./run.sh
-# To regenerate snapshots:
-#   UPDATE_SNAPSHOTS=true aws-vault exec sandbox-account-admin -- ./run.sh
+# Runs Datadog Lambda Extension integration tests.
+# NOTE: Use aws-vault clear before running tests to ensure credentials do not expire during a test run
 
-LOGS_WAIT_SECONDS=600
+# Run tests:
+#   aws-vault clear && aws-vault exec sandbox-account-admin -- ./run.sh
+# Regenerate snapshots:
+#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec sandbox-account-admin -- ./run.sh
 
-DEFAULT_NODE_LAYER_VERSION=66
-DEFAULT_PYTHON_LAYER_VERSION=49
+# Optional environment variables:
+
+# UPDATE_SNAPSHOTS [true|false] - Use this when you want to update snapshots instead of running tests. The default is false.
+# BUILD_EXTENSION [true|false] - Whether to build the extension or re-use the previous build. The default is true.
+# NODE_LAYER_VERSION [number] - A specific layer version of datadog-lambda-js to use.
+# PYTHON_LAYER_VERSION [number] - A specific layer version of datadog-lambda-py to use.
+# JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
+# DOTNET_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-dotnet to use.
+# ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
+# ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
+
+DEFAULT_NODE_LAYER_VERSION=67
+DEFAULT_PYTHON_LAYER_VERSION=50
+DEFAULT_JAVA_TRACE_LAYER_VERSION=4
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=3
+DEFAULT_ARCHITECTURE=amd64
+
+# Text formatting constants
+RED="\e[1;41m"
+GREEN="\e[1;42m"
+YELLOW="\e[1;43m"
+MAGENTA="\e[1;45m"
+END_COLOR="\e[0m"
 
 set -e
 
 script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 
-if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+if [ -z "$AWS_SECRET_ACCESS_KEY" ] && [ -z "$AWS_PROFILE" ]; then
     echo "No AWS credentials were found in the environment."
     echo "Note that only Datadog employees can run these integration tests."
-    exit 1
+    echo "Exiting without running tests..."
+
+    # If credentials are not available, the run is considered a success
+    # so as not to break CI for external users that don't have access to GitHub secrets
+    exit 0
+fi
+
+if [ -z "$ARCHITECTURE" ]; then
+    export ARCHITECTURE=$DEFAULT_ARCHITECTURE
 fi
 
 # Move into the root directory, so this script can be called from any directory
-SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-cd $SERVERLESS_INTEGRATION_TESTS_DIR/../../..
+SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-# TODO: Get this working in CI environment
+cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
 LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
+if [ "$BUILD_EXTENSION" != "false" ]; then
+    echo "Building extension"
 
-if [ "$BUILD_EXTENSION" == "true" ]; then
-    echo "Building extension that will be deployed with our test functions"
+    if [ "$ENABLE_RACE_DETECTION" != "true" ]; then
+        ENABLE_RACE_DETECTION=false
+    fi
 
     # This version number is arbitrary and won't be used by AWS
     PLACEHOLDER_EXTENSION_VERSION=123
 
-    ARCHITECTURE=amd64 VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
 else
-    echo "Not building extension, ensure it has already been built or re-run with 'BUILD_EXTENSION=true'"
+    echo "Skipping extension build, reusing previously built extension"
 fi
 
-cd "./test/integration/serverless"
+cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
-# build and zip recorder extension
-echo "Building recorder extension"
-cd recorder-extension
-GOOS=linux GOARCH=amd64 go build -o extensions/recorder-extension main.go
-zip -rq ext.zip extensions/* -x ".*" -x "__MACOSX" -x "extensions/.*"
-cd ..
-
-# build Go Lambda functions
-echo "Building Go Lambda functions"
-go_test_dirs=("with-ddlambda" "without-ddlambda" "log-with-ddlambda" "log-without-ddlambda" "timeout" "trace")
-cd src
-for go_dir in "${go_test_dirs[@]}"; do
-    env GOOS=linux go build -ldflags="-s -w" -o bin/"$go_dir" go-tests/"$go_dir"/main.go
-done
-
-#build .NET functions
-echo "Building .NET Lambda functions"
-cd csharp-tests
-dotnet restore
-set +e #set this so we don't exit if the tools are already installed
-dotnet tool install -g Amazon.Lambda.Tools --framework netcoreapp3.1
-dotnet lambda package --configuration Release --framework netcoreapp3.1 --output-package bin/Release/netcoreapp3.1/handler.zip
-set -e
-cd ../../
+./build_recorder.sh
+./build_go_functions.sh
+./build_java_functions.sh
+./build_csharp_functions.sh
 
 if [ -z "$NODE_LAYER_VERSION" ]; then
-    echo "NODE_LAYER_VERSION not found, using the default"
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
 fi
 
 if [ -z "$PYTHON_LAYER_VERSION" ]; then
-    echo "PYTHON_LAYER_VERSION not found, using the default"
     export PYTHON_LAYER_VERSION=$DEFAULT_PYTHON_LAYER_VERSION
 fi
 
-echo "NODE_LAYER_VERSION set to: $NODE_LAYER_VERSION"
-echo "PYTHON_LAYER_VERSION set to: $PYTHON_LAYER_VERSION"
+if [ -z "$JAVA_TRACE_LAYER_VERSION" ]; then
+    export JAVA_TRACE_LAYER_VERSION=$DEFAULT_JAVA_TRACE_LAYER_VERSION
+fi
+
+if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
+    export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
+fi
+
+echo "Testing for $ARCHITECTURE architecture"
+
+echo "Using dd-lambda-js layer version: $NODE_LAYER_VERSION"
+echo "Using dd-lambda-python version: $PYTHON_LAYER_VERSION"
+echo "Using dd-trace-java layer version: $JAVA_TRACE_LAYER_VERSION"
+echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
 
 function remove_stack() {
-    echo "Removing stack for stage : ${stage}"
-    serverless remove --stage ${stage}
+    echo "Removing stack"
+    serverless remove --stage "${stage}"
 }
 
-# always remove the stacks before exiting, no matter what
+# always remove the stack before exiting, no matter what
 trap remove_stack EXIT
 
 # deploy the stack
-NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
-    PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} \
-    serverless deploy --stage ${stage}
+serverless deploy --stage "${stage}"
 
-# invoke functions
+metric_functions=(
+    "metric-node"
+    "metric-python"
+    "metric-java"
+    "metric-go"
+    "metric-csharp"
+    "metric-proxy"
+    "timeout-node"
+    "timeout-python"
+    "timeout-java"
+    "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
+    "error-node"
+    "error-python"
+    "error-java"
+    "error-csharp"
+    "error-proxy"
+)
+log_functions=(
+    "log-node"
+    "log-python"
+    "log-java"
+    "log-go"
+    "log-csharp"
+    "log-proxy"
+)
+trace_functions=(
+    "trace-node"
+    "trace-python"
+    "trace-java"
+    "trace-go"
+    "trace-csharp"
+    "trace-proxy"
+)
 
-metric_function_names=("enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "error-python" "error-node")
-log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda")
-trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go")
+all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
 
-all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
+# Add a function to this list to skip checking its results
+# This should only be used temporarily while we investigate and fix the test
+functions_to_skip=()
 
+echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage ${stage} -f ${function_name}
+    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
 done
-#wait 30 seconds to make sure metrics aren't merged into a single metric
-sleep 30
+wait
+
+# wait to make sure metrics aren't merged into a single metric
+SECONDS_BETWEEN_INVOCATIONS=30
+echo "Waiting $SECONDS_BETWEEN_INVOCATIONS seconds before invoking functions for the second time..."
+sleep $SECONDS_BETWEEN_INVOCATIONS
+
+# two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
+echo "Invoking functions for the second time..."
 for function_name in "${all_functions[@]}"; do
-    # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
-    return_value=$(serverless invoke --stage ${stage} -f ${function_name})
-    # Compare new return value to snapshot
-    diff_output=$(echo "$return_value" | diff - "./snapshots/expectedInvocationResult")
-    if [ "$?" -eq 1 ] && { [ "${function_name:0:7}" != timeout ] && [ "${function_name:0:5}" != error ]; }; then
-        echo "Failed: Return value for $function_name does not match snapshot:"
-        echo "$diff_output"
-        mismatch_found=true
-    else
-        echo "Ok: Return value for $function_name matches snapshot"
-    fi
+    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
 done
+wait
 
-now=$(date +"%r")
-echo "Sleeping $LOGS_WAIT_SECONDS seconds to wait for logs to appear in CloudWatch..."
-echo "This should be done in 10 minutes from $now"
+LOGS_WAIT_MINUTES=8
+END_OF_WAIT_TIME=$(date --date="+"$LOGS_WAIT_MINUTES" minutes" +"%r")
+echo "Waiting $LOGS_WAIT_MINUTES minutes for logs to flush..."
+echo "This will be done at $END_OF_WAIT_TIME"
+sleep "$LOGS_WAIT_MINUTES"m
 
-sleep $LOGS_WAIT_SECONDS
+failed_functions=()
+
+RAWLOGS_DIR=$(mktemp -d)
+echo "Raw logs will be written to ${RAWLOGS_DIR}"
 
 for function_name in "${all_functions[@]}"; do
-    echo "Fetching logs for ${function_name} on ${stage}"
-    retry_counter=0
-    while [ $retry_counter -lt 10 ]; do
-        raw_logs=$(NODE_LAYER_VERSION=${NODE_LAYER_VERSION} PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} serverless logs --stage ${stage} -f $function_name --startTime $script_utc_start_time)
+    echo "Fetching logs for ${function_name}..."
+    retry_counter=1
+    while [ $retry_counter -lt 11 ]; do
+        raw_logs=$(serverless logs --stage "${stage}" -f "$function_name" --startTime "$script_utc_start_time")
         fetch_logs_exit_code=$?
         if [ $fetch_logs_exit_code -eq 1 ]; then
-            echo "Retrying fetch logs for $function_name..."
+            printf "\e[A\e[K" # erase previous log line
+            echo "Retrying fetch logs for $function_name... (retry #$retry_counter)"
             retry_counter=$(($retry_counter + 1))
             sleep 10
             continue
         fi
         break
     done
+    printf "\e[A\e[K" # erase previous log line
+
+    echo $raw_logs > $RAWLOGS_DIR/$function_name
 
     # Replace invocation-specific data like timestamps and IDs with XXX to normalize across executions
-    if [[ " ${metric_function_names[*]} " =~ " ${function_name} " ]]; then
-        # Normalize metrics
-        logs=$(
-            echo "$raw_logs" |
-                perl -p -e "s/raise Exception/\n/g" |
-                grep -v "\[log\]" |
-                grep "\[sketch\].*" |
-                perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/(min\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(max\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(cnt\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(avg\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(sum\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(k\":\[)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(datadog-nodev)[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(datadog_lambda:v)[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/dd_lambda_layer:datadog-go[0-9.]{1,}/dd_lambda_layer:datadog-gox.x.x/g" |
-                perl -p -e "s/(dd_lambda_layer:datadog-python)[0-9_]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
-                perl -p -e "s/$stage/XXXXXX/g" |
-                perl -p -e "s/[ ]$//g" |
-                sort
-        )
-    elif [[ " ${log_function_names[*]} " =~ " ${function_name} " ]]; then
-        # Normalize logs
-        logs=$(
-            echo "$raw_logs" |
-                grep "\[log\]" |
-                perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
-                perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(\"HTTP ).*/\1\"}}/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
-                perl -p -e "s/$stage/STAGE/g" |
-                perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g" |
-                grep XXX
-        )
+    if [[ " ${metric_functions[*]} " =~ " ${function_name} " ]]; then
+        norm_type=metrics
+    elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
+        norm_type=logs
     else
-        # Normalize traces
-        logs=$(
-            echo "$raw_logs" |
-                grep "\[trace\]" |
-                perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1XXX/g" |
-                perl -p -e "s/(duration\":)[0-9]+/\1XXX/g" |
-                perl -p -e "s/((datadog_lambda|dd_trace)\":\")[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/$stage/XXXXXX/g" |
-                perl -p -e "s/[ ]$//g" |
-                sort
-        )
+        norm_type=traces
     fi
+    logs=$(python3 log_normalize.py --type $norm_type --logs "$raw_logs" --stage $stage)
 
     function_snapshot_path="./snapshots/${function_name}"
 
-    if [ ! -f $function_snapshot_path ]; then
-        # If no snapshot file exists yet, we create one
-        echo "Writing logs to $function_snapshot_path because no snapshot exists yet"
-        echo "$logs" >$function_snapshot_path
+    if [ ! -f "$function_snapshot_path" ]; then
+        printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
+        echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
-        # If $UPDATE_SNAPSHOTS is set to true write the new logs over the current snapshot
-        echo "Overwriting log snapshot for $function_snapshot_path"
-        echo "$logs" >$function_snapshot_path
+        printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
+        echo "$logs" > "$function_snapshot_path"
     else
-        # Compare new logs to snapshots
-        diff_output=$(echo "$logs" | diff - $function_snapshot_path)
+        if [[ " ${functions_to_skip[*]} " =~ " ${function_name} " ]]; then
+            printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"
+            continue
+        fi
+        # Skip all csharp tests when on arm64, .NET is not supported at all for arm architecture
+        if [[ $ARCHITECTURE == "arm64" && $function_name =~ "csharp" ]]; then
+            printf "${YELLOW} SKIP ${END_COLOR} $function_name, no .NET support on arm64\n"
+            continue
+        fi
+        diff_output=$(echo "$logs" | diff - "$function_snapshot_path")
         if [ $? -eq 1 ]; then
-            echo "Failed: Mismatch found between new $function_name logs (first) and snapshot (second):"
+            failed_functions+=("$function_name")
+
+            echo
+            printf "${RED} FAIL ${END_COLOR} $function_name\n"
+            echo "Diff:"
+            echo
             echo "$diff_output"
-            mismatch_found=true
+            echo
         else
-            echo "Ok: New logs for $function_name match snapshot"
+            printf "${GREEN} PASS ${END_COLOR} $function_name\n"
         fi
     fi
-
 done
 
 echo
+
 if [ "$UPDATE_SNAPSHOTS" == "true" ]; then
-    echo "DONE: Snapshots were updated for all functions."
+    echo "✨ Snapshots were updated for all functions."
+    echo
     exit 0
-elif [ "$mismatch_found" == true ]; then
-    echo "FAILURE: A mismatch between new data and a snapshot was found and printed above."
+fi
+
+if [ ${#functions_to_skip[@]} -gt 0 ]; then
+    echo "🟨 The following function(s) were skipped:"
+    for function_name in "${functions_to_skip[@]}"; do
+        echo "- $function_name"
+    done
+    echo
+fi
+
+if [ ${#failed_functions[@]} -gt 0 ]; then
+    echo "❌ The following function(s) did not match their snapshots:"
+    for function_name in "${failed_functions[@]}"; do
+        echo "- $function_name"
+    done
+    echo
     exit 1
 fi
 
-echo "SUCCESS: No difference found between snapshots and new return values or logs"
+echo "✨ No difference found between snapshots and logs."
 echo

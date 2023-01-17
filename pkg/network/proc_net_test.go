@@ -1,9 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package network
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -48,7 +53,7 @@ func TestReadProcNet(t *testing.T) {
 }
 
 func writeTestFile(content string) (f *os.File, err error) {
-	tmpfile, err := ioutil.TempFile("", "test-proc-net")
+	tmpfile, err := os.CreateTemp("", "test-proc-net")
 
 	if err != nil {
 		return nil, err

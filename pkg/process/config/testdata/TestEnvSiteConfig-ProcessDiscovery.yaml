@@ -1,4 +1,0 @@
-process_config:
-    enabled: false
-    process_discovery:
-        enabled: false

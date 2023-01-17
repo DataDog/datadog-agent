@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package traceutil
 
 import (
@@ -92,6 +97,11 @@ const maxTagLength = 200
 
 // NormalizeTag applies some normalization to ensure the tags match the backend requirements.
 func NormalizeTag(v string) string {
+	// Fast path: Check if the tag is valid and only contains ASCII characters,
+	// if yes return it as-is right away. For most use-cases this reduces CPU usage.
+	if isNormalizedASCIITag(v) {
+		return v
+	}
 	// the algorithm works by creating a set of cuts marking start and end offsets in v
 	// that have to be replaced with underscore (_)
 	if len(v) == 0 {
@@ -149,6 +159,7 @@ func NormalizeTag(v string) string {
 			chars++
 		default:
 			// illegal character
+			chars++
 			if n := len(cuts); n > 0 && cuts[n-1][1] >= i {
 				// merge intersecting cuts
 				cuts[n-1][1] += jump
@@ -266,4 +277,41 @@ func normMetricNameParse(name string) (string, bool) {
 	}
 
 	return string(res), true
+}
+
+func isNormalizedASCIITag(tag string) bool {
+	if len(tag) == 0 {
+		return true
+	}
+	if len(tag) > maxTagLength {
+		return false
+	}
+	if !isValidASCIIStartChar(tag[0]) {
+		return false
+	}
+	for i := 1; i < len(tag); i++ {
+		b := tag[i]
+		// TODO: Attempt to optimize this check using SIMD/vectorization.
+		if isValidASCIITagChar(b) {
+			continue
+		}
+		if b == '_' {
+			// an underscore is only okay if followed by a valid non-underscore character
+			i++
+			if i == len(tag) || !isValidASCIITagChar(tag[i]) {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	return true
+}
+
+func isValidASCIIStartChar(c byte) bool {
+	return ('a' <= c && c <= 'z') || c == ':'
+}
+
+func isValidASCIITagChar(c byte) bool {
+	return isValidASCIIStartChar(c) || ('0' <= c && c <= '9') || c == '.' || c == '/' || c == '-'
 }

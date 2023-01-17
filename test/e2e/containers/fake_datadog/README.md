@@ -178,6 +178,7 @@ db.series.aggregate([
 
 This tool can be used as a debug proxy to inspect agent payloads. Here is how to do it for Kubernetes.
 
+##### K8S
 - run the following from within this folder:
 
 ```console
@@ -197,4 +198,43 @@ kubectl apply -f fake-datadog.yaml
     - name: DD_DD_URL
       # if you deployed the service & deployment in a separate namespace, add `.<NAMESPACE>.svc.cluster.local
       value: "http://fake-datadog"
+```
+
+##### Docker
+
+1. Create a `agent-docker-compose-extra.yaml` file to override url and V2 series environment variables
+
+```yaml
+services:
+  agent: # use your agent service name here
+    environment:
+      DD_DD_URL: "http://fake-datadog"
+      DD_USE_V2_API_SERIES: false
+```
+
+- `agent` is the docker service name used for Datadog Agent. Rename it if you are using another service id.
+- `DD_DD_URL` overrides the URL for metric submission
+- `DD_USE_V2_API_SERIES` force using v1 APIs
+
+1. Run `docker compose up` passing datadog agent compose, agent extra compose and fake datadog compose
+
+```bash
+docker compose up -f "${PATH_TO_AGENT_COMPOSE}.yaml" -f "fake-datadog.yaml" -f "agent-docker-compose-extra.yaml"
+```
+
+1. Query `datadog` on `mongo` service, reachable from host at `localhost:27017` and from another container at `mongo:27017`
+
+##### VM
+
+1. Create `fake-datadog` compose
+
+```bash
+docker compose up -f "fake-datadog.yaml"
+```
+
+1. Configure the agent to send requests to `fake-datadog` using `V1` endpoint passing following environment variables
+
+```txt
+DD_DD_URL="http://fake-datadog"
+DD_USE_V2_API_SERIES=false
 ```

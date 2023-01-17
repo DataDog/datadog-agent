@@ -7,17 +7,16 @@ package forwarder
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -54,8 +53,8 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.Equal(t, resolver.NewSingleDomainResolvers(validKeysPerDomain), forwarder.domainResolvers)
 	assert.Len(t, forwarder.domainForwarders, 1) // datadog.bar should have been dropped
 
-	assert.Equal(t, forwarder.internalState, Stopped)
-	assert.Equal(t, forwarder.State(), forwarder.internalState)
+	assert.Equal(t, forwarder.internalState.Load(), Stopped)
+	assert.Equal(t, forwarder.State(), forwarder.internalState.Load())
 }
 
 func TestFeature(t *testing.T) {
@@ -123,8 +122,6 @@ func TestSubmitIfStopped(t *testing.T) {
 
 	require.NotNil(t, forwarder)
 	require.Equal(t, Stopped, forwarder.State())
-	assert.NotNil(t, forwarder.SubmitEvents(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitServiceChecks(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitSketchSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
@@ -132,6 +129,9 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitContainerLifecycleEvents(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitContainerImages(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitSBOM(nil, make(http.Header)))
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
@@ -139,11 +139,11 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
-	payloads := Payloads{&p1, &p2}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1, &p2})
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, false, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 4)
 	assert.Equal(t, testVersionDomain, transactions[0].Domain)
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
@@ -159,28 +159,21 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
 	assert.Equal(t, "", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
-	assert.Equal(t, p1, *(transactions[0].Payload))
-	assert.Equal(t, p1, *(transactions[1].Payload))
-	assert.Equal(t, p2, *(transactions[2].Payload))
-	assert.Equal(t, p2, *(transactions[3].Payload))
-
-	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
-	require.Len(t, transactions, 4)
-	assert.Contains(t, transactions[0].Endpoint.Route, "api_key=api-key-1")
-	assert.Contains(t, transactions[1].Endpoint.Route, "api_key=api-key-2")
-	assert.Contains(t, transactions[2].Endpoint.Route, "api_key=api-key-1")
-	assert.Contains(t, transactions[3].Endpoint.Route, "api_key=api-key-2")
+	assert.Equal(t, p1, transactions[0].Payload.GetContent())
+	assert.Equal(t, p1, transactions[1].Payload.GetContent())
+	assert.Equal(t, p2, transactions[2].Payload.GetContent())
+	assert.Equal(t, p2, transactions[3].Payload.GetContent())
 }
 
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysWithMultipleDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
-	payloads := Payloads{&p1}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 3, "should contain 3 transactions, contains %d", len(transactions))
 
 	var txNormal, txBar []*transaction.HTTPTransaction
@@ -196,14 +189,15 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	if strings.HasSuffix(txNormal[0].Endpoint.Route, "api-key-1") {
-		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
-		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-2")
+	if txNormal[0].Headers.Get("DD-Api-Key") == "api-key-1" {
+		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-2")
 	} else {
-		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-2")
-		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-2")
+		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-1")
 	}
-	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
+
+	assert.Equal(t, txBar[0].Headers.Get("DD-Api-Key"), "api-key-3")
 }
 
 func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
@@ -214,11 +208,11 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolvers))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "diverted_name"}
 	p1 := []byte("A payload")
-	payloads := Payloads{&p1}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 4, "should contain 4 transactions, contains %d", len(transactions))
 
 	var txNormal, txBar, txVector []*transaction.HTTPTransaction
@@ -237,15 +231,15 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	if strings.HasSuffix(txNormal[0].Endpoint.Route, "api-key-1") {
-		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
-		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-2")
+	if txNormal[0].Headers.Get("DD-Api-Key") == "api-key-1" {
+		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-2")
 	} else {
-		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-2")
-		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-2")
+		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-1")
 	}
-	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
-	assert.Equal(t, txVector[0].Endpoint.Route, "/api/foo?api_key=api-key-4")
+	assert.Equal(t, txBar[0].Headers.Get("DD-Api-Key"), "api-key-3")
+	assert.Equal(t, txVector[0].Headers.Get("DD-Api-Key"), "api-key-4")
 }
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
@@ -257,26 +251,26 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "no_diverted"}
 	p1 := []byte("A payload")
-	payloads := Payloads{&p1}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
 
-	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo")
 	assert.Equal(t, transactions[0].Domain, testVersionDomain)
 
 	endpoint.Name = "diverted"
-	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	transactions = forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
 
-	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo")
 	assert.Equal(t, transactions[0].Domain, "vector.tld")
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("allow_arbitrary_tags", true)
 	defer mockConfig.Set("allow_arbitrary_tags", false)
 
@@ -285,7 +279,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	payload := []byte("A payload")
 	headers := make(http.Header)
 
-	transactions := forwarder.createHTTPTransactions(endpoint, Payloads{&payload}, false, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), headers)
 	require.True(t, len(transactions) > 0)
 	assert.Equal(t, "true", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 }
@@ -294,9 +288,9 @@ func TestSendHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
-	payloads := Payloads{&p1}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
-	tr := forwarder.createHTTPTransactions(endpoint, payloads, false, headers)
+	tr := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 
 	// fw is stopped, we should get an error
 	err := forwarder.sendHTTPTransactions(tr)
@@ -323,7 +317,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	defer func() { df.highPrio = bk }()
 
 	p := []byte("test")
-	assert.Nil(t, forwarder.SubmitV1Intake(Payloads{&p}, make(http.Header)))
+	assert.Nil(t, forwarder.SubmitV1Intake(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p}), make(http.Header)))
 
 	select {
 	case tr := <-df.highPrio:
@@ -342,13 +336,13 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	// reseting DroppedOnInput
 	highPriorityQueueFull.Set(0)
 
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("%#v\n", r.URL)
-		atomic.AddInt64(&requests, 1)
+		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
@@ -364,38 +358,61 @@ func TestForwarderEndtoEnd(t *testing.T) {
 
 	data1 := []byte("data payload 1")
 	data2 := []byte("data payload 2")
-	payload := Payloads{&data1, &data2}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data1, &data2})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
+	// - 2 requests to check the validity of the two api_key
+	numReqs := int64(2)
+
+	// for each call, we send 2 payloads * 2 api_keys
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitSeries(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitV1Intake(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
-	assert.Nil(t, f.SubmitEvents(payload, headers))
-	assert.Nil(t, f.SubmitServiceChecks(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitMetadata(payload, headers))
+	numReqs += 4
+
+	assert.Nil(t, f.SubmitContainerLifecycleEvents(payload, headers))
+	numReqs += 4
+
+	assert.Nil(t, f.SubmitContainerImages(payload, headers))
+	numReqs += 4
+
+	assert.Nil(t, f.SubmitSBOM(payload, headers))
+	numReqs += 4
 
 	// let's wait a second for every channel communication to trigger
 	<-time.After(1 * time.Second)
 
 	// We should receive the following requests:
 	// - 9 transactions * 2 payloads per transactions * 2 api_keys
-	// - 2 requests to check the validity of the two api_key
 	ts.Close()
-	assert.Equal(t, int64(9*2*2+2), requests)
+	assert.Equal(t, numReqs, requests.Load())
 }
 
 func TestTransactionEventHandlers(t *testing.T) {
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&requests, 1)
+		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
@@ -408,14 +425,14 @@ func TestTransactionEventHandlers(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("data payload 1")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
 	require.Len(t, transactions, 1)
 
-	attempts := int64(0)
+	attempts := atomic.NewInt64(0)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -424,7 +441,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 		wg.Done()
 	}
 	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
-		atomic.AddInt64(&attempts, 1)
+		attempts.Inc()
 	}
 
 	err := f.sendHTTPTransactions(transactions)
@@ -432,18 +449,18 @@ func TestTransactionEventHandlers(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, int64(1), atomic.LoadInt64(&attempts))
+	assert.Equal(t, int64(1), attempts.Load())
 }
 
 func TestTransactionEventHandlersOnRetry(t *testing.T) {
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
-		if v := atomic.AddInt64(&requests, 1); v == 1 {
+		if v := requests.Inc(); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			w.WriteHeader(http.StatusOK)
@@ -453,7 +470,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
@@ -466,14 +483,14 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("data payload 1")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
 	require.Len(t, transactions, 1)
 
-	attempts := int64(0)
+	attempts := atomic.NewInt64(0)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -482,7 +499,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 		wg.Done()
 	}
 	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
-		atomic.AddInt64(&attempts, 1)
+		attempts.Inc()
 	}
 
 	err := f.sendHTTPTransactions(transactions)
@@ -490,24 +507,24 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, int64(2), atomic.LoadInt64(&attempts))
+	assert.Equal(t, int64(2), attempts.Load())
 }
 
 func TestTransactionEventHandlersNotRetryable(t *testing.T) {
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&requests, 1)
+		requests.Inc()
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
@@ -520,14 +537,14 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("data payload 1")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
 	require.Len(t, transactions, 1)
 
-	attempts := int64(0)
+	attempts := atomic.NewInt64(0)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -536,7 +553,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 		wg.Done()
 	}
 	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
-		atomic.AddInt64(&attempts, 1)
+		attempts.Inc()
 	}
 
 	transactions[0].Retryable = false
@@ -546,18 +563,18 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, int64(1), atomic.LoadInt64(&requests))
-	assert.Equal(t, int64(1), atomic.LoadInt64(&attempts))
+	assert.Equal(t, int64(1), requests.Load())
+	assert.Equal(t, int64(1), attempts.Load())
 }
 
 func TestProcessLikePayloadResponseTimeout(t *testing.T) {
-	requests := int64(0)
+	requests := atomic.NewInt64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&requests, 1)
+		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	numWorkers := mockConfig.Get("forwarder_num_workers")
 	responseTimeout := defaultResponseTimeout
@@ -579,11 +596,11 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("data payload 1")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
 	require.Len(t, transactions, 1)
 
 	responses, err := f.submitProcessLikePayload(endpoints.SeriesEndpoint, payload, headers, true)
@@ -602,7 +619,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 		mutex.Lock()
 		defer mutex.Unlock()
 		defer r.Body.Close()
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		bodyStr := string(body)
 
@@ -636,14 +653,14 @@ func TestHighPriorityTransaction(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	assert.Nil(t, f.SubmitMetadata(Payloads{&data1}, headers))
+	assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data1}), headers))
 	// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
 	time.Sleep(10 * time.Millisecond)
 
 	// SubmitHostMetadata send the transactions as TransactionPriorityHigh
-	assert.Nil(t, f.SubmitHostMetadata(Payloads{&dataHighPrio}, headers))
+	assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&dataHighPrio}), headers))
 	time.Sleep(10 * time.Millisecond)
-	assert.Nil(t, f.SubmitMetadata(Payloads{&data2}, headers))
+	assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data2}), headers))
 
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)
@@ -660,7 +677,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	defer srv.Close()
 
 	// Point agent configuration to it
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	prevURL := cfg.Get("dd_url")
 	defer cfg.Set("dd_url", prevURL)
 	cfg.Set("dd_url", srv.URL)
@@ -682,7 +699,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("payload_data")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	assert.Nil(t, f.SubmitV1Series(payload, http.Header{}))
 
 	// And finally let's ensure the handler gets called

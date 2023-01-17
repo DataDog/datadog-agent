@@ -2,18 +2,17 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-// +build !windows
-// +build !freebsd
+//go:build !windows && !freebsd
+// +build !windows,!freebsd
 
 package filehandles
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +28,7 @@ type fhCheck struct {
 }
 
 func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
-	dat, err := ioutil.ReadFile(fn)
+	dat, err := os.ReadFile(fn)
 	if err != nil {
 		log.Error(err.Error())
 		return nil, err
@@ -53,7 +52,7 @@ func (c *fhCheck) Run() error {
 		return err
 	}
 
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

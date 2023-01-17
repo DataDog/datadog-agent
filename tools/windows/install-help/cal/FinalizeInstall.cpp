@@ -1,6 +1,13 @@
 #include "stdafx.h"
 #include "PropertyReplacer.h"
 #include "TargetMachine.h"
+#ifndef _CONSOLE
+// install-cmd and uninstall-cmd projects are console projects.
+// skip the decompressing part for those testing projects.
+#include "decompress.h"
+#endif
+#include <array>
+#include <filesystem>
 #include <fstream>
 
 bool ShouldUpdateConfig()
@@ -49,11 +56,13 @@ bool updateYamlConfig(CustomActionData &customActionData)
     std::wstring inputConfig;
     inputConfig.reserve(fileSize);
     inputConfigExampleStream.seekg(0, std::ios::beg);
-    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigExampleStream), std::istreambuf_iterator<wchar_t>());
+    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigExampleStream),
+                       std::istreambuf_iterator<wchar_t>());
 
     std::vector<std::wstring> failedToReplace;
-    inputConfig =
-        replace_yaml_properties(inputConfig, [&customActionData](std::wstring const &propertyName) -> std::optional<std::wstring> {
+    inputConfig = replace_yaml_properties(
+        inputConfig,
+        [&customActionData](std::wstring const &propertyName) -> std::optional<std::wstring> {
             std::wstring propertyValue;
             if (customActionData.value(propertyName, propertyValue))
             {
@@ -105,7 +114,7 @@ std::optional<std::wstring> GetInstallMethod(const CustomActionData &customActio
             customInstallMethod = L"windows_msi_quiet";
         }
     }
-    return std::optional<std::wstring> (customInstallMethod);
+    return std::optional<std::wstring>(customInstallMethod);
 }
 
 bool writeInstallInfo(const CustomActionData &customActionData)
@@ -162,10 +171,15 @@ UINT doFinalizeInstall(CustomActionData &data)
     // new installation or an upgrade, and what steps need to be taken
     ddUserExists = data.DoesUserExist();
 
-    if (!canInstall(data.GetTargetMachine()->IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword))
+    if (!canInstall(data, bResetPassword, NULL))
     {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
+    }
+
+    if (data.value(propertyDDAgentUserPassword, providedPassword))
+    {
+        passToUse = providedPassword.c_str();
     }
 
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
@@ -177,11 +191,7 @@ UINT doFinalizeInstall(CustomActionData &data)
         // generate one
         passbuflen = MAX_PASS_LEN + 2;
 
-        if (data.value(propertyDDAgentUserPassword, providedPassword))
-        {
-            passToUse = providedPassword.c_str();
-        }
-        else
+        if (!data.value(propertyDDAgentUserPassword, providedPassword))
         {
             passbuf = new wchar_t[passbuflen];
             if (!generatePassword(passbuf, passbuflen))
@@ -284,18 +294,6 @@ UINT doFinalizeInstall(CustomActionData &data)
     if (!ddServiceExists)
     {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
-        if (!passToUse)
-        {
-            if (!data.value(propertyDDAgentUserPassword, providedPassword))
-            {
-                // given all the error conditions checked above, this should *never*
-                // happen.  But we'll check anyway
-                WcaLog(LOGMSG_STANDARD, "Don't have password to register service");
-                er = ERROR_INSTALL_FAILURE;
-                goto LExit;
-            }
-            passToUse = providedPassword.c_str();
-        }
         int ret = installServices(data, data.Sid(), passToUse);
 
         if (ret != 0)
@@ -332,6 +330,34 @@ UINT doFinalizeInstall(CustomActionData &data)
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
+
+#ifndef _CONSOLE
+    {
+        std::array<std::filesystem::path, 2> embeddedArchiveLocations = {
+            installdir + L"\\embedded2.7z",
+            installdir + L"\\embedded3.7z",
+        };
+
+        for (const auto path : embeddedArchiveLocations)
+        {
+            if (std::filesystem::exists(path))
+            {
+                WcaLog(LOGMSG_STANDARD, "Found archive %s, decompressing", path.string().c_str());
+                if (decompress_archive(path, installdir) != 0)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Failed to decompress archive %s", path.string().c_str());
+                    er = ERROR_INSTALL_FAILURE;
+                    goto LExit;
+                }
+                else
+                {
+                    // Delete the archive
+                    std::filesystem::remove(path);
+                }
+            }
+        }
+    }
+#endif
 
     er = addDdUserPermsToFile(data.Sid(), programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);

@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package iphelper
@@ -10,10 +11,11 @@ import (
 	"C"
 
 	"fmt"
-	"golang.org/x/sys/windows"
 	"net"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (

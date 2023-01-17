@@ -2,6 +2,382 @@
 Release Notes
 =============
 
+.. _Release Notes_7.41.0:
+
+7.41.0 / 6.41.0
+======
+
+.. _Release Notes_7.41.0_New Features:
+
+New Features
+------------
+
+- Add ``Namespace`` collection in the orchestrator check and enable it by default.
+
+
+.. _Release Notes_7.41.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Improves performance of the Cluster Agent admission controller on large pods.
+
+
+.. _Release Notes_7.40.0:
+
+7.40.0 / 6.40.0
+======
+
+.. _Release Notes_7.40.0_New Features:
+
+New Features
+------------
+
+- Experimental: The Datadog Admission Controller can inject the Python APM library into Kubernetes containers for auto-instrumentation.
+
+- The orchestrator check is now able to discover resources to collect based
+  on API groups available in the Kubernetes cluster.
+
+
+.. _Release Notes_7.40.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The admission controller now injects variables and volume mounts to init containers in addition to regular containers.
+
+- Chunk orchestrator payloads by size and weight
+
+- KSM Core check: Add the ``helm_chart`` tag automatically from the standard helm label ``helm.sh/chart``.
+
+- Helm check: Add a ``helm_chart`` tag, equivalent to the standard helm label ``helm.sh/chart`` (see https://helm.sh/docs/chart_best_practices/labels/).
+
+
+.. _Release Notes_7.40.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an edge case in the Admission Controller when ``mutateUnlabelled`` is enabled and ``configMode`` is set to ``socket``.
+  This combination could prevent the creation of new DaemonSet Agent pods.
+
+- Fixed a resource leak in the helm check.
+
+
+.. _Release Notes_7.39.0:
+
+7.39.0 / 6.39.0
+======
+
+.. _Release Notes_7.39.0_New Features:
+
+New Features
+------------
+
+- Experimental: The Datadog Admission Controller can inject the Node and Java APM libraries into Kubernetes containers for auto-instrumentation.
+
+
+.. _Release Notes_7.39.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- When injecting env vars with the admission controller, env
+  vars are now prepended instead of appended, meaning that 
+  Kubernetes [dependent environment variables](https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables/)
+  can now depend on these injected vars. 
+
+- The ``helm`` check has new configuration parameters:
+  - ``extra_sync_timeout_seconds`` (default 120)
+  - ``informers_resync_interval_minutes`` (default 10)
+
+- Improves the `labelsAsTags` feature of the Kubernetes State Metrics core check by performing the transformations of characters ['/' , '-' , '.'] 
+  to underscores ['_'] within the Datadog agent.  
+  Previously users had to perform these conversions manually in order to discover the labels on their resources.
+
+
+.. _Release Notes_7.39.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the DCA ``leader_election_is_leader`` metric that could sometimes report ``is_leader="false"`` on the leader instance
+
+- Fixed an error when running ``datadog-cluster-agent status`` with
+  ``DD_EXTERNAL_METRICS_PROVIDER_ENABLED=true`` and no app key set.
+
+- The KSM Core check now handles cron job schedules with time zones.
+
+
+.. _Release Notes_7.39.0_Other Notes:
+
+Other Notes
+-----------
+
+- Align Cluster Agent version to Agent version. Cluster Agent will now be released with 7.x.y tags
+
+
+.. _Release Notes_dca-1.22.0_dca-1.22.X:
+
+dca-1.22.0
+======
+
+.. _Release Notes_dca-1.22.0_dca-1.22.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-07-26
+Pinned to datadog-agent v7.38.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7380--6380>`_.
+
+.. _Release Notes_dca-1.22.0_dca-1.22.X_New Features:
+
+New Features
+------------
+
+- Enable collection of Ingresses by default in the orchestrator check.
+
+.. _Release Notes_dca-1.21.0_dca-1.21.X:
+
+dca-1.21.0
+==========
+
+.. _Release Notes_dca-1.21.0_dca-1.21.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-06-28
+Pinned to datadog-agent v7.37.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7370--6370>`_.
+
+.. _Release Notes_dca-1.21.0_dca-1.21.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Cluster Agent followers now forward queries to the Cluster Agent leaders themselves. This allows a reduction in the overall number of connections to the Cluster Agent and better spreads the load between leader and forwarders.
+
+- Make the name of the ConfigMap used by the Cluster Agent for its leader election configurable.
+
+- The Datadog Cluster Agent exposes a new metric ``endpoint_checks_configs_dispatched``.
+
+
+.. _Release Notes_dca-1.21.0_dca-1.21.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a panic occuring during the invocation of the `check` command on the
+  Cluster Agent if the Orchestrator Explorer feature is enabled.
+
+- Fix the node count reported for Kubernetes clusters.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X:
+
+dca-1.20.0
+==========
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-05-22
+Pinned to datadog-agent v7.36.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7360--6360>`_.
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_New Features:
+
+New Features
+------------
+
+- The Datadog Admission Controller supports multiple configuration injection
+  modes through the ``admission_controller.inject_config.mode`` parameter
+  or the ``DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE`` environment variable:
+  - ``hostip``: Inject the host IP. (default)
+  - ``service``: Inject Datadog's local-service DNS name.
+  - ``socket``: Inject the Datadog socket path.
+
+- Collect ResourceRequirements for jobs and cronjobs for kubernetes live containers.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added a configuration option to admission controller to allow
+  configuration of the failure policy. Defaults to Ignore which
+  was the previous default. The default of Ignore means that pods
+  will still be admitted even if the webhook is unavailable to
+  inject them. Setting to Fail will require the admission controller
+  to be present and pods to be injected before they are allowed to run.
+
+- The admission controller's reinvocation policy is now set to ``IfNeeded`` by default.
+  It can be changed using the ``admission_controller.reinvocation_policy`` parameter.
+
+- The Datadog Cluster Agent now supports internal profiling.
+
+- KSM core check: add a new ``kubernetes_state.cronjob.complete``
+  service check that returns the status of the most recent job for
+  a cronjob.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Security Notes:
+
+Security Notes
+--------------
+
+- Cluster Agent API (only used by Node Agents) is now only server with TLS >= 1.3 by default. Setting "cluster_agent.allow_legacy_tls" to true allows to fallback to TLS 1.0.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the node count reported for Kubernetes clusters.
+
+- Fixed an issue that created lots of log messages when the DCA admission controller was enabled on AKS.
+
+- Time-based metrics (for example, `kubernetes_state.pod.age`, `kubernetes_state.pod.uptime`) are now comparable in the Kubernetes state core check.
+
+- Fix a risk of panic when multiple KSM Core check instances run concurrently.
+
+- Remove noisy Kubernetes API deprecation warnings in the Cluster Agent logs.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Other Notes:
+
+Other Notes
+-----------
+
+- Change the default value of the external metrics provider port from 443 to 8443.
+  This will allow to run the cluster agent with a non-root user for better security.
+  This was already the default value in the Helm chart and in the datadog operator.
+
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X:
+
+dca-1.19.0
+==========
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-04-12
+Pinned to datadog-agent v7.35.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7350--6350>`_.
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X_New Features:
+
+New Features
+------------
+
+- Collect ResourceRequirements on other K8s workloads as well for live containers (Deployment, StatefulSet, ReplicaSet, DaemonSet)
+- Enable collection of Roles/RoleBindings/ClusterRoles/ClusterRoleBindings/ServiceAccounts by default in the orchestrator check.
+- Add ``Ingress`` collection in the orchestrator check.
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a bug that prevents scrubbing sensitive content on the DaemonSet resource.
+- Fix a bug that prevents scrubbing sensitive content on the StatefulSet resource.
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds a new histogram metric `admission_webhooks_response_duration` to monitor the admission-webhook's response time. The existing metric `admission_webhooks_webhooks_received` is now a counter.
+- The cluster agent has an external metrics provider feature to allow using Datadog queries in Kubernetes HorizontalPodAutoscalers.
+    It sometimes faces issues like:
+    2022-01-01 01:01:01 UTC | CLUSTER | ERROR | (pkg/util/kubernetes/autoscalers/datadogexternal.go:79 in queryDatadogExternal) | Error while executing metric query ... truncated... API returned error: Query timed out
+    To mitigate this problem, use the new ``external_metrics_provider.chunk_size`` parameter to reduce the number of queries that are batched by the Agent and sent together to Datadog.
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X:
+
+dca-1.18.0
+==========
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-03-01
+Pinned to datadog-agent v7.34.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7340--6340>`_.
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_New Features:
+
+New Features
+------------
+
+- Add an ``external_metrics_provider.endpoints`` parameter that allows to specify a list of external metrics provider endpoints. 
+If the first one fails, the DCA will query the next ones.
+- Support file-based endpoint checks.
+- Enable collection of PV/PVCs by default in the orchestrator check
+- File-based cluster checks support Autodiscovery.
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the ``Admission Controller``/``Webhooks info`` section of the cluster agent ``agent status`` output on Kubernetes 1.22+. 
+Although the cluster agent was able to register its webhook with both the ``v1beta1`` and the ``v1`` version of the Administrationregistration API, the ``agent status`` command was always using the ``v1beta1``, which has been removed in Kubernetes 1.22.
+- Improve error handling of deleted HPA objects.
+- Fix an issue where scrubbing custom sensitive words would not work as intended for the orchestrator check.
+- Fixed a bug that could prevent the Admission Controller from starting when the External Metrics Provider is enabled.
+- Fix the caculation of orchestrator cache hits.
+
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X:
+
+dca-1.17.0
+==========
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-01-26
+Pinned to datadog-agent v7.33.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7330>`_.
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_New Features:
+
+New Features
+------------
+
+- Collect PVC tag on pending pods
+- Add the ability to filter for check names in the cluster checks output.
+
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Add reworked status output for orchestrator section on CLC setups.
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_Security:
+
+Security
+--------
+
+- Fix the removal of the "kubectl.kubernetes.io/last-applied-configuration" annotation on new collected resources
+
+.. _Release Notes_dca-1.17.0_dca-1.17.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add autoscaler resource kind (hpa,wpa) inside the DatadogMetrics status references.
+
 .. _Release Notes_dca-1.16.0_dca-1.16.X:
 
 dca-1.16.0

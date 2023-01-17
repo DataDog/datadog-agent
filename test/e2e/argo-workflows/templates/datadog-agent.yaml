@@ -8,21 +8,41 @@ spec:
       inputs:
         parameters:
           - name: namespace
+          - name: dd-url
+          - name: site
           - name: agent-image-repository
           - name: agent-image-tag
           - name: cluster-agent-image-repository
           - name: cluster-agent-image-tag
+          - name: ci_commit_short_sha
+          - name: ci_pipeline_id
+          - name: ci_job_id
       script:
-        image: alpine/helm
+        image: alpine/k8s:1.25.4
+        envFrom:
+          - secretRef:
+              name: dd-keys
         command: [sh]
         source: |
           set -euo pipefail
 
           cat > /tmp/values.yaml <<EOF
           datadog:
-            dd_url: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
-            apiKey: 123er
-            appKey: 123er1
+            kubeStateMetricsEnabled: false
+            kubeStateMetricsCore:
+              enabled: true
+
+            dd_url: {{inputs.parameters.dd-url}}
+            site: {{inputs.parameters.site}}
+            apiKey: $DD_API_KEY
+            appKey: $DD_APP_KEY
+            tags:
+              - tag1
+              - tag2
+              - app:agent-e2e-tests
+              - ci_commit_short_sha:{{inputs.parameters.ci_commit_short_sha}}
+              - ci_pipeline_id:{{inputs.parameters.ci_pipeline_id}}
+              - ci_job_id:{{inputs.parameters.ci_job_id}}
             kubelet:
               tlsVerify: false
             env:
@@ -34,11 +54,16 @@ spec:
               containerCollectAll: true
             apm:
               enabled: true
+            otlp:
+              receiver:
+                protocols:
+                  grpc:
+                    enabled: true
             processAgent:
               enabled: true
             systemProbe:
-              enableTCPQueueLength: true
-              enableOOMKill: true
+              enableTCPQueueLength: false
+              enableOOMKill: false
             networkMonitoring:
               enabled: true
             securityAgent:
@@ -46,6 +71,8 @@ spec:
                 enabled: true
               runtime:
                 enabled: true
+                network:
+                  enabled: true
 
             confd:
               memory.yaml: |
@@ -78,6 +105,32 @@ spec:
               doNotCheckTag: true
               pullSecrets:
                 - name: docker-registry
+            containers:
+              agent:
+                env:
+                  - name:  DD_USE_V2_API_SERIES
+                    value: "false"
+              systemProbe:
+                logLevel: TRACE
+                env:
+                  - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
+                    value: "module.*"
+                  - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
+                    value: "/tmp/runtime-security.d"
+                securityContext:
+                  capabilities:
+                    drop:
+                      - all
+            useConfigMap: true
+            customAgentConfig:
+              additional_endpoints:
+                https://agent.datadoghq.com.: $DD_DDDEV_API_KEY
+              logs_config:
+                use_http: true
+                additional_endpoints:
+                  - host: agent-http-intake.logs.datadoghq.com.
+                    api_key: $DD_DDDEV_API_KEY
+                    is_reliable: true
 
           clusterAgent:
             enabled: true
@@ -90,9 +143,13 @@ spec:
             token: c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd
             metricsProvider:
               enabled: true
+            admissionController:
+              enabled: true
             env:
+              - name:  DD_USE_V2_API_SERIES
+                value: "false"
               - name: DATADOG_HOST
-                value: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
+                value: {{inputs.parameters.dd-url}}
           EOF
 
           helm repo add datadog https://helm.datadoghq.com
@@ -105,9 +162,11 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      container:
-        image: alpine/helm
-        args: ["--namespace", "{{inputs.parameters.namespace}}", "uninstall", "datadog-agent"]
+      script:
+        image: alpine/k8s:1.25.4
+        command: [sh]
+        source: |
+          helm --namespace {{inputs.parameters.namespace}} uninstall datadog-agent
 
     - name: health
       inputs:
@@ -115,7 +174,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -141,7 +200,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -162,13 +221,13 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
           set -x
 
-          until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
+          until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-agent-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
             sleep 1
           done
 
@@ -212,7 +271,7 @@ spec:
           while (1) {
             var nb = db.series.find({
             metric: "kubernetes_state.daemonset.ready",
-            tags: { $all: ["namespace:{{inputs.parameters.namespace}}", "daemonset:datadog-agent"] },
+            tags: { $all: ["kube_namespace:{{inputs.parameters.namespace}}", "kube_daemon_set:datadog-agent"] },
             "points.0.1": { $eq: 1 } }).count();
             print("find: " + nb)
             if (nb != 0) {
@@ -350,13 +409,65 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
 
+    - name: test-cws-e2e
+      inputs:
+        parameters:
+          - name: namespace
+          - name: site
+      activeDeadlineSeconds: 900
+      script:
+        image: public.ecr.aws/docker/library/python:latest
+        envFrom:
+          - secretRef:
+              name: dd-keys
+        command: [bash]
+        volumeMounts:
+          - name: datadog-agent-volume
+            mountPath: /host/datadog-agent
+        source: |
+          set -euo pipefail
+
+          export DD_SITE={{inputs.parameters.site}}
+
+          cd /host/datadog-agent/test/e2e/cws-tests
+          python -m venv /tmp/.venv
+          source /tmp/.venv/bin/activate
+          pip install -q -r requirements.txt
+          python tests/test_e2e_cws_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster
+
+    - name: test-cspm-e2e
+      inputs:
+        parameters:
+          - name: namespace
+          - name: site
+      activeDeadlineSeconds: 500
+      script:
+        image: public.ecr.aws/docker/library/python:latest
+        envFrom:
+          - secretRef:
+              name: dd-keys
+        command: [bash]
+        volumeMounts:
+          - name: datadog-agent-volume
+            mountPath: /host/datadog-agent
+        source: |
+          set -euo pipefail
+
+          export DD_SITE={{inputs.parameters.site}}
+
+          cd /host/datadog-agent/test/e2e/cws-tests
+          python -m venv /tmp/.venv
+          source /tmp/.venv/bin/activate
+          pip install -q -r requirements.txt
+          python tests/test_e2e_cspm_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster
+
     - name: describe-agent
       inputs:
         parameters:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -372,7 +483,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -388,7 +499,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -404,7 +515,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -420,7 +531,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -436,7 +547,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -452,7 +563,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -468,7 +579,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -484,7 +595,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -500,7 +611,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -516,7 +627,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -532,7 +643,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail

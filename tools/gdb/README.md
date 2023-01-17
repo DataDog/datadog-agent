@@ -36,6 +36,12 @@ The image is based on the `datadog/agent` image for the version of the Agent you
   docker run -it -v /path/to/core_dump_file:/root/core gdb-agent:7.18.0 /root/core
   ```
 
+  To use go-delve instead of gdb:
+  ```sh
+  docker run -it -v /path/to/core_dump_file:/root/core --entrypoint /root/go/bin/dlv \
+    gdb-agent:7.18.0 core /opt/datadog-agent/bin/agent/agent /root/core
+  ```
+
 You now have access to a regular gdb prompt, with the Python GDB extension. Example of commands:
 
 ```

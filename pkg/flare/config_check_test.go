@@ -1,11 +1,18 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package flare
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 type configType string

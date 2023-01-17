@@ -1,84 +1,60 @@
 #include "stdafx.h"
+#include <utility>
 #include "customactiondata.h"
 #include "PropertyReplacer.h"
-#include <utility>
+#include "LogonCli.h"
 
-CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
-: _hInstall(NULL)
-, _domainUser(false)
-, _doInstallSysprobe(true)
-, _ddnpmPresent(false)
-, _ddUserExists(false)
-, _targetMachine(std::move(targetMachine))
+CustomActionData::CustomActionData(std::shared_ptr<IPropertyView> propertyView,
+                                   std::shared_ptr<ITargetMachine> targetMachine)
+    : _domainUser(false)
+    , _doInstallSysprobe(true)
+    , _ddnpmPresent(false)
+    , _ddUserExists(false)
+    , _targetMachine(std::move(targetMachine))
+    , _propertyView(std::move(propertyView))
+    , _logonCli(nullptr)
 {
-}
-
-CustomActionData::CustomActionData()
-: CustomActionData(std::make_shared<TargetMachine>())
-{
-    
-}
-
-CustomActionData::~CustomActionData()
-{
-}
-
-bool CustomActionData::init(MSIHANDLE hi)
-{
-    this->_hInstall = hi;
-    std::wstring data;
-    if (!loadPropertyString(this->_hInstall, propertyCustomActionData.c_str(), data))
+    try
     {
-        return false;
+        _logonCli = new LogonCli();
     }
-    return init(data);
-}
+    catch (std::exception &e)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not load logonCli.dll: %s", e.what());
+    }
 
-bool CustomActionData::init(const std::wstring &data)
-{
     DWORD errCode = _targetMachine->Detect();
     if (errCode != ERROR_SUCCESS)
     {
         WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %S", FormatErrorMessage(errCode).c_str());
-        return false;
+        throw std::exception("Could not determine machine information");
     }
 
-    std::wstringstream ss(data);
-    std::wstring token;
-
-    while (std::getline(ss, token))
+    // Process some data now
+    if (!parseUsernameData() || !parseSysprobeData())
     {
-        // 'token' contains "<key>=<value>"
-        std::wstringstream instream(token);
-        std::wstring key, val;
-        if (std::getline(instream, key, L'='))
-        {
-            trim_string(key);
-            std::getline(instream, val);
-            trim_string(val);
-            if (!key.empty() && !val.empty())
-            {
-                this->values[key] = val;
-            }
-        }
+        throw std::exception("Error parsing machine information");
     }
-    return parseUsernameData() && parseSysprobeData();
+}
+
+CustomActionData::CustomActionData(std::shared_ptr<IPropertyView> propertyView)
+    : CustomActionData(std::move(propertyView), std::make_shared<TargetMachine>())
+{
+}
+
+CustomActionData::~CustomActionData()
+{
+    delete _logonCli;
 }
 
 bool CustomActionData::present(const std::wstring &key) const
 {
-    return this->values.count(key) != 0 ? true : false;
+    return this->_propertyView->present(key);
 }
 
 bool CustomActionData::value(const std::wstring &key, std::wstring &val) const
 {
-    const auto kvp = values.find(key);
-    if (kvp == values.end())
-    {
-        return false;
-    }
-    val = kvp->second;
-    return true;
+    return this->_propertyView->value(key, val);
 }
 
 bool CustomActionData::isUserDomainUser() const
@@ -94,6 +70,11 @@ bool CustomActionData::isUserLocalUser() const
 bool CustomActionData::DoesUserExist() const
 {
     return _ddUserExists;
+}
+
+bool CustomActionData::IsServiceAccount() const
+{
+    return _isServiceAccount;
 }
 
 const std::wstring &CustomActionData::UnqualifiedUsername() const
@@ -145,9 +126,10 @@ bool CustomActionData::parseSysprobeData()
     std::wstring sysprobePresent;
     std::wstring addlocal;
     std::wstring npm;
+    std::wstring npmFeature;
     this->_doInstallSysprobe = false;
     this->_ddnpmPresent = false;
-    if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
+    if (!this->_propertyView->value(L"SYSPROBE_PRESENT", sysprobePresent))
     {
         // key isn't even there.
         WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT not present");
@@ -162,34 +144,29 @@ bool CustomActionData::parseSysprobeData()
     }
     this->_doInstallSysprobe = true;
 
-    if(!this->value(L"NPM", npm))
+    if (!this->_propertyView->value(L"NPM", npm))
     {
         WcaLog(LOGMSG_STANDARD, "NPM property not present");
     }
-    else 
+    else
     {
         WcaLog(LOGMSG_STANDARD, "NPM enabled via NPM property");
         this->_ddnpmPresent = true;
     }
 
-    // now check to see if we're installing the driver
-    if (!this->value(L"ADDLOCAL", addlocal))
+    if (this->_propertyView->value(L"NPMFEATURE", npmFeature))
     {
-        // should never happen.  But if the addlocalkey isn't there,
-        // don't bother trying
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL not present");
-
-        return true;
+        // this property is set to "on" or "off" depending on the desired installed state
+        // of the NPM feature.
+        WcaLog(LOGMSG_STANDARD, "NPMFEATURE key is present and (%S)", npmFeature.c_str());
+        if (_wcsicmp(npmFeature.c_str(), L"on") == 0)
+        {
+            this->_ddnpmPresent = true;
+        }
     }
-    WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
-    if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
+    else
     {
-        // installing all components, do it
-        this->_ddnpmPresent = true;
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
-    } else if (addlocal.find(L"NPM") != std::wstring::npos) {
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains NPM %S", addlocal.c_str());
-        this->_ddnpmPresent = true;
+        WcaLog(LOGMSG_STANDARD, "NPMFEATURE not present");
     }
 
     return true;
@@ -206,7 +183,8 @@ std::optional<CustomActionData::User> CustomActionData::findPreviousUserInfo()
         WcaLog(LOGMSG_STANDARD, "previous user information not found in registry");
         return std::nullopt;
     }
-    WcaLog(LOGMSG_STANDARD, "found previous user \"%S\\%S\" information in registry", user.Domain.c_str(), user.Name.c_str());
+    WcaLog(LOGMSG_STANDARD, "found previous user \"%S\\%S\" information in registry", user.Domain.c_str(),
+           user.Name.c_str());
     return std::optional<User>(user);
 }
 
@@ -214,7 +192,7 @@ std::optional<CustomActionData::User> CustomActionData::findSuppliedUserInfo()
 {
     User user;
     std::wstring tmpName;
-    if (!value(propertyDDAgentUserName, tmpName) || tmpName.length() == 0)
+    if (!this->_propertyView->value(propertyDDAgentUserName, tmpName) || tmpName.length() == 0)
     {
         WcaLog(LOGMSG_STANDARD, "no username information detected from command line");
         return std::nullopt;
@@ -222,7 +200,8 @@ std::optional<CustomActionData::User> CustomActionData::findSuppliedUserInfo()
 
     if (std::wstring::npos == tmpName.find(L'\\'))
     {
-        WcaLog(LOGMSG_STANDARD, "supplied username \"%S\" doesn't have domain specifier, assuming local", tmpName.c_str());
+        WcaLog(LOGMSG_STANDARD, "supplied username \"%S\" doesn't have domain specifier, assuming local",
+               tmpName.c_str());
         tmpName = L".\\" + tmpName;
     }
 
@@ -271,9 +250,26 @@ void CustomActionData::ensureDomainHasCorrectFormat()
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", _user.Domain.c_str(),
-                   _targetMachine->DnsDomainName().c_str());
-            _domainUser = true;
+            // Compute a temporary fully qualified username to retrieve its SID
+            // in order to determine if its prefix starts with NT AUTHORITY.
+            auto tempFquname = _user.Domain + L"\\" + _user.Name;
+            auto sidResult = GetSidForUser(nullptr, tempFquname.c_str());
+            if (sidResult.Result != ERROR_NONE_MAPPED)
+            {
+                const auto ntAuthoritySid = WellKnownSID::NTAuthority();
+                if (!ntAuthoritySid.has_value())
+                {
+                    WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
+                }
+                else if (!EqualPrefixSid(
+                             sidResult.Sid.get(),
+                             ntAuthoritySid.value().get())) // NT Authority should never be considered a "domain".
+                {
+                    WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")",
+                           _user.Domain.c_str(), _targetMachine->DnsDomainName().c_str());
+                    _domainUser = true;
+                }
+            }
         }
     }
 }
@@ -301,7 +297,7 @@ bool CustomActionData::parseUsernameData()
         WcaLog(LOGMSG_STANDARD, "Using default username");
         // Didn't find a user in the registry nor from the command line
         // use default value. Order of construction is Domain then Name
-        _user = {L".", ddAgentUserName };
+        _user = {L".", ddAgentUserName};
     }
 
     ensureDomainHasCorrectFormat();
@@ -318,10 +314,26 @@ bool CustomActionData::parseUsernameData()
     {
         if (sidResult.Result == ERROR_SUCCESS && sidResult.Sid != nullptr)
         {
-            WcaLog(LOGMSG_STANDARD, R"(Found SID for "%S" in "%S")", FullyQualifiedUsername().c_str(), sidResult.Domain.c_str());
+            WcaLog(LOGMSG_STANDARD, R"(Found SID for "%S" in "%S")", FullyQualifiedUsername().c_str(),
+                   sidResult.Domain.c_str());
             _ddUserExists = true;
             _sid = std::move(sidResult.Sid);
 
+            if (_logonCli != nullptr)
+            {
+                BOOL isServiceAccount = FALSE;
+                DWORD result = _logonCli->NetIsServiceAccount(
+                    nullptr, const_cast<wchar_t *>(FullyQualifiedUsername().c_str()), &isServiceAccount);
+                if (result != ERROR_SUCCESS)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Could not lookup if \"%S\" is a service account: %S",
+                           FullyQualifiedUsername().c_str(), FormatErrorMessage(result).c_str());
+                }
+                _isServiceAccount = isServiceAccount ? true : false;
+            }
+
+            WcaLog(LOGMSG_STANDARD, R"("%S" %S a managed service account)", FullyQualifiedUsername().c_str(),
+                   _isServiceAccount ? L"is" : L"is not");
             // Use the domain returned by <see cref="LookupAccountName" /> because
             // it might be != from the one the user passed in.
             _user.Domain = sidResult.Domain;

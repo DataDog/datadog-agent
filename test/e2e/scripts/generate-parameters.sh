@@ -48,16 +48,16 @@ generate_parameters()
     DEFAULT_GROUP_PARAM="$WORKFLOWS_DIR/$WORKFLOW_GROUP/defaults/parameters.yaml"
     WORKFLOW_PARAM="$WORKFLOWS_DIR/$WORKFLOW_GROUP/$WORKFLOW/parameters.yaml"
     TMP_YAML_PATH="$1.tmp.yaml"
-    $YK_MERGE_COMMAND $DEFAULT_GLOBAL_PARAM $DEFAULT_GROUP_PARAM $WORKFLOW_PARAM > $TMP_YAML_PATH
+    $YK_MERGE_COMMAND "$DEFAULT_GLOBAL_PARAM" "$DEFAULT_GROUP_PARAM" "$WORKFLOW_PARAM" > "$TMP_YAML_PATH"
 
     # Rendering namespace
     echo 'Info: Parameters merged, rendering namespace and saving file...'
     NAMESPACE_TEMPLATE_VAR="{{ namespace }}"
-    sed -e "s/$NAMESPACE_TEMPLATE_VAR/$1/g" $TMP_YAML_PATH > $OUTPUT_YAML_FILE
+    sed -e "s/$NAMESPACE_TEMPLATE_VAR/$1/g" "$TMP_YAML_PATH" > "$OUTPUT_YAML_FILE"
     echo "Info: Generated parameters, yaml file saved: $OUTPUT_YAML_FILE"
 
     # Cleanup temp file
-    rm $TMP_YAML_PATH
+    rm "$TMP_YAML_PATH"
 }
 
 
@@ -104,7 +104,7 @@ check_yq_installed
 validate_input
 
 # Generate namespace
-generate_namespace $WORKFLOW_GROUP $WORKFLOW
+generate_namespace "$WORKFLOW_GROUP" "$WORKFLOW"
 
 # Generate the parameters file
-generate_parameters $NAMESPACE
+generate_parameters "$NAMESPACE"

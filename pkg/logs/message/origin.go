@@ -8,13 +8,13 @@ package message
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Origin represents the Origin of a message
 type Origin struct {
 	Identifier string
-	LogSource  *config.LogSource
+	LogSource  *sources.LogSource
 	Offset     string
 	service    string
 	source     string
@@ -22,13 +22,15 @@ type Origin struct {
 }
 
 // NewOrigin returns a new Origin
-func NewOrigin(source *config.LogSource) *Origin {
+func NewOrigin(source *sources.LogSource) *Origin {
 	return &Origin{
 		LogSource: source,
 	}
 }
 
 // Tags returns the tags of the origin.
+//
+// The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }

@@ -1,14 +1,20 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package module
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
-	"github.com/pkg/errors"
 )
 
 var l *loader
@@ -17,6 +23,7 @@ func init() {
 	l = &loader{
 		modules: make(map[config.ModuleName]Module),
 		errors:  make(map[config.ModuleName]error),
+		routers: make(map[config.ModuleName]*Router),
 	}
 }
 
@@ -30,7 +37,7 @@ type loader struct {
 	errors  map[config.ModuleName]error
 	stats   map[string]interface{}
 	cfg     *config.Config
-	router  *Router
+	routers map[config.ModuleName]*Router
 	closed  bool
 }
 
@@ -38,7 +45,6 @@ type loader struct {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
-	router := NewRouter(httpMux)
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("%s module disabled", factory.Name)
@@ -55,18 +61,25 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 			continue
 		}
 
-		if err = module.Register(router); err != nil {
+		subRouter, err := makeSubrouter(httpMux, string(factory.Name))
+		if err != nil {
+			l.errors[factory.Name] = err
+			log.Errorf("error making router for module %s error: %s", factory.Name, err)
+			continue
+		}
+
+		if err = module.Register(subRouter); err != nil {
 			l.errors[factory.Name] = err
 			log.Errorf("error registering HTTP endpoints for module `%s` error: %s", factory.Name, err)
 			continue
 		}
 
+		l.routers[factory.Name] = subRouter
 		l.modules[factory.Name] = module
 
 		log.Infof("module: %s started", factory.Name)
 	}
 
-	l.router = router
 	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")
@@ -74,6 +87,13 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 
 	go updateStats()
 	return nil
+}
+
+func makeSubrouter(r *mux.Router, namespace string) (*Router, error) {
+	if namespace == "" {
+		return nil, errors.New("module name not set")
+	}
+	return NewRouter(r.PathPrefix("/" + namespace).Subrouter()), nil
 }
 
 // GetStats returns the stats from all modules, namespaced by their names
@@ -106,7 +126,12 @@ func RestartModule(factory Factory) error {
 	delete(l.errors, factory.Name)
 	log.Infof("module %s restarted", factory.Name)
 
-	err = newModule.Register(l.router)
+	currentRouter, ok := l.routers[factory.Name]
+	if !ok {
+		return fmt.Errorf("module %s does not have an associated router", factory.Name)
+	}
+
+	err = newModule.Register(currentRouter)
 	if err != nil {
 		return err
 	}
@@ -133,7 +158,7 @@ func Close() {
 func updateStats() {
 	start := time.Now()
 	then := time.Now()
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	for now := range ticker.C {
 		l.Lock()
 		if l.closed {

@@ -1,20 +1,26 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package ckey_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCollisions(t *testing.T) {
 	assert := assert.New(t)
 
-	data, err := ioutil.ReadFile("./random_sorted_uniq_contexts.csv")
+	data, err := os.ReadFile("./random_sorted_uniq_contexts.csv")
 	assert.NoError(err)
 
 	generator := ckey.NewKeyGenerator()

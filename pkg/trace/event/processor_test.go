@@ -9,10 +9,11 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestProcessor(t *testing.T) {
@@ -96,9 +97,8 @@ func TestProcessor(t *testing.T) {
 			p.Start()
 			numEvents, extracted := p.Process(root, testChunk)
 			p.Stop()
-			total := len(testSpans)
 
-			expectedExtracted := float64(total) * test.expectedExtractedPct
+			expectedExtracted := float64(numSpans) * test.expectedExtractedPct
 			assert.InDelta(expectedExtracted, extracted, expectedExtracted*test.deltaPct)
 
 			expectedReturned := expectedExtracted * test.expectedSampledPct

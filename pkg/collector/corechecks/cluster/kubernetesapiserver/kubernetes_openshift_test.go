@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package kubernetesapiserver
@@ -10,26 +11,32 @@ package kubernetesapiserver
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	osq "github.com/openshift/api/quota/v1"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestReportClusterQuotas(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/oshift_crq_list.json")
+	raw, err := os.ReadFile("./testdata/oshift_crq_list.json")
 	require.NoError(t, err)
 	list := osq.ClusterResourceQuotaList{}
 	json.Unmarshal(raw, &list)
 	require.Len(t, list.Items, 1)
 
-	var instanceCfg = []byte("")
-	var initCfg = []byte("")
+	prevClusterName := config.Datadog.GetString("cluster_name")
+	config.Datadog.Set("cluster_name", "test-cluster-name")
+	defer config.Datadog.Set("cluster_name", prevClusterName)
+
+	instanceCfg := []byte("")
+	initCfg := []byte("")
 	kubeASCheck := KubernetesASFactory().(*KubeASCheck)
-	err = kubeASCheck.Configure(instanceCfg, initCfg, "test")
+	err = kubeASCheck.Configure(integration.FakeConfigHash, instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())

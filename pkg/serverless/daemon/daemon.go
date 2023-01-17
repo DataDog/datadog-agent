@@ -7,16 +7,15 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -24,18 +23,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
-
-// shutdownDelay is the amount of time we wait before shutting down the HTTP server
+// ShutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 1 * time.Second
+var ShutdownDelay time.Duration = 1 * time.Second
 
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second
 
-// Daemon is the communcation server for between the runtime and the serverless Agent.
-// The name "daemon" is just in order to avoid serverless.StartServer ...
+// Daemon is the communication server between the runtime and the serverless agent and coordinates the flushing of telemetry.
 type Daemon struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
@@ -43,6 +39,8 @@ type Daemon struct {
 	MetricAgent *metrics.ServerlessMetricAgent
 
 	TraceAgent *trace.ServerlessTraceAgent
+
+	ColdStartCreator *trace.ColdStartSpanCreator
 
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
@@ -59,20 +57,29 @@ type Daemon struct {
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
 
+	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
+	LambdaLibraryDetected bool
+
+	// runtimeStateMutex is used to ensure that modifying the state of the runtime is thread-safe
+	runtimeStateMutex sync.Mutex
+
 	// RuntimeWg is used to keep track of whether the runtime is currently handling an invocation.
 	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
 	RuntimeWg *sync.WaitGroup
 
-	// FlushWg is used to keep track of whether there is currently a flush in progress
-	FlushWg *sync.WaitGroup
+	// FlushLock is used to keep track of whether there is currently a flush in progress
+	FlushLock sync.Mutex
 
 	ExtraTags *serverlessLog.Tags
 
-	ExecutionContext *serverlessLog.ExecutionContext
+	// ExecutionContext stores the context of the current invocation
+	ExecutionContext *executioncontext.ExecutionContext
 
-	// TellDaemonRuntimeDoneOnce asserts that TellDaemonRuntimeDone will be called at most once per invocation (at the end of the function OR after a timeout)
-	// this should be reset before each invocation
-	TellDaemonRuntimeDoneOnce sync.Once
+	// TellDaemonRuntimeDoneOnce asserts that TellDaemonRuntimeDone will be called at most once per invocation (at the end of the function OR after a timeout).
+	// We store a pointer to a sync.Once, which should be reset to a new pointer at the beginning of each invocation.
+	// Note that overwriting the actual underlying sync.Once is not thread safe,
+	// so we must use a pointer here to create a new sync.Once without overwriting the old one when resetting.
+	TellDaemonRuntimeDoneOnce *sync.Once
 
 	// metricsFlushMutex ensures that only one metrics flush can be underway at a given time
 	metricsFlushMutex sync.Mutex
@@ -82,12 +89,15 @@ type Daemon struct {
 
 	// logsFlushMutex ensures that only one logs flush can be underway at a given time
 	logsFlushMutex sync.Mutex
+
+	// InvocationProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
+	InvocationProcessor invocationlifecycle.InvocationProcessor
+
+	logCollector *serverlessLog.LambdaLogsCollector
 }
 
-// StartDaemon starts an HTTP server to receive messages from the runtime.
-// The DogStatsD server is provided when ready (slightly later), to have the
-// hello route available as soon as possible. However, the HELLO route is blocking
-// to have a way for the runtime function to know when the Serverless Agent is ready.
+// StartDaemon starts an HTTP server to receive messages from the runtime and coordinate
+// the flushing of telemetry.
 func StartDaemon(addr string) *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
@@ -96,12 +106,12 @@ func StartDaemon(addr string) *Daemon {
 		httpServer:        &http.Server{Addr: addr, Handler: mux},
 		mux:               mux,
 		RuntimeWg:         &sync.WaitGroup{},
-		FlushWg:           &sync.WaitGroup{},
+		FlushLock:         sync.Mutex{},
 		lastInvocations:   make([]time.Time, 0),
 		useAdaptiveFlush:  true,
 		flushStrategy:     &flush.AtTheEnd{},
 		ExtraTags:         &serverlessLog.Tags{},
-		ExecutionContext:  &serverlessLog.ExecutionContext{},
+		ExecutionContext:  &executioncontext.ExecutionContext{},
 		metricsFlushMutex: sync.Mutex{},
 		tracesFlushMutex:  sync.Mutex{},
 		logsFlushMutex:    sync.Mutex{},
@@ -109,6 +119,9 @@ func StartDaemon(addr string) *Daemon {
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
+	mux.Handle("/lambda/start-invocation", &StartInvocation{daemon})
+	mux.Handle("/lambda/end-invocation", &EndInvocation{daemon})
+	mux.Handle("/trace-context", &TraceContext{daemon})
 
 	// start the HTTP server used to communicate with the runtime and the Lambda platform
 	go func() {
@@ -116,28 +129,6 @@ func StartDaemon(addr string) *Daemon {
 	}()
 
 	return daemon
-}
-
-// Hello is a route called by the Lambda Library when it starts.
-// It is no longer used, but the route is maintained for backwards compatibility.
-type Hello struct {
-	daemon *Daemon
-}
-
-// ServeHTTP - see type Hello comment.
-func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Hello route.")
-}
-
-// Flush is a route called by the Lambda Library when the runtime is done handling an invocation.
-// It is no longer used, but the route is maintained for backwards compatibility.
-type Flush struct {
-	daemon *Daemon
-}
-
-// ServeHTTP - see type Flush comment.
-func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Flush route.")
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
@@ -152,7 +143,7 @@ func (d *Daemon) HandleRuntimeDone() {
 	log.Debugf("The flush strategy %s has decided to flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	if !d.MetricAgent.IsReady() {
+	if d.MetricAgent != nil && !d.MetricAgent.IsReady() {
 		log.Debug("The metric agent wasn't ready, skipping flush.")
 		d.TellDaemonRuntimeDone()
 		return
@@ -175,16 +166,13 @@ func (d *Daemon) GetFlushStrategy() string {
 }
 
 // SetupLogCollectionHandler configures the log collection route handler
-func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
-	d.mux.Handle(route, &serverlessLog.LambdaLogsCollector{
-		ExtraTags:              d.ExtraTags,
-		ExecutionContext:       d.ExecutionContext,
-		LogChannel:             logsChan,
-		MetricChannel:          d.MetricAgent.GetMetricChannel(),
-		LogsEnabled:            logsEnabled,
-		EnhancedMetricsEnabled: enhancedMetricsEnabled,
-		HandleRuntimeDone:      d.HandleRuntimeDone,
-	})
+func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, initDurationChan chan<- float64) {
+
+	d.logCollector = serverlessLog.NewLambdaLogCollector(logsChan,
+		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, initDurationChan)
+	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In)
+
+	d.mux.Handle(route, &server)
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -196,6 +184,10 @@ func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 // SetTraceAgent sets the Agent instance for submitting traces
 func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
+}
+
+func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
+	d.ColdStartCreator = creator
 }
 
 // SetFlushStrategy sets the flush strategy to use.
@@ -215,8 +207,8 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // flush may be continued on the next invocation.
 // In some circumstances, it may switch to another flush strategy after the flush.
 func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
-	d.FlushWg.Add(1)
-	defer d.FlushWg.Done()
+	d.FlushLock.Lock()
+	defer d.FlushLock.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
 
@@ -294,12 +286,16 @@ func (d *Daemon) Stop() {
 
 	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
 	log.Debug("Waiting to shut down HTTP server")
-	time.Sleep(shutdownDelay)
+	time.Sleep(ShutdownDelay)
 
 	log.Debug("Shutting down HTTP server")
 	err := d.httpServer.Shutdown(context.Background())
 	if err != nil {
 		log.Error("Error shutting down HTTP server")
+	}
+
+	if d.logCollector != nil {
+		d.logCollector.Shutdown()
 	}
 
 	// Once the HTTP server is shut down, it is safe to shut down the agents
@@ -315,6 +311,10 @@ func (d *Daemon) Stop() {
 	if d.MetricAgent != nil {
 		d.MetricAgent.Stop()
 	}
+
+	if d.ColdStartCreator != nil {
+		d.ColdStartCreator.Stop()
+	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
 }
@@ -323,13 +323,25 @@ func (d *Daemon) Stop() {
 func (d *Daemon) TellDaemonRuntimeStarted() {
 	// Reset the RuntimeWg on every new invocation.
 	// We might receive a new invocation before we learn that the previous invocation has finished.
+	d.runtimeStateMutex.Lock()
+	defer d.runtimeStateMutex.Unlock()
 	d.RuntimeWg = &sync.WaitGroup{}
-	d.TellDaemonRuntimeDoneOnce = sync.Once{}
+	d.TellDaemonRuntimeDoneOnce = &sync.Once{}
 	d.RuntimeWg.Add(1)
 }
 
 // TellDaemonRuntimeDone tells the daemon that the runtime finished handling an invocation
 func (d *Daemon) TellDaemonRuntimeDone() {
+	d.runtimeStateMutex.Lock()
+	defer d.runtimeStateMutex.Unlock()
+	// It's possible that we have a lambda function from a previous invocation sending a finished
+	// log line to the agent, and it's possible that this happens before the current invocation is
+	// received, in which case TellDaemonRuntimeDoneOnce is nil. We add this check in to ensure that
+	// if this is the case, it won't crash the extension. This should be safe, since the code that modifies
+	// the Once is locked by a mutex.
+	if d.TellDaemonRuntimeDoneOnce == nil {
+		return
+	}
 	d.TellDaemonRuntimeDoneOnce.Do(func() {
 		d.RuntimeWg.Done()
 	})
@@ -338,7 +350,8 @@ func (d *Daemon) TellDaemonRuntimeDone() {
 // WaitForDaemon waits until the daemon has finished handling the current invocation
 func (d *Daemon) WaitForDaemon() {
 	// We always want to wait for any in-progress flush to complete
-	d.FlushWg.Wait()
+	d.FlushLock.Lock()
+	d.FlushLock.Unlock() //nolint:staticcheck
 
 	// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
 	// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
@@ -351,70 +364,31 @@ func (d *Daemon) WaitForDaemon() {
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
-		tagMap := tags.BuildTagMap(d.ExecutionContext.ARN, configTags)
+		ecs := d.ExecutionContext.GetCurrentState()
+		tagMap := tags.BuildTagMap(ecs.ARN, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)
 		}
 		d.setTraceTags(tagMap)
+
 		d.ExtraTags.Tags = tagArray
-		source := serverlessLog.GetLambdaSource()
-		if source != nil {
-			source.Config.Tags = tagArray
-		}
+		serverlessLog.SetLogsTags(tagArray)
 	}
+}
+
+// StartLogCollection begins processing the logs we have already received from the Lambda Logs API.
+// This should be called after an ARN and RequestId is available. Can safely be called multiple times.
+func (d *Daemon) StartLogCollection() {
+	d.logCollector.Start()
 }
 
 // setTraceTags tries to set extra tags to the Trace agent.
 // setTraceTags returns a boolean which indicate whether or not the operation succeed for testing purpose.
 func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
 	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
-		d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))
+		d.TraceAgent.SetTags(tags.BuildTracerTags(tagMap))
 		return true
 	}
 	return false
-}
-
-// SetExecutionContext sets the current context to the daemon
-func (d *Daemon) SetExecutionContext(arn string, requestID string) {
-	d.ExecutionContext.ARN = strings.ToLower(arn)
-	d.ExecutionContext.LastRequestID = requestID
-	if len(d.ExecutionContext.ColdstartRequestID) == 0 {
-		d.ExecutionContext.Coldstart = true
-		d.ExecutionContext.ColdstartRequestID = requestID
-	} else {
-		d.ExecutionContext.Coldstart = false
-	}
-}
-
-// SaveCurrentExecutionContext stores the current context to a file
-func (d *Daemon) SaveCurrentExecutionContext() error {
-	file, err := json.Marshal(d.ExecutionContext)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RestoreCurrentStateFromFile loads the current context from a file
-func (d *Daemon) RestoreCurrentStateFromFile() error {
-	file, err := ioutil.ReadFile(persistedStateFilePath)
-	if err != nil {
-		return err
-	}
-	var restoredExecutionContext serverlessLog.ExecutionContext
-	err = json.Unmarshal(file, &restoredExecutionContext)
-	if err != nil {
-		return err
-	}
-	d.ExecutionContext.ARN = restoredExecutionContext.ARN
-	d.ExecutionContext.LastRequestID = restoredExecutionContext.LastRequestID
-	d.ExecutionContext.LastLogRequestID = restoredExecutionContext.LastLogRequestID
-	d.ExecutionContext.ColdstartRequestID = restoredExecutionContext.ColdstartRequestID
-	d.ExecutionContext.StartTime = restoredExecutionContext.StartTime
-	return nil
 }

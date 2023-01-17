@@ -3,17 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package collector
 
 import (
 	"sort"
-	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 )
 
 // FIXTURE
@@ -79,6 +83,7 @@ type CollectorTestSuite struct {
 
 func (suite *CollectorTestSuite) SetupTest() {
 	suite.c = NewCollector()
+	suite.c.Start()
 }
 
 func (suite *CollectorTestSuite) TearDownTest() {
@@ -89,14 +94,14 @@ func (suite *CollectorTestSuite) TearDownTest() {
 func (suite *CollectorTestSuite) TestNewCollector() {
 	assert.NotNil(suite.T(), suite.c.runner)
 	assert.NotNil(suite.T(), suite.c.scheduler)
-	assert.Equal(suite.T(), started, suite.c.state)
+	assert.Equal(suite.T(), started, suite.c.state.Load())
 }
 
 func (suite *CollectorTestSuite) TestStop() {
 	suite.c.Stop()
 	assert.Nil(suite.T(), suite.c.runner)
 	assert.Nil(suite.T(), suite.c.scheduler)
-	assert.Equal(suite.T(), stopped, suite.c.state)
+	assert.Equal(suite.T(), stopped, suite.c.state.Load())
 }
 
 func (suite *CollectorTestSuite) TestRunCheck() {
@@ -107,7 +112,7 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 1, len(suite.c.checks))
-	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"])
+	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"].Inner())
 
 	// schedule the same check twice
 	_, err = suite.c.RunCheck(ch)
@@ -145,7 +150,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = NewCheck()
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")
@@ -233,8 +238,4 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	assert.Equal(suite.T(), killed, []check.ID{"baz", "qux"})
 
 	assert.Zero(suite.T(), len(suite.c.checks))
-}
-
-func TestCollectorSuite(t *testing.T) {
-	suite.Run(t, new(CollectorTestSuite))
 }

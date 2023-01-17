@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix missing docker.memory.limit (and docker.memory.in_use) on Windows

@@ -1,14 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
 	"math"
+	"reflect"
 	"sync"
+	"unsafe"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
+	"github.com/twmb/murmur3"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const maxRoutes = math.MaxInt32
@@ -41,9 +49,10 @@ func (ipc ipCache) Get(addr util.Address) string {
 func FormatConnection(
 	conn network.ConnectionStats,
 	routes map[string]RouteIdx,
-	httpStats *model.HTTPAggregations,
+	httpEncoder *httpEncoder,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
+	tagsSet *network.TagsSet,
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
@@ -52,12 +61,11 @@ func FormatConnection(
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
-	c.PidCreateTime = 0
-	c.LastBytesSent = conn.LastSentBytes
-	c.LastBytesReceived = conn.LastRecvBytes
-	c.LastPacketsSent = conn.LastSentPackets
-	c.LastPacketsReceived = conn.LastRecvPackets
-	c.LastRetransmits = conn.LastRetransmits
+	c.LastBytesSent = conn.Last.SentBytes
+	c.LastBytesReceived = conn.Last.RecvBytes
+	c.LastPacketsSent = conn.Last.SentPackets
+	c.LastPacketsReceived = conn.Last.RecvPackets
+	c.LastRetransmits = conn.Last.Retransmits
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS
 	c.RemoteNetworkId = ""
@@ -65,38 +73,21 @@ func FormatConnection(
 	c.Rtt = conn.RTT
 	c.RttVar = conn.RTTVar
 	c.IntraHost = conn.IntraHost
-	c.LastTcpEstablished = conn.LastTCPEstablished
-	c.LastTcpClosed = conn.LastTCPClosed
+	c.LastTcpEstablished = conn.Last.TCPEstablished
+	c.LastTcpClosed = conn.Last.TCPClosed
+	c.Protocol = formatProtocol(conn.Protocol)
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
-
+	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
 	if httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
+	conn.Tags |= staticTags
+	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
+
 	return c
-}
-
-// FormatConnTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
-	if tel == nil {
-		return nil
-	}
-
-	t := new(model.ConnectionsTelemetry)
-	t.MonotonicKprobesTriggered = tel.MonotonicKprobesTriggered
-	t.MonotonicKprobesMissed = tel.MonotonicKprobesMissed
-	t.MonotonicConntrackRegisters = tel.MonotonicConntrackRegisters
-	t.MonotonicConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
-	t.MonotonicDnsPacketsProcessed = tel.MonotonicDNSPacketsProcessed
-	t.MonotonicConnsClosed = tel.MonotonicConnsClosed
-	t.ConnsBpfMapSize = tel.ConnsBpfMapSize
-	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
-	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
-	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
-	t.DnsStatsDropped = tel.DNSStatsDropped
-	return t
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
@@ -110,78 +101,35 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 		t := &model.RuntimeCompilationTelemetry{}
 		t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
 		t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
-		t.KernelHeaderFetchResult = model.KernelHeaderFetchResult(tel.KernelHeaderFetchResult)
 		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
 		ret[asset] = t
 	}
 	return ret
 }
 
-// FormatHTTPStats converts the HTTP map into a suitable format for serialization
-func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*model.HTTPAggregations {
-	var (
-		aggregationsByKey = make(map[http.Key]*model.HTTPAggregations, len(httpData))
-
-		// Pre-allocate some of the objects
-		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		ptrPool  = make([]*model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		poolIdx  = 0
-	)
-
-	for key, stats := range httpData {
-		path := key.Path
-		method := key.Method
-		key.Path = ""
-		key.Method = http.MethodUnknown
-
-		httpAggregations, ok := aggregationsByKey[key]
-		if !ok {
-			httpAggregations = &model.HTTPAggregations{
-				EndpointAggregations: make([]*model.HTTPStats, 0, 10),
-			}
-
-			aggregationsByKey[key] = httpAggregations
-		}
-
-		ms := &model.HTTPStats{
-			Path:                  path,
-			Method:                model.HTTPMethod(method),
-			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
-		}
-
-		for i := 0; i < len(stats); i++ {
-			data := &dataPool[poolIdx+i]
-			ms.StatsByResponseStatus[i] = data
-			data.Count = uint32(stats[i].Count)
-
-			if latencies := stats[i].Latencies; latencies != nil {
-				blob, _ := proto.Marshal(latencies.ToProto())
-				data.Latencies = blob
-			} else {
-				data.FirstLatencySample = stats[i].FirstLatencySample
-			}
-		}
-
-		poolIdx += http.NumStatusClasses
-		httpAggregations.EndpointAggregations = append(httpAggregations.EndpointAggregations, ms)
+// FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
+	if tel == nil {
+		return nil
 	}
 
-	return aggregationsByKey
+	ret := make(map[string]int64)
+	for k, v := range tel {
+		ret[string(k)] = v
+	}
+	return ret
 }
 
-// Build the key for the http map based on whether the local or remote side is http.
-func httpKeyFromConn(c network.ConnectionStats) http.Key {
-	// Retrieve translated addresses
-	laddr, lport := network.GetNATLocalAddress(c)
-	raddr, rport := network.GetNATRemoteAddress(c)
-
-	// HTTP data is always indexed as (client, server), so we flip
-	// the lookup key if necessary using the port range heuristic
-	if network.IsEphemeralPort(int(lport)) {
-		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
+func FormatCORETelemetry(telByAsset map[string]int32) map[string]model.COREResult {
+	if telByAsset == nil {
+		return nil
 	}
 
-	return http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown)
+	ret := make(map[string]model.COREResult)
+	for asset, tel := range telByAsset {
+		ret[asset] = model.COREResult(tel)
+	}
+	return ret
 }
 
 func returnToPool(c *model.Connections) {
@@ -200,7 +148,7 @@ func returnToPool(c *model.Connections) {
 }
 
 func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
-	if addr == nil {
+	if addr.IsZero() {
 		return nil
 	}
 
@@ -296,4 +244,53 @@ func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
 
 func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
+}
+
+func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
+	mm := murmur3.New32()
+	for _, tag := range network.GetStaticTags(c.Tags) {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	// Dynamic tags
+	for tag := range connDynamicTags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	return
+}
+
+func unsafeStringSlice(key string) []byte {
+	if len(key) == 0 {
+		return nil
+	}
+	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
+	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
+}
+
+// formatProtocol converts a single protocol into a protobuf representation of protocol stack.
+// i.e: the input is ProtocolHTTP2 and the output should be:
+//
+//	&model.ProtocolStack{
+//			Stack: []model.ProtocolType{
+//				model.ProtocolType_protocolHTTP2,
+//			},
+//		}
+func formatProtocol(protocol network.ProtocolType) *model.ProtocolStack {
+	if protocol == network.ProtocolUnclassified {
+		protocol = network.ProtocolUnknown
+	}
+
+	return &model.ProtocolStack{
+		Stack: []model.ProtocolType{
+			model.ProtocolType(protocol),
+		},
+	}
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
@@ -11,15 +16,15 @@ import (
 var (
 	runOptionsWithStandard = RunOptions{
 		RunStandard: true,
-		RunRealTime: false,
+		RunRealtime: false,
 	}
 	runOptionsWithRealTime = RunOptions{
 		RunStandard: false,
-		RunRealTime: true,
+		RunRealtime: true,
 	}
 	runOptionsWithBoth = RunOptions{
 		RunStandard: true,
-		RunRealTime: true,
+		RunRealtime: true,
 	}
 )
 
@@ -33,6 +38,7 @@ func TestRunnerWithRealTime(t *testing.T) {
 			desc:      "rt-enabled",
 			rtEnabled: true,
 			expectRuns: []RunOptions{
+				runOptionsWithStandard,
 				runOptionsWithBoth,
 				runOptionsWithRealTime,
 				runOptionsWithRealTime,
@@ -46,6 +52,7 @@ func TestRunnerWithRealTime(t *testing.T) {
 			desc:      "rt-disabled",
 			rtEnabled: false,
 			expectRuns: []RunOptions{
+				runOptionsWithStandard,
 				runOptionsWithStandard,
 				runOptionsWithStandard,
 			},

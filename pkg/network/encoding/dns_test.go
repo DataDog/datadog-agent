@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
@@ -6,12 +11,12 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
-	"go4.org/intern"
 )
 
 func TestFormatConnectionDNS(t *testing.T) {
@@ -35,8 +40,8 @@ func TestFormatConnectionDNS(t *testing.T) {
 				ServerIP:   util.AddressFromString("8.8.8.8"),
 				ClientPort: uint16(1000),
 				Protocol:   syscall.IPPROTO_UDP,
-			}: map[*intern.Value]map[dns.QueryType]dns.Stats{
-				intern.GetByString("foo.com"): {
+			}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+				dns.ToHostname("foo.com"): {
 					dns.TypeA: {
 						Timeouts:          0,
 						SuccessLatencySum: 0,
@@ -139,8 +144,8 @@ func TestDNSPIDCollision(t *testing.T) {
 				ServerIP:   util.AddressFromString("8.8.8.8"),
 				ClientPort: uint16(1000),
 				Protocol:   syscall.IPPROTO_UDP,
-			}: map[*intern.Value]map[dns.QueryType]dns.Stats{
-				intern.GetByString("foo.com"): {
+			}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+				dns.ToHostname("foo.com"): {
 					dns.TypeA: {
 						Timeouts:          0,
 						SuccessLatencySum: 0,

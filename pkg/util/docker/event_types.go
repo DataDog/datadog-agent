@@ -25,6 +25,9 @@ const (
 	ContainerEventActionDied = "died"
 	// ContainerEventActionRename is the action of renaming a docker container
 	ContainerEventActionRename = "rename"
+	// ContainerEventActionHealthStatus is the action of changing a docker
+	// container's health status
+	ContainerEventActionHealthStatus = "health_status"
 )
 
 // ContainerEvent describes an event from the docker daemon
@@ -35,11 +38,6 @@ type ContainerEvent struct {
 	Action        string
 	Timestamp     time.Time
 	Attributes    map[string]string
-}
-
-// ContainerEntityName returns the event's container as a tagger entity name
-func (ev *ContainerEvent) ContainerEntityName() string {
-	return ContainerIDToTaggerEntityName(ev.ContainerID)
 }
 
 // Errors client might receive

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
@@ -5,10 +10,13 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 func makeConnection(pid int32) *model.Connection {
@@ -31,9 +39,46 @@ func makeConnections(n int) []*model.Connection {
 	return conns
 }
 
-func TestNetworkConnectionBatching(t *testing.T) {
-	cfg := config.NewDefaultAgentConfig(false)
+func TestDNSNameEncoding(t *testing.T) {
+	p := makeConnections(5)
+	p[0].Raddr.Ip = "1.1.2.1"
+	p[1].Raddr.Ip = "1.1.2.2"
+	p[2].Raddr.Ip = "1.1.2.3"
+	p[3].Raddr.Ip = "1.1.2.4"
+	p[4].Raddr.Ip = "1.1.2.5"
 
+	dns := map[string]*model.DNSEntry{
+		"1.1.2.1": {Names: []string{"host1.domain.com"}},
+		"1.1.2.2": {Names: []string{"host2.domain.com", "host2.domain2.com"}},
+		"1.1.2.3": {Names: []string{"host3.domain.com", "host3.domain2.com", "host3.domain3.com"}},
+		"1.1.2.4": {Names: []string{"host4.domain.com"}},
+		"1.1.2.5": {Names: nil},
+	}
+	ex := parser.NewServiceExtractor()
+	maxConnsPerMessage := 10
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, ex)
+	assert.Equal(t, len(chunks), 1)
+
+	chunk := chunks[0]
+	conns := chunk.(*model.CollectorConnections)
+	dnsParsed := make(map[string]*model.DNSEntry)
+	for _, conn := range p {
+		ip := conn.Raddr.Ip
+		dnsParsed[ip] = &model.DNSEntry{}
+		model.IterateDNSV2(conns.EncodedDnsLookups, ip,
+			func(i, total int, entry int32) bool {
+				host, e := conns.GetDNSNameByOffset(entry)
+				assert.Nil(t, e)
+				assert.Equal(t, total, len(dns[ip].Names))
+				dnsParsed[ip].Names = append(dnsParsed[ip].Names, host)
+				return true
+			})
+	}
+	assert.Equal(t, dns, dnsParsed)
+
+}
+
+func TestNetworkConnectionBatching(t *testing.T) {
 	for i, tc := range []struct {
 		cur, last      []*model.Connection
 		maxSize        int
@@ -71,10 +116,12 @@ func TestNetworkConnectionBatching(t *testing.T) {
 			expectedChunks: 3,
 		},
 	} {
-		cfg.MaxConnsPerMessage = tc.maxSize
-		ctm := &model.CollectorConnectionsTelemetry{}
+		ctm := map[string]int64{}
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil, nil)
+		khfr := model.KernelHeaderFetchResult_FetchNotAttempted
+		coretm := map[string]model.COREResult{}
+		ex := parser.NewServiceExtractor()
+		chunks := batchConnections(&HostInfo{}, tc.maxSize, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, khfr, coretm, nil, nil, nil, nil, ex)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -93,10 +140,10 @@ func TestNetworkConnectionBatching(t *testing.T) {
 
 			// ensure only first chunk has telemetry
 			if i == 0 {
-				assert.NotNil(t, connections.ConnTelemetry)
+				assert.NotNil(t, connections.ConnTelemetryMap)
 				assert.NotNil(t, connections.CompilationTelemetryByAsset)
 			} else {
-				assert.Nil(t, connections.ConnTelemetry)
+				assert.Nil(t, connections.ConnTelemetryMap)
 				assert.Nil(t, connections.CompilationTelemetryByAsset)
 			}
 		}
@@ -112,10 +159,9 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		"1.1.2.3": {Names: []string{"datacat.edu"}},
 	}
 
-	cfg := config.NewDefaultAgentConfig(false)
-	cfg.MaxConnsPerMessage = 1
-
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil)
+	maxConnsPerMessage := 1
+	ex := parser.NewServiceExtractor()
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -153,10 +199,9 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	p[4].Raddr.Ip = "1.2.3.4"
 	p[5].Raddr.Ip = "1.3.4.5"
 
-	cfg := config.NewDefaultAgentConfig(false)
-	cfg.MaxConnsPerMessage = 2
-
-	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil, nil)
+	maxConnsPerMessage := 2
+	ex := parser.NewServiceExtractor()
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 3)
 	total := 0
@@ -238,10 +283,9 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	}
 	dnsmap := map[string]*model.DNSEntry{}
 
-	cfg := config.NewDefaultAgentConfig(false)
-	cfg.MaxConnsPerMessage = 1
-
-	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil)
+	maxConnsPerMessage := 1
+	ex := parser.NewServiceExtractor()
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, domains, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -357,10 +401,9 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	}
 	dnsmap := map[string]*model.DNSEntry{}
 
-	cfg := config.NewDefaultAgentConfig(false)
-	cfg.MaxConnsPerMessage = 1
-
-	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil)
+	maxConnsPerMessage := 1
+	ex := parser.NewServiceExtractor()
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, domains, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -467,10 +510,9 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	conns[6].RouteIdx = 3
 	conns[7].RouteIdx = 2
 
-	cfg := config.NewDefaultAgentConfig(false)
-	cfg.MaxConnsPerMessage = 4
-
-	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes, nil)
+	maxConnsPerMessage := 4
+	ex := parser.NewServiceExtractor()
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, routes, nil, nil, ex)
 
 	assert.Len(t, chunks, 2)
 	total := 0
@@ -500,4 +542,128 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 8, total)
+}
+
+func TestNetworkConnectionTags(t *testing.T) {
+	conns := makeConnections(8)
+
+	tags := []string{
+		"tag0",
+		"tag1",
+		"tag2",
+		"tag3",
+	}
+
+	conns[0].Tags = []uint32{0}
+	// conns[1] contains no tags
+	conns[2].Tags = []uint32{0, 2}
+	conns[3].Tags = []uint32{1, 2}
+	conns[4].Tags = []uint32{1}
+	conns[5].Tags = []uint32{2}
+	conns[6].Tags = []uint32{3}
+	conns[7].Tags = []uint32{2, 3}
+
+	type fakeConn struct {
+		tags []string
+	}
+	expectedTags := []fakeConn{
+		{tags: []string{"tag0"}},
+		{},
+		{tags: []string{"tag0", "tag2"}},
+		{tags: []string{"tag1", "tag2"}},
+		{tags: []string{"tag1"}},
+		{tags: []string{"tag2"}},
+		{tags: []string{"tag3"}},
+		{tags: []string{"tag2", "tag3"}},
+	}
+	foundTags := []fakeConn{}
+
+	maxConnsPerMessage := 4
+	ex := parser.NewServiceExtractor()
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, tags, nil, ex)
+
+	assert.Len(t, chunks, 2)
+	total := 0
+	for _, c := range chunks {
+		connections := c.(*model.CollectorConnections)
+		total += len(connections.Connections)
+		for _, conn := range connections.Connections {
+			// conn.Tags must be used between system-probe and the agent only
+			assert.Nil(t, conn.Tags)
+
+			foundTags = append(foundTags, fakeConn{tags: connections.GetConnectionsTags(conn.TagsIdx)})
+		}
+	}
+
+	assert.Equal(t, 8, total)
+	require.EqualValues(t, expectedTags, foundTags)
+}
+
+func TestNetworkConnectionTagsWithService(t *testing.T) {
+	conns := makeConnections(1)
+	tags := []string{"tag0"}
+	conns[0].Tags = []uint32{0}
+
+	expectedTags := []string{"tag0", "process_context:my-server"}
+
+	procsByPid := map[int32]*procutil.Process{
+		conns[0].Pid: {
+			Pid:     conns[0].Pid,
+			Cmdline: []string{"./my-server.sh"},
+		},
+	}
+	mockConfig := ddconfig.Mock(t)
+	mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
+
+	maxConnsPerMessage := 1
+	ex := parser.NewServiceExtractor()
+	ex.Extract(procsByPid)
+
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, tags, nil, ex)
+
+	assert.Len(t, chunks, 1)
+	connections := chunks[0].(*model.CollectorConnections)
+	assert.Len(t, connections.Connections, 1)
+	require.EqualValues(t, expectedTags, connections.GetConnectionsTags(connections.Connections[0].TagsIdx))
+}
+
+func TestConvertAndEnrichWithServiceTags(t *testing.T) {
+	tags := []string{"tag0", "tag1", "tag2"}
+
+	tests := []struct {
+		name       string
+		tagOffsets []uint32
+		serviceTag string
+		expected   []string
+	}{
+		{
+			name:       "no tags",
+			tagOffsets: nil,
+			serviceTag: "",
+			expected:   []string{},
+		},
+		{
+			name:       "convert tags only",
+			tagOffsets: []uint32{0, 2},
+			serviceTag: "",
+			expected:   []string{"tag0", "tag2"},
+		},
+		{
+			name:       "convert service tag only",
+			tagOffsets: nil,
+			serviceTag: "process_context:dogfood",
+			expected:   []string{"process_context:dogfood"},
+		},
+		{
+			name:       "convert tags with service tag",
+			tagOffsets: []uint32{0, 2},
+			serviceTag: "process_context:doge",
+			expected:   []string{"tag0", "tag2", "process_context:doge"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, convertAndEnrichWithServiceCtx(tags, tt.tagOffsets, tt.serviceTag))
+		})
+	}
 }

@@ -1,9 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package request
 
 import (
-	"bytes"
-
-	"github.com/gogo/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
@@ -12,22 +15,18 @@ import (
 const ContentTypeJSON = "application/json"
 
 type jsonSerializer struct {
-	marshaler jsonpb.Marshaler
+	marshaler protojson.MarshalOptions
 }
 
 // Marshal returns the json encoding of the ProcessStatRequest
 func (j jsonSerializer) Marshal(r *pbgo.ProcessStatRequest) ([]byte, error) {
-	writer := new(bytes.Buffer)
-
-	err := j.marshaler.Marshal(writer, r)
-	return writer.Bytes(), err
+	return j.marshaler.Marshal(r)
 }
 
 // Unmarshal parses the JSON-encoded ProcessStatRequest
 func (jsonSerializer) Unmarshal(blob []byte) (*pbgo.ProcessStatRequest, error) {
 	req := new(pbgo.ProcessStatRequest)
-	reader := bytes.NewReader(blob)
-	if err := jsonpb.Unmarshal(reader, req); err != nil {
+	if err := protojson.Unmarshal(blob, req); err != nil {
 		return nil, err
 	}
 	return req, nil

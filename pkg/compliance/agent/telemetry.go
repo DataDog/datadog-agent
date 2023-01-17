@@ -9,8 +9,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,19 +19,17 @@ const (
 
 // telemetry reports environment information (e.g containers running) when the compliance component is running
 type telemetry struct {
-	sender   aggregator.Sender
-	detector collectors.DetectorInterface
+	containers *common.ContainersTelemetry
 }
 
 func newTelemetry() (*telemetry, error) {
-	sender, err := aggregator.GetDefaultSender()
+	containersTelemetry, err := common.NewContainersTelemetry()
 	if err != nil {
 		return nil, err
 	}
 
 	return &telemetry{
-		sender:   sender,
-		detector: collectors.NewDetector(""),
+		containers: containersTelemetry,
 	}, nil
 }
 
@@ -48,29 +45,11 @@ func (t *telemetry) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-metricsTicker.C:
-			if err := t.reportContainers(); err != nil {
-				log.Debugf("Couldn't report containers: %v", err)
-			}
+			t.reportContainers()
 		}
 	}
 }
 
-func (t *telemetry) reportContainers() error {
-	collector, _, err := t.detector.GetPreferred()
-	if err != nil {
-		return err
-	}
-
-	containers, err := collector.List()
-	if err != nil {
-		return err
-	}
-
-	for _, container := range containers {
-		t.sender.Gauge(containersCountMetricName, 1.0, "", []string{"container_id:" + container.ID})
-	}
-
-	t.sender.Commit()
-
-	return nil
+func (t *telemetry) reportContainers() {
+	t.containers.ReportContainers(containersCountMetricName)
 }

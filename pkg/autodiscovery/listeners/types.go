@@ -24,19 +24,27 @@ type ContainerPort struct {
 // It should be matched with a check template by the ConfigResolver using the
 // ADIdentifiers field.
 type Service interface {
-	GetEntity() string                                   // unique entity name
+	GetServiceID() string                                // unique service name
 	GetTaggerEntity() string                             // tagger entity name
 	GetADIdentifiers(context.Context) ([]string, error)  // identifiers on which templates will be matched
 	GetHosts(context.Context) (map[string]string, error) // network --> IP address
 	GetPorts(context.Context) ([]ContainerPort, error)   // network ports
-	GetTags() ([]string, string, error)                  // tags and tags hash
+	GetTags() ([]string, error)                          // tags
 	GetPid(context.Context) (int, error)                 // process identifier
 	GetHostname(context.Context) (string, error)         // hostname.domainname for the entity
-	GetCreationTime() integration.CreationTime           // created before or after the agent start
 	IsReady(context.Context) bool                        // is the service ready
 	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or container labels
 	HasFilter(containers.FilterType) bool                // whether the service is excluded by metrics or logs exclusion config
-	GetExtraConfig([]byte) ([]byte, error)               // Extra configuration values
+	GetExtraConfig(string) (string, error)               // Extra configuration values
+
+	// FilterTemplates filters the templates which will be resolved against
+	// this service, in a map keyed by template digest.
+	//
+	// This method is called every time the configs for the service change,
+	// with the full set of templates matching this service.  It must not rely
+	// on any non-static information except the given configs, and it must not
+	// modify the configs in the map.
+	FilterTemplates(map[string]integration.Config)
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling
@@ -48,8 +56,13 @@ type ServiceListener interface {
 	Stop()
 }
 
+// Config represents autodiscovery listener config
+type Config interface {
+	IsProviderEnabled(string) bool
+}
+
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func() (ServiceListener, error)
+type ServiceListenerFactory func(Config) (ServiceListener, error)
 
 // ServiceListenerFactories holds the registered factories
 var ServiceListenerFactories = make(map[string]ServiceListenerFactory)
@@ -58,10 +71,12 @@ var ServiceListenerFactories = make(map[string]ServiceListenerFactory)
 func Register(name string, factory ServiceListenerFactory) {
 	if factory == nil {
 		log.Warnf("Service listener factory %s does not exist.", name)
+		return
 	}
 	_, registered := ServiceListenerFactories[name]
 	if registered {
 		log.Errorf("Service listener factory %s already registered. Ignoring.", name)
+		return
 	}
 	ServiceListenerFactories[name] = factory
 }

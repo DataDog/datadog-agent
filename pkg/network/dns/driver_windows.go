@@ -1,3 +1,11 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows && npm
+// +build windows,npm
+
 package dns
 
 /*
@@ -7,7 +15,6 @@ package dns
 import "C"
 import (
 	"fmt"
-	"net"
 	"syscall"
 	"time"
 	"unsafe"
@@ -32,7 +39,7 @@ type readbuffer struct {
 }
 
 type dnsDriver struct {
-	h           *driver.Handle
+	h           driver.Handle
 	readBuffers []*readbuffer
 	iocp        windows.Handle
 }
@@ -47,7 +54,8 @@ func newDriver() (*dnsDriver, error) {
 }
 
 func (d *dnsDriver) setupDNSHandle() error {
-	dh, err := driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle)
+	var err error
+	d.h, err = driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle)
 	if err != nil {
 		return err
 	}
@@ -57,18 +65,35 @@ func (d *dnsDriver) setupDNSHandle() error {
 		return err
 	}
 
-	if err := dh.SetDataFilters(filters); err != nil {
+	if err := d.SetDataFilters(filters); err != nil {
 		return err
 	}
 
-	iocp, buffers, err := prepareCompletionBuffers(dh.Handle, dnsReadBufferCount)
+	iocp, buffers, err := prepareCompletionBuffers(d.h.GetWindowsHandle(), dnsReadBufferCount)
 	if err != nil {
 		return err
 	}
 
 	d.iocp = iocp
 	d.readBuffers = buffers
-	d.h = dh
+
+	return nil
+}
+
+// SetDataFilters installs the provided filters for data
+func (d *dnsDriver) SetDataFilters(filters []driver.FilterDefinition) error {
+	var id int64
+	for _, filter := range filters {
+		err := d.h.DeviceIoControl(
+			driver.SetDataFilterIOCTL,
+			(*byte)(unsafe.Pointer(&filter)),
+			uint32(unsafe.Sizeof(filter)),
+			(*byte)(unsafe.Pointer(&id)),
+			uint32(unsafe.Sizeof(id)), nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to set filter: %v", err)
+		}
+	}
 	return nil
 }
 
@@ -103,7 +128,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead 
 	}
 
 	// kick off another read
-	if err := windows.ReadFile(d.h.Handle, buf.data[:], nil, &(buf.ol)); err != nil && err != windows.ERROR_IO_PENDING {
+	if err := d.h.ReadFile(buf.data[:], nil, &(buf.ol)); err != nil && err != windows.ERROR_IO_PENDING {
 		return false, err
 	}
 
@@ -112,7 +137,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead 
 
 func (d *dnsDriver) Close() error {
 	// destroy io completion port, and file
-	if err := windows.CancelIoEx(d.h.Handle, nil); err != nil {
+	if err := d.h.CancelIoEx(nil); err != nil {
 		return fmt.Errorf("error cancelling DNS io completion: %w", err)
 	}
 	if err := windows.CloseHandle(d.iocp); err != nil {
@@ -128,34 +153,32 @@ func (d *dnsDriver) Close() error {
 	return nil
 }
 
+func (d *dnsDriver) GetStatsForHandle() (map[string]map[string]int64, error) {
+	return d.h.GetStatsForHandle()
+}
+
 func createDNSFilters() ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return nil, err
-	}
 
-	for _, iface := range ifaces {
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			FilterLayer:    driver.LayerTransport,
-			Af:             windows.AF_INET,
-			RemotePort:     53,
-			InterfaceIndex: uint64(iface.Index),
-			Direction:      driver.DirectionOutbound,
-		})
+	filters = append(filters, driver.FilterDefinition{
+		FilterVersion:  driver.Signature,
+		Size:           driver.FilterDefinitionSize,
+		FilterLayer:    driver.LayerTransport,
+		Af:             windows.AF_INET,
+		RemotePort:     53,
+		InterfaceIndex: uint64(0),
+		Direction:      driver.DirectionOutbound,
+	})
 
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			FilterLayer:    driver.LayerTransport,
-			Af:             windows.AF_INET,
-			RemotePort:     53,
-			InterfaceIndex: uint64(iface.Index),
-			Direction:      driver.DirectionInbound,
-		})
-	}
+	filters = append(filters, driver.FilterDefinition{
+		FilterVersion:  driver.Signature,
+		Size:           driver.FilterDefinitionSize,
+		FilterLayer:    driver.LayerTransport,
+		Af:             windows.AF_INET,
+		RemotePort:     53,
+		InterfaceIndex: uint64(0),
+		Direction:      driver.DirectionInbound,
+	})
 
 	return filters, nil
 }

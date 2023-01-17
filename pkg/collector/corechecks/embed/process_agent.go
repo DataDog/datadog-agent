@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build process && (darwin || freebsd)
 // +build process
 // +build darwin freebsd
 
@@ -14,9 +15,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -34,33 +35,48 @@ type processAgentCheckConf struct {
 
 // ProcessAgentCheck keeps track of the running command
 type ProcessAgentCheck struct {
-	binPath     string
-	commandOpts []string
-	running     uint32
-	stop        chan struct{}
-	stopDone    chan struct{}
-	source      string
-	telemetry   bool
+	binPath        string
+	commandOpts    []string
+	running        *atomic.Bool
+	stop           chan struct{}
+	stopDone       chan struct{}
+	source         string
+	telemetry      bool
+	initConfig     string
+	instanceConfig string
 }
 
+// String displays the Agent name
 func (c *ProcessAgentCheck) String() string {
 	return "Process Agent"
 }
 
+// Version displays the command's version
 func (c *ProcessAgentCheck) Version() string {
 	return ""
 }
 
+// ConfigSource displays the command's source
 func (c *ProcessAgentCheck) ConfigSource() string {
 	return c.source
 }
 
+// InitConfig returns the init configuration
+func (c *ProcessAgentCheck) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig returns the instance configuration
+func (c *ProcessAgentCheck) InstanceConfig() string {
+	return c.instanceConfig
+}
+
 // Run executes the check with retries
 func (c *ProcessAgentCheck) Run() error {
-	atomic.StoreUint32(&c.running, 1)
+	c.running.Store(true)
 	// TODO: retries should be configurable with meaningful default values
 	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
-	atomic.StoreUint32(&c.running, 0)
+	c.running.Store(false)
 
 	return err
 }
@@ -128,10 +144,10 @@ func (c *ProcessAgentCheck) run() error {
 }
 
 // Configure the ProcessAgentCheck
-func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *ProcessAgentCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// only log whether process check is enabled or not but don't return early, because we still need to initialize "binPath", "source" and
 	// start up process-agent. Ultimately it's up to process-agent to decide whether to run or not based on the config
-	if enabled := config.Datadog.GetBool("process_config.enabled"); !enabled {
+	if enabled := config.Datadog.GetBool("process_config.process_collection.enabled"); !enabled {
 		log.Info("live process monitoring is disabled through main configuration file")
 	}
 
@@ -166,6 +182,8 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 
 	c.source = source
 	c.telemetry = telemetry_utils.IsCheckEnabled("process_agent")
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(data)
 	return nil
 }
 
@@ -190,7 +208,7 @@ func (c *ProcessAgentCheck) IsTelemetryEnabled() bool {
 
 // Stop sends a termination signal to the process-agent process
 func (c *ProcessAgentCheck) Stop() {
-	if atomic.LoadUint32(&c.running) == 0 {
+	if !c.running.Load() {
 		log.Info("Process Agent not running.")
 		return
 	}
@@ -212,6 +230,7 @@ func init() {
 		return &ProcessAgentCheck{
 			stop:     make(chan struct{}),
 			stopDone: make(chan struct{}),
+			running:  atomic.NewBool(false),
 		}
 	}
 	core.RegisterCheck("process_agent", factory)

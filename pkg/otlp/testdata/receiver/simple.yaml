@@ -1,6 +1,5 @@
-experimental:
-  otlp:
-    receiver:
-      protocols:
-        http:
-        grpc:
+otlp_config:
+  receiver:
+    protocols:
+      http:
+      grpc:

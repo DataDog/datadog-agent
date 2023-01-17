@@ -1,0 +1,30 @@
+api_key: apikey_12
+hostname: thing
+apm_config:
+  extra_sample_rate: 0.33
+  dd_agent_bin: /path/to/bin
+  max_traces_per_second: 100.0
+  errors_per_second: 37.0
+  enable_rare_sampler: true
+  max_remote_traces_per_second: 127
+  max_events_per_second: 1000.0
+  connection_reset_interval: 120
+  receiver_port: 25
+  max_cpu_percent: 7
+  max_connections: 50 # deprecated
+  max_memory: 30000000
+  trace_writer:
+    connection_limit: 1
+    queue_size: 2
+  stats_writer:
+    connection_limit: 5
+    queue_size: 6
+  analyzed_rate_by_service:
+    db: 1
+    web: 0.9
+    index: 0.5
+  analyzed_spans:
+    web|request: 0.8
+    web|django.request: 0.9
+    db|intake: 0.05
+    bad_format: 0.5

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
-// +build docker
-// +build kubeapiserver
+//go:build docker && kubeapiserver
+// +build docker,kubeapiserver
 
 package leaderelection
 
@@ -39,13 +39,17 @@ import (
 
 const setupTimeout = time.Second * 10
 
+func init() {
+	config.DetectFeatures()
+}
+
 type apiserverSuite struct {
 	suite.Suite
 	kubeConfigPath string
 }
 
 func TestSuiteAPIServer(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	s := &apiserverSuite{}
 
 	// Start compose stack

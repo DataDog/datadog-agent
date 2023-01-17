@@ -64,6 +64,8 @@ var (
 	transactionsDroppedCountTelemetry *counterExpvar
 	errorsCountTelemetry              *counterExpvar
 
+	transactionContainerPointDroppedCountTelemetry *counterExpvar
+
 	fileStorageExpvar                       = expvar.Map{}
 	serializeCountTelemetry                 *counterExpvar
 	deserializeCountTelemetry               *counterExpvar
@@ -72,6 +74,7 @@ var (
 	filesCountTelemetry                     *gaugeExpvar
 	startupReloadedRetryFilesCountTelemetry *gaugeExpvar
 	filesRemovedCountTelemetry              *counterExpvar
+	fileStoragePointDroppedCountTelemetry   *counterExpvar
 	deserializeErrorsCountTelemetry         *counterExpvar
 	deserializeTransactionsCountTelemetry   *counterExpvar
 )
@@ -129,6 +132,12 @@ func init() {
 		domainTag,
 		"The number of errors",
 		&transactionContainerExpvar)
+	transactionContainerPointDroppedCountTelemetry = newCounterExpvar(
+		"transaction_container",
+		"points_dropped_count",
+		domainTag,
+		"The number of points dropped",
+		&transactionContainerExpvar)
 
 	transaction.ForwarderExpvars.Set("FileStorage", &fileStorageExpvar)
 	serializeCountTelemetry = newCounterExpvar(
@@ -173,6 +182,14 @@ func init() {
 		domainTag,
 		"The number of files removed because the disk limit was reached",
 		&fileStorageExpvar)
+
+	fileStoragePointDroppedCountTelemetry = newCounterExpvar(
+		"file_storage",
+		"points_dropped_count",
+		domainTag,
+		"The number of points dropped",
+		&fileStorageExpvar)
+
 	deserializeErrorsCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"deserialize_errors_count",
@@ -233,6 +250,10 @@ func (t TransactionRetryQueueTelemetry) incErrorsCount() {
 	errorsCountTelemetry.add(1, t.domainName)
 }
 
+func (t TransactionRetryQueueTelemetry) addPointDroppedCount(count int) {
+	transactionContainerPointDroppedCountTelemetry.add(float64(count), t.domainName)
+}
+
 type onDiskRetryQueueTelemetry struct {
 	domainName string
 }
@@ -269,6 +290,10 @@ func (t onDiskRetryQueueTelemetry) setReloadedRetryFilesCount(count int) {
 
 func (t onDiskRetryQueueTelemetry) addFilesRemovedCount() {
 	filesRemovedCountTelemetry.add(1, t.domainName)
+}
+
+func (t onDiskRetryQueueTelemetry) addPointDroppedCount(count int) {
+	fileStoragePointDroppedCountTelemetry.add(float64(count), t.domainName)
 }
 
 func (t onDiskRetryQueueTelemetry) addDeserializeErrorsCount(count int) {

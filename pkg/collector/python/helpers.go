@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
@@ -10,11 +11,12 @@ package python
 import (
 	"fmt"
 	"runtime"
-	"sync/atomic"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
@@ -45,7 +47,7 @@ import "C"
 // [0]: https://docs.python.org/2/c-api/init.html#non-python-created-threads
 type stickyLock struct {
 	gstate C.rtloader_gilstate_t
-	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
+	locked *atomic.Bool
 }
 
 //PythonStatsEntry are entries for specific object type memory usage
@@ -98,7 +100,7 @@ func newStickyLock() (*stickyLock, error) {
 
 	return &stickyLock{
 		gstate: state,
-		locked: 1,
+		locked: atomic.NewBool(true),
 	}, nil
 }
 
@@ -106,7 +108,7 @@ func newStickyLock() (*stickyLock, error) {
 // and detaches the goroutine from the current thread.
 // Thread safe ; noop when called on an already-unlocked stickylock.
 func (sl *stickyLock) unlock() {
-	atomic.StoreUint32(&sl.locked, 0)
+	sl.locked.Store(false)
 
 	pyDestroyLock.RLock()
 	if rtloader != nil {

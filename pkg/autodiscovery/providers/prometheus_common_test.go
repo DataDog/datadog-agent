@@ -29,7 +29,7 @@ func TestGetPrometheusConfigs(t *testing.T) {
 				{
 					Instances: []*types.OpenmetricsInstance{
 						{
-							Metrics:   []string{"*"},
+							Metrics:   []interface{}{"PLACEHOLDER"},
 							Namespace: "",
 						},
 					},
@@ -59,7 +59,7 @@ func TestGetPrometheusConfigs(t *testing.T) {
 				{
 					Instances: []*types.OpenmetricsInstance{
 						{
-							Metrics:   []string{"*"},
+							Metrics:   []interface{}{"*"},
 							Namespace: "",
 							Timeout:   20,
 						},
@@ -91,7 +91,7 @@ func TestGetPrometheusConfigs(t *testing.T) {
 				{
 					Instances: []*types.OpenmetricsInstance{
 						{
-							Metrics:   []string{"*"},
+							Metrics:   []interface{}{"*"},
 							Namespace: "",
 						},
 					},
@@ -113,7 +113,7 @@ func TestGetPrometheusConfigs(t *testing.T) {
 				{
 					Instances: []*types.OpenmetricsInstance{
 						{
-							Metrics:       []string{"foo", "bar"},
+							Metrics:       []interface{}{"foo", "bar"},
 							Namespace:     "custom_ns",
 							IgnoreMetrics: []string{"baz"},
 						},
@@ -131,7 +131,7 @@ func TestGetPrometheusConfigs(t *testing.T) {
 				{
 					Instances: []*types.OpenmetricsInstance{
 						{
-							Metrics:       []string{"foo", "bar"},
+							Metrics:       []interface{}{"foo", "bar"},
 							Namespace:     "custom_ns",
 							IgnoreMetrics: []string{"baz"},
 						},
@@ -177,7 +177,7 @@ func TestGetPrometheusConfigs(t *testing.T) {
 				{
 					Instances: []*types.OpenmetricsInstance{
 						{
-							Metrics:   []string{"*"},
+							Metrics:   []interface{}{"*"},
 							Namespace: "",
 						},
 					},

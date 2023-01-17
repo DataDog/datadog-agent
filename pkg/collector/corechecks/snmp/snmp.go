@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package snmp
 
 import (
@@ -5,20 +10,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
-)
-
-const (
-	snmpCheckName = "snmp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
 
 var timeNow = time.Now
@@ -26,15 +30,17 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config         *checkconfig.CheckConfig
-	singleDeviceCk *devicecheck.DeviceCheck
-	discovery      discovery.Discovery
+	config                     *checkconfig.CheckConfig
+	singleDeviceCk             *devicecheck.DeviceCheck
+	discovery                  *discovery.Discovery
+	sessionFactory             session.Factory
+	workerRunDeviceCheckErrors *atomic.Uint64
 }
 
 // Run executes the check
 func (c *Check) Run() error {
 	var checkErr error
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -54,7 +60,12 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetHostname()))
+			hostname, err := deviceCk.GetDeviceHostname()
+			if err != nil {
+				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
+				continue
+			}
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -64,7 +75,11 @@ func (c *Check) Run() error {
 		tags = append(tags, c.config.GetNetworkTags()...)
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetHostname()))
+		hostname, err := c.singleDeviceCk.GetDeviceHostname()
+		if err != nil {
+			return err
+		}
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
@@ -78,7 +93,8 @@ func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-ch
 	for job := range jobs {
 		err := c.runCheckDevice(job)
 		if err != nil {
-			log.Errorf("worker %d : error collecting for device %s: %s", workerID, job.GetIPAddress(), err)
+			c.workerRunDeviceCheckErrors.Inc()
+			log.Errorf("worker %d : error collecting for device %s (total errors: %d): %s", workerID, job.GetIPAddress(), c.workerRunDeviceCheckErrors.Load(), err)
 		}
 	}
 }
@@ -95,7 +111,7 @@ func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 }
 
 // Configure configures the snmp checks
-func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	var err error
 
 	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig)
@@ -105,28 +121,34 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
 	if c.config.Name == "" {
+		var checkName string
 		// Set 'name' field of the instance if not already defined in rawInstance config.
 		// The name/device_id will be used by Check.BuildID for building the check id.
 		// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
-		setNameErr := rawInstance.SetNameForInstance(c.config.DeviceID)
+		if c.config.IsDiscovery() {
+			checkName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
+		} else {
+			checkName = c.config.DeviceID
+		}
+		setNameErr := rawInstance.SetNameForInstance(checkName)
 		if setNameErr != nil {
-			log.Debugf("error setting device_id as name: %s", setNameErr)
+			log.Warnf("error setting check name (checkName=%s): %s", checkName, setNameErr)
 		}
 	}
 
 	// Must be called before c.CommonConfigure
-	c.BuildID(rawInstance, rawInitConfig)
+	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err = c.CommonConfigure(rawInstance, source)
+	err = c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
 
 	if c.config.IsDiscovery() {
-		c.discovery = discovery.NewDiscovery(c.config)
+		c.discovery = discovery.NewDiscovery(c.config, c.sessionFactory)
 		c.discovery.Start()
 	} else {
-		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress)
+		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory)
 		if err != nil {
 			return fmt.Errorf("failed to create device check: %s", err)
 		}
@@ -136,7 +158,10 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 // Cancel is called when check is unscheduled
 func (c *Check) Cancel() {
-	c.discovery.Stop()
+	if c.discovery != nil {
+		c.discovery.Stop()
+		c.discovery = nil
+	}
 }
 
 // Interval returns the scheduling time for the check
@@ -146,10 +171,12 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(snmpCheckName),
+		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
+		sessionFactory:             session.NewGosnmpSession,
+		workerRunDeviceCheckErrors: atomic.NewUint64(0),
 	}
 }
 
 func init() {
-	core.RegisterCheck(snmpCheckName, snmpFactory)
+	core.RegisterCheck(common.SnmpIntegrationName, snmpFactory)
 }

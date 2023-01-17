@@ -3,44 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
 
 import (
-	"bytes"
+	"embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
 
 	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/security/tests/syscall_tester"
 )
 
-// ErrUnsupportedArch is the error returned for unsupported architectures
-type ErrUnsupportedArch struct {
-	arch string
-}
-
-// Error returns the error string
-func (ua ErrUnsupportedArch) Error() string {
-	return fmt.Sprintf("unsupported_arch: %s", ua.arch)
-}
+//go:embed syscall_tester/bin
+var syscallTesterFS embed.FS
 
 func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, error) {
 	var uname unix.Utsname
 	if err := unix.Uname(&uname); err != nil {
-		return "", fmt.Errorf("couldn't resolve arch: %s", err)
+		return "", fmt.Errorf("couldn't resolve arch: %w", err)
 	}
 
-	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
-	case "aarch64":
-		return "", ErrUnsupportedArch{arch: "aarch64"}
-	}
-
-	testerBin, err := syscall_tester.Asset("/" + binary)
+	testerBin, err := syscallTesterFS.ReadFile(fmt.Sprintf("syscall_tester/bin/%s", binary))
 	if err != nil {
 		return "", err
 	}
@@ -70,7 +57,7 @@ func checkSyscallTester(t *testing.T, path string) error {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
 	if _, err := sideTester.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run syscall tester check: %s", err)
+		return fmt.Errorf("cannot run syscall tester check: %w", err)
 	}
 	return nil
 }
@@ -79,6 +66,7 @@ func runSyscallTesterFunc(t *testing.T, path string, args ...string) error {
 	t.Helper()
 	sideTester := exec.Command(path, args...)
 	output, err := sideTester.CombinedOutput()
+
 	if err != nil {
 		t.Error(err)
 		output := string(output)

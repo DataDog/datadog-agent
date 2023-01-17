@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build jmx
-// +build !windows
+//go:build jmx && !windows
+// +build jmx,!windows
 
 package jmxfetch
 
@@ -20,9 +20,11 @@ import (
 func (j *JMXFetch) Stop() error {
 	var stopChan chan struct{}
 
-	err := j.cmd.Process.Signal(syscall.SIGTERM)
-	if err != nil {
-		return err
+	if j.cmd.Process != nil {
+		err := j.cmd.Process.Signal(syscall.SIGTERM)
+		if err != nil {
+			return err
+		}
 	}
 
 	if j.managed {
@@ -39,13 +41,15 @@ func (j *JMXFetch) Stop() error {
 
 	select {
 	case <-time.After(time.Millisecond * 500):
+		if j.cmd.Process == nil {
+			return nil
+		}
 		log.Warnf("Jmxfetch did not exit during it's grace period, killing it")
-		err = j.cmd.Process.Signal(os.Kill)
+		err := j.cmd.Process.Signal(os.Kill)
 		if err != nil {
 			log.Warnf("Could not kill jmxfetch: %v", err)
 		}
 	case <-stopChan:
 	}
 	return nil
-
 }

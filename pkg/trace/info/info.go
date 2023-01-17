@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"expvar" // automatically publish `/debug/vars` on HTTP port
-
 	"fmt"
 	"io"
 	"net/http"
@@ -34,14 +33,16 @@ var (
 	traceWriterInfo TraceWriterInfo
 	statsWriterInfo StatsWriterInfo
 
-	watchdogInfo     watchdog.Info
-	rateByService    map[string]float64
-	rateLimiterStats RateLimiterStats
-	start            = time.Now()
-	once             sync.Once
-	infoTmpl         *template.Template
-	notRunningTmpl   *template.Template
-	errorTmpl        *template.Template
+	watchdogInfo  watchdog.Info
+	rateByService map[string]float64
+	// The rates by service with empty env values removed (As they are confusing to view for customers)
+	rateByServiceFiltered map[string]float64
+	rateLimiterStats      RateLimiterStats
+	start                 = time.Now()
+	once                  sync.Once
+	infoTmpl              *template.Template
+	notRunningTmpl        *template.Template
+	errorTmpl             *template.Template
 )
 
 const (
@@ -80,10 +81,10 @@ const (
 
   --- Writer stats (1 min) ---
 
-  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt .Status.TraceWriter.Events 0}}{{.Status.TraceWriter.Events}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
-  {{if gt .Status.TraceWriter.Errors 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors}}{{end}}
-  Stats: {{.Status.StatsWriter.Payloads}} payloads, {{.Status.StatsWriter.StatsBuckets}} stats buckets, {{.Status.StatsWriter.Bytes}} bytes
-  {{if gt .Status.StatsWriter.Errors 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors}}{{end}}
+  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt .Status.TraceWriter.Events.Load 0}}{{.Status.TraceWriter.Events.Load}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
+  {{if gt .Status.TraceWriter.Errors.Load 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors.Load}}{{end}}
+  Stats: {{.Status.StatsWriter.Payloads.Load}} payloads, {{.Status.StatsWriter.StatsBuckets.Load}} stats buckets, {{.Status.StatsWriter.Bytes.Load}} bytes
+  {{if gt .Status.StatsWriter.Errors.Load 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors.Load}}{{end}}
 `
 
 	notRunningTmplSrc = `{{.Banner}}
@@ -136,17 +137,30 @@ func publishReceiverStats() interface{} {
 	return receiverStats
 }
 
-// UpdateRateByService updates the RateByService map.
+// UpdateRateByService updates the RateByService map and the filtered RateByServiceFiltered map.
 func UpdateRateByService(rbs map[string]float64) {
 	infoMu.Lock()
 	defer infoMu.Unlock()
 	rateByService = rbs
+
+	rateByServiceFiltered = make(map[string]float64, len(rateByService))
+	for k, v := range rateByService {
+		if !strings.HasSuffix(k, ",env:") {
+			rateByServiceFiltered[k] = v
+		}
+	}
 }
 
 func publishRateByService() interface{} {
 	infoMu.RLock()
 	defer infoMu.RUnlock()
 	return rateByService
+}
+
+func publishRateByServiceFiltered() interface{} {
+	infoMu.RLock()
+	defer infoMu.RUnlock()
+	return rateByServiceFiltered
 }
 
 // UpdateWatchdogInfo updates internal stats about the watchdog.
@@ -200,6 +214,15 @@ func (s infoString) String() string { return string(s) }
 func InitInfo(conf *config.AgentConfig) error {
 	var err error
 
+	publishVersion := func() interface{} {
+		return struct {
+			Version   string
+			GitCommit string
+		}{
+			Version:   conf.AgentVersion,
+			GitCommit: conf.GitCommit,
+		}
+	}
 	funcMap := template.FuncMap{
 		"add": func(a, b int64) int64 {
 			return a + b
@@ -217,6 +240,7 @@ func InitInfo(conf *config.AgentConfig) error {
 		expvar.Publish("trace_writer", expvar.Func(publishTraceWriterInfo))
 		expvar.Publish("stats_writer", expvar.Func(publishStatsWriterInfo))
 		expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
+		expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
 		expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
 		expvar.Publish("ratelimiter", expvar.Func(publishRateLimiterStats))
 
@@ -269,9 +293,12 @@ type StatusInfo struct {
 	MemStats struct {
 		Alloc uint64
 	} `json:"memstats"`
-	Version       infoVersion        `json:"version"`
+	Version struct {
+		Version   string
+		GitCommit string
+	} `json:"version"`
 	Receiver      []TagStats         `json:"receiver"`
-	RateByService map[string]float64 `json:"ratebyservice"`
+	RateByService map[string]float64 `json:"ratebyservice_filtered"`
 	TraceWriter   TraceWriterInfo    `json:"trace_writer"`
 	StatsWriter   StatsWriterInfo    `json:"stats_writer"`
 	Watchdog      watchdog.Info      `json:"watchdog"`
@@ -301,8 +328,8 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// so we can assume it's not even running, or at least, not with
 		// these parameters. We display the port as a hint on where to
 		// debug further, this is where the expvar JSON should come from.
-		program, banner := getProgramBanner(Version)
-		notRunningTmpl.Execute(w, struct {
+		program, banner := getProgramBanner(conf.AgentVersion)
+		_ = notRunningTmpl.Execute(w, struct {
 			Banner       string
 			Program      string
 			ReceiverPort int
@@ -318,7 +345,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 
 	var info StatusInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		program, banner := getProgramBanner(Version)
+		program, banner := getProgramBanner(conf.AgentVersion)
 		_ = errorTmpl.Execute(w, struct {
 			Banner  string
 			Program string
@@ -336,16 +363,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 	// display the remote program version, now that we know it
 	program, banner := getProgramBanner(info.Version.Version)
 
-	// remove the default service and env, it can be inferred from other
-	// values so has little added-value and could be confusing for users.
-	// Besides, if one still really wants it:
-	// curl http://localhost:8126/debug/vars would show it.
-	if info.RateByService != nil {
-		delete(info.RateByService, "service:,env:")
-	}
-
 	var buffer bytes.Buffer
-
 	err = infoTmpl.Execute(&buffer, struct {
 		Banner  string
 		Program string

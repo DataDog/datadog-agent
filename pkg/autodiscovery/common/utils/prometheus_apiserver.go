@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package utils
 
@@ -31,6 +31,13 @@ func ConfigsForService(pc *types.PrometheusCheck, svc *v1.Service) []integration
 	var configs []integration.Config
 	namespacedName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
 	if pc.IsExcluded(svc.GetAnnotations(), namespacedName) {
+		return configs
+	}
+
+	// Ignore headless services because we can't resolve the IP.
+	// Ref: https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
+	if svc.Spec.ClusterIP == "None" {
+		log.Debugf("ignoring Prometheus-annotated headless service: %s", namespacedName)
 		return configs
 	}
 
@@ -67,7 +74,7 @@ func ConfigsForServiceEndpoints(pc *types.PrometheusCheck, svc *v1.Service, ep *
 				endpointsID := apiserver.EntityForEndpoints(ep.GetNamespace(), ep.GetName(), address.IP)
 
 				epConfig := integration.Config{
-					Entity:        endpointsID,
+					ServiceID:     endpointsID,
 					Name:          openmetricsCheckName,
 					InitConfig:    integration.Data(openmetricsInitConfig),
 					Instances:     instances,
@@ -88,7 +95,7 @@ func ConfigsForServiceEndpoints(pc *types.PrometheusCheck, svc *v1.Service, ep *
 
 // ResolveEndpointConfigAuto automatically resolves endpoint pod and node information if available
 func ResolveEndpointConfigAuto(conf *integration.Config, addr v1.EndpointAddress) {
-	log.Debugf("using 'auto' resolve for config: %s, entity: %s", conf.Name, conf.Entity)
+	log.Debugf("using 'auto' resolve for config: %s, entity: %s", conf.Name, conf.ServiceID)
 	if targetRef := addr.TargetRef; targetRef != nil && targetRef.Kind == kubePodKind {
 		// The endpoint is backed by a pod.
 		// We add the pod uid as AD identifiers so the check can get the pod tags.

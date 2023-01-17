@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/mock"
-	assert "github.com/stretchr/testify/require"
 )
 
 func TestCheckRun(t *testing.T) {
@@ -133,7 +134,7 @@ func TestCheckRun(t *testing.T) {
 				e.ExpireAt = time.Time{}
 				return cmp.Equal(e, test.expectEvent)
 			})).Maybe()
-			checkable.On("check", check).Return(test.checkReports)
+			checkable.On("Check", check).Return(test.checkReports)
 
 			err := check.Run()
 			assert.Equal(test.expectErr, err)

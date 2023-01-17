@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -21,9 +22,10 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	core "k8s.io/client-go/testing"
 
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 )

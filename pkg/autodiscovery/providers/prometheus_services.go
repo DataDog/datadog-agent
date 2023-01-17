@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// ServiceAPI abstracts the dependency on the Kubernetes API (useful for testing)
 type ServiceAPI interface {
 	// List lists all Services
 	ListServices() ([]*v1.Service, error)
@@ -64,7 +65,7 @@ type PrometheusServicesConfigProvider struct {
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationProviders) (ConfigProvider, error) {
+func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -138,36 +139,32 @@ func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integ
 	var configs []integration.Config
 	for _, svc := range services {
 		for _, check := range p.checks {
-			serviceConfigs := utils.ConfigsForService(check, svc)
-
-			if len(serviceConfigs) == 0 {
-				continue
-			}
-
-			configs = append(configs, serviceConfigs...)
-
 			if !p.collectEndpoints {
-				continue
+				// Only generates Service checks is Endpoints checks are not active
+				serviceConfigs := utils.ConfigsForService(check, svc)
+
+				if len(serviceConfigs) != 0 {
+					configs = append(configs, serviceConfigs...)
+				}
+			} else {
+				ep, err := p.api.GetEndpoints(svc.GetNamespace(), svc.GetName())
+				if err != nil {
+					return nil, err
+				}
+
+				endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
+
+				if len(endpointConfigs) == 0 {
+					continue
+				}
+
+				configs = append(configs, endpointConfigs...)
+
+				endpointsID := apiserver.EntityForEndpoints(ep.GetNamespace(), ep.GetName(), "")
+				p.Lock()
+				p.monitoredEndpoints[endpointsID] = true
+				p.Unlock()
 			}
-
-			ep, err := p.api.GetEndpoints(svc.GetNamespace(), svc.GetName())
-			if err != nil {
-				return nil, err
-			}
-
-			endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
-
-			if len(endpointConfigs) == 0 {
-				continue
-			}
-
-			configs = append(configs, endpointConfigs...)
-
-			endpointsID := apiserver.EntityForEndpoints(ep.GetNamespace(), ep.GetName(), "")
-			p.Lock()
-			p.monitoredEndpoints[endpointsID] = true
-			p.Unlock()
-
 		}
 	}
 
@@ -192,8 +189,18 @@ func (p *PrometheusServicesConfigProvider) IsUpToDate(ctx context.Context) (bool
 func (p *PrometheusServicesConfigProvider) invalidate(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %T", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Errorf("Received unexpected object: %T", obj)
+			return
+		}
+
+		castedObj, ok = deletedState.Obj.(*v1.Service)
+		if !ok {
+			log.Errorf("Expected DeletedFinalStateUnknown to contain *v1.Service, got: %T", deletedState.Obj)
+			return
+		}
 	}
 	p.Lock()
 	defer p.Unlock()
@@ -292,7 +299,7 @@ func (p *PrometheusServicesConfigProvider) promAnnotationsDiffer(first, second m
 }
 
 func init() {
-	RegisterProvider("prometheus_services", NewPrometheusServicesConfigProvider)
+	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the PrometheusServicesConfigProvider

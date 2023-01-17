@@ -1,9 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package quantile
 
 import (
 	"sort"
 	"unsafe"
 )
+
+var _ memSized = (*sparseStore)(nil)
 
 type sparseStore struct {
 	bins  binList
@@ -172,7 +179,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 
 	for keyIdx < len(kcs) {
 		kn := int(kcs[keyIdx].n)
-		tmp = appendSafe(tmp, kcs[keyIdx].k, int(kn))
+		tmp = appendSafe(tmp, kcs[keyIdx].k, kn)
 		s.count += kn
 		keyIdx++
 	}

@@ -79,6 +79,7 @@
     <Property Id="APIKEY" Hidden="yes" />
     <Property Id="SITE" Value="datadoghq.com" />
     <Property Id="FinalizeInstall" Hidden="yes" />
+    <Property Id="NPMFEATURESTATE" />
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
@@ -102,6 +103,30 @@
     <SetProperty Id="CONFDIRONCOMMANDLINE" Value="[APPLICATIONDATADIRECTORY]" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
     <SetProperty Id="CONFDIRONCOMMANDLINESLASH" Value="[APPLICATIONDATADIRECTORY]\" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
 
+    <!--
+      The following property is set to either C:\ProgramData\Datadog or to the value of [APPLICATIONDATADIRECTORY]
+      if it is provided as installation parameter. This property will be used during AppSearch phase to detect
+      existence of datadog.yaml file
+    -->
+    <SetProperty Id="APPLICATIONDATADIRECTORY_BEFORE_APPSEARCH" Action="SetApplicationDataDirectory_FromCmdline" Value="[APPLICATIONDATADIRECTORY]" Before="AppSearch">APPLICATIONDATADIRECTORY</SetProperty>
+    <SetProperty Id="APPLICATIONDATADIRECTORY_BEFORE_APPSEARCH" Action="SetApplicationDataDirectory_NotFromCmdline" Value="[CommonAppDataFolder]Datadog" Before="AppSearch">NOT APPLICATIONDATADIRECTORY</SetProperty>
+
+
+    <!--
+      The following sets a property (to be used by the custom action).
+      the "&" indicates the action state of a feature (so &NPM refers to the NPM _feature_ not the NPM property that might be set on the command line)
+      "3" refers to the action state "on the local computer" (which is the only one we support besides "not present", which happens to be "2")
+
+      So, the NPMFEATURESTATE property will be set to "off" if the NPM feature is no installed on the local computer
+      and will be set to "on" if it is used on the local computer.
+
+      This flag will be used in the custom action to decide what service dependencies need to be set
+
+      For more information on this syntax see
+      https://www.firegiant.com/wix/tutorial/com-expression-syntax-miscellanea/expression-syntax/
+      -->
+    <SetProperty Action="SetNPMOff" Id="NPMFEATURESTATE" Before="SetFinalizeProperty" Value="off" Sequence="execute"><![CDATA[not (&NPM = 3)]]></SetProperty>
+    <SetProperty Action="SetNPMOn"  Id="NPMFEATURESTATE" Before="SetFinalizeProperty" Value="on"  Sequence="execute"><![CDATA[(&NPM = 3)]]></SetProperty>
     <!-- This condition allows the install if
         1) the user didn't supply the binary directory on the command line
         2) this is NOT an upgrade
@@ -149,12 +174,19 @@
       </Directory>
     </Directory>
 
+    <!-- Detect existence of datadog.yaml file -->
+    <Property Id="DATADOGYAMLEXISTS">
+      <DirectorySearch Id="DatadogYamlSearchDirId" Path="[APPLICATIONDATADIRECTORY_BEFORE_APPSEARCH]" Depth="0" AssignToProperty="yes">
+        <FileSearch Id="DatadogYamlSearchFileId" Name="datadog.yaml"/>
+      </DirectorySearch>
+    </Property>
+
     <CustomAction
         Id="LaunchApp"
         Directory="AGENT"
         Execute="immediate"
         Return="asyncNoWait"
-        ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;-launch-gui&quot;" />
+        ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;--launch-gui&quot;" />
 
 
     <!-- Delete application when uninstalling -->
@@ -186,8 +218,6 @@
     </Property>
     <DirectoryRef Id="PROJECTLOCATION">
       <Component Id="CleanupMainApplicationFolder" Guid="096249cf-3fe7-4342-a80f-77101ceed5fe">
-        <!-- We need to use APPLICATIONROOTDIRECTORY variable here or RemoveFolderEx
-             will not remove on "uninstall". -->
         <RegistryValue Root="HKLM"
                        Key="SOFTWARE\Datadog\Datadog Agent"
                        Name="InstallPath"
@@ -337,7 +367,7 @@
                   Name="Datadog Agent Manager"
                   Description="Manage your Datadog Agent"
                   Target="[AGENT]ddtray.exe"
-                  Arguments= "&quot;-launch-gui&quot;"
+                  Arguments= "&quot;--launch-gui&quot;"
                   WorkingDirectory="AGENT"/>
 
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
@@ -436,15 +466,14 @@
            installer is called twice; the existing (previously installed)
            installer is called with _UPGRADE, and then the new installer
            is called with _INSTALL -->
-      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
-      <Custom Action='FinalizeInstall' Before='StartServices'>      <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
+      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" OR REMOVE<>"ALL" ]]> </Custom>
+      <Custom Action='FinalizeInstall' Before='StartServices'>       <![CDATA[Installed="" OR REMOVE<>"ALL" ]]> </Custom>
 
       <!-- Same deal here -->
       <Custom Action='StartDDServices' After='StartServices'>  <![CDATA[REMOVE<>"ALL"]]></Custom>
 
       <!-- only do the uninstall (which removes the user state and file perms)
            on a full uninstall -->
-      <Custom Action='SetUninstallProperty' Before='DoUninstall'> <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
       <Custom Action='DoUninstall' Before='RemoveRegistryValues'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
 
       <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>
@@ -499,7 +528,7 @@
     </Feature>
 
     <!-- UI Stuff: 100% Omnibus Generated -->
-    <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
+    <Icon Id="project.ico" SourceFile="Resources\assets\project.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
     <Property Id="ARPHELPLINK" Value="https://datadoghq.com/" />
     <!--
@@ -534,6 +563,7 @@
       </Publish>
       <?include Resources\assets\apikeydlg.wxi ?>
       <?include Resources\assets\sitedlg.wxi ?>
+      <?include Resources\assets\ddagentuserdlg.wxi ?>
       <DialogRef Id="ErrorDlg" />
       <DialogRef Id="FatalError" />
       <DialogRef Id="FilesInUse" />
@@ -545,6 +575,8 @@
       <DialogRef Id="WelcomeDlg" />
       <DialogRef Id="ApiKeyDlg"/>
       <DialogRef Id="SiteDlg"/>
+      <DialogRef Id="DDAgentUserDlg"/>
+      <DialogRef Id="DDAgentUserInvalidDlg"/>
       <DialogRef Id="LicenseAgreementDlg"/>
       <?if $(var.IncludeSysprobe) = true ?>
       <DialogRef Id="CustomizeDlg"/>
@@ -559,61 +591,56 @@
            Customize IF APPLICABLE
            Apikey
            Site
+           DDAgentUser
            VerifyReady
 
            -->
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT PREVIOUSFOUND</Publish>
-
 
       <?if $(var.IncludeSysprobe) = true ?>
         <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">PREVIOUSFOUND</Publish>
 
         <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">NOT PREVIOUSFOUND</Publish>
 
-        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND)</Publish>
-        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">WixUI_InstallMode OR PREVIOUSFOUND</Publish>
+        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
+        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">WixUI_InstallMode OR PREVIOUSFOUND OR DATADOGYAMLEXISTS</Publish>
 
         <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND)</Publish>
         <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
         <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg"> WixUI_InstallMode </Publish>
 
-        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
+        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg">(NOT WixUI_InstallMode) AND (PREVIOUSFOUND OR DATADOGYAMLEXISTS)</Publish>
         <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg">WixUI_InstallMode = "Change"</Publish>
 
         <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="CustomizeDlg">1</Publish>
-
-
       <?else ?>
         <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">PREVIOUSFOUND</Publish>
 
-        <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+        <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">(NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
 
-        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
+        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND (PREVIOUSFOUND OR DATADOGYAMLEXISTS)</Publish>
       <?endif ?>
 
-      <!-- if the dialog is displayed, there's only one back from here, which is the welcome -->
+      <!-- if the dialog is displayed, there is only one back from here, which is the welcome -->
       <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg"></Publish>
 
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
       <Publish Dialog="SiteDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="SiteDlg">NOT PREVIOUSFOUND</Publish>
 
+      <!-- if the previous installation or the datadog.yaml file exists, implying the API key and Site are known, go back to the CustomizeDlg or LicenseAgreementDlg -->
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DDAgentUserDlg">(NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
 
-
-
-
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="SiteDlg">APIKEY AND (NOT SITE)</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY AND SITE</Publish>
 
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg">WixUI_InstallMode = "Repair"</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg">WixUI_InstallMode = "Repair" OR WixUI_InstallMode = "Remove"</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
-
 
       <AdminUISequence>
         <Show Dialog="FatalError" OnExit="error" />
@@ -653,6 +680,7 @@
       This does not affect the final artefact, as it seems to affects only the base string, not the expanded one.
       At runtime this limitation doesn\'t seem to apply.
     -->
+
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
         Value='
             UILevel=[UILevel]
@@ -661,6 +689,7 @@
             DDAGENTUSER_NAME=[DDAGENTUSER_NAME]
             DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]
             SYSPROBE_PRESENT=[SYSPROBE_PRESENT]
+            NPMFEATURE=[NPMFEATURESTATE]
             ADDLOCAL=[ADDLOCAL]
             APIKEY=[APIKEY]
             TAGS=[TAGS]
@@ -684,18 +713,14 @@
             NPM=[NPM]
             EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]
             OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]
-            ' />
-    <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
+            ' HideTarget='yes' />
+    <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' HideTarget='yes' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
-
-    <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall'
-        Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
-
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
-
     <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' />
 
+    <CustomAction Id='ValidateDDAgentUserDlgInput' BinaryKey='wixcadll' DllEntry='ValidateDDAgentUserDlgInput' Execute='immediate' Return='check' />
 
     <!--
     <CustomAction Id='adddduser' BinaryKey='wixcadll' DllEntry='CreateOrUpdateDDUser' Execute='immediate' Return='check'/>

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Previously, the Agent could not log the start or end of a check properly after the first five check runs. The Agent now can log the start or end of a check correctly.

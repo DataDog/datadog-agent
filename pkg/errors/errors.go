@@ -15,6 +15,8 @@ const (
 	partialError
 	unknownError
 	disabledError
+	remoteServiceError
+	timeoutError
 )
 
 // AgentError is an error intended for consumption by a datadog pkg; it can also be
@@ -80,6 +82,34 @@ func NewDisabled(component, reason string) *AgentError {
 // IsDisabled returns true if the specified error was created by NewDisabled.
 func IsDisabled(err error) bool {
 	return reasonForError(err) == disabledError
+}
+
+// NewRemoteServiceError returns a new error which indicates that a remote service
+// queried by the Agent is unavailable (e.g the Datadog Cluster Agent returning 500s).
+// The status string can provide additional context (e.g a http response status "500 Internal Server Error").
+func NewRemoteServiceError(target, status string) *AgentError {
+	return &AgentError{
+		message:     fmt.Sprintf("%q is unavailable: %s", target, status),
+		errorReason: remoteServiceError,
+	}
+}
+
+// IsRemoteService returns true if the specified error was created by NewRemoteServiceError.
+func IsRemoteService(err error) bool {
+	return reasonForError(err) == remoteServiceError
+}
+
+// NewTimeoutError returns a new error which was caused by a timeout.
+func NewTimeoutError(target string, err error) *AgentError {
+	return &AgentError{
+		message:     fmt.Sprintf("timeout calling %q: %v", target, err),
+		errorReason: timeoutError,
+	}
+}
+
+// IsTimeout returns true if the specified error was created by NewTimeoutError.
+func IsTimeout(err error) bool {
+	return reasonForError(err) == timeoutError
 }
 
 func reasonForError(err error) errorReason {

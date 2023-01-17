@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -10,18 +11,17 @@ package tests
 import (
 	"fmt"
 	"os"
-	"syscall"
+	"os/exec"
 	"testing"
-	"unsafe"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSpan(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -30,7 +30,7 @@ func TestSpan(t *testing.T) {
 		},
 		{
 			ID:         "test_span_rule_exec",
-			Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
 		},
 	}
 
@@ -40,69 +40,66 @@ func TestSpan(t *testing.T) {
 	}
 	defer test.Close()
 
-	var tls [200]uint64
-	for i := range tls {
-		tls[i] = 0
-	}
-
-	req := sprobe.ERPCRequest{
-		OP: sprobe.RegisterSpanTLSOP,
-	}
-
-	// format, max threads, base ptr
-	model.ByteOrder.PutUint64(req.Data[0:8], 0)
-	model.ByteOrder.PutUint64(req.Data[8:16], uint64(len(tls)/2))
-	model.ByteOrder.PutUint64(req.Data[16:24], uint64(uintptr(unsafe.Pointer(&tls))))
-
-	erpc, err := sprobe.NewERPC()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := erpc.Request(&req); err != nil {
-		t.Fatal(err)
-	}
 
-	t.Run("open", func(t *testing.T) {
-		offset := (syscall.Gettid() % (len(tls) / 2)) * 2
-		tls[offset] = 123
-		tls[offset+1] = 456
+	test.Run(t, "open", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testFile, _, err := test.Path("test-span")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		args := []string{"span-open", "104", "204", testFile}
+		envs := []string{}
 
 		test.WaitSignal(t, func() error {
-			testFile, _, err := test.Create("test-span")
+			cmd := cmdFunc(syscallTester, args, envs)
+			out, err := cmd.CombinedOutput()
+
 			if err != nil {
-				return err
+				return fmt.Errorf("%s: %w", out, err)
 			}
-			return os.Remove(testFile)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_open")
 
-			if !validateSpanSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, uint64(123), event.SpanContext.SpanID)
-			assert.Equal(t, uint64(456), event.SpanContext.TraceID)
+			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
+			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
 		})
 	})
 
-	t.Run("exec", func(t *testing.T) {
-		syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	test.Run(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testFile, _, err := test.Path("test-span-exec")
 		if err != nil {
-			if _, ok := err.(ErrUnsupportedArch); ok {
-				t.Skip(err)
-			} else {
-				t.Fatal(err)
-			}
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		var args []string
+		var envs []string
+		if kind == dockerWrapperType {
+			args = []string{"span-exec", "104", "204", "/usr/bin/touch", "--reference", "/etc/passwd", testFile}
+		} else if kind == stdWrapperType {
+			args = []string{"span-exec", "104", "204", executable, "--reference", "/etc/passwd", testFile}
 		}
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "span-exec", "104", "204", executable, "/tmp/test_span_rule_exec")
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+			cmd := cmdFunc(syscallTester, args, envs)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_exec")
 
-			if !validateSpanSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSpanSchema(t, event)
 
 			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(104), event.SpanContext.TraceID)

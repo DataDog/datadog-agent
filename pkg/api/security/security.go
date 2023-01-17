@@ -12,16 +12,16 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
-	"io/ioutil"
+	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
-
-	"fmt"
-	"net"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,9 +65,7 @@ func CertTemplate() (*x509.Certificate, error) {
 }
 
 // GenerateRootCert generates a root certificate
-func GenerateRootCert(hosts []string, bits int) (
-	cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
-
+func GenerateRootCert(hosts []string, bits int) (cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
 	rootCertTmpl, err := CertTemplate()
 	if err != nil {
 		return
@@ -80,7 +78,7 @@ func GenerateRootCert(hosts []string, bits int) (
 
 	// describe what the certificate will be used for
 	rootCertTmpl.IsCA = true
-	rootCertTmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
+	rootCertTmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature | x509.KeyUsageCRLSign
 	rootCertTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
 
 	for _, h := range hosts {
@@ -145,13 +143,13 @@ func fetchAuthToken(tokenCreationAllowed bool) (string, error) {
 		log.Infof("Saved a new authentication token to %s", authTokenFile)
 	}
 	// Read the token
-	authTokenRaw, e := ioutil.ReadFile(authTokenFile)
+	authTokenRaw, e := os.ReadFile(authTokenFile)
 	if e != nil {
 		return "", fmt.Errorf("unable to read authentication token file: " + e.Error())
 	}
 
 	// Do some basic validation
-	authToken := string(authTokenRaw)
+	authToken := strings.TrimSpace(string(authTokenRaw))
 	if len(authToken) < authTokenMinimalLen {
 		return "", fmt.Errorf("invalid authentication token: must be at least %d characters in length", authTokenMinimalLen)
 	}
@@ -215,7 +213,7 @@ func getClusterAgentAuthToken(tokenCreationAllowed bool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("empty cluster_agent.auth_token and cannot find %q: %s", tokenAbsPath, err)
 	}
-	b, err := ioutil.ReadFile(tokenAbsPath)
+	b, err := os.ReadFile(tokenAbsPath)
 	if err != nil {
 		return "", fmt.Errorf("empty cluster_agent.auth_token and cannot read %s: %s", tokenAbsPath, err)
 	}
@@ -229,5 +227,25 @@ func validateAuthToken(authToken string) error {
 	if len(authToken) < authTokenMinimalLen {
 		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
 	}
+	return nil
+}
+
+// writes auth token(s) to a file with the same permissions as datadog.yaml
+func saveAuthToken(token, tokenPath string) error {
+	if err := os.WriteFile(tokenPath, []byte(token), 0o600); err != nil {
+		return err
+	}
+
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		return err
+	}
+
+	if err := perms.RestrictAccessToUser(tokenPath); err != nil {
+		log.Errorf("Failed to write auth token acl %s", err)
+		return err
+	}
+
+	log.Infof("Wrote auth token")
 	return nil
 }

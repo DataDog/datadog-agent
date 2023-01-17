@@ -19,11 +19,10 @@
 .kitchen_cleanup_azure_common:
   allow_failure: true
   stage: kitchen_cleanup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   dependencies: []
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
   script:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/clean.sh

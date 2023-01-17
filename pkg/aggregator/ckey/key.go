@@ -6,8 +6,9 @@
 package ckey
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/twmb/murmur3"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // ContextKey is a non-cryptographic hash that allows to
@@ -28,6 +29,9 @@ import (
 // nor did benchmarks with xxhash (slightly slower).
 type ContextKey uint64
 
+// TagsKey is a non-cryptographic hash of only the tags in a context. See ContextKey.
+type TagsKey uint64
+
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
 	return &KeyGenerator{
@@ -46,8 +50,40 @@ type KeyGenerator struct {
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
 func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) ContextKey {
-	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ g.hg.Hash(tagsBuf)
-	return ContextKey(hash)
+	key, _ := g.GenerateWithTags(name, hostname, tagsBuf)
+	return key
+}
+
+// GenerateWithTags returns the ContextKey and TagsKey hashes for the given parameters.
+// tagsBuf is re-arranged in place and truncated to only contain unique tags.
+func (g *KeyGenerator) GenerateWithTags(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) (ContextKey, TagsKey) {
+	tags := g.hg.Hash(tagsBuf)
+	hash := g.combineHash(name, hostname, tags)
+
+	return ContextKey(hash), TagsKey(tags)
+}
+
+// GenerateWithTags2 returns the ContextKey and TagsKey hashes for the given parameters.
+//
+// Tags from l, r are combined to produce the key and deduplicated, but most of the time left in
+// their respective buffers.
+func (g *KeyGenerator) GenerateWithTags2(name, hostname string, l, r *tagset.HashingTagsAccumulator) (ContextKey, TagsKey, TagsKey) {
+	g.hg.Dedup2(l, r)
+	lHash := l.Hash()
+	rHash := r.Hash()
+	hash := g.combineHash(name, hostname, lHash^rHash)
+
+	return ContextKey(hash), TagsKey(lHash), TagsKey(rHash)
+}
+
+func (g *KeyGenerator) combineHash(name, hostname string, tagsHash uint64) uint64 {
+	// Don't just xor with tags hashes, because metric and hostname are allowed to be the same
+	// as a tag, and we don't want them to cancel out.
+	i, j := tagsHash, tagsHash
+	i, j = murmur3.SeedStringSum128(i, j, name)
+	i, _ = murmur3.SeedStringSum128(i, j, hostname)
+
+	return i // Same as murmur3.StringSum64, return upper 64 bits of the result.
 }
 
 // Equals returns whether the two context keys are equal or not.

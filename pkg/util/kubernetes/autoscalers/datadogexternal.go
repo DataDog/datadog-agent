@@ -3,24 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package autoscalers
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,6 +45,7 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
+// Point represents a metric data point
 type Point struct {
 	Value     float64
 	Timestamp int64
@@ -56,11 +53,9 @@ type Point struct {
 }
 
 const (
-	value                 = 1
-	timestamp             = 0
-	queryEndpoint         = "/api/v1/query"
-	metricsEndpointPrefix = "https://api."
-	metricsEndpointConfig = "external_metrics_provider.endpoint"
+	value         = 1
+	timestamp     = 0
+	queryEndpoint = "/api/v1/query"
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -154,7 +149,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 
 	// If we add no series at all, return an error on top of invalid metrics
 	if len(seriesSlice) == 0 {
-		return processedMetrics, log.Errorf("Returned series slice empty")
+		return processedMetrics, log.Warnf("none of the queries %s returned any point, there might be an issue with them", query)
 	}
 
 	return processedMetrics, nil
@@ -181,42 +176,4 @@ func (p *Processor) updateRateLimitingMetrics() error {
 	}
 
 	return utilserror.NewAggregate(errors)
-}
-
-// NewDatadogClient generates a new client to query metrics from Datadog
-func NewDatadogClient() (*datadog.Client, error) {
-	apiKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
-	if apiKey == "" {
-		apiKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
-	}
-
-	appKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
-	if appKey == "" {
-		appKey = config.SanitizeAPIKey(config.Datadog.GetString("app_key"))
-	}
-
-	// DATADOG_HOST used to be the only way to set the external metrics
-	// endpoint, so we need to keep backwards compatibility. In order of
-	// priority, we use:
-	//   - DD_EXTERNAL_METRICS_PROVIDER_ENDPOINT
-	//   - DATADOG_HOST
-	//   - DD_SITE
-	endpoint := os.Getenv("DATADOG_HOST")
-	if config.Datadog.GetString(metricsEndpointConfig) != "" || endpoint == "" {
-		endpoint = config.GetMainEndpoint(metricsEndpointPrefix, metricsEndpointConfig)
-	}
-
-	if appKey == "" || apiKey == "" {
-		return nil, errors.New("missing the api/app key pair to query Datadog")
-	}
-
-	log.Infof("Initialized the Datadog Client for HPA with endpoint %q", endpoint)
-
-	client := datadog.NewClient(apiKey, appKey)
-	client.HttpClient.Transport = httputils.CreateHTTPTransport()
-	client.RetryTimeout = 3 * time.Second
-	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
-	client.SetBaseUrl(endpoint)
-
-	return client, nil
 }

@@ -25,7 +25,7 @@ docs/cloud-workload-security/
 
 The Agent expressions documentation is based on the following files:
 
-- `pkg/security/model/model.go` - the source code of the SECL model containing the event types and fields documentation
+- `pkg/security/secl/model/model.go` - the source code of the SECL model containing the event types and fields documentation
 - `docs/cloud-workload-security/secl.json` - the JSON representing the SECL model extracted from the source code
 - `docs/cloud-workload-security/scripts/templates/agent_expressions.md` - the template used for the final generation
 
@@ -75,7 +75,7 @@ The Cloud Workload Security (CWS) part of the Agent sends events to the backend.
 
 ### Editing files
 
-To change the documentation of one of the fields in the schema, edit the correct field in `pkg/security/probe/serializers.go`. The documentation of a field is added through the `jsonschema_description` tag of the field.
+To change the documentation of one of the fields in the schema, edit the correct field in `pkg/security/probe/serializers.go`. The documentation of a field is added through the commont of the field.
 
 For example:
 
@@ -116,8 +116,9 @@ Make an edit to any of the files mentioned above and then, from the root of the 
 #### Requirements
 
 - Golang (see `go.mod` for the minimal version supported)
-- Python
-	- `pip install -r requirements.txt` to install dependencies
+- Python, install dependencies with:
+	- `pip install -r requirements.txt`
+	- `pip install -r docs/cloud-workload-security/scripts/requirements-docs.txt`
 
 
 #### Steps
@@ -125,12 +126,12 @@ Make an edit to any of the files mentioned above and then, from the root of the 
 If a `*.go` file in `pkg/security` has been edited you will first need to generate the `*.json` files.
 Please run:
 ```sh
-go generate ./pkg/security/...
+inv -e security-agent.cws-go-generate
 # or only the specific file
 go generate ./path/to/the/touched/file
 ```
 
-To generate the final markdown files (at the root of `docs/cloud-workload-security`) please run:
+To generate the final markdown files please run:
 ```sh
 inv -e security-agent.generate-cws-documentation
 ```

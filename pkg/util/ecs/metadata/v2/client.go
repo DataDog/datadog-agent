@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package v2
@@ -11,13 +12,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry"
 )
 
 const (
@@ -85,6 +87,11 @@ func (c *Client) get(ctx context.Context, path string, v interface{}) error {
 		return fmt.Errorf("Failed to create new request: %w", err)
 	}
 	resp, err := client.Do(req)
+
+	defer func() {
+		telemetry.AddQueryToTelemetry(path, resp)
+	}()
+
 	if err != nil {
 		return err
 	}
@@ -93,7 +100,7 @@ func (c *Client) get(ctx context.Context, path string, v interface{}) error {
 
 	if resp.StatusCode != http.StatusOK {
 		var msg string
-		if buf, err := ioutil.ReadAll(resp.Body); err == nil {
+		if buf, err := io.ReadAll(resp.Body); err == nil {
 			msg = string(buf)
 		}
 		return fmt.Errorf("Unexpected HTTP status code in metadata v2 reply: [%s]: %d - %s", url, resp.StatusCode, msg)

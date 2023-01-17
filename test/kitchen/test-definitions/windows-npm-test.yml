@@ -23,7 +23,7 @@ suites:
       package_name: 'datadog-iot-agent'
       <% end %>
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -64,7 +64,7 @@ suites:
       package_name: 'datadog-iot-agent'
       <% end %>
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -91,7 +91,6 @@ suites:
       agent_flavor: 'datadog-iot-agent'
       <% end %>
     dd-agent-install:
-      agent6: true
       agent_major_version: 7
       windows_agent_url: <%= windows_agent_url %>
       <% if ENV['AGENT_VERSION'] %>
@@ -117,7 +116,6 @@ suites:
       agent_flavor: 'datadog-iot-agent'
       <% end %>
     dd-agent-install:
-      agent6: true
       agent_major_version: 7
       windows_agent_url: <%= windows_agent_url %>
       <% if ENV['AGENT_VERSION'] %>
@@ -128,8 +126,6 @@ suites:
       <% end %>
       enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
     dd-agent-reinstall:
-      agent6: true
-      agent_major_version: 7
       windows_agent_url: <%= windows_agent_url %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -166,7 +162,7 @@ suites:
       package_name: 'datadog-iot-agent'
       <% end %>
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"

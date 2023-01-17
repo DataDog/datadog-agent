@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add the `flare` command to the Cloud Foundry `cluster agent` to improve support
+    experience.

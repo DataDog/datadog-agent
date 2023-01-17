@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package netlink
 
 import (
@@ -5,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 )
 
 func TestCircuitBreakerDefaultState(t *testing.T) {
@@ -130,7 +136,13 @@ func TestCircuitBreakerRateCalculation(t *testing.T) {
 }
 
 func newTestBreaker(maxEventRate int) *CircuitBreaker {
-	c := &CircuitBreaker{maxEventsPerSec: int64(maxEventRate)}
+	c := &CircuitBreaker{
+		eventCount:      atomic.NewInt64(0),
+		eventRate:       atomic.NewInt64(0),
+		isOpen:          atomic.NewBool(false),
+		lastUpdate:      atomic.NewInt64(0),
+		maxEventsPerSec: int64(maxEventRate),
+	}
 	c.Reset()
 	return c
 }

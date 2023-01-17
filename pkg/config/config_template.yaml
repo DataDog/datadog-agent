@@ -21,11 +21,13 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
+## @env DD_DD_URL - string - optional - default: https://app.datadoghq.com
 ## @env DD_URL - string - optional - default: https://app.datadoghq.com
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
 ## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
 ## own "*_dd_url" settings.
+## If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
 #
 # dd_url: https://app.datadoghq.com
 
@@ -50,12 +52,26 @@ api_key:
 #
 # skip_ssl_validation: false
 
-## @param force_tls_12 - boolean - optional - default: false
-## @env DD_FORCE_TLS_12 - boolean - optional - default: false
-## Setting this option to "true" forces the Agent to only use TLS 1.2 when
-## pushing data to the Datadog intake specified in "site" or "dd_url".
+## @param sslkeylogfile - string - optional - default: ""
+## @env DD_SSLKEYLOGFILE - string - optional - default: ""
+## sslkeylogfile specifies a destination for TLS master secrets
+## in NSS key log format to allow external programs
+## such as Wireshark to decrypt TLS connections.
+## For more details, see https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
+## Use of sslkeylogfile compromises security and should only be
+## used for debugging.
+# sslkeylogfile: ""
+
+
+## @param min_tls_version - string - optional - default: "tlsv1.0"
+## @env DD_MIN_TLS_VERSION - string - optional - default: "tlsv1.0"
+## This option defines the minimum TLS version that will be used when
+## submitting data to the Datadog intake specified in "site" or "dd_url".
+## This parameter defaults to "tlsv1.2".
+## Possible values are: tlsv1.0, tlsv1.1, tlsv1.2, tlsv1.3; values are case-
+## insensitive.
 #
-# force_tls_12: false
+# min_tls_version: "tlsv1.2"
 
 ## @param hostname - string - optional - default: auto-detected
 ## @env DD_HOSTNAME - string - optional - default: auto-detected
@@ -80,6 +96,16 @@ api_key:
 #
 # hostname_fqdn: false
 
+## @param hostname_trust_uts_namespace - boolean - optional - default: false
+## @env DD_HOSTNAME_TRUST_UTS_NAMESPACE - boolean - optional - default: false
+## By default the Agent does not trust the hostname value retrieved from non-root UTS namespace,
+## as it's usually a generated name, unrelated to the host (e.g. when running in a container).
+## When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
+## hostname resolution.
+## (Linux only)
+#
+# hostname_trust_uts_namespace: false
+
 ## @param host_aliases - list of strings - optional
 ## @env DD_HOST_ALIASES - space separated list of strings - optional
 ## List of host aliases to report in addition to any aliases collected
@@ -95,12 +121,28 @@ api_key:
 ## @env DD_TAGS - space separated list of strings - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
-## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
+## This configuration value merges with `DD_EXTRA_TAGS`, allowing some
+## tags to be set in a configuration file (`tags`), and additional tags to be added
+## with an environment variable (`DD_EXTRA_TAGS`).
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
 # tags:
 #   - team:infra
+#   - <TAG_KEY>:<TAG_VALUE>
+
+## @param extra_tags  - list of key:value elements - optional
+## @env DD_EXTRA_TAGS - space separated list of strings - optional
+## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+##
+## This configuration value merges with `tags`, allowing some
+## tags to be set in a configuration file (`tags`), and additional tags to be added
+## with an environment variable (`DD_EXTRA_TAGS`).
+##
+## Learn more about tagging: https://docs.datadoghq.com/tagging/
+#
+# extra_tags:
+#   - region:northerly
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
@@ -278,8 +320,22 @@ api_key:
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba
+## @param forwarder_backoff_base - int - optional - default: 2
+## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
+## Defines the rate of exponential growth, and the first retry interval range.
+## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
+## higher rate of exponential growth.
+# forwarder_backoff_base: 2
+
+## @param forwarder_backoff_max - int - optional - default: 64
+## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
+## Defines the maximum number of seconds to wait for a retry.
+## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
+## higher maximum backoff time.
+# forwarder_backoff_max: 64
+
+## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle ibm
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -295,21 +351,42 @@ api_key:
 ## "azure"   Azure
 ## "alibaba" Alibaba
 ## "tencent" Tencent
+## "oracle"  Oracle Cloud
+## "ibm"     IBM Cloud
 #
 # cloud_provider_metadata:
 #   - "aws"
 #   - "gcp"
 #   - "azure"
 #   - "alibaba"
+#   - "oracle"
+#   - "ibm"
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
-## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
-## permission. See docs for further details:
+## Requires one of:
+##  - `collect_ec2_tags_use_imds: true` and configuration of the
+##    EC2 instance to allow tags in instance metadata; or
+##  - configuration of the EC2 instance to have an IAM role with
+##    the `EC2:DescribeTags` permission.
+## See docs for further details:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+
+## @param exclude_ec2_tags - list of strings - optional - default: []
+## @env DD_EXCLUDE_EC2_TAGS - space separated list of strings - optional - default: []
+## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true.
+#
+# exclude_ec2_tags: []
+
+## @param collect_ec2_tags_use_imds - boolean - optional - default: false
+## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
+## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
+## Requires `collect_ec2_tags`.
+#
+# collect_ec2_tags_use_imds: false
 
 ## @param ec2_metadata_timeout - integer - optional - default: 300
 ## @env DD_EC2_METADATA_TIMEOUT - integer - optional - default: 300
@@ -405,6 +482,15 @@ api_key:
 ## Use this parameter to remove them from the `no_proxy` list.
 #
 # use_proxy_for_cloud_metadata: false
+
+## @param inventories_configuration_enabled - boolean - optional - default: false
+## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: false
+## The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
+## detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information.
+##
+## The Agent configuration is scrubbed of any sensitive information.
+#
+# inventories_configuration_enabled: false
 
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
@@ -667,22 +753,23 @@ api_key:
   #
   # min_collection_interval: 15
 
-  ## @param namespace - string - optional - default: default
-  ## Namespace can be used to disambiguate devices with same IPs.
-  ## Changing namespace will cause devices being recreated in NDM app.
-  ## Only available using corecheck SNMP integration with `loader: core` config.
+  ## @param use_device_id_as_hostname - boolean - optional - default: false
+  ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+  ## for metrics and service checks (meaning that metrics and services checks will have
+  ## `host:device:<DEVICE_ID>` as tag).
+  ## This option is needed for custom tags.
   #
-  # namespace: default
+  # use_device_id_as_hostname: true
 
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
   ## configs:
-  ##  - network: 10.0.0.0/24
-  ##    version: 1
-  ##    community: public
-  ##  - network: 10.0.1.0/28
-  ##    community: public
+  ##  - network_address: 10.0.0.0/24
+  ##    snmp_version: 1
+  ##    community_string: public
+  ##  - network_address: 10.0.1.0/28
+  ##    community_string: public
   ##    ignored_ip_addresses:
   ##      - 10.0.1.0
   ##      - 10.0.1.1
@@ -747,7 +834,7 @@ api_key:
 
     ## @param authProtocol - string - optional
     ## The authentication protocol to use when connecting to your SNMP devices.
-    ## Available options are: MD5, SHA.
+    ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
     ## Defaults to MD5 when `authentication_key` is specified.
     ## SNMPv3 only.
     #
@@ -761,7 +848,7 @@ api_key:
 
     ## @param privProtocol - string - optional
     ## The privacy protocol to use when connecting to your SNMP devices.
-    ## Available options are: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
+    ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
     ## Defaults to DES when `privacy_key` is specified.
     ## SNMPv3 only.
     #
@@ -795,12 +882,19 @@ api_key:
     #
     # min_collection_interval: 15
 
-    ## @param namespace - string - optional - default: default
-    ## Namespace can be used to disambiguate devices with same IPs.
-    ## Changing namespace will cause devices being recreated in NDM app.
-    ## Only available using corecheck SNMP integration with `loader: core` config.
+    ## @param use_device_id_as_hostname - boolean - optional - default: false
+    ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+    ## for metrics and service checks (meaning that metrics and services checks will have
+    ## `host:device:<DEVICE_ID>` as tag).
+    ## This option is needed for custom tags.
     #
-    # namespace: default
+    # use_device_id_as_hostname: true
+
+    ## @param oid_batch_size - integer - optional - default: 5
+    ## The number of OIDs handled by each batch.
+    #
+    # oid_batch_size: 5
+
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -879,19 +973,21 @@ api_key:
   #     name: <RULE_NAME>
   #     pattern: <RULE_PATTERN>
 
-  ## @param use_http - boolean - optional - default: false
-  ## @env DD_LOGS_CONFIG_USE_HTTP - boolean - optional - default: false
-  ## By default, logs are sent through TCP, use this parameter
-  ## to send logs in HTTPS batches to port 443
+  ## @param force_use_http - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
+  ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
+  ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to `true` to
+  ## always send logs with HTTPS (recommended).
   #
-  # use_http: true
+  # force_use_http: true
 
-  ## @param use_tcp - boolean - optional - default: false
-  ## @env DD_USE_TCP - boolean - optional - default: false
-  ## By default, logs are sent through HTTP if possible, use this parameter
-  ## to send logs in TCP
+  ## @param force_use_tcp - boolean - optional - default: false
+  ## @env DD_LOGS_FORCE_USE_TCP - boolean - optional - default: false
+  ## By default, logs are sent through HTTPS if possible, set this parameter
+  ## to `true` to always send logs via TCP. If `use_http` is set to `true`, this parameter
+  ## is ignored.
   #
-  # use_tcp: true
+  # force_use_tcp: true
 
   ## @param use_compression - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: false
@@ -903,7 +999,8 @@ api_key:
   ## @param compression_level - integer - optional - default: 6
   ## @env DD_LOGS_CONFIG_COMPRESSION_LEVEL - boolean - optional - default: false
   ## The compression_level parameter accepts values from 0 (no compression)
-  ## to 9 (maximum compression but higher resource usage).
+  ## to 9 (maximum compression but higher resource usage). Only takes effect if
+  ## `use_compression` is set to `true`.
   #
   # compression_level: 6
 
@@ -912,6 +1009,35 @@ api_key:
   ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
+
+  ## @param open_files_limit - integer - optional - default: 500
+  ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
+  ## The maximum number of files that can be tailed in parallel.
+  ## Note: the default for windows and Mac OS is 200. The default for
+  ## all other systems is 500.
+  #
+  # open_files_limit: 500
+
+  ## @param file_wildcard_selection_mode - string - optional - default: `by_name`
+  ## @env DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE - string - optional - default: `by_name`
+  ## The strategy used to prioritize wildcard matches if they exceed the open file limit.
+  ##
+  ## Choices are `by_name` and `by_modification_time`.
+  ##
+  ## `by_name` means that each log source is considered and the matching files are ordered
+  ## in reverse name order. While there are less than `logs_config.open_files_limit` files
+  ## being tailed, this process repeats, collecting from each configured source.
+  ##
+  ## `by_modification_time` takes all log sources and first adds any log sources that
+  ## point to a specific file. Next, it finds matches for all wildcard sources.
+  ## This resulting list is ordered by which files have been most recently modified
+  ## and the top `logs_config.open_files_limit` most recently modified files are
+  ## chosen for tailing.
+  ##
+  ## WARNING: `by_modification_time` is less performant than `by_name` and will trigger
+  ## more disk I/O at the configured wildcard log paths.
+  #
+  # file_wildcard_selection_mode: `by_name`
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -928,13 +1054,13 @@ api_key:
 # apm_config:
 
   ## @param enabled - boolean - optional - default: true
-  ## @env DD_APM_CONFIG_ENABLED - boolean - optional - default: true
+  ## @env DD_APM_ENABLED - boolean - optional - default: true
   ## Set to true to enable the APM Agent.
   #
   # enabled: true
 
   ## @param env - string - optional - default: none
-  ## @env DD_APM_CONFIG_ENV - string - optional - default: none
+  ## @env DD_APM_ENV - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
   ## If not set the value will be inherited, in order, from the top level
   ## "env" config option if set and then from the 'env:' tag if present in the
@@ -943,45 +1069,40 @@ api_key:
   # env: none
 
   ## @param receiver_port - integer - optional - default: 8126
-  ## @env DD_APM_CONFIG_RECEIVER_PORT - integer - optional - default: 8126
+  ## @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
+  ## Set to 0 to disable the HTTP receiver.
   #
   # receiver_port: 8126
 
   ## @param receiver_socket - string - optional
-  ## @env DD_APM_CONFIG_RECEIVER_SOCKET - string - optional
+  ## @env DD_APM_RECEIVER_SOCKET - string - optional
   ## Accept traces through Unix Domain Sockets.
   ## It is off by default. When set, it must point to a valid socket file.
   #
   # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
-  ## @env DD_APM_CONFIG_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
+  ## @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
   #
   # apm_non_local_traffic: false
 
   ## @param apm_dd_url - string - optional
-  ## @env DD_APM_CONFIG_APM_DD_URL - string - optional
+  ## @env DD_APM_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
   # apm_dd_url: <ENDPOINT>:<PORT>
 
-  ## @param extra_sample_rate - float - optional - default: 1.0
-  ## @env DD_APM_CONFIG_EXTRA_SAMPLE_RATE - float - optional - default: 1.0
-  ## Extra global sample rate to apply on all the traces
-  ## This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces.
-  ## From 1 (no extra rate) to 0 (don't sample at all)
-  #
-  # extra_sample_rate: 1.0
-
   ## @param max_traces_per_second - integer - optional - default: 10
-  ## @env DD_APM_CONFIG_MAX_TRACES_PER_SECOND - integer - optional - default: 10
+  ## @env DD_APM_MAX_TPS - integer - optional - default: 10
   ## The target traces per second to sample. Sampling rates to apply are adjusted given
   ## the received traffic and communicated to tracers. This configures head base sampling.
-  ## Set to 0 to disable sampling.
+  ## As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
+  ## disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
+  ## value sufficiently high for your traffic pattern.
   #
   # max_traces_per_second: 10
 
@@ -994,13 +1115,13 @@ api_key:
   # errors_per_second: 10
 
   ## @param max_events_per_second - integer - optional - default: 200
-  ## @env DD_APM_CONFIG_MAX_EVENTS_PER_SECOND - integer - optional - default: 200
+  ## @env DD_APM_MAX_EPS - integer - optional - default: 200
   ## Maximum number of APM events per second to sample.
   #
   # max_events_per_second: 200
 
   ## @param max_memory - integer - optional - default: 500000000
-  ## @env DD_APM_CONFIG_MAX_MEMORY - integer - optional - default: 500000000
+  ## @env DD_APM_MAX_MEMORY - integer - optional - default: 500000000
   ## This value is what the Agent aims to use in terms of memory. If surpassed, the API
   ## rate limits incoming requests to aim and stay below this value.
   ## Note: The Agent process is killed if it uses more than 150% of `max_memory`.
@@ -1009,7 +1130,7 @@ api_key:
   # max_memory: 500000000
 
   ## @param max_cpu_percent - integer - optional - default: 50
-  ## @env DD_APM_CONFIG_MAX_CPU_PERCENT - integer - optional - default: 50
+  ## @env DD_APM_MAX_CPU_PERCENT - integer - optional - default: 50
   ## The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
   ## incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
   ## Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
@@ -1017,7 +1138,6 @@ api_key:
   # max_cpu_percent: 50
 
   ## @param obfuscation - object - optional
-  ## @env DD_APM_CONFIG_OBFUSCATION_* - optional
   ## Defines obfuscation rules for sensitive data. Disabled by default.
   ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #
@@ -1035,7 +1155,7 @@ api_key:
   #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
 
   ## @param replace_tags - list of objects - optional
-  ## @env DD_APM_CONFIG_REPLACE_TAGS  - list of objects - optional
+  ## @env DD_APM_REPLACE_TAGS  - list of objects - optional
   ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
   ## Each rules has to contain:
@@ -1052,23 +1172,30 @@ api_key:
   #     repl: "<PATTERN_TO_INLINE>"
 
   ## @param ignore_resources - list of strings - optional
-  ## @env DD_APM_CONFIG_IGNORE_RESOURCES - space separated list of strings - optional
+  ## @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
   ## An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
   #
   # ignore_resources: ["(GET|POST) /healthcheck"]
 
   ## @param log_file - string - optional
-  ## @env DD_APM_CONFIG_LOG_FILE - string - optional
+  ## @env DD_APM_LOG_FILE - string - optional
   ## The full path to the file where APM-agent logs are written.
   #
   # log_file: <APM_LOG_FILE_PATH>
 
   ## @param log_throttling - boolean - default: true
-  ## @env DD_APM_CONFIG_LOG_THROTTLING - boolean - default: true
+  ## @env DD_APM_LOG_THROTTLING - boolean - default: true
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
+
+  ## @param connection_limit - integer - default: 2000
+  ## @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
+  ## The APM connection limit for the Agent.
+  ## See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
+  #
+  # connection_limit: 2000
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -1093,34 +1220,7 @@ api_key:
     #
     # enabled: false
 
-  {{ end }}
-
-####################################
-## AppSec Configuration           ##
-####################################
-
-## @param appsec_config - custom object - optional
-## Enter specific configurations for your AppSec collection.
-## Uncomment the parameters `appsec_config` and `enabled` to enable AppSec.
-#
-# appsec_config:
-
-  ## @param enabled - boolean - optional - default: true
-  ## Enable the AppSec proxy in the APM Agent.
-  #
-  # enabled: true
-
-  ## @param appsec_dd_url - string - optional
-  ## Define the endpoint and port to hit when using a proxy for AppSec. Logs are forwarded by TCP;
-  ## therefore, the proxy must be able to handle TCP connections.
-  #
-  # appsec_dd_url: <ENDPOINT>:<PORT>
-
-  ## @param max_payload_size - integer - optional - default: 5242880 (5MB)
-  ## Define the maximum HTTP payload size (the body) in bytes the AppSec proxy allows.
-  #
-  # max_payload_size: 5242880
-
+  {{ end -}}
 {{ end -}}
 {{- if .ProcessAgent }}
 
@@ -1135,6 +1235,21 @@ api_key:
 #
 # process_config:
 
+  ## @param process_collection - custom object - optional
+  ## Specifies settings for collecting processes.
+  # process_collection:
+    ## @param enabled - boolean - optional - default: false
+    ## Enables collection of information about running processes.
+    # enabled: false
+
+  ## @param container_collection - custom object - optional
+  ## Specifies settings for collecting containers.
+  # container_collection:
+    ## @param enabled - boolean - optional - default: true
+    ## Enables collection of information about running containers.
+    # enabled: true
+
+  ## Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
   ## @param enabled - string - optional - default: "false"
   ## @env DD_PROCESS_CONFIG_ENABLED - string - optional - default: "false"
   ##  A string indicating the enabled state of the Process Agent:
@@ -1178,10 +1293,9 @@ api_key:
   ## @param process_discovery - custom object - optional
   ## Specifies custom settings for the `process_discovery` object.
   # process_discovery:
-      ## @param enabled - boolean - optional - default: false
-      ## Toggles the `process_discovery` check. If enabled, this check gathers information about possible running integrations.
-      ## This check is experimental.
-      # enabled: false
+      ## @param enabled - boolean - optional - default: true
+      ## Toggles the `process_discovery` check. If enabled, this check gathers information about running integrations.
+      # enabled: true
 
       ## @param interval - duration - optional - default: 4h - minimum: 10m
       ## An interval in hours that specifies how often the process discovery check should run.
@@ -1195,11 +1309,23 @@ api_key:
   # blacklist_patterns:
   #   - <REGEX>
 
-  ## @param queue_size - integer - optional - default: 20
-  ## @env DD_PROCESS_CONFIG_QUEUE_SIZE - integer - optional - default: 20
-  ## How many check results to buffer in memory when POST fails.
+  ## @param queue_size - integer - optional - default: 256
+  ## @env DD_PROCESS_CONFIG_QUEUE_SIZE - integer - optional - default: 256
+  ## The number of check results to buffer in memory when a POST fails.
   #
-  # queue_size: 20
+  # queue_size: 256
+
+  ## @param process_queue_bytes - integer - optional - default: 60000000
+  ## @env DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES - integer - optional - default: 60000000
+  ## The amount of data (in bytes) to buffer in memory when a POST fails.
+  #
+  # process_queue_bytes: 60000000
+
+  ## @param rt_queue_size - integer - optional - default: 5
+  ## @env DD_PROCESS_CONFIG_RT_QUEUE_SIZE - integer - optional - default: 5
+  ## The number of realtime check results to buffer in memory when a POST fails.
+  #
+  # rt_queue_size: 5
 
   ## @param max_per_message - integer - optional - default: 100
   ## @env DD_PROCESS_CONFIG_MAX_PER_MESSAGE - integer - optional - default: 100
@@ -1238,6 +1364,12 @@ api_key:
   #   - '*token'
   #   - 'sql*'
   #   - '*pass*d*'
+
+  ## @param disable_realtime_checks - boolean - optional - default: false
+  ## @env DD_PROCESS_CONFIG_DISABLE_REALTIME - boolean - optional - default: false
+  ## Disable realtime process and container checks
+  #
+  # disable_realtime_checks: false
 
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -1348,6 +1480,38 @@ api_key:
     #
     # enabled: false
 
+  ## @param memory_controller - custom object - optional
+  ## Cgroup memory controller for internal memory profiling.
+  ##
+  ## memory_controller:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable cgroup memory controller.
+    #
+    # enabled: false
+    #
+    ## @param thresholds - map of strings - optional
+    ## Thresholds and the respective active actions to trigger when
+    ## memory usage is above the specified threshold.
+    ## Threshold can be either an absolute value - such as 500MB or 2GB -
+    ## or a percentage of the cgroup allocated memory such as 50%.
+    ## The action can be:
+    ## - gc: to trigger the Go garbage collector
+    ## - profile: to generate a system-probe memory profile in /tmp
+    ## - log: to simply log that the threshold was reached
+    #
+    # thresholds:
+    #   500MB: gc
+    #   50%: profile
+
+    ## @param pressure_levels - map of strings - optional
+    ## Pressure levels and the respective active actions to trigger when
+    ## memory usage reaches the specified level.
+    ## The pressure level is 'low', 'medium' or 'critical'.
+    ## The actions are the same for thresholds (see above).
+    #
+    # pressure_levels:
+    #   medium: gc
 {{ end }}
 
 {{- if .NetworkModule }}
@@ -1361,6 +1525,20 @@ api_key:
   ## Set to true to enable the Network Module of the System Probe
   #
   # enabled: false
+
+{{ end -}}
+
+{{- if .UniversalServiceMonitoringModule }}
+
+#############################################################
+## System Probe Universal Service monitoring Configuration ##
+#############################################################
+
+# service_monitoring_config:
+## @param enabled - boolean - optional - default: false
+## Set to true to enable the Universal Service Monitoring Module of the System Probe
+#
+# enabled: false
 
 {{ end -}}
 
@@ -1423,6 +1601,19 @@ api_key:
   #   - '*token'
   #   - 'sql*'
   #   - '*pass*d*'
+
+  ## @param envs_with_value - list of strings - optional
+  ## @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
+  ## Define your own list of non-sensitive environment variable names whose value will not be
+  ## concealed by the runtime security module.
+  ## Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE
+  #
+  # envs_with_value:
+  #   - LD_PRELOAD
+  #   - LD_LIBRARY_PATH
+  #   - PATH
+  #   - HISTSIZE
+  #   - HISTFILESIZE
 
 {{ end -}}
 {{ end -}}
@@ -1487,6 +1678,13 @@ api_key:
 ## If running DogStatsD in a container, host PID mode (e.g. with --pid=host) is required.
 #
 # dogstatsd_origin_detection: false
+
+## @param dogstatsd_origin_detection_client - boolean - optional - default: false
+## @env DD_DOGSTATSD_ORIGIN_DETECTION_CLIENT - boolean - optional - default: false
+## Whether the Agent should use a client-provided container ID to enrich the metrics, events and service checks with container tags.
+## Note: This requires using a client compatible with DogStatsD protocol version 1.2.
+#
+# dogstatsd_origin_detection_client: false
 
 ## @param dogstatsd_buffer_size - integer - optional - default: 8192
 ## @env DD_DOGSTATSD_BUFFER_SIZE - integer - optional - default: 8192
@@ -1601,6 +1799,21 @@ api_key:
 ## Disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
 #
 # dogstatsd_entity_id_precedence: false
+
+
+## @param dogstatsd_no_aggregation_pipeline - boolean - optional - default: true
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE - boolean - optional - default: true
+## Enable the no-aggregation pipeline in DogStatsD: a pipeline receiving metrics
+## with timestamp and forwarding them to the intake without extra processing except
+## for tagging.
+#
+# dogstatsd_no_aggregation_pipeline: true
+
+## @param dogstatsd_no_aggregation_pipeline_batch_size - integer - optional - default: 256
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_BATCH_SIZE - integer - optional - default: 256
+## How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
+#
+# dogstatsd_no_aggregation_pipeline_batch_size: 256
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
@@ -1725,6 +1938,12 @@ api_key:
 #
 # jmx_reconnection_timeout: 60
 
+## @param jmx_statsd_telemetry_enabled - boolean - optional - default: false
+## @env DD_JMX_STATSD_TELEMETRY_ENABLED - boolean - optional - default: false
+## Specifies whether the JMXFetch statsd client telemetry is enabled.
+#
+# jmx_statsd_telemetry_enabled: false
+
 {{ end -}}
 {{- if .Logging }}
 
@@ -1844,6 +2063,21 @@ api_key:
 ## Directory containing configuration templates for Autoconfig.
 #
 # autoconf_template_dir: /datadog/check_configs
+
+## @param autoconf_config_files_poll - boolean - optional - default: false
+## @env DD_AUTOCONF_CONFIG_FILES_POLL - boolean - optional - default: false
+## Should the we check for new/updated integration configuration files on disk.
+## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
+#
+# autoconf_config_files_poll: false
+
+## @param autoconf_config_files_poll_interval - integer - optional - default: 60
+## @env DD_AUTOCONF_CONFIG_FILES_POLL_INTERVAL - integer - optional - default: 60
+## How frequently should the Agent check for new/updated integration configuration files (in seconds).
+## This value must be >= 1 (i.e. 1 second).
+## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
+#
+# autoconf_config_files_poll_interval: 60
 
 ## @param config_providers - List of custom object - optional
 ## @env DD_CONFIG_PROVIDERS - List of custom object - optional
@@ -2055,6 +2289,17 @@ api_key:
   #
   # kubernetes_service_name: "datadog-cluster-agent"
 
+  ## @param max_leader_connections - integer - optional - default: 100
+  ## Maximum number of connections between a follower and a leader.
+  #
+  # max_leader_connections: 100
+
+  ## @param client_reconnect_period_seconds - integer - optional - default: 1200
+  ## Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
+  ## Set to 0 to disable periodic reconnection.
+  #
+  # client_reconnect_period_seconds: 1200
+
   ## @param tagging_fallback - boolean - optional - default: false
   ## Set to true to enabled fallback to local metamapper when the connection with the Cluster Agent fails.
   #
@@ -2145,6 +2390,176 @@ api_key:
   #
   # clc_runners_port: 5005
 
+{{ end -}}
+{{- if .AdmissionController }}
+
+########################################
+## Admission controller Configuration ##
+########################################
+
+## @param admission_controller - custom object - optional
+## Enter specific configurations for your admission controller.
+## The Datadog admission controller is a component of the Datadog Cluster Agent.
+## It has two main functionalities:
+## Inject environment variables (DD_AGENT_HOST and DD_ENTITY_ID) to configure DogStatsD and APM tracer libraries into your application containers.
+## Inject Datadog reserved tags (env, service, version) from application labels into the container environment variables.
+## Uncomment this parameter and the one below to enable it.
+## See https://docs.datadoghq.com/agent/cluster_agent/admission_controller/
+#
+# admission_controller:
+
+  ## @param enabled - boolean - optional - default: false
+  ## @env DD_ADMISSION_CONTROLLER_ENABLED - boolean - optional - default: false
+  ## Set to true to enable the admission controller in the cluster-agent.
+  #
+  # enabled: false
+
+  ## @param mutate_unlabelled - boolean - optional - default: false
+  ## @env DD_ADMISSION_CONTROLLER_MUTATE_ENABLED - boolean - optional - default: false
+  ## Enable injecting config without having the pod label admission.datadoghq.com/enabled="true".
+  #
+  # mutate_unlabelled: false
+
+  ## @param port - integer - optional - default: 8000
+  ## @env DD_ADMISSION_CONTROLLER_PORT - integer - optional - default: 8000
+  ## The admission controller server port.
+  #
+  # port: 8000
+
+  ## @param timeout_seconds - integer - optional - default: 10
+  ## @env DD_ADMISSION_CONTROLLER_TIMEOUT_SECONDS - integer - optional - default: 10
+  ## The admission controller server timeout in seconds.
+  #
+  # timeout_seconds: 10
+
+  ## @param service_name - string - optional - default: datadog-admission-controller
+  ## @env DD_ADMISSION_CONTROLLER_SERVICE_NAME - string - optional - default: datadog-admission-controller
+  ## The name of the Kubernetes service that exposes the admission controller.
+  #
+  # service_name: datadog-admission-controller
+
+  ## @param webhook_name - string - optional - default: datadog-webhook
+  ## @env DD_ADMISSION_CONTROLLER_WEBHOOK_NAME - string - optional - default: datadog-webhook
+  ## The name of the Kubernetes webhook object.
+  #
+  # webhook_name: datadog-webhook
+
+  ## @param pod_owners_cache_validity - integer - optional - default: 10
+  ## @env DD_ADMISSION_CONTROLLER_POD_OWNERS_CACHE_VALIDITY - integer - optional - default: pod_owners_cache_validity
+  ## The in-memory cache TTL for pod owners in minutes.
+  #
+  # pod_owners_cache_validity: 10
+
+  ## @param namespace_selector_fallback - boolean - optional - default: false
+  ## @env DD_ADMISSION_CONTROLLER_NAMESPACE_SELECTOR_FALLBACK - boolean - optional - default: false
+  ## Use namespace selectors instead of object selectors to watch objects.
+  ## For Kubernetes versions from 1.10 to 1.14 (inclusive)
+  #
+  # namespace_selector_fallback: false
+
+  ## @param certificate - custom object - optional
+  ## The webhook's certificate configuration.
+  #
+  # certificate:
+
+    ## @param validity_bound - integer - optional - default: 8760
+    ## @env DD_ADMISSION_CONTROLLER_CERTIFICATE_VALIDITY_BOUND - integer - optional - default: 8760
+    ## The certificate's validity bound in hours, default 1 year (365*24).
+    #
+    # validity_bound: 8760
+
+    ## @param expiration_threshold - integer - optional - default: 720
+    ## @env DD_ADMISSION_CONTROLLER_CERTIFICATE_EXPIRATION_THRESHOLD - integer - optional - default: 720
+    ## The certificate's refresh threshold in hours, default 1 month (30*24).
+    #
+    # expiration_threshold: 720
+
+    ## @param secret_name - string - optional - default: webhook-certificate
+    ## @env DD_ADMISSION_CONTROLLER_CERTIFICATE_SECRET_NAME - string - optional - default: webhook-certificate
+    ## Name of the Secret object containing the webhook certificate.
+    #
+    # secret_name: webhook-certificate
+
+  ## @param inject_config - custom object - optional
+  ## Configuration injection parameters.
+  #
+  # inject_config:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_ENABLED - boolean - optional - default: true
+    ## Enable configuration injection (configure DogStatsD and APM tracer libraries).
+    #
+    # enabled: true
+
+    ## @param endpoint - string - optional - default: /injectconfig
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_ENDPOINT - string - optional - default: /injectconfig
+    ## Admission controller's endpoint responsible for handling configuration injection requests.
+    #
+    # endpoint: /injectconfig
+
+    ## @param mode - string - optional - default: hostip
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE - string - optional - default: hostip
+    ## The kind of configuration to be injected, it can be "hostip", "service", or "socket".
+    #
+    # mode: hostip
+
+    ## @param local_service_name - string - optional - default: datadog
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_LOCAL_SERVICE_NAME - string - optional - default: datadog
+    ## Configure the local service name that exposes the Datadog Agent. Only applicable in "service" mode.
+    #
+    # local_service_name: datadog
+
+    ## @param socket_path - string - optional - default: /var/run/datadog
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_SOCKET_PATH - string - optional - default: /var/run/datadog
+    ## Configure Datadog Agent's socket path. Only applicable in "socket" mode.
+    #
+    # socket_path: /var/run/datadog
+
+    ## @param trace_agent_socket - string - optional - default: unix:///var/run/datadog/apm.socket
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TRACE_AGENT_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
+    ## Configure Trace Agent's socket path in the app container (DD_TRACE_AGENT_URL).
+    ## Only applicable in "socket" mode.
+    #
+    # trace_agent_socket: unix:///var/run/datadog/apm.socket
+
+  ## @param inject_tags - custom object - optional
+  ## Tags injection parameters.
+  #
+  # inject_tags:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_TAGS_ENABLED - boolean - optional - default: true
+    ## Enable standard tags injection.
+    #
+    # enabled: true
+
+    ## @param endpoint - string - optional - default: /injecttags
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_TAGS_ENDPOINT - string - optional - default: /injecttags
+    ## Admission controller's endpoint responsible for handling tags injection requests.
+    #
+    # endpoint: /injecttags
+
+  ## @param failure_policy - string - optional - default: Ignore
+  ## @env DD_ADMISSION_CONTROLLER_FAILURE_POLICY - string - optional - default: Ignore
+  ## Set the failure policy for dynamic admission control.
+  ## The default of Ignore means that pods will still be admitted even if the webhook is unavailable to inject them.
+  ## Setting to Fail will require the admission controller to be present and pods to be injected before they are allowed to run.
+  #
+  # failure_policy: Ignore
+
+  ## @param reinvocation_policy - string - optional - default: IfNeeded
+  ## @env DD_ADMISSION_CONTROLLER_REINVOCATION_POLICY - string - optional - default: IfNeeded
+  ## Set the reinvocation policy for dynamic admission control.
+  ## See https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#reinvocation-policy
+  #
+  # reinvocation_policy: IfNeeded
+
+  ## @param add_aks_selectors - boolean - optional - default: false
+  ## @env DD_ADMISSION_CONTROLLER_ADD_AKS_SELECTORS - boolean - optional - default: false
+  ## Adds in the admission controller webhook the selectors that are required in AKS.
+  ## See https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
+  #
+  # add_aks_selectors: false
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -2333,14 +2748,36 @@ api_key:
 #
 # cri_query_timeout: 5
 
-## @param containerd_namespace - string - optional - default: k8s.io
-## @env DD_CONTAINERD_NAMESPACE - string - optional - default: k8s.io
+## Deprecated - use `containerd_namespaces` instead
+## @param containerd_namespace - list of strings - optional - default: []
+## @env DD_CONTAINERD_NAMESPACE - space separated list of strings - optional - default: []
 ## Activating the Containerd check also activates the CRI check, as it contains an additional subset of useful metrics.
-## Specify here the namespace that Containerd is using on your system. As the Containerd check
-## only supports Kubernetes, the default value is `k8s.io`
+## Defaults to [] which configures the agent to report metrics and events from all the containerd namespaces.
+## To watch specific namespaces, list them here.
 ## https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
 #
-# containerd_namespace: k8s.io
+# containerd_namespace:
+#   - k8s.io
+
+## @param containerd_namespaces - list of strings - optional - default: []
+## @env DD_CONTAINERD_NAMESPACES - space separated list of strings - optional - default: []
+## Activating the Containerd check also activates the CRI check, as it contains an additional subset of useful metrics.
+## Defaults to [] which configures the agent to report metrics and events from all the containerd namespaces.
+## containerd_namespaces acts as an alias for containerd_namespace. When both containerd_namespaces and containerd_namespace
+## are configured, the Agent merges the two lists.
+#
+# containerd_namespaces:
+#   - k8s.io
+#
+## @param containerd_exclude_namespaces - list of strings - optional - default: ["moby"]
+## @env DD_CONTAINERD_EXCLUDE_NAMESPACES - space separated list of strings - optional - default: ["moby"]
+## When containerd_namespaces is set to [], containerd_exclude_namespaces
+## allows the exclusion of containers from specific namespaces. By default it
+## excludes "moby", to prevent Docker containers from being detected as
+## containerd containers.
+#
+# containerd_exclude_namespaces:
+#   - moby
 
 {{ end -}}
 {{- if .Kubelet }}
@@ -2492,8 +2929,9 @@ api_key:
 
 ## @param collect_kubernetes_events - boolean - optional - default: false
 ## @env DD_COLLECT_KUBERNETES_EVENTS - boolean - optional - default: false
-## Set `collect_kubernetes_events` to true to enable log collection.
-## Note: leader election must be enabled must be enabled  bellow to to collect events.
+## Set `collect_kubernetes_events` to true to enable collection of kubernetes
+## events to be sent to Datadog.
+## Note: leader election must be enabled below to collect events.
 ##       Only the leader Agent collects events.
 ## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#event-collection
 #
@@ -2529,6 +2967,24 @@ api_key:
 #
 # DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 
+## @param kubernetes_node_annotations_as_tags - map - optional
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - json - optional
+## Configure node annotationss that should be collected and their name as host tags.
+#
+# kubernetes_node_annotations_as_tags:
+#   cluster.k8s.io/machine: machine
+#
+# DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='{"NODE_ANNOTATION": "TAG_KEY"}'
+
+## @param kubernetes_node_annotations_as_host_aliases - list - optional
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - list - optional
+## Configure node annotations that should be collected and used as host aliases.
+#
+# kubernetes_node_annotations_as_host_aliases:
+# - cluster.k8s.io/machine
+#
+# DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES='["cluster.k8s.io/machine"]'
+
 ## @param cluster_name - string - optional
 ## @env DD_CLUSTER_NAME - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
@@ -2549,6 +3005,33 @@ api_key:
 ## regardless of the value of this parameter.
 #
 # disable_cluster_name_tag_key: false
+
+{{ end -}}
+{{- if .PrometheusScrape }}
+## @param prometheus_scrape - custom object - optional
+## This section configures the Autodiscovery based on the Prometheus annotations
+#
+# prometheus:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Enables the prometheus config provider
+  #
+  # enabled: false
+
+  ## @param service_endpoints - boolean - optional - default: false
+  ## Enables Service Endpoints checks in the prometheus config provider
+  #
+  # service_endpoints: false
+
+  ## @param checks - custom object - optional
+  ## Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+  #
+  # checks: {}
+
+  ## @param version - integer - optional - default: 2
+  ## Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
+  #
+  # version: 2
 
 {{ end -}}
 {{- if .CloudFoundryBBS }}
@@ -2660,47 +3143,347 @@ api_key:
 ## Network Devices Configuration ##
 ###################################
 
-## @param snmp_traps_enabled - boolean - optional - default: false
-## @env DD_SNMP_TRAPS_ENABLED - boolean - optional - default: false
-## Set to true to enable collection of traps.
+## @param network_devices - custom object - optional
+## Configuration related to Network Devices Monitoring
 #
-# snmp_traps_enabled: false
+# network_devices:
 
-## @param snmp_traps_config - custom object - optional
-## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
-## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
-## change in the future. Only SNMPv2 is supported.
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices with the same IP.
+  ## Changing namespace will cause devices being recreated in NDM app.
+  ## It should contain less than 100 characters and should not contain any of
+  ## `<`, `>`, `\n`, `\t`, `\r` characters.
+  ## This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
+  #
+  # namespace: default
+
+  ## @param snmp_traps - custom object - optional
+  ## This section configures SNMP traps collection.
+  ## Traps are forwarded as logs and can be found in the logs explorer with a source:snmp-traps query
+  #
+  # snmp_traps:
+
+    ## @param enabled - boolean - optional - default: false
+    ## Set to true to enable collection of traps.
+    #
+    # enabled: false
+
+    ## @param port - integer - optional - default: 9162
+    ## @env DD_SNMP_TRAPS_CONFIG_PORT - integer - optional - default: 9162
+    ## The UDP port to use when listening for incoming trap packets.
+    ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
+    ## However, if you run `sudo setcap 'cap_net_bind_service=+ep' /opt/datadog-agent/bin/agent/agent`,
+    ## the Datadog Agent can listen on ports below 1024.
+    #
+    # port: 9162
+
+    ## @param community_strings - list of strings - required
+    ## A list of known SNMP community strings that devices can use to send traps to the Agent.
+    ## Traps with an unknown community string are ignored.
+    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
+    ## Must be non-empty.
+    #
+    # community_strings:
+    #   - '<COMMUNITY_1>'
+    #   - '<COMMUNITY_2>'
+
+    ## @param users - list of custom objects - optional
+    ## List of SNMPv3 users that can be used to listen for traps.
+    ## NOTE: Currently the Datadog Agent only supports having a
+    ## single user in this list.
+    ## Each user can contain:
+    ##  * username     - string - The username used by devices when sending Traps to the Agent.
+    ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
+    ##  * authProtocol - string - (Optional) The authentication protocol to use when listening for traps from this user.
+    ##                            Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
+    ##                            Defaults to MD5 when authKey is set.
+    ##  * privKey      - string - (Optional) The passphrase to use with the given user privacy protocol.
+    ##  * privProtocol - string - (Optional) The privacy protocol to use when listening for traps from this user.
+    ##                            Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C.
+    ##                            Defaults to DES when privKey is set.
+    #
+    # users:
+    # - username: <USERNAME>
+    #   authKey: <AUTHENTICATION_KEY>
+    #   authProtocol: <AUTHENTICATION_PROTOCOL>
+    #   privKey: <PRIVACY_KEY>
+    #   privProtocol: <PRIVACY_PROTOCOL>
+
+    ## @param bind_host - string - optional
+    ## The hostname to listen on for incoming trap packets.
+    ## Binds to 0.0.0.0 by default (accepting all packets).
+    #
+    # bind_host: 0.0.0.0
+
+    ## stop_timeout - float - optional - default: 5.0
+    ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+    #
+    # stop_timeout: 5.0
+
+  ## @param netflow - custom object - optional
+  ## This section configures NDM NetFlow (and sFlow, IPFIX) collection.
+  #
+  # netflow:
+
+    ## @param enabled - boolean - optional - default: false
+    ## Set to true to enable collection of NetFlow traffic.
+    #
+    # enabled: false
+
+    ## @param listeners - custom object - optional
+    ## This section configures one or more listeners ports that will receive flow traffic.
+    ## Each listener have the following options:
+    ##  * flow_type    - string - The flow type correspond to the incoming flow protocol.
+    ##                            Choices are: netflow5, netflow9, ipfix, sflow5
+    ##  * port         - string - (Optional) The port used to receive incoming flow traffic.
+    ##                            Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow5(6343)
+    ##  * bind_host    - string - (Optional) The hostname to listen on for incoming netflow packets.
+    ##                            Binds to 0.0.0.0 by default (accepting all packets).
+    ##  * workers      - string - (Optional) Number of workers to use for this listener.
+    ##                            Defaults to 1.
+    #
+    # listeners:
+    # - flow_type: netflow9
+    #   port: 2055
+    # - flow_type: netflow5
+    #   port: 2056
+    # - flow_type: ipfix
+    #   port: 4739
+    # - flow_type: sflow5
+    #   port: 6343
+
+    ## stop_timeout - integer - optional - default: 5
+    ## The maximum number of seconds to wait for the NetFlow listeners to stop when the Agent shuts down.
+    #
+    # stop_timeout: 5
+
+
+{{end -}}
+{{- if .OTLP }}
+###################################
+## OpenTelemetry Configuration   ##
+###################################
+
+## @param otlp_config - custom object - optional
+## This section configures OTLP ingest in the Datadog Agent.
 #
-# snmp_traps_config:
+# otlp_config:
 
-  ## @param port - integer - optional - default: 162
-  ## @env DD_SNMP_TRAPS_CONFIG_PORT - integer - optional - default: 162
-  ## The UDP port to use when listening for incoming trap packets.
+  ## @param receiver - custom object - optional
+  ## The receiver configuration. It follows the OpenTelemetry Collector's OTLP Receiver Configuration.
+  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
+  ## for a full list of available settings:
+  ## https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/otlpreceiver/config.md
   #
-  # port: 162
+  # receiver:
 
-  ## @param community_strings - list of strings - required
-  ## @env DD_SNMP_TRAPS_CONFIG_COMMUNITY_STRINGS - list of strings - required
-  ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
-  ## Traps with an unknown community string are ignored.
-  ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
-  ## Must be non-empty.
+    ## @param protocols - custom object - optional
+    ## Configuration for the supported protocols.
+    #
+    # protocols:
+
+        ## @param grpc - custom object - optional
+        ## Configuration for OTLP/gRPC listener.
+        ## Setting this as an empty section enables the OTLP/gRPC listener with default options.
+        #
+        # grpc:
+
+          ## @param endpoint - string - optional - default: 0.0.0.0:4317
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT - string - optional - default: 0.0.0.0:4317
+          ## The OTLP/gRPC listener endpoint.
+          #
+          # endpoint: 0.0.0.0:4317
+
+          ## @param transport - string - optional - default: tcp
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT - string - optional - default: tcp
+          ## The OTLP/gRPC listener transport protocol.
+          ## Known protocols are "tcp", "udp", "ip", "unix", "unixgram", and "unixpacket".
+          #
+          # transport: tcp
+
+        ## @param http - custom object - optional
+        ## Configuration for OTLP/HTTP listener.
+        ## Setting this as an empty section enables the OTLP/HTTP listener with default options.
+        #
+        # http:
+
+          ## @param endpoint - string - optional - default: 0.0.0.0:4318
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT - string - optional - default: 0.0.0.0:4318
+          ## The OTLP/HTTP listener endpoint.
+          #
+          # endpoint: 0.0.0.0:4318
+
+  ## @param metrics - custom object - optional
+  ## Metrics-specific configuration for OTLP ingest in the Datadog Agent.
   #
-  # community_strings:
-  #   - '<COMMUNITY_1>'
-  #   - '<COMMUNITY_2>'
+  # metrics:
 
-  ## @param bind_host - string - optional
-  ## @env DD_SNMP_TRAPS_CONFIG_BIND_HOST - string - optional
-  ## The hostname to listen on for incoming trap packets.
-  ## Defaults to the global `bind_host` config option value.
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_METRICS_ENABLED - boolean - optional - default: true
+    ## Set to false to disable metrics support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
+    #
+    # enabled: true
+
+    ## @param resource_attributes_as_tags - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS - boolean - optional - default: false
+    ## Set to true to add all resource attributes of a metric to its metric tags.
+    ## When set to false, only a small predefined subset of resource attributes is converted
+    ## to metric tags.
+    #
+    # resource_attributes_as_tags: false
+
+    ## Deprecated - use `instrumentation_scope_metadata_as_tags` instead in favor of
+    ## https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
+    ## Both must not be set at the same time.
+    ## @param instrumentation_library_metadata_as_tags - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_LIBRARY_METADATA_AS_TAGS - boolean - optional - default: false
+    ## Set to true to add metadata about the instrumentation library that created a metric.
+    #
+    # instrumentation_library_metadata_as_tags: false
+
+    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: false
+    ## Set to true to add metadata about the instrumentation scope that created a metric.
+    #
+    # instrumentation_scope_metadata_as_tags: false
+
+    ## @param tag_cardinality - string - optional - default: low
+    ## @env DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY - string - optional - default: low
+    ## Configure the level of granularity of tags to send for OTLP metrics. Choices are:
+    ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
+    ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+    ##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+    ## WARNING: sending container tags for checks metrics may create more metrics
+    ## (one per container instead of one per host). This may impact your custom metrics billing.
+    #
+    # tag_cardinality: low
+
+    ## @param delta_ttl - int - optional - default: 3600
+    ## @env DD_OTLP_CONFIG_METRICS_DELTA_TTL - int - optional - default: 3600
+    ## The amount of time (in seconds) that values are kept in memory for
+    ## calculating deltas for cumulative monotonic metrics.
+    #
+    # delta_ttl: 3600
+
+    ## @param histograms - custom object - optional
+    ## Configuration for OTLP Histograms.
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=histogram for details.
+    #
+    # histograms:
+
+      ## @param mode - string - optional - default: distributions
+      ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE - string - optional - default: distributions
+      ## How to report histograms. Valid values are:
+      ##
+      ## - `distributions` to report metrics as Datadog distributions (recommended).
+      ## - `nobuckets` to not report bucket metrics,
+      ## - `counters` to report one metric per histogram bucket.
+      #
+      # mode: distributions
+
+      ## @param send_count_sum_metrics - boolean - optional - default: false
+      ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_SEND_COUNT_SUM_METRICS - boolean - optional - default: false
+      ## Whether to report sum and count as separate histogram metrics.
+      #
+      # send_count_sum_metrics: false
+
+    ## @param sums - custom object - optional
+    ## Configuration for OTLP Sums.
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=sum for details.
+    #
+    # sums:
+
+        ## @param cumulative_monotonic_mode - string - optional - default: to_delta
+        ## @env DD_OTLP_CONFIG_METRICS_SUMS_CUMULATIVE_MONOTONIC_MODE - string - optional - default: to_delta
+        ## How to report cumulative monotonic sums. Valid values are:
+        ##
+        ## - `to_delta` to calculate delta for sum in the client side and report as Datadog counts.
+        ## - `raw_value` to report the raw value as a Datadog gauge.
+        #
+        # cumulative_monotonic_mode: to_delta
+
+    ## @param summaries - custom object - optional
+    ## Configuration for OTLP Summaries.
+    ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
+    #
+    # summaries:
+
+        ## @param mode - string - optional - default: gauges
+        ## @env DD_OTLP_CONFIG_METRICS_SUMMARIES_MODE - string - optional - default: gauges
+        ## How to report summaries. Valid values are:
+        ##
+        ## - `noquantiles` to not report quantile metrics.
+        ## - `gauges` to report one gauge metric per quantile.
+        #
+        # mode: gauges
+
+  ## @param traces - custom object - optional
+  ## Traces-specific configuration for OTLP ingest in the Datadog Agent.
   #
-  # bind_host: <BIND_HOST>
+  # traces:
 
-  ## stop_timeout - float - optional - default: 5.0
-  ## @env DD_SNMP_TRAPS_CONFIG_STOP_TIMEOUT - float - optional - default: 5.0
-  ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_TRACES_ENABLED - boolean - optional - default: true
+    ## Set to false to disable traces support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
+    #
+    # enabled: true
+
+    ## @param span_name_as_resource_name - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME - boolean - optional - default: false
+    ## If set to true the OpenTelemetry span name will used in the Datadog resource name.
+    ## If set to false the resource name will be filled with the instrumentation library name + span kind.
+    #
+    # span_name_as_resource_name: false
+
+    ## @param span_name_remappings - map - optional
+    ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS - json - optional
+    ## Defines a map of span names and preferred names to map to. This can be used to automatically map Datadog Span
+    ## Operation Names to an updated value.
+    ## span_name_remappings:
+    ##   "io.opentelemetry.javaagent.spring.client": "spring.client"
+    ##   "instrumentation:express.server": "express"
+    ##   "go.opentelemetry.io_contrib_instrumentation_net_http_otelhttp.client": "http.client"
+    #
+    # span_name_remappings:
+    #   <OLD_NAME>: <NEW_NAME>
+
+  ## @param debug - custom object - optional
+  ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
+  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
+  ## for a full list of available settings:
+  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/loggingexporter#getting-started
   #
-  # stop_timeout: 5.0
+  # debug:
 
+    ## Deprecated (v[6/7].41.0) - use `verbosity` instead
+    ## @param loglevel - string - optional - default: none
+    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: none
+    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
+    ## Valid values are disabled, debug, info, error, warn.
+    #
+    # loglevel: info
+
+    ## @param verbosity - string - optional - default: normal
+    ## @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: normal
+    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
+    ## Valid values are basic, normal, detailed.
+    #
+    # verbosity: normal
+{{end -}}
+{{- if (eq .OS "windows")}}
+#####################################################
+## Datadog Agent Manager System Tray Configuration ##
+#####################################################
+
+## @param system_tray - custom object - optional
+## This section configures the Datadog Agent Manager System Tray
+#
+# system_tray:
+  ## @param log_file - string - optional - default: %ProgramData%\Datadog\logs\ddtray.log
+  ## @env DD_TRAY_LOG_FILE - string - optional
+  ## The full path to the file where Datadog Agent Manager System Tray logs are written.
+  #
+  # log_file: <TRAY_LOG_FILE_PATH>
 {{end -}}

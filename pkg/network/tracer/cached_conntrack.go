@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
@@ -5,27 +11,30 @@ package tracer
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"os"
 	"sync"
+
+	"github.com/golang/groupcache/lru"
+	"github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ct "github.com/florianl/go-conntrack"
-	"github.com/golang/groupcache/lru"
-	"golang.org/x/sys/unix"
 )
 
 type cachedConntrack struct {
 	sync.Mutex
 	procRoot         string
 	cache            *lru.Cache
-	conntrackCreator func(int) (netlink.Conntrack, error)
+	conntrackCreator func(netns.NsHandle) (netlink.Conntrack, error)
 	closed           bool
 }
 
-func newCachedConntrack(procRoot string, conntrackCreator func(int) (netlink.Conntrack, error), size int) *cachedConntrack {
+func newCachedConntrack(procRoot string, conntrackCreator func(netns.NsHandle) (netlink.Conntrack, error), size int) *cachedConntrack {
 	cache := &cachedConntrack{
 		procRoot:         procRoot,
 		conntrackCreator: conntrackCreator,
@@ -56,6 +65,13 @@ func (cache *cachedConntrack) Exists(c *network.ConnectionStats) (bool, error) {
 	return cache.exists(c, c.NetNS, int(c.Pid))
 }
 
+func ipFromAddr(a util.Address) netip.Addr {
+	if a.Len() == net.IPv6len {
+		return netip.AddrFrom16(*(*[16]byte)(a.Bytes()))
+	}
+	return netip.AddrFrom4(*(*[4]byte)(a.Bytes()))
+}
+
 func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, pid int) (bool, error) {
 	ctrk, err := cache.ensureConntrack(uint64(netns), pid)
 	if err != nil {
@@ -71,27 +87,11 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 		protoNumber = unix.IPPROTO_TCP
 	}
 
-	srcBuf := util.IPBufferPool.Get().([]byte)
-	dstBuf := util.IPBufferPool.Get().([]byte)
-	defer func() {
-		util.IPBufferPool.Put(srcBuf)
-		util.IPBufferPool.Put(dstBuf)
-	}()
-
-	srcAddr, dstAddr := util.NetIPFromAddress(c.Source, srcBuf), util.NetIPFromAddress(c.Dest, dstBuf)
-	srcPort, dstPort := c.SPort, c.DPort
-
 	conn := netlink.Con{
-		Con: ct.Con{
-			Origin: &ct.IPTuple{
-				Src: &srcAddr,
-				Dst: &dstAddr,
-				Proto: &ct.ProtoTuple{
-					Number:  &protoNumber,
-					SrcPort: &srcPort,
-					DstPort: &dstPort,
-				},
-			},
+		Origin: netlink.ConTuple{
+			Src:   netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
+			Dst:   netip.AddrPortFrom(ipFromAddr(c.Dest), c.DPort),
+			Proto: protoNumber,
 		},
 	}
 
@@ -107,7 +107,7 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 	}
 
 	conn.Reply = conn.Origin
-	conn.Origin = nil
+	conn.Origin = netlink.ConTuple{}
 	ok, err = ctrk.Exists(&conn)
 	if err != nil {
 		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
@@ -149,7 +149,7 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 	}
 	defer ns.Close()
 
-	ctrk, err := cache.conntrackCreator(int(ns))
+	ctrk, err := cache.conntrackCreator(ns)
 	if err != nil {
 		log.Errorf("could not create conntrack object for net ns %d: %s", ino, err)
 		return nil, err

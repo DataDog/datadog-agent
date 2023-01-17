@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
 	"bytes"
 	"fmt"
+	"time"
 )
 
 type metricType int
@@ -26,6 +32,7 @@ var (
 
 	tagsFieldPrefix       = []byte("#")
 	sampleRateFieldPrefix = []byte("@")
+	timestampFieldPrefix  = []byte("T")
 )
 
 type dogstatsdMetricSample struct {
@@ -39,6 +46,10 @@ type dogstatsdMetricSample struct {
 	metricType metricType
 	sampleRate float64
 	tags       []string
+	// containerID represents the container ID of the sender (optional).
+	containerID []byte
+	// timestamp read in the message if any
+	ts time.Time
 }
 
 // sanity checks a given message against the metric sample format
@@ -47,7 +58,7 @@ func hasMetricSampleFormat(message []byte) bool {
 		return false
 	}
 	separatorCount := bytes.Count(message, fieldSeparator)
-	if separatorCount < 1 || separatorCount > 3 {
+	if separatorCount < 1 || separatorCount > 4 {
 		return false
 	}
 	return true

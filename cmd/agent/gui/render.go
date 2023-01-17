@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package gui
 
 import (
@@ -90,7 +95,7 @@ func renderError(name string) (string, error) {
 func fillTemplate(w io.Writer, data Data, request string) error {
 	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)
-	tmpl, err := Asset("/templates/" + request + ".tmpl")
+	tmpl, err := viewsFS.ReadFile("views/templates/" + request + ".tmpl")
 	if err != nil {
 		return err
 	}

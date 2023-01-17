@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package testutil
@@ -31,7 +37,7 @@ func (ctr *delayedConntracker) GetTranslationForConn(c network.ConnectionStats) 
 	ctr.mux.Lock()
 	defer ctr.mux.Unlock()
 
-	key, _ := c.ByteKey(make([]byte, 64))
+	key := c.ByteKey(make([]byte, 64))
 	delays := ctr.delayPerConn[string(key)]
 	if delays < ctr.numDelays {
 		ctr.delayPerConn[string(key)]++

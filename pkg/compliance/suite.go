@@ -7,7 +7,7 @@ package compliance
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 
 	"github.com/Masterminds/semver"
 	"gopkg.in/yaml.v2"
@@ -35,42 +35,8 @@ type SuiteMeta struct {
 
 // Suite represents a set of compliance checks reporting events
 type Suite struct {
-	Meta      SuiteMeta               `yaml:",inline"`
-	Rules     []ConditionFallbackRule `yaml:"rules,omitempty"`
-	RegoRules []RegoRule              `yaml:"regos,omitempty"`
-}
-
-type yamlSuite struct {
-	Meta  SuiteMeta                `yaml:",inline"`
-	Rules []map[string]interface{} `yaml:"rules,omitempty"`
-}
-
-func (ys *yamlSuite) toSuite() (*Suite, error) {
-	s := &Suite{}
-	s.Meta = ys.Meta
-
-	for _, rule := range ys.Rules {
-		buffer, err := yaml.Marshal(rule)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, ok := rule["input"]; ok {
-			var regoRule RegoRule
-			if err := yaml.Unmarshal(buffer, &regoRule); err != nil {
-				return nil, err
-			}
-			s.RegoRules = append(s.RegoRules, regoRule)
-		} else {
-			var cfRule ConditionFallbackRule
-			if err := yaml.Unmarshal(buffer, &cfRule); err != nil {
-				return nil, err
-			}
-			s.Rules = append(s.Rules, cfRule)
-		}
-	}
-
-	return s, nil
+	Meta      SuiteMeta  `yaml:",inline"`
+	RegoRules []RegoRule `yaml:"rules,omitempty"`
 }
 
 // ParseSuite loads a single compliance suite
@@ -80,21 +46,17 @@ func ParseSuite(config string) (*Suite, error) {
 		return nil, err
 	}
 
-	f, err := ioutil.ReadFile(config)
+	f, err := os.ReadFile(config)
 	if err != nil {
 		return nil, err
 	}
 
-	ys := &yamlSuite{}
-	err = yaml.Unmarshal(f, ys)
+	s := &Suite{}
+	err = yaml.Unmarshal(f, s)
 	if err != nil {
 		return nil, err
 	}
 
-	s, err := ys.toSuite()
-	if err != nil {
-		return nil, err
-	}
 	s.Meta.Source = config
 
 	v, err := semver.NewVersion(s.Meta.Schema.Version)

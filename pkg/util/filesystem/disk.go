@@ -2,11 +2,12 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package filesystem
 
-import "github.com/shirou/gopsutil/disk"
+import "github.com/shirou/gopsutil/v3/disk"
 
 // Disk gets information about the disk
 type Disk struct{}

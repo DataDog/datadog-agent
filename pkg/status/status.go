@@ -19,15 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -60,6 +61,8 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
+	stats["otlp"] = GetOTLPStatus()
+
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
 		stats["endpointsInfos"] = endpointsInfos
@@ -74,6 +77,8 @@ func GetStatus() (map[string]interface{}, error) {
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	}
+
+	stats["processAgentStatus"] = GetProcessAgentStatus()
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		httputils.NoProxyMapMutex.Lock()
@@ -176,6 +181,12 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
 	}
 
+	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+		stats["externalmetrics"] = externalmetrics.GetStatus()
+	} else {
+		stats["externalmetrics"] = apiserver.GetStatus()
+	}
+
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		cchecks, err := clusterchecks.GetStats()
 		if err != nil {
@@ -218,12 +229,13 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 }
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
-func GetAndFormatSecurityAgentStatus(runtimeStatus map[string]interface{}) ([]byte, error) {
+func GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus map[string]interface{}) ([]byte, error) {
 	s, err := GetStatus()
 	if err != nil {
 		return nil, err
 	}
 	s["runtimeSecurityStatus"] = runtimeStatus
+	s["complianceStatus"] = complianceStatus
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {
@@ -253,6 +265,11 @@ func getPartialConfig() map[string]string {
 	conf["log_level"] = config.Datadog.GetString("log_level")
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	conf["additional_checksd"] = config.Datadog.GetString("additional_checksd")
+
+	conf["fips_enabled"] = config.Datadog.GetString("fips.enabled")
+	conf["fips_local_address"] = config.Datadog.GetString("fips.local_address")
+	conf["fips_port_range_start"] = config.Datadog.GetString("fips.port_range_start")
+
 	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
 	if forwarderStorageMaxSizeInBytes > 0 {
 		conf["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
@@ -292,11 +309,11 @@ func getCommonStatus() (map[string]interface{}, error) {
 
 	stats["version"] = version.AgentVersion
 	stats["flavor"] = flavor.GetFlavor()
-	hostnameData, err := util.GetHostnameData(context.TODO())
+	hostnameData, err := hostname.GetWithProvider(context.TODO())
 
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
 	} else {
 		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), hostnameData)
 	}
@@ -408,7 +425,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 					if vStr, ok := v.(string); ok {
 						if k == "config.hash" {
 							checkHash = vStr
-						} else if k != "config.provider" && k != "last_updated" {
+						} else if k != "config.provider" {
 							metadata[k] = vStr
 						}
 					}

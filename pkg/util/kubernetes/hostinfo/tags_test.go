@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet && kubeapiserver
 // +build kubelet,kubeapiserver
 
 package hostinfo
@@ -10,8 +11,9 @@ package hostinfo
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestExtractTags(t *testing.T) {
@@ -149,7 +151,7 @@ func TestGetLabelsToTags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config := config.Mock()
+			config := config.Mock(t)
 			config.Set("kubernetes_node_labels_as_tags", test.configLabelsAsTags)
 
 			actuaLabelsAsTags := getLabelsToTags()

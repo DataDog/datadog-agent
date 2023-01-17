@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build systemd
 // +build systemd
 
 package systemd
@@ -12,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-systemd/dbus"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -19,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/coreos/go-systemd/dbus"
-	"gopkg.in/yaml.v2"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -207,7 +209,7 @@ func (s *defaultSystemdStats) UnixNow() int64 {
 
 // Run executes the check
 func (c *SystemdCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -362,7 +364,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 
 	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
 	if err != nil {
-		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
+		log.Warnf("Error getting unit unitProperties: %s: %v", unit.Name, err)
 		return
 	}
 	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
@@ -518,12 +520,12 @@ func isValidServiceCheckStatus(serviceCheckStatus string) bool {
 }
 
 // Configure configures the systemd checks
-func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *SystemdCheck) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	// Make sure check id is different for each different config
 	// Must be called before CommonConfigure that uses checkID
-	c.BuildID(rawInstance, rawInitConfig)
+	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(rawInstance, source)
+	err := c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

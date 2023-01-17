@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubernetes
@@ -13,6 +14,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -20,6 +22,10 @@ const (
 	emptyPodList = `{"kind":"PodList","apiVersion":"v1","metadata":{},"items":null}
 `
 )
+
+func init() {
+	config.DetectFeatures()
+}
 
 // initInsecureKubelet create a standalone kubelet open to http and https calls
 func initInsecureKubelet() (*utils.ComposeConf, error) {

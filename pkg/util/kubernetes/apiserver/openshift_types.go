@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -13,6 +14,6 @@ type OpenShiftAPILevel string
 // Responses for DetectOpenShiftAPILevel()
 const (
 	OpenShiftAPIGroup OpenShiftAPILevel = "new apiGroups"
-	OpenShiftOAPI                       = "legacy OAPI"
-	NotOpenShift                        = "no API"
+	OpenShiftOAPI     OpenShiftAPILevel = "legacy OAPI"
+	NotOpenShift      OpenShiftAPILevel = "no API"
 )

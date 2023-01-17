@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/itchyny/gojq"
+
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/itchyny/gojq"
 )
 
 const (

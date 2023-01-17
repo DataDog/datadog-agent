@@ -13,30 +13,38 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/docker/docker/api/types"
 )
 
 const dockerCommandMaxLength = 29
 
-func zipDockerSelfInspect(tempDir, hostname string) error {
-	du, err := docker.GetDockerUtil()
-	if err != nil {
-		return err
+func getDockerSelfInspect() ([]byte, error) {
+	if !config.IsContainerized() {
+		return nil, fmt.Errorf("The Agent is not containerized")
 	}
 
-	co, err := du.InspectSelf(context.TODO())
+	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	selfContainerID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	if err != nil {
+		return nil, fmt.Errorf("Unable to determine self container id, err: %w", err)
+	}
+
+	co, err := du.Inspect(context.TODO(), selfContainerID, false)
+	if err != nil {
+		return nil, err
 	}
 
 	// Remove the envvars section, as we already
@@ -52,7 +60,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	// Serialise as JSON
 	jsonStats, err := json.Marshal(co)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var out bytes.Buffer
 	json.Indent(&out, jsonStats, "", "\t") //nolint:errcheck
@@ -67,27 +75,20 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	}
 	serialized = imgRx.ReplaceAllFunc(serialized, replFunc)
 
-	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
-	w, err := scrubber.NewWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-	_, err = w.Write(serialized)
-	return err
+	return serialized, nil
 }
 
-func zipDockerPs(tempDir, hostname string) error {
+func getDockerPs() ([]byte, error) {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		// if we can't reach docker, let's do nothing
 		log.Debugf("Couldn't reach docker for getting `docker ps`: %s", err)
-		return nil
+		return nil, nil
 	}
 	options := types.ContainerListOptions{All: true, Limit: 500}
 	containerList, err := du.RawContainerList(context.TODO(), options)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Prepare contents
@@ -101,22 +102,11 @@ func zipDockerPs(tempDir, hostname string) error {
 	}
 	err = w.Flush()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Write to file
-	f := filepath.Join(tempDir, hostname, "docker_ps.log")
-	file, err := scrubber.NewWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	_, err = file.Write(output.Bytes())
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return output.Bytes(), nil
 }
 
 // trimCommand removes arguments from command string

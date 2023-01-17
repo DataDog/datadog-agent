@@ -9,18 +9,18 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
 )
 
-// TransactionSerializer is an interface to serialize / deserialize transactions
-type TransactionSerializer interface {
-	Serialize([]transaction.Transaction) error
-	Deserialize() ([]transaction.Transaction, error)
+// TransactionDiskStorage is an interface to store and load transactions from disk
+type TransactionDiskStorage interface {
+	Store([]transaction.Transaction) error
+	ExtractLast() ([]transaction.Transaction, error)
+	GetDiskSpaceUsed() int64
 }
 
 // TransactionPrioritySorter is an interface to sort transactions.
@@ -31,14 +31,15 @@ type TransactionPrioritySorter interface {
 // TransactionRetryQueue stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type TransactionRetryQueue struct {
-	transactions                  []transaction.Transaction
-	currentMemSizeInBytes         int
-	maxMemSizeInBytes             int
-	flushToStorageRatio           float64
-	dropPrioritySorter            TransactionPrioritySorter
-	optionalTransactionSerializer TransactionSerializer
-	telemetry                     TransactionRetryQueueTelemetry
-	mutex                         sync.RWMutex
+	transactions          []transaction.Transaction
+	currentMemSizeInBytes int
+	maxMemSizeInBytes     int
+	flushToStorageRatio   float64
+	dropPrioritySorter    TransactionPrioritySorter
+	optionalStorage       TransactionDiskStorage
+	telemetry             TransactionRetryQueueTelemetry
+	pointCountTelemetry   *PointCountTelemetry
+	mutex                 sync.RWMutex
 }
 
 // BuildTransactionRetryQueue builds a new instance of TransactionRetryQueue
@@ -46,18 +47,17 @@ func BuildTransactionRetryQueue(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
-	storageMaxSize int64,
+	optionalDiskUsageLimit *DiskUsageLimit,
 	dropPrioritySorter TransactionPrioritySorter,
-	resolver resolver.DomainResolver) *TransactionRetryQueue {
-	var storage TransactionSerializer
+	resolver resolver.DomainResolver,
+	pointCountTelemetry *PointCountTelemetry) *TransactionRetryQueue {
+	var storage TransactionDiskStorage
 	var err error
+	domain := resolver.GetBaseDomain()
 
-	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
+	if optionalDomainFolderPath != "" && optionalDiskUsageLimit != nil {
 		serializer := NewHTTPTransactionsSerializer(resolver)
-		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
-
-		diskUsageLimit := newDiskUsageLimit(optionalDomainFolderPath, filesystem.NewDisk(), storageMaxSize, diskRatio)
-		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, diskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()))
+		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()), pointCountTelemetry)
 
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.
@@ -71,22 +71,25 @@ func BuildTransactionRetryQueue(
 		storage,
 		maxMemSizeInBytes,
 		flushToStorageRatio,
-		NewTransactionRetryQueueTelemetry(resolver.GetBaseDomain()))
+		NewTransactionRetryQueueTelemetry(domain),
+		pointCountTelemetry)
 }
 
 // NewTransactionRetryQueue creates a new instance of NewTransactionRetryQueue
 func NewTransactionRetryQueue(
 	dropPrioritySorter TransactionPrioritySorter,
-	optionalTransactionSerializer TransactionSerializer,
+	optionalTransactionStorage TransactionDiskStorage,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
-	telemetry TransactionRetryQueueTelemetry) *TransactionRetryQueue {
+	telemetry TransactionRetryQueueTelemetry,
+	pointCountTelemetry *PointCountTelemetry) *TransactionRetryQueue {
 	return &TransactionRetryQueue{
-		maxMemSizeInBytes:             maxMemSizeInBytes,
-		flushToStorageRatio:           flushToStorageRatio,
-		dropPrioritySorter:            dropPrioritySorter,
-		optionalTransactionSerializer: optionalTransactionSerializer,
-		telemetry:                     telemetry,
+		maxMemSizeInBytes:   maxMemSizeInBytes,
+		flushToStorageRatio: flushToStorageRatio,
+		dropPrioritySorter:  dropPrioritySorter,
+		optionalStorage:     optionalTransactionStorage,
+		telemetry:           telemetry,
+		pointCountTelemetry: pointCountTelemetry,
 	}
 }
 
@@ -106,11 +109,17 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 
 	var diskErr error
 	payloadSize := t.GetPayloadSize()
-	if tc.optionalTransactionSerializer != nil {
+	if tc.optionalStorage != nil {
 		payloadsGroupToFlush := tc.extractTransactionsForDisk(payloadSize)
 		for _, payloads := range payloadsGroupToFlush {
-			if err := tc.optionalTransactionSerializer.Serialize(payloads); err != nil {
+			if err := tc.optionalStorage.Store(payloads); err != nil {
 				diskErr = multierror.Append(diskErr, err)
+				// Assuming all payloads failed during serialization
+				pointCountDroppped := 0
+				for _, payload := range payloads {
+					pointCountDroppped += payload.GetPointCount()
+				}
+				tc.onDropPoints(pointCountDroppped)
 			}
 		}
 		if diskErr != nil {
@@ -124,6 +133,11 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 	inMemTransactionDroppedCount := 0
 	if payloadSizeInBytesToDrop > 0 {
 		transactions := tc.extractTransactionsFromMemory(payloadSizeInBytesToDrop)
+		pointCountDroppped := 0
+		for _, tr := range transactions {
+			pointCountDroppped += tr.GetPointCount()
+		}
+		tc.onDropPoints(pointCountDroppped)
 		inMemTransactionDroppedCount = len(transactions)
 		tc.telemetry.addTransactionsDroppedCount(inMemTransactionDroppedCount)
 	}
@@ -134,6 +148,11 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 	tc.telemetry.setTransactionsCount(len(tc.transactions))
 
 	return inMemTransactionDroppedCount, diskErr
+}
+
+func (tc *TransactionRetryQueue) onDropPoints(count int) {
+	tc.telemetry.addPointDroppedCount(count)
+	tc.pointCountTelemetry.OnPointDropped(count)
 }
 
 // ExtractTransactions extracts transactions from the container.
@@ -149,8 +168,8 @@ func (tc *TransactionRetryQueue) ExtractTransactions() ([]transaction.Transactio
 	if len(tc.transactions) > 0 {
 		transactions = tc.transactions
 		tc.transactions = nil
-	} else if tc.optionalTransactionSerializer != nil {
-		transactions, err = tc.optionalTransactionSerializer.Deserialize()
+	} else if tc.optionalStorage != nil {
+		transactions, err = tc.optionalStorage.ExtractLast()
 		if err != nil {
 			tc.telemetry.incErrorsCount()
 			return nil, err
@@ -160,14 +179,6 @@ func (tc *TransactionRetryQueue) ExtractTransactions() ([]transaction.Transactio
 	tc.telemetry.setCurrentMemSizeInBytes(tc.currentMemSizeInBytes)
 	tc.telemetry.setTransactionsCount(len(tc.transactions))
 	return transactions, nil
-}
-
-// GetCurrentMemSizeInBytes gets the current memory usage in bytes
-func (tc *TransactionRetryQueue) getCurrentMemSizeInBytes() int {
-	tc.mutex.RLock()
-	defer tc.mutex.RUnlock()
-
-	return tc.currentMemSizeInBytes
 }
 
 // GetTransactionCount gets the number of transactions in the container
@@ -184,6 +195,16 @@ func (tc *TransactionRetryQueue) GetMaxMemSizeInBytes() int {
 	defer tc.mutex.RUnlock()
 
 	return tc.maxMemSizeInBytes
+}
+
+// GetDiskSpaceUsed returns the current disk space used for storing transactions.
+func (tc *TransactionRetryQueue) GetDiskSpaceUsed() int64 {
+	tc.mutex.RLock()
+	defer tc.mutex.RUnlock()
+	if tc.optionalStorage != nil {
+		return tc.optionalStorage.GetDiskSpaceUsed()
+	}
+	return 0
 }
 
 func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][]transaction.Transaction {

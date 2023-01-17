@@ -1,6 +1,10 @@
 #ifndef _BPF_CONST_H_
 #define _BPF_CONST_H_
 
+#ifndef BPF_OBJ_NAME_LEN
+#define BPF_OBJ_NAME_LEN 16U
+#endif
+
 enum bpf_cmd_def {
     BPF_MAP_CREATE_CMD,
     BPF_MAP_LOOKUP_ELEM_CMD,

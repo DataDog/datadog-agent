@@ -6,89 +6,43 @@
 package sender
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-type mockDestination struct {
-	errChan  chan bool
-	hasError bool
-}
-
-func newMockDestination() *mockDestination {
-	return &mockDestination{
-		errChan:  make(chan bool, 1),
-		hasError: false,
+func newMessage(content []byte, source *sources.LogSource, status string) *message.Payload {
+	return &message.Payload{
+		Messages: []*message.Message{message.NewMessageWithSource(content, status, source, 0)},
+		Encoded:  content,
+		Encoding: "identity",
 	}
-}
-
-func (m *mockDestination) Send(payload []byte) error {
-	select {
-	case m.hasError = <-m.errChan:
-	default:
-	}
-
-	if m.hasError {
-		return errors.New("Test error")
-	}
-	return nil
-
-}
-func (m *mockDestination) SendAsync(payload []byte) {
-}
-
-type mockStrategy struct {
-	sendFailed chan bool
-}
-
-func newMockStrategy() *mockStrategy {
-	return &mockStrategy{
-		sendFailed: make(chan bool),
-	}
-
-}
-
-func (m *mockStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
-	for msg := range inputChan {
-		if send(msg.Content) == nil {
-			outputChan <- msg
-			continue
-		}
-		m.sendFailed <- true
-	}
-}
-
-func (m *mockStrategy) Flush(ctx context.Context) {}
-
-func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
-	return message.NewMessageWithSource(content, status, source, 0)
 }
 
 func TestSender(t *testing.T) {
 	l := mock.NewMockLogsIntake(t)
 	defer l.Close()
 
-	source := config.NewLogSource("", &config.LogsConfig{})
+	source := sources.NewLogSource("", &config.LogsConfig{})
 
-	input := make(chan *message.Message, 1)
-	output := make(chan *message.Message, 1)
+	input := make(chan *message.Payload, 1)
+	output := make(chan *message.Payload, 1)
 
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
 	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
-	destinations := client.NewDestinations(destination, nil)
+	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
-	sender := NewSingleSender(input, output, destinations, StreamStrategy)
+	sender := NewSender(input, output, destinations, 0)
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -104,141 +58,246 @@ func TestSender(t *testing.T) {
 	destinationsCtx.Stop()
 }
 
-func TestSenderNotBlockedByAdditional(t *testing.T) {
-	l := mock.NewMockLogsIntake(t)
-	defer l.Close()
+func TestSenderSingleDestination(t *testing.T) {
+	input := make(chan *message.Payload, 1)
+	output := make(chan *message.Payload, 1)
 
-	source := config.NewLogSource("", &config.LogsConfig{})
+	respondChan := make(chan int)
 
-	input := make(chan *message.Message, 1)
-	output := make(chan *message.Message, 1)
+	server := http.NewTestServerWithOptions(200, 0, true, respondChan)
 
-	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.Start()
+	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
-	mainDestination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
-	// This destination doesn't exists
-	additionalDestination := tcp.NewDestination(config.Endpoint{Host: "dont.exist.local", Port: 0}, true, destinationsCtx)
-	destinations := client.NewDestinations(mainDestination, []client.Destination{additionalDestination})
-
-	sender := NewSingleSender(input, output, destinations, StreamStrategy)
+	sender := NewSender(input, output, destinations, 10)
 	sender.Start()
 
-	expectedMessage1 := newMessage([]byte("fake line"), source, "")
-	input <- expectedMessage1
-	message, ok := <-output
-	assert.True(t, ok)
-	assert.Equal(t, message, expectedMessage1)
+	input <- &message.Payload{}
+	input <- &message.Payload{}
 
-	expectedMessage2 := newMessage([]byte("fake line 2"), source, "")
-	input <- expectedMessage2
-	message, ok = <-output
-	assert.True(t, ok)
-	assert.Equal(t, message, expectedMessage2)
+	<-respondChan
+	<-output
 
+	<-respondChan
+	<-output
+
+	server.Stop()
 	sender.Stop()
-	destinationsCtx.Stop()
 }
 
-func TestDualShipEndpoints(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
+func TestSenderDualReliableDestination(t *testing.T) {
+	input := make(chan *message.Payload, 1)
+	output := make(chan *message.Payload, 1)
 
-	input := make(chan *message.Message, 1)
-	mainInput := make(chan *message.Message, 1)
-	backupInput := make(chan *message.Message, 1)
-	mainOutput := make(chan *message.Message)
-	backupOutput := make(chan *message.Message)
+	respondChan1 := make(chan int)
+	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1)
 
-	mainDest := newMockDestination()
-	mainDests := client.NewDestinations(mainDest, []client.Destination{})
-	backupDest := newMockDestination()
-	backupDests := client.NewDestinations(backupDest, []client.Destination{})
+	respondChan2 := make(chan int)
+	server2 := http.NewTestServerWithOptions(200, 0, true, respondChan2)
 
-	mainMockStrategy := newMockStrategy()
-	backupMockStrategy := newMockStrategy()
+	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
-	mainSender := NewSingleSender(mainInput, mainOutput, mainDests, mainMockStrategy)
-	additionalSender := NewSingleSender(backupInput, backupOutput, backupDests, backupMockStrategy)
+	sender := NewSender(input, output, destinations, 10)
+	sender.Start()
 
-	dualSender := NewDualSender(input, mainSender, additionalSender)
-	dualSender.Start()
+	input <- &message.Payload{}
+	input <- &message.Payload{}
 
-	// Scenario 1: Both senders fail, and then both recover
+	<-respondChan1
+	<-respondChan2
+	<-output
+	<-output
 
-	// Test both output's get the line
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-	<-backupOutput
+	<-respondChan1
+	<-respondChan2
+	<-output
+	<-output
 
-	backupDest.errChan <- true
-
-	// Main should get the message - backup should not.
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-	<-backupMockStrategy.sendFailed
-
-	mainDest.errChan <- true
-
-	// Both senders are in a failed state. SplitSenders will now block until
-	// one succeeds regardless of the error state.
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainMockStrategy.sendFailed
-	<-backupMockStrategy.sendFailed
-
-	mainDest.errChan <- false
-
-	// Main has recovered and should should get the message - backup should not.
-	input <- newMessage([]byte("1"), source, "")
-	<-mainOutput
-	<-backupMockStrategy.sendFailed
-
-	backupDest.errChan <- false
-
-	// Both senders are now recovered - both get the messsage
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-	<-backupOutput
-
-	// Scenario 2: One sender fails and then recovers
-
-	mainDest.errChan <- true
-
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainMockStrategy.sendFailed
-	<-backupOutput
-
-	mainDest.errChan <- false
-
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-	<-backupOutput
+	server1.Stop()
+	server2.Stop()
+	sender.Stop()
 }
 
-func TestSingleFailsThenRecovers(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
+func TestSenderUnreliableAdditionalDestination(t *testing.T) {
+	input := make(chan *message.Payload, 1)
+	output := make(chan *message.Payload, 1)
 
-	input := make(chan *message.Message, 1)
-	mainOutput := make(chan *message.Message)
+	respondChan1 := make(chan int)
+	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1)
 
-	mainDest := newMockDestination()
-	mainDests := client.NewDestinations(mainDest, []client.Destination{})
+	respondChan2 := make(chan int)
+	server2 := http.NewTestServerWithOptions(200, 0, false, respondChan2)
 
-	mainMockStrategy := newMockStrategy()
+	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
-	mainSender := NewSingleSender(input, mainOutput, mainDests, mainMockStrategy)
+	sender := NewSender(input, output, destinations, 10)
+	sender.Start()
 
-	mainSender.Start()
+	input <- &message.Payload{}
+	input <- &message.Payload{}
 
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
+	<-respondChan1
+	<-respondChan2
+	<-output
 
-	mainDest.errChan <- true
+	<-respondChan1
+	<-respondChan2
+	<-output
 
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainMockStrategy.sendFailed
+	server1.Stop()
+	server2.Stop()
+	sender.Stop()
+}
 
-	mainDest.errChan <- false
+func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
+	input := make(chan *message.Payload, 1)
+	output := make(chan *message.Payload, 1)
 
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
+	reliableRespond := make(chan int)
+	reliableServer := http.NewTestServerWithOptions(200, 0, true, reliableRespond)
+
+	unreliableRespond := make(chan int)
+	unreliableServer := http.NewTestServerWithOptions(200, 0, false, unreliableRespond)
+
+	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
+
+	sender := NewSender(input, output, destinations, 10)
+	sender.Start()
+
+	input <- &message.Payload{}
+
+	<-reliableRespond
+	<-unreliableRespond
+	<-output
+
+	reliableServer.ChangeStatus(500)
+
+	input <- &message.Payload{}
+
+	<-reliableRespond   // let it respond 500 once
+	<-unreliableRespond // unreliable gets this log line because it hasn't fallen into a retry loop yet.
+	<-reliableRespond   // its in a loop now, once we respond 500 a second time we know the sender has marked the endpoint as retrying
+
+	// send another log
+	input <- &message.Payload{}
+
+	// reliable still stuck in retry loop - responding 500 over and over again.
+	<-reliableRespond
+
+	// unreliable should not be sending since all the reliable endpoints are failing.
+	select {
+	case <-unreliableRespond:
+		assert.Fail(t, "unreliable sender should be waiting for main sender")
+	default:
+	}
+
+	reliableServer.Stop()
+	unreliableServer.Stop()
+	sender.Stop()
+}
+
+func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
+	input := make(chan *message.Payload, 1)
+	output := make(chan *message.Payload, 1)
+
+	reliableRespond1 := make(chan int)
+	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1)
+
+	reliableRespond2 := make(chan int)
+	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2)
+
+	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
+
+	sender := NewSender(input, output, destinations, 10)
+	sender.Start()
+
+	input <- &message.Payload{}
+
+	<-reliableRespond1
+	<-reliableRespond2
+	<-output
+	<-output
+
+	reliableServer1.ChangeStatus(500)
+
+	input <- &message.Payload{}
+
+	<-reliableRespond1 // let it respond 500 once
+	<-reliableRespond2 // Second endpoint gets the log line
+	<-output
+	<-reliableRespond1 // its in a loop now, once we respond 500 a second time we know the sender has marked the endpoint as retrying
+
+	// send another log
+	input <- &message.Payload{}
+
+	// reliable still stuck in retry loop - responding 500 over and over again.
+	<-reliableRespond1
+	<-reliableRespond2 // Second output gets the line again
+	<-output
+
+	reliableServer1.Stop()
+	reliableServer2.Stop()
+	sender.Stop()
+}
+
+func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
+	input := make(chan *message.Payload, 1)
+	output := make(chan *message.Payload, 1)
+
+	reliableRespond1 := make(chan int)
+	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1)
+
+	reliableRespond2 := make(chan int)
+	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2)
+
+	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
+
+	sender := NewSender(input, output, destinations, 10)
+	sender.Start()
+
+	input <- &message.Payload{}
+
+	<-reliableRespond1
+	<-reliableRespond2
+	<-output
+	<-output
+
+	reliableServer1.ChangeStatus(500)
+
+	input <- &message.Payload{}
+
+	<-reliableRespond1 // let it respond 500 once
+	<-reliableRespond2 // Second endpoint gets the log line
+	<-output
+	<-reliableRespond1 // its in a loop now, once we respond 500 a second time we know the sender has marked the endpoint as retrying
+
+	// send another log
+	input <- &message.Payload{}
+
+	// reliable still stuck in retry loop - responding 500 over and over again.
+	<-reliableRespond1
+	<-reliableRespond2 // Second output gets the line again
+	<-output
+
+	// Recover the first server
+	reliableServer1.ChangeStatus(200)
+	// Drain any retries
+	for {
+		if (<-reliableRespond1) == 200 {
+			break
+		}
+	}
+
+	<-output // get the buffered log line that was stuck
+
+	// Make sure everything is unblocked
+	input <- &message.Payload{}
+
+	<-reliableRespond1
+	<-reliableRespond2
+	<-output
+	<-output
+
+	reliableServer1.Stop()
+	reliableServer2.Stop()
+	sender.Stop()
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package clusterchecks
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -23,6 +25,7 @@ import (
 
 const (
 	schedulerName = "clusterchecks"
+	logFrequency  = 100
 )
 
 type state int
@@ -48,10 +51,12 @@ type Handler struct {
 	warmupDuration       time.Duration
 	leaderStatusCallback types.LeaderIPCallback
 	leadershipChan       chan state
+	leaderForwarder      *api.LeaderForwarder
 	m                    sync.RWMutex // Below fields protected by the mutex
 	state                state
 	leaderIP             string
 	port                 int
+	errCount             int
 }
 
 // NewHandler returns a populated Handler
@@ -70,6 +75,7 @@ func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
 	}
 
 	if config.Datadog.GetBool("leader_election") {
+		h.leaderForwarder = api.NewLeaderForwarder(h.port, config.Datadog.GetInt("cluster_agent.max_leader_connections"))
 		callback, err := getLeaderIPCallback()
 		if err != nil {
 			return nil, err
@@ -179,9 +185,21 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 			// This goroutine might hang if the leader election engine blocks
 		case <-watchTicker.C:
 			err := h.updateLeaderIP()
+			h.m.Lock()
 			if err != nil {
-				log.Warnf("Could not refresh leadership status: %s", err)
+				h.errCount++
+				if h.errCount == 1 {
+					log.Warnf("Could not refresh leadership status: %s, will only log every %d errors", err, logFrequency)
+				} else if h.errCount%logFrequency == 0 {
+					log.Warnf("Could not refresh leadership status after %d tries: %s", logFrequency, err)
+				}
+			} else {
+				if h.errCount > 0 {
+					log.Infof("Found leadership status after %d tries", h.errCount)
+					h.errCount = 0
+				}
 			}
+			h.m.Unlock()
 		case <-ctx.Done():
 			return
 		}
@@ -202,6 +220,11 @@ func (h *Handler) updateLeaderIP() error {
 	defer h.m.Unlock()
 
 	var newState state
+	if h.leaderForwarder != nil && newIP != h.leaderIP {
+		// Update LeaderForwarder with new IP
+		h.leaderForwarder.SetLeaderIP(newIP)
+	}
+
 	h.leaderIP = newIP
 
 	switch h.state {

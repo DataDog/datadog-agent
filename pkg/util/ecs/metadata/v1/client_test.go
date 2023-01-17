@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package v1
@@ -29,8 +30,8 @@ func TestGetInstance(t *testing.T) {
 
 	require.Nil(t, err)
 	ts, _, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	expected := &Instance{
 		Cluster: "ecs_cluster",
@@ -60,8 +61,8 @@ func TestGetTasks(t *testing.T) {
 
 	require.Nil(t, err)
 	ts, _, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	expected := []Task{
 		{
@@ -109,8 +110,8 @@ func TestGetTasksFail(t *testing.T) {
 
 	require.Nil(t, err)
 	ts, _, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	var expected []Task
 	expectedErr := errors.New("Failed to decode metadata v1 JSON payload to type *v1.Tasks: EOF")

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,11 +37,12 @@ type Agent struct {
 	scheduler Scheduler
 	telemetry *telemetry
 	configDir string
+	endpoints *config.Endpoints
 	cancel    context.CancelFunc
 }
 
 // New creates a new instance of Agent
-func New(reporter event.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) (*Agent, error) {
+func New(reporter event.Reporter, scheduler Scheduler, configDir string, endpoints *config.Endpoints, options ...checks.BuilderOption) (*Agent, error) {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -59,6 +61,7 @@ func New(reporter event.Reporter, scheduler Scheduler, configDir string, options
 		scheduler: scheduler,
 		configDir: configDir,
 		telemetry: telemetry,
+		endpoints: endpoints,
 	}, nil
 }
 
@@ -119,7 +122,7 @@ func (a *Agent) Run() error {
 
 	onCheck := func(rule *compliance.RuleCommon, check compliance.Check, err error) bool {
 		if err != nil {
-			log.Errorf("%s: check not scheduled: %v", rule.ID, err)
+			log.Infof("%s: check not scheduled: %v", rule.ID, err)
 			return true
 		}
 
@@ -189,4 +192,11 @@ func (a *Agent) buildChecks(onCheck compliance.CheckVisitor) error {
 		}
 	}
 	return nil
+}
+
+// GetStatus returns the agent status
+func (a *Agent) GetStatus() map[string]interface{} {
+	return map[string]interface{}{
+		"endpoints": a.endpoints.GetStatus(),
+	}
 }

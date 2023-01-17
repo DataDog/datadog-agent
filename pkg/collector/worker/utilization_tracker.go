@@ -117,9 +117,7 @@ func newUtilizationTrackerWithClock(
 		return utilization
 	}
 
-	ut.statsUpdateFunc = func(sw util.SlidingWindow) {
-		utilization := sw.Average()
-
+	ut.statsUpdateFunc = func(utilization float64) {
 		expvars.SetWorkerStats(workerName, &expvars.WorkerStats{
 			Utilization: utilization,
 		})

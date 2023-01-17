@@ -8,7 +8,6 @@ package auditor
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -56,14 +55,15 @@ type Auditor interface {
 	Registry
 	Start()
 	Stop()
-	Channel() chan *message.Message
+	// Channel returns the channel to which successful payloads should be sent.
+	Channel() chan *message.Payload
 }
 
 // A RegistryAuditor is storing the Auditor information using a registry.
 type RegistryAuditor struct {
 	health        *health.Handle
 	chansMutex    sync.Mutex
-	inputChan     chan *message.Message
+	inputChan     chan *message.Payload
 	registry      map[string]*RegistryEntry
 	registryPath  string
 	registryMutex sync.Mutex
@@ -100,7 +100,7 @@ func (a *RegistryAuditor) Stop() {
 func (a *RegistryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
-	a.inputChan = make(chan *message.Message, config.ChanSize)
+	a.inputChan = make(chan *message.Payload, config.ChanSize)
 	a.done = make(chan struct{})
 }
 
@@ -120,7 +120,9 @@ func (a *RegistryAuditor) closeChannels() {
 
 // Channel returns the channel to use to communicate with the auditor or nil
 // if the auditor is currently stopped.
-func (a *RegistryAuditor) Channel() chan *message.Message {
+func (a *RegistryAuditor) Channel() chan *message.Payload {
+	a.chansMutex.Lock()
+	defer a.chansMutex.Unlock()
 	return a.inputChan
 }
 
@@ -161,13 +163,15 @@ func (a *RegistryAuditor) run() {
 	for {
 		select {
 		case <-a.health.C:
-		case msg, isOpen := <-a.inputChan:
+		case payload, isOpen := <-a.inputChan:
 			if !isOpen {
 				// inputChan has been closed, no need to update the registry anymore
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
+			for _, msg := range payload.Messages {
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
+			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()
@@ -189,7 +193,7 @@ func (a *RegistryAuditor) run() {
 
 // recoverRegistry rebuilds the registry from the state file found at path
 func (a *RegistryAuditor) recoverRegistry() map[string]*RegistryEntry {
-	mr, err := ioutil.ReadFile(a.registryPath)
+	mr, err := os.ReadFile(a.registryPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Debugf("Could not find state file at %q, will start with default offsets", a.registryPath)
@@ -263,7 +267,7 @@ func (a *RegistryAuditor) flushRegistry() error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(a.registryPath, mr, 0644)
+	return os.WriteFile(a.registryPath, mr, 0644)
 }
 
 // marshalRegistry marshals a registry

@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package util
@@ -17,12 +23,7 @@ func TestGetRootNSPID(t *testing.T) {
 	})
 
 	t.Run("HOST_PROC set but not available", func(t *testing.T) {
-		prev := os.Getenv("HOST_PROC")
-		t.Cleanup(func() {
-			os.Setenv("HOST_PROC", prev)
-		})
-
-		os.Setenv("HOST_PROC", "/foo/bar")
+		t.Setenv("HOST_PROC", "/foo/bar")
 		pid, err := GetRootNSPID()
 		assert.NotNil(t, err)
 		assert.Equal(t, 0, pid)

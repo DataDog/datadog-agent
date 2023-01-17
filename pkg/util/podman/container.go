@@ -12,6 +12,7 @@ import (
 	"net"
 	"time"
 
+	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/cri-o/ocicni/pkg/ocicni"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
@@ -24,7 +25,7 @@ import (
 // More specifically, the types included here are:
 // - ContainerStatus:
 // https://github.com/containers/podman/blob/v3.4.1/libpod/define/containerstate.go
-// - ContainerState:
+// - ContainerState (with only the attrs that we need):
 // https://github.com/containers/podman/blob/v3.4.1/libpod/container.go
 // - ContainerConfig (and the ones it depends on like ContainerSecurityConfig,
 // ContainerNameSpaceConfig, etc.):
@@ -39,6 +40,7 @@ import (
 // - Deleted the `EnvSecrets` field of the `ContainerMiscConfig` struct.
 // - The `Container` struct only contains the 2 attributes that we need.
 
+// Container holds the configuration and the state of a container
 type Container struct {
 	Config *ContainerConfig
 	State  *ContainerState
@@ -112,6 +114,11 @@ type ContainerState struct {
 	FinishedTime time.Time `json:"finishedTime,omitempty"`
 	// PID is the PID of a running container
 	PID int `json:"pid,omitempty"`
+	// NetworkStatus contains the configuration results for all networks
+	// the pod is attached to. Only populated if we created a network
+	// namespace for the container, and the network namespace is currently
+	// active
+	NetworkStatus []*cnitypes.Result `json:"networkResults,omitempty"`
 }
 
 // ContainerConfig contains all information that was used to create the

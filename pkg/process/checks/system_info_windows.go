@@ -1,21 +1,26 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/platform"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // CollectSystemInfo collects a set of system-level information that will not
 // change until a restart. This bit of information should be passed along with
 // the process messages.
-func CollectSystemInfo(cfg *config.AgentConfig) (*model.SystemInfo, error) {
+func CollectSystemInfo() (*model.SystemInfo, error) {
 	hi, err := platform.GetArchInfo()
 	if err != nil {
 		return nil, err
@@ -60,10 +65,10 @@ func CollectSystemInfo(cfg *config.AgentConfig) (*model.SystemInfo, error) {
 	m := &model.SystemInfo{
 		Uuid: "",
 		Os: &model.OSInfo{
-			Name:          hi["kernel_name"].(string),
-			Platform:      hi["os"].(string),
-			Family:        hi["family"].(string),
-			Version:       hi["kernel_release"].(string),
+			Name:          hi["kernel_name"],
+			Platform:      hi["os"],
+			Family:        hi["family"],
+			Version:       hi["kernel_release"],
 			KernelVersion: "",
 		},
 		Cpus:        cpus,

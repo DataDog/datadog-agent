@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package main
@@ -11,15 +12,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -63,7 +60,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		}
 	}()
 	elog.Info(0x40000003, ServiceName)
-	agent.Run(ctx)
+	Run(ctx)
 
 	changes <- svc.Status{State: svc.Stopped}
 	return
@@ -110,12 +107,6 @@ func main() {
 		// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
 		// make sure more than one wasn't specified
 		optcount := 0
-		if flags.Win.InstallService {
-			optcount++
-		}
-		if flags.Win.UninstallService {
-			optcount++
-		}
 		if flags.Win.StartService {
 			optcount++
 		}
@@ -124,18 +115,6 @@ func main() {
 		}
 		if optcount > 1 {
 			fmt.Println("Incompatible options chosen")
-			return
-		}
-		if flags.Win.InstallService {
-			if err = installService(); err != nil {
-				fmt.Printf("Error installing service %v\n", err)
-			}
-			return
-		}
-		if flags.Win.UninstallService {
-			if err = removeService(); err != nil {
-				fmt.Printf("Error removing service %v\n", err)
-			}
 			return
 		}
 		if flags.Win.StartService {
@@ -164,7 +143,7 @@ func main() {
 	}()
 
 	// Invoke the Agent
-	agent.Run(ctx)
+	Run(ctx)
 }
 
 func startService() error {
@@ -187,14 +166,6 @@ func startService() error {
 
 func stopService() error {
 	return controlService(svc.Stop, svc.Stopped)
-}
-
-func restartService() error {
-	var err error
-	if err = stopService(); err == nil {
-		err = startService()
-	}
-	return err
 }
 
 func controlService(c svc.Cmd, to svc.State) error {
@@ -222,84 +193,6 @@ func controlService(c svc.Cmd, to svc.State) error {
 		if err != nil {
 			return fmt.Errorf("could not retrieve service status: %v", err)
 		}
-	}
-	return nil
-}
-
-func installService() error {
-	exepath, err := exePath()
-	if err != nil {
-		return err
-	}
-	fmt.Printf("exepath: %s\n", exepath)
-
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
-	if err == nil {
-		s.Close()
-		return fmt.Errorf("service %s already exists", ServiceName)
-	}
-	s, err = m.CreateService(ServiceName, exepath, mgr.Config{DisplayName: "Datadog Agent Service"})
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	err = eventlog.InstallAsEventCreate(ServiceName, eventlog.Error|eventlog.Warning|eventlog.Info)
-	if err != nil {
-		s.Delete()
-		return fmt.Errorf("SetupEventLogSource() failed: %s", err)
-	}
-	return nil
-}
-
-func exePath() (string, error) {
-	prog := os.Args[0]
-	p, err := filepath.Abs(prog)
-	if err != nil {
-		return "", err
-	}
-	fi, err := os.Stat(p)
-	if err == nil {
-		if !fi.Mode().IsDir() {
-			return p, nil
-		}
-		err = fmt.Errorf("%s is directory", p)
-	}
-	if filepath.Ext(p) == "" {
-		p += ".exe"
-		fi, err := os.Stat(p)
-		if err == nil {
-			if !fi.Mode().IsDir() {
-				return p, nil
-			}
-			return "", fmt.Errorf("%s is directory", p)
-		}
-	}
-	return "", err
-}
-
-func removeService() error {
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
-	if err != nil {
-		return fmt.Errorf("service %s is not installed", ServiceName)
-	}
-	defer s.Close()
-	err = s.Delete()
-	if err != nil {
-		return err
-	}
-	err = eventlog.Remove(ServiceName)
-	if err != nil {
-		return fmt.Errorf("RemoveEventLogSource() failed: %s", err)
 	}
 	return nil
 }

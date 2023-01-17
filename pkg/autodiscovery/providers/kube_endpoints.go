@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -30,6 +30,7 @@ import (
 type endpointResolveMode string
 
 const (
+	kubeEndpointID               = "endpoints"
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	kubeEndpointResolvePath      = "resolve"
 
@@ -56,7 +57,7 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -131,8 +132,18 @@ func (k *kubeEndpointsConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 func (k *kubeEndpointsConfigProvider) invalidate(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %T", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Errorf("Received unexpected object: %T", obj)
+			return
+		}
+
+		castedObj, ok = deletedState.Obj.(*v1.Service)
+		if !ok {
+			log.Errorf("Expected DeletedFinalStateUnknown to contain *v1.Service, got: %T", deletedState.Obj)
+			return
+		}
 	}
 	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
 	log.Tracef("Invalidating configs on new/deleted service, endpoints entity: %s", endpointsID)
@@ -147,13 +158,13 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interf
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %T", obj)
+		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %T", old)
+		log.Errorf("Expected a *v1.Service type, got: %T", old)
 		k.setUpToDate(false)
 		return
 	}
@@ -173,13 +184,13 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %T", obj)
+		log.Errorf("Expected an *v1.Endpoints type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected a Endpoints type, got: %T", old)
+		log.Errorf("Expected a *v1.Endpoints type, got: %T", old)
 		k.setUpToDate(false)
 		return
 	}
@@ -207,21 +218,27 @@ func (k *kubeEndpointsConfigProvider) setUpToDate(v bool) {
 
 func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 	var configsInfo []configInfo
+
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
 			log.Debug("Ignoring a nil service")
 			continue
 		}
+
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
-		endptConf, errors := extractTemplatesFromMap(endpointsID, svc.Annotations, kubeEndpointAnnotationPrefix)
+
+		endptConf, errors := utils.ExtractTemplatesFromPodAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
+
 		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointAnnotationPrefix)
+
 		var resolveMode endpointResolveMode
 		if value, found := svc.Annotations[kubeEndpointAnnotationPrefix+kubeEndpointResolvePath]; found {
 			resolveMode = endpointResolveMode(value)
 		}
+
 		for i := range endptConf {
 			endptConf[i].Source = "kube_endpoints:" + endpointsID
 			endptConf[i].IgnoreAutodiscoveryTags = ignoreADTags
@@ -233,6 +250,7 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 			})
 		}
 	}
+
 	return configsInfo
 }
 
@@ -267,7 +285,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 			// Set a new entity containing the endpoint's IP
 			entity := apiserver.EntityForEndpoints(namespace, name, kep.Subsets[i].Addresses[j].IP)
 			newConfig := integration.Config{
-				Entity:                  entity,
+				ServiceID:               entity,
 				Name:                    tpl.Name,
 				Instances:               tpl.Instances,
 				InitConfig:              tpl.InitConfig,
@@ -291,7 +309,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 }
 
 func init() {
-	RegisterProvider(KubeEndpointsProviderName, NewKubeEndpointsConfigProvider)
+	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the kubeEndpointsConfigProvider

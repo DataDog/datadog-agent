@@ -3,8 +3,10 @@ syntax = "proto3";
 package datadog.api.v1;
 
 import "datadog/model/v1/model.proto";
-import "datadog/config/config.proto";
+import "datadog/remoteconfig/remoteconfig.proto";
+import "datadog/workloadmeta/workloadmeta.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo"; // golang
 
@@ -92,20 +94,40 @@ service AgentSecure {
         };
     };
 
-    rpc GetConfigUpdates(datadog.config.SubscribeConfigRequest) returns (stream datadog.config.ConfigResponse) {
+    rpc ClientGetConfigs(datadog.config.ClientGetConfigsRequest) returns (datadog.config.ClientGetConfigsResponse) {
         option (google.api.http) = {
-            post: "/v1/grpc/config/updates"
+            post: "/v1/grpc/remoteconfig/configs"
             body: "*"
         };
     };
 
-    // Fetch config of the given product
-    rpc GetConfigs(datadog.config.GetConfigsRequest) returns (datadog.config.GetConfigsResponse) {
+    rpc GetConfigState(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse) {
         option (google.api.http) = {
-            post: "/v1/grpc/config/fetch"
+            post: "/v1/grpc/remoteconfig/state"
+            body: "*"
+        };
+    };
+
+    // Subscribes to added, removed, or changed entities in the Workloadmeta and
+    // streams them to clients as events.
+    // Can be called through the HTTP gateway, and events will be streamed as JSON.
+    // Example call that receives all the events:
+    //   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //      -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+    // Example call that receives only unset events:
+    //   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //      -XPOST -k -H "Content-Type: application/json" \
+    //      --data '{"filter":{"eventType":2}}' \
+    //      https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+    // Example call that receives only from the cluster orchestrator:
+    //   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //      -XPOST -k -H "Content-Type: application/json" \
+    //      --data '{"filter":{"source":3}}' \
+    //      https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+    rpc WorkloadmetaStreamEntities(datadog.workloadmeta.WorkloadmetaStreamRequest) returns (stream datadog.workloadmeta.WorkloadmetaStreamResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/workloadmeta/stream_entities"
             body: "*"
         };
     };
 }
-
-

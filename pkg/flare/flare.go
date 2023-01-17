@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -19,7 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -64,11 +63,12 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 			return
 		}
 		file, err := os.Open(archivePath)
-		defer file.Close()
 		if err != nil {
 			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
+		defer file.Close()
+
 		_, err = io.Copy(p, file)
 		if err != nil {
 			bodyWriter.CloseWithError(err) //nolint:errcheck
@@ -98,6 +98,7 @@ func resolveFlarePOSTURL(url string, client *http.Client) (string, error) {
 		return "", err
 	}
 
+	defer r.Body.Close()
 	// at the end of the chain of redirects, we should either have a 200 OK or a 404 (since
 	// the server is expecting POST, not GET).  Accept either one as successful.
 	if r.StatusCode != http.StatusOK && r.StatusCode != http.StatusNotFound {
@@ -151,7 +152,7 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname string) (*http.Re
 
 // SendFlare will send a flare and grab the local hostname
 func SendFlare(archivePath string, caseID string, email string) (string, error) {
-	hostname, err := util.GetHostname(context.TODO())
+	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}
@@ -180,7 +181,7 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 	}
 
 	var res flareResponse
-	b, _ := ioutil.ReadAll(r.Body)
+	b, _ := io.ReadAll(r.Body)
 	if r.StatusCode != http.StatusOK {
 		err = fmt.Errorf("HTTP %d %s", r.StatusCode, r.Status)
 	} else if contentType := r.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {

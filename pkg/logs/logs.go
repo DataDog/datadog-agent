@@ -9,20 +9,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
-	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
+	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -35,11 +35,14 @@ const (
 
 	// AgentJSONIntakeProtocol agent json protocol
 	AgentJSONIntakeProtocol = "agent-json"
+
+	// Log messages
+	multiLineWarning = "multi_line processing rules are not supported as global processing rules."
 )
 
 var (
 	// isRunning indicates whether logs-agent is running or not
-	isRunning int32
+	isRunning = atomic.NewBool(false)
 	// logs-agent
 	agent *Agent
 )
@@ -50,13 +53,13 @@ var (
 // instead of directly using it.
 // The parameter serverless indicates whether or not this Logs Agent is running
 // in a serverless environment.
-func Start(getAC func() *autodiscovery.AutoConfig) error {
-	return start(getAC, false, nil, nil)
+func Start(ac *autodiscovery.AutoConfig) (*Agent, error) {
+	return start(ac, false)
 }
 
 // StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *config.ChannelMessage, extraTags []string) error {
-	return start(getAC, true, logsChan, extraTags)
+func StartServerless() (*Agent, error) {
+	return start(nil, true)
 }
 
 // buildEndpoints builds endpoints for the logs agent
@@ -65,23 +68,20 @@ func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 		return config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
 	}
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
-	return config.BuildEndpoints(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsWithVectorOverride(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
-func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) error {
+func start(ac *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 	if IsAgentRunning() {
-		return nil
+		return agent, nil
 	}
 
 	// setup the sources and the services
-	sources := config.NewLogSources()
+	sources := sources.NewLogSources()
 	services := service.NewServices()
-
-	// setup the config scheduler
-	scheduler.CreateScheduler(sources, services)
 
 	// setup the server config
 	endpoints, err := buildEndpoints(serverless)
@@ -89,7 +89,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)
-		return errors.New(message)
+		return nil, errors.New(message)
 	}
 	status.CurrentTransport = status.TransportTCP
 	if endpoints.UseHTTP {
@@ -98,14 +98,19 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
 
 	// setup the status
-	status.Init(&isRunning, endpoints, sources, metrics.LogsExpvars)
+	status.Init(isRunning, endpoints, sources, metrics.LogsExpvars)
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules()
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)
-		return errors.New(message)
+		return nil, errors.New(message)
+	}
+
+	if config.HasMultiLineRule(processingRules) {
+		log.Warn(multiLineWarning)
+		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
 	// setup and start the logs agent
@@ -120,54 +125,17 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	}
 
 	agent.Start()
-	atomic.StoreInt32(&isRunning, 1)
+	isRunning.Store(true)
 	log.Info("logs-agent started")
 
-	if serverless {
-		log.Debug("Adding AWS Logs collection source")
-
-		chanSource := config.NewLogSource("AWS Logs", &config.LogsConfig{
-			Type:    config.StringChannelType,
-			Source:  "lambda", // TODO(remy): do we want this to be configurable at some point?
-			Tags:    extraTags,
-			Channel: logsChan,
-		})
-		sources.AddSource(chanSource)
-	}
-
-	// add SNMP traps source forwarding SNMP traps as logs if enabled.
-	if source := config.SNMPTrapsSource(); source != nil {
-		log.Debug("Adding SNMPTraps source to the Logs Agent")
-		sources.AddSource(source)
-	}
-
-	// adds the source collecting logs from all containers if enabled,
-	// but ensure that it is enabled after the AutoConfig initialization
-	if source := config.ContainerCollectAllSource(); source != nil {
-		go func() {
-			BlockUntilAutoConfigRanOnce(getAC, time.Millisecond*time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
-			log.Debug("Adding ContainerCollectAll source to the Logs Agent")
-			sources.AddSource(source)
-		}()
-	}
-
-	return nil
-}
-
-// BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been run once.
-// It also returns after the given timeout.
-func BlockUntilAutoConfigRanOnce(getAC func() *autodiscovery.AutoConfig, timeout time.Duration) {
-	now := time.Now()
-	for {
-		time.Sleep(100 * time.Millisecond) // don't hog the CPU
-		if getAC().HasRunOnce() {
-			return
+	if !serverless {
+		if ac == nil {
+			panic("AutoConfig must be initialized before logs-agent")
 		}
-		if time.Since(now) > timeout {
-			log.Error("BlockUntilAutoConfigRanOnce timeout after", timeout)
-			return
-		}
+		agent.AddScheduler(adScheduler.New(ac))
 	}
+
+	return agent, nil
 }
 
 // Stop stops properly the logs-agent to prevent data loss,
@@ -179,11 +147,8 @@ func Stop() {
 			agent.Stop()
 			agent = nil
 		}
-		if scheduler.GetScheduler() != nil {
-			scheduler.GetScheduler().Stop()
-		}
 		status.Clear()
-		atomic.StoreInt32(&isRunning, 0)
+		isRunning.Store(false)
 	}
 	log.Info("logs-agent stopped")
 }

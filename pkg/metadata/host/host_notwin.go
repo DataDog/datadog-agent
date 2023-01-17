@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package host
@@ -11,9 +12,11 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
+
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,6 +50,7 @@ func getSystemStats() *systemStats {
 		// fill the platform dependent bits of info
 		fillOsVersion(stats, hostInfo)
 		cache.Cache.Set(key, stats, cache.NoExpiration)
+		inventories.SetHostMetadata(inventories.HostOSVersion, getOSVersion(hostInfo))
 	}
 
 	return stats

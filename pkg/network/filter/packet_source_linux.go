@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package filter
@@ -5,33 +11,35 @@ package filter
 import (
 	"fmt"
 	"reflect"
-	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
+	"go.uber.org/atomic"
+	"golang.org/x/net/bpf"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
 	*afpacket.TPacket
 	socketFilter *manager.Probe
-	socketFD     int
 
 	exit chan struct{}
 
 	// telemetry
-	polls     int64
-	processed int64
-	captured  int64
-	dropped   int64
+	polls     *atomic.Int64
+	processed *atomic.Int64
+	captured  *atomic.Int64
+	dropped   *atomic.Int64
 }
 
-func NewPacketSource(filter *manager.Probe) (*AFPacketSource, error) {
+// NewPacketSource creates an AFPacketSource using the provided BPF filter
+func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AFPacketSource, error) {
 	rawSocket, err := afpacket.NewTPacket(
 		afpacket.OptPollTimeout(1*time.Second),
 		// This setup will require ~4Mb that is mmap'd into the process virtual space
@@ -44,33 +52,43 @@ func NewPacketSource(filter *manager.Probe) (*AFPacketSource, error) {
 		return nil, fmt.Errorf("error creating raw socket: %s", err)
 	}
 
-	// The underlying socket file descriptor is private, hence the use of reflection
-	socketFD := int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
-
-	// Point socket filter program to the RAW_SOCKET file descriptor
-	// Note the filter attachment itself is triggered by the ebpf.Manager
-	filter.SocketFD = socketFD
+	if filter != nil {
+		// The underlying socket file descriptor is private, hence the use of reflection
+		// Point socket filter program to the RAW_SOCKET file descriptor
+		// Note the filter attachment itself is triggered by the ebpf.Manager
+		filter.SocketFD = int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
+	} else {
+		err = rawSocket.SetBPF(bpfFilter)
+		if err != nil {
+			return nil, fmt.Errorf("error setting classic bpf filter: %w", err)
+		}
+	}
 
 	ps := &AFPacketSource{
 		TPacket:      rawSocket,
 		socketFilter: filter,
-		socketFD:     socketFD,
 		exit:         make(chan struct{}),
+		polls:        atomic.NewInt64(0),
+		processed:    atomic.NewInt64(0),
+		captured:     atomic.NewInt64(0),
+		dropped:      atomic.NewInt64(0),
 	}
 	go ps.pollStats()
 
 	return ps, nil
 }
 
+// Stats returns statistics about the AFPacketSource
 func (p *AFPacketSource) Stats() map[string]int64 {
 	return map[string]int64{
-		"socket_polls":      atomic.LoadInt64(&p.polls),
-		"packets_processed": atomic.LoadInt64(&p.processed),
-		"packets_captured":  atomic.LoadInt64(&p.captured),
-		"packets_dropped":   atomic.LoadInt64(&p.dropped),
+		"socket_polls":      p.polls.Load(),
+		"packets_processed": p.processed.Load(),
+		"packets_captured":  p.captured.Load(),
+		"packets_dropped":   p.dropped.Load(),
 	}
 }
 
+// VisitPackets starts reading packets from the source
 func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
 	for {
 		// allow the read loop to be prematurely interrupted
@@ -101,10 +119,12 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, t
 	}
 }
 
+// PacketType is the gopacket.LayerType for this source
 func (p *AFPacketSource) PacketType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
 }
 
+// Close stops packet reading
 func (p *AFPacketSource) Close() {
 	close(p.exit)
 	p.TPacket.Close()
@@ -131,10 +151,10 @@ func (p *AFPacketSource) pollStats() {
 				continue
 			}
 
-			atomic.AddInt64(&p.polls, sourceStats.Polls-prevPolls)
-			atomic.AddInt64(&p.processed, sourceStats.Packets-prevProcessed)
-			atomic.AddInt64(&p.captured, int64(socketStats.Packets())-prevCaptured)
-			atomic.AddInt64(&p.dropped, int64(socketStats.Drops())-prevDropped)
+			p.polls.Add(sourceStats.Polls - prevPolls)
+			p.processed.Add(sourceStats.Packets - prevProcessed)
+			p.captured.Add(int64(socketStats.Packets()) - prevCaptured)
+			p.dropped.Add(int64(socketStats.Drops()) - prevDropped)
 
 			prevPolls = sourceStats.Polls
 			prevProcessed = sourceStats.Packets

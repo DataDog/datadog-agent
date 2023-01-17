@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package clusterchecks
@@ -10,7 +11,9 @@ package clusterchecks
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -135,6 +139,12 @@ func TestHandlerRun(t *testing.T) {
 		err: errors.New("failing"),
 	}
 
+	testServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "I'm a teapot", 418)
+	}))
+	testPort := testServer.Listener.Addr().(*net.TCPAddr).Port
+	defer testServer.Close()
+
 	h := &Handler{
 		autoconfig:           ac,
 		leaderStatusFreq:     100 * time.Millisecond,
@@ -143,12 +153,13 @@ func TestHandlerRun(t *testing.T) {
 		dispatcher:           newDispatcher(),
 		leaderStatusCallback: le.get,
 		port:                 5005,
+		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
 	}
 
 	//
 	// Initialisation and unknown state
 	//
-
+	recorder := httptest.NewRecorder()
 	ctx, cancelRun := context.WithCancel(context.Background())
 	runReturned := make(chan struct{}, 1)
 	go func() {
@@ -162,32 +173,39 @@ func TestHandlerRun(t *testing.T) {
 		return h.state == unknown
 	})
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
-		// API replys not ready
-		code, reason := h.ShouldHandle()
-		return code == http.StatusServiceUnavailable && reason == notReadyReason
+		// API replys not ready, does not forward
+		return h.RejectOrForwardLeaderQuery(recorder, httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
 	})
+	resp := recorder.Result()
+	assert.NotNil(t, resp)
+	assert.Equal(t, "503 Service Unavailable", resp.Status)
+	assert.Equal(t, 503, resp.StatusCode)
+	resp.Body.Close()
 
 	//
 	// Unknown -> follower
 	//
-
-	le.set("1.2.3.4", nil)
+	recorder = httptest.NewRecorder()
+	le.set("127.0.0.1", nil)
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Internal state change
 		h.m.RLock()
 		defer h.m.RUnlock()
-		return h.state == follower && h.leaderIP == "1.2.3.4"
+		return h.state == follower && h.leaderIP == "127.0.0.1"
 	})
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// API redirects to leader
-		code, reason := h.ShouldHandle()
-		return code == http.StatusFound && reason == "1.2.3.4:5005"
+		return h.RejectOrForwardLeaderQuery(recorder, httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
 	})
+	resp = recorder.Result()
+	assert.NotNil(t, resp)
+	assert.Equal(t, "418 I'm a teapot", resp.Status)
+	assert.Equal(t, 418, resp.StatusCode)
+	resp.Body.Close()
 
 	//
 	// Follower -> leader
 	//
-
 	le.set("", nil)
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Internal state change
@@ -196,9 +214,7 @@ func TestHandlerRun(t *testing.T) {
 		return h.state == leader && h.leaderIP == ""
 	})
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
-		// API serves requests
-		code, reason := h.ShouldHandle()
-		return code == http.StatusOK && reason == ""
+		return !h.RejectOrForwardLeaderQuery(recorder, httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
 	})
 	ac.On("AddScheduler", schedulerName, mock.AnythingOfType("*clusterchecks.dispatcher"), true).Return()
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
@@ -231,20 +247,25 @@ func TestHandlerRun(t *testing.T) {
 	//
 	// Leader -> follower
 	//
-
+	recorder = httptest.NewRecorder()
 	ac.On("RemoveScheduler", schedulerName).Return()
-	le.set("1.2.3.6", nil)
+	le.set("127.0.0.1", nil)
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Internal state change
 		h.m.RLock()
 		defer h.m.RUnlock()
-		return h.state == follower && h.leaderIP == "1.2.3.6"
+		return h.state == follower && h.leaderIP == "127.0.0.1"
 	})
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
-		// API redirects to leader again
-		code, reason := h.ShouldHandle()
-		return code == http.StatusFound && reason == "1.2.3.6:5005"
+		// API redirects to leader
+		return h.RejectOrForwardLeaderQuery(recorder, httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
 	})
+	resp = recorder.Result()
+	assert.NotNil(t, resp)
+	assert.Equal(t, "418 I'm a teapot", resp.Status)
+	assert.Equal(t, 418, resp.StatusCode)
+	resp.Body.Close()
+
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// RemoveScheduler is called
 		return ac.AssertNumberOfCalls(dummyT, "RemoveScheduler", 1)
@@ -253,12 +274,10 @@ func TestHandlerRun(t *testing.T) {
 	//
 	// Follower -> leader again
 	//
-
 	le.set("", nil)
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
-		// API serves requests
-		code, reason := h.ShouldHandle()
-		return code == http.StatusOK && reason == ""
+		// API redirects to leader
+		return !h.RejectOrForwardLeaderQuery(recorder, httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
 	})
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Dispatcher has been flushed, no config remain
@@ -275,7 +294,6 @@ func TestHandlerRun(t *testing.T) {
 	//
 	// Leader -> stop
 	//
-
 	ac.On("RemoveScheduler", schedulerName).Return()
 	cancelRun()
 	select {

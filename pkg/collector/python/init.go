@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
@@ -15,11 +16,14 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -253,7 +257,7 @@ func sendTelemetry(pythonVersion string) {
 	aggregator.AddRecurrentSeries(&metrics.Serie{
 		Name:   "datadog.agent.python.version",
 		Points: []metrics.Point{{Value: 1.0}},
-		Tags:   tags,
+		Tags:   tagset.CompositeTagsFromSlice(tags),
 		MType:  metrics.APIGaugeType,
 	})
 }
@@ -401,6 +405,10 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.python_memory") {
+		initPymemTelemetry()
+	}
+
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
 		// bounded but never released allocations with CString
@@ -451,27 +459,29 @@ func Initialize(paths ...string) error {
 	return nil
 }
 
-// Destroy destroys the loaded Python interpreter initialized by 'Initialize'
-func Destroy() {
-	pyDestroyLock.Lock()
-	defer pyDestroyLock.Unlock()
-
-	// Sanity check - this should ideally never happen
-	if rtloader == nil {
-		log.Warn("Python runtime already destroyed. Ignoring action.")
-		return
-	}
-
-	// Clear the C-side and Go-side rtloader pointers
-	log.Info("Destroying Python runtime")
-	C.destroy(rtloader)
-	rtloader = nil
-
-	log.Info("Python runtime destroyed")
-}
-
 // GetRtLoader returns the underlying rtloader_t struct. This is meant for testing and
 // tooling, use the rtloader_t struct at your own risk
 func GetRtLoader() *C.rtloader_t {
 	return rtloader
+}
+
+func initPymemTelemetry() {
+	C.init_pymem_stats(rtloader)
+
+	// "alloc" for consistency with go memstats and mallochook metrics.
+	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes allocated by the python interpreter since the start of the agent.")
+	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
+
+	go func() {
+		t := time.NewTicker(1 * time.Second)
+		var prevAlloc C.size_t
+
+		for range t.C {
+			var s C.pymem_stats_t
+			C.get_pymem_stats(rtloader, &s)
+			inuse.Set(float64(s.inuse))
+			alloc.Add(float64(s.alloc - prevAlloc))
+			prevAlloc = s.alloc
+		}
+	}()
 }

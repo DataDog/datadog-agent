@@ -1,5 +1,5 @@
 ---
-deploy_staging_windows-6:
+deploy_packages_windows-6:
   rules:
     !reference [.on_deploy_a6]
   stage: deploy6
@@ -16,22 +16,4 @@ deploy_staging_windows-6:
       --include "datadog-agent-6*.debug.zip"
       --include "datadog-agent-6.*.wixpdb"
       --include "customaction-6*.pdb"
-      $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/$BUCKET_BRANCH/
-      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-
-deploy_staging_windows_master-latest-6:
-  rules:
-    !reference [.on_deploy_nightly_repo_branch_a6]
-  stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies: ["windows_msi_x64-a6"]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD
-      $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi
-      "s3://$WINDOWS_BUILDS_S3_BUCKET/$BUCKET_BRANCH/datadog-agent-6-latest.amd64.msi"
-      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true

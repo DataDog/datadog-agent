@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
-// +build docker
-// +build kubeapiserver
+//go:build docker && kubeapiserver
+// +build docker,kubeapiserver
 
 package kubernetes
 
@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	hostname_apiserver "github.com/DataDog/datadog-agent/pkg/util/hostname/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
@@ -40,8 +40,11 @@ type testSuite struct {
 }
 
 func TestSuiteKube(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	s := &testSuite{}
+
+	// Env detection
+	config.DetectFeatures()
 
 	// Start compose stack
 	compose, err := initAPIServerCompose()
@@ -93,7 +96,7 @@ func (suite *testSuite) SetupTest() {
 }
 
 func (suite *testSuite) TestKubeEvents() {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 	resVer := ""
 	eventReadTimeout := int64(1)
 	lastList := time.Now()
@@ -164,7 +167,7 @@ func (suite *testSuite) TestKubeEvents() {
 
 func (suite *testSuite) TestHostnameProvider() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	// Init own client to write the events
 	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
@@ -186,7 +189,7 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer core.Pods("default").Delete(ctx, myHostname, v1.DeleteOptions{})
 
 	// Hostname provider should return the expected value
-	foundHost, err := hostname_apiserver.HostnameProvider(ctx, nil)
+	foundHost, err := kubernetes.GetKubeAPIServerHostname(ctx)
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
@@ -196,6 +199,6 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	foundHost, err = hostname_apiserver.HostnameProvider(ctx, nil)
+	foundHost, err = kubernetes.GetKubeAPIServerHostname(ctx)
 	assert.Equal(suite.T(), "target.host-laika", foundHost)
 }

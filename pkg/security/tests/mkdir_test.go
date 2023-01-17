@@ -3,20 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
 
 import (
+	"errors"
+	"fmt"
 	"os"
-	"runtime"
-	"sync"
 	"syscall"
 	"testing"
 
+	"github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -53,13 +56,14 @@ func TestMkdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdir")
 			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
 			assert.Equal(t, getInode(t, testFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, event.Mkdir.File.Mode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
+			assert.Equal(t, event.Async, false)
 		})
 	}))
 
@@ -75,7 +79,7 @@ func TestMkdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
 			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, uint16(event.Mkdir.Mode), 0777)
@@ -83,6 +87,66 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
+			assert.Equal(t, event.Async, false)
+		})
+	})
+
+	t.Run("io_uring", func(t *testing.T) {
+		testatFile, _, err := test.Path("testat-mkdir")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer syscall.Rmdir(testatFile)
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest, err := iouring.Mkdirat(unix.AT_FDCWD, testatFile, 0777)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{"mkdirat not supported by io_uring"}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to create directory with io_uring: %d", ret)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_mkdirat")
+			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
+			assertRights(t, uint16(event.Mkdir.Mode), 0777)
+			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
+			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
+			assertNearTime(t, event.Mkdir.File.MTime)
+			assertNearTime(t, event.Mkdir.File.CTime)
+			assert.Equal(t, event.Async, true)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
 }
@@ -91,7 +155,7 @@ func TestMkdirError(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdirat_error",
-			Expression: `process.file.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
+			Expression: `process.file.name == "syscall_tester" && mkdir.retval == EACCES`,
 		},
 	}
 
@@ -101,8 +165,13 @@ func TestMkdirError(t *testing.T) {
 	}
 	defer test.Close()
 
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("mkdirat-error", func(t *testing.T) {
-		_, testatFilePtr, err := test.Path("testat2-mkdir")
+		testatFile, _, err := test.Path("testat2-mkdir")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,45 +181,10 @@ func TestMkdirError(t *testing.T) {
 		}
 
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			errChan := make(chan error, 1)
-
-			go func() {
-				defer wg.Done()
-
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1, 1, 0); errno != 0 {
-					errChan <- error(errno)
-					return
-				}
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1, 1, 0); errno != 0 {
-					errChan <- error(errno)
-					return
-				}
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
-					errChan <- error(errno)
-					return
-				}
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+			return runSyscallTesterFunc(t, syscallTester, "mkdirat-error", testatFile)
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
-			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))
+			assert.Equal(t, event.Mkdir.Retval, -int64(syscall.EACCES))
 		})
 	})
 }

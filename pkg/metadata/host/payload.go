@@ -38,7 +38,8 @@ type NetworkMeta struct {
 
 // LogsMeta is metadata about the host's logs agent
 type LogsMeta struct {
-	Transport string `json:"transport"`
+	Transport            string `json:"transport"`
+	AutoMultilineEnabled bool   `json:"auto_multi_line_detection_enabled"`
 }
 
 // Tags contains the detected host tags
@@ -56,8 +57,14 @@ type InstallMethod struct {
 
 // ProxyMeta is metatdata about the proxy configuration
 type ProxyMeta struct {
-	NoProxyNonexactMatch bool `json:"no-proxy-nonexact-match"`
-	ProxyBehaviorChanged bool `json:"proxy-behavior-changed"`
+	NoProxyNonexactMatch              bool `json:"no-proxy-nonexact-match"`
+	ProxyBehaviorChanged              bool `json:"proxy-behavior-changed"`
+	NoProxyNonexactMatchExplicitlySet bool `json:"no-proxy-nonexact-match-explicitly-set"`
+}
+
+// OtlpMeta is metadata about the otlp pipeline
+type OtlpMeta struct {
+	Enabled bool `json:"enabled"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -73,4 +80,5 @@ type Payload struct {
 	LogsMeta      *LogsMeta         `json:"logs"`
 	InstallMethod *InstallMethod    `json:"install-method"`
 	ProxyMeta     *ProxyMeta        `json:"proxy-info"`
+	OtlpMeta      *OtlpMeta         `json:"otlp"`
 }

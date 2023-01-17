@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package utils
@@ -16,6 +17,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -130,7 +132,12 @@ func getNetworkMode() (string, error) {
 	}
 
 	// Get container id if containerized
-	co, err := du.InspectSelf(context.TODO())
+	selfContainerID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	if err != nil {
+		return "host", nil
+	}
+
+	co, err := du.Inspect(context.TODO(), selfContainerID, false)
 	if err != nil {
 		return "host", nil
 	}

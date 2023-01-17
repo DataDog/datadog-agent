@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package net
 
 import (
-	"io/ioutil"
 	"os"
 	"sort"
 	"testing"
@@ -22,13 +22,13 @@ func TestGetNTPServersFromFileNotExist(t *testing.T) {
 }
 
 func createTempFile(t *testing.T, content string, callback func(filename string)) {
-	file, err := ioutil.TempFile("", "")
+	file, err := os.CreateTemp("", "")
 
 	filename := file.Name()
 	defer os.Remove(filename)
 	assert.NoError(t, err)
 
-	ioutil.WriteFile(filename, []byte(content), 0)
+	os.WriteFile(filename, []byte(content), 0)
 	callback(filename)
 }
 

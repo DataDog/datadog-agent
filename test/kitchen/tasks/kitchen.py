@@ -1,12 +1,14 @@
 import glob
 import json
-import os.path
+import os
 import re
 import traceback
 
 import requests
 from invoke import task
 from invoke.exceptions import Exit
+
+WINDOWS_SKIP_IF_TESTSIGNING = ['.*cn']
 
 
 @task(iterable=['platlist'])
@@ -21,6 +23,7 @@ def genconfig(
     platlist=None,
     fips=False,
     arch="x86_64",
+    imagesize=None,
 ):
     """
     Create a kitchen config
@@ -89,7 +92,7 @@ def genconfig(
         if osversions.lower() == "all":
             osversions = ".*"
 
-        osimages = load_targets(ctx, ar, osversions)
+        osimages = load_targets(ctx, ar, osversions, platform)
 
         print(f"Chose os targets {osimages}\n")
         for osimage in osimages:
@@ -148,6 +151,8 @@ def genconfig(
         env = load_user_env(ctx, provider, uservars)
     env['TEST_PLATFORMS'] = testplatforms
 
+    env['TEST_IMAGE_SIZE'] = imagesize if imagesize else ""
+
     if fips:
         env['FIPS'] = 'true'
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
@@ -168,9 +173,16 @@ def should_rerun_failed(_, runlog):
             raise Exit("Seeing some failed tests in log, not advising to rerun", 1)
 
 
-def load_targets(_, targethash, selections):
+def load_targets(_, targethash, selections, platform):
     returnlist = []
+    skiplist = []
     commentpattern = re.compile("^comment")
+
+    if platform == "windows":
+        if 'WINDOWS_DDNPM_DRIVER' in os.environ.keys() and os.environ['WINDOWS_DDNPM_DRIVER'] == 'testsigned':
+            for skip in WINDOWS_SKIP_IF_TESTSIGNING:
+                skiplist.append(re.compile(skip))
+
     for selection in selections.split(","):
         selectionpattern = re.compile(f"^{selection}$")
 
@@ -179,11 +191,19 @@ def load_targets(_, targethash, selections):
             if commentpattern.match(key):
                 continue
             if selectionpattern.search(key):
-                matched = True
-                if key not in returnlist:
-                    returnlist.append(key)
+                for skip in skiplist:
+                    if skip.match(key):
+                        print(f"Matched key {key} to skip list, skipping\n")
+                        matched = True
+                        break
                 else:
-                    print(f"Skipping duplicate target key {key} (matched search {selection})\n")
+                    # will only execute if there's not a break in the previous for
+                    # loop.
+                    matched = True
+                    if key not in returnlist:
+                        returnlist.append(key)
+                    else:
+                        print(f"Skipping duplicate target key {key} (matched search {selection})\n")
 
         if not matched:
             raise Exit(message=f"Couldn't find any match for target {selection}\n", code=7)
@@ -194,7 +214,7 @@ def load_user_env(_, provider, varsfile):
     env = {}
     commentpattern = re.compile("^comment")
     if os.path.exists(varsfile):
-        with open("uservars.json", "r") as f:
+        with open(varsfile, "r") as f:
             vars = json.load(f)
             for key, val in vars['global'].items():
                 if commentpattern.match(key):

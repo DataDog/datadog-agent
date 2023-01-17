@@ -1,4 +1,4 @@
-/// Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -14,7 +14,7 @@ import (
 
 func TestProfiling(t *testing.T) {
 	settings := Settings{
-		Site:                 "https://nowhere.testing.dev",
+		ProfilingURL:         "https://nowhere.testing.dev",
 		Env:                  "testing",
 		Service:              "test-agent",
 		Period:               time.Minute,
@@ -22,6 +22,7 @@ func TestProfiling(t *testing.T) {
 		MutexProfileFraction: 0,
 		BlockProfileRate:     0,
 		WithGoroutineProfile: false,
+		WithDeltaProfiles:    false,
 		Tags:                 []string{"1.0.0"},
 	}
 	err := Start(settings)

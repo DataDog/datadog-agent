@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
@@ -8,11 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/viper"
+
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/viper"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -22,6 +28,7 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace             = "system_probe_config"
 	spNS                  = Namespace
+	smNS                  = "service_monitoring_config"
 	defaultConfigFileName = "system-probe.yaml"
 
 	defaultConnsMessageBatchSize = 600
@@ -53,9 +60,10 @@ type Config struct {
 	SocketAddress      string
 	MaxConnsPerMessage int
 
-	LogFile   string
-	LogLevel  string
-	DebugPort int
+	LogFile          string
+	LogLevel         string
+	DebugPort        int
+	TelemetryEnabled bool
 
 	StatsdHost string
 	StatsdPort int
@@ -134,14 +142,14 @@ func load(configPath string) (*Config, error) {
 		if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
 			site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
 		} else {
-			site = fmt.Sprintf(profiling.ProfileURLTemplate, cfgSite)
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
 			if cfgURL != "" {
 				site = cfgURL
 			}
 		}
 
 		profSettings = &profiling.Settings{
-			Site:                 site,
+			ProfilingURL:         site,
 			Env:                  cfg.GetString(key(spNS, "internal_profiling.env")),
 			Service:              "system-probe",
 			Period:               cfg.GetDuration(key(spNS, "internal_profiling.period")),
@@ -160,20 +168,15 @@ func load(configPath string) (*Config, error) {
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
 		MaxConnsPerMessage: cfg.GetInt(key(spNS, "max_conns_per_message")),
 
-		LogFile:   cfg.GetString(key(spNS, "log_file")),
-		LogLevel:  cfg.GetString(key(spNS, "log_level")),
-		DebugPort: cfg.GetInt(key(spNS, "debug_port")),
+		LogFile:          cfg.GetString(key(spNS, "log_file")),
+		LogLevel:         cfg.GetString(key(spNS, "log_level")),
+		DebugPort:        cfg.GetInt(key(spNS, "debug_port")),
+		TelemetryEnabled: cfg.GetBool(key(spNS, "telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
 
 		ProfilingSettings: profSettings,
-	}
-
-	if err := ValidateSocketAddress(c.SocketAddress); err != nil {
-		log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
-		c.SocketAddress = defaultSystemProbeAddress
-		cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
 	}
 
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
@@ -183,19 +186,23 @@ func load(configPath string) (*Config, error) {
 	}
 
 	// this check must come first so we can accurately tell if system_probe was explicitly enabled
-	if cfg.GetBool("network_config.enabled") {
+	npmEnabled := cfg.GetBool("network_config.enabled")
+	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
+
+	if npmEnabled {
 		log.Info("network_config.enabled detected: enabling system-probe with network module running.")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
-	} else if c.Enabled && !cfg.IsSet("network_config.enabled") {
+	} else if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
 		log.Info("network_config not found, but system-probe was enabled, enabling network module by default")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 		// ensure others can key off of this single config value for NPM status
 		cfg.Set("network_config.enabled", true)
+		npmEnabled = true
 	}
 
-	if !cfg.GetBool("network_config.enabled") && cfg.GetBool("service_monitoring_config.enabled") {
+	if !npmEnabled && usmEnabled {
 		log.Info("service_monitoring.enabled detected: enabling system-probe with network module running.")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
@@ -208,7 +215,7 @@ func load(configPath string) (*Config, error) {
 		log.Info("system_probe_config.enable_oom_kill detected, will enable system-probe with OOM Kill check")
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
-	if cfg.GetBool("runtime_security_config.enabled") || cfg.GetBool("runtime_security_config.fim_enabled") {
+	if cfg.GetBool("runtime_security_config.enabled") || cfg.GetBool("runtime_security_config.fim_enabled") || cfg.GetBool("runtime_security_config.event_monitoring.enabled") {
 		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled detected, enabling system-probe")
 		c.EnabledModules[SecurityRuntimeModule] = struct{}{}
 	}
@@ -219,7 +226,25 @@ func load(configPath string) (*Config, error) {
 
 	if len(c.EnabledModules) > 0 {
 		c.Enabled = true
-		cfg.Set(key(spNS, "enabled"), c.Enabled)
+		if err := ValidateSocketAddress(c.SocketAddress); err != nil {
+			log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
+			c.SocketAddress = defaultSystemProbeAddress
+		}
+	} else {
+		c.Enabled = false
+		c.SocketAddress = ""
+	}
+
+	cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
+	cfg.Set(key(spNS, "enabled"), c.Enabled)
+
+	if cfg.GetBool(key(smNS, "process_service_inference", "enabled")) {
+		if !usmEnabled {
+			log.Info("service monitoring is disabled, disabling process service inference")
+			cfg.Set(key(smNS, "process_service_inference", "enabled"), false)
+		} else {
+			log.Info("process service inference is enabled")
+		}
 	}
 
 	return c, nil

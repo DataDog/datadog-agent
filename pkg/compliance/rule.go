@@ -16,27 +16,10 @@ type Rule interface {
 
 // RuleCommon defines the base fields of a rule in a compliance config
 type RuleCommon struct {
-	ID           string        `yaml:"id"`
-	Description  string        `yaml:"description,omitempty"`
-	Scope        RuleScopeList `yaml:"scope,omitempty"`
-	HostSelector string        `yaml:"hostSelector,omitempty"`
-}
-
-// ConditionFallbackRule defines a rule in a compliance config
-type ConditionFallbackRule struct {
-	RuleCommon   `yaml:",inline"`
-	ResourceType string     `yaml:"resourceType,omitempty"`
-	Resources    []Resource `yaml:"resources,omitempty"`
-}
-
-// ResourceCount returns the count of resources
-func (r *ConditionFallbackRule) ResourceCount() int {
-	return len(r.Resources)
-}
-
-// Common returns the common field between all rules
-func (r *ConditionFallbackRule) Common() *RuleCommon {
-	return &r.RuleCommon
+	ID          string        `yaml:"id"`
+	Description string        `yaml:"description,omitempty"`
+	Scope       RuleScopeList `yaml:"scope,omitempty"`
+	SkipOnK8s   bool          `yaml:"skipOnKubernetes,omitempty"`
 }
 
 // RegoRule defines a rule in a compliance config
@@ -62,6 +45,8 @@ func (r *RegoRule) Common() *RuleCommon {
 type RuleScope string
 
 const (
+	// Host const
+	Unscoped RuleScope = "none"
 	// DockerScope const
 	DockerScope RuleScope = "docker"
 	// KubernetesNodeScope const

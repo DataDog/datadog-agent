@@ -13,21 +13,27 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const extensionName = "recorder-extension" // extension name has to match the filename
 var extensionClient = NewClient(os.Getenv("AWS_LAMBDA_RUNTIME_API"))
+var nbHitMetrics = 0
+var nbReport = 0
+var nbHitTraces = 0
+var outputSketches = make([]gogen.SketchPayload_Sketch, 0)
+var outputLogs = make([]jsonServerlessPayload, 0)
+var outputTraces = make([]*pb.TracerPayload, 0)
+var hasBeenOutput = false
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -169,7 +175,7 @@ func (e *Client) NextEvent(ctx context.Context) (*NextEventResponse, error) {
 		return nil, fmt.Errorf("request failed with status %s", httpRes.Status)
 	}
 	defer httpRes.Body.Close()
-	body, err := ioutil.ReadAll(httpRes.Body)
+	body, err := io.ReadAll(httpRes.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +194,8 @@ func Start(port string) {
 
 func startHTTPServer(port string) {
 	http.HandleFunc("/api/beta/sketches", func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		nbHitMetrics++
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			fmt.Printf("Error while reading HTTP request body: %s \n", err)
 			return
@@ -199,18 +206,20 @@ func startHTTPServer(port string) {
 			return
 		}
 
-		for _, sketch := range pl.Sketches {
-			sort.Strings(sketch.Tags)
-			jsonSketch, err := json.Marshal(sketch)
+		outputSketches = append(outputSketches, pl.Sketches...)
+
+		if nbHitMetrics == 3 {
+			// two calls + shutdown
+			jsonSketch, err := json.Marshal(outputSketches)
 			if err != nil {
 				fmt.Printf("Error while JSON encoding the sketch")
 			}
-			fmt.Printf("[sketch] %s \n", string(jsonSketch))
+			fmt.Printf("%s%s%s\n", "BEGINMETRIC", string(jsonSketch), "ENDMETRIC")
 		}
 	})
 
 	http.HandleFunc("/api/v2/logs", func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return
 		}
@@ -222,24 +231,32 @@ func startHTTPServer(port string) {
 		if err := json.Unmarshal(decompressedBody, &messages); err != nil {
 			return
 		}
+
 		for _, log := range messages {
-			sortedTags := strings.Split(log.Tags, ",")
-			sort.Strings(sortedTags)
-			log.Tags = strings.Join(sortedTags, ",")
-			jsonLog, err := json.Marshal(log)
-			if err != nil {
-				fmt.Printf("Error while JSON encoding the Log")
+			msg := log.Message.Message
+			if strings.Contains(msg, "BEGINMETRIC") || strings.Contains(msg, "BEGINLOG") || strings.Contains(msg, "BEGINTRACE") {
+				continue
 			}
-			stringJsonLog := string(jsonLog)
-			// if we log an unwanted log, it will be available in the next log api payload -> infinite loop
-			if !strings.Contains(stringJsonLog, "[log]") && !strings.Contains(stringJsonLog, "[metric]") {
-				fmt.Printf("[log] %s\n", stringJsonLog)
+			if strings.HasPrefix(msg, "REPORT RequestId:") {
+				nbReport++
 			}
+			outputLogs = append(outputLogs, log)
 		}
+
+		if nbReport == 2 && !hasBeenOutput {
+			jsonLogs, err := json.Marshal(outputLogs)
+			if err != nil {
+				fmt.Printf("Error while JSON encoding the logs")
+			}
+			fmt.Printf("%s%s%s\n", "BEGINLOG", string(jsonLogs), "ENDLOG")
+			hasBeenOutput = true // make sure not re re-output the logs
+		}
+
 	})
 
 	http.HandleFunc("/api/v0.2/traces", func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		nbHitTraces++
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return
 		}
@@ -247,18 +264,20 @@ func startHTTPServer(port string) {
 		if err != nil {
 			return
 		}
-
-		pl := new(pb.TracePayload)
+		pl := new(pb.AgentPayload)
 		if err := pl.Unmarshal(decompressedBody); err != nil {
 			fmt.Printf("Error while unmarshalling traces %s \n", err)
 			return
 		}
-		for _, trace := range pl.Traces {
-			jsonTrace, err := json.Marshal(trace)
+
+		outputTraces = append(outputTraces, pl.TracerPayloads...)
+
+		if nbHitTraces == 2 {
+			jsonLogs, err := json.Marshal(outputTraces)
 			if err != nil {
-				return
+				fmt.Printf("Error while JSON encoding the traces")
 			}
-			fmt.Printf("[trace] %s\n", string(jsonTrace))
+			fmt.Printf("%s%s%s\n", "BEGINTRACE", string(jsonLogs), "ENDTRACE")
 		}
 	})
 

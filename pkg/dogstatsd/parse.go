@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -24,6 +30,9 @@ var (
 	fieldSeparator = []byte("|")
 	colonSeparator = []byte(":")
 	commaSeparator = []byte(",")
+
+	// containerIDFieldPrefix is the prefix for a common field holding the sender's container ID
+	containerIDFieldPrefix = []byte("c:")
 )
 
 // parser parses dogstatsd messages
@@ -31,14 +40,25 @@ var (
 type parser struct {
 	interner    *stringInterner
 	float64List *float64ListPool
+
+	// dsdOriginEnabled controls whether the server should honor the container id sent by the
+	// client. Defaulting to false, this opt-in flag is used to avoid changing tags cardinality
+	// for existing installations.
+	dsdOriginEnabled bool
+
+	// readTimestamps is true if the parser has to read timestamps from messages.
+	readTimestamps bool
 }
 
 func newParser(float64List *float64ListPool) *parser {
 	stringInternerCacheSize := config.Datadog.GetInt("dogstatsd_string_interner_size")
+	readTimestamps := config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:    newStringInterner(stringInternerCacheSize),
-		float64List: float64List,
+		interner:         newStringInterner(stringInternerCacheSize),
+		readTimestamps:   readTimestamps,
+		float64List:      float64List,
+		dsdOriginEnabled: config.Datadog.GetBool("dogstatsd_origin_detection_client"),
 	}
 }
 
@@ -85,6 +105,7 @@ func (p *parser) parseTags(rawTags []byte) []string {
 	return tagsList
 }
 
+// parseMetricSample parses the given message and return the dogstatsdMetricSample read.
 func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
 	// fast path to eliminate most of the gibberish
 	// especially important here since all the unidentified garbage gets
@@ -105,11 +126,13 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		return dogstatsdMetricSample{}, err
 	}
 
+	// read metric values
+
 	var setValue []byte
 	var values []float64
 	var value float64
 	if metricType == setType {
-		setValue = rawValue
+		setValue = rawValue // special case for the set type, we obviously don't support multiple values for this type
 	} else {
 		// In case the list contains only one value, dogstatsd 1.0
 		// protocol, we directly parse it as a float64. This avoids
@@ -125,29 +148,55 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		}
 	}
 
+	// now, look for extra fields supported by dogstatsd
+	// sample rate, tags, container ID, timestamp, ...
+
 	sampleRate := 1.0
 	var tags []string
+	var containerID []byte
 	var optionalField []byte
+	var timestamp time.Time
 	for message != nil {
 		optionalField, message = nextField(message)
-		if bytes.HasPrefix(optionalField, tagsFieldPrefix) {
+		switch {
+		// tags
+		case bytes.HasPrefix(optionalField, tagsFieldPrefix):
 			tags = p.parseTags(optionalField[1:])
-		} else if bytes.HasPrefix(optionalField, sampleRateFieldPrefix) {
+		// sample rate
+		case bytes.HasPrefix(optionalField, sampleRateFieldPrefix):
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
 			if err != nil {
 				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd sample rate %q", optionalField)
 			}
+		// timestamp
+		case bytes.HasPrefix(optionalField, timestampFieldPrefix):
+			if !p.readTimestamps {
+				continue
+			}
+			ts, err := strconv.ParseInt(string(optionalField[len(timestampFieldPrefix):]), 10, 0)
+			if err != nil {
+				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd timestamp %q: %v", optionalField[len(timestampFieldPrefix):], err)
+			}
+			if ts < 1 {
+				return dogstatsdMetricSample{}, fmt.Errorf("dogstatsd timestamp should be > 0")
+			}
+			timestamp = time.Unix(ts, 0)
+		// container ID
+		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
+			containerID = p.extractContainerID(optionalField)
 		}
 	}
 
 	return dogstatsdMetricSample{
-		name:       p.interner.LoadOrStore(name),
-		value:      value,
-		values:     values,
-		setValue:   string(setValue),
-		metricType: metricType,
-		sampleRate: sampleRate,
-		tags:       tags,
+		name:        p.interner.LoadOrStore(name),
+		value:       value,
+		values:      values,
+		setValue:    string(setValue),
+		metricType:  metricType,
+		sampleRate:  sampleRate,
+		tags:        tags,
+		containerID: containerID,
+		ts:          timestamp,
 	}, nil
 }
 
@@ -186,6 +235,11 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 		return nil, fmt.Errorf("no value found")
 	}
 	return values, nil
+}
+
+// extractContainerID parses the value of the container ID field.
+func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
+	return rawContainerIDField[len(containerIDFieldPrefix):]
 }
 
 // the std API does not have methods to do []byte => float parsing

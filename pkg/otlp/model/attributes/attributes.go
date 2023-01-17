@@ -16,10 +16,9 @@ package attributes
 
 import (
 	"fmt"
-	"strings"
 
-	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
 var (
@@ -114,41 +113,41 @@ var (
 
 // TagsFromAttributes converts a selected list of attributes
 // to a tag list that can be added to metrics.
-func TagsFromAttributes(attrs pdata.AttributeMap) []string {
+func TagsFromAttributes(attrs pcommon.Map) []string {
 	tags := make([]string, 0, attrs.Len())
 
 	var processAttributes processAttributes
 	var systemAttributes systemAttributes
 
-	attrs.Range(func(key string, value pdata.AttributeValue) bool {
+	attrs.Range(func(key string, value pcommon.Value) bool {
 		switch key {
 		// Process attributes
 		case conventions.AttributeProcessExecutableName:
-			processAttributes.ExecutableName = value.StringVal()
+			processAttributes.ExecutableName = value.Str()
 		case conventions.AttributeProcessExecutablePath:
-			processAttributes.ExecutablePath = value.StringVal()
+			processAttributes.ExecutablePath = value.Str()
 		case conventions.AttributeProcessCommand:
-			processAttributes.Command = value.StringVal()
+			processAttributes.Command = value.Str()
 		case conventions.AttributeProcessCommandLine:
-			processAttributes.CommandLine = value.StringVal()
+			processAttributes.CommandLine = value.Str()
 		case conventions.AttributeProcessPID:
-			processAttributes.PID = value.IntVal()
+			processAttributes.PID = value.Int()
 		case conventions.AttributeProcessOwner:
-			processAttributes.Owner = value.StringVal()
+			processAttributes.Owner = value.Str()
 
 		// System attributes
 		case conventions.AttributeOSType:
-			systemAttributes.OSType = value.StringVal()
+			systemAttributes.OSType = value.Str()
 		}
 
 		// conventions mapping
-		if datadogKey, found := conventionsMapping[key]; found && value.StringVal() != "" {
-			tags = append(tags, fmt.Sprintf("%s:%s", datadogKey, value.StringVal()))
+		if datadogKey, found := conventionsMapping[key]; found && value.Str() != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", datadogKey, value.Str()))
 		}
 
 		// Kubernetes labels mapping
-		if datadogKey, found := kubernetesMapping[key]; found && value.StringVal() != "" {
-			tags = append(tags, fmt.Sprintf("%s:%s", datadogKey, value.StringVal()))
+		if datadogKey, found := kubernetesMapping[key]; found && value.Str() != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", datadogKey, value.Str()))
 		}
 		return true
 	})
@@ -159,21 +158,29 @@ func TagsFromAttributes(attrs pdata.AttributeMap) []string {
 	return tags
 }
 
+// OriginIDFromAttributes gets the origin IDs from resource attributes.
+// If not found, an empty string is returned for each of them.
+func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
+	// originID is always empty. Container ID is preferred over Kubernetes pod UID.
+	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
+	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
+		originID = "container_id://" + containerID.AsString()
+	} else if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
+		originID = "kubernetes_pod_uid://" + podUID.AsString()
+	}
+	return
+}
+
 // ContainerTagFromAttributes extracts the value of _dd.tags.container from the given
 // set of attributes.
-func ContainerTagFromAttributes(attr map[string]string) string {
-	var str strings.Builder
+func ContainerTagFromAttributes(attr map[string]string) map[string]string {
+	ddtags := make(map[string]string)
 	for _, key := range containerTagsAttributes {
 		val, ok := attr[key]
 		if !ok {
 			continue
 		}
-		if str.Len() > 0 {
-			str.WriteByte(',')
-		}
-		str.WriteString(conventionsMapping[key])
-		str.WriteByte(':')
-		str.WriteString(val)
+		ddtags[conventionsMapping[key]] = val
 	}
-	return str.String()
+	return ddtags
 }

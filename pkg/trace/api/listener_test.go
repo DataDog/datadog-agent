@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import (
@@ -5,9 +10,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 type mockNetError struct{ timeout bool }
@@ -110,9 +116,8 @@ func TestMockListener(t *testing.T) {
 
 func TestMeasuredListener(t *testing.T) {
 	assert := assert.New(t)
-	stats := &testutil.TestStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
+	stats := &teststatsd.Client{}
+	defer testutil.WithStatsClient(stats)()
 
 	var mockln mockListener
 	ln := NewMeasuredListener(&mockln, "test-metric").(*measuredListener)

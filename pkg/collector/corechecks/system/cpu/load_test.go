@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package cpu
@@ -9,17 +10,17 @@ package cpu
 import (
 	"testing"
 
+	"github.com/shirou/gopsutil/v3/load"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/shirou/gopsutil/load"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-var (
-	avgSample = load.AvgStat{
-		Load1:  0.83,
-		Load5:  0.96,
-		Load15: 1.15,
-	}
-)
+var avgSample = load.AvgStat{
+	Load1:  0.83,
+	Load5:  0.96,
+	Load15: 1.15,
+}
 
 func Avg() (*load.AvgStat, error) {
 	return &avgSample, nil
@@ -29,7 +30,7 @@ func TestLoadCheckLinux(t *testing.T) {
 	loadAvg = Avg
 	cpuInfo = CPUInfo
 	loadCheck := new(LoadCheck)
-	loadCheck.Configure(nil, nil, "test")
+	loadCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(loadCheck.ID())
 

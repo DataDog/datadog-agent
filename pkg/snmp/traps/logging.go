@@ -6,8 +6,9 @@
 package traps
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // trapLogger is a GoSNMP logger interface implementation.

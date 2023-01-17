@@ -7,11 +7,9 @@ golang_deps_generate:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["linux_x64_go_deps"]
+  needs: ["go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - python3 -m pip install --upgrade --ignore-installed pip setuptools
-    - python3 -m pip install -r requirements.txt
   script:
     - inv agent.build-dep-tree
     - tar -czf dependency_tree.tgz dependency_tree.txt

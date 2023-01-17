@@ -7,7 +7,6 @@ import shutil
 from distutils.dir_util import copy_tree
 
 from .build_tags import filter_incompatible_tags, get_build_tags
-from .go import generate
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 
@@ -36,10 +35,7 @@ def build_common(
     build_tags = get_build_tags(build_include, build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca')
-
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
+    ldflags, gcflags, env = get_build_flags(ctx, static=False)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent{suffix}"
@@ -104,4 +100,4 @@ def version_common(ctx, url_safe, git_sha_length):
     """
     Get the agent version.
     """
-    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, prefix='dca'))
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))

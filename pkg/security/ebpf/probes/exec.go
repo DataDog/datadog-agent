@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -11,6 +12,27 @@ import manager "github.com/DataDog/ebpf-manager"
 
 // execProbes holds the list of probes used to track processes execution
 var execProbes = []*manager.Probe{
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/prepare_binprm",
+			EBPFFuncName: "kprobe_prepare_binprm",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/bprm_execve",
+			EBPFFuncName: "kprobe_bprm_execve",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/security_bprm_check",
+			EBPFFuncName: "kprobe_security_bprm_check",
+		},
+	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
@@ -84,29 +106,29 @@ var execProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/prepare_binprm",
-			EBPFFuncName: "kprobe_prepare_binprm",
+			EBPFSection:  "kprobe/setup_new_exec",
+			EBPFFuncName: "kprobe_setup_new_exec_interp",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID + "_a",
+			EBPFSection:  "kprobe/setup_new_exec",
+			EBPFFuncName: "kprobe_setup_new_exec_args_envs",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/bprm_execve",
-			EBPFFuncName: "kprobe_bprm_execve",
+			EBPFSection:  "kprobe/setup_arg_pages",
+			EBPFFuncName: "kprobe_setup_arg_pages",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_bprm_check",
-			EBPFFuncName: "kprobe_security_bprm_check",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_bprm_committed_creds",
-			EBPFFuncName: "kprobe_security_bprm_committed_creds",
+			EBPFSection:  "kprobe/mprotect_fixup",
+			EBPFFuncName: "kprobe_mprotect_fixup",
 		},
 	},
 	{
@@ -114,6 +136,34 @@ var execProbes = []*manager.Probe{
 			UID:          SecurityAgentUID,
 			EBPFSection:  "kprobe/commit_creds",
 			EBPFFuncName: "kprobe_commit_creds",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/__task_pid_nr_ns",
+			EBPFFuncName: "kretprobe__task_pid_nr_ns",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/alloc_pid",
+			EBPFFuncName: "kretprobe_alloc_pid",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/switch_task_namespaces",
+			EBPFFuncName: "kprobe_switch_task_namespaces",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_coredump",
+			EBPFFuncName: "kprobe_do_coredump",
 		},
 	},
 }
@@ -130,6 +180,30 @@ func getExecProbes() []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execveat",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "fork",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "vfork",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "clone",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "clone3",
 	}, Entry)...)
 
 	for _, name := range []string{
@@ -167,19 +241,30 @@ func getExecProbes() []*manager.Probe {
 }
 
 func getExecTailCallRoutes() []manager.TailCallRoute {
-	var routes []manager.TailCallRoute
-
-	for i := uint32(0); i != 10; i++ {
-		route := manager.TailCallRoute{
+	return []manager.TailCallRoute{
+		{
 			ProgArrayName: "args_envs_progs",
-			Key:           i,
+			Key:           ExecGetEnvsOffsetKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/get_envs_offset",
+				EBPFFuncName: "kprobe_get_envs_offset",
+			},
+		},
+		{
+			ProgArrayName: "args_envs_progs",
+			Key:           ExecParseArgsEnvsSplitKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/parse_args_envs_split",
+				EBPFFuncName: "kprobe_parse_args_envs_split",
+			},
+		},
+		{
+			ProgArrayName: "args_envs_progs",
+			Key:           ExecParseArgsEnvsKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  "kprobe/parse_args_envs",
 				EBPFFuncName: "kprobe_parse_args_envs",
 			},
-		}
-		routes = append(routes, route)
+		},
 	}
-
-	return routes
 }

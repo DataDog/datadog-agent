@@ -11,12 +11,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-// Marshaler is an interface for metrics that are able to serialize themselves to JSON and protobuf
-type Marshaler interface {
-	JSONMarshaler
-	ProtoMarshaler
-}
-
 // JSONMarshaler is a AbstractMarshaler that implement JSON marshaling.
 type JSONMarshaler interface {
 	AbstractMarshaler
@@ -37,19 +31,33 @@ type ProtoMarshaler interface {
 type AbstractMarshaler interface {
 	// SplitPayload breaks the payload into times number of pieces
 	SplitPayload(int) ([]AbstractMarshaler, error)
-
-	// MarshalSplitCompress uses the stream compressor to marshal and compress payloads.
-	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
 }
 
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
 type StreamJSONMarshaler interface {
-	JSONMarshaler
 	WriteHeader(*jsoniter.Stream) error
 	WriteFooter(*jsoniter.Stream) error
 	WriteItem(*jsoniter.Stream, int) error
 	Len() int
 	DescribeItem(i int) string
+}
+
+// IterableStreamJSONMarshaler is an interface for iterable metrics that are able to
+// serialize themselves in a stream.
+// Expected usage:
+//
+//	m.WriteHeader(stream)
+//	for m.MoveNext() {
+//		m.WriteCurrentItem(stream)
+//  }
+//	m.WriteFooter(stream)
+type IterableStreamJSONMarshaler interface {
+	WriteHeader(*jsoniter.Stream) error
+	WriteFooter(*jsoniter.Stream) error
+	WriteCurrentItem(*jsoniter.Stream) error
+	DescribeCurrentItem() string
+	MoveNext() bool
+	GetCurrentItemPointCount() int
 }
 
 // BufferContext contains the buffers used for MarshalSplitCompress so they can be shared between invocations

@@ -1,4 +1,4 @@
-/// Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -15,7 +15,10 @@ import (
 )
 
 // ProfilingRuntimeSetting wraps operations to change log level at runtime
-type ProfilingRuntimeSetting string
+type ProfilingRuntimeSetting struct {
+	SettingName string
+	Service     string
+}
 
 // Description returns the runtime setting's description
 func (l ProfilingRuntimeSetting) Description() string {
@@ -29,7 +32,7 @@ func (l ProfilingRuntimeSetting) Hidden() bool {
 
 // Name returns the name of the runtime setting
 func (l ProfilingRuntimeSetting) Name() string {
-	return string(l)
+	return l.SettingName
 }
 
 // Get returns the current value of the runtime setting
@@ -63,7 +66,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		}
 
 		// allow full url override for development use
-		site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
+		site := fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 		if config.Datadog.IsSet("internal_profiling.profile_dd_url") {
 			site = config.Datadog.GetString("internal_profiling.profile_dd_url")
 		}
@@ -71,14 +74,17 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		// Note that we must derive a new profiling.Settings on every
 		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
+		service := l.Service
+
 		settings := profiling.Settings{
-			Site:                 site,
+			ProfilingURL:         site,
 			Env:                  config.Datadog.GetString("env"),
-			Service:              "datadog-agent",
-			Period:               profiling.DefaultProfilingPeriod,
+			Service:              service,
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
 			MutexProfileFraction: profiling.GetMutexProfileFraction(),
 			BlockProfileRate:     profiling.GetBlockProfileRate(),
 			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+			WithDeltaProfiles:    config.Datadog.GetBool("internal_profiling.delta_profiles"),
 			Tags:                 []string{fmt.Sprintf("version:%v", v)},
 		}
 		err := profiling.Start(settings)

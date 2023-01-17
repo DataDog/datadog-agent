@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -17,7 +16,11 @@ import (
 func TestGrain(t *testing.T) {
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr := NewAggregationFromSpan(&s, "", "default", "default", "cid")
+	aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+		Env:         "default",
+		Hostname:    "default",
+		ContainerID: "cid",
+	})
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Env:         "default",
@@ -34,8 +37,13 @@ func TestGrain(t *testing.T) {
 
 func TestGrainWithExtraTags(t *testing.T) {
 	assert := assert.New(t)
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagVersion: "v0", tagStatusCode: "418"}}
-	aggr := NewAggregationFromSpan(&s, "synthetics-browser", "default", "host-id", "cid")
+	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagStatusCode: "418"}}
+	aggr := NewAggregationFromSpan(&s, "synthetics-browser", PayloadAggregationKey{
+		Hostname:    "host-id",
+		Version:     "v0",
+		Env:         "default",
+		ContainerID: "cid",
+	})
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Hostname:    "host-id",
@@ -58,11 +66,8 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		root := traceutil.GetRoot(benchSpans)
-		traceutil.ComputeTopLevel(benchSpans)
-		wt := NewWeightedTrace(spansToTraceChunk(benchSpans), root, "")
-		for _, span := range wt.Spans {
-			sb.HandleSpan(span, "", "dev", "hostname", "cid")
+		for _, span := range benchSpans {
+			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"})
 		}
 	}
 }

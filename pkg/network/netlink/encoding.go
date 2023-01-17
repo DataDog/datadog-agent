@@ -1,23 +1,28 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
-// +build !android
 
 package netlink
 
 import (
 	"encoding/binary"
 
-	ct "github.com/florianl/go-conntrack"
 	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nlenc"
+
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // EncodeConn netlink encodes a `Con` object
 func EncodeConn(conn *Con) ([]byte, error) {
 	ae := netlink.NewAttributeEncoder()
 	var err error
-	if conn.Con.Origin != nil {
+	if !conn.Origin.IsZero() {
 		ae.Nested(ctaTupleOrig, func(nae *netlink.AttributeEncoder) error {
-			err = marshalIPTuple(nae, conn.Con.Origin)
+			err = marshalIPTuple(nae, &conn.Origin)
 			return err
 		})
 
@@ -26,9 +31,9 @@ func EncodeConn(conn *Con) ([]byte, error) {
 		}
 	}
 
-	if conn.Con.Reply != nil {
+	if !conn.Reply.IsZero() {
 		ae.Nested(ctaTupleReply, func(nae *netlink.AttributeEncoder) error {
-			err = marshalIPTuple(nae, conn.Con.Reply)
+			err = marshalIPTuple(nae, &conn.Reply)
 			return err
 		})
 
@@ -40,33 +45,35 @@ func EncodeConn(conn *Con) ([]byte, error) {
 	return ae.Encode()
 }
 
-func marshalIPTuple(ae *netlink.AttributeEncoder, tuple *ct.IPTuple) error {
+func marshalIPTuple(ae *netlink.AttributeEncoder, tuple *ConTuple) error {
 	var err error
 	ae.Nested(ctaTupleIP, func(nae *netlink.AttributeEncoder) error {
-		if tuple.Src != nil {
-			i4 := tuple.Src.To4()
-			if i4 != nil {
-				nae.Bytes(ctaIPv4Src, i4)
+		if !AddrIsZero(tuple.Src.Addr()) {
+			if tuple.Src.Addr().Is4() || tuple.Src.Addr().Is4In6() {
+				b := tuple.Src.Addr().As4()
+				nae.Bytes(ctaIPv4Src, b[:])
 			} else {
-				nae.Bytes(ctaIPv6Src, *tuple.Src)
+				b := tuple.Src.Addr().As16()
+				nae.Bytes(ctaIPv6Src, b[:])
 			}
 		}
 
-		if tuple.Dst != nil {
-			i4 := tuple.Dst.To4()
-			if i4 != nil {
-				nae.Bytes(ctaIPv4Dst, i4)
+		if !AddrIsZero(tuple.Dst.Addr()) {
+			if tuple.Dst.Addr().Is4() || tuple.Dst.Addr().Is4In6() {
+				b := tuple.Dst.Addr().As4()
+				nae.Bytes(ctaIPv4Dst, b[:])
 			} else {
-				nae.Bytes(ctaIPv6Dst, *tuple.Dst)
+				b := tuple.Dst.Addr().As16()
+				nae.Bytes(ctaIPv6Dst, b[:])
 			}
 		}
 
 		return nil
 	})
 
-	if tuple.Proto != nil {
+	if tuple.Proto != 0 {
 		ae.Nested(ctaTupleProto, func(nae *netlink.AttributeEncoder) error {
-			err = marshalProto(nae, tuple.Proto)
+			err = marshalProto(nae, tuple)
 			return err
 		})
 
@@ -78,11 +85,11 @@ func marshalIPTuple(ae *netlink.AttributeEncoder, tuple *ct.IPTuple) error {
 	return err
 }
 
-func marshalProto(ae *netlink.AttributeEncoder, proto *ct.ProtoTuple) error {
+func marshalProto(ae *netlink.AttributeEncoder, tuple *ConTuple) error {
 	ae.ByteOrder = binary.BigEndian
-	ae.Uint8(ctaProtoNum, *proto.Number)
-	ae.Uint16(ctaProtoSrcPort, *proto.SrcPort)
-	ae.Uint16(ctaProtoDstPort, *proto.DstPort)
-	ae.ByteOrder = nlenc.NativeEndian()
+	ae.Uint8(ctaProtoNum, tuple.Proto)
+	ae.Uint16(ctaProtoSrcPort, tuple.Src.Port())
+	ae.Uint16(ctaProtoDstPort, tuple.Dst.Port())
+	ae.ByteOrder = native.Endian
 	return nil
 }

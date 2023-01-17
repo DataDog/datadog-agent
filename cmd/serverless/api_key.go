@@ -9,12 +9,16 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // encryptionContextKey is the key added to the encryption context by the Lambda console UI
@@ -22,6 +26,12 @@ const encryptionContextKey = "LambdaFunctionName"
 
 // functionNameEnvVar is the environment variable that stores the function name.
 const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+
+// kmsKeySuffix is the suffix of all environment variables which should be decrypted by KMS
+const kmsKeySuffix = "_KMS_ENCRYPTED"
+
+// secretArnSuffix is the suffix of all environment variables which should be decrypted by secrets manager
+const secretArnSuffix = "_SECRET_ARN"
 
 // decryptKMS decodes and deciphers the base64-encoded ciphertext given as a parameter using KMS.
 // For this to work properly, the Lambda function must have the appropriate IAM permissions.
@@ -63,13 +73,15 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 
 // readAPIKeyFromKMS gets and decrypts an API key encrypted with KMS if the env var DD_KMS_API_KEY has been set.
 // If none has been set, it returns an empty string and a nil error.
-func readAPIKeyFromKMS() (string, error) {
-	cipherText := os.Getenv(kmsAPIKeyEnvVar)
+func readAPIKeyFromKMS(cipherText string) (string, error) {
 	if cipherText == "" {
 		return "", nil
 	}
-	log.Debugf("Found %s, trying to decipher it.", kmsAPIKeyEnvVar)
-	kmsClient := kms.New(session.New(nil))
+	sess, err := session.NewSession(nil)
+	if err != nil {
+		return "", err
+	}
+	kmsClient := kms.New(sess)
 	plaintext, err := decryptKMS(kmsClient, cipherText)
 	if err != nil {
 		return "", fmt.Errorf("decryptKMS error: %s", err)
@@ -79,13 +91,23 @@ func readAPIKeyFromKMS() (string, error) {
 
 // readAPIKeyFromSecretsManager reads an API Key from AWS Secrets Manager if the env var DD_API_KEY_SECRET_ARN has been set.
 // If none has been set, it returns an empty string and a nil error.
-func readAPIKeyFromSecretsManager() (string, error) {
-	arn := os.Getenv(secretsManagerAPIKeyEnvVar)
+func readAPIKeyFromSecretsManager(arn string) (string, error) {
 	if arn == "" {
 		return "", nil
 	}
-	log.Debugf("Found %s value, trying to use it.", secretsManagerAPIKeyEnvVar)
-	secretsManagerClient := secretsmanager.New(session.New(nil))
+	log.Debugf("Found %s value, trying to use it.", arn)
+
+	region, err := extractRegionFromSecretsManagerArn(arn)
+	if err != nil {
+		return "", err
+	}
+
+	sess, err := session.NewSession(nil)
+	if err != nil {
+		return "", err
+	}
+
+	secretsManagerClient := secretsmanager.New(sess, aws.NewConfig().WithRegion(region))
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
 
@@ -108,4 +130,20 @@ func readAPIKeyFromSecretsManager() (string, error) {
 	// should not happen but let's handle this gracefully
 	log.Warn("Secrets Manager returned something but there seems to be no data available")
 	return "", nil
+}
+
+func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error) {
+	arnObject, err := arn.Parse(secretsManagerArn)
+	if err != nil {
+		return "", fmt.Errorf("could not extract region from arn: %s. %s", secretsManagerArn, err)
+	}
+
+	regionRegex := `\w*-\w*-\d{1}`
+	re := regexp.MustCompile(regionRegex)
+	matches := re.FindStringSubmatch(arnObject.Region)
+	if len(matches) == 0 {
+		return "", fmt.Errorf("region %s found in arn %s is not a valid region format", arnObject.Region, secretsManagerArn)
+	}
+
+	return arnObject.Region, nil
 }

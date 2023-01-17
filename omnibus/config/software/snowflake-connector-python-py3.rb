@@ -1,18 +1,26 @@
+# We need to build the snowflake-connector-python wheel separately because this is the only way to build
+# it on CentOS 6.
+# manylinux2014 wheels (min. requirement: glibc 2.17) do not support CentOS 6 (glibc 2.12). Therefore, when
+# installed by pip on CentOS 6, the wheel is manually compiled. This fails because of a pyarrow build dependency
+# that fails to build (defined in pyproject.toml), hence the need to have a separate software definition where we
+# modify the wheel build.
+
 name "snowflake-connector-python-py3"
+default_version "2.8.2"
 
 dependency "pip3"
 
-default_version "2.6.0"
-
-
 source :url => "https://github.com/snowflakedb/snowflake-connector-python/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "bb7af6933bdd6b8b105dac304de66fdb03e0b17378d588b5be6f1026b6ce3674",
+       :sha256 => "2920e32145c500cb4953b08cf55f09729d731f8c0f49922144372ac8a2e3057b",
        :extract => :seven_zip
 
 relative_path "snowflake-connector-python-#{version}"
 
 build do
-  # This introduces a pyarrow dependency that is not needed for the agent and fails to build on SUSE
+  license "Apache-2.0"
+  license_file "./LICENSE.txt"
+
+  # This introduces a pyarrow dependency that is not needed for the agent and fails to build on the CentOS 6 builder.
   delete "pyproject.toml"
 
   if windows?
@@ -21,7 +29,4 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-
-  ship_license "https://raw.githubusercontent.com/snowflakedb/snowflake-connector-python/v#{version}/LICENSE.txt"
-  command "#{pip} install ."
 end

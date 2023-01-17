@@ -6,64 +6,34 @@
 package main
 
 import (
-	_ "expvar"
-	"fmt"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
-	// serverlessAgentCmd is the root command
-	serverlessAgentCmd = &cobra.Command{
-		Use:   "agent [command]",
-		Short: "Serverless Datadog Agent at your service.",
-		Long: `
-Datadog Serverless Agent accepts custom application metrics points over UDP, aggregates and forwards them to Datadog,
-where they can be graphed on dashboards. The Datadog Serverless Agent implements the StatsD protocol, along with a few extensions for special Datadog features.`,
-	}
-
-	runCmd = &cobra.Command{
-		Use:   "run",
-		Short: "Runs the Serverless Datadog Agent",
-		Long:  `Runs the Serverless Datadog Agent`,
-		RunE:  run,
-	}
-
-	versionCmd = &cobra.Command{
-		Use:   "version",
-		Short: "Print the version number",
-		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.Agent()
-			fmt.Printf("Serverless Datadog Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s\n",
-				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version())
-		},
-	}
-
 	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
 	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
 	apiKeyEnvVar               = "DD_API_KEY"
@@ -88,7 +58,7 @@ const (
 	// to calls from the client libraries and to logs from the AWS environment.
 	httpServerAddr = ":8124"
 
-	logsAPIRegistrationRoute   = "/2020-08-15/logs"
+	logsAPIRegistrationRoute   = "/2022-07-01/telemetry"
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
@@ -97,41 +67,23 @@ const (
 	logsAPIMaxItems            = 1000
 )
 
-func init() {
-	// attach the command to the root
-	serverlessAgentCmd.AddCommand(runCmd)
-	serverlessAgentCmd.AddCommand(versionCmd)
-}
-
-func run(cmd *cobra.Command, args []string) error {
+func main() {
+	flavor.SetFlavor(flavor.ServerlessAgent)
+	config.Datadog.Set("use_v2_api.series", false)
 	stopCh := make(chan struct{})
 
 	// run the agent
 	serverlessDaemon, err := runAgent(stopCh)
 	if err != nil {
-		return err
+		log.Error(err)
+		os.Exit(-1)
 	}
 
-	// handle SIGTERM
+	// handle SIGTERM signal
 	go handleSignals(serverlessDaemon, stopCh)
 
 	// block here until we receive a stop signal
 	<-stopCh
-	return nil
-}
-
-func main() {
-	flavor.SetFlavor(flavor.ServerlessAgent)
-
-	// if not command has been provided, run the agent
-	if len(os.Args) == 1 {
-		os.Args = append(os.Args, "run")
-	}
-
-	if err := serverlessAgentCmd.Execute(); err != nil {
-		log.Error(err)
-		os.Exit(-1)
-	}
 }
 
 func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error) {
@@ -160,13 +112,16 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}
 
+	outputDatadogEnvVariablesForDebugging()
+
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
-	err = serverlessDaemon.RestoreCurrentStateFromFile()
+	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Unable to restore the state from file")
 	} else {
-		serverlessDaemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+		serverlessDaemon.ComputeGlobalTags(config.GetGlobalConfiguredTags(true))
+		serverlessDaemon.StartLogCollection()
 	}
 	// serverless parts
 	// ----------------
@@ -185,7 +140,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// ---------------
 
 	// API key reading priority:
-	// KSM > Secrets Manager > Plaintext API key
+	// KMS > Secrets Manager > Plaintext API key
 	// If one is set but failing, the next will be tried
 
 	// some useful warnings first
@@ -205,10 +160,14 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
+	// Set secrets from the environment that are suffixed with
+	// KMS_ENCRYPTED or SECRET_ARN
+	setSecretsFromEnv(os.Environ())
+
 	// try to read API key from KMS
 
 	var apiKey string
-	if apiKey, err = readAPIKeyFromKMS(); err != nil {
+	if apiKey, err = readAPIKeyFromKMS(os.Getenv(kmsAPIKeyEnvVar)); err != nil {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
 		log.Info("Using deciphered KMS API Key.")
@@ -218,7 +177,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// try to read the API key from Secrets Manager, only if not set from KMS
 
 	if apiKey == "" {
-		if apiKey, err = readAPIKeyFromSecretsManager(); err != nil {
+		if apiKey, err = readAPIKeyFromSecretsManager(os.Getenv(secretsManagerAPIKeyEnvVar)); err != nil {
 			log.Errorf("Error while trying to read an API Key from Secrets Manager: %s", err)
 		} else if apiKey != "" {
 			log.Info("Using API key set in Secrets Manager.")
@@ -240,7 +199,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
 	// ---------------------------
-
 	if !config.Datadog.IsSet("api_key") {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
@@ -248,50 +206,103 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// serverless.ReportInitError(serverlessID, serverless.FatalNoAPIKey)
 		log.Error("No API key configured, exiting")
 	}
-
+	config.Datadog.SetConfigFile(datadogConfigPath)
+	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
+	if _, err := config.Load(); err != nil {
+		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
+	}
+	config.LoadProxyFromEnv(config.Datadog)
 	logChannel := make(chan *logConfig.ChannelMessage)
-
+	// Channels for ColdStartCreator
+	lambdaSpanChan := make(chan *pb.Span)
+	initDurationChan := make(chan float64)
+	coldStartSpanId := random.Random.Uint64()
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
+	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), initDurationChan)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Add(1)
+	// Concurrently start heavyweight features
+	var wg sync.WaitGroup
+	wg.Add(3)
 
 	// starts trace agent
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
-		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
+		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
-	// enable logs collection
+	// enable telemetry collection
 	go func() {
 		defer wg.Done()
-		log.Debug("Enabling logs collection HTTP route")
+		log.Debug("Enabling telemetry collection HTTP route")
 		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
-		logRegistrationError := registration.EnableLogsCollection(
-			serverlessID,
-			logRegistrationURL,
-			logsAPIRegistrationTimeout,
-			os.Getenv(logsLogsTypeSubscribed),
-			logsAPIHttpServerPort,
-			logsAPICollectionRoute,
-			logsAPITimeout,
-			logsAPIMaxBytes,
-			logsAPIMaxItems)
+		logRegistrationError := registration.EnableTelemetryCollection(
+			registration.EnableTelemetryCollectionArgs{
+				ID:                  serverlessID,
+				RegistrationURL:     logRegistrationURL,
+				RegistrationTimeout: logsAPIRegistrationTimeout,
+				LogsType:            os.Getenv(logsLogsTypeSubscribed),
+				Port:                logsAPIHttpServerPort,
+				CollectionRoute:     logsAPICollectionRoute,
+				Timeout:             logsAPITimeout,
+				MaxBytes:            logsAPIMaxBytes,
+				MaxItems:            logsAPIMaxItems,
+			})
 
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			setupLogAgent(logChannel)
+			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+		}
+	}()
+
+	// start appsec
+	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
+	go func() {
+		defer wg.Done()
+		appsec, err := appsec.New()
+		if err != nil {
+			log.Error("appsec: could not start: ", err)
+		} else if appsec != nil {
+			log.Info("appsec: started successfully")
+			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
 		}
 	}()
 
 	wg.Wait()
+
+	coldStartSpanCreator := &trace.ColdStartSpanCreator{
+		LambdaSpanChan:   lambdaSpanChan,
+		InitDurationChan: initDurationChan,
+		TraceAgent:       serverlessDaemon.TraceAgent,
+		StopChan:         make(chan struct{}),
+		ColdStartSpanId:  coldStartSpanId,
+	}
+
+	log.Debug("Starting ColdStartSpanCreator")
+	coldStartSpanCreator.Run()
+	log.Debug("Setting ColdStartSpanCreator on Daemon")
+	serverlessDaemon.SetColdStartSpanCreator(coldStartSpanCreator)
+
+	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
+	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:            serverlessDaemon.ExtraTags,
+		Demux:                serverlessDaemon.MetricAgent.Demux,
+		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
+		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
+		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
+		SubProcessor:         httpsecSubProcessor,
+	}
+
+	// start the experimental proxy if enabled
+	_ = proxy.Start(
+		"127.0.0.1:9000",
+		"127.0.0.1:9001",
+		serverlessDaemon.InvocationProcessor,
+	)
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
@@ -327,14 +338,5 @@ func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 			stopCh <- struct{}{}
 			return
 		}
-	}
-}
-
-func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
-	if err := logs.StartServerless(
-		func() *autodiscovery.AutoConfig { return common.AC },
-		logChannel, nil,
-	); err != nil {
-		log.Error("Could not start an instance of the Logs Agent:", err)
 	}
 }

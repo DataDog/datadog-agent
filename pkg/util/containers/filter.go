@@ -60,11 +60,25 @@ const (
 	pauseContainerUpstream = `image:upstream/pause.*`
 	// - cdk/pause-amd64
 	pauseContainerCDK = `image:cdk/pause.*`
+	// - giantswarm/pause
+	pauseContainerGiantSwarm = `image:giantswarm/pause.*`
 
 	// filter prefixes for inclusion/exclusion
 	imageFilterPrefix         = `image:`
 	nameFilterPrefix          = `name:`
 	kubeNamespaceFilterPrefix = `kube_namespace:`
+)
+
+// FilterType indicates the container filter type
+type FilterType string
+
+const (
+	// GlobalFilter is used to cover both MetricsFilter and LogsFilter filter types
+	GlobalFilter FilterType = "GlobalFilter"
+	// MetricsFilter refers to the Metrics filter type
+	MetricsFilter FilterType = "MetricsFilter"
+	// LogsFilter refers to the Logs filter type
+	LogsFilter FilterType = "LogsFilter"
 )
 
 // Filter holds the state for the container filtering logic
@@ -164,6 +178,7 @@ func GetPauseContainerFilter() (*Filter, error) {
 			pauseContainerECR,
 			pauseContainerUpstream,
 			pauseContainerCDK,
+			pauseContainerGiantSwarm,
 		)
 	}
 
@@ -257,6 +272,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerECR,
 			pauseContainerUpstream,
 			pauseContainerCDK,
+			pauseContainerGiantSwarm,
 		)
 	}
 	return NewFilter(includeList, excludeList)
@@ -293,6 +309,8 @@ func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
 
 // IsExcluded returns a bool indicating if the container should be excluded
 // based on the filters in the containerFilter instance.
+// Note: exclude filters are not applied to empty container names, empty
+// images and empty namespaces.
 func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) bool {
 	if !cf.Enabled {
 		return false
@@ -316,19 +334,27 @@ func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) 
 	}
 
 	// Check if excludeListed
-	for _, r := range cf.ImageExcludeList {
-		if r.MatchString(containerImage) {
-			return true
+	if containerImage != "" {
+		for _, r := range cf.ImageExcludeList {
+			if r.MatchString(containerImage) {
+				return true
+			}
 		}
 	}
-	for _, r := range cf.NameExcludeList {
-		if r.MatchString(containerName) {
-			return true
+
+	if containerName != "" {
+		for _, r := range cf.NameExcludeList {
+			if r.MatchString(containerName) {
+				return true
+			}
 		}
 	}
-	for _, r := range cf.NamespaceExcludeList {
-		if r.MatchString(podNamespace) {
-			return true
+
+	if podNamespace != "" {
+		for _, r := range cf.NamespaceExcludeList {
+			if r.MatchString(podNamespace) {
+				return true
+			}
 		}
 	}
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package leaderelection
@@ -75,7 +76,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	callbacks := ld.LeaderCallbacks{
 		OnNewLeader: func(identity string) {
 			le.updateLeaderIdentity(identity)
-			le.reportLeaderMetric(false)
+			le.reportLeaderMetric(identity == le.HolderIdentity)
 			log.Infof("New leader %q", identity)
 		},
 		OnStartedLeading: func(ctx context.Context) {

@@ -9,11 +9,9 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var allowedEnvvarNames = []string{
@@ -23,6 +21,11 @@ var allowedEnvvarNames = []string{
 	"DOCKER_CERT_PATH",
 	"DOCKER_HOST",
 	"DOCKER_TLS_VERIFY",
+
+	// HOST vars used in containerized agent
+	"HOST_ETC",
+	"HOST_PROC",
+	"HOST_ROOT",
 
 	// Proxy settings
 	"HTTP_PROXY",
@@ -55,7 +58,9 @@ var allowedEnvvarNames = []string{
 	"DD_APM_TPS", //deprecated
 	"DD_APM_MAX_TPS",
 	"DD_APM_ERROR_TPS",
-	"DD_APM_DISABLE_RARE_SAMPLER",
+	"DD_APM_ENABLE_RARE_SAMPLER",
+	"DD_APM_DISABLE_RARE_SAMPLER", // deprecated
+	"DD_APM_MAX_REMOTE_TPS",
 	"DD_APM_MAX_MEMORY",
 	"DD_APM_MAX_CPU_PERCENT",
 	"DD_APM_FEATURES",
@@ -66,23 +71,22 @@ var allowedEnvvarNames = []string{
 	"DD_APM_PROFILING_ADDITIONAL_ENDPOINTS",
 
 	// Process agent
-	"DD_PROCESS_AGENT_ENABLED",
 	"DD_PROCESS_AGENT_URL",
 	"DD_SCRUB_ARGS",
 	"DD_CUSTOM_SENSITIVE_WORDS",
 	"DD_STRIP_PROCESS_ARGS",
 	"DD_LOGS_STDOUT",
-	"DD_AGENT_PY",
-	"DD_AGENT_PY_ENV",
 	"LOG_LEVEL",
 	"LOG_TO_CONSOLE",
 	"DD_COLLECT_DOCKER_NETWORK",
 	"DD_CONTAINER_BLACKLIST",
 	"DD_CONTAINER_WHITELIST",
 	"DD_CONTAINER_CACHE_DURATION",
-	"DD_PROCESS_AGENT_CONTAINER_SOURCE",
 	"DD_SYSTEM_PROBE_ENABLED",
 	"DD_SYSTEM_PROBE_NETWORK_ENABLED",
+
+	// CI
+	"DD_INSIDE_CI",
 }
 
 func getAllowedEnvvars() []string {
@@ -109,9 +113,9 @@ func getAllowedEnvvars() []string {
 	return found
 }
 
-// zipEnvvars collects allowed envvars that can affect the agent's
+// getEnvVars collects allowed envvars that can affect the agent's
 // behaviour while not being handled by viper, in addition to the envvars handled by viper
-func zipEnvvars(tempDir, hostname string) error {
+func getEnvVars() ([]byte, error) {
 	envvars := getAllowedEnvvars()
 
 	var b bytes.Buffer
@@ -124,13 +128,5 @@ func zipEnvvars(tempDir, hostname string) error {
 		fmt.Fprintln(&b, "Found no allowed envvar")
 	}
 
-	f := filepath.Join(tempDir, hostname, "envvars.log")
-	w, err := scrubber.NewWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return b.Bytes(), nil
 }

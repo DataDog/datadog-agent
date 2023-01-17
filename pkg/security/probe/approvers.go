@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -16,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-type onApproverHandler func(probe *Probe, approvers rules.Approvers) (activeApprovers, error)
+type onApproverHandler func(approvers rules.Approvers) (activeApprovers, error)
 type activeApprover = activeKFilter
 type activeApprovers = activeKFilters
 
@@ -65,7 +66,7 @@ func approveFlags(tableName string, flags ...int) (activeApprover, error) {
 	return setFlagsFilter(tableName, flags...)
 }
 
-func onNewBasenameApprovers(probe *Probe, eventType model.EventType, field string, approvers rules.Approvers) ([]activeApprover, error) {
+func onNewBasenameApprovers(eventType model.EventType, field string, approvers rules.Approvers) ([]activeApprover, error) {
 	stringValues := func(fvs rules.FilterValues) []string {
 		var values []string
 		for _, v := range fvs {
@@ -82,14 +83,14 @@ func onNewBasenameApprovers(probe *Probe, eventType model.EventType, field strin
 	var basenameApprovers []activeApprover
 	for field, values := range approvers {
 		switch field {
-		case prefix + ".name":
+		case prefix + model.NameSuffix:
 			activeApprovers, err := approveBasenames("basename_approvers", eventType, stringValues(values)...)
 			if err != nil {
 				return nil, err
 			}
 			basenameApprovers = append(basenameApprovers, activeApprovers...)
 
-		case prefix + ".path":
+		case prefix + model.PathSuffix:
 			for _, value := range stringValues(values) {
 				basename := path.Base(value)
 				activeApprover, err := approveBasename("basename_approvers", eventType, basename)
@@ -105,8 +106,8 @@ func onNewBasenameApprovers(probe *Probe, eventType model.EventType, field strin
 }
 
 func onNewBasenameApproversWrapper(event model.EventType) onApproverHandler {
-	return func(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
-		basenameApprovers, err := onNewBasenameApprovers(probe, event, "file", approvers)
+	return func(approvers rules.Approvers) (activeApprovers, error) {
+		basenameApprovers, err := onNewBasenameApprovers(event, "file", approvers)
 		if err != nil {
 			return nil, err
 		}
@@ -115,12 +116,12 @@ func onNewBasenameApproversWrapper(event model.EventType) onApproverHandler {
 }
 
 func onNewTwoBasenamesApproversWrapper(event model.EventType, field1, field2 string) onApproverHandler {
-	return func(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
-		basenameApprovers, err := onNewBasenameApprovers(probe, event, field1, approvers)
+	return func(approvers rules.Approvers) (activeApprovers, error) {
+		basenameApprovers, err := onNewBasenameApprovers(event, field1, approvers)
 		if err != nil {
 			return nil, err
 		}
-		basenameApprovers2, err := onNewBasenameApprovers(probe, event, field2, approvers)
+		basenameApprovers2, err := onNewBasenameApprovers(event, field2, approvers)
 		if err != nil {
 			return nil, err
 		}
@@ -139,4 +140,7 @@ func init() {
 	allApproversHandlers["rmdir"] = onNewBasenameApproversWrapper(model.FileRmdirEventType)
 	allApproversHandlers["unlink"] = onNewBasenameApproversWrapper(model.FileUnlinkEventType)
 	allApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimesEventType)
+	allApproversHandlers["mmap"] = mmapOnNewApprovers
+	allApproversHandlers["mprotect"] = mprotectOnNewApprovers
+	allApproversHandlers["splice"] = spliceOnNewApprovers
 }

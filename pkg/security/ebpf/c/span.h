@@ -18,9 +18,10 @@ struct bpf_map_def SEC("maps/span_tls") span_tls = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct span_tls_t),
     .max_entries = 4096,
-    .pinning = 0,
-    .namespace = "",
 };
+
+// defined in process.h
+u32 get_namespace_nr(u32 root_nr);
 
 int __attribute__((always_inline)) handle_register_span_memory(void *data) {
    struct span_tls_t tls = {};
@@ -46,10 +47,16 @@ int __attribute__((always_inline)) unregister_span_memory() {
 void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
    u64 pid_tgid = bpf_get_current_pid_tgid();
    u32 tgid = pid_tgid >> 32;
-   u32 tid = pid_tgid;
-  
+
    struct span_tls_t *tls = bpf_map_lookup_elem(&span_tls, &tgid);
    if (tls) {
+      u32 tid = pid_tgid;
+
+      u32 pid = get_namespace_nr(tid);
+      if (pid) {
+         tid = pid;
+      }
+
       int offset = (tid % tls->max_threads) * sizeof(struct span_context_t);
       int ret = bpf_probe_read(span, sizeof(struct span_context_t), tls->base + offset);
       if (ret < 0) {

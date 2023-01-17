@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package network
@@ -26,7 +32,7 @@ var statusMap = map[ConnectionType]int64{
 }
 
 // ReadInitialState reads the /proc filesystem and determines which ports are being listened on
-func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool) (map[PortMapping]struct{}, error) {
+func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool, readNS bool) (map[PortMapping]uint32, error) {
 	start := time.Now()
 	defer func() {
 		log.Debugf("Read initial %s pid->port mapping in %s", protocol.String(), time.Now().Sub(start))
@@ -39,12 +45,12 @@ func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool
 	}
 
 	status := statusMap[protocol]
-	return readState(procRoot, paths, status)
+	return readState(procRoot, paths, status, readNS)
 }
 
-func readState(procRoot string, paths []string, status int64) (map[PortMapping]struct{}, error) {
+func readState(procRoot string, paths []string, status int64, readNS bool) (map[PortMapping]uint32, error) {
 	seen := make(map[uint32]struct{})
-	allports := make(map[PortMapping]struct{})
+	allports := make(map[PortMapping]uint32)
 	err := util.WithAllProcs(procRoot, func(pid int) error {
 		nsIno, err := util.GetNetNsInoFromPid(procRoot, pid)
 		if err != nil {
@@ -59,6 +65,11 @@ func readState(procRoot string, paths []string, status int64) (map[PortMapping]s
 		}
 		seen[nsIno] = struct{}{}
 
+		ns := nsIno
+		if !readNS {
+			ns = 0
+		}
+
 		for _, p := range paths {
 			ports, err := readProcNetWithStatus(path.Join(procRoot, fmt.Sprintf("%d", pid), p), status)
 			if err != nil {
@@ -67,7 +78,11 @@ func readState(procRoot string, paths []string, status int64) (map[PortMapping]s
 			}
 
 			for _, port := range ports {
-				allports[PortMapping{Ino: nsIno, Port: port}] = struct{}{}
+				pm := PortMapping{Ino: ns, Port: port}
+				if _, ok := allports[pm]; !ok {
+					allports[pm] = 0
+				}
+				allports[pm]++
 			}
 		}
 

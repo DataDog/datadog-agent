@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package net
@@ -16,13 +17,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/shirou/gopsutil/v3/net"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/net"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -117,7 +119,7 @@ func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 
 // Run executes the check
 func (c *NetworkCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -199,8 +201,10 @@ func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCounters
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
 	sender.Rate("system.net.packets_in.count", float64(interfaceIO.PacketsRecv), "", tags)
+	sender.Rate("system.net.packets_in.drop", float64(interfaceIO.Dropin), "", tags)
 	sender.Rate("system.net.packets_in.error", float64(interfaceIO.Errin), "", tags)
 	sender.Rate("system.net.packets_out.count", float64(interfaceIO.PacketsSent), "", tags)
+	sender.Rate("system.net.packets_out.drop", float64(interfaceIO.Dropout), "", tags)
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
@@ -231,7 +235,6 @@ func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, sta
 }
 
 func netstatTCPExtCounters() (map[string]int64, error) {
-
 	f, err := os.Open("/proc/net/netstat")
 	if err != nil {
 		return nil, err
@@ -276,8 +279,8 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 }
 
 // Configure configures the network checks
-func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(rawInstance, source)
+func (c *NetworkCheck) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

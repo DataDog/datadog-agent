@@ -1,51 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package cloudfoundry
 
 import (
-	"net"
 	"testing"
 
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden/gardenfakes"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
-	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 )
 
-func TestParseContainerPorts(t *testing.T) {
-	info := garden.ContainerInfo{
-		MappedPorts: []garden.PortMapping{
-			{
-				HostPort:      10,
-				ContainerPort: 20,
-			},
-			{
-				HostPort:      11,
-				ContainerPort: 21,
-			},
-		},
-		ExternalIP: "127.0.0.1",
-	}
-	addresses := parseContainerPorts(info)
-	expected := []containers.NetworkAddress{
-		{
-			IP:       net.ParseIP("127.0.0.1"),
-			Port:     10,
-			Protocol: "tcp",
-		},
-		{
-			IP:       net.ParseIP("127.0.0.1"),
-			Port:     11,
-			Protocol: "tcp",
-		},
-	}
-	assert.Equal(t, expected, addresses)
-}
-
 func TestListContainers(t *testing.T) {
-	defer providers.Deregister()
-	providers.Register(providerMocks.FakeContainerImpl{})
 	cli := gardenfakes.FakeClient{}
 	bulkContainers := map[string]garden.ContainerInfoEntry{
 		"ok": {
@@ -91,6 +59,5 @@ func TestListContainers(t *testing.T) {
 
 	result, err := gu.ListContainers()
 	assert.Nil(t, err)
-	assert.Len(t, result, 1)
-	assert.Equal(t, "ok", result[0].ID)
+	assert.Len(t, result, 3)
 }

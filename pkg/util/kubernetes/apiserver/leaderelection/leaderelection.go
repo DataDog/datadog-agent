@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package leaderelection
@@ -33,7 +34,6 @@ import (
 
 const (
 	defaultLeaderLeaseDuration = 60 * time.Second
-	defaultLeaseName           = "datadog-leader-election"
 	getLeaderTimeout           = 10 * time.Second
 )
 
@@ -69,7 +69,7 @@ type LeaderEngine struct {
 
 func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
-		LeaseName:       defaultLeaseName,
+		LeaseName:       config.Datadog.GetString("leader_lease_name"),
 		LeaderNamespace: common.GetResourcesNamespace(),
 		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
 		leaderMetric:    metrics.NewLeaderMetric(),
@@ -141,7 +141,7 @@ func (le *LeaderEngine) init() error {
 	le.coreClient = apiClient.Cl.CoreV1().(*corev1.CoreV1Client)
 
 	// check if we can get ConfigMap.
-	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), defaultLeaseName, metav1.GetOptions{})
+	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) == false {
 		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", le.LeaderNamespace, err)
 		return err
@@ -263,7 +263,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	c := client.Cl.CoreV1()
 
 	leaderNamespace := common.GetResourcesNamespace()
-	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(context.TODO(), defaultLeaseName, metav1.GetOptions{})
+	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}

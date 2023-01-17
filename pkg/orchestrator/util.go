@@ -18,8 +18,8 @@ type NodeType int
 var CheckName = "orchestrator"
 
 const (
-	// K8sDeployment represents a Kubernetes Deployment
-	K8sDeployment NodeType = iota
+	// K8sUnsetType represents a Kubernetes unset type
+	K8sUnsetType NodeType = iota
 	// K8sPod represents a Kubernetes Pod
 	K8sPod
 	// K8sReplicaSet represents a Kubernetes ReplicaSet
@@ -52,6 +52,18 @@ const (
 	K8sClusterRoleBinding
 	// K8sServiceAccount represents a Kubernetes ServiceAccount
 	K8sServiceAccount
+	// K8sIngress represents a Kubernetes Ingress
+	K8sIngress
+	// K8sDeployment represents a Kubernetes Deployment
+	K8sDeployment
+	// K8sNamespace represents a Kubernetes Namespace
+	K8sNamespace
+	// K8sCRD represents a Kubernetes CRD
+	K8sCRD
+	// K8sCR represents a Kubernetes CR
+	K8sCR
+	// K8sVerticalPodAutoscaler represents a Kubernetes VerticalPod Autoscaler
+	K8sVerticalPodAutoscaler
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -74,6 +86,11 @@ func NodeTypes() []NodeType {
 		K8sClusterRole,
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
+		K8sIngress,
+		K8sNamespace,
+		K8sCR,
+		K8sCRD,
+		K8sVerticalPodAutoscaler,
 	}
 }
 
@@ -113,8 +130,20 @@ func (n NodeType) String() string {
 		return "ClusterRoleBinding"
 	case K8sServiceAccount:
 		return "ServiceAccount"
+	case K8sIngress:
+		return "Ingress"
+	case K8sNamespace:
+		return "Namespace"
+	case K8sCRD:
+		return "CustomResourceDefinition"
+	case K8sCR:
+		return "CustomResource"
+	case K8sVerticalPodAutoscaler:
+		return "VerticalPodAutoscaler"
+	case K8sUnsetType:
+		return "UnsetType"
 	default:
-		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
+		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
 	}
 }
@@ -138,7 +167,13 @@ func (n NodeType) Orchestrator() string {
 		K8sRoleBinding,
 		K8sClusterRole,
 		K8sClusterRoleBinding,
-		K8sServiceAccount:
+		K8sServiceAccount,
+		K8sIngress,
+		K8sCRD,
+		K8sCR,
+		K8sNamespace,
+		K8sVerticalPodAutoscaler,
+		K8sUnsetType:
 		return "k8s"
 	default:
 		log.Errorf("Unknown NodeType %v", n)
@@ -163,24 +198,12 @@ func getTelemetryTags(n NodeType) []string {
 	}
 }
 
-// ChunkRange returns the chunk start and end for an iteration.
-func ChunkRange(numberOfElements, chunkCount, chunkSize, counter int) (int, int) {
-	var (
-		chunkStart = chunkSize * (counter - 1)
-		chunkEnd   = chunkSize * (counter)
-	)
-	// last chunk may be smaller than the chunk size
-	if counter == chunkCount {
-		chunkEnd = numberOfElements
+// SetCacheStats sets the cache stats for each resource
+func SetCacheStats(resourceListLen int, resourceMsgLen int, nodeType NodeType) {
+	stats := CheckStats{
+		CacheHits: resourceListLen - resourceMsgLen,
+		CacheMiss: resourceMsgLen,
+		NodeType:  nodeType,
 	}
-	return chunkStart, chunkEnd
-}
-
-// GroupSize returns the GroupSize/number of chunks.
-func GroupSize(msgs, maxPerMessage int) int {
-	groupSize := msgs / maxPerMessage
-	if msgs%maxPerMessage > 0 {
-		groupSize++
-	}
-	return groupSize
+	KubernetesResourceCache.Set(BuildStatsKey(nodeType), stats, NoExpiration)
 }

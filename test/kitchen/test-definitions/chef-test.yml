@@ -4,7 +4,6 @@ suites:
 - name: chef
   run_list:
     - "recipe[dd-agent-disable-system-repos]"
-    - "recipe[dd-agent-debian-workaround]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-system-files-check::list-files-before-install]"
     - "recipe[dd-agent-install]"
@@ -14,7 +13,7 @@ suites:
         enable: false
     datadog:
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
     dd-agent-install:
       agent_major_version: <%= agent_major_version %>

@@ -1,21 +1,25 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/cpu"
 )
 
 // runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
 // Underying procutil.Probe is responsible for the actual implementation
-func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*RunResult, error) {
+func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
@@ -26,62 +30,52 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 
 	// if processCheck haven't fetched any PIDs, return early
 	if len(p.lastPIDs) == 0 {
-		return &RunResult{}, nil
-	}
-
-	var sysProbeUtil *net.RemoteSysProbeUtil
-	// if the Process module is disabled, we allow Probe to collect
-	// fields that require elevated permission to collect with best effort
-	if !cfg.CheckIsEnabled(config.ProcessModuleCheckName) {
-		procutil.WithPermission(true)(p.probe)
-	} else {
-		procutil.WithPermission(false)(p.probe)
-		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
-			sysProbeUtil = pu
-		} else if p.notInitializedLogLimit.ShouldLog() {
-			log.Warnf("could not initialize system-probe connection in rtprocess check: %v (will only log every 10 minutes)", err)
-		}
+		return CombinedRunResult{}, nil
 	}
 
 	procs, err := p.probe.StatsForPIDs(p.lastPIDs, time.Now())
-
 	if err != nil {
 		return nil, err
 	}
 
-	if sysProbeUtil != nil {
+	if sysProbeUtil := p.getRemoteSysProbeUtil(); sysProbeUtil != nil {
 		mergeStatWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
 	}
 
-	ctrList, _ := util.GetContainers()
+	var containers []*model.Container
+	var pidToCid map[int]string
+	var lastContainerRates map[string]*util.ContainerRateMetrics
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidityRT, p.realtimeLastContainerRates)
+	if err == nil {
+		p.realtimeLastContainerRates = lastContainerRates
+	} else {
+		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
 
 	// End check early if this is our first run.
 	if p.realtimeLastProcs == nil {
-		p.realtimeLastCtrRates = util.ExtractContainerRateMetric(ctrList)
 		p.realtimeLastProcs = procs
 		p.realtimeLastCPUTime = cpuTimes[0]
 		p.realtimeLastRun = time.Now()
 		log.Debug("first run of rtprocess check - no stats to report")
-		return &RunResult{}, nil
+		return CombinedRunResult{}, nil
 	}
 
-	connsByPID := Connections.getLastConnectionsByPID()
-
-	chunkedStats := fmtProcessStats(cfg, procs, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, p.getLastConnRates())
 	groupSize := len(chunkedStats)
-	chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
+	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorRealTime{
-			HostName:          cfg.HostName,
+			HostName:          p.hostInfo.HostName,
 			Stats:             chunkedStats[i],
 			ContainerStats:    chunkedCtrStats[i],
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
-			NumCpus:           int32(len(p.sysInfo.Cpus)),
-			TotalMemory:       p.sysInfo.TotalMemory,
-			ContainerHostType: cfg.ContainerHostType,
+			NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+			TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+			ContainerHostType: p.hostInfo.ContainerHostType,
 		})
 	}
 
@@ -89,34 +83,22 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
 	p.realtimeLastRun = time.Now()
 	p.realtimeLastProcs = procs
-	p.realtimeLastCtrRates = util.ExtractContainerRateMetric(ctrList)
 	p.realtimeLastCPUTime = cpuTimes[0]
 
-	return &RunResult{
-		RealTime: messages,
-	}, nil
+	return CombinedRunResult{Realtime: messages}, nil
 }
 
 // fmtProcessStats formats and chunks a slice of ProcessStat into chunks.
 func fmtProcessStats(
-	cfg *config.AgentConfig,
+	maxBatchSize int,
 	procs, lastProcs map[int32]*procutil.Stats,
-	ctrList []*containers.Container,
+	pidToCid map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	connsByPID map[int32][]*model.Connection,
+	connRates ProcessConnRates,
 ) [][]*model.ProcessStat {
-	cidByPid := make(map[int32]string, len(ctrList))
-	for _, c := range ctrList {
-		for _, p := range c.Pids {
-			cidByPid[p] = c.ID
-		}
-	}
-
-	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
-
 	chunked := make([][]*model.ProcessStat, 0)
-	chunk := make([]*model.ProcessStat, 0, cfg.MaxPerMessage)
+	chunk := make([]*model.ProcessStat, 0, maxBatchSize)
 
 	for pid, fp := range procs {
 		// Skipping any processes that didn't exist in the previous run.
@@ -137,7 +119,7 @@ func fmtProcessStats(
 			ioStat = formatIO(fp, lastProcs[pid].IOStat, lastRun)
 		}
 
-		chunk = append(chunk, &model.ProcessStat{
+		stat := &model.ProcessStat{
 			Pid:                    pid,
 			CreateTime:             fp.CreateTime,
 			Memory:                 formatMemory(fp),
@@ -149,12 +131,17 @@ func fmtProcessStats(
 			IoStat:                 ioStat,
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
-			ContainerId:            cidByPid[pid],
-			Networks:               formatNetworks(connsByPID[pid], connCheckIntervalS),
-		})
-		if len(chunk) == cfg.MaxPerMessage {
+			ContainerId:            pidToCid[int(pid)],
+		}
+		if connRates != nil {
+			stat.Networks = connRates[pid]
+		}
+
+		chunk = append(chunk, stat)
+
+		if len(chunk) == maxBatchSize {
 			chunked = append(chunked, chunk)
-			chunk = make([]*model.ProcessStat, 0, cfg.MaxPerMessage)
+			chunk = make([]*model.ProcessStat, 0, maxBatchSize)
 		}
 	}
 	if len(chunk) > 0 {

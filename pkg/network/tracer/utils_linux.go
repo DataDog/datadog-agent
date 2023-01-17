@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
@@ -72,6 +78,11 @@ func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList [
 		return true, ""
 	}
 	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCode)
-	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
+
+	var missingFuncs []string
+	for f := range missing {
+		missingFuncs = append(missingFuncs, f)
+	}
+	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missingFuncs, ", "))
 	return false, errMsg
 }

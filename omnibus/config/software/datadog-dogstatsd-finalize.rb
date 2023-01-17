@@ -11,9 +11,12 @@ require './lib/ostools.rb'
 name "datadog-dogstatsd-finalize"
 description "steps required to finalize the build"
 default_version "1.0.0"
+
 skip_transitive_dependency_licensing true
 
 build do
+    license :project_license
+
     if windows?
         conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-dogstatsd"
         conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"

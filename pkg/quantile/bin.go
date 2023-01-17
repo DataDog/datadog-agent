@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package quantile
 
 import (
@@ -46,7 +51,7 @@ func appendSafe(bins []bin, k Key, n int) []bin {
 		bins = append(bins, bin{k: k, n: r})
 	}
 
-	for i := 0; i < int(n/maxBinWidth); i++ {
+	for i := 0; i < n/maxBinWidth; i++ {
 		bins = append(bins, bin{k: k, n: maxBinWidth})
 	}
 

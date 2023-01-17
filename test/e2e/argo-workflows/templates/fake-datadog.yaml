@@ -59,7 +59,7 @@ spec:
               spec:
                 containers:
                 - name: api
-                  image: datadog/fake-datadog:20210705
+                  image: datadog/fake-datadog:20220621
                 - name: mongo
                   image: mongo:4.4.1
 
@@ -131,7 +131,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package admission
@@ -47,22 +48,6 @@ func shouldFallback(v *version.Info) (bool, error) {
 		}
 
 		if minor <= 14 && minor >= 10 {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func useAdmissionV1(discoveryCl discovery.DiscoveryInterface) (bool, error) {
-	_, resources, err := discoveryCl.ServerGroupsAndResources()
-	if err != nil {
-		return false, err
-	}
-
-	for _, resource := range resources {
-		if resource.GroupVersion == "admissionregistration.k8s.io/v1" {
-			log.Info("Group version 'admissionregistration.k8s.io/v1' is available, using it")
 			return true, nil
 		}
 	}

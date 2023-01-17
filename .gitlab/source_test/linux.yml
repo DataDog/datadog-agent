@@ -4,9 +4,7 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - python3 -m pip install wheel
-    - python3 -m pip install -r requirements.txt
-    - inv -e rtloader.make --install-prefix=$SRC_PATH/dev --python-runtimes "$PYTHON_RUNTIMES"
+    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
@@ -15,11 +13,14 @@
 
 .linux_tests:
   stage: source_test
+  variables:
+    FLAVORS: '--flavors base'
   script:
+    - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
-    - inv -e test --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
     - python3 -m tasks.release_tests
     - python3 -m tasks.libs.version_tests
+    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -33,7 +34,7 @@ tests_deb-x64-py2:
     !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["linux_x64_go_deps"]
+  needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -44,10 +45,34 @@ tests_deb-x64-py3:
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["linux_x64_go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
+
+tests_flavor_iot_deb-x64:
+  extends:
+    - .rtloader_tests
+    - .linux_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    PYTHON_RUNTIMES: '3'
+    CONDA_ENV: ddpy3
+    FLAVORS: '--flavors iot'
+
+tests_flavor_dogstatsd_deb-x64:
+  extends:
+    - .rtloader_tests
+    - .linux_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    PYTHON_RUNTIMES: '3'
+    CONDA_ENV: ddpy3
+    FLAVORS: '--flavors dogstatsd'
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -58,7 +83,7 @@ tests_rpm-x64-py2:
     !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["linux_x64_go_deps"]
+  needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -70,7 +95,7 @@ tests_rpm-x64-py3:
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["linux_x64_go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -82,7 +107,7 @@ tests_deb-arm64-py2:
     !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["linux_arm64_go_deps"]
+  needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -91,7 +116,7 @@ tests_deb-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  needs: ["linux_arm64_go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -104,7 +129,7 @@ tests_rpm-arm64-py2:
     !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["linux_arm64_go_deps"]
+  needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -115,7 +140,7 @@ tests_rpm-arm64-py3:
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["linux_arm64_go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -125,13 +150,8 @@ go_mod_tidy_check:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["linux_x64_go_deps"]
+  needs: ["go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - python3 -m pip install --upgrade --ignore-installed pip setuptools
-    - python3 -m pip install -r requirements.txt
   script:
     - inv -e check-mod-tidy
-  artifacts:
-    paths:
-      - testmodule/

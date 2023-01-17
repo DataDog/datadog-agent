@@ -1,5 +1,0 @@
-experimental:
-  otlp:
-    http_port: 4318
-    metrics_enabled: false
-    traces_enabled: false

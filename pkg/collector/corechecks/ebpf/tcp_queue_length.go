@@ -7,15 +7,15 @@
 // github.com/DataDog/datadog-agent/pkg/process/net depends on `github.com/DataDog/agent-payload/v5/process`,
 // which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
-// +build cgo
-// +build linux
+//go:build cgo && linux
+// +build cgo,linux
 
 package ebpf
 
 import (
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -24,6 +24,7 @@ import (
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -63,12 +64,12 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, t)
 }
 
-//Configure parses the check configuration and init the check
-func (t *TCPQueueLengthCheck) Configure(config, initConfig integration.Data, source string) error {
+// Configure parses the check configuration and init the check
+func (t *TCPQueueLengthCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	// TODO: Remove that hard-code and put it somewhere else
 	process_net.SetSystemProbePath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 
-	err := t.CommonConfigure(config, source)
+	err := t.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -87,12 +88,12 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return err
 	}
 
-	data, err := sysProbeUtil.GetCheck("tcp_queue_length")
+	data, err := sysProbeUtil.GetCheck(sysconfig.TCPQueueLengthTracerModule)
 	if err != nil {
 		return err
 	}
 
-	sender, err := aggregator.GetSender(t.ID())
+	sender, err := t.GetSender()
 	if err != nil {
 		return err
 	}
@@ -103,7 +104,13 @@ func (t *TCPQueueLengthCheck) Run() error {
 	}
 
 	for k, v := range stats {
-		entityID := containers.BuildTaggerEntityName(k)
+		containerID, err := cgroups.ContainerFilter("", k)
+		if err != nil || containerID == "" {
+			log.Warnf("Unable to extract containerID from cgroup name: %s, err: %v", k, err)
+			continue
+		}
+
+		entityID := containers.BuildTaggerEntityName(containerID)
 		var tags []string
 		if entityID != "" {
 			tags, err = tagger.Tag(entityID, collectors.HighCardinality)

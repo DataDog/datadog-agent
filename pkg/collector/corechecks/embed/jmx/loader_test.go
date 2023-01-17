@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build jmx
 // +build jmx
 
 package jmx
@@ -10,15 +11,14 @@ package jmx
 import (
 	"context"
 	"errors"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/stretchr/testify/assert"
 )
 
 func getFile() (string, error) {
@@ -32,13 +32,6 @@ func getFile() (string, error) {
 func TestLoadCheckConfig(t *testing.T) {
 	ctx := context.Background()
 
-	tmp, err := ioutil.TempDir("", "datadog-agent")
-	if err != nil {
-		t.Fatalf("unable to create temporary directory: %v", err)
-	}
-
-	defer os.RemoveAll(tmp) // clean up
-
 	jl, err := NewJMXCheckLoader()
 	assert.Nil(t, err)
 	assert.NotNil(t, jl)
@@ -51,7 +44,8 @@ func TestLoadCheckConfig(t *testing.T) {
 	d := filepath.Dir(f)
 
 	paths := []string{filepath.Join(d, "fixtures/")}
-	fp := providers.NewFileConfigProvider(paths)
+	providers.ResetReader(paths)
+	fp := providers.NewFileConfigProvider()
 	assert.NotNil(t, fp)
 
 	cfgs, err := fp.Collect(ctx)

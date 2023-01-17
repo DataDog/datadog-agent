@@ -1,8 +1,8 @@
 ---
 .kitchen_common:
   stage: kitchen_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -13,14 +13,43 @@
 # Kitchen: providers
 # ---------------
 
+# Azure
+# ---------------
+.kitchen_azure:
+  variables:
+    KITCHEN_PROVIDER: azure
+
+.kitchen_azure_x64:
+  variables:
+    KITCHEN_ARCH: x86_64
+  extends:
+    - .kitchen_azure
+
+# EC2
+# ---------------
 .kitchen_ec2:
   variables:
     KITCHEN_PROVIDER: ec2
     KITCHEN_EC2_IAM_PROFILE_NAME: ci-datadog-agent-e2e-runner
 
+.kitchen_ec2_x64:
+  variables:
+    KITCHEN_ARCH: x86_64
+  extends:
+    - .kitchen_ec2
+
 .kitchen_ec2_spot_instances:
+  extends: .kitchen_ec2
   variables:
     KITCHEN_EC2_SPOT_PRICE: on-demand
+
+.kitchen_ec2_arm64:
+  variables:
+    KITCHEN_ARCH: arm64
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+    CHEF_VERSION: 14.15.6
+  extends:
+    - .kitchen_ec2_spot_instances
 
 # Kitchen: agents
 # ---------------
@@ -71,6 +100,9 @@
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
     - bash -l tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
 
+.kitchen_test_process_agent:
+  script:
+    - bash -l tasks/run-test-kitchen.sh process-agent-test $AGENT_MAJOR_VERSION
 
 # Kitchen: Agent flavor
 # -------------------------------
@@ -86,6 +118,11 @@
     AGENT_FLAVOR: "datadog-iot-agent"
     KITCHEN_PLATFORM_SUFFIX: "iot"
 
+.kitchen_datadog_heroku_agent_flavor:
+  variables:
+    AGENT_FLAVOR: "datadog-heroku-agent"
+    KITCHEN_PLATFORM_SUFFIX: "heroku"
+
 .kitchen_datadog_dogstatsd_flavor:
   variables:
     AGENT_FLAVOR: "datadog-dogstatsd"
@@ -96,22 +133,18 @@
 
 .kitchen_azure_location_north_central_us:
   variables:
-    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "North Central US"
 
 .kitchen_azure_location_west_central_us:
   variables:
-    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "West Central US"
 
 .kitchen_azure_location_central_us:
   variables:
-    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "Central US"
 
 .kitchen_azure_location_south_central_us:
   variables:
-    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "South Central US"
 
 
@@ -119,15 +152,12 @@
 # -------------------------------
 
 .kitchen_ec2_location_us_east_1:
-  extends:
-    - .kitchen_ec2
   variables:
     KITCHEN_EC2_REGION: us-east-1
     KITCHEN_EC2_SUBNET: subnet-c18341ed
     KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
 
-
-# Kitchen: Test types (test suite * agent flavor + azure location)
+# Kitchen: Test types (test suite * agent flavor + location in each cloud provider)
 # -------------------------------
 
 .kitchen_test_chef_agent:
@@ -135,51 +165,67 @@
     - .kitchen_test_chef
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
+    - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_step_by_step_agent:
   extends:
     - .kitchen_test_step_by_step
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_central_us
+    - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_install_script_agent:
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_south_central_us
+    - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_install_script_iot_agent:
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_iot_agent_flavor
     - .kitchen_azure_location_west_central_us
+    - .kitchen_ec2_location_us_east_1
+
+.kitchen_test_install_script_heroku_agent:
+  extends:
+    - .kitchen_test_install_script
+    - .kitchen_datadog_heroku_agent_flavor
+    - .kitchen_azure_location_west_central_us
+    - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_install_script_dogstatsd:
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_dogstatsd_flavor
     - .kitchen_azure_location_west_central_us
+    - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_upgrade5_agent:
   extends:
     - .kitchen_test_upgrade5
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_central_us
+    - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_upgrade6_agent:
   extends:
     - .kitchen_test_upgrade6
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_south_central_us
+    - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_upgrade7_agent:
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_west_central_us
+    - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_upgrade7_iot_agent:
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_iot_agent_flavor
     - .kitchen_azure_location_south_central_us
+    - .kitchen_ec2_location_us_east_1

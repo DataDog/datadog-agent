@@ -1,20 +1,38 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build test
+// +build test
+
 package retry
 
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/stretchr/testify/assert"
 )
+
+// only used for testing
+// GetCurrentMemSizeInBytes gets the current memory usage in bytes
+func (tc *TransactionRetryQueue) getCurrentMemSizeInBytes() int {
+	tc.mutex.RLock()
+	defer tc.mutex.RUnlock()
+
+	return tc.currentMemSizeInBytes
+}
 
 func TestTransactionRetryQueueAdd(t *testing.T) {
 	a := assert.New(t)
-	q, clean := newOnDiskRetryQueueTest(a)
-	defer clean()
+	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
+	q := newOnDiskRetryQueueTest(t, a)
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"))
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
@@ -24,6 +42,7 @@ func TestTransactionRetryQueueAdd(t *testing.T) {
 	}
 	a.Equal(40+15, container.getCurrentMemSizeInBytes())
 	a.Equal(2, container.GetTransactionCount())
+	a.Equal(pointDropped, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 
 	assertPayloadSizeFromExtractTransactions(a, container, []int{40, 15})
 
@@ -39,10 +58,9 @@ func TestTransactionRetryQueueAdd(t *testing.T) {
 
 func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
-	q, clean := newOnDiskRetryQueueTest(a)
-	defer clean()
+	q := newOnDiskRetryQueueTest(t, a)
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"))
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
@@ -56,12 +74,13 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	assertPayloadSizeFromExtractTransactions(a, container, []int{10})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{9})
 	a.Equal(0, q.getFilesCount())
-	a.Equal(int64(0), q.getCurrentSizeInBytes())
+	a.Equal(int64(0), q.GetDiskSpaceUsed())
 }
 
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"))
+	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	for _, payloadSize := range []int{9, 10, 11} {
 		dropCount, err := container.Add(createTransactionWithPayloadSize(payloadSize))
@@ -73,6 +92,7 @@ func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	dropCount, err := container.Add(createTransactionWithPayloadSize(30))
 	a.Equal(2, dropCount)
 	a.NoError(err)
+	a.Equal(pointDropped+2, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 
 	a.Equal(11+30, container.getCurrentMemSizeInBytes())
 
@@ -81,26 +101,28 @@ func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 
 func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 	a := assert.New(t)
-	q, clean := newOnDiskRetryQueueTest(a)
-	defer clean()
+	q := newOnDiskRetryQueueTest(t, a)
 
 	maxMemSizeInBytes := 0
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"))
+	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	inMemTrDropped, err := container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
 	a.Equal(0, inMemTrDropped)
+	a.Equal(pointDropped, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 
 	// `extractTransactionsForDisk` does not behave the same when there is a existing transaction.
 	inMemTrDropped, err = container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
 	a.Equal(1, inMemTrDropped)
+	a.Equal(pointDropped+1, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 }
 
 func createTransactionWithPayloadSize(payloadSize int) *transaction.HTTPTransaction {
 	tr := transaction.NewHTTPTransaction()
 	payload := make([]byte, payloadSize)
-	tr.Payload = &payload
+	tr.Payload = transaction.NewBytesPayload(payload, 1)
 	return tr
 }
 
@@ -124,15 +146,20 @@ func createDropPrioritySorter() transaction.SortByCreatedTimeAndPriority {
 	return transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 }
 
-func newOnDiskRetryQueueTest(a *assert.Assertions) (*onDiskRetryQueue, func()) {
-	path, clean := createTmpFolder(a)
+func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQueue {
+	path := t.TempDir()
 	disk := diskUsageRetrieverMock{
 		diskUsage: &filesystem.DiskUsage{
 			Available: 10000,
 			Total:     10000,
 		}}
-	diskUsageLimit := newDiskUsageLimit("", disk, 1000, 1)
-	q, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver("", nil)), path, diskUsageLimit, newOnDiskRetryQueueTelemetry("domain"))
+	diskUsageLimit := NewDiskUsageLimit("", disk, 1000, 1)
+	q, err := newOnDiskRetryQueue(
+		NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver("", nil)),
+		path,
+		diskUsageLimit,
+		newOnDiskRetryQueueTelemetry("domain"),
+		NewPointCountTelemetryMock())
 	a.NoError(err)
-	return q, clean
+	return q
 }

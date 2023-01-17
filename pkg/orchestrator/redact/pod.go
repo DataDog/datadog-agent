@@ -18,6 +18,27 @@ const (
 	replacedValue = "-"
 )
 
+// ScrubPodTemplateSpec calls ScrubContainer for every container within a pod
+// template spec.
+func ScrubPodTemplateSpec(template *v1.PodTemplateSpec, scrubber *DataScrubber) {
+	for c := 0; c < len(template.Spec.InitContainers); c++ {
+		ScrubContainer(&template.Spec.InitContainers[c], scrubber)
+	}
+	for c := 0; c < len(template.Spec.Containers); c++ {
+		ScrubContainer(&template.Spec.Containers[c], scrubber)
+	}
+}
+
+// ScrubPodSpec calls ScrubContainer for every container within a pod spec.
+func ScrubPodSpec(spec *v1.PodSpec, scrubber *DataScrubber) {
+	for c := 0; c < len(spec.InitContainers); c++ {
+		ScrubContainer(&spec.InitContainers[c], scrubber)
+	}
+	for c := 0; c < len(spec.Containers); c++ {
+		ScrubContainer(&spec.Containers[c], scrubber)
+	}
+}
+
 // ScrubContainer scrubs sensitive information in the command line & env vars
 func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
@@ -58,7 +79,7 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 
 // RemoveLastAppliedConfigurationAnnotation redacts the whole "kubectl.kubernetes.io/last-applied-configuration" annotation. As it may contain duplicate information and secrets.
 func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
-	if _, found := annotations["kubectl.kubernetes.io/last-applied-configuration"]; found {
-		annotations["kubectl.kubernetes.io/last-applied-configuration"] = replacedValue
+	if _, found := annotations[v1.LastAppliedConfigAnnotation]; found {
+		annotations[v1.LastAppliedConfigAnnotation] = replacedValue
 	}
 }

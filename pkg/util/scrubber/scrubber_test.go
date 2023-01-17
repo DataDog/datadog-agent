@@ -6,14 +6,26 @@
 package scrubber
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNewWithDefaults(t *testing.T) {
+	scrubber := NewWithDefaults()
+	scrubberEmpty := New()
+	AddDefaultReplacers(scrubberEmpty)
+
+	assert.NotZero(t, len(scrubber.singleLineReplacers))
+	assert.NotZero(t, len(scrubber.multiLineReplacers))
+	assert.Equal(t, len(scrubberEmpty.singleLineReplacers), len(scrubber.singleLineReplacers))
+	assert.Equal(t, len(scrubberEmpty.multiLineReplacers), len(scrubber.multiLineReplacers))
+}
 
 func TestRepl(t *testing.T) {
 	scrubber := New()
@@ -39,14 +51,14 @@ func TestReplFunc(t *testing.T) {
 	require.Equal(t, "dog FOOd", string(res))
 }
 
-func TestSkipCommentsAndBlanks(t *testing.T) {
+func TestSkipComments(t *testing.T) {
 	scrubber := New()
 	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		Repl:  []byte("bar"),
 	})
 	scrubber.AddReplacer(MultiLine, Replacer{
-		Regex: regexp.MustCompile("with bar\nanother"),
+		Regex: regexp.MustCompile("with bar\n\n\nanother"),
 		Repl:  []byte("..."),
 	})
 	res, err := scrubber.ScrubBytes([]byte("a line with foo\n\n  \n  # a comment with foo\nanother line"))
@@ -57,7 +69,7 @@ func TestSkipCommentsAndBlanks(t *testing.T) {
 func TestCleanFile(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "test.yml")
-	ioutil.WriteFile(filename, []byte("a line with foo\n\na line with bar"), 0666)
+	os.WriteFile(filename, []byte("a line with foo\n\na line with bar"), 0666)
 
 	scrubber := New()
 	scrubber.AddReplacer(SingleLine, Replacer{
@@ -66,7 +78,7 @@ func TestCleanFile(t *testing.T) {
 	})
 	res, err := scrubber.ScrubFile(filename)
 	require.NoError(t, err)
-	require.Equal(t, "a line with bar\na line with bar", string(res))
+	require.Equal(t, "a line with bar\n\na line with bar", string(res))
 }
 
 func TestScrubLine(t *testing.T) {

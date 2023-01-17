@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package tags
 
 // ResolveRuntimeArch determines the architecture of the lambda at runtime
 func ResolveRuntimeArch() string {
-	return "x86_64"
+	return X86LambdaPlatform
 }

@@ -3,14 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,7 +44,7 @@ type workloadmetaListenerImpl struct {
 	name string
 	stop chan struct{}
 
-	processFn func(workloadmeta.Entity, integration.CreationTime)
+	processFn func(workloadmeta.Entity)
 
 	store            workloadmeta.Store
 	workloadFilters  *workloadmeta.Filter
@@ -66,7 +68,7 @@ var _ workloadmetaListener = &workloadmetaListenerImpl{}
 func newWorkloadmetaListener(
 	name string,
 	workloadFilters *workloadmeta.Filter,
-	processFn func(workloadmeta.Entity, integration.CreationTime),
+	processFn func(workloadmeta.Entity),
 ) (workloadmetaListener, error) {
 	containerFilters, err := newContainerFilters()
 	if err != nil {
@@ -93,6 +95,7 @@ func (l *workloadmetaListenerImpl) Store() workloadmeta.Store {
 }
 
 func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentSvcID string) {
+	kind := kindFromSvcID(svcID)
 	if parentSvcID != "" {
 		if _, ok := l.children[parentSvcID]; !ok {
 			l.children[parentSvcID] = make(map[string]struct{})
@@ -103,16 +106,18 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 
 	if old, found := l.services[svcID]; found {
 		if svcEqual(old, svc) {
-			log.Tracef("%s received a duplicated service '%s', ignoring", l.name, svc.GetEntity())
+			log.Tracef("%s received a duplicated service '%s', ignoring", l.name, svc.GetServiceID())
 			return
 		}
 
-		log.Tracef("%s received an updated service '%s', removing the old one", l.name, svc.GetEntity())
+		log.Tracef("%s received an updated service '%s', removing the old one", l.name, svc.GetServiceID())
 		l.delService <- old
+		telemetry.WatchedResources.Dec(l.name, kind)
 	}
 
 	l.services[svcID] = svc
 	l.newService <- svc
+	telemetry.WatchedResources.Inc(l.name, kind)
 }
 
 func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, name, image, ns string) bool {
@@ -123,27 +128,31 @@ func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- S
 	l.newService = newSvc
 	l.delService = delSvc
 
-	ch := l.store.Subscribe(l.name, l.workloadFilters)
+	ch := l.store.Subscribe(l.name, workloadmeta.NormalPriority, l.workloadFilters)
 	health := health.RegisterLiveness(l.name)
-	creationTime := integration.Before
 
 	log.Infof("%s initialized successfully", l.name)
 
 	go func() {
+		defer func() {
+			err := health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
+			}
+		}()
+
 		for {
 			select {
-			case evBundle := <-ch:
-				l.processEvents(evBundle, creationTime)
-				creationTime = integration.After
+			case evBundle, ok := <-ch:
+				if !ok {
+					return
+				}
+
+				l.processEvents(evBundle)
 
 			case <-health.C:
 
 			case <-l.stop:
-				err := health.Deregister()
-				if err != nil {
-					log.Warnf("error de-registering health check: %s", err)
-				}
-
 				l.store.Unsubscribe(ch)
 
 				return
@@ -153,10 +162,10 @@ func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- S
 }
 
 func (l *workloadmetaListenerImpl) Stop() {
-	l.stop <- struct{}{}
+	close(l.stop)
 }
 
-func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBundle, creationTime integration.CreationTime) {
+func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBundle) {
 	// close the bundle channel asap since there are no downstream
 	// collectors that depend on AD having up to date data.
 	close(evBundle.Ch)
@@ -166,7 +175,7 @@ func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBund
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			l.processSetEntity(entity, creationTime)
+			l.processSetEntity(entity)
 
 		case workloadmeta.EventTypeUnset:
 			l.processUnsetEntity(entity)
@@ -177,7 +186,7 @@ func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBund
 	}
 }
 
-func (l *workloadmetaListenerImpl) processSetEntity(entity workloadmeta.Entity, creationTime integration.CreationTime) {
+func (l *workloadmetaListenerImpl) processSetEntity(entity workloadmeta.Entity) {
 	svcID := buildSvcID(entity.GetID())
 
 	// keep track of children of this entity from previous iterations ...
@@ -190,7 +199,7 @@ func (l *workloadmetaListenerImpl) processSetEntity(entity workloadmeta.Entity, 
 	// iteration.
 	l.children[svcID] = make(map[string]struct{})
 
-	l.processFn(entity, creationTime)
+	l.processFn(entity)
 
 	// remove the children seen in this iteration from the unseen list ...
 	for childSvcID := range l.children[svcID] {
@@ -226,8 +235,18 @@ func (l *workloadmetaListenerImpl) removeService(svcID string) {
 
 	delete(l.services, svcID)
 	l.delService <- svc
+	telemetry.WatchedResources.Dec(l.name, kindFromSvcID(svcID))
 }
 
 func buildSvcID(entityID workloadmeta.EntityID) string {
 	return fmt.Sprintf("%s://%s", entityID.Kind, entityID.ID)
+}
+
+func kindFromSvcID(svcID string) string {
+	sep := "://"
+	if strings.Contains(svcID, sep) {
+		return strings.Split(svcID, sep)[0]
+	}
+
+	return "unknown"
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,14 +25,15 @@ type CheckSampler struct {
 	metrics         metrics.CheckMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
+	deregistered    bool
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration) *CheckSampler {
+func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration, cache *tags.Store) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
-		contextResolver: newCountBasedContextResolver(expirationCount),
+		contextResolver: newCountBasedContextResolver(expirationCount, cache),
 		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
@@ -46,11 +48,11 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := cs.contextResolver.get(ck)
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name: ctx.Name,
-		Tags: ctx.Tags,
+		Tags: ctx.Tags(),
 		Host: ctx.Host,
 		// Interval: TODO: investigate
 		Points:     points,
@@ -124,9 +126,10 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
-			continue
+		} else {
+
+			log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
 		}
-		log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
 	}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
@@ -136,8 +139,9 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			continue
 		}
 		serie.Name = context.Name + serie.NameSuffix
-		serie.Tags = context.Tags
+		serie.Tags = context.Tags()
 		serie.Host = context.Host
+		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 
 		cs.series = append(cs.series, serie)
@@ -184,4 +188,8 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	cs.sketches = make(metrics.SketchSeriesList, 0)
 
 	return series, sketches
+}
+
+func (cs *CheckSampler) release() {
+	cs.contextResolver.release()
 }

@@ -7,7 +7,6 @@ package clusteragent
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -127,8 +126,8 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := clcRunner.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	c, err := GetCLCRunnerClient()
 	c.(*CLCRunnerClient).clcRunnerPort = p
@@ -160,8 +159,8 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerVersion() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := clcRunner.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	c, err := GetCLCRunnerClient()
 	c.(*CLCRunnerClient).clcRunnerPort = p
@@ -189,20 +188,19 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerVersion() {
 func TestCLCRunnerSuite(t *testing.T) {
 	clcRunnerAuthTokenFilename := "cluster_agent.auth_token"
 
-	fakeDir, err := ioutil.TempDir("", "fake-datadog-etc")
-	require.Nil(t, err, fmt.Sprintf("%v", err))
-	defer os.RemoveAll(fakeDir)
+	fakeDir := t.TempDir()
 
-	f, err := ioutil.TempFile(fakeDir, "fake-datadog-yaml-")
+	f, err := os.CreateTemp(fakeDir, "fake-datadog-yaml-")
 	require.Nil(t, err, fmt.Errorf("%v", err))
-	defer os.Remove(f.Name())
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 
 	s := &clcRunnerSuite{}
 	config.Datadog.SetConfigFile(f.Name())
 	s.authTokenPath = filepath.Join(fakeDir, clcRunnerAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))
-	defer os.Remove(s.authTokenPath)
 
 	suite.Run(t, s)
 }

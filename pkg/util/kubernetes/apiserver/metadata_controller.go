@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -48,6 +49,7 @@ type MetadataController struct {
 	queue workqueue.RateLimitingInterface
 }
 
+// NewMetadataController returns a new metadata controller
 func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInformer coreinformers.NamespaceInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
@@ -74,6 +76,7 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 	return m
 }
 
+// Run starts the metadata controller reconciler loop
 func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	defer m.queue.ShutDown()
 
@@ -313,8 +316,7 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	return metaList, nil
 }
 
-// GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
-func GetNodeLabels(as *APIClient, nodeName string) (map[string]string, error) {
+func getNode(as *APIClient, nodeName string) (*corev1.Node, error) {
 	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
 		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")
 	}
@@ -325,7 +327,25 @@ func GetNodeLabels(as *APIClient, nodeName string) (map[string]string, error) {
 	if node == nil {
 		return nil, fmt.Errorf("cannot get node %s from the informer's cache", nodeName)
 	}
+	return node, nil
+}
+
+// GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
+func GetNodeLabels(as *APIClient, nodeName string) (map[string]string, error) {
+	node, err := getNode(as, nodeName)
+	if err != nil {
+		return nil, err
+	}
 	return node.Labels, nil
+}
+
+// GetNodeAnnotations retrieves the annotations of the queried node from the cache of the shared informer.
+func GetNodeAnnotations(as *APIClient, nodeName string) (map[string]string, error) {
+	node, err := getNode(as, nodeName)
+	if err != nil {
+		return nil, err
+	}
+	return node.Annotations, nil
 }
 
 // GetNamespaceLabels retrieves the labels of the queried namespace from the cache of the shared informer.

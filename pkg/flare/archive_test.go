@@ -6,318 +6,118 @@
 package flare
 
 import (
-	"archive/zip"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
-	"path"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	procmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func TestCreateArchive(t *testing.T) {
-	common.SetupConfig("./test")
-	mockConfig := config.Mock()
-	mockConfig.Set("confd_path", "./test/confd")
-	mockConfig.Set("log_file", "./test/logs/agent.log")
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
-
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
-
-	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
-		assert.Fail(t, "The Zip File was not created")
-	} else {
-		os.Remove(zipFilePath)
-	}
-}
-
-func TestCreateArchiveAndGoRoutines(t *testing.T) {
-
-	contents := "No Goroutines for you, my friend!"
+func TestGoRoutines(t *testing.T) {
+	expected := "No Goroutines for you, my friend!"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "%s", contents)
+		fmt.Fprintf(w, "%s", expected)
 	}))
 	defer ts.Close()
 
-	pprofURL = ts.URL
-
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
-
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
-
-	// Open a zip archive for reading.
-	z, err := zip.OpenReader(zipFilePath)
-	if err != nil {
-		assert.Fail(t, "Unable to open the flare archive")
-	}
-	defer z.Close()
-	defer os.Remove(zipFilePath)
-
-	// Iterate through the files in the archive,
-	// printing some of their contents.
-	found := false
-	for _, f := range z.File {
-
-		// find go-routine dump.
-		if path.Base(f.Name) == routineDumpFilename {
-			found = true
-
-			dump, err := f.Open()
-			if err != nil {
-				assert.Fail(t, "Unable to open go-routine dump")
-			}
-			defer dump.Close()
-
-			routines, err := ioutil.ReadAll(dump)
-			if err != nil {
-				assert.Fail(t, "Unable to read go-routine dump")
-			}
-
-			assert.Equal(t, contents, string(routines[:]))
-		}
-	}
-
-	assert.True(t, found, "Go routine dump not found in flare")
-}
-
-// The zipfile should be created even if there is no config file.
-func TestCreateArchiveBadConfig(t *testing.T) {
-	common.SetupConfig("")
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
-
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
-
-	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
-		assert.Fail(t, "The Zip File was not created")
-	} else {
-		os.Remove(zipFilePath)
-	}
-}
-
-// Ensure sensitive data is redacted
-func TestZipConfigCheck(t *testing.T) {
-	cr := response.ConfigCheckResponse{
-		Configs: make([]integration.Config, 0),
-	}
-	cr.Configs = append(cr.Configs, integration.Config{
-		Name:      "TestCheck",
-		Instances: []integration.Data{[]byte("username: User\npassword: MySecurePass")},
-		Provider:  "FooProvider",
-	})
-
-	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		out, _ := json.Marshal(cr)
-		w.Write(out)
-	}))
-	defer ts.Close()
-	configCheckURL = ts.URL
-
-	dir, err := ioutil.TempDir("", "TestZipConfigCheck")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
-	zipConfigCheck(dir, "")
-	content, err := ioutil.ReadFile(filepath.Join(dir, "config-check.log"))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	assert.NotContains(t, string(content), "MySecurePass")
+	content, err := getHTTPCallContent(ts.URL)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(content))
 }
 
 func TestIncludeSystemProbeConfig(t *testing.T) {
-	assert := assert.New(t)
 	common.SetupConfig("./test/datadog-agent.yaml")
 	// create system-probe.yaml file because it's in .gitignore
 	_, err := os.Create("./test/system-probe.yaml")
-	assert.NoError(err, "couldn't create system-probe.yaml")
+	require.NoError(t, err, "couldn't create system-probe.yaml")
 	defer os.Remove("./test/system-probe.yaml")
 
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil, nil)
-	assert.NoError(err)
-	assert.Equal(zipFilePath, filePath)
+	mock := flarehelpers.NewFlareBuilderMock(t)
+	getConfigFiles(mock.Fb, SearchPaths{"": "./test/confd"})
 
-	defer os.Remove(zipFilePath)
-
-	z, err := zip.OpenReader(zipFilePath)
-	assert.NoError(err, "opening the zip shouldn't pop an error")
-
-	var hasDDConfig, hasSysProbeConfig bool
-	for _, f := range z.File {
-		if strings.HasSuffix(f.Name, "datadog-agent.yaml") {
-			hasDDConfig = true
-		}
-		if strings.HasSuffix(f.Name, "system-probe.yaml") {
-			hasSysProbeConfig = true
-		}
-	}
-
-	assert.True(hasDDConfig, "datadog-agent.yaml should've been included")
-	assert.True(hasSysProbeConfig, "system-probe.yaml should've been included")
+	mock.AssertFileExists("etc", "datadog.yaml")
+	mock.AssertFileExists("etc", "system-probe.yaml")
 }
 
 func TestIncludeConfigFiles(t *testing.T) {
-	assert := assert.New(t)
-
 	common.SetupConfig("./test")
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil, nil)
 
-	assert.NoError(err)
-	assert.Equal(zipFilePath, filePath)
+	mock := flarehelpers.NewFlareBuilderMock(t)
+	getConfigFiles(mock.Fb, SearchPaths{"": "./test/confd"})
 
-	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
-		assert.Fail("The Zip File was not created")
-	}
-
-	defer os.Remove(zipFilePath)
-
-	// asserts that test.yaml and test.yml have been included
-	z, err := zip.OpenReader(zipFilePath)
-	assert.NoError(err, "opening the zip shouldn't pop an error")
-
-	yaml, yml := false, false
-	for _, f := range z.File {
-		if strings.HasSuffix(f.Name, "test.yaml") {
-			yaml = true
-		} else if strings.HasSuffix(f.Name, "test.Yml") {
-			yml = true
-		} else if strings.HasSuffix(f.Name, "not_included.conf") {
-			assert.Fail("not_included.conf should not been included into the flare")
-		}
-	}
-
-	assert.True(yml, "test.yml should've been included")
-	assert.True(yaml, "test.yaml should've been included")
+	mock.AssertFileExists("etc/confd/test.yaml")
+	mock.AssertFileExists("etc/confd/test.Yml")
+	mock.AssertNoFileExists("etc/confd/not_included.conf")
 }
 
-func TestCleanDirectoryName(t *testing.T) {
-	insaneHostname := `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-	<html xmlns="http://www.w3.org/1999/xhtml">
-	<head>
-	<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"/>
-	<title>404 - File or directory not found.</title>
-	<style type="text/css">
-	<!--
-	body{margin:0;font-size:.7em;font-family:Verdana, Arial, Helvetica, sans-serif;background:#EEEEEE;}
-	fieldset{padding:0 15px 10px 15px;}
-	h1{font-size:2.4em;margin:0;color:#FFF;}
-	h2{font-size:1.7em;margin:0;color:#CC0000;}
-	h3{font-size:1.2em;margin:10px 0 0 0;color:#000000;}
-	background-color:#555555;}
-	.content-container{background:#FFF;width:96%;margin-top:8px;padding:10px;position:relative;}
-	-->
-	</style>
-	</head>
-	<body>
-	<div id="header"><h1>Server Error</h1></div>
-	<div id="content">
-	<div class="content-container"><fieldset>
-	<h2>404 - File or directory not found.</h2>
-	<h3>The resource you are looking for might have been removed, had its name changed, or is temporarily unavailable.</h3>
-	</fieldset></div>
-	</div>
-	</body>
-	</html>`
+func TestIncludeConfigFilesWithPrefix(t *testing.T) {
+	common.SetupConfig("./test")
 
-	cleanedHostname := cleanDirectoryName(insaneHostname)
+	mock := flarehelpers.NewFlareBuilderMock(t)
+	getConfigFiles(mock.Fb, SearchPaths{"prefix": "./test/confd"})
 
-	assert.Len(t, cleanedHostname, directoryNameMaxSize)
-	assert.True(t, !directoryNameFilter.MatchString(cleanedHostname))
+	mock.AssertFileExists("etc/confd/prefix/test.yaml")
+	mock.AssertFileExists("etc/confd/prefix/test.Yml")
+	mock.AssertNoFileExists("etc/confd/prefix/not_included.conf")
 }
 
-func TestZipLogFiles(t *testing.T) {
-	srcDir, err := ioutil.TempDir("", "logs")
-	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
-	dstDir, err := ioutil.TempDir("", "TestZipLogFiles")
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
-
-	_, err = os.Create(filepath.Join(srcDir, "agent.log"))
-	require.NoError(t, err)
-	_, err = os.Create(filepath.Join(srcDir, "trace-agent.log"))
-	require.NoError(t, err)
-	err = os.Mkdir(filepath.Join(srcDir, "archive"), 0700)
-	require.NoError(t, err)
-	_, err = os.Create(filepath.Join(srcDir, "archive", "agent.log"))
-	require.NoError(t, err)
-
-	permsInfos := make(permissionsInfos)
-
-	err = zipLogFiles(dstDir, "test", filepath.Join(srcDir, "agent.log"), permsInfos)
-	assert.NoError(t, err)
-
-	// Check all the log files are in the destination path, at the right subdirectories
-	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "agent.log"))
-	assert.NoError(t, err)
-	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "trace-agent.log"))
-	assert.NoError(t, err)
-	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "archive", "agent.log"))
-	assert.NoError(t, err)
+func createTestFile(t *testing.T, filename string) string {
+	path := filepath.Join(t.TempDir(), filename)
+	require.NoError(t, os.WriteFile(path, []byte("mockfilecontent"), os.ModePerm))
+	return path
 }
 
-func TestZipRegistryJSON(t *testing.T) {
-	srcDir, err := ioutil.TempDir("", "run")
-	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
-	dstDir, err := ioutil.TempDir("", "TestZipRegistryJSON")
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
+func TestRegistryJSON(t *testing.T) {
+	srcDir := createTestFile(t, "registry.json")
 
-	// create non-empty registry.json file
-	file, err := os.Create(filepath.Join(srcDir, "registry.json"))
-	require.NoError(t, err)
-	_, err = file.WriteString("{\"key\":\"value\"}")
-	require.NoError(t, err)
-	err = file.Close()
-	require.NoError(t, err)
+	confMock := config.Mock(t)
+	confMock.Set("logs_config.run_path", filepath.Dir(srcDir))
 
-	tempRunPath := config.Datadog.GetString("logs_config.run_path")
-	config.Datadog.Set("logs_config.run_path", srcDir)
-	defer config.Datadog.Set("logs_config.run_path", tempRunPath)
+	mock := flarehelpers.NewFlareBuilderMock(t)
+	getRegistryJSON(mock.Fb)
 
-	err = zipRegistryJSON(dstDir, "test")
-	assert.NoError(t, err)
-
-	// Check all the log files are in the destination path, at the right subdirectories
-	stat, err := os.Stat(filepath.Join(dstDir, "test", "registry.json"))
-	assert.NoError(t, err)
-	assert.Greater(t, stat.Size(), int64(0))
+	mock.AssertFileContent("mockfilecontent", "registry.json")
 }
 
-func TestZipTaggerList(t *testing.T) {
-	tagMap := make(map[string]response.TaggerListEntity)
-	tagMap["random_entity_name"] = response.TaggerListEntity{
+func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
+	u, err := url.Parse(URL)
+	require.NoError(t, err)
+	host, port, err := net.SplitHostPort(u.Host)
+	require.NoError(t, err)
+
+	confMock := config.Mock(t)
+	confMock.Set("ipc_address", host)
+	confMock.Set("cmd_port", port)
+	confMock.Set("process_config.cmd_port", port)
+
+	return confMock
+}
+
+func TestGetAgentTaggerList(t *testing.T) {
+	tagMap := make(map[string]tagger_api.TaggerListEntity)
+	tagMap["random_entity_name"] = tagger_api.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
 	}
-	resp := response.TaggerListResponse{
+	resp := tagger_api.TaggerListResponse{
 		Entities: tagMap,
 	}
 
@@ -327,18 +127,10 @@ func TestZipTaggerList(t *testing.T) {
 	}))
 	defer s.Close()
 
-	dir, err := ioutil.TempDir("", "TestZipTaggerList")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	setupIPCAddress(t, s.URL)
 
-	taggerListURL = s.URL
-	zipTaggerList(dir, "")
-	content, err := ioutil.ReadFile(filepath.Join(dir, "tagger-list.json"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	content, err := getAgentTaggerList()
+	require.NoError(t, err)
 
 	assert.Contains(t, string(content), "random_entity_name")
 	assert.Contains(t, string(content), "docker_source_name")
@@ -346,7 +138,7 @@ func TestZipTaggerList(t *testing.T) {
 	assert.Contains(t, string(content), "image_name:custom-agent")
 }
 
-func TestZipWorkloadList(t *testing.T) {
+func TestGetWorkloadList(t *testing.T) {
 	workloadMap := make(map[string]workloadmeta.WorkloadEntity)
 	workloadMap["kind_id"] = workloadmeta.WorkloadEntity{
 		Infos: map[string]string{
@@ -364,18 +156,10 @@ func TestZipWorkloadList(t *testing.T) {
 	}))
 	defer s.Close()
 
-	dir, err := ioutil.TempDir("", "TestZipWorkloadList")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	setupIPCAddress(t, s.URL)
 
-	workloadListURL = s.URL
-	zipWorkloadList(dir, "")
-	content, err := ioutil.ReadFile(filepath.Join(dir, "workload-list.log"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	content, err := getWorkloadList()
+	require.NoError(t, err)
 
 	assert.Contains(t, string(content), "kind_id")
 	assert.Contains(t, string(content), "container_id_1")
@@ -386,74 +170,154 @@ func TestZipWorkloadList(t *testing.T) {
 
 func TestPerformanceProfile(t *testing.T) {
 	testProfile := ProfileData{
-		"first":  []byte{},
-		"second": []byte{},
-		"third":  []byte{},
+		"first":  []byte("data1"),
+		"second": []byte("data2"),
+		"third":  []byte("data3"),
 	}
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, testProfile, nil)
+	mock := flarehelpers.NewFlareBuilderMock(t)
+	getPerformanceProfile(mock.Fb, testProfile)
 
-	assert.NoError(t, err)
-	assert.Equal(t, zipFilePath, filePath)
-
-	// Open a zip archive for reading.
-	z, err := zip.OpenReader(zipFilePath)
-	if err != nil {
-		assert.Fail(t, "Unable to open the flare archive")
-	}
-	defer z.Close()
-	defer os.Remove(zipFilePath)
-
-	firstHeap, secondHeap, cpu := false, false, false
-	for _, f := range z.File {
-		switch path.Base(f.Name) {
-		case "first":
-			firstHeap = true
-		case "second":
-			secondHeap = true
-		case "third":
-			cpu = true
-		}
-	}
-
-	assert.True(t, firstHeap, "first-heap.profile should've been included")
-	assert.True(t, secondHeap, "second-heap.profile should've been included")
-	assert.True(t, cpu, "cpu.profile should've been included")
+	mock.AssertFileContent("data1", "profiles", "first")
+	mock.AssertFileContent("data2", "profiles", "second")
+	mock.AssertFileContent("data3", "profiles", "third")
 }
 
-// Test that the scrubber.Writer returned from newScrubberWriter actually
-// scrubs third-party API keys.
-func TestRedactingOtherServicesApiKey(t *testing.T) {
-	dir := t.TempDir()
-	filename := path.Join(dir, "test.config")
+func TestVersionHistory(t *testing.T) {
+	srcDir := createTestFile(t, "version-history.json")
 
-	clear := `init_config:
-instances:
-- host: 127.0.0.1
-  api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  port: 8082
-  api_key: dGhpc2++lzM+XBhc3N3b3JkW113aXRo/c29tZWN]oYXJzMTIzCg==
-  version: 4 # omit this line if you're running pdns_recursor version 3.x`
-	redacted := `init_config:
-instances:
-- host: 127.0.0.1
-  api_key: ***************************aaaaa
-  port: 8082
-  api_key: ********
-  version: 4 # omit this line if you're running pdns_recursor version 3.x`
+	confMock := config.Mock(t)
+	confMock.Set("run_path", filepath.Dir(srcDir))
 
-	w, err := newScrubberWriter(filename, os.ModePerm)
+	mock := flarehelpers.NewFlareBuilderMock(t)
+	getVersionHistory(mock.Fb)
+
+	mock.AssertFileContent("mockfilecontent", "version-history.json")
+}
+
+func TestProcessAgentFullConfig(t *testing.T) {
+	type ProcessConfig struct {
+		Enabled string `yaml:"enabled"`
+	}
+
+	globalCfg := struct {
+		Apikey     string        `yaml:"api_key"`
+		DDurl      string        `yaml:"dd_url"`
+		ProcessCfg ProcessConfig `yaml:"process_config"`
+	}{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"https://my-url.com",
+		ProcessConfig{
+			"true",
+		},
+	}
+
+	exp := `api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+dd_url: https://my-url.com
+process_config:
+  enabled: "true"
+`
+
+	t.Run("without process-agent running", func(t *testing.T) {
+		content, err := getProcessAgentFullConfig()
+		require.NoError(t, err)
+		assert.Equal(t, "error: process-agent is not running or is unreachable\n", string(content))
+	})
+
+	t.Run("with process-agent running", func(t *testing.T) {
+		// Create a server to mock process-agent /config/all endpoint
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+			b, err := yaml.Marshal(globalCfg)
+			require.NoError(t, err)
+
+			_, err = w.Write(b)
+			require.NoError(t, err)
+		}
+		srv := httptest.NewServer(http.HandlerFunc(handler))
+		defer srv.Close()
+
+		setupIPCAddress(t, srv.URL)
+
+		content, err := getProcessAgentFullConfig()
+		require.NoError(t, err)
+		assert.Equal(t, exp, string(content))
+	})
+}
+
+func TestProcessAgentChecks(t *testing.T) {
+	expectedProcesses := []procmodel.MessageBody{
+		&procmodel.CollectorProc{
+			Processes: []*procmodel.Process{
+				{
+					Pid: 1337,
+				},
+			},
+		},
+	}
+	expectedProcessesJSON, err := json.Marshal(&expectedProcesses)
 	require.NoError(t, err)
 
-	n, err := w.Write([]byte(clear))
-	require.NoError(t, err)
-	require.Equal(t, len(clear), n)
-	err = w.Flush()
-	require.NoError(t, err)
-	err = w.Close()
+	expectedContainers := []procmodel.MessageBody{
+		&procmodel.CollectorContainer{
+			Containers: []*procmodel.Container{
+				{
+					Id: "yeet",
+				},
+			},
+		},
+	}
+	expectedContainersJSON, err := json.Marshal(&expectedContainers)
 	require.NoError(t, err)
 
-	got, err := ioutil.ReadFile(filename)
+	expectedProcessDiscoveries := []procmodel.MessageBody{
+		&procmodel.CollectorProcDiscovery{
+			ProcessDiscoveries: []*procmodel.ProcessDiscovery{
+				{
+					Pid: 9001,
+				},
+			},
+		},
+	}
+	expectedProcessDiscoveryJSON, err := json.Marshal(&expectedProcessDiscoveries)
 	require.NoError(t, err)
-	assert.Equal(t, redacted, string(got))
+
+	t.Run("without process-agent running", func(t *testing.T) {
+		mock := flarehelpers.NewFlareBuilderMock(t)
+		getProcessChecks(mock.Fb, func() (string, error) { return "fake:1337", nil })
+
+		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data from callback for 'process_discovery_check_output.json': .*", "process_check_output.json")
+	})
+	t.Run("with process-agent running", func(t *testing.T) {
+		cfg := config.Mock(t)
+		cfg.Set("process_config.process_collection.enabled", true)
+		cfg.Set("process_config.container_collection.enabled", true)
+		cfg.Set("process_config.process_discovery.enabled", true)
+
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			switch r.URL.Path {
+			case "/check/process":
+				_, err = w.Write(expectedProcessesJSON)
+			case "/check/container":
+				_, err = w.Write(expectedContainersJSON)
+			case "/check/process_discovery":
+				_, err = w.Write(expectedProcessDiscoveryJSON)
+			default:
+				t.Error("Unexpected url endpoint", r.URL.Path)
+			}
+			require.NoError(t, err)
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(handler))
+		defer srv.Close()
+
+		setupIPCAddress(t, srv.URL)
+
+		mock := flarehelpers.NewFlareBuilderMock(t)
+		getProcessChecks(mock.Fb, config.GetProcessAPIAddressPort)
+
+		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
+		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")
+		mock.AssertFileContent(string(expectedProcessDiscoveryJSON), "process_discovery_check_output.json")
+	})
 }

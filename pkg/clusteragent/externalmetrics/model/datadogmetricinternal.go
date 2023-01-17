@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package model
@@ -12,8 +13,9 @@ import (
 	"fmt"
 	"time"
 
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -238,7 +240,7 @@ func (d *DatadogMetricInternal) newCondition(status bool, updateTime metav1.Time
 func (d *DatadogMetricInternal) resolveQuery(query string) {
 	resolvedQuery, err := resolveQuery(query)
 	if err != nil {
-		log.Errorf("Unable to resolve DatadogMetric query %q: %w", d.query, err)
+		log.Errorf("Unable to resolve DatadogMetric query %q: %v", d.query, err)
 		d.Valid = false
 		d.Error = fmt.Errorf("Cannot resolve query: %v", err)
 		d.UpdateTime = time.Now().UTC()

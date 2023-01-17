@@ -51,33 +51,43 @@ func (r *ErrAstToEval) Error() string {
 }
 
 // NewError returns a new ErrAstToEval error
-func NewError(pos lexer.Position, text string) *ErrAstToEval {
-	return &ErrAstToEval{Pos: pos, Text: text}
+func NewError(pos lexer.Position, format string, vars ...interface{}) *ErrAstToEval {
+	return &ErrAstToEval{Pos: pos, Text: fmt.Sprintf(format, vars...)}
 }
 
 // NewTypeError returns a new ErrAstToEval error when an invalid type was used
 func NewTypeError(pos lexer.Position, kind reflect.Kind) *ErrAstToEval {
-	return NewError(pos, fmt.Sprintf("%s expected", kind))
+	return NewError(pos, "%s expected", kind)
+}
+
+// NewArrayTypeError returns a new ErrAstToEval error when an invalid type was used
+func NewArrayTypeError(pos lexer.Position, arrayKind reflect.Kind, kind reflect.Kind) *ErrAstToEval {
+	return NewError(pos, "%s of %s expected", arrayKind, kind)
+}
+
+// NewCIDRTypeError returns a new ErrAstToEval error when an invalid type was used
+func NewCIDRTypeError(pos lexer.Position, arrayKind reflect.Kind, kind interface{}) *ErrAstToEval {
+	return NewError(pos, "%s of %s expected", arrayKind, reflect.TypeOf(kind))
 }
 
 // NewOpUnknownError returns a new ErrAstToEval error when an unknown operator was used
 func NewOpUnknownError(pos lexer.Position, op string) *ErrAstToEval {
-	return NewError(pos, fmt.Sprintf("operator `%s` unknown", op))
+	return NewError(pos, "operator `%s` unknown", op)
 }
 
 // NewOpError returns a new ErrAstToEval error when an operator was used in an invalid manner
 func NewOpError(pos lexer.Position, op string, err error) *ErrAstToEval {
-	return NewError(pos, fmt.Sprintf("operator `%s` error: %s", op, err))
+	return NewError(pos, "operator `%s` error: %s", op, err)
 }
 
 // NewRegisterMultipleFields returns a new ErrAstToEval error when a register is used across multiple fields
 func NewRegisterMultipleFields(pos lexer.Position, regID RegisterID, err error) *ErrAstToEval {
-	return NewError(pos, fmt.Sprintf("register `%s` error: %s", regID, err))
+	return NewError(pos, "register `%s` error: %s", regID, err)
 }
 
 // NewRegisterNameNotAllowed returns a new ErrAstToEval error when a register name is not allowed
 func NewRegisterNameNotAllowed(pos lexer.Position, regID RegisterID, err error) *ErrAstToEval {
-	return NewError(pos, fmt.Sprintf("register name `%s` error: %s", regID, err))
+	return NewError(pos, "register name `%s` error: %s", regID, err)
 }
 
 // ErrRuleParse describes a parsing error and its position in the expression
@@ -141,4 +151,13 @@ type ErrRuleNotCompiled struct {
 
 func (e ErrRuleNotCompiled) Error() string {
 	return fmt.Sprintf("rule not compiled `%s`", e.RuleID)
+}
+
+// ErrFieldReadOnly is returned when a filter does not support being set with SetFieldValue
+type ErrFieldReadOnly struct {
+	Field Field
+}
+
+func (e ErrFieldReadOnly) Error() string {
+	return fmt.Sprintf("read-only field `%s`", e.Field)
 }

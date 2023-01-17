@@ -1,0 +1,4 @@
+
+features:
+  - |
+    Add support for CAPI metadata and DCA tags collection in PCF containers.

@@ -6,7 +6,6 @@
 package sender
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -18,21 +17,10 @@ import (
 
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
+	output := make(chan *message.Payload)
 
-	var content []byte
-	success := func(payload []byte) error {
-		assert.Equal(t, content, payload)
-		return nil
-	}
-
-	done := make(chan bool)
-	go func() {
-		NewBatchStrategy(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test", 0).Send(input, output, success)
-		close(done)
-	}()
-
-	content = []byte("a\nb")
+	s := NewBatchStrategy(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
 	input <- message1
@@ -40,30 +28,30 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	message2 := message.NewMessage([]byte("b"), nil, "", 0)
 	input <- message2
 
+	expectedPayload := &message.Payload{
+		Messages:      []*message.Message{message1, message2},
+		Encoded:       []byte("a\nb"),
+		Encoding:      "identity",
+		UnencodedSize: 3,
+	}
+
 	// expect payload to be sent because buffer is full
-	assert.Equal(t, message1, <-output)
-	assert.Equal(t, message2, <-output)
-	close(input)
-	<-done
+	assert.Equal(t, expectedPayload, <-output)
+	s.Stop()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
 }
 
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message, 10)
+	output := make(chan *message.Payload)
 	timerInterval := 100 * time.Millisecond
 
-	// payload sends are blocked until we've confirmed that the we buffer the correct number of pending payloads
-	send := func(payload []byte) error {
-		return nil
-	}
-
 	clk := clock.NewMock()
-	strategy := newBatchStrategyWithClock(LineSerializer, timerInterval, 0, 100, 100, "test", 0, clk)
-	done := make(chan bool)
-	go func() {
-		strategy.Send(input, output, send)
-		close(done)
-	}()
+	s := newBatchStrategyWithClock(input, output, LineSerializer, timerInterval, 100, 100, "test", clk, &identityContentType{})
+	s.Start()
 
 	for round := 0; round < 3; round++ {
 		m := message.NewMessage([]byte("a"), nil, "", 0)
@@ -73,151 +61,72 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		clk.Add(2 * timerInterval)
 
 		select {
-		case mOut := <-output:
-			assert.EqualValues(t, m, mOut)
+		case payload := <-output:
+			assert.EqualValues(t, m, payload.Messages[0])
 		default:
 			assert.Fail(t, "the output channel should not be empty")
 		}
 	}
-
-	close(input)
-	<-done
+	s.Stop()
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
 }
 
 func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
-
-	var content []byte
-	success := func(payload []byte) error {
-		assert.Equal(t, content, payload)
-		return nil
-	}
+	output := make(chan *message.Payload)
 
 	clk := clock.NewMock()
-	done := make(chan bool)
-	go func() {
-		newBatchStrategyWithClock(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test", 0, clk).Send(input, output, success)
-		close(done)
-	}()
+	s := newBatchStrategyWithClock(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{})
+	s.Start()
 
-	content = []byte("a")
-
-	message := message.NewMessage(content, nil, "", 0)
+	message := message.NewMessage([]byte("a"), nil, "", 0)
 	input <- message
 
-	close(input)
+	go func() {
+		s.Stop()
+	}()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
 
 	// expect payload to be sent before timer, so we never advance the clock; if this
 	// doesn't work, the test will hang
-	assert.Equal(t, message, <-output)
-	<-done
-}
-
-func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
-	input := make(chan *message.Message)
-	output := make(chan *message.Message)
-
-	var content []byte
-	success := func(payload []byte) error {
-		return context.Canceled
-	}
-
-	message := message.NewMessage(content, nil, "", 0)
-	go func() {
-		input <- message
-		close(input)
-	}()
-
-	NewBatchStrategy(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test", 0).Send(input, output, success)
+	payload := <-output
+	assert.Equal(t, message, payload.Messages[0])
 }
 
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
+	output := make(chan *message.Payload)
 
-	var content []byte
-	success := func(payload []byte) error {
-		return nil
-	}
+	s := NewBatchStrategy(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s.Start()
+	message := message.NewMessage([]byte{}, nil, "", 0)
 
-	message := message.NewMessage(content, nil, "", 0)
+	input <- message
+
 	go func() {
-		input <- message
-		close(input)
-		assert.Equal(t, message, <-output)
+		s.Stop()
 	}()
-
-	NewBatchStrategy(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test", 0).Send(input, output, success)
-}
-
-func TestBatchStrategyConcurrentSends(t *testing.T) {
-	input := make(chan *message.Message)
-	output := make(chan *message.Message, 10)
-	waitChan := make(chan bool)
-
-	// payload sends are blocked until we've confirmed that the we buffer the correct number of pending payloads
-	stuckSend := func(payload []byte) error {
-		<-waitChan
-		return nil
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
 	}
 
-	strategy := NewBatchStrategy(LineSerializer, 100*time.Millisecond, 2, 1, 100, "test", 0)
-	done := make(chan bool)
-	go func() {
-		strategy.Send(input, output, stuckSend)
-		close(done)
-	}()
-
-	messages := []*message.Message{
-		// the first two messages will be blocked in concurrent send goroutines
-		message.NewMessage([]byte("a"), nil, "", 0),
-		message.NewMessage([]byte("b"), nil, "", 0),
-		// the third message will be read out by the main batch sender loop and will be blocked waiting for one of the
-		// first two concurrent sends to complete
-		message.NewMessage([]byte("c"), nil, "", 0),
-	}
-
-	for _, m := range messages {
-		input <- m
-	}
-
-	select {
-	case input <- message.NewMessage([]byte("c"), nil, "", 0):
-		assert.Fail(t, "should not have been able to write into the channel as the input channel is expected to be backed up due to reaching max concurrent sends")
-	default:
-	}
-
-	close(waitChan)
-	close(input)
-	<-done
-	close(output)
-
-	var receivedMessages []*message.Message
-	for m := range output {
-		receivedMessages = append(receivedMessages, m)
-	}
-
-	// order in which messages are received here is not deterministic so compare values
-	assert.ElementsMatch(t, messages, receivedMessages)
+	assert.Equal(t, message, (<-output).Messages[0])
 }
 
 func TestBatchStrategySynchronousFlush(t *testing.T) {
 	input := make(chan *message.Message)
 	// output needs to be buffered so the flush has somewhere to write to without blocking
-	output := make(chan *message.Message, 3)
-	send := func(payload []byte) error {
-		return nil
-	}
+	output := make(chan *message.Payload)
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(LineSerializer, time.Hour, 0, 100, 100, "test", 0)
-	done := make(chan bool)
-	go func() {
-		strategy.Send(input, output, send)
-		close(done)
-	}()
+	strategy := NewBatchStrategy(input, output, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
+	strategy.Start()
 
 	// all of these messages will get buffered
 	messages := []*message.Message{
@@ -236,17 +145,16 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 	default:
 	}
 
-	// trigger the flush and make sure we can read the messages out now
-	strategy.Flush(context.Background())
+	go func() {
+		// Stop triggers the flush and make sure we can read the messages out now
+		strategy.Stop()
+	}()
 
-	var receivedMessages []*message.Message
-	for range messages {
-		receivedMessages = append(receivedMessages, <-output)
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
 	}
-	assert.ElementsMatch(t, messages, receivedMessages)
 
-	close(input)
-	<-done
+	assert.ElementsMatch(t, messages, (<-output).Messages)
 
 	select {
 	case <-output:

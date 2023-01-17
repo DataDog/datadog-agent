@@ -1,7 +1,9 @@
 name "python3"
 
 if ohai["platform"] != "windows"
-  default_version "3.8.11"
+  default_version "3.8.16"
+
+  dependency "libxcrypt"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
@@ -13,7 +15,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "b77464ea80cec14581b86aeb7fb2ff02830e0abc7bcdc752b7b4bdfcd8f3e393"
+         :sha256 => "71ca9d935637ed2feb59e90a368361dc91eca472a90acb1d344a2e8178ccaf10"
 
   relative_path "Python-#{version}"
 
@@ -36,7 +38,8 @@ if ohai["platform"] != "windows"
   python_configure.push("--with-dbmliborder=")
 
   build do
-    ship_license "PSFL"
+    # 2.0 is the license version here, not the python version
+    license "Python-2.0"
 
     env = case ohai["platform"]
           when "aix"
@@ -63,23 +66,26 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "3.8.11-v3.8.11"
+  default_version "3.8.16-2609a9b"
   dependency "vc_redist_14"
 
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-            :sha256 => "5BAEB08EF35486219342D5A4861D1718E084E29EF506A2F0C9E528A9AD3F2BF3".downcase
+            :sha256 => "07A1CD790D258AE925502E362701DED8B7362418766B89FE3CF53DB16D349A9C".downcase
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
-         :sha256 => "A437BB304F6B44FA516E44889506B2A0F2AC4EB8F01BA06A1BFBF5D87023CAE4".downcase
+         :sha256 => "E93C7A7290F422FDC09131B01DCE1F9FD94DC5273F26149FCDF8CC6B26454DE1".downcase
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
+    # 2.0 is the license version here, not the python version
+    license "Python-2.0"
+
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
     command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
   end

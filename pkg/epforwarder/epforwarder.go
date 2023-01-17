@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package epforwarder
 
 import (
@@ -13,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -25,18 +30,25 @@ const (
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
+
+	// EventTypeSnmpTraps is the event type for snmp traps
+	EventTypeSnmpTraps = "network-devices-snmp-traps"
+
+	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
+	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:              eventTypeDBMSamples,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
-		hostnameEndpointPrefix: "dbquery-intake.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "databasequery",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -47,6 +59,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -57,6 +70,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
@@ -66,6 +80,38 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
+	{
+		eventType:                     EventTypeSnmpTraps,
+		endpointsConfigPrefix:         "network_devices.snmp_traps.forwarder.",
+		hostnameEndpointPrefix:        "snmp-traps-intake.",
+		intakeTrackType:               "ndmtraps",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
+	{
+		eventType:                     EventTypeNetworkDevicesNetFlow,
+		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
+		hostnameEndpointPrefix:        "ndmflow-intake.",
+		intakeTrackType:               "ndmflow",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+
+		// Each NetFlow flow is about 500 bytes
+		// 10k BatchMaxSize is about 5Mo of content size
+		defaultBatchMaxSize: 10000,
+
+		// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
+		// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
+		// due to input channel being full.
+		// TODO: A possible better solution is to make SendEventPlatformEvent blocking when input chan is full and avoid
+		//   dropping events. This can't be done right now due to SendEventPlatformEvent being called by
+		//   aggregator loop, making SendEventPlatformEvent blocking might slow down other type of data handled
+		//   by aggregator.
+		defaultInputChanSize: 10000,
 	},
 }
 
@@ -92,7 +138,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	case p.in <- e:
 		return nil
 	default:
-		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. consider increasing batch_max_concurrent_send", eventType)
+		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
 	}
 }
 
@@ -116,7 +162,11 @@ func (s *defaultEventPlatformForwarder) Purge() map[string][]*message.Message {
 	defer s.purgeMx.Unlock()
 	result := make(map[string][]*message.Message)
 	for eventType, p := range s.pipelines {
-		result[eventType] = purgeChan(p.in)
+		res := purgeChan(p.in)
+		result[eventType] = res
+		if eventType == eventTypeDBMActivity || eventType == eventTypeDBMMetrics || eventType == eventTypeDBMSamples {
+			log.Debugf("purged DBM channel %s: %d events", eventType, len(res))
+		}
 	}
 	return result
 }
@@ -130,7 +180,7 @@ func (s *defaultEventPlatformForwarder) Start() {
 
 func (s *defaultEventPlatformForwarder) Stop() {
 	log.Debugf("shutting down event platform forwarder")
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, p := range s.pipelines {
 		stopper.Add(p)
 	}
@@ -141,9 +191,10 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender  sender.Sender
-	in      chan *message.Message
-	auditor auditor.Auditor
+	sender   *sender.Sender
+	strategy sender.Strategy
+	in       chan *message.Message
+	auditor  auditor.Auditor
 }
 
 type passthroughPipelineDesc struct {
@@ -155,6 +206,7 @@ type passthroughPipelineDesc struct {
 	defaultBatchMaxConcurrentSend int
 	defaultBatchMaxContentSize    int
 	defaultBatchMaxSize           int
+	defaultInputChanSize          int
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -178,32 +230,58 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-	additionals := []client.Destination{}
-	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+	if endpoints.InputChanSize <= pkgconfig.DefaultInputChanSize {
+		endpoints.InputChanSize = desc.defaultInputChanSize
 	}
-	destinations := client.NewDestinations(main, additionals)
-	inputChan := make(chan *message.Message, 100)
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, pipelineID)
+	reliable := []client.Destination{}
+	for i, endpoint := range endpoints.GetReliableEndpoints() {
+		telemetryName := fmt.Sprintf("%s_%d_reliable_%d", desc.eventType, pipelineID, i)
+		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
+	}
+	additionals := []client.Destination{}
+	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
+		telemetryName := fmt.Sprintf("%s_%d_unreliable_%d", desc.eventType, pipelineID, i)
+		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
+	}
+	destinations := client.NewDestinations(reliable, additionals)
+	inputChan := make(chan *message.Message, endpoints.InputChanSize)
+	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+
+	encoder := sender.IdentityContentType
+	if endpoints.Main.UseCompression {
+		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+	}
+
+	strategy := sender.NewBatchStrategy(inputChan,
+		senderInput,
+		sender.ArraySerializer,
+		endpoints.BatchWait,
+		endpoints.BatchMaxSize,
+		endpoints.BatchMaxContentSize,
+		desc.eventType,
+		encoder)
+
 	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
-		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
+		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:  sender.NewSingleSender(inputChan, a.Channel(), destinations, strategy),
-		in:      inputChan,
-		auditor: a,
+		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		strategy: strategy,
+		in:       inputChan,
+		auditor:  a,
 	}, nil
 }
 
 func (p *passthroughPipeline) Start() {
 	p.auditor.Start()
-	if p.sender != nil {
+	if p.strategy != nil {
+		p.strategy.Start()
 		p.sender.Start()
 	}
 }
 
 func (p *passthroughPipeline) Stop() {
+	p.strategy.Stop()
 	p.sender.Stop()
 	p.auditor.Stop()
 }
@@ -245,7 +323,7 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 	f := newDefaultEventPlatformForwarder()
 	// remove the senders
 	for _, p := range f.pipelines {
-		p.sender = nil
+		p.strategy = nil
 	}
 	return f
 }

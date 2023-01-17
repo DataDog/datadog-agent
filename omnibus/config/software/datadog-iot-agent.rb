@@ -8,17 +8,16 @@ require 'pathname'
 
 name 'datadog-iot-agent'
 
-license "Apache-2.0"
-license_file "../LICENSE"
-
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
+  license :project_license
+
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
-  gomodcache = Pathname.new("/gomodcache")
+  gomodcache = Pathname.new("/modcache")
   env = {
     'GOPATH' => gopath.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
@@ -41,7 +40,7 @@ build do
   end
 
   if linux?
-    command "invoke agent.build --iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
+    command "invoke agent.build --flavor iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
@@ -92,7 +91,7 @@ build do
     mkdir conf_dir
     mkdir "#{install_dir}/bin/agent"
 
-    command "inv agent.build --iot --rebuild --no-development --arch #{platform} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
+    command "inv agent.build --flavor iot --rebuild --no-development --arch #{platform} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
 
       # move around bin and config files
     move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
@@ -113,22 +112,10 @@ build do
     if windows?
       # defer compilation step in a block to allow getting the project's build version, which is populated
       # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-      env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
       platform = windows_arch_i386? ? "x86" : "x64"
       command "invoke trace-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-    end
-  end
-  block do
-    # defer compilation step in a block to allow getting the project's build version, which is populated
-    # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-    if windows?
-      platform = windows_arch_i386? ? "x86" : "x64"
-      # Build the security-agent with the correct go version for windows
-      command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
-
-      copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end
   end
 

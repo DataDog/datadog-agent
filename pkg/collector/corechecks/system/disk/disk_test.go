@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package disk
@@ -10,25 +11,25 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/shirou/gopsutil/v3/disk"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/shirou/gopsutil/disk"
 )
 
 var (
 	diskSamples = []disk.PartitionStat{
-
 		{
 			Device:     "/dev/sda2",
 			Mountpoint: "/",
 			Fstype:     "ext4",
-			Opts:       "rw,relatime,errors=remount-ro,data=ordered",
+			Opts:       []string{"rw,relatime,errors=remount-ro,data=ordered"},
 		},
 		{
 			Device:     "/dev/sda1",
 			Mountpoint: "/boot/efi",
 			Fstype:     "vfat",
-			Opts:       "rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+			Opts:       []string{"rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro"},
 		},
 	}
 	diskUsageSamples = map[string]*disk.UsageStat{
@@ -44,7 +45,8 @@ var (
 			InodesFree:        0,
 			InodesUsedPercent: 0,
 		},
-		"/": {Path: "/",
+		"/": {
+			Path:              "/",
 			Fstype:            "ext2/ext3",
 			Total:             52045545472,
 			Free:              39085445120,
@@ -92,7 +94,7 @@ func TestDiskCheck(t *testing.T) {
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
 	diskCheck := new(Check)
-	diskCheck.Configure(nil, nil, "test")
+	diskCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(diskCheck.ID())
 
@@ -139,7 +141,7 @@ func TestDiskCheckExcludedDiskFilsystem(t *testing.T) {
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
 	diskCheck := new(Check)
-	diskCheck.Configure(nil, nil, "test")
+	diskCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	diskCheck.cfg.excludedFilesystems = []string{"vfat"}
 	diskCheck.cfg.excludedDisks = []string{"/dev/sda2"}
@@ -171,7 +173,7 @@ func TestDiskCheckExcludedRe(t *testing.T) {
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
 	diskCheck := new(Check)
-	diskCheck.Configure(nil, nil, "test")
+	diskCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	diskCheck.cfg.excludedMountpointRe = regexp.MustCompile("/boot/efi")
 	diskCheck.cfg.excludedDiskRe = regexp.MustCompile("/dev/sda2")
@@ -206,7 +208,7 @@ func TestDiskCheckTags(t *testing.T) {
 
 	config := integration.Data([]byte("use_mount: true\ntag_by_filesystem: true\nall_partitions: true\ndevice_tag_re:\n  /boot/efi: role:esp\n  /dev/sda2: device_type:sata,disk_size:large"))
 
-	diskCheck.Configure(config, nil, "test")
+	diskCheck.Configure(integration.FakeConfigHash, config, nil, "test")
 
 	mock := mocksender.NewMockSender(diskCheck.ID())
 

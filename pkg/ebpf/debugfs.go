@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package ebpf
@@ -10,24 +16,40 @@ import (
 	"strconv"
 	"strings"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
+var myPid int
+
+func init() {
+	myPid = manager.Getpid()
+}
+
+// KprobeStats is the count of hits and misses for a kprobe/kretprobe
 type KprobeStats struct {
 	Hits   int64
 	Misses int64
 }
 
 // event name format is p|r_<funcname>_<uid>_<pid>
-var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)(_[^_]*)(_[^_]*)$`)
+var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
 
 // KprobeProfile is the default path to the kprobe_profile file
 const KprobeProfile = "/sys/kernel/debug/tracing/kprobe_profile"
 
 // GetProbeStats gathers stats about the # of kprobes triggered /missed by reading the kprobe_profile file
 func GetProbeStats() map[string]int64 {
-	m, err := readKprobeProfile(KprobeProfile)
+	return getProbeStats(0, KprobeProfile)
+}
+
+func getProbeStats(pid int, profile string) map[string]int64 {
+	if pid == 0 {
+		pid = myPid
+	}
+
+	m, err := readKprobeProfile(profile)
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return map[string]int64{}
@@ -37,6 +59,13 @@ func GetProbeStats() map[string]int64 {
 	for event, st := range m {
 		parts := eventRegexp.FindStringSubmatch(event)
 		if len(parts) > 2 {
+			// only get stats for our pid
+			if len(parts) > 3 {
+				parsePid, err := strconv.ParseInt(parts[3], 10, 32)
+				if err != nil || int(parsePid) != pid {
+					continue
+				}
+			}
 			// strip UID and PID from name
 			event = parts[1]
 		}
@@ -68,7 +97,7 @@ func GetProbeTotals() KprobeStats {
 func readKprobeProfile(path string) (map[string]KprobeStats, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error opening kprobe profile file at: %s", path)
+		return nil, fmt.Errorf("error opening kprobe profile file at: %s: %w", path, err)
 	}
 	defer f.Close()
 

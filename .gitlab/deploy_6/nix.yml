@@ -1,42 +1,19 @@
 ---
-.setup_rpm_signing_key: &setup_rpm_signing_key
-  - set +x
-  - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-  - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-  - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-
-# deploy debian packages to apt staging repo
-deploy_staging_deb-6:
+deploy_packages_deb-6:
   rules:
     !reference [.on_deploy_a6]
   stage: deploy6
   resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6"]
+  dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6", "agent_heroku_deb-x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    # We first check that the current version hasn't already been deployed
-    # (same as the check_already_deployed_version). We do this twice to mitigate
-    # races and issues with retries while failing early if there is an issue.
-    - pushd $OMNIBUS_PACKAGE_DIR
-    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh *_6.*amd64.deb
-    - popd
+    - $S3_CP_CMD --recursive --exclude "*" --include "*_6.*amd64.deb" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/deb/amd64/ || true
+    - $S3_CP_CMD --recursive --exclude "*" --include "*_6.*arm64.deb" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/deb/arm64/ || true
 
-    - set +x  # make sure we don't output the creds to the build log
-
-    - APT_SIGNING_PRIVATE_KEY=$(aws ssm get-parameter --region us-east-1 --name $DEB_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-    - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $DEB_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-
-    - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
-
-    # Release the artifacts to the "6" component
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*arm64.deb
-
-deploy_staging_rpm-6:
+deploy_packages_rpm-6:
   rules:
     !reference [.on_deploy_a6]
   stage: deploy6
@@ -47,13 +24,11 @@ deploy_staging_rpm-6:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - *setup_rpm_signing_key
-    - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$BUCKET_BRANCH/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$BUCKET_BRANCH/6/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm
+    - $S3_CP_CMD --recursive --exclude "*" --include "*-6.*x86_64.rpm" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/rpm/x86_64/ || true
+    - $S3_CP_CMD --recursive --exclude "*" --include "*-6.*aarch64.rpm" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/rpm/aarch64/ || true
 
 # NOTE: no SuSE ARM builds currently.
-deploy_staging_suse_rpm-6:
+deploy_packages_suse_rpm-6:
   rules:
     !reference [.on_deploy_a6]
   stage: deploy6
@@ -64,20 +39,4 @@ deploy_staging_suse_rpm-6:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
-    - *setup_rpm_signing_key
-    - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$BUCKET_BRANCH/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/*-6.*x86_64.rpm
-
-# Deploy MacOS dmg builds
-deploy_staging_dmg-a6:
-  allow_failure: true
-  rules:
-    !reference [.on_deploy_a6]
-  stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies: ["agent_dmg-x64-a6"]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.dmg" $OMNIBUS_PACKAGE_DIR s3://$MACOS_S3_BUCKET/$BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "*-6.*x86_64.rpm" $OMNIBUS_PACKAGE_DIR_SUSE $S3_RELEASE_ARTIFACTS_URI/suse_rpm/x86_64/ || true

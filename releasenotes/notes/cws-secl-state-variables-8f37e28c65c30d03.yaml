@@ -1,0 +1,51 @@
+---
+features:
+  - |
+    Allow setting variables to store states through rule actions.
+    Action rules can now be defined as follows:
+
+    ```
+    - id: my_rule
+      expression: ...
+      actions:
+        - set:
+            name: my_boolean_variable
+            value: true
+        - set:
+            name: my_string_variable
+            value: a string
+        - set:
+            name: my_other_variable
+            field: process.file.name
+    ```
+
+    These actions will be executed when the rule is triggered by an event.
+    Right now, only `set` actions can be defined.
+    `name` is the name of the variable that will be set by the actions.
+    The value for the variable can be specified by using:
+    - `value` for a predefined value
+      (strings, integers, booleans, array of strings and array of integers are currently supported).
+    - `field` for the value of an event field.
+
+    Variable arrays can be modified by specifying `append: true`.
+
+    Variables can be reused in rule expressions like a regular variable:
+
+    ```
+    - id: my_other_rule
+      expression: |-
+        open.file.path == ${my_other_variable}
+    ```
+
+    By default, variables are global. They can be bounded to a specific process by using the `process`
+    scope as follows:
+
+    ```
+    - set:
+        name: my_scoped_variable
+        scope: process
+        value: true
+    ```
+
+    The variable can be referenced in other expressions as `${process.my_scoped_variable}`. When the process dies, the
+    variable with be automatically freed.

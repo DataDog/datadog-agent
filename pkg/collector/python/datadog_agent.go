@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"unsafe"
 
-	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -48,7 +50,7 @@ func GetVersion(agentVersion **C.char) {
 // GetHostname exposes the current hostname of the agent to Python checks.
 //export GetHostname
 func GetHostname(hostname **C.char) {
-	goHostname, err := util.GetHostname(context.TODO())
+	goHostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err)
 		goHostname = ""
@@ -60,7 +62,7 @@ func GetHostname(hostname **C.char) {
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
-	goHostname, _ := util.GetHostname(context.TODO())
+	goHostname, _ := hostnameUtil.Get(context.TODO())
 	goClusterName := clustername.GetClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
 	*clusterName = TrackedCString(goClusterName)
@@ -220,26 +222,64 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 	return obfuscator
 }
 
+// sqlConfig holds the config for the python SQL obfuscator.
+type sqlConfig struct {
+	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
+	DBMS string `json:"dbms"`
+	// TableNames specifies whether the obfuscator should extract and return table names as SQL metadata when obfuscating.
+	TableNames bool `json:"table_names"`
+	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
+	CollectCommands bool `json:"collect_commands"`
+	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
+	CollectComments bool `json:"collect_comments"`
+	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
+	ReplaceDigits bool `json:"replace_digits"`
+	// KeepSQLAlias specifies whether or not to strip sql aliases while obfuscating.
+	KeepSQLAlias bool `json:"keep_sql_alias"`
+	// DollarQuotedFunc specifies whether or not to remove $func$ strings in postgres.
+	DollarQuotedFunc bool `json:"dollar_quoted_func"`
+	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
+	ReturnJSONMetadata bool `json:"return_json_metadata"`
+}
+
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
 // fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
-	var sqlOpts obfuscate.SQLConfig
-	if opts != nil {
-		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
-		sqlOpts.UnmarshalEasyJSON(jl)
-		if jl.Error() != nil {
-			log.Errorf("Failed to unmarshal obfuscation options: %s", jl.Error())
-			*errResult = TrackedCString(jl.Error().Error())
-			return nil
-		}
+	optStr := C.GoString(opts)
+	if optStr == "" {
+		// ensure we have a valid JSON string before unmarshalling
+		optStr = "{}"
+	}
+	var sqlOpts sqlConfig
+	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
+		log.Errorf("Failed to unmarshal obfuscation options: %s", err.Error())
+		*errResult = TrackedCString(err.Error())
 	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &sqlOpts)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
+		DBMS:             sqlOpts.DBMS,
+		TableNames:       sqlOpts.TableNames,
+		CollectCommands:  sqlOpts.CollectCommands,
+		CollectComments:  sqlOpts.CollectComments,
+		ReplaceDigits:    sqlOpts.ReplaceDigits,
+		KeepSQLAlias:     sqlOpts.KeepSQLAlias,
+		DollarQuotedFunc: sqlOpts.DollarQuotedFunc,
+	})
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
 		return nil
+	}
+	if sqlOpts.ReturnJSONMetadata {
+		out, err := json.Marshal(obfuscatedQuery)
+		if err != nil {
+			// memory will be freed by caller
+			*errResult = TrackedCString(err.Error())
+			return nil
+		}
+		// memory will be freed by caller
+		return TrackedCString(string(out))
 	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedQuery.Query)

@@ -4,7 +4,8 @@ updates:
     directory: /
     labels:
       - dependencies
-      - team/agent-platform
+      - dependencies-go
+      - team/triage
       - changelog/no-changelog
     milestone: 22
     ignore:
@@ -32,10 +33,12 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/otlp/model
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
@@ -44,22 +47,44 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: gomod
-    directory: /pkg/obfuscate
+    directory: /pkg/trace
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-apm
       - changelog/no-changelog
     milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # See https://github.com/DataDog/datadog-agent/pull/10112
+      - dependency-name: github.com/mailru/easyjson
     schedule:
       interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: gomod
+    directory: /pkg/obfuscate
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/agent-apm
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+      # See https://github.com/DataDog/datadog-agent/pull/10112
+      - dependency-name: github.com/mailru/easyjson
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/quantile
     labels:
       - dependencies
+      - dependencies-go
       - team/metrics-aggregation
       - changelog/no-changelog
     milestone: 22
@@ -68,47 +93,12 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/util/log
-    labels:
-      - dependencies
-      - team/agent-platform
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      - dependency-name: github.com/cihub/seelog
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/util/scrubber
-    labels:
-      - dependencies
-      - team/agent-core
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/util/winutil
-    labels:
-      - dependencies
-      - team/agent-platform
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/security/secl
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-security
       - changelog/no-changelog
     milestone: 22
@@ -117,10 +107,16 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /internal/tools
     labels:
       - dependencies
+      - dependencies-go
+      - dependencies-go-tools # This makes the go_mod_tidy Github Action not run go tools from this
+                              # package on Dependabot PRs. Otherwise, a malicious dependency could
+                              # publish a new version exploiting that it runs automatically after it
+                              # is updated to write to our repo.
       - dev/tooling
       - team/agent-platform
       - changelog/no-changelog
@@ -128,18 +124,7 @@ updates:
     milestone: 22
     schedule:
       interval: monthly
-  - package-ecosystem: "pip"
-    directory: "/"
-    labels:
-      - dependencies
-      - python
-      - team/agent-platform
-      - changelog/no-changelog
-      - qa/skip-qa
-      - dev/tooling
-    milestone: 22
-    schedule:
-      interval: "weekly"
+    open-pull-requests-limit: 100
   - package-ecosystem: "pip"
     directory: "/.circleci"
     labels:
@@ -152,3 +137,30 @@ updates:
     milestone: 22
     schedule:
       interval: "monthly"
+    open-pull-requests-limit: 100
+  - package-ecosystem: "pip"
+    directory: "/test/e2e/cws-tests"
+    labels:
+      - dependencies
+      - python
+      - team/agent-security
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/tooling
+    milestone: 22
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 100
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    labels:
+      - dependencies
+      - dependencies-github-actions
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/tooling
+    milestone: 22
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 100

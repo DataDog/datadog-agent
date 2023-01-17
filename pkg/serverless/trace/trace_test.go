@@ -3,23 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package trace
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestStartEnabledFalse(t *testing.T) {
+	lambdaSpanChan := make(chan *pb.Span)
 	var agent = &ServerlessTraceAgent{}
-	agent.Start(false, nil)
+	agent.Start(false, nil, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
@@ -36,7 +40,8 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	agent.Start(true, &LoadConfigMocked{})
+	lambdaSpanChan := make(chan *pb.Span)
+	agent.Start(true, &LoadConfigMocked{}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
@@ -45,10 +50,10 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 
 func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
+	lambdaSpanChan := make(chan *pb.Span)
 
-	os.Setenv("DD_API_KEY", "x")
-	defer os.Unsetenv("DD_API_KEY")
-	agent.Start(true, &LoadConfig{Path: "invalid.yml"})
+	t.Setenv("DD_API_KEY", "x")
+	agent.Start(true, &LoadConfig{Path: "invalid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
@@ -57,8 +62,9 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
+	lambdaSpanChan := make(chan *pb.Span)
 
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
@@ -67,8 +73,41 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
 	startTime := time.Now()
+	lambdaSpanChan := make(chan *pb.Span)
+
 	agent := &ServerlessTraceAgent{}
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.True(t, time.Since(startTime) < time.Second)
+}
+
+func TestFilterSpanFromLambdaLibraryOrRuntime(t *testing.T) {
+	spanFromLambdaLibrary := pb.Span{
+		Meta: map[string]string{
+			"http.url": "http://127.0.0.1:8124/lambda/flush",
+		},
+	}
+
+	spanFromLambdaRuntime := pb.Span{
+		Meta: map[string]string{
+			"http.url": "http://127.0.0.1:9001/2018-06-01/runtime/invocation/fee394a9-b9a4-4602-853e-a48bb663caa3/response",
+		},
+	}
+
+	spanFromStatsD := pb.Span{
+		Meta: map[string]string{
+			"http.url": "http://127.0.0.1:8125/",
+		},
+	}
+
+	legitimateSpan := pb.Span{
+		Meta: map[string]string{
+			"http.url": "http://www.datadoghq.com",
+		},
+	}
+
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaLibrary))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaRuntime))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromStatsD))
+	assert.False(t, filterSpanFromLambdaLibraryOrRuntime(&legitimateSpan))
 }

@@ -1,5 +1,4 @@
 ---
-upgrade:
 fixes:
   - |
     Under some circumstances, the Agent would delete all tags for a workload if

@@ -1,0 +1,14 @@
+# This file is used to build datadog/docker-library:kubelet_1.25 manually
+# From this folder: docker build -f Dockerfile.base -t datadog/docker-library:kubelet_1.25 .
+FROM psdn/kubelet:v1.25.0
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && \
+    apt install curl -y && \
+    curl -L -o cri-docker.deb https://github.com/Mirantis/cri-dockerd/releases/download/v0.2.5/cri-dockerd_0.2.5.3-0.debian-bullseye_amd64.deb && \
+    apt install -y ./cri-docker.deb
+
+COPY entrypoint.sh /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

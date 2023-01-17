@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
@@ -12,12 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+)
+
+const (
+	newIdentifierLabel    = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
 )
 
 func init() {
@@ -31,12 +37,13 @@ type ContainerListener struct {
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener() (ServiceListener, error) {
+func NewContainerListener(Config) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd, workloadmeta.SourcePodman},
+		workloadmeta.SourceRuntime,
+		workloadmeta.EventTypeAll,
 	)
 
 	var err error
@@ -48,10 +55,7 @@ func NewContainerListener() (ServiceListener, error) {
 	return l, nil
 }
 
-func (l *ContainerListener) createContainerService(
-	entity workloadmeta.Entity,
-	creationTime integration.CreationTime,
-) {
+func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	container := entity.(*workloadmeta.Container)
 
 	containerImg := container.Image
@@ -65,13 +69,21 @@ func (l *ContainerListener) createContainerService(
 		return
 	}
 
-	if !container.State.FinishedAt.IsZero() {
+	// Note: Docker containers can have a "FinishedAt" time set even when
+	// they're running. That happens when they've been stopped and then
+	// restarted. "FinishedAt" corresponds to the last time the container was
+	// stopped.
+	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Now().Sub(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
 		}
+	}
+
+	if !container.State.Running && container.Runtime == workloadmeta.ContainerRuntimeECSFargate {
+		return
 	}
 
 	ports := make([]ContainerPort, 0, len(container.Ports))
@@ -87,9 +99,8 @@ func (l *ContainerListener) createContainerService(
 	})
 
 	svc := &service{
-		entity:       container,
-		creationTime: integration.After,
-		adIdentifiers: ComputeContainerServiceIDs(
+		entity: container,
+		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,
 			container.Labels,
@@ -108,7 +119,7 @@ func (l *ContainerListener) createContainerService(
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
 		}
 	} else {
-		checkNames, err := getCheckNamesFromLabels(container.Labels)
+		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {
 			log.Errorf("error getting check names from labels on container %s: %v", container.ID, err)
 		}
@@ -159,4 +170,34 @@ func findKubernetesInLabels(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+// computeContainerServiceIDs takes an entity name, an image (resolved to an
+// actual name) and labels and computes the service IDs for this container
+// service.
+func computeContainerServiceIDs(entity string, image string, labels map[string]string) []string {
+	// ID override label
+	if l, found := labels[newIdentifierLabel]; found {
+		return []string{l}
+	}
+	if l, found := labels[legacyIdentifierLabel]; found {
+		log.Warnf("found legacy %s label for %s, please use the new name %s",
+			legacyIdentifierLabel, entity, newIdentifierLabel)
+		return []string{l}
+	}
+
+	ids := []string{entity}
+
+	// Add Image names (long then short if different)
+	long, _, short, _, err := containers.SplitImageName(image)
+	if err != nil {
+		log.Warnf("error while spliting image name: %s", err)
+	}
+	if len(long) > 0 {
+		ids = append(ids, long)
+	}
+	if len(short) > 0 && short != long {
+		ids = append(ids, short)
+	}
+	return ids
 }

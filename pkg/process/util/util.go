@@ -1,10 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package util
 
 import (
 	"bufio"
 	"bytes"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -127,7 +131,7 @@ func GetSysRoot() string {
 // passed the `pid`. If `fn` returns an error the iteration aborts,
 // returning the last error returned from `fn`.
 func WithAllProcs(procRoot string, fn func(int) error) error {
-	files, err := ioutil.ReadDir(procRoot)
+	files, err := os.ReadDir(procRoot)
 	if err != nil {
 		return err
 	}

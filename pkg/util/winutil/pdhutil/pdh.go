@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package pdhutil
@@ -202,32 +203,6 @@ func PdhOpenQuery(szDataSource uintptr, dwUserData uintptr, phQuery *PDH_HQUERY)
 	return uint32(ret)
 }
 
-// PdhAddCounter adds the specified counter to the query
-/*
-Parameters
-hQuery [in]
-Handle to the query to which you want to add the counter. This handle is returned by the PdhOpenQuery function.
-
-szFullCounterPath [in]
-Null-terminated string that contains the counter path. For details on the format of a counter path, see Specifying a Counter Path. The maximum length of a counter path is PDH_MAX_COUNTER_PATH.
-
-dwUserData [in]
-User-defined value. This value becomes part of the counter information. To retrieve this value later, call the PdhGetCounterInfo function and access the dwUserData member of the PDH_COUNTER_INFO structure.
-
-phCounter [out]
-Handle to the counter that was added to the query. You may need to reference this handle in subsequent calls.
-*/
-func PdhAddCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
-	ptxt, _ := windows.UTF16PtrFromString(szFullCounterPath)
-	ret, _, _ := procPdhAddCounterW.Call(
-		uintptr(hQuery),
-		uintptr(unsafe.Pointer(ptxt)),
-		dwUserData,
-		uintptr(unsafe.Pointer(phCounter)))
-
-	return uint32(ret)
-}
-
 // PdhAddEnglishCounter adds the specified counter to the query
 /*
 Parameters
@@ -251,13 +226,13 @@ func PdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserDat
 	return uint32(ret)
 }
 
-/* PdhCollectQueryData
+/* pdhCollectQueryData
    Collects the current raw data value for all counters in the specified query and updates the status code of each counter.
 Parameters
 hQuery [in, out]
 Handle of the query for which you want to collect data. The PdhOpenQuery function returns this handle.
 */
-func PdhCollectQueryData(hQuery PDH_HQUERY) uint32 {
+func pdhCollectQueryData(hQuery PDH_HQUERY) uint32 {
 	ret, _, _ := procPdhCollectQueryData.Call(uintptr(hQuery))
 
 	return uint32(ret)

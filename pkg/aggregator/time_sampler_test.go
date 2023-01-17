@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package aggregator
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -23,19 +25,28 @@ import (
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	l := ckey.NewKeyGenerator()
-	return l.Generate(serie.Name, serie.Host, tagset.NewHashingTagsAccumulatorWithTags(serie.Tags))
+	var tags []string
+	serie.Tags.ForEach(func(tag string) {
+		tags = append(tags, tag)
+	})
+	return l.Generate(serie.Name, serie.Host, tagset.NewHashingTagsAccumulatorWithTags(tags))
+}
+
+func testTimeSampler() *TimeSampler {
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), "host")
+	return sampler
 }
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := testTimeSampler()
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
-func TestBucketSampling(t *testing.T) {
-	sampler := NewTimeSampler(10)
+func testBucketSampling(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler()
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -44,15 +55,15 @@ func TestBucketSampling(t *testing.T) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample, 12345.0)
-	sampler.addSample(&mSample, 12355.0)
-	sampler.addSample(&mSample, 12365.0)
+	sampler.sample(&mSample, 12345.0)
+	sampler.sample(&mSample, 12355.0)
+	sampler.sample(&mSample, 12365.0)
 
-	series, _ := sampler.flush(12360.0)
+	series, _ := flushSerie(sampler, 12360.0)
 
 	expectedSerie := &metrics.Serie{
 		Name:       "my.metric.name",
-		Tags:       []string{"foo", "bar"},
+		Tags:       tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		Points:     []metrics.Point{{Ts: 12340.0, Value: mSample.Value}, {Ts: 12350.0, Value: mSample.Value}},
 		MType:      metrics.APIGaugeType,
 		Interval:   10,
@@ -64,9 +75,12 @@ func TestBucketSampling(t *testing.T) {
 		metrics.AssertSerieEqual(t, expectedSerie, series[0])
 	}
 }
+func TestBucketSampling(t *testing.T) {
+	testWithTagsStore(t, testBucketSampling)
+}
 
-func TestContextSampling(t *testing.T) {
-	sampler := NewTimeSampler(10)
+func testContextSampling(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -91,16 +105,16 @@ func TestContextSampling(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sampler.addSample(&mSample1, 12346.0)
-	sampler.addSample(&mSample2, 12346.0)
-	sampler.addSample(&mSample3, 12346.0)
+	sampler.sample(&mSample1, 12346.0)
+	sampler.sample(&mSample2, 12346.0)
+	sampler.sample(&mSample3, 12346.0)
 
-	series, _ := sampler.flush(12360.0)
+	series, _ := flushSerie(sampler, 12360.0)
 
 	expectedSerie1 := &metrics.Serie{
 		Name:     "my.metric.name1",
 		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
-		Tags:     []string{"bar", "foo"},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Host:     "",
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
@@ -109,7 +123,7 @@ func TestContextSampling(t *testing.T) {
 	expectedSerie2 := &metrics.Serie{
 		Name:     "my.metric.name3",
 		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
-		Tags:     []string{"bar", "foo"},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Host:     "metric-hostname",
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
@@ -118,7 +132,7 @@ func TestContextSampling(t *testing.T) {
 	expectedSerie3 := &metrics.Serie{
 		Name:     "my.metric.name2",
 		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
-		Tags:     []string{"bar", "foo"},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Host:     "",
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
@@ -128,9 +142,13 @@ func TestContextSampling(t *testing.T) {
 	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 }
+func TestContextSampling(t *testing.T) {
+	testWithTagsStore(t, testContextSampling)
+}
 
-func TestCounterExpirySeconds(t *testing.T) {
-	sampler := NewTimeSampler(10)
+func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler()
+
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
 		Name:       "my.counter1",
@@ -158,18 +176,18 @@ func TestCounterExpirySeconds(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sampler.addSample(sampleCounter1, 1004.0)
-	sampler.addSample(sampleCounter2, 1002.0)
-	sampler.addSample(sampleGauge3, 1003.0)
+	sampler.sample(sampleCounter1, 1004.0)
+	sampler.sample(sampleCounter2, 1002.0)
+	sampler.sample(sampleGauge3, 1003.0)
 	// counterLastSampledByContext should be populated when a sample is added
 	assert.Equal(t, 2, len(sampler.counterLastSampledByContext))
 
-	series, _ := sampler.flush(1010.0)
+	series, _ := flushSerie(sampler, 1010.0)
 
 	expectedSerie1 := &metrics.Serie{
 		Name:       "my.counter1",
 		Points:     []metrics.Point{{Ts: 1000.0, Value: .1}},
-		Tags:       []string{"bar", "foo"},
+		Tags:       tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Host:       "",
 		MType:      metrics.APIRateType,
 		ContextKey: generateContextKey(sampleCounter1),
@@ -179,7 +197,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 	expectedSerie2 := &metrics.Serie{
 		Name:       "my.counter2",
 		Points:     []metrics.Point{{Ts: 1000.0, Value: .2}},
-		Tags:       []string{"bar", "foo"},
+		Tags:       tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Host:       "",
 		MType:      metrics.APIRateType,
 		ContextKey: generateContextKey(sampleCounter2),
@@ -189,7 +207,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 	expectedSerie3 := &metrics.Serie{
 		Name:       "my.gauge",
 		Points:     []metrics.Point{{Ts: 1000.0, Value: 2}},
-		Tags:       []string{"bar", "foo"},
+		Tags:       tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Host:       "",
 		MType:      metrics.APIGaugeType,
 		ContextKey: generateContextKey(sampleGauge3),
@@ -210,16 +228,16 @@ func TestCounterExpirySeconds(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sampler.addSample(sampleCounter2, 1034.0)
-	sampler.addSample(sampleCounter1, 1010.0)
-	sampler.addSample(sampleCounter2, 1020.0)
+	sampler.sample(sampleCounter2, 1034.0)
+	sampler.sample(sampleCounter1, 1010.0)
+	sampler.sample(sampleCounter2, 1020.0)
 
-	series, _ = sampler.flush(1040.0)
+	series, _ = flushSerie(sampler, 1040.0)
 
 	expectedSerie1 = &metrics.Serie{
 		Name:       "my.counter1",
 		Points:     []metrics.Point{{Ts: 1010.0, Value: .1}, {Ts: 1020.0, Value: 0.0}, {Ts: 1030.0, Value: 0.0}},
-		Tags:       []string{"bar", "foo"},
+		Tags:       tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Host:       "",
 		MType:      metrics.APIRateType,
 		ContextKey: generateContextKey(sampleCounter1),
@@ -229,7 +247,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 	expectedSerie2 = &metrics.Serie{
 		Name:       "my.counter2",
 		Points:     []metrics.Point{{Ts: 1010, Value: 0}, {Ts: 1020.0, Value: .2}, {Ts: 1030.0, Value: .2}},
-		Tags:       []string{"bar", "foo"},
+		Tags:       tagset.CompositeTagsFromSlice([]string{"bar", "foo"}),
 		Host:       "",
 		MType:      metrics.APIRateType,
 		ContextKey: generateContextKey(sampleCounter2),
@@ -240,42 +258,45 @@ func TestCounterExpirySeconds(t *testing.T) {
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 
 	// We shouldn't get any empty counter since the last flushSeries was during the same interval
-	series, _ = sampler.flush(1045.0)
+	series, _ = flushSerie(sampler, 1045.0)
 	assert.Equal(t, 0, len(series))
 
 	// Now we should get the empty counters
-	series, _ = sampler.flush(1050.0)
+	series, _ = flushSerie(sampler, 1050.0)
 	assert.Equal(t, 2, len(series))
 
-	series, _ = sampler.flush(1329.0)
+	series, _ = flushSerie(sampler, 1329.0)
 	// Counter1 should have stopped reporting but the context is not expired yet
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
+	assert.Equal(t, 1, len(sampler.contextResolver.resolver.contextsByKey))
 
-	series, _ = sampler.flush(1800.0)
+	series, _ = flushSerie(sampler, 1800.0)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
 	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
 	assert.Equal(t, 0, len(sampler.contextResolver.resolver.contextsByKey))
 }
+func TestCounterExpirySeconds(t *testing.T) {
+	testWithTagsStore(t, testCounterExpirySeconds)
+}
 
-func TestSketch(t *testing.T) {
+func testSketch(t *testing.T, store *tags.Store) {
 	const (
 		defaultBucketSize = 10
 	)
 
 	var (
-		sampler = NewTimeSampler(0)
+		sampler = testTimeSampler()
 
-		insert = func(t *testing.T, ts float64, ctx Context, values ...float64) {
+		insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 			t.Helper()
 			for _, v := range values {
-				sampler.addSample(&metrics.MetricSample{
-					Name:       ctx.Name,
-					Tags:       ctx.Tags,
-					Host:       ctx.Host,
+				sampler.sample(&metrics.MetricSample{
+					Name:       name,
+					Tags:       tags,
+					Host:       host,
 					Value:      v,
 					Mtype:      metrics.DistributionType,
 					SampleRate: 1,
@@ -288,31 +309,33 @@ func TestSketch(t *testing.T) {
 		"interval should default to 10")
 
 	t.Run("empty flush", func(t *testing.T) {
-		_, flushed := sampler.flush(timeNowNano())
+		_, flushed := flushSerie(sampler, timeNowNano())
 		require.Len(t, flushed, 0)
 	})
 
 	t.Run("single bucket", func(t *testing.T) {
 		var (
 			now    float64
-			ctx    = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
+			name   = "m.0"
+			tags   = []string{"a"}
+			host   = "host"
 			exp    = &quantile.Sketch{}
 			keyGen = ckey.NewKeyGenerator()
 		)
 
 		for i := 0; i < bucketSize; i++ {
 			v := float64(i)
-			insert(t, now, ctx, v)
+			insert(t, now, name, tags, host, v)
 			exp.Insert(quantile.Default(), v)
 
 			now++
 		}
 
-		_, flushed := sampler.flush(now)
-		metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
-			Name:     ctx.Name,
-			Tags:     ctx.Tags,
-			Host:     ctx.Host,
+		_, flushed := flushSerie(sampler, now)
+		metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+			Name:     name,
+			Tags:     tagset.CompositeTagsFromSlice(tags),
+			Host:     host,
 			Interval: 10,
 			Points: []metrics.SketchPoint{
 				{
@@ -320,18 +343,20 @@ func TestSketch(t *testing.T) {
 					Ts:     0,
 				},
 			},
-			ContextKey: keyGen.Generate(ctx.Name, ctx.Host, tagset.NewHashingTagsAccumulatorWithTags(ctx.Tags)),
+			ContextKey: keyGen.Generate(name, host, tagset.NewHashingTagsAccumulatorWithTags(tags)),
 		}, flushed[0])
 
-		_, flushed = sampler.flush(now)
+		_, flushed = flushSerie(sampler, now)
 		require.Len(t, flushed, 0, "these points have already been flushed")
 	})
 
 }
+func TestSketch(t *testing.T) {
+	testWithTagsStore(t, testSketch)
+}
 
-func TestSketchBucketSampling(t *testing.T) {
-
-	sampler := NewTimeSampler(10)
+func testSketchBucketSampling(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -347,20 +372,20 @@ func TestSketchBucketSampling(t *testing.T) {
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample1, 10001)
-	sampler.addSample(&mSample2, 10002)
-	sampler.addSample(&mSample1, 10011)
-	sampler.addSample(&mSample2, 10012)
-	sampler.addSample(&mSample1, 10021)
+	sampler.sample(&mSample1, 10001)
+	sampler.sample(&mSample2, 10002)
+	sampler.sample(&mSample1, 10011)
+	sampler.sample(&mSample2, 10012)
+	sampler.sample(&mSample1, 10021)
 
-	_, flushed := sampler.flush(10020.0)
+	_, flushed := flushSerie(sampler, 10020.0)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1, 2)
 
 	assert.Equal(t, 1, len(flushed))
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name",
-		Tags:     []string{"a", "b"},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
 		Points: []metrics.SketchPoint{
 			{Ts: 10000, Sketch: expSketch},
@@ -372,9 +397,12 @@ func TestSketchBucketSampling(t *testing.T) {
 	// The samples added after the flush time remains in the dist sampler
 	assert.Equal(t, 1, sampler.sketchMap.Len())
 }
+func TestSketchBucketSampling(t *testing.T) {
+	testWithTagsStore(t, testSketchBucketSampling)
+}
 
-func TestSketchContextSampling(t *testing.T) {
-	sampler := NewTimeSampler(10)
+func testSketchContextSampling(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -390,10 +418,10 @@ func TestSketchContextSampling(t *testing.T) {
 		Tags:       []string{"a", "c"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample1, 10011)
-	sampler.addSample(&mSample2, 10011)
+	sampler.sample(&mSample1, 10011)
+	sampler.sample(&mSample2, 10011)
 
-	_, flushed := sampler.flush(10020)
+	_, flushed := flushSerie(sampler, 10020)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 
@@ -402,9 +430,9 @@ func TestSketchContextSampling(t *testing.T) {
 		return flushed[i].Name < flushed[j].Name
 	})
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name1",
-		Tags:     []string{"a", "b"},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
@@ -412,9 +440,9 @@ func TestSketchContextSampling(t *testing.T) {
 		ContextKey: generateContextKey(&mSample1),
 	}, flushed[0])
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name2",
-		Tags:     []string{"a", "c"},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "c"}),
 		Interval: 10,
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
@@ -422,9 +450,12 @@ func TestSketchContextSampling(t *testing.T) {
 		ContextKey: generateContextKey(&mSample2),
 	}, flushed[1])
 }
+func TestSketchContextSampling(t *testing.T) {
+	testWithTagsStore(t, testSketchContextSampling)
+}
 
-func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
-	sampler := NewTimeSampler(10)
+func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler()
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -433,9 +464,9 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&dSample1, 12345.0)
-	sampler.addSample(&dSample1, 12355.0)
-	sampler.addSample(&dSample1, 12365.0)
+	sampler.sample(&dSample1, 12345.0)
+	sampler.sample(&dSample1, 12355.0)
+	sampler.sample(&dSample1, 12365.0)
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -444,15 +475,15 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample, 12345.0)
-	sampler.addSample(&mSample, 12355.0)
-	sampler.addSample(&mSample, 12365.0)
+	sampler.sample(&mSample, 12345.0)
+	sampler.sample(&mSample, 12355.0)
+	sampler.sample(&mSample, 12365.0)
 
-	series, sketches := sampler.flush(12360.0)
+	series, sketches := flushSerie(sampler, 12360.0)
 
 	expectedSerie := &metrics.Serie{
 		Name:       "my.metric.name",
-		Tags:       []string{"foo", "bar"},
+		Tags:       tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		Points:     []metrics.Point{{Ts: 12340.0, Value: mSample.Value}, {Ts: 12350.0, Value: mSample.Value}},
 		MType:      metrics.APIGaugeType,
 		Interval:   10,
@@ -467,9 +498,9 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "distribution.metric.name1",
-		Tags:     []string{"a", "b"},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
 		Points: []metrics.SketchPoint{
 			{Ts: 12340.0, Sketch: expSketch},
@@ -478,9 +509,13 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 		ContextKey: generateContextKey(&dSample1),
 	}, sketches[0])
 }
+func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
+	testWithTagsStore(t, testBucketSamplingWithSketchAndSeries)
+}
 
-func BenchmarkTimeSampler(b *testing.B) {
-	sampler := NewTimeSampler(10)
+func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
+	sampler := testTimeSampler()
+
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -490,6 +525,17 @@ func BenchmarkTimeSampler(b *testing.B) {
 		Timestamp:  12345.0,
 	}
 	for n := 0; n < b.N; n++ {
-		sampler.addSample(&sample, 12345.0)
+		sampler.sample(&sample, 12345.0)
 	}
+}
+func BenchmarkTimeSampler(b *testing.B) {
+	benchWithTagsStore(b, benchmarkTimeSampler)
+}
+
+func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+
+	sampler.flush(timestamp, &series, &sketches)
+	return series, sketches
 }

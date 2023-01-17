@@ -1,34 +1,56 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 )
 
+func testGroupId(groupID int32) func() int32 {
+	return func() int32 {
+		return groupID
+	}
+}
+
 func TestProcessDiscoveryCheck(t *testing.T) {
-	cfg := &config.AgentConfig{MaxPerMessage: 10}
-	ProcessDiscovery.Init(cfg, &model.SystemInfo{
-		Cpus:        []*model.CPUInfo{{Number: 0}},
-		TotalMemory: 0,
-	})
+	prev := getMaxBatchSize
+	defer func() {
+		getMaxBatchSize = prev
+	}()
+
+	maxBatchSize := 10
+	getMaxBatchSize = func() int { return maxBatchSize }
+
+	ProcessDiscovery.Init(
+		nil,
+		&HostInfo{
+			SystemInfo: &model.SystemInfo{
+				Cpus:        []*model.CPUInfo{{Number: 0}},
+				TotalMemory: 0,
+			},
+		},
+	)
 
 	// Test check runs without error
-	result, err := ProcessDiscovery.Run(cfg, 0)
+	result, err := ProcessDiscovery.Run(testGroupId(0), nil)
 	assert.NoError(t, err)
 
 	// Test that result has the proper number of chunks, and that those chunks are of the correct type
-	for _, elem := range result {
+	for _, elem := range result.Payloads() {
 		assert.IsType(t, &model.CollectorProcDiscovery{}, elem)
 		collectorProcDiscovery := elem.(*model.CollectorProcDiscovery)
 		for _, proc := range collectorProcDiscovery.ProcessDiscoveries {
 			assert.Empty(t, proc.Host)
 		}
-		if len(collectorProcDiscovery.ProcessDiscoveries) > cfg.MaxPerMessage {
+		if len(collectorProcDiscovery.ProcessDiscoveries) > maxBatchSize {
 			t.Errorf("Expected less than %d messages in chunk, got %d",
-				cfg.MaxPerMessage, len(collectorProcDiscovery.ProcessDiscoveries))
+				maxBatchSize, len(collectorProcDiscovery.ProcessDiscoveries))
 		}
 	}
 }

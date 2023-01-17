@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows && npm
 // +build windows,npm
 
 package dns
@@ -49,7 +55,8 @@ func (p *windowsPacketSource) PacketType() gopacket.LayerType {
 
 func (p *windowsPacketSource) Stats() map[string]int64 {
 	// this is a no-op because all the stats are handled by driver_interface.go
-	return map[string]int64{}
+	s, _ := p.di.GetStatsForHandle()
+	return s["handle"]
 }
 
 func (p *windowsPacketSource) Close() {

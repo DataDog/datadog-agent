@@ -1,10 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package stats
 
 import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
@@ -39,6 +43,7 @@ type ClientStatsAggregator struct {
 	oldestTs      time.Time
 	agentEnv      string
 	agentHostname string
+	agentVersion  string
 
 	exit chan struct{}
 	done chan struct{}
@@ -53,6 +58,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 		out:           out,
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
+		agentVersion:  conf.AgentVersion,
 		oldestTs:      alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:          make(chan struct{}),
 		done:          make(chan struct{}),
@@ -141,7 +147,7 @@ func (a *ClientStatsAggregator) flush(p []pb.ClientStatsPayload) {
 		Stats:          p,
 		AgentEnv:       a.agentEnv,
 		AgentHostname:  a.agentHostname,
-		AgentVersion:   info.Version,
+		AgentVersion:   a.agentVersion,
 		ClientComputed: true,
 	}
 }

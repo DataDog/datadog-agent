@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package main
@@ -22,7 +23,7 @@ func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.SecurityAgent)
 
-	if err := app.SecurityAgentCmd.Execute(); err != nil {
+	if err := app.CreateSecurityAgentCmd().Execute(); err != nil {
 		os.Exit(-1)
 	}
 }

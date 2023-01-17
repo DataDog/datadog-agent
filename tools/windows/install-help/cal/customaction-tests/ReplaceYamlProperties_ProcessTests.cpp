@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "precompiled/stdafx.h"
 #include "ReplaceYamlProperties.h"
 
 TEST_F(ReplaceYamlPropertiesTests, When_Process_Enabled_Correctly_Replace)
@@ -9,6 +9,13 @@ TEST_F(ReplaceYamlPropertiesTests, When_Process_Enabled_Correctly_Replace)
     std::wstring result = replace_yaml_properties(LR"(
 # process_config:
 
+  # process_collection:
+    # enabled: false
+
+  # container_collection:
+    # enabled: true
+
+  ## Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
   # enabled: "true"
 )",
                                                   propertyRetriever(values));
@@ -16,7 +23,14 @@ TEST_F(ReplaceYamlPropertiesTests, When_Process_Enabled_Correctly_Replace)
     EXPECT_EQ(result, LR"(
 process_config:
 
-  enabled: "true"
+  process_collection:
+    enabled: true
+
+  # container_collection:
+    # enabled: true
+
+  ## Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
+  # enabled: "true"
 )");
 }
 
@@ -27,15 +41,17 @@ TEST_F(ReplaceYamlPropertiesTests, When_Process_Disabled_Correctly_Replace)
     };
     std::wstring result = replace_yaml_properties(LR"(
 # process_config:
-
+  # process_collection:
+    # enabled: false
   # enabled: "true"
 )",
                                                   propertyRetriever(values));
 
     EXPECT_EQ(result, LR"(
 process_config:
-
-  enabled: "disabled"
+  process_collection:
+    enabled: false
+  # enabled: "true"
 )");
 }
 
@@ -51,8 +67,7 @@ TEST_F(ReplaceYamlPropertiesTests, Always_Set_process_dd_url)
 )",
                                                   propertyRetriever(values));
 
-    EXPECT_EQ(result,
-              LR"(
+    EXPECT_EQ(result, LR"(
 process_config:
   process_dd_url: https://process.someurl.datadoghq.com
 
@@ -68,17 +83,18 @@ TEST_F(ReplaceYamlPropertiesTests, When_Process_Url_Set_And_Process_Enabled_Corr
     };
     std::wstring result = replace_yaml_properties(LR"(
 # process_config:
-
+  # process_collection:
+    # enabled: false
   # enabled: "true"
 )",
                                                   propertyRetriever(values));
 
-    EXPECT_EQ(result,
-              LR"(
+    EXPECT_EQ(result, LR"(
 process_config:
   process_dd_url: https://process.someurl.datadoghq.com
-
-  enabled: "disabled"
+  process_collection:
+    enabled: false
+  # enabled: "true"
 )");
 }
 
@@ -121,8 +137,7 @@ TEST_F(ReplaceYamlPropertiesTests, When_Process_Url_Set_And_Process_Discovery_En
 )",
                                                   propertyRetriever(values));
 
-    EXPECT_EQ(result,
-              LR"(
+    EXPECT_EQ(result, LR"(
 process_config:
   process_dd_url: https://process.someurl.datadoghq.com
 

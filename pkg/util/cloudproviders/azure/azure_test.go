@@ -11,9 +11,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -30,9 +32,10 @@ func TestGetAlias(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias(ctx)
+	aliases, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
-	assert.Equal(t, expected, val)
+	require.Len(t, aliases, 1)
+	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
 	assert.Equal(t, lastRequest.URL.RawQuery, "api-version=2017-04-02&format=text")
 }
@@ -126,7 +129,7 @@ func TestGetHostname(t *testing.T) {
 		{"invalid", "", true},
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	for _, tt := range cases {
 		mockConfig.Set(hostnameStyleSetting, tt.style)
@@ -138,7 +141,7 @@ func TestGetHostname(t *testing.T) {
 
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
 
@@ -165,4 +168,31 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 
 		ts.Close()
 	}
+}
+
+func TestGetPublicIPv4(t *testing.T) {
+	var lastRequest *http.Request
+
+	ctx := context.Background()
+	pathPrefix := "/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress"
+	expected := "8.8.8.8"
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(pathPrefix, r.URL.Path) {
+			io.WriteString(w, expected)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+
+		lastRequest = r
+	}))
+
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	val, err := GetPublicIPv4(ctx)
+
+	assert.Nil(t, err)
+	assert.Equal(t, expected, val)
+	assert.True(t, strings.HasPrefix(lastRequest.URL.Path, pathPrefix))
 }

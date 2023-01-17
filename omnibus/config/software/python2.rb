@@ -20,6 +20,7 @@ name "python2"
 if ohai["platform"] != "windows"
   default_version "2.7.18"
 
+  dependency "libxcrypt"
   dependency "ncurses"
   dependency "zlib"
   dependency "openssl"
@@ -56,7 +57,8 @@ if ohai["platform"] != "windows"
   end
 
   build do
-    ship_license "PSFL"
+    # 2.0 is the license version here, not the python version
+    license "Python-2.0"
 
     patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
     patch :source => "fix-platform-ubuntu.diff" if linux?
@@ -95,6 +97,9 @@ else
          :extract => :seven_zip
   end
   build do
+    # 2.0 is the license version here, not the python version
+    license "Python-2.0"
+
     #
     # expand python zip into the embedded directory
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_2_embedded)}\""

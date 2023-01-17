@@ -45,11 +45,13 @@ int __attribute__((always_inline)) credentials_predicate(u64 type) {
 
 int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(credentials_predicate);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (retval < 0)
+    if (retval < 0) {
         return 0;
+    }
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
@@ -111,22 +113,12 @@ SYSCALL_KRETPROBE(setuid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setuid")
-int tracepoint_syscalls_sys_exit_setuid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(seteuid) {
     return credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(seteuid) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_seteuid")
-int tracepoint_syscalls_sys_exit_seteuid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(setfsuid) {
@@ -137,22 +129,12 @@ SYSCALL_KRETPROBE(setfsuid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setfsuid")
-int tracepoint_syscalls_sys_exit_setfsuid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setreuid) {
     return credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setreuid) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setreuid")
-int tracepoint_syscalls_sys_exit_setreuid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(setresuid) {
@@ -163,22 +145,12 @@ SYSCALL_KRETPROBE(setresuid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setresuid")
-int tracepoint_syscalls_sys_exit_setresuid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setuid16) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setuid16")
-int tracepoint_syscalls_sys_exit_setuid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(seteuid16) {
@@ -189,22 +161,12 @@ SYSCALL_KRETPROBE(seteuid16) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_seteuid16")
-int tracepoint_syscalls_sys_exit_seteuid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setfsuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setfsuid16) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setfsuid16")
-int tracepoint_syscalls_sys_exit_setfsuid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(setreuid16) {
@@ -215,22 +177,12 @@ SYSCALL_KRETPROBE(setreuid16) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setreuid16")
-int tracepoint_syscalls_sys_exit_setreuid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setresuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setresuid16) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setresuid16")
-int tracepoint_syscalls_sys_exit_setresuid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(setgid) {
@@ -241,22 +193,12 @@ SYSCALL_KRETPROBE(setgid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setgid")
-int tracepoint_syscalls_sys_exit_setgid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setegid) {
     return credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setegid) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setegid")
-int tracepoint_syscalls_sys_exit_setegid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(setfsgid) {
@@ -267,22 +209,12 @@ SYSCALL_KRETPROBE(setfsgid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setfsgid")
-int tracepoint_syscalls_sys_exit_setfsgid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setregid) {
     return credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setregid) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setregid")
-int tracepoint_syscalls_sys_exit_setregid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(setresgid) {
@@ -293,22 +225,12 @@ SYSCALL_KRETPROBE(setresgid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setresgid")
-int tracepoint_syscalls_sys_exit_setresgid(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setgid16) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setgid16")
-int tracepoint_syscalls_sys_exit_setgid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(setegid16) {
@@ -319,22 +241,12 @@ SYSCALL_KRETPROBE(setegid16) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setegid16")
-int tracepoint_syscalls_sys_exit_setegid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setfsgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setfsgid16) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setfsgid16")
-int tracepoint_syscalls_sys_exit_setfsgid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(setregid16) {
@@ -345,22 +257,12 @@ SYSCALL_KRETPROBE(setregid16) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setregid16")
-int tracepoint_syscalls_sys_exit_setregid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SYSCALL_KPROBE0(setresgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setresgid16) {
     return kprobe_credentials_update_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_setresgid16")
-int tracepoint_syscalls_sys_exit_setresgid16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
 }
 
 SYSCALL_KPROBE0(capset) {
@@ -371,19 +273,33 @@ SYSCALL_KRETPROBE(capset) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_capset")
-int tracepoint_syscalls_sys_exit_capset(struct tracepoint_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
-}
-
 SEC("tracepoint/handle_sys_commit_creds_exit")
 int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return credentials_update_ret(args, args->ret);
 }
 
+struct cred_ids {
+    kuid_t uid;
+    kgid_t gid;
+    kuid_t suid;
+    kgid_t sgid;
+    kuid_t euid;
+    kgid_t egid;
+    kuid_t fsuid;
+    kgid_t fsgid;
+    unsigned securebits;
+    kernel_cap_t cap_inheritable;
+    kernel_cap_t cap_permitted;
+    kernel_cap_t cap_effective;
+    kernel_cap_t cap_bset;
+    kernel_cap_t cap_ambient;
+};
+
 SEC("kprobe/commit_creds")
 int kprobe_commit_creds(struct pt_regs *ctx) {
-    struct cred *credentials = (struct cred *)PT_REGS_PARM1(ctx);
+    u64 creds_uid_offset;
+    LOAD_CONSTANT("creds_uid_offset", creds_uid_offset);
+    struct cred_ids *credentials = (struct cred_ids *)(PT_REGS_PARM1(ctx) + creds_uid_offset);
     struct pid_cache_t new_pid_entry = {};
 
     // update pid_cache entry for the current process

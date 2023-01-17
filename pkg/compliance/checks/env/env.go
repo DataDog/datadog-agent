@@ -29,6 +29,7 @@ type Clients interface {
 type RegoConfiguration interface {
 	ProvidedInput(ruleID string) eval.RegoInputMap
 	DumpInputPath() string
+	ShouldSkipRegoEval() bool
 }
 
 // Configuration provides an abstraction for various environment methods used by checks
@@ -40,5 +41,4 @@ type Configuration interface {
 	RelativeToHostRoot(path string) string
 	EvaluateFromCache(e eval.Evaluatable) (interface{}, error)
 	IsLeader() bool
-	NodeLabels() map[string]string
 }

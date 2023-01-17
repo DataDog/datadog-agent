@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix how Kubernetes events forwarding detects the Node/Host. 
+    * Previously Nodes' events were not always attached to the correct host.
+    * Pods' events from "custom" controllers might still be not attached to
+      a host if the controller doesn't set the host in the `source.host` event's field.
+

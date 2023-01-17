@@ -14,7 +14,7 @@ if node['platform_family'] == 'suse'
   end
 
   # Change the Windows Azure Agent conf to stop watching hostname changes.
-  # For some reason it's changing the hostname every 30s on SLES 11 and 12, which
+  # For some reason it's changing the hostname every 30s on SLES 12, which
   # leads to a network interface reset, making it likely for tests to fail if a
   # network call happens during the reset.
   service 'waagent' do

@@ -1,5 +1,4 @@
 name "pip3"
-
 default_version "21.3.1"
 
 dependency "setuptools3"
@@ -11,7 +10,8 @@ source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
 relative_path "pip-#{version}"
 
 build do
-  ship_license "https://raw.githubusercontent.com/pypa/pip/main/LICENSE.txt"
+  license "MIT"
+  license_file "https://raw.githubusercontent.com/pypa/pip/main/LICENSE.txt"
 
   if ohai["platform"] == "windows"
     python_bin = "#{windows_safe_path(python_3_embedded)}\\python.exe"

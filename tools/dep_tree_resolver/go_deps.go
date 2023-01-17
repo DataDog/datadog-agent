@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -44,7 +49,7 @@ type ModuleDep struct {
 // DependencyTree is a structure that identifies a module and all of its
 // children in a recursive tree
 type DependencyTree struct {
-	Mod          Module
+	Mod          *Module
 	Dependencies []DependencyTree
 }
 
@@ -93,7 +98,7 @@ func runGraph(ctx context.Context, rootModule string) ([]ModuleDep, []string, er
 			line := scanner.Text()
 			fields := strings.Split(line, " ")
 			if len(fields) != 2 {
-				return fmt.Errorf("ERROR! Line didn't have 2 fields: %v\n", line)
+				return fmt.Errorf("error: line didn't have 2 fields: %v", line)
 			}
 			handlerFunc(fields[0], fields[1])
 		}
@@ -197,7 +202,7 @@ func resolveActualVersions(ctx context.Context, moduleNames []string) (map[strin
 		if moduleVersion.Path == "" || moduleVersion.Version == "" {
 			return nil,
 				fmt.Errorf(
-					"module %s had an unresolved real version (%v)!",
+					"module %s had an unresolved real version (%v)",
 					moduleVersion.Path,
 					moduleVersion.Version,
 				)
@@ -325,7 +330,7 @@ func resolveRecursive(
 	}
 
 	return &DependencyTree{
-		Mod:          actualModule,
+		Mod:          &actualModule,
 		Dependencies: dependencies,
 	}, nil
 }
@@ -337,7 +342,7 @@ func recomputeDependencyTree(
 ) (*DependencyTree, error) {
 	// Main root node
 	depTree := DependencyTree{
-		Mod: *rootModule,
+		Mod: rootModule,
 	}
 
 	// Some deps have circular dependencies so we need to break out when
@@ -365,7 +370,7 @@ func recomputeDependencyTree(
 // TODO: Actually use `skipDuplicates` value
 func printDepTree(buf *bufio.Writer, depTree *DependencyTree, level int, skipDuplicates bool) {
 	for idx := 0; idx < level; idx++ {
-		io.WriteString(buf, "    ")
+		io.WriteString(buf, "\t")
 	}
 
 	io.WriteString(buf, fmt.Sprintf("- %s@%s\n", depTree.Mod.Path, depTree.Mod.Version))

@@ -7,8 +7,9 @@ package packets
 
 import (
 	"sync"
-	"sync/atomic"
 	"unsafe"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,7 +24,7 @@ type PoolManager struct {
 	pool genericPool
 	refs sync.Map
 
-	passthru int32
+	passthru *atomic.Bool
 
 	sync.RWMutex
 }
@@ -32,7 +33,7 @@ type PoolManager struct {
 func NewPoolManager(gp genericPool) *PoolManager {
 	return &PoolManager{
 		pool:     gp,
-		passthru: int32(1),
+		passthru: atomic.NewBool(true),
 	}
 }
 
@@ -83,17 +84,17 @@ func (p *PoolManager) Put(x interface{}) {
 
 // IsPassthru returns a boolean telling us if the PoolManager is in passthru mode or not.
 func (p *PoolManager) IsPassthru() bool {
-	return atomic.LoadInt32(&(p.passthru)) != 0
+	return p.passthru.Load()
 }
 
 // SetPassthru sets the passthru mode to the specified value. It will flush the sccounting before
 // enabling passthru mode.
 func (p *PoolManager) SetPassthru(b bool) {
 	if b {
-		atomic.StoreInt32(&(p.passthru), 1)
+		p.passthru.Store(true)
 		p.Flush()
 	} else {
-		atomic.StoreInt32(&(p.passthru), 0)
+		p.passthru.Store(false)
 	}
 }
 

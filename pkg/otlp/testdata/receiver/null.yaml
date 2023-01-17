@@ -1,0 +1,5 @@
+otlp_config:
+  receiver:
+    protocols:
+      http: null
+      grpc: null

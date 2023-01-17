@@ -1,22 +1,5 @@
 require 'spec_helper'
 
-def read_conf_file
-    conf_path = ""
-    if os == :windows
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-      ddpath_exists = File.exist?("#{ENV['ProgramData']}\\Datadog")
-      ddfile_exists = File.exist?(conf_path)
-      puts "path exists #{ddpath_exists} file exists #{ddfile_exists}"
-    else
-      conf_path = '/etc/datadog-agent/datadog.yaml'
-    end
-    puts "cp is #{conf_path}"
-    f = File.read(conf_path)
-    confYaml = YAML.load(f)
-    confYaml
-end
-
-
 shared_examples_for 'an Agent with APM disabled' do
   it 'has apm disabled' do
     confYaml = read_conf_file()
@@ -48,26 +31,26 @@ shared_examples_for 'a configured Agent' do
     it 'has proxy settings' do 
      expect(confYaml).to have_key("proxy")
      expect(confYaml["proxy"]).to have_key("https")
-     expect(confYaml["proxy"]["https"]).to eq("http://puser:ppass@proxy.foo.com:1234")
+     expect(URI.parse(confYaml["proxy"]["https"])).to eq(URI.parse("http://puser:ppass@proxy.foo.com:1234"))
     end
     it 'has site settings' do
       expect(confYaml).to have_key("site")
       expect(confYaml["site"]).to eq("eu")
 
       expect(confYaml).to have_key("dd_url")
-      expect(confYaml["dd_url"]).to eq("https://someurl.datadoghq.com")
+      expect(URI.parse(confYaml["dd_url"])).to eq(URI.parse("https://someurl.datadoghq.com"))
 
       expect(confYaml).to have_key("logs_config")
       expect(confYaml["logs_config"]).to have_key("logs_dd_url")
-      expect(confYaml["logs_config"]["logs_dd_url"]).to eq("https://logs.someurl.datadoghq.com")
+      expect(URI.parse(confYaml["logs_config"]["logs_dd_url"])).to eq(URI.parse("https://logs.someurl.datadoghq.com"))
 
       expect(confYaml).to have_key("process_config")
       expect(confYaml["process_config"]).to have_key("process_dd_url")
-      expect(confYaml["process_config"]["process_dd_url"]).to eq("https://process.someurl.datadoghq.com")
+      expect(URI.parse(confYaml["process_config"]["process_dd_url"])).to eq(URI.parse("https://process.someurl.datadoghq.com"))
 
       expect(confYaml).to have_key("apm_config")
       expect(confYaml["apm_config"]).to have_key("apm_dd_url")
-      expect(confYaml["apm_config"]["apm_dd_url"]).to eq("https://trace.someurl.datadoghq.com")
+      expect(URI.parse(confYaml["apm_config"]["apm_dd_url"])).to eq(URI.parse("https://trace.someurl.datadoghq.com"))
 
     end
 end

@@ -6,7 +6,6 @@
 package common
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -74,15 +73,11 @@ func TestImport(t *testing.T) {
 }
 
 func RunImport(t *testing.T, integrations []string) {
-	a6ConfDir, err := ioutil.TempDir("", "test_configuration_import")
-	require.NoError(t, err, "Could not create temp dir")
-	defer func() {
-		os.RemoveAll(a6ConfDir)
-	}()
+	a6ConfDir := t.TempDir()
 	a5ConfDir := path.Join(".", "tests", "a5_conf")
 	a6RefConfDir := path.Join(".", "tests", "a6_conf")
 
-	err = ImportConfig(a5ConfDir, a6ConfDir, false)
+	err := ImportConfig(a5ConfDir, a6ConfDir, false)
 	require.NoError(t, err, "ImportConfig failed")
 	assert.FileExists(t, path.Join(a6ConfDir, "datadog.yaml"), "datadog.yaml is missing")
 	validateSelectedParameters(t, path.Join(a6ConfDir, "datadog.yaml"), path.Join(a5ConfDir, "datadog.conf"))
@@ -114,7 +109,7 @@ type paramMatcher struct {
 }
 
 func validateSelectedParameters(t *testing.T, migratedConfigFile, oldConfigFile string) {
-	migratedBytes, err := ioutil.ReadFile(migratedConfigFile)
+	migratedBytes, err := os.ReadFile(migratedConfigFile)
 	require.NoError(t, err, "Failed to read"+migratedConfigFile)
 	migratedConf := make(map[string]interface{})
 	yaml.Unmarshal(migratedBytes, migratedConf)
@@ -159,7 +154,8 @@ func validateSelectedParameters(t *testing.T, migratedConfigFile, oldConfigFile 
 
 	// Some second level parameters
 	migratedProcessConfig := migratedConf["process_config"].(map[interface{}]interface{})
-	assert.Equal(t, oldConfig["process_agent_enabled"], migratedProcessConfig["enabled"])
+	processConfigProcessCollection := migratedProcessConfig["process_collection"].(map[interface{}]interface{})
+	assert.Equal(t, oldConfig["process_agent_enabled"], strconv.FormatBool(processConfigProcessCollection["enabled"].(bool)))
 
 	migratedApmConfig := migratedConf["apm_config"].(map[interface{}]interface{})
 	assert.Equal(t, toBool(oldConfig["apm_enabled"]), migratedApmConfig["enabled"])
@@ -176,12 +172,12 @@ func toInt(val interface{}) interface{} {
 }
 
 func assertYAMLEquality(t *testing.T, f1, f2 string) {
-	f1Bytes, err := ioutil.ReadFile(f1)
+	f1Bytes, err := os.ReadFile(f1)
 	require.NoError(t, err, "Failed to read "+f1)
 	migratedContent := make(map[string]interface{})
 	yaml.Unmarshal(f1Bytes, migratedContent)
 
-	f2Bytes, err := ioutil.ReadFile(f2)
+	f2Bytes, err := os.ReadFile(f2)
 	require.NoError(t, err, "Failed to read "+f2)
 	expectedContent := make(map[string]interface{})
 	yaml.Unmarshal(f2Bytes, expectedContent)

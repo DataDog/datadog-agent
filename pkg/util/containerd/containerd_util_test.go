@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -83,6 +84,8 @@ func (i *mockImage) Size(ctx context.Context) (int64, error) {
 	return i.size, nil
 }
 
+const TestNamespace = "default"
+
 func TestEnvVars(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -116,7 +119,7 @@ func TestEnvVars(t *testing.T) {
 				},
 			}
 
-			envVars, err := mockUtil.EnvVars(container)
+			envVars, err := mockUtil.EnvVars(TestNamespace, container)
 
 			if test.expectsErr {
 				require.Error(t, err)
@@ -139,12 +142,12 @@ func TestInfo(t *testing.T) {
 		},
 	}
 	ctn := containerd.Container(cs)
-	c, err := mockUtil.Info(ctn)
+	c, err := mockUtil.Info(TestNamespace, ctn)
 	require.NoError(t, err)
 	require.Equal(t, "foo", c.Image)
 }
 
-func TestImage(t *testing.T) {
+func TestImageOfContainer(t *testing.T) {
 	mockUtil := ContainerdUtil{}
 
 	image := &mockImage{
@@ -157,7 +160,7 @@ func TestImage(t *testing.T) {
 		},
 	}
 
-	resultImage, err := mockUtil.Image(container)
+	resultImage, err := mockUtil.ImageOfContainer(TestNamespace, container)
 	require.NoError(t, err)
 	require.Equal(t, resultImage, image)
 }
@@ -173,7 +176,7 @@ func TestImageSize(t *testing.T) {
 		},
 	}
 	ctn := containerd.Container(cs)
-	c, err := mockUtil.ImageSize(ctn)
+	c, err := mockUtil.ImageSize(TestNamespace, ctn)
 	require.NoError(t, err)
 	require.Equal(t, int64(12), c)
 }
@@ -235,7 +238,7 @@ func TestTaskMetrics(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cton := makeCtn(test.values, test.typeURL, test.taskMetricError)
 
-			m, e := mockUtil.TaskMetrics(cton)
+			m, e := mockUtil.TaskMetrics(TestNamespace, cton)
 			if e != nil {
 				require.Equal(t, e, test.taskMetricError)
 				return
@@ -273,9 +276,52 @@ func TestStatus(t *testing.T) {
 		},
 	}
 
-	resultStatus, err := mockUtil.Status(container)
+	resultStatus, err := mockUtil.Status(TestNamespace, container)
 	require.NoError(t, err)
 	require.Equal(t, resultStatus, status)
+}
+
+func TestIsSandbox(t *testing.T) {
+	mockUtil := ContainerdUtil{}
+
+	withSandboxLabel := &mockContainer{
+		mockSpec: func() (*oci.Spec, error) {
+			return &oci.Spec{Annotations: map[string]string{}}, nil
+		},
+		mockLabels: func() (map[string]string, error) {
+			return map[string]string{"io.cri-containerd.kind": "sandbox"}, nil
+		},
+	}
+
+	isSandbox, err := mockUtil.IsSandbox(TestNamespace, withSandboxLabel)
+	require.NoError(t, err)
+	require.True(t, isSandbox)
+
+	withSandboxAnnotation := &mockContainer{
+		mockSpec: func() (*oci.Spec, error) {
+			return &oci.Spec{Annotations: map[string]string{"io.kubernetes.cri.container-type": "sandbox"}}, nil
+		},
+		mockLabels: func() (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+	}
+
+	isSandbox, err = mockUtil.IsSandbox(TestNamespace, withSandboxAnnotation)
+	require.NoError(t, err)
+	require.True(t, isSandbox)
+
+	notSandbox := &mockContainer{
+		mockSpec: func() (*oci.Spec, error) {
+			return &oci.Spec{Annotations: map[string]string{"annotation_key": "annotation_val"}}, nil
+		},
+		mockLabels: func() (map[string]string, error) {
+			return map[string]string{"label_key": "label_val"}, nil
+		},
+	}
+
+	isSandbox, err = mockUtil.IsSandbox(TestNamespace, notSandbox)
+	require.NoError(t, err)
+	require.False(t, isSandbox)
 }
 
 func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {

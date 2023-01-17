@@ -1,8 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testtagger
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"runtime"
 	"strings"
@@ -41,7 +45,7 @@ func setUp() error {
 	}
 
 	var err error
-	tmpfile, err = ioutil.TempFile("", "testout")
+	tmpfile, err = os.CreateTemp("", "testout")
 	if err != nil {
 		return err
 	}
@@ -86,15 +90,16 @@ except Exception as e:
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
-	output, err := ioutil.ReadFile(tmpfile.Name())
+	output, err := os.ReadFile(tmpfile.Name())
 	return strings.TrimSpace(string(output)), err
 }
 
+//revive:disable
 //export Tags
 func Tags(id *C.char, cardinality C.int) **C.char {
-	goId := C.GoString(id)
+	goID := C.GoString(id)
 
-	if goId != "base" {
+	if goID != "base" {
 		return nil
 	}
 
@@ -124,3 +129,5 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	}
 	return (**C.char)(cTags)
 }
+
+//revive:enable

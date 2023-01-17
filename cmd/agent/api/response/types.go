@@ -16,13 +16,3 @@ type ConfigCheckResponse struct {
 	ConfigErrors    map[string]string               `json:"config_errors"`
 	Unresolved      map[string][]integration.Config `json:"unresolved"`
 }
-
-// TaggerListResponse holds the tagger list response
-type TaggerListResponse struct {
-	Entities map[string]TaggerListEntity `json:"entities"`
-}
-
-// TaggerListEntity holds the tagging info about an entity
-type TaggerListEntity struct {
-	Tags map[string][]string `json:"tags"`
-}

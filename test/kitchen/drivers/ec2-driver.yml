@@ -1,9 +1,21 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  # allow overriding of chef version since we need >= 15 for arm64 testing
+  # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
+  <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
+  product_version: 14.15.6
+  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  # There is no arm64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.aarch64.rpm
+  product_version: 14.15.6
+  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "x86_64" %>
+  # There is no x86_64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.x86_64.rpm
+  product_version: 14.15.6
+  <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
-  chef_license: accept
+  <% end %>
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
@@ -14,13 +26,15 @@ provisioner:
 
 driver:
   name: ec2
-  aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_ID'] %>
+  <% if ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
+  aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
+  <% end %>
   security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] || ["sg-7fedd80a","sg-46506837"] %>
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
   subnet_id: <%= ENV['KITCHEN_EC2_SUBNET'] ||= 'subnet-b89e00e2' %>
-  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= null %>
+  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= nil %>
   spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] %>
   block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
   tags:
@@ -40,7 +54,6 @@ platforms:
     ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
     windows_platforms = []
-    sles11_platforms = []
     sles15_platforms = []
 
     idx = 0
@@ -48,11 +61,11 @@ platforms:
       idx += 1
 
       host = "ec2"
-      platform_name = platform[0] + "-#{host}"
+      platform_name = platform[0] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
 
       windows = platform_name.include?("win")
-      sles11 = platform_name.include?("sles-11")
       sles15 = platform_name.include?("sles-15")
+      al2022 = platform_name.include?("amazonlinux2022")
       windows2008 = windows && platform_name.include?("2008")
 
       if windows
@@ -61,10 +74,11 @@ platforms:
         if sles15
           sles15_platforms << platform_name
         end
-        if sles11
-          sles11_platforms << platform_name
-        end
       end
+
+      # Check if we should use allow RSA key usage via user_data
+      allow_rsa_key_platforms = ["ubuntu-22-04"]
+      allow_rsa_key = allow_rsa_key_platforms.any? { |p| platform_name.include?(p) }
 
       vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
       vm_password = ENV['SERVER_PASSWORD']
@@ -72,6 +86,11 @@ platforms:
 %>
 
 - name: <%= platform_name %>
+  attributes:
+    color_idx: <%= idx %>
+    <% if ENV["KITCHEN_CWS_PLATFORM"] %>
+    cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
   driver:
     <% if windows %>
     connection_timeout: 20
@@ -82,11 +101,61 @@ platforms:
     <% end %>
     image_id: <%= platform[1] %>
     block_device_mappings:
-      - device_name: /dev/sda1
+      <% if ENV['KITCHEN_ARCH'] == "arm64" %>
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/sda1" %>
+      <% else %>
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/xvda" %>
+      <% end %>
         ebs:
           volume_type: gp2
-          volume_size: 40
+          volume_size: 45
           delete_on_termination: true
+    <% if allow_rsa_key || al2022 %>
+    user_data: |
+      #!/bin/sh
+    <% end %>
+    <% if allow_rsa_key %>
+      echo PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config
+      service ssh reload
+    <% end %>
+    <% if al2022 %>
+      sudo dnf install -y libxcrypt-compat
+    <% end %>
+  <% if al2022 %>
+  # Add a hook after creating the host, to make sure we wait until the user_data
+  # script has been run.
+  # Snippet taken from the kitchen docs: https://kitchen.ci/docs/reference/lifecycle-hooks/
+  lifecycle:
+    post_create:
+    - local: echo 'Awaiting cloud-init completion'
+    - remote: |
+        declare i=0;
+        declare wait=5;
+        declare timeout=300;
+        while true; do
+          [ -f /var/lib/cloud/instance/boot-finished ] && break;
+          if [ ${i} -ge ${timeout} ]; then
+            echo "Timed out after ${i}s waiting for cloud-init to complete";
+            exit 1;
+          fi;
+          echo "Waited ${i}/${timeout}s for cloud-init to complete, retrying in ${wait} seconds"
+          sleep ${wait};
+          let i+=${wait};
+        done;
+  <% end %>
+    # HACK: this is needed to install rexml for system-probe tests without using bundler, which cannot be used for now
+    # (see the explanation in tasks/run-test-kitchen.sh).
+    pre_verify:
+      - local: echo 'Installing rexml gem for the system-probe-test suite'
+      <% if windows %>
+      - remote: C:/opscode/chef/embedded/bin/gem.bat install rexml --install-dir C:/Users/ec2-user/AppData/Local/Temp/verifier/gems
+      <% else %>
+      - remote: /opt/chef/embedded/bin/gem install rexml --install-dir /tmp/verifier/gems
+      <% end %>
+  verifier:
+    downloads:
+      "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
 
   transport:
     <% if windows %>
@@ -96,10 +165,13 @@ platforms:
     connection_retries: 30
     connection_retry_sleep: 2
     <% end %>
-    <% if sles15 %>
+    <% if sles15 || al2022 %>
+    # The AWS EC2 driver doesn't recognize Amazon Linux 2022 yet,
+    # therefore it doesn't know that it needs to use ec2-user.
     username: ec2-user
     <% end %>
-    ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY'] %>
-    
+    <% if ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
+    ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
+    <% end %>
 
 <% end %>

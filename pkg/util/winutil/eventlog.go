@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package winutil
@@ -24,13 +25,13 @@ func LogEventViewer(servicename string, msgnum uint32, arg string) {
 	switch msgnum & 0xF0000000 {
 	case 0x40000000:
 		// Info level message
-		elog.Info(msgnum, arg)
+		_ = elog.Info(msgnum, arg)
 	case 0x80000000:
 		// warning level message
-		elog.Warning(msgnum, arg)
+		_ = elog.Warning(msgnum, arg)
 	case 0xC0000000:
 		// error level message
-		elog.Error(msgnum, arg)
+		_ = elog.Error(msgnum, arg)
 	}
 
 }

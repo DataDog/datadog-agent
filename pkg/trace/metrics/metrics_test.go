@@ -1,9 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package metrics
 
 import (
 	"testing"
 
-	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 
 	"github.com/stretchr/testify/assert"
@@ -11,12 +15,7 @@ import (
 
 func TestFindAddr(t *testing.T) {
 	t.Run("pipe", func(t *testing.T) {
-		defer func(old string) {
-			mainconfig.Datadog.Set("dogstatsd_pipe_name", old)
-		}(mainconfig.Datadog.GetString("dogstatsd_pipe_name"))
-		mainconfig.Datadog.Set("dogstatsd_pipe_name", "sock.pipe")
-
-		addr, err := findAddr(&config.AgentConfig{})
+		addr, err := findAddr(&config.AgentConfig{StatsdPipeName: "sock.pipe"})
 		assert.NoError(t, err)
 		assert.Equal(t, addr, `\\.\pipe\sock.pipe`)
 	})
@@ -31,11 +30,7 @@ func TestFindAddr(t *testing.T) {
 	})
 
 	t.Run("socket", func(t *testing.T) {
-		defer func(old string) {
-			mainconfig.Datadog.Set("dogstatsd_socket", old)
-		}(mainconfig.Datadog.GetString("dogstatsd_socket"))
-		mainconfig.Datadog.Set("dogstatsd_socket", "pipe.sock")
-		addr, err := findAddr(&config.AgentConfig{})
+		addr, err := findAddr(&config.AgentConfig{StatsdSocket: "pipe.sock"})
 		assert.NoError(t, err)
 		assert.Equal(t, addr, `unix://pipe.sock`)
 	})

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package ecs
@@ -41,7 +42,7 @@ func diagnoseECS() error {
 
 // diagnose the ECS metadata with tags API availability
 func diagnoseECSTags() error {
-	client, err := ecsmeta.V3FromCurrentTask()
+	client, err := ecsmeta.V3orV4FromCurrentTask()
 	if err != nil {
 		return err
 	}

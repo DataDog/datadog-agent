@@ -3,22 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build test
-// +build test
+//go:build otlp && test
+// +build otlp,test
 
 package otlp
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/service"
-
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/otelcol"
 )
 
 func TestGetComponents(t *testing.T) {
@@ -39,14 +40,17 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 		require.NoError(t, p.Run(ctx))
 	}()
 
-	assert.Equal(t, service.Starting, <-p.col.GetStateChannel())
-	assert.Equal(t, service.Running, <-p.col.GetStateChannel())
+	assert.Eventually(t, func() bool {
+		return otelcol.StateRunning == p.col.GetState()
+	}, time.Second*2, time.Millisecond*200)
 
 	p.Stop()
 	p.Stop()
 	<-colDone
-	assert.Equal(t, service.Closing, <-p.col.GetStateChannel())
-	assert.Equal(t, service.Closed, <-p.col.GetStateChannel())
+
+	assert.Eventually(t, func() bool {
+		return otelcol.StateClosed == p.col.GetState()
+	}, time.Second*2, time.Millisecond*200)
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
@@ -54,10 +58,13 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	assert.EqualError(t, p.Run(ctx), expected)
+	assert.ErrorContains(t, p.Run(ctx), expected)
 }
 
 func TestStartPipeline(t *testing.T) {
+	config.Datadog.Set("hostname", "otlp-testhostname")
+	defer config.Datadog.Set("hostname", "")
+
 	pcfg := PipelineConfig{
 		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
 		TracePort:          5003,
@@ -69,23 +76,32 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
+	config.Datadog.Set("hostname", "otlp-testhostname")
+	defer config.Datadog.Set("hostname", "")
+
+	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows, see AP-1723 for details")
+	}
+
+	// TODO (AP-1723): Update Collector to version 0.55 before re-enabling.
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skip on macOS, see AP-1723 for details")
+	}
+
 	tests := []struct {
 		path string
 		err  string
 	}{
-		{path: "port/nobindhost.yaml"},
-		{path: "port/nonlocal.yaml"},
 		{
 			path: "receiver/noprotocols.yaml",
-			err:  "cannot load configuration: error reading receivers configuration for otlp: empty config for OTLP receiver",
+			err:  "invalid configuration: receivers::otlp: must specify at least one protocol when using the OTLP receiver",
 		},
 		{path: "receiver/simple.yaml"},
 		{path: "receiver/advanced.yaml"},
 		{
 			path: "receiver/typo.yaml",
-			err: `cannot load configuration: error reading receivers configuration for otlp: 1 error(s) decoding:
-
-* 'protocols' has invalid keys: htttp`,
+			err:  "error decoding 'receivers': error reading configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
 		},
 	}
 

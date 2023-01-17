@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package http
 
 import (
@@ -23,7 +28,7 @@ func NewClient(c *http.Client, baseURL string, targetProcessName string) setting
 }
 
 func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
-	r, err := util.DoGet(rc.c, rc.baseURL)
+	r, err := util.DoGet(rc.c, rc.baseURL, util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -39,7 +44,7 @@ func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
 }
 
 func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingResponse, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"))
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"), util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -59,7 +64,7 @@ func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingR
 }
 
 func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key))
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key), util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)

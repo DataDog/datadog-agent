@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package utils
 
 import (
@@ -11,7 +16,7 @@ import (
 func TestIsCheckEnabled(t *testing.T) {
 	assert := assert.New(t)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("telemetry.enabled", false)
 
 	assert.False(IsCheckEnabled("cpu"))

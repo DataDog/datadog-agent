@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package request
 
 import (
@@ -5,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
@@ -35,7 +41,7 @@ func TestSerialization(t *testing.T) {
 
 			result, err := unmarshaler.Unmarshal(blob)
 			require.NoError(t, err)
-			assert.Equal(t, tc.exp, result)
+			assert.True(t, proto.Equal(tc.exp, result))
 		}
 	})
 
@@ -51,7 +57,7 @@ func TestSerialization(t *testing.T) {
 
 			result, err := unmarshaler.Unmarshal(blob)
 			require.NoError(t, err)
-			assert.Equal(t, tc.exp, result)
+			assert.True(t, proto.Equal(tc.exp, result))
 		}
 	})
 
@@ -66,7 +72,7 @@ func TestSerialization(t *testing.T) {
 
 			result, err := unmarshaler.Unmarshal(blob)
 			require.NoError(t, err)
-			assert.Equal(t, tc.exp, result)
+			assert.True(t, proto.Equal(tc.exp, result))
 		}
 
 	})
@@ -81,7 +87,7 @@ func TestSerialization(t *testing.T) {
 
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.EqualValues(t, &pbgo.ProcessStatRequest{}, result)
+		assert.True(t, proto.Equal(&pbgo.ProcessStatRequest{}, result))
 	})
 
 	t.Run("json serializing empty input", func(t *testing.T) {
@@ -94,6 +100,6 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.EqualValues(t, &pbgo.ProcessStatRequest{Pids: []int32{}}, result)
+		assert.True(t, proto.Equal(&pbgo.ProcessStatRequest{Pids: []int32{}}, result))
 	})
 }

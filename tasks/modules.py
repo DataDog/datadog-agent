@@ -1,18 +1,27 @@
 import os
+import re
+import subprocess
 import sys
+from contextlib import contextmanager
 
-from invoke import task
+FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
 
 
 class GoModule:
-    """A Go module abstraction."""
+    """
+    A Go module abstraction.
+    independent specifies whether this modules is supposed to exist independently of the datadog-agent module.
+    If True, a check will run to ensure this is true.
+    """
 
-    def __init__(self, path, targets=None, condition=lambda: True, dependencies=None, should_tag=True):
+    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, independent=False):
         self.path = path
         self.targets = targets if targets else ["."]
-        self.dependencies = dependencies if dependencies else []
         self.condition = condition
         self.should_tag = should_tag
+        self.independent = independent
+
+        self._dependencies = None
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
@@ -24,6 +33,29 @@ class GoModule:
             return "v" + agent_version
 
         return "v0" + agent_version[1:]
+
+    def __compute_dependencies(self):
+        """
+        Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
+        """
+        prefix = "github.com/DataDog/datadog-agent/"
+        base_path = os.getcwd()
+        mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
+
+        if not os.path.isdir(mod_parser_path):
+            raise Exception(f"Cannot find go.mod parser in {mod_parser_path}")
+
+        try:
+            output = subprocess.check_output(
+                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", prefix],
+                cwd=mod_parser_path,
+            ).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            print(f"Error while calling go.mod parser: {e.output}")
+            raise e
+
+        # Remove github.com/DataDog/datadog-agent/ from each line
+        return [line[len(prefix) :] for line in output.strip().splitlines()]
 
     # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
@@ -37,6 +69,16 @@ class GoModule:
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 
+    def codecov_path(self):
+        """Return the path of the Go module, normalized to satisfy Codecov
+        restrictions on flags.
+        https://docs.codecov.com/docs/flags
+        """
+        if self.path == ".":
+            return "main"
+
+        return re.sub(FORBIDDEN_CODECOV_FLAG_CHARS, '_', self.path)
+
     def full_path(self):
         """Return the absolute path of the Go module."""
         return os.path.abspath(self.path)
@@ -44,6 +86,12 @@ class GoModule:
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"
+
+    @property
+    def dependencies(self):
+        if not self._dependencies:
+            self._dependencies = self.__compute_dependencies()
+        return self._dependencies
 
     @property
     def import_path(self):
@@ -70,28 +118,23 @@ DEFAULT_MODULES = {
     ".": GoModule(
         ".",
         targets=["./pkg", "./cmd"],
-        dependencies=[
-            "pkg/util/scrubber",
-            "pkg/util/log",
-            "pkg/util/winutil",
-            "pkg/quantile",
-            "pkg/otlp/model",
-            "pkg/obfuscate",
-            "pkg/security/secl",
-        ],
     ),
-    "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
-    "pkg/util/log": GoModule("pkg/util/log", dependencies=["pkg/util/scrubber"]),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
-    "pkg/util/winutil": GoModule(
-        "pkg/util/winutil",
-        condition=lambda: sys.platform == 'win32',
-        dependencies=["pkg/util/log"],
+    "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
+    "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
+    "test/e2e/containers/otlp_sender": GoModule(
+        "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
-    "pkg/quantile": GoModule("pkg/quantile"),
-    "pkg/obfuscate": GoModule("pkg/obfuscate"),
-    "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
-    "pkg/security/secl": GoModule("pkg/security/secl"),
+    "test/new-e2e": GoModule("test/new-e2e", condition=lambda: False, should_tag=False),
+    "pkg/quantile": GoModule("pkg/quantile", independent=True),
+    "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
+    "pkg/trace": GoModule("pkg/trace", independent=True),
+    "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
+    "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
+    "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
+    "pkg/util/log": GoModule("pkg/util/log", independent=True),
+    "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
 }
 
 MAIN_TEMPLATE = """package main
@@ -106,24 +149,37 @@ func main() {{}}
 PACKAGE_TEMPLATE = '	_ "{}"'
 
 
-@task
+@contextmanager
 def generate_dummy_package(ctx, folder):
-    import_paths = []
-    for mod in DEFAULT_MODULES.values():
-        if mod.path != "." and mod.condition():
-            import_paths.append(mod.import_path)
-
-    os.mkdir(folder)
-    with ctx.cd(folder):
-        print("Creating dummy 'main.go' file... ", end="")
-        with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
-            main_file.write(
-                MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
-            )
-        print("Done")
-
-        ctx.run("go mod init example.com/testmodule")
+    """
+    Return a generator-iterator when called.
+    Allows us to wrap this function with a "with" statement to delete the created dummy pacakage afterwards.
+    """
+    try:
+        import_paths = []
         for mod in DEFAULT_MODULES.values():
-            if mod.path != ".":
-                ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
-                ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
+            if mod.path != "." and mod.condition():
+                import_paths.append(mod.import_path)
+
+        os.mkdir(folder)
+        with ctx.cd(folder):
+            print("Creating dummy 'main.go' file... ", end="")
+            with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
+                main_file.write(
+                    MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
+                )
+            print("Done")
+
+            ctx.run("go mod init example.com/testmodule")
+            for mod in DEFAULT_MODULES.values():
+                if mod.path != ".":
+                    ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
+                    ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
+
+        # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
+        yield folder
+
+    # the generator is then resumed here after the "with" block is exited
+    finally:
+        # delete test_folder to avoid FileExistsError while running this task again
+        ctx.run(f"rm -rf ./{folder}")

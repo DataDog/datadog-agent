@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package util
 
 import (
@@ -13,16 +18,12 @@ func TestNetIPToAddress(t *testing.T) {
 	addr := V4Address(889192575)
 	addrFromIP := AddressFromNetIP(net.ParseIP("127.0.0.53"))
 
-	_, ok := addrFromIP.(v4Address)
-	assert.True(t, ok)
 	assert.Equal(t, addrFromIP, addr)
 
 	// V6
 	addr = V6Address(889192575, 0)
 	addrFromIP = AddressFromNetIP(net.ParseIP("::7f00:35:0:0"))
 
-	_, ok = addrFromIP.(v6Address)
-	assert.True(t, ok)
 	assert.Equal(t, addrFromIP, addr)
 
 	// Mismatch tests
@@ -141,6 +142,14 @@ func TestAddressV6(t *testing.T) {
 	assert.False(t, addr.IsLoopback())
 }
 
+func TestV6AddressAllocation(t *testing.T) {
+	allocs := int(testing.AllocsPerRun(100, func() {
+		_ = V6Address(889192575, 0)
+	}))
+
+	assert.Equalf(t, 0, allocs, "V6Address should not allocate: got %d allocations", allocs)
+}
+
 func BenchmarkNetIPFromAddress(b *testing.B) {
 	var (
 		buf  = make([]byte, 16)
@@ -154,4 +163,59 @@ func BenchmarkNetIPFromAddress(b *testing.B) {
 		ip = NetIPFromAddress(addr, buf)
 	}
 	runtime.KeepAlive(ip)
+}
+
+func BenchmarkV6Address(b *testing.B) {
+	var addr Address
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		addr = V6Address(889192575, 0)
+	}
+	runtime.KeepAlive(addr)
+}
+
+func BenchmarkBytes(b *testing.B) {
+	var (
+		addr  = AddressFromString("8.8.8.8")
+		bytes []byte
+	)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// this allocates a slice descriptor that escapes to the heap
+		bytes = addr.Bytes()
+	}
+	runtime.KeepAlive(bytes)
+}
+
+func BenchmarkWriteTo(b *testing.B) {
+	addr := AddressFromString("8.8.8.8")
+	bytes := make([]byte, 4)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// this method shouldn't allocate
+		_ = addr.WriteTo(bytes)
+		bytes = bytes[:0]
+	}
+	runtime.KeepAlive(bytes)
+}
+
+func BenchmarkToLowHigh(b *testing.B) {
+	addr := AddressFromString("8.8.8.8")
+	var l, h uint64
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// this method shouldn't allocate
+		l, h = ToLowHigh(addr)
+	}
+
+	runtime.KeepAlive(l)
+	runtime.KeepAlive(h)
 }

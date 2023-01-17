@@ -51,6 +51,11 @@ func (m *MockSender) Gauge(metric string, value float64, hostname string, tags [
 	m.Called(metric, value, hostname, tags)
 }
 
+//GaugeNoIndex adds a gauge type to the mock calls that is not indexed.
+func (m *MockSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
+	m.Called(metric, value, hostname, tags)
+}
+
 //ServiceCheck enables the service check mock call.
 func (m *MockSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	m.Called(checkName, status, hostname, tags, message)
@@ -105,4 +110,24 @@ func (m *MockSender) GetSenderStats() check.SenderStats {
 // OrchestratorMetadata submit orchestrator metadata messages
 func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
 	m.Called(msgs, clusterID, nodeType)
+}
+
+// ContainerLifecycleEvent submit container life cycle messages
+func (m *MockSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
+	m.Called(msgs)
+}
+
+// ContainerImage submit container image messages
+func (m *MockSender) ContainerImage(msgs []serializer.ContainerImageMessage) {
+	m.Called(msgs)
+}
+
+// SBOM submit sbom data
+func (m *MockSender) SBOM(msgs []serializer.SBOMMessage) {
+	m.Called(msgs)
+}
+
+// OrchestratorManifest submit orchestrator manifest messages
+func (m *MockSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string) {
+	m.Called(msgs, clusterID)
 }

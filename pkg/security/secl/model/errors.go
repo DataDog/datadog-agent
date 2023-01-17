@@ -6,16 +6,22 @@
 package model
 
 import (
-	"github.com/pkg/errors"
+	"errors"
 )
 
 var (
 	// ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
 	ErrNotEnoughData = errors.New("not enough data")
 
+	// ErrNotEnoughSpace is returned when the provided buffer is too small to marshal the event
+	ErrNotEnoughSpace = errors.New("not enough space")
+
 	// ErrStringArrayOverflow returned when there is a string array overflow
 	ErrStringArrayOverflow = errors.New("string array overflow")
 
 	// ErrNonPrintable returned when a string contains non printable char
 	ErrNonPrintable = errors.New("non printable")
+
+	// ErrIncorrectDataSize is returned when the data read size doesn't correspond to the expected one
+	ErrIncorrectDataSize = errors.New("incorrect data size")
 )

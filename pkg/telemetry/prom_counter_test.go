@@ -65,3 +65,38 @@ func TestPromCounterInitializer(t *testing.T) {
 
 	assert.Equal(t, metric.GetCounter().GetValue(), 0.0)
 }
+
+func TestPromCounterAdd(t *testing.T) {
+	promTelemetry := prometheus.NewRegistry()
+
+	counter := promCounter{
+		pc: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Subsystem: "subsystem",
+				Name:      "test",
+				Help:      "help docs",
+			},
+			[]string{},
+		),
+	}
+
+	promTelemetry.MustRegister(counter.pc)
+
+	get := func() float64 {
+		metrics, err := promTelemetry.Gather()
+		assert.NoError(t, err)
+
+		metricFamily := metrics[0]
+		metric := metricFamily.GetMetric()[0]
+		return metric.GetCounter().GetValue()
+	}
+	counter.Add(10.0)
+	assert.Equal(t, get(), 10.0)
+
+	counter.Add(0.0)
+	assert.Equal(t, get(), 10.0)
+
+	counter.Add(-10.0)
+	assert.Equal(t, get(), 10.0)
+
+}

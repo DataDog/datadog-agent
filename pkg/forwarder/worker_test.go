@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package forwarder
@@ -13,9 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewWorker(t *testing.T) {
@@ -23,7 +26,7 @@ func TestNewWorker(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction)
 
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.Timeout, config.Datadog.GetDuration("forwarder_timeout")*time.Second)
 }
@@ -33,11 +36,11 @@ func TestNewNoSSLWorker(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("skip_ssl_validation", true)
 	defer mockConfig.Set("skip_ssl_validation", false)
 
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
 	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
 
@@ -45,12 +48,15 @@ func TestWorkerStart(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+	sender := &PointSuccessfullySentMock{}
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), sender)
 
 	mock := newTestTransaction()
+	mock.pointCount = 1
 	mock.On("Process", w.Client).Return(nil).Times(1)
 	mock.On("GetTarget").Return("").Times(1)
 	mock2 := newTestTransaction()
+	mock2.pointCount = 2
 	mock2.On("Process", w.Client).Return(nil).Times(1)
 	mock2.On("GetTarget").Return("").Times(1)
 
@@ -68,14 +74,17 @@ func TestWorkerStart(t *testing.T) {
 	mock2.AssertExpectations(t)
 	mock2.AssertNumberOfCalls(t, "Process", 1)
 
+	// use Stop to wait for worker.process to update sender.count
 	w.Stop(false)
+
+	assert.Equal(t, int64(mock.pointCount+mock2.pointCount), sender.count.Load())
 }
 
 func TestWorkerRetry(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(fmt.Errorf("some kind of error")).Times(1)
@@ -96,7 +105,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("GetTarget").Return("error_url").Times(1)
@@ -117,7 +126,7 @@ func TestWorkerResetConnections(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(nil).Times(1)
@@ -160,7 +169,7 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	highPrio := make(chan transaction.Transaction, 1)
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
 	// making stopChan non blocking on insert and closing stopped channel
 	// to avoid blocking in the Stop method since we don't actually start
 	// the workder
@@ -187,4 +196,12 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	mockTransaction.AssertExpectations(t)
 	mockTransaction.AssertNumberOfCalls(t, "Process", 1)
 	mockRetryTransaction.AssertNumberOfCalls(t, "Process", 0)
+}
+
+type PointSuccessfullySentMock struct {
+	count atomic.Int64
+}
+
+func (m *PointSuccessfullySentMock) OnPointSuccessfullySent(count int) {
+	m.count.Add(int64(count))
 }

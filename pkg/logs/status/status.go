@@ -9,8 +9,11 @@ import (
 	"expvar"
 	"strings"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Transport is the transport used by logs-agent, i.e TCP or HTTP
@@ -34,7 +37,6 @@ var (
 
 // Source provides some information about a logs source.
 type Source struct {
-	BytesRead          int64                  `json:"bytes_read"`
 	AllTimeAvgLatency  int64                  `json:"all_time_avg_latency"`
 	AllTimePeakLatency int64                  `json:"all_time_peak_latency"`
 	RecentAvgLatency   int64                  `json:"recent_avg_latency"`
@@ -65,7 +67,7 @@ type Status struct {
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *int32, endpoints *config.Endpoints, sources *config.LogSources, logExpVars *expvar.Map) {
+func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sources.LogSources, logExpVars *expvar.Map) {
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
 	builder = NewBuilder(isRunning, endpoints, sources, warnings, errors, logExpVars)

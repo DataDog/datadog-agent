@@ -9,9 +9,10 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestReplacer(t *testing.T) {

@@ -6,39 +6,42 @@
 package sender
 
 import (
-	"context"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-// StreamStrategy is a shared stream strategy.
-var StreamStrategy Strategy = &streamStrategy{}
+// streamStrategy is a Strategy that creates one Payload for each Message, containing
+// that Message's Content. This is used for TCP destinations, which stream the output
+// without batching multiple messages together.
+type streamStrategy struct {
+	inputChan  chan *message.Message
+	outputChan chan *message.Payload
+	done       chan struct{}
+}
 
-// streamStrategy contains all the logic to send one log at a time.
-type streamStrategy struct{}
-
-func (s *streamStrategy) Flush(ctx context.Context) {
-	// nothing to do
+// NewStreamStrategy creates a new stream strategy
+func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload) Strategy {
+	return &streamStrategy{
+		inputChan:  inputChan,
+		outputChan: outputChan,
+		done:       make(chan struct{}),
+	}
 }
 
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
-func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
-	for message := range inputChan {
-		if message.Origin != nil {
-			message.Origin.LogSource.LatencyStats.Add(message.GetLatency())
-		}
-		err := send(message.Content)
-		if err != nil {
-			if shouldStopSending(err) {
-				return
+func (s *streamStrategy) Start() {
+	go func() {
+		for msg := range s.inputChan {
+			if msg.Origin != nil {
+				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
-			log.Warnf("Could not send payload: %v", err)
+			s.outputChan <- &message.Payload{Messages: []*message.Message{msg}, Encoded: msg.Content, UnencodedSize: len(msg.Content)}
 		}
-		metrics.LogsSent.Add(1)
-		metrics.TlmLogsSent.Inc()
-		outputChan <- message
-	}
+		s.done <- struct{}{}
+	}()
+}
+
+// Stop stops the strategy
+func (s *streamStrategy) Stop() {
+	close(s.inputChan)
+	<-s.done
 }

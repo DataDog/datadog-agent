@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python && kubelet
 // +build python,kubelet
 
 package python
@@ -79,7 +80,7 @@ func GetKubeletConnectionInfo(payload **C.char) {
 		}
 
 		creds = string(data)
-		cache.Cache.Set(kubeletCacheKey, creds, 5*time.Minute)
+		cache.Cache.Set(kubeletCacheKey, creds, 1*time.Minute)
 	}
 
 	*payload = TrackedCString(creds)

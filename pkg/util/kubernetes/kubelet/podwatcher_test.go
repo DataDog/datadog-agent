@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
@@ -386,13 +387,13 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)

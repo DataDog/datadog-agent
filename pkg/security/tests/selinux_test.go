@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -18,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -41,7 +42,7 @@ func TestSELinux(t *testing.T) {
 		},
 	}
 
-	if cmd := exec.Command("sudo", "-n", "sestatus"); cmd.Run() != nil {
+	if !isSELinuxEnabled() {
 		t.Skipf("SELinux is not available, skipping tests")
 	}
 
@@ -67,80 +68,72 @@ func TestSELinux(t *testing.T) {
 	t.Run("setenforce", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := setEnforceStatus("permissive"); err != nil {
-				return fmt.Errorf("failed to run setenforce: %v", err)
+				return fmt.Errorf("failed to run setenforce: %w", err)
 			}
 			return nil
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 
 	t.Run("sel_disable", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := rawSudoWrite("/sys/fs/selinux/disable", "0", false); err != nil {
-				return fmt.Errorf("failed to write to selinuxfs: %v", err)
+				return fmt.Errorf("failed to write to selinuxfs: %w", err)
 			}
 			return nil
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 
 	t.Run("setsebool_true_value", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, true); err != nil {
-				return fmt.Errorf("failed to run setsebool: %v", err)
+				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
 			return nil
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_write_bool_true")
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "selinux.bool.name", TestBoolName, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "on", "wrong bool value")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 
 	t.Run("setsebool_false_value", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, false); err != nil {
-				return fmt.Errorf("failed to run setsebool: %v", err)
+				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
 			return nil
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_write_bool_false")
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "selinux.bool.name", TestBoolName, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "off", "wrong bool value")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 
 	t.Run("setsebool_error_value", func(t *testing.T) {
 		err = test.GetSignal(t, func() error {
 			if err := rawSudoWrite("/sys/fs/selinux/booleans/httpd_enable_cgi", "test_error", true); err != nil {
-				return fmt.Errorf("failed to write to selinuxfs: %v", err)
+				return fmt.Errorf("failed to write to selinuxfs: %w", err)
 			}
 			return nil
-		}, func(event *probe.Event, rule *rules.Rule) {
-			t.Errorf("expected error and got an event: %s", event)
+		}, func(event *model.Event, rule *rules.Rule) {
+			t.Errorf("expected error and got an event: %s", test.debugEvent(event))
 		})
 		if err == nil {
 			t.Fatal("expected error")
@@ -165,7 +158,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 	}
 	defer test.Close()
 
-	if cmd := exec.Command("sudo", "-n", "sestatus"); cmd.Run() != nil {
+	if !isSELinuxEnabled() {
 		t.Skipf("SELinux is not available, skipping tests")
 	}
 
@@ -178,17 +171,15 @@ func TestSELinuxCommitBools(t *testing.T) {
 	t.Run("sel_commit_bools", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, true); err != nil {
-				return fmt.Errorf("failed to run setsebool: %v", err)
+				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
 			return nil
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_commit_bools")
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "selinux.bool_commit.state", true, "wrong bool value")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 }
@@ -209,6 +200,11 @@ func rawSudoWrite(filePath, writeContent string, ignoreRunError bool) error {
 		return err
 	}
 	return nil
+}
+
+func isSELinuxEnabled() bool {
+	cmd := exec.Command("sudo", "-n", "selinuxenabled")
+	return cmd.Run() == nil && cmd.ProcessState.Success()
 }
 
 func getBoolValue(boolName string) (bool, error) {
@@ -273,8 +269,5 @@ func setEnforceStatus(status string) error {
 
 	cmd := exec.Command("sudo", "-n", "setenforce", strconv.Itoa(enforceNumber))
 	_, err := cmd.Output()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

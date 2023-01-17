@@ -6,7 +6,6 @@
 package tags
 
 import (
-	"os"
 	"sort"
 	"testing"
 
@@ -116,12 +115,9 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 }
 
 func TestBuildTagMapFromArnCompleteWithEnvAndVersionAndService(t *testing.T) {
-	os.Setenv("DD_VERSION", "myTestVersion")
-	defer os.Unsetenv("DD_VERSION")
-	os.Setenv("DD_ENV", "myTestEnv")
-	defer os.Unsetenv("DD_ENV")
-	os.Setenv("DD_SERVICE", "myTestService")
-	defer os.Unsetenv("DD_SERVICE")
+	t.Setenv("DD_VERSION", "myTestVersion")
+	t.Setenv("DD_ENV", "myTestEnv")
+	t.Setenv("DD_SERVICE", "myTestService")
 
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
@@ -165,7 +161,7 @@ func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 }
 
 func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
-	os.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "$LATEST")
+	t.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "$LATEST")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
 	assert.Equal(t, 13, len(tagMap))
@@ -185,7 +181,7 @@ func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 }
 
 func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
-	os.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "888")
+	t.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "888")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
 	assert.Equal(t, 14, len(tagMap))
@@ -275,8 +271,34 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 	})
 }
 
-func TestBuildTagMapWithMemoryTag(t *testing.T) {
-	os.Setenv("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", "128")
+func TestAddInitTypeTagWithoutInitType(t *testing.T) {
+	generatedTags := AddInitTypeTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+}
+
+func TestAddInitTypeTagWithInitType(t *testing.T) {
+	t.Setenv(InitType, SnapStartValue)
+	generatedTags := AddInitTypeTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"init_type:snap-start",
+	})
+}
+
+func TestBuildTagMapWithRuntimeAndMemoryTag(t *testing.T) {
+	t.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "888")
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_java")
+	t.Setenv("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", "128")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
 	assert.Equal(t, 15, len(tagMap))
@@ -293,7 +315,7 @@ func TestBuildTagMapWithMemoryTag(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
 	assert.Equal(t, "128", tagMap["memorysize"])
-	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
+	assert.True(t, tagMap["architecture"] == X86LambdaPlatform || tagMap["architecture"] == ArmLambdaPlatform)
 }
 
 func TestGetRuntimeFound(t *testing.T) {

@@ -14,15 +14,42 @@ import (
 
 // store holds useful mappings for the AD
 type store struct {
-	serviceToConfigs  map[string][]integration.Config
+	// serviceToConfigs maps service ID to a slice of resolved templates
+	// for that service.  Configs are never removed from this map, even if the
+	// template for which they were resolved is removed.
+	serviceToConfigs map[string][]integration.Config
+
+	// serviceToTagsHash maps tagger entity ID to a hash of the tags associated
+	// with the service.  Note that this key differs from keys used elsewhere
+	// in this type.
 	serviceToTagsHash map[string]string
+
+	// templateToConfigs maps config digest of a template to the resolved templates
+	// created from it.  Configs are never removed from this map, even if the
+	// service for which they were resolved is removed.
 	templateToConfigs map[string][]integration.Config
-	loadedConfigs     map[string]integration.Config
-	nameToJMXMetrics  map[string]integration.Data
-	adIDToServices    map[string]map[string]bool
-	entityToService   map[string]listeners.Service
-	templateCache     *TemplateCache
-	m                 sync.RWMutex
+
+	// loadedConfigs contains all scheduled configs (so, non-template configs
+	// and resolved templates), indexed by their hash.
+	loadedConfigs map[string]integration.Config
+
+	// nameToJMXMetrics stores the MetricConfig for checks, keyed by check name.
+	nameToJMXMetrics map[string]integration.Data
+
+	// adIDToServices stores, for each AD identifier, the service IDs for
+	// services with that AD identifier.  The map structure is
+	// adIDTOServices[adID][serviceID] = struct{}{}
+	adIDToServices map[string]map[string]struct{}
+
+	// entityToService maps serviceIDs to Service instances.
+	entityToService map[string]listeners.Service
+
+	// templateCache stores templates by their AD identifiers.
+	templateCache *templateCache
+
+	// m is a Mutex protecting access to all fields in this type except
+	// templateCache.
+	m sync.RWMutex
 }
 
 // newStore creates a store
@@ -33,9 +60,9 @@ func newStore() *store {
 		templateToConfigs: make(map[string][]integration.Config),
 		loadedConfigs:     make(map[string]integration.Config),
 		nameToJMXMetrics:  make(map[string]integration.Data),
-		adIDToServices:    make(map[string]map[string]bool),
+		adIDToServices:    make(map[string]map[string]struct{}),
 		entityToService:   make(map[string]listeners.Service),
-		templateCache:     NewTemplateCache(),
+		templateCache:     newTemplateCache(),
 	}
 
 	return &s
@@ -101,29 +128,6 @@ func (s *store) setTagsHashForService(serviceEntity string, hash string) {
 	s.serviceToTagsHash[serviceEntity] = hash
 }
 
-// setLoadedConfig stores a resolved config by its digest
-func (s *store) setLoadedConfig(config integration.Config) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.loadedConfigs[config.Digest()] = config
-}
-
-// removeLoadedConfig removes a loaded config by its digest
-func (s *store) removeLoadedConfig(config integration.Config) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	delete(s.loadedConfigs, config.Digest())
-}
-
-// mapOverLoadedConfigs calls the given function with the map of all
-// loaded configs.  This is done with the config store locked, so
-// callers should perform minimal work within f.
-func (s *store) mapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	f(s.loadedConfigs)
-}
-
 // setJMXMetricsForConfigName stores the jmx metrics config for a config name
 func (s *store) setJMXMetricsForConfigName(config string, metrics integration.Data) {
 	s.m.Lock()
@@ -154,12 +158,6 @@ func (s *store) setServiceForEntity(svc listeners.Service, entity string) {
 	s.entityToService[entity] = svc
 }
 
-func (s *store) getServiceForEntity(entity string) listeners.Service {
-	s.m.Lock()
-	defer s.m.Unlock()
-	return s.entityToService[entity]
-}
-
 func (s *store) removeServiceForEntity(entity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -170,14 +168,29 @@ func (s *store) setADIDForServices(adID string, serviceEntity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if s.adIDToServices[adID] == nil {
-		s.adIDToServices[adID] = make(map[string]bool)
+		s.adIDToServices[adID] = make(map[string]struct{})
 	}
-	s.adIDToServices[adID][serviceEntity] = true
+	s.adIDToServices[adID][serviceEntity] = struct{}{}
 }
 
-func (s *store) getServiceEntitiesForADID(adID string) (map[string]bool, bool) {
+func (s *store) getServiceEntitiesForADID(adID string) (map[string]struct{}, bool) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	services, found := s.adIDToServices[adID]
 	return services, found
+}
+
+func (s *store) removeServiceForADID(entity string, adIdentifiers []string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	for _, adID := range adIdentifiers {
+		if services, found := s.adIDToServices[adID]; found {
+			delete(services, entity)
+			if len(services) == 0 {
+				// An AD identifier can be shared between multiple services (e.g image name)
+				// We delete the AD identifier entry only when it doesn't match any existing service anymore.
+				delete(s.adIDToServices, adID)
+			}
+		}
+	}
 }

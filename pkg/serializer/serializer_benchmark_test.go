@@ -3,59 +3,60 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package serializer
 
 import (
 	"fmt"
 	"testing"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 )
 
-func buildSeries(numberOfSeries int) metrics.Series {
-	testSeries := metrics.Series{}
-	for i := 0; i < numberOfSeries; i++ {
-		point := metrics.Serie{
-			Points: []metrics.Point{
-				{Ts: float64(time.Now().UnixNano()), Value: 1.2 * float64(i)},
-			},
-			MType:    metrics.APIGaugeType,
-			Name:     fmt.Sprintf("test.metrics%d", i),
-			Interval: 1,
-			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+func buildEvents(numberOfEvents int) metricsserializer.Events {
+	events := metricsserializer.Events{}
+	for i := 0; i < numberOfEvents; i++ {
+		event := metrics.Event{
+			Title:     fmt.Sprintf("test.events%d", i),
+			Text:      fmt.Sprintf("test.events%d", i),
+			Ts:        1,
+			Priority:  metrics.EventPriorityLow,
+			Host:      "localHost",
+			Tags:      []string{"tag1", "tag2:yes"},
+			AlertType: metrics.EventAlertTypeInfo,
 		}
-		testSeries = append(testSeries, &point)
+		events = append(events, &event)
 	}
-	return testSeries
+	return events
 }
 
-var results forwarder.Payloads
+var results transaction.BytesPayloads
 
-func benchmarkJSONStream(b *testing.B, passes int, sharedBuffers bool, numberOfSeries int) {
-	series := buildSeries(numberOfSeries)
+func benchmarkJSONStream(b *testing.B, passes int, sharedBuffers bool, numberOfEvents int) {
+	events := buildEvents(numberOfEvents)
+	marshaler := events.CreateSingleMarshaler()
 	payloadBuilder := stream.NewJSONPayloadBuilder(sharedBuffers)
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < passes; i++ {
-			results, _ = payloadBuilder.Build(series)
+			results, _ = stream.BuildJSONPayload(payloadBuilder, marshaler)
 		}
 	}
 }
 
-func benchmarkSplit(b *testing.B, numberOfSeries int) {
-	series := buildSeries(numberOfSeries)
+func benchmarkSplit(b *testing.B, numberOfEvents int) {
+	events := buildEvents(numberOfEvents)
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		results, _ = split.Payloads(series, true, split.JSONMarshalFct)
+		results, _ = split.Payloads(events, true, split.JSONMarshalFct)
 	}
 }
 

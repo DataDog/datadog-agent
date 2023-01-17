@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 //go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/tcp-queue-length-kern.c ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/c
@@ -13,11 +19,14 @@ import (
 	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
-	bpflib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,8 +37,7 @@ import (
 import "C"
 
 const (
-	TCPQueueLengthUID = "tcp-queue-length"
-	statsMapName      = "tcp_queue_stats"
+	statsMapName = "tcp_queue_stats"
 )
 
 type TCPQueueLengthTracer struct {
@@ -38,17 +46,27 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, nil)
-	if err != nil {
-		return nil, err
+	if cfg.EnableCORE {
+		probe, err := loadTCPQueueLengthCOREProbe(cfg)
+		if err != nil {
+			if !cfg.AllowRuntimeCompiledFallback {
+				return nil, fmt.Errorf("error loading CO-RE tcp-queue-length probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
+			}
+			log.Warnf("error loading CO-RE tcp-queue-length probe: %s. falling back to runtime compiled probe", err)
+		} else {
+			return probe, nil
+		}
 	}
-	defer compiledOutput.Close()
 
+	return loadTCPQueueLengthRuntimeCompiledProbe(cfg)
+}
+
+func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*TCPQueueLengthTracer, error) {
 	probes := []*manager.Probe{
-		{Section: "kprobe/tcp_recvmsg"},
-		{Section: "kretprobe/tcp_recvmsg"},
-		{Section: "kprobe/tcp_sendmsg"},
-		{Section: "kretprobe/tcp_sendmsg"},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_recvmsg", EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_recvmsg", EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_sendmsg", EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_sendmsg", EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
 	}
 
 	maps := []*manager.Map{
@@ -62,14 +80,12 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 		Maps:   maps,
 	}
 
-	managerOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+	managerOptions.RLimit = &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
 	}
 
-	if err := m.InitWithOptions(compiledOutput, managerOptions); err != nil {
+	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
 	}
 
@@ -91,7 +107,9 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 }
 
 func (t *TCPQueueLengthTracer) Close() {
-	t.m.Stop(manager.CleanAll)
+	if err := t.m.Stop(manager.CleanAll); err != nil {
+		log.Errorf("error stopping TCP Queue Length: %s", err)
+	}
 }
 
 func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
@@ -108,9 +126,9 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 	statsValue := make([]C.struct_stats_value, nbCpus)
 	it := t.statsMap.Iterate()
 	for it.Next(unsafe.Pointer(&statsKey), unsafe.Pointer(&statsValue[0])) {
-		containerID := C.GoString(&statsKey.cgroup_name[0])
+		cgroupName := C.GoString(&statsKey.cgroup_name[0])
 		// This cannot happen because statsKey.cgroup_name is filled by bpf_probe_read_str which ensures a NULL-terminated string
-		if len(containerID) >= C.sizeof_struct_stats_key {
+		if len(cgroupName) >= C.sizeof_struct_stats_key {
 			log.Critical("statsKey.cgroup_name wasn’t properly NULL-terminated")
 			break
 		}
@@ -124,7 +142,7 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 				max.WriteBufferMaxUsage = uint32(statsValue[cpu].write_buffer_max_usage)
 			}
 		}
-		result[containerID] = max
+		result[cgroupName] = max
 
 		if err := t.statsMap.Delete(unsafe.Pointer(&statsKey)); err != nil {
 			log.Warnf("failed to delete stat: %s", err)
@@ -136,4 +154,36 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 	}
 
 	return result
+}
+
+func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("error detecting kernel version: %s", err)
+	}
+	if kv < kernel.VersionCode(4, 8, 0) {
+		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
+	}
+
+	var probe *TCPQueueLengthTracer
+	err = ebpf.LoadCOREAsset(cfg, "tcp-queue-length.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		probe, err = startTCPQueueLengthProbe(buf, opts)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("successfully loaded CO-RE version of tcp-queue-length probe")
+	return probe, nil
+}
+
+func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	if err != nil {
+		return nil, err
+	}
+	defer compiledOutput.Close()
+
+	return startTCPQueueLengthProbe(compiledOutput, manager.Options{})
 }

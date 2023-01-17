@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 // Version is a dumb way to version our collector handlers
@@ -15,16 +20,51 @@ const (
 	v03 Version = "v0.3"
 
 	// v04
-	// Traces: msgpack/JSON (Content-Type) slice of traces + returns service sampling ratios
+	//
+	// Request: Trace chunks.
+	// 	Content-Type: application/msgpack
+	// 	Payload: An array of arrays of Span (pkg/trace/pb/span.proto)
+	//
+	// Response: Service sampling rates.
+	// 	Content-Type: application/json
+	// 	Payload: Object mapping span pattern to sample rate.
+	//
+	// The response payload is an object whose keys are of the form
+	// "service:my-service,env:my-env", where "my-service" is the name of the
+	// affected service, and "my-env" is the name of the relevant deployment
+	// environment. The value at each key is the sample rate to apply to traces
+	// beginning with a span that matches the key.
+	//
+	//  {
+	//    "service:foosvc,env:prod": 0.223443,
+	//    "service:barsvc,env:staging": 0.011249
+	//  }
+	//
+	// There is a special key, "service:,env:", that denotes the sample rate for
+	// traces that do not match any other key.
+	//
+	//  {
+	//    "service:foosvc,env:prod": 0.223443,
+	//    "service:barsvc,env:staging": 0.011249,
+	//    "service:,env:": 0.5
+	//  }
+	//
+	// Neither the "service:,env:" key nor any other need be present in the
+	// response.
+	//
+	//  {}
+	//
 	v04 Version = "v0.4"
 
 	// v05
 	//
-	// Content-Type: application/msgpack
-	// Payload: Traces with strings de-duplicated into a dictionary.
-	// Response: Service sampling rates.
+	// Request: Trace chunks with a shared dictionary of strings.
+	// 	Content-Type: application/msgpack
+	// 	Payload: Traces with strings de-duplicated into a dictionary (see below).
 	//
-	// The payload is an array containing exactly 2 elements:
+	// Response: Service sampling rates (see description in v04).
+	//
+	// The request payload is an array containing exactly 2 elements:
 	//
 	// 	1. An array of all unique strings present in the payload (a dictionary referred to by index).
 	// 	2. An array of traces, where each trace is an array of spans. A span is encoded as an array having
@@ -69,11 +109,13 @@ const (
 	//
 	v05 Version = "v0.5"
 
-	// v06
+	// V07 API
 	//
-	// Content-Type: application/msgpack
-	// Payload: TracerPayload (pkg/trace/pb/tracer_payload.proto)
-	// Response: Service sampling rates.
+	// Request: Tracer Payload.
+	// 	Content-Type: application/msgpack
+	// 	Payload: TracerPayload (pkg/trace/pb/tracer_payload.proto)
 	//
-	v06 Version = "v0.6"
+	// Response: Service sampling rates (see description in v04).
+	//
+	V07 Version = "v0.7"
 )

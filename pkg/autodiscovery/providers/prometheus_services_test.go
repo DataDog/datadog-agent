@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -12,10 +12,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -170,17 +172,17 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Name:       "openmetrics",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
-					ADIdentifiers: []string{"kube_service_uid://test"},
+					ADIdentifiers: []string{"kube_service://ns/svc"},
 					Provider:      "prometheus-services",
 					ClusterCheck:  true,
-					Source:        "prometheus_services:kube_service_uid://test",
+					Source:        "prometheus_services:kube_service://ns/svc",
 				},
 			},
 		},
 		{
-			name:   "collect services and endpoints",
+			name:   "collect only endpoints",
 			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
 			services: []*v1.Service{
 				{
@@ -230,21 +232,10 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			expectConfigs: []integration.Config{
 				{
 					Name:       "openmetrics",
+					ServiceID:  "kube_endpoint_uid://ns/svc/10.0.0.1",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
-					},
-					ADIdentifiers: []string{"kube_service_uid://test"},
-					Provider:      "prometheus-services",
-					ClusterCheck:  true,
-					Source:        "prometheus_services:kube_service_uid://test",
-				},
-				{
-					Name:       "openmetrics",
-					Entity:     "kube_endpoint_uid://ns/svc/10.0.0.1",
-					InitConfig: integration.Data("{}"),
-					Instances: []integration.Data{
-						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.1", "kubernetes_pod://svc-pod-1"},
 					NodeName:      "node1",
@@ -254,10 +245,10 @@ func TestPrometheusServicesCollect(t *testing.T) {
 				},
 				{
 					Name:       "openmetrics",
-					Entity:     "kube_endpoint_uid://ns/svc/10.0.0.2",
+					ServiceID:  "kube_endpoint_uid://ns/svc/10.0.0.2",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.2", "kubernetes_pod://svc-pod-2"},
 					NodeName:      "node2",
@@ -269,6 +260,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 		},
 	}
 
+	config.Datadog.Set("prometheus_scrape.version", 2)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -281,7 +273,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			}
 
 			for _, check := range test.checks {
-				check.Init()
+				check.Init(2)
 			}
 
 			p := newPromServicesProvider(test.checks, api, test.collectEndpoints)
@@ -325,7 +317,7 @@ func TestPrometheusServicesInvalidateIfChanged(t *testing.T) {
 
 	checks := []*types.PrometheusCheck{types.DefaultPrometheusCheck}
 	for _, check := range checks {
-		check.Init()
+		check.Init(0)
 	}
 
 	tests := []struct {
@@ -449,7 +441,7 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 
 	checks := []*types.PrometheusCheck{types.DefaultPrometheusCheck}
 	for _, check := range checks {
-		check.Init()
+		check.Init(0)
 	}
 
 	node := "node1"

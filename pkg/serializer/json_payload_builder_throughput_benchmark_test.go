@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build zlib,optional_benchmarks
+//go:build zlib && optional_benchmarks
+// +build zlib,optional_benchmarks
 
 package serializer
 
@@ -12,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 )
 
 func benchmarkJSONPayloadBuilderThroughput(points int, items int, tags int, runs int) { //nolint:unuse

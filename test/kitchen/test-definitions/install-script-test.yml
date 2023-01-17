@@ -2,19 +2,12 @@ suites:
 
 # Installs the latest release candidate using the install script
 - name: install-script
-  <% if ENV['AGENT_FLAVOR'] == "datadog-iot-agent" %> # IoT Agent doesn't work on SLES 11 (no SysVInit files)
-  excludes: <% if (sles11_platforms.nil? || sles11_platforms.empty?) %>[]<% end %>
-    <% sles11_platforms.each do |p| %>
-    - <%= p %>
-    <% end %>
-  <% end %>
   run_list:
     <% if ENV['FIPS'] == 'true' %>
     - "recipe[dd-agent-enable-fips::enable]"
     - "recipe[dd-agent-enable-fips::ensure]"
     <% end %>
     - "recipe[dd-agent-disable-system-repos]"
-    - "recipe[dd-agent-debian-workaround]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install-script]"
   attributes:
@@ -24,7 +17,7 @@ suites:
     dd-agent-install-script:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       api_key: <%= api_key %>
-      install_script_url: https://raw.githubusercontent.com/DataDog/datadog-agent/<%= ENV['CI_COMMIT_SHA'] %>/cmd/agent/install_script.sh
+      install_script_url: "https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh"
       repo_branch_apt: <%= aptrepo_dist %>
       repo_component_apt: <%= agent_major_version %>
       repo_branch_yum: testing/pipeline-<%= ENV['DD_PIPELINE_ID'] %>/<%= agent_major_version %>

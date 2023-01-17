@@ -135,6 +135,7 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
     dockerfile_path = f"{build_context}/{arch}/Dockerfile"
 
     shutil.copy2(latest_file, exec_path)
+    shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
     ctx.run(f"docker build -t {tag} {build_context} -f {dockerfile_path}")
     ctx.run(f"rm {exec_path}")
 

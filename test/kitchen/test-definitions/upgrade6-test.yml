@@ -9,7 +9,6 @@ suites:
     - "recipe[dd-agent-enable-fips::ensure]"
     <% end %>
     - "recipe[dd-agent-disable-system-repos]"
-    - "recipe[dd-agent-debian-workaround]"
     - "recipe[dd-agent-rhel-workaround]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install]"
@@ -25,7 +24,7 @@ suites:
     dd-agent-upgrade:
       add_new_repo: true
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"

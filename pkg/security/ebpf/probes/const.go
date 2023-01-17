@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -21,11 +22,15 @@ const (
 	DentryResolverSegmentERPCKey
 	// DentryResolverKernKprobeKey is the key to the kernel dentry resolver tail call program
 	DentryResolverKernKprobeKey
+	// ActivityDumpFilterKprobeKey is the key to the kernel activity dump filter tail call program
+	ActivityDumpFilterKprobeKey
 )
 
 const (
 	// DentryResolverKernTracepointKey is the key to the kernel dentry resolver tail call program
 	DentryResolverKernTracepointKey uint32 = iota
+	// ActivityDumpFilterTracepointKey is the key to the kernel activity dump filter tail call program
+	ActivityDumpFilterTracepointKey
 )
 
 const (
@@ -51,6 +56,10 @@ const (
 	DentryResolverRenameCallbackKprobeKey
 	// DentryResolverSELinuxCallbackKprobeKey is the key to the callback program to execute after resolving the destination dentry of a selinux event
 	DentryResolverSELinuxCallbackKprobeKey
+	// DentryResolverUnshareMntNSStageOneCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of a cloned mount when a new mount namespace is created using unshare
+	DentryResolverUnshareMntNSStageOneCallbackKprobeKey
+	// DentryResolverUnshareMntNSStageTwoCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of a cloned mount mountpoint when a new mount namespace is created using unshare
+	DentryResolverUnshareMntNSStageTwoCallbackKprobeKey
 )
 
 const (
@@ -64,4 +73,20 @@ const (
 	DentryResolverLinkDstCallbackTracepointKey
 	// DentryResolverRenameCallbackTracepointKey is the key to the callback program to execute after resolving the destination dentry of a rename event
 	DentryResolverRenameCallbackTracepointKey
+)
+
+const (
+	// TCDNSRequestKey is the key to DNS request program
+	TCDNSRequestKey uint32 = iota + 1
+	// TCDNSRequestParserKey is the key to DNS request parser program
+	TCDNSRequestParserKey
+)
+
+const (
+	// ExecGetEnvsOffsetKey is the key to the program that computes the environment variables offset
+	ExecGetEnvsOffsetKey uint32 = iota
+	// ExecParseArgsEnvsSplitKey is the key to the program that splits the parsing of arguments and environment variables between tailcalls
+	ExecParseArgsEnvsSplitKey
+	// ExecParseArgsEnvsKey is the key to the program that parses arguments and then environment variables
+	ExecParseArgsEnvsKey
 )

@@ -1,24 +1,30 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package gui
 
 import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gorilla/mux"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gorilla/mux"
-	yaml "gopkg.in/yaml.v2"
 )
 
 // Adds the specific handlers for /agent/ endpoints
@@ -78,14 +84,14 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 
 // Sends the agent's hostname
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	hostname, e := util.GetHostname(r.Context())
+	hname, e := hostname.Get(r.Context())
 	if e != nil {
 		log.Errorf("Error getting hostname: " + e.Error())
 		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
-	res, _ := json.Marshal(hostname)
+	res, _ := json.Marshal(hname)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(res)
 }
@@ -99,7 +105,7 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 		logFile = common.DefaultLogFile
 	}
 
-	logFileContents, e := ioutil.ReadFile(logFile)
+	logFileContents, e := os.ReadFile(logFile)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
@@ -126,8 +132,12 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
+		return
 	} else if payload.Email == "" || payload.CaseID == "" {
 		w.Write([]byte("Error creating flare: missing information"))
+		return
+	} else if _, err := strconv.ParseInt(payload.CaseID, 10, 0); err != nil {
+		w.Write([]byte("Invalid CaseID (must be a number)"))
 		return
 	}
 
@@ -182,6 +192,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 	}[setting]; !ok {
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprintf(w, `"error": "requested setting is not whitelisted"`)
+		return
 	}
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		setting: config.Datadog.Get(setting),
@@ -194,7 +205,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 // Sends the configuration (aka datadog.yaml) file
 func getConfigFile(w http.ResponseWriter, r *http.Request) {
 	path := config.Datadog.ConfigFileUsed()
-	settings, e := ioutil.ReadFile(path)
+	settings, e := os.ReadFile(path)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
@@ -209,6 +220,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
+		return
 	}
 	data := []byte(payload.Config)
 
@@ -221,7 +233,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := config.Datadog.ConfigFileUsed()
-	e = ioutil.WriteFile(path, data, 0644)
+	e = os.WriteFile(path, data, 0644)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return

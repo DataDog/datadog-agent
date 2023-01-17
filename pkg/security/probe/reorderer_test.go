@@ -3,18 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf/perf"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 func TestOrder(t *testing.T) {
@@ -25,18 +27,22 @@ func TestOrder(t *testing.T) {
 
 	for i := 0; i != 200; i++ {
 		n := rand.Int()%254 + 1
-		heap.enqueue(0, []byte{byte(n)}, uint64(n), 1, &metric)
+
+		record := perf.Record{
+			RawSample: []byte{byte(n)},
+		}
+		heap.enqueue(&record, uint64(n), 1, &metric)
 	}
 
 	var count int
 	var last byte
-	heap.dequeue(func(cpu uint64, data []byte) {
+	heap.dequeue(func(record *perf.Record) {
 		count++
 		if last > 0 {
-			assert.GreaterOrEqual(t, data[0], last)
+			assert.GreaterOrEqual(t, record.RawSample[0], last)
 		}
-		last = data[0]
-	}, 1, &metric)
+		last = record.RawSample[0]
+	}, 1, &metric, &ReOrdererOpts{})
 
 	assert.Equal(t, 200, count)
 }
@@ -48,15 +54,19 @@ func TestOrderRetention(t *testing.T) {
 	metric := ReOrdererMetric{}
 
 	for i := 0; i != 90; i++ {
-		heap.enqueue(0, []byte{byte(i)}, uint64(i), uint64(i/30+1), &metric)
+		record := perf.Record{
+			RawSample: []byte{byte(i)},
+		}
+
+		heap.enqueue(&record, uint64(i), uint64(i/30+1), &metric)
 	}
 
 	var count int
-	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 1, &metric)
+	heap.dequeue(func(record *perf.Record) { count++ }, 1, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 30, count)
-	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 2, &metric)
+	heap.dequeue(func(record *perf.Record) { count++ }, 2, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 60, count)
-	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 3, &metric)
+	heap.dequeue(func(record *perf.Record) { count++ }, 3, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 90, count)
 }
 
@@ -66,14 +76,21 @@ func TestOrderGeneration(t *testing.T) {
 	}
 	metric := ReOrdererMetric{}
 
-	heap.enqueue(0, []byte{byte(10)}, uint64(10), uint64(1), &metric)
-	heap.enqueue(0, []byte{byte(1)}, uint64(1), uint64(2), &metric)
+	record1 := perf.Record{
+		RawSample: []byte{byte(10)},
+	}
+	heap.enqueue(&record1, uint64(10), uint64(1), &metric)
+
+	record2 := perf.Record{
+		RawSample: []byte{byte(1)},
+	}
+	heap.enqueue(&record2, uint64(1), uint64(2), &metric)
 
 	var data []byte
-	heap.dequeue(func(c uint64, d []byte) { data = d }, 1, &metric)
+	heap.dequeue(func(record *perf.Record) { data = record.RawSample }, 1, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 1, int(data[0]))
 
-	heap.dequeue(func(c uint64, d []byte) { data = d }, 2, &metric)
+	heap.dequeue(func(record *perf.Record) { data = record.RawSample }, 2, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 10, int(data[0]))
 }
 
@@ -85,13 +102,16 @@ func TestOrderRate(t *testing.T) {
 	var lock sync.RWMutex
 	ctx, cancel := context.WithCancel(context.Background())
 
-	reOrderer := NewReOrderer(ctx, func(cpu uint64, data []byte) {
+	reOrderer := NewReOrderer(ctx, func(record *perf.Record) {
 		lock.Lock()
-		event = append(event, data[2])
+		event = append(event, record.RawSample[2])
 		lock.Unlock()
 	},
-		func(data []byte) (uint64, uint64, error) {
-			return uint64(data[0]), uint64(data[1]), nil
+		func(record *perf.Record) (QuickInfo, error) {
+			return QuickInfo{
+				cpu:       uint64(record.RawSample[0]),
+				timestamp: uint64(record.RawSample[1]),
+			}, nil
 		},
 		ReOrdererOpts{
 			QueueSize:  100,
@@ -108,7 +128,11 @@ func TestOrderRate(t *testing.T) {
 
 	var e uint8
 	for i := 0; i != 10; i++ {
-		reOrderer.HandleEvent(0, []byte{0, byte(i + 1), e}, nil, nil)
+		record := perf.Record{
+			RawSample: []byte{0, byte(i + 1), e},
+		}
+
+		reOrderer.HandleEvent(&record, nil, nil)
 		e++
 	}
 

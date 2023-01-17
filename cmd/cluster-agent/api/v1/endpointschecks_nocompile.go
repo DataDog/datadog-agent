@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !clusterchecks
 // +build !clusterchecks
 
 package v1
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/gorilla/mux"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 )
 
 // installEndpointsCheckEndpoints not implemented

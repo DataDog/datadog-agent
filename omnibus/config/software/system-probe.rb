@@ -9,8 +9,12 @@ source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
+  license :project_license
+
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
+  mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
+  mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/nikos/embedded/bin"
   mkdir "#{install_dir}/embedded/nikos/embedded/lib"
 
@@ -26,12 +30,18 @@ build do
     copy "#{ENV['SYSTEM_PROBE_BIN']}/offset-guess-debug.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security-syscall-wrapper.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security-offset-guesser.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/oom-kill-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill.o"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/tcp-queue-length-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length.o"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tracer.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/http.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/conntrack.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/oom-kill.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tcp-queue-length.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/llc-bpf", "#{install_dir}/embedded/bin/llc-bpf"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
   end
 
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
@@ -39,10 +49,10 @@ build do
   if ENV.has_key?('NIKOS_PATH') and not ENV['NIKOS_PATH'].empty?
     copy "#{ENV['NIKOS_PATH']}/bin/gpg", "#{install_dir}/embedded/nikos/embedded/bin/"
     copy "#{ENV['NIKOS_PATH']}/lib/rpm", "#{install_dir}/embedded/nikos/embedded/lib/"
-    command "rm #{install_dir}/embedded/nikos/embedded/lib/rpm/debugedit"
-    command "rm #{install_dir}/embedded/nikos/embedded/lib/rpm/elfdeps"
-    command "rm #{install_dir}/embedded/nikos/embedded/lib/rpm/rpmdeps"
-    command "rm #{install_dir}/embedded/nikos/embedded/lib/rpm/sepdebugcrcfix"
+    delete "#{install_dir}/embedded/nikos/embedded/lib/rpm/debugedit"
+    delete "#{install_dir}/embedded/nikos/embedded/lib/rpm/elfdeps"
+    delete "#{install_dir}/embedded/nikos/embedded/lib/rpm/rpmdeps"
+    delete "#{install_dir}/embedded/nikos/embedded/lib/rpm/sepdebugcrcfix"
     copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so", "#{install_dir}/embedded/nikos/embedded/lib/"
     copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so.8", "#{install_dir}/embedded/nikos/embedded/lib/"
     copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so.8.0", "#{install_dir}/embedded/nikos/embedded/lib/"

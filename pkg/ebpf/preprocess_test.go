@@ -1,9 +1,14 @@
-// +build !ebpf_bindata
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !ebpf_bindata && linux_bpf
+// +build !ebpf_bindata,linux_bpf
 
 package ebpf
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -12,11 +17,7 @@ import (
 )
 
 func TestPreprocessFile(t *testing.T) {
-	testBPFDir, err := ioutil.TempDir("", "test-bpfdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(testBPFDir)
+	testBPFDir := t.TempDir()
 
 	assetSource := `#include <linux/bpf.h>
 #include <linux/tcp.h>
@@ -41,11 +42,11 @@ struct test_struct {
 #endif /* defined(TEST_H) */
 `
 
-	if err := ioutil.WriteFile(path.Join(testBPFDir, "test-asset.c"), []byte(assetSource), 0644); err != nil {
+	if err := os.WriteFile(path.Join(testBPFDir, "test-asset.c"), []byte(assetSource), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ioutil.WriteFile(path.Join(testBPFDir, "test-header.h"), []byte(assetHeader), 0644); err != nil {
+	if err := os.WriteFile(path.Join(testBPFDir, "test-header.h"), []byte(assetHeader), 0644); err != nil {
 		t.Fatal(err)
 	}
 

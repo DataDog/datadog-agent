@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build tools
 // +build tools
 
 package tools
@@ -11,8 +12,12 @@ package tools
 // This is the currently recommended approach: https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 
 import (
+	_ "github.com/go-delve/delve/pkg/goversion"
 	_ "github.com/mailru/easyjson/easyjson"
-	_ "github.com/shuLhan/go-bindata/cmd/go-bindata"
 	_ "github.com/tinylib/msgp"
 	_ "golang.org/x/tools/cmd/stringer"
+
+	_ "github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	_ "github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
+	_ "github.com/DataDog/datadog-agent/pkg/network/go/lutgen"
 )

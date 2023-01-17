@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package admission
@@ -53,9 +54,50 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	return status
 }
 
-func getWebhookStatus(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
+var getWebhookStatus = func(string, kubernetes.Interface) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("admission controller not started")
+}
+
+func getWebhookStatusV1beta1(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
 	webhookStatus := make(map[string]interface{})
 	webhook, err := apiCl.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return webhookStatus, err
+	}
+
+	webhookStatus["Name"] = webhook.GetName()
+	webhookStatus["CreatedAt"] = webhook.GetCreationTimestamp()
+
+	webhooksConfig := make(map[string]map[string]interface{})
+	webhookStatus["Webhooks"] = webhooksConfig
+	for _, w := range webhook.Webhooks {
+		webhooksConfig[w.Name] = make(map[string]interface{})
+		svc := w.ClientConfig.Service
+		if svc != nil {
+			port := "Port: None (default 443)"
+			path := "Path: None"
+			if svc.Port != nil {
+				port = fmt.Sprintf("Port: %d", *svc.Port)
+			}
+			if svc.Path != nil {
+				path = fmt.Sprintf("Path: %s", *svc.Path)
+			}
+			webhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
+		}
+		if w.ObjectSelector != nil {
+			webhooksConfig[w.Name]["Object selector"] = w.ObjectSelector.String()
+		}
+		for i, r := range w.Rules {
+			webhooksConfig[w.Name][fmt.Sprintf("Rule %d", i+1)] = fmt.Sprintf("Operations: %v - APIGroups: %v - APIVersions: %v - Resources: %v", r.Operations, r.Rule.APIGroups, r.Rule.APIVersions, r.Rule.Resources)
+		}
+		webhooksConfig[w.Name]["CA bundle digest"] = getDigest(w.ClientConfig.CABundle)
+	}
+	return webhookStatus, nil
+}
+
+func getWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
+	webhookStatus := make(map[string]interface{})
+	webhook, err := apiCl.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return webhookStatus, err
 	}

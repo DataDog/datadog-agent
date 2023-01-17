@@ -3,11 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package metrics
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // Metric names
 const (
@@ -34,7 +39,7 @@ var (
 	MutationErrors = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_errors",
 		[]string{"mutation_type", "reason"}, "Number of mutation failures by mutation type (agent config, standard tags).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	WebhooksReceived = telemetry.NewGaugeWithOpts("admission_webhooks", "webhooks_received",
+	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
 		[]string{}, "Number of mutation webhook requests received.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	GetOwnerCacheHit = telemetry.NewGaugeWithOpts("admission_webhooks", "owner_cache_hit",
@@ -42,5 +47,19 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	GetOwnerCacheMiss = telemetry.NewGaugeWithOpts("admission_webhooks", "owner_cache_miss",
 		[]string{"resource"}, "Number of cache misses while getting pod's owner object.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	WebhooksResponseDuration = telemetry.NewHistogramWithOpts(
+		"admission_webhooks",
+		"response_duration",
+		[]string{},
+		"Webhook response duration distribution (in seconds).",
+		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+	LibInjectionAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_attempts",
+		[]string{"language", "injected"}, "Number of pod library injection attempts by language.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
+		[]string{"language"}, "Number of library injection failures by language",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

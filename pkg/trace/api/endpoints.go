@@ -8,11 +8,11 @@ package api
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
-// endpoint specifies an API endpoint definition.
-type endpoint struct {
+// Endpoint specifies an API endpoint definition.
+type Endpoint struct {
 	// Pattern specifies the API pattern, as registered by the HTTP handler.
 	Pattern string
 
@@ -25,11 +25,16 @@ type endpoint struct {
 
 	// IsEnabled specifies a function which reports whether this endpoint should be enabled
 	// based on the given config conf.
-	IsEnabled func() bool
+	IsEnabled func(conf *config.AgentConfig) bool
 }
 
+// AttachEndpoint attaches an additional endpoint to the trace-agent. It is not thread-safe
+// and should be called before (pkg/trace.*Agent).Run or (*HTTPReceiver).Start. In other
+// words, endpoint setup must be final before the agent or HTTP receiver starts.
+func AttachEndpoint(e Endpoint) { endpoints = append(endpoints, e) }
+
 // endpoints specifies the list of endpoints registered for the trace-agent API.
-var endpoints = []endpoint{
+var endpoints = []Endpoint{
 	{
 		Pattern: "/spans",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v01, r.handleTraces) },
@@ -81,28 +86,50 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v05, r.handleTraces) },
 	},
 	{
-		Pattern: "/v0.6/traces",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v06, r.handleTraces) },
+		Pattern: "/v0.7/traces",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V07, r.handleTraces) },
 	},
 	{
 		Pattern: "/profiling/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
 	},
 	{
+		Pattern: "/telemetry/proxy/",
+		Handler: func(r *HTTPReceiver) http.Handler {
+			return http.StripPrefix("/telemetry/proxy", r.telemetryProxyHandler())
+		},
+		IsEnabled: func(cfg *config.AgentConfig) bool { return cfg.TelemetryConfig.Enabled },
+	},
+	{
 		Pattern: "/v0.6/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
 	},
 	{
-		Pattern: "/appsec/proxy/",
-		Handler: func(r *HTTPReceiver) http.Handler { return http.StripPrefix("/appsec/proxy", r.appsecHandler) },
+		Pattern: "/v0.1/pipeline_stats",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.pipelineStatsProxyHandler() },
+	},
+	{
+		Pattern: "/evp_proxy/v1/",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(1) },
+	},
+	{
+		Pattern: "/evp_proxy/v2/",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(2) },
+	},
+	{
+		Pattern: "/evp_proxy/v3/",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(2) },
 	},
 	{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
 	},
 	{
-		Pattern:   "/v0.6/config",
-		Handler:   func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleConfig) },
-		IsEnabled: func() bool { return features.Has("config_endpoint") },
+		Pattern: "/dogstatsd/v1/proxy", // deprecated
+		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
+	},
+	{
+		Pattern: "/dogstatsd/v2/proxy",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
 	},
 }

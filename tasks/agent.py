@@ -18,7 +18,8 @@ from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .docker import pull_base_images
-from .go import deps, generate
+from .flavor import AgentFlavor
+from .go import deps
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
 from .rtloader import make as rtloader_make
@@ -58,6 +59,7 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
+    "winkmem",
     "winproc",
     "jetson",
 ]
@@ -88,7 +90,7 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     development=True,
     skip_assets=False,
     embedded_path=None,
@@ -109,8 +111,9 @@ def build(
     Example invokation:
         inv agent.build --build-exclude=systemd
     """
+    flavor = AgentFlavor[flavor]
 
-    if not exclude_rtloader and not iot:
+    if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
         rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
@@ -151,20 +154,17 @@ def build(
         command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
-    if iot:
+    if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="iot", arch=arch)
+        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
     else:
         build_include = (
-            get_default_build_tags(build="agent", arch=arch)
+            get_default_build_tags(build="agent", arch=arch, flavor=flavor)
             if build_include is None
             else filter_incompatible_tags(build_include.split(","), arch=arch)
         )
         build_exclude = [] if build_exclude is None else build_exclude.split(",")
         build_tags = get_build_tags(build_include, build_exclude)
-
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
@@ -174,11 +174,11 @@ def build(
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android=False)),
+        "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if iot else "agent",
+        "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
     ctx.run(cmd.format(**args), env=env)
 
@@ -187,7 +187,7 @@ def build(
 
     # Render the Agent configuration file template
     build_type = "agent-py3"
-    if iot:
+    if flavor.is_iot():
         build_type = "iot-agent"
     elif has_both_python(python_runtimes):
         build_type = "agent-py2py3"
@@ -199,14 +199,15 @@ def build(
         generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
     if not skip_assets:
-        refresh_assets(ctx, build_tags, development=development, iot=iot, windows_sysprobe=windows_sysprobe)
+        refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
 
 
 @task
-def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=False):
+def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name, windows_sysprobe=False):
     """
     Clean up and refresh Collector's assets and config files
     """
+    flavor = AgentFlavor[flavor]
     # ensure BIN_PATH exists
     if not os.path.exists(BIN_PATH):
         os.mkdir(BIN_PATH)
@@ -220,7 +221,7 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
         copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
         copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
-    if not iot:
+    if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
         # copy the dd-agent placeholder to the bin folder
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
@@ -231,7 +232,7 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in AGENT_CORECHECKS if not iot else IOT_AGENT_CORECHECKS:
+    for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
     if "apm" in build_tags:
@@ -248,7 +249,16 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
 
 
 @task
-def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, iot=False, skip_build=False):
+def run(
+    ctx,
+    rebuild=False,
+    race=False,
+    build_include=None,
+    build_exclude=None,
+    flavor=AgentFlavor.base.name,
+    skip_build=False,
+    config_path=None,
+):
     """
     Execute the agent binary.
 
@@ -256,9 +266,11 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, iot)
+        build(ctx, rebuild, race, build_include, build_exclude, flavor)
 
-    ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    ctx.run(f"{agent_bin} run -c {config_path}")
 
 
 @task
@@ -352,6 +364,8 @@ def get_omnibus_env(
     system_probe_bin=None,
     nikos_path=None,
     go_mod_cache=None,
+    flavor=AgentFlavor.base,
+    pip_config_file="pip.conf",
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -388,10 +402,16 @@ def get_omnibus_env(
     )
     env['MAJOR_VERSION'] = major_version
     env['PY_RUNTIMES'] = python_runtimes
+
+    # Since omnibus and the invoke task won't run in the same folder
+    # we need to input the absolute path of the pip config file
+    env['PIP_CONFIG_FILE'] = os.path.abspath(pip_config_file)
+
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     if nikos_path:
         env['NIKOS_PATH'] = nikos_path
+    env['AGENT_FLAVOR'] = flavor.name
 
     return env
 
@@ -451,7 +471,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
 )
 def omnibus_build(
     ctx,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     agent_binaries=False,
     log_level="info",
     base_dir=None,
@@ -466,10 +486,13 @@ def omnibus_build(
     system_probe_bin=None,
     nikos_path=None,
     go_mod_cache=None,
+    python_mirror=None,
+    pip_config_file="pip.conf",
 ):
     """
     Build the Agent packages with Omnibus Installer.
     """
+    flavor = AgentFlavor[flavor]
     deps_elapsed = None
     bundle_elapsed = None
     omnibus_elapsed = None
@@ -497,13 +520,25 @@ def omnibus_build(
         system_probe_bin=system_probe_bin,
         nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
+        flavor=flavor,
+        pip_config_file=pip_config_file,
     )
 
     target_project = "agent"
-    if iot:
+    if flavor.is_iot():
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"
+
+    # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
+    python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
+
+    # If a python_mirror is set then use it for pip by adding it in the pip.conf file
+    pip_index_url = f"[global]\nindex-url = {python_mirror}" if python_mirror else ""
+
+    # We're passing the --index-url arg through a pip.conf file so that omnibus doesn't leak the token
+    with open(pip_config_file, 'w') as f:
+        f.write(pip_index_url)
 
     bundle_start = datetime.datetime.now()
     bundle_install_omnibus(ctx, gem_path, env)
@@ -522,6 +557,9 @@ def omnibus_build(
     )
     omnibus_done = datetime.datetime.now()
     omnibus_elapsed = omnibus_done - omnibus_start
+
+    # Delete the temporary pip.conf file once the build is done
+    os.remove(pip_config_file)
 
     print("Build component timing:")
     if not skip_deps:
@@ -560,7 +598,7 @@ def omnibus_manifest(
     ctx,
     platform=None,
     arch=None,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     agent_binaries=False,
     log_level="info",
     base_dir=None,
@@ -573,6 +611,7 @@ def omnibus_manifest(
     system_probe_bin=None,
     go_mod_cache=None,
 ):
+    flavor = AgentFlavor[flavor]
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
 
@@ -585,10 +624,11 @@ def omnibus_manifest(
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
+        flavor=flavor,
     )
 
     target_project = "agent"
-    if iot:
+    if flavor.is_iot():
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"
@@ -613,22 +653,49 @@ def omnibus_manifest(
 
 
 @task
-def check_supports_python_version(_, filename, python):
+def check_supports_python_version(_, check_dir, python):
     """
-    Check if a setup.py file states support for a given major Python version.
+    Check if a Python project states support for a given major Python version.
     """
+    import toml
+    from packaging.specifiers import SpecifierSet
+
     if python not in ['2', '3']:
         raise Exit("invalid Python version", code=2)
 
-    with open(filename, 'r') as f:
-        tree = ast.parse(f.read(), filename=filename)
+    project_file = os.path.join(check_dir, 'pyproject.toml')
+    setup_file = os.path.join(check_dir, 'setup.py')
+    if os.path.isfile(project_file):
+        with open(project_file, 'r') as f:
+            data = toml.loads(f.read())
 
-    prefix = f'Programming Language :: Python :: {python}'
-    for node in ast.walk(tree):
-        if isinstance(node, ast.keyword) and node.arg == "classifiers":
-            classifiers = ast.literal_eval(node.value)
-            print(any(cls.startswith(prefix) for cls in classifiers), end="")
+        project_metadata = data['project']
+        if 'requires-python' not in project_metadata:
+            print('True', end='')
             return
+
+        specifier = SpecifierSet(project_metadata['requires-python'])
+        # It might be e.g. `>=3.8` which would not immediatelly contain `3`
+        for minor_version in range(100):
+            if specifier.contains(f'{python}.{minor_version}'):
+                print('True', end='')
+                return
+        else:
+            print('False', end='')
+    elif os.path.isfile(setup_file):
+        with open(setup_file, 'r') as f:
+            tree = ast.parse(f.read(), filename=setup_file)
+
+        prefix = f'Programming Language :: Python :: {python}'
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and node.arg == 'classifiers':
+                classifiers = ast.literal_eval(node.value)
+                print(any(cls.startswith(prefix) for cls in classifiers), end='')
+                return
+        else:
+            print('False', end='')
+    else:
+        raise Exit('not a Python project', code=1)
 
 
 @task

@@ -31,7 +31,7 @@ const hostnameStyleSetting = "azure_hostname_style"
 
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn(ctx context.Context) bool {
-	if _, err := GetHostAlias(ctx); err == nil {
+	if _, err := GetHostAliases(ctx); err == nil {
 		return true
 	}
 	return false
@@ -44,15 +44,15 @@ var vmIDFetcher = cachedfetch.Fetcher{
 			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
 			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
+			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 		}
-		return res, nil
+		return []string{res}, nil
 	},
 }
 
-// GetHostAlias returns the VM ID from the Azure Metadata api
-func GetHostAlias(ctx context.Context) (string, error) {
-	return vmIDFetcher.FetchString(ctx)
+// GetHostAliases returns the VM ID from the Azure Metadata api
+func GetHostAliases(ctx context.Context) ([]string, error) {
+	return vmIDFetcher.FetchStringSlice(ctx)
 }
 
 var resourceGroupNameFetcher = cachedfetch.Fetcher{
@@ -113,7 +113,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 }
 
 // GetHostname returns hostname based on Azure instance metadata.
-func GetHostname(ctx context.Context, options map[string]interface{}) (string, error) {
+func GetHostname(ctx context.Context) (string, error) {
 	return getHostnameWithConfig(ctx, config.Datadog)
 }
 
@@ -170,4 +170,22 @@ func getHostnameWithConfig(ctx context.Context, config config.Config) (string, e
 	}
 
 	return name, nil
+}
+
+var publicIPv4Fetcher = cachedfetch.Fetcher{
+	Name: "Azure Public IP",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		publicIPv4, err := getResponse(ctx,
+			metadataURL+"/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-04-02&format=text")
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure public ip: %s", err)
+		}
+
+		return publicIPv4, nil
+	},
+}
+
+// GetPublicIPv4 returns the public IPv4 address of the current Azure instance
+func GetPublicIPv4(ctx context.Context) (string, error) {
+	return publicIPv4Fetcher.FetchString(ctx)
 }

@@ -1,4 +1,10 @@
-//+build ignore
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build ignore
+// +build ignore
 
 package ebpf
 
@@ -23,6 +29,7 @@ type BindSyscallArgs C.bind_syscall_args_t
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
+type _Ctype_struct_sockaddr uint64
 
 type TCPState uint8
 
@@ -37,13 +44,6 @@ const (
 	LInit   ConnFlags = C.CONN_L_INIT
 	RInit   ConnFlags = C.CONN_R_INIT
 	Assured ConnFlags = C.CONN_ASSURED
-)
-
-type PortState uint8
-
-const (
-	PortListening PortState = C.PORT_LISTENING
-	PortClosed    PortState = C.PORT_CLOSED
 )
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE

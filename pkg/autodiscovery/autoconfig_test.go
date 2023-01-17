@@ -6,10 +6,8 @@
 package autodiscovery
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -21,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -60,10 +57,12 @@ type MockListener struct {
 func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
 	l.ListenCount++
 }
+
 func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
-func (l *MockListener) fakeFactory() (listeners.ServiceListener, error) {
+
+func (l *MockListener) fakeFactory(listeners.Config) (listeners.ServiceListener, error) {
 	return l, nil
 }
 
@@ -79,7 +78,7 @@ type factoryMock struct {
 	returnError error
 }
 
-func (o *factoryMock) make() (listeners.ServiceListener, error) {
+func (o *factoryMock) make(listeners.Config) (listeners.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {
@@ -115,6 +114,27 @@ func (o *factoryMock) resetCallChan() {
 	}
 }
 
+type MockScheduler struct {
+	scheduled map[string]integration.Config
+}
+
+// Schedule implements scheduler.Scheduler#Schedule.
+func (ms *MockScheduler) Schedule(configs []integration.Config) {
+	for _, cfg := range configs {
+		ms.scheduled[cfg.Digest()] = cfg
+	}
+}
+
+// Unchedule implements scheduler.Scheduler#Unchedule.
+func (ms *MockScheduler) Unschedule(configs []integration.Config) {
+	for _, cfg := range configs {
+		delete(ms.scheduled, cfg.Digest())
+	}
+}
+
+// Stop implements scheduler.Scheduler#Stop.
+func (ms *MockScheduler) Stop() {}
+
 type AutoConfigTestSuite struct {
 	suite.Suite
 	originalListeners map[string]listeners.ServiceListenerFactory
@@ -146,16 +166,18 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	assert.Len(suite.T(), ac.providers, 0)
+	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
-	ac.AddConfigProvider(mp, false, 0) // this should be a noop
 	ac.AddConfigProvider(&MockProvider2{}, true, 1*time.Second)
-	ac.LoadAndRun()
-	require.Len(suite.T(), ac.providers, 2)
+
+	require.Len(suite.T(), ac.configPollers, 2)
+	assert.False(suite.T(), ac.configPollers[0].canPoll)
+	assert.True(suite.T(), ac.configPollers[1].canPoll)
+
+	ac.LoadAndRun(context.Background())
+
 	assert.Equal(suite.T(), 1, mp.collectCounter)
-	assert.False(suite.T(), ac.providers[0].canPoll)
-	assert.True(suite.T(), ac.providers[1].canPoll)
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
@@ -175,13 +197,24 @@ func (suite *AutoConfigTestSuite) TestAddListener() {
 	ac.m.Unlock()
 }
 
-func (suite *AutoConfigTestSuite) TestContains() {
+func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 	c1 := integration.Config{Name: "bar"}
 	c2 := integration.Config{Name: "foo"}
+	c3 := integration.Config{Name: "baz"}
 	pd := configPoller{}
-	pd.configs = append(pd.configs, c1)
-	assert.True(suite.T(), pd.contains(&c1))
-	assert.False(suite.T(), pd.contains(&c2))
+
+	pd.configs = map[uint64]integration.Config{
+		c1.FastDigest(): c1,
+		c2.FastDigest(): c2,
+	}
+
+	added, removed := pd.storeAndDiffConfigs([]integration.Config{c1, c3})
+	assert.ElementsMatch(suite.T(), added, []integration.Config{c3})
+	assert.ElementsMatch(suite.T(), removed, []integration.Config{c2})
+	assert.Equal(suite.T(), map[uint64]integration.Config{
+		c3.FastDigest(): c3,
+		c1.FastDigest(): c1,
+	}, pd.configs)
 }
 
 func (suite *AutoConfigTestSuite) TestStop() {
@@ -304,25 +337,30 @@ func TestAutoConfigTestSuite(t *testing.T) {
 func TestResolveTemplate(t *testing.T) {
 	ctx := context.Background()
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	msch := scheduler.NewMetaScheduler()
+	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
+	msch.Register("mock", sch, false)
+
+	ac := NewAutoConfig(msch)
 	tpl := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 	}
 
 	// no services
-	res := ac.resolveTemplate(tpl)
-	assert.Len(t, res, 0)
+	changes := ac.processNewConfig(tpl)
+	ac.applyChanges(changes) // processNewConfigs does not apply changes
+
+	assert.Len(t, sch.scheduled, 0)
 
 	service := dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
-	ac.processNewService(ctx, &service)
-
 	// there are no template vars but it's ok
-	res = ac.resolveTemplate(tpl)
-	assert.Len(t, res, 1)
+	ac.processNewService(ctx, &service) // processNewService applies changes
+
+	assert.Len(t, sch.scheduled, 1)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
@@ -357,12 +395,12 @@ func TestRemoveTemplate(t *testing.T) {
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 	}
-	configs := ac.processNewConfig(tpl)
-	assert.Len(t, configs, 1)
+	changes := ac.processNewConfig(tpl)
+	assert.Len(t, changes.Schedule, 1)
 	assert.Equal(t, countLoadedConfigs(ac), 2)
 
 	// Remove the template, config should be removed too
-	ac.removeConfigTemplates([]integration.Config{tpl})
+	ac.processRemovedConfigs([]integration.Config{tpl})
 	assert.Equal(t, countLoadedConfigs(ac), 1)
 }
 
@@ -371,175 +409,47 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 	assert.Equal(t, countLoadedConfigs(&ac), 0)
 }
 
-func TestCheckOverride(t *testing.T) {
+func TestDecryptConfig(t *testing.T) {
 	ctx := context.Background()
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	tpl := integration.Config{
-		Name:          "redis",
-		ADIdentifiers: []string{"redis"},
-		Provider:      names.File,
-	}
-
-	// check must be overridden (same check)
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{"redis"},
-	})
-	assert.Len(t, ac.resolveTemplate(tpl), 0)
-
-	// check must be overridden (empty config)
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{""},
-	})
-	assert.Len(t, ac.resolveTemplate(tpl), 0)
-
-	// check must be scheduled (different checks)
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{"tcp_check"},
-	})
-	assert.Len(t, ac.resolveTemplate(tpl), 1)
-}
-
-type MockSecretDecrypt struct {
-	t         *testing.T
-	scenarios []struct {
-		expectedData   []byte
-		expectedOrigin string
-		returnedData   []byte
-		returnedError  error
-		called         int
-	}
-}
-
-func (m *MockSecretDecrypt) getDecryptFunc() func([]byte, string) ([]byte, error) {
-	return func(data []byte, origin string) ([]byte, error) {
-		for n, scenario := range m.scenarios {
-			if bytes.Compare(data, scenario.expectedData) == 0 && origin == scenario.expectedOrigin {
-				m.scenarios[n].called++
-				return scenario.returnedData, scenario.returnedError
-			}
-		}
-		m.t.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
-		return nil, fmt.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
-	}
-}
-
-func (m *MockSecretDecrypt) haveAllScenariosBeenCalled() bool {
-	for _, scenario := range m.scenarios {
-		if scenario.called == 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func (m *MockSecretDecrypt) haveAllScenariosNotCalled() bool {
-	for _, scenario := range m.scenarios {
-		if scenario.called != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func mockDecrypt(t *testing.T) MockSecretDecrypt {
-	return MockSecretDecrypt{
-		t: t,
-		scenarios: []struct {
-			expectedData   []byte
-			expectedOrigin string
-			returnedData   []byte
-			returnedError  error
-			called         int
-		}{
-			{
-				expectedData:   []byte{},
-				expectedOrigin: "cpu",
-				returnedData:   []byte{},
-				returnedError:  nil,
-			},
-			{
-				expectedData:   []byte("param1: ENC[foo]"),
-				expectedOrigin: "cpu",
-				returnedData:   []byte("param1: foo"),
-				returnedError:  nil,
-			},
-			{
-				expectedData:   []byte("param2: ENC[bar]"),
-				expectedOrigin: "cpu",
-				returnedData:   []byte("param2: bar"),
-				returnedError:  nil,
-			},
+	mockDecrypt := MockSecretDecrypt{t, []mockSecretScenario{
+		{
+			expectedData:   []byte{},
+			expectedOrigin: "cpu",
+			returnedData:   []byte{},
+			returnedError:  nil,
 		},
-	}
-}
+		{
+			expectedData:   []byte("param1: ENC[foo]\n"),
+			expectedOrigin: "cpu",
+			returnedData:   []byte("param1: foo\n"),
+			returnedError:  nil,
+		},
+	}}
+	defer mockDecrypt.install()()
 
-var sharedTpl = integration.Config{
-	Name:          "cpu",
-	ADIdentifiers: []string{"redis"},
-	InitConfig:    []byte("param1: ENC[foo]"),
-	Instances: []integration.Data{
-		[]byte("param2: ENC[bar]"),
-	},
-}
-
-var sharedService = dummyService{
-	ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-	ADIdentifiers: []string{"redis"},
-}
-
-func TestSecretDecrypt(t *testing.T) {
-	ctx := context.Background()
-
-	/// resolveTemplate
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
-	mockDecrypt := mockDecrypt(t)
-	originalSecretsDecrypt := secretsDecrypt
-	secretsDecrypt = mockDecrypt.getDecryptFunc()
-	defer func() { secretsDecrypt = originalSecretsDecrypt }()
+	tpl := integration.Config{
+		Name:          "cpu",
+		ADIdentifiers: []string{"redis"},
+		InitConfig:    []byte("param1: ENC[foo]"),
+	}
+	changes := ac.processNewConfig(tpl)
 
-	// no services
-	res := ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 0)
+	require.Len(t, changes.Schedule, 1)
 
-	service := sharedService
-	ac.processNewService(ctx, &service)
-
-	// there are no template vars but it's ok
-	res = ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 1)
+	resolved := integration.Config{
+		Name:          "cpu",
+		ADIdentifiers: []string{"redis"},
+		InitConfig:    []byte("param1: foo\n"),
+		Instances:     []integration.Data{},
+		MetricConfig:  integration.Data{},
+		LogsConfig:    integration.Data{},
+		ServiceID:     "abcd",
+	}
+	assert.Equal(t, resolved, changes.Schedule[0])
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
-}
-
-func TestSkipSecretDecrypt(t *testing.T) {
-	ctx := context.Background()
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-
-	mockDecrypt := mockDecrypt(t)
-	originalSecretsDecrypt := secretsDecrypt
-	secretsDecrypt = mockDecrypt.getDecryptFunc()
-	defer func() { secretsDecrypt = originalSecretsDecrypt }()
-
-	cfg := config.Mock()
-	cfg.Set("secret_backend_skip_checks", true)
-	defer cfg.Set("secret_backend_skip_checks", false)
-
-	service := sharedService
-	ac.processNewService(ctx, &service)
-
-	res := ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 1)
-
-	assert.Equal(t, sharedTpl.Instances, res[0].Instances)
-	assert.Equal(t, sharedTpl.InitConfig, res[0].InitConfig)
-
-	assert.True(t, mockDecrypt.haveAllScenariosNotCalled())
 }

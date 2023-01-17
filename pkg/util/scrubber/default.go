@@ -7,7 +7,6 @@ package scrubber
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 )
@@ -43,12 +42,29 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"app_key", "appkey", "application_key"},
 		Repl:  []byte(`$1***********************************$2`),
 	}
+	hintedBearerReplacer := Replacer{
+		Regex: regexp.MustCompile(`\bBearer [a-fA-F0-9]{59}([a-fA-F0-9]{5})\b`),
+		Hints: []string{"Bearer"},
+		Repl:  []byte(`Bearer ***********************************************************$1`),
+	}
+	apiKeyReplacerYAML := Replacer{
+		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`$1$2"***************************$3"`),
+	}
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
 	}
+	appKeyReplacerYAML := Replacer{
+		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`$1$2"***********************************$3"`),
+	}
 	appKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`***********************************$1`),
+	}
+	rcAppKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`),
 		Repl:  []byte(`***********************************$1`),
 	}
 	// URI Generic Syntax
@@ -60,17 +76,22 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	passwordReplacer := Replacer{
 		Regex: matchYAMLKeyPart(`(pass(word)?|pwd)`),
 		Hints: []string{"pass", "pwd"},
-		Repl:  []byte(`$1 ********`),
+		Repl:  []byte(`$1 "********"`),
 	}
 	tokenReplacer := Replacer{
 		Regex: matchYAMLKeyEnding(`token`),
 		Hints: []string{"token"},
-		Repl:  []byte(`$1 ********`),
+		Repl:  []byte(`$1 "********"`),
 	}
 	snmpReplacer := Replacer{
 		Regex: matchYAMLKey(`(community_string|authKey|privKey|community|authentication_key|privacy_key)`),
 		Hints: []string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
-		Repl:  []byte(`$1 ********`),
+		Repl:  []byte(`$1 "********"`),
+	}
+	snmpMultilineReplacer := Replacer{
+		Regex: matchYAMLKeyWithListValue("(community_strings)"),
+		Hints: []string{"community_strings"},
+		Repl:  []byte(`$1 "********"`),
 	}
 	certReplacer := Replacer{
 		Regex: matchCert(),
@@ -79,12 +100,17 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
+	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
+	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, appKeyReplacer)
+	scrubber.AddReplacer(SingleLine, rcAppKeyReplacer)
 	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
+	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
 }
 
@@ -111,6 +137,44 @@ func matchCert() *regexp.Regexp {
 	)
 }
 
+// matchYAMLKeyWithListValue matches YAML keys with array values.
+// caveat: doesn't work if the array contain nested arrays. Example:
+//
+//	key: [
+//	 [a, b, c],
+//	 def]
+func matchYAMLKeyWithListValue(key string) *regexp.Regexp {
+	/*
+				Example 1:
+				network_devices:
+		  		  snmp_traps:
+		            community_strings:
+				    - 'pass1'
+				    - 'pass2'
+
+				Example 2:
+				network_devices:
+		  		  snmp_traps:
+				    community_strings: ['pass1', 'pass2']
+
+				Example 3:
+				network_devices:
+		  		  snmp_traps:
+				    community_strings: [
+				    'pass1',
+				    'pass2']
+	*/
+	return regexp.MustCompile(
+		fmt.Sprintf(`(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*?)*?\])`, key),
+		/*           -----------      ---------------  -------------
+		             match key(s)     |                |
+		                              match multiple   match anything
+		                              lines starting   enclosed between `[` and `]`
+		                              with `-`
+		*/
+	)
+}
+
 // ScrubFile scrubs credentials from the given file, using the
 // default scrubber.
 func ScrubFile(filePath string) ([]byte, error) {
@@ -121,6 +185,15 @@ func ScrubFile(filePath string) ([]byte, error) {
 // using the default scrubber.
 func ScrubBytes(file []byte) ([]byte, error) {
 	return DefaultScrubber.ScrubBytes(file)
+}
+
+// ScrubString scrubs credentials from the given string, using the default scrubber.
+func ScrubString(data string) (string, error) {
+	res, err := DefaultScrubber.ScrubBytes([]byte(data))
+	if err != nil {
+		return "", err
+	}
+	return string(res), nil
 }
 
 // ScrubLine scrubs credentials from a single line of text, using the default
@@ -138,14 +211,8 @@ func AddStrippedKeys(strippedKeys []string) {
 		configReplacer := Replacer{
 			Regex: matchYAMLKey(fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|"))),
 			Hints: strippedKeys,
-			Repl:  []byte(`$1 ********`),
+			Repl:  []byte(`$1 "********"`),
 		}
 		DefaultScrubber.AddReplacer(SingleLine, configReplacer)
 	}
-}
-
-// NewWriter instantiates a Writer to the given file path with the given
-// permissions, using the default scrubber.
-func NewWriter(path string, perms os.FileMode) (*Writer, error) {
-	return newWriterWithScrubber(path, perms, DefaultScrubber)
 }

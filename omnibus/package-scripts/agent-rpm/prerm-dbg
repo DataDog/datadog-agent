@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps prior to remove the old package.
+#
+# .rpm: STEP 4 of 6
+
+## NOTHING HERE
+
+exit 0

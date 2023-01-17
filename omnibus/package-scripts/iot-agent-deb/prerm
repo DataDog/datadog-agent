@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# Perform necessary datadog-iot-agent setup steps prior to remove the old package.
+#
+# .deb: STEP 1 of 5
+
+INSTALL_DIR=/opt/datadog-agent
+SERVICE_NAME=datadog-agent
+
+stop_agent()
+{
+    # Stop an already running agent
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl stop $SERVICE_NAME || true
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-iot-agent package only provides service files for systemd and upstart."
+    fi
+}
+
+deregister_agent()
+{
+    # Disable agent start on system boot
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl disable $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        # Nothing to do, this is defined directly in the upstart job file
+        :
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-iot-agent package only provides service files for systemd and upstart."
+    fi
+}
+
+remove_version_history()
+{
+    # Since 6.22.0/7.22.0, a file containing the version history of the currently installed
+    # Agent is created (by default in /opt/datadog-agent/run). On a full uninstall, remove this
+    # file.
+    # This is a best-effort solution, as users can decide to put this file in another place
+    # by changing the logs_config.run_path value.
+
+    if [ -f "$INSTALL_DIR/run/version-history.json" ]; then
+        echo "Removing version history file"
+        rm "$INSTALL_DIR/run/version-history.json" || true
+    fi
+}
+
+stop_agent
+deregister_agent
+
+case "$1" in
+    remove)
+        # We're uninstalling.
+        remove_version_history
+    ;;
+    upgrade)
+        # We're upgrading.
+    ;;
+    *)
+    ;;
+esac
+
+exit 0

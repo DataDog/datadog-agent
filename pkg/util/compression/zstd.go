@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build zstd
 // +build zstd
 
 package compression
@@ -19,13 +20,13 @@ import (
 var ContentEncoding = "zstd"
 
 // Compress will compress the data with zstd
-func Compress(dst []byte, src []byte) ([]byte, error) {
-	return zstd_0.Compress(dst, src)
+func Compress(src []byte) ([]byte, error) {
+	return zstd_0.Compress(nil, src)
 }
 
 // Decompress will decompress the data with zstd
-func Decompress(dst []byte, src []byte) ([]byte, error) {
-	return zstd_0.Decompress(dst, src)
+func Decompress(src []byte) ([]byte, error) {
+	return zstd_0.Decompress(nil, src)
 }
 
 // CompressBound returns the worst case size needed for a destination buffer

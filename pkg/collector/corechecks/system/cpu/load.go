@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build !windows
 // +build !windows
 
 package cpu
@@ -9,9 +10,8 @@ package cpu
 import (
 	"fmt"
 
-	"github.com/shirou/gopsutil/load"
+	"github.com/shirou/gopsutil/v3/load"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -31,7 +31,7 @@ type LoadCheck struct {
 
 // Run executes the check
 func (c *LoadCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -55,8 +55,8 @@ func (c *LoadCheck) Run() error {
 }
 
 // Configure the CPU check
-func (c *LoadCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(data, source)
+func (c *LoadCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}

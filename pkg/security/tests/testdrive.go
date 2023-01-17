@@ -3,66 +3,56 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build functionaltests
+//go:build functionaltests
+// +build functionaltests
 
 package tests
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
-	"strings"
 	"syscall"
-	"unsafe"
+	"testing"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/freddierice/go-losetup"
-	"github.com/pkg/errors"
 )
 
 type testDrive struct {
-	file       *os.File
-	dev        *losetup.Device
-	mountPoint string
+	file  *os.File
+	dev   *losetup.Device
+	mount *testMount
 }
 
 func (td *testDrive) Root() string {
-	return td.mountPoint
+	return td.mount.target
 }
 
-func (td *testDrive) Path(filename ...string) (string, unsafe.Pointer, error) {
-	components := []string{td.mountPoint}
-	components = append(components, filename...)
-	path := path.Join(components...)
-	filenamePtr, err := syscall.BytePtrFromString(path)
+func (td *testDrive) FSType() string {
+	return td.mount.fstype
+}
+
+func (td *testDrive) Path(filename ...string) string {
+	return td.mount.path(filename...)
+}
+
+func newTestDrive(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
+	return newTestDriveWithMountPoint(tb, fsType, mountOpts, mountPoint)
+}
+
+func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
+	backingFile, err := os.CreateTemp("", "secagent-testdrive-")
 	if err != nil {
-		return "", nil, err
-	}
-	return path, unsafe.Pointer(filenamePtr), nil
-}
-
-func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
-	return newTestDriveWithMountPoint(fsType, mountOpts, "")
-}
-
-func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
-	backingFile, err := ioutil.TempFile("", "secagent-testdrive-")
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create testdrive backing file")
+		return nil, fmt.Errorf("failed to create testdrive backing file: %w", err)
 	}
 
 	if err := backingFile.Close(); err != nil {
-		return nil, errors.Wrap(err, "failed to close testdrive backing file")
+		return nil, fmt.Errorf("failed to close testdrive backing file: %w", err)
 	}
 
-	if len(mountPoint) == 0 {
-		mountPoint, err = ioutil.TempDir("", "secagent-testdrive-")
-		if err != nil {
-			os.Remove(backingFile.Name())
-			return nil, errors.Wrap(err, "failed to create testdrive mount point")
-		}
+	if mountPoint == "" {
+		mountPoint = tb.TempDir()
 	}
 
 	var loopback *losetup.Device
@@ -72,26 +62,26 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
 
-			return nil, errors.Wrap(err, "failed to truncate testdrive backing file")
+			return nil, fmt.Errorf("failed to truncate testdrive backing file: %w", err)
 		}
 
 		dev, err := losetup.Attach(backingFile.Name(), 0, false)
 		if err != nil {
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
-			return nil, errors.Wrap(err, "failed to create testdrive loop device")
+			return nil, fmt.Errorf("failed to create testdrive loop device: %w", err)
 		}
 
-		if len(mountOpts) == 0 {
-			mountOpts = append(mountOpts, "auto")
-		}
+		// if len(mountOpts) == 0 {
+		// 	mountOpts = append(mountOpts, "auto")
+		// }
 
 		mkfsCmd := exec.Command("/sbin/mkfs."+fsType, dev.Path())
 		if err := mkfsCmd.Run(); err != nil {
 			_ = dev.Detach()
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
-			return nil, errors.Wrapf(err, "failed to create testdrive %s filesystem", fsType)
+			return nil, fmt.Errorf("failed to create testdrive %s filesystem: %w", fsType, err)
 		}
 
 		loopback = &dev
@@ -101,37 +91,41 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 		devPath = "none"
 	}
 
-	mountCmd := exec.Command("mount", "-t", fsType, "-o", strings.Join(mountOpts, ","), devPath, mountPoint)
+	mount := newTestMount(
+		mountPoint,
+		withSource(devPath),
+		withFSType(fsType),
+		withMountOpts(mountOpts...),
+	)
 
-	if err := mountCmd.Run(); err != nil {
+	if err := mount.mount(); err != nil {
 		if loopback != nil {
 			_ = loopback.Detach()
 		}
 		os.Remove(backingFile.Name())
 		os.RemoveAll(mountPoint)
-		return nil, errors.Wrap(err, "failed to mount testdrive")
+		return nil, fmt.Errorf("failed to mount testdrive: %w", err)
 	}
 
 	return &testDrive{
-		file:       backingFile,
-		dev:        loopback,
-		mountPoint: mountPoint,
+		file:  backingFile,
+		dev:   loopback,
+		mount: mount,
 	}, nil
 }
 
 func (td *testDrive) lsof() string {
-	lsofCmd := exec.Command("lsof", td.mountPoint)
+	lsofCmd := exec.Command("lsof", td.Root())
 	output, _ := lsofCmd.CombinedOutput()
 	return string(output)
 }
 
-func (td *testDrive) Unmount() error {
-	unmountCmd := exec.Command("umount", "-f", td.mountPoint)
-	return unmountCmd.Run()
+func (td *testDrive) unmount() error {
+	return td.mount.unmount(syscall.MNT_FORCE)
 }
 
 func (td *testDrive) Close() {
-	if err := td.Unmount(); err != nil {
+	if err := td.unmount(); err != nil {
 		fmt.Printf("failed to unmount test drive: %s (lsof: %s)", err, td.lsof())
 	}
 	if td.dev != nil {
@@ -143,5 +137,5 @@ func (td *testDrive) Close() {
 		}
 	}
 	os.Remove(td.file.Name())
-	os.Remove(td.mountPoint)
+	os.RemoveAll(td.Root())
 }

@@ -5,7 +5,7 @@ CPython embedding/extending backend with support for multiple Python versions.
 ## Concepts
 
 RtLoader is a C++ wrapper around the CPython API with a C89-compatible public API
-that can be used by foreing languages like Go. In order to provide support for
+that can be used by foreign languages like Go. In order to provide support for
 multiple Python versions, RtLoader fully abstracts Python in order to decouple client
 applications and CPython. Which Python version to use can be decided at runtime,
 RtLoader will `dlopen` the proper backend libraries accordingly.

@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package kernel
@@ -8,17 +14,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetKernelHeaders(t *testing.T) {
 	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
 		t.Skip("set INTEGRATION environment variable to run")
 	}
-	dirs, _, err := GetKernelHeaders(nil, "", "", "", "")
-	require.NoError(t, err)
+
+	opts := KernelHeaderOptions{}
+	dirs := GetKernelHeaders(opts, nil)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)
+
+	result := HeaderProvider.GetResult()
+	assert.Equal(t, result.IsSuccess(), true)
 }
 
 func TestParseHeaderVersion(t *testing.T) {

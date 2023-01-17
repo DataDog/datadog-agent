@@ -1,19 +1,30 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
-	"sync/atomic"
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+
+	processmocks "github.com/DataDog/datadog-agent/cmd/process-agent/mocks"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
-	c, err := NewCollector(cfg)
+	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -24,8 +35,8 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	c.UpdateRTStatus(statuses)
+	assert.True(c.realTimeEnabled.Load())
 
 	// Validate that we stay that way
 	statuses = []*model.CollectorStatus{
@@ -33,8 +44,8 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	c.UpdateRTStatus(statuses)
+	assert.True(c.realTimeEnabled.Load())
 
 	// And that it can turn back off
 	statuses = []*model.CollectorStatus{
@@ -42,14 +53,13 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
-	assert.Equal(int32(0), atomic.LoadInt32(&c.realTimeEnabled))
+	c.UpdateRTStatus(statuses)
+	assert.False(c.realTimeEnabled.Load())
 }
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
-	c, err := NewCollector(cfg)
+	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -60,8 +70,8 @@ func TestUpdateRTInterval(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 10},
 	}
-	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	c.UpdateRTStatus(statuses)
+	assert.True(c.realTimeEnabled.Load())
 	assert.Equal(10*time.Second, c.realTimeInterval)
 }
 
@@ -92,4 +102,157 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(1, getContainerCount(&collectorContainer))
 	assert.Equal(2, getContainerCount(&collectorRealTime))
 	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
+}
+
+func TestDisableRealTime(t *testing.T) {
+	tests := []struct {
+		name            string
+		disableRealtime bool
+		expectedChecks  []checks.Check
+	}{
+		{
+			name:            "true",
+			disableRealtime: true,
+			expectedChecks:  []checks.Check{checks.Container},
+		},
+		{
+			name:            "false",
+			disableRealtime: false,
+			expectedChecks:  []checks.Check{checks.Container, checks.RTContainer},
+		},
+	}
+
+	assert := assert.New(t)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock(t)
+			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
+			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
+
+			enabledChecks := getChecks(&sysconfig.Config{}, true)
+			assert.EqualValues(tc.expectedChecks, enabledChecks)
+
+			c, err := NewCollector(nil, &checks.HostInfo{}, enabledChecks)
+			assert.NoError(err)
+			assert.Equal(!tc.disableRealtime, c.runRealTime)
+			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
+		})
+	}
+}
+
+func TestDisableRealTimeProcessCheck(t *testing.T) {
+	tests := []struct {
+		name            string
+		disableRealtime bool
+	}{
+		{
+			name:            "true",
+			disableRealtime: true,
+		},
+		{
+			name:            "false",
+			disableRealtime: false,
+		},
+	}
+
+	assert := assert.New(t)
+	expectedChecks := []checks.Check{checks.Process}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock(t)
+			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
+
+			c, err := NewCollector(nil, &checks.HostInfo{}, expectedChecks)
+			assert.NoError(err)
+			assert.Equal(!tc.disableRealtime, c.runRealTime)
+			assert.EqualValues(expectedChecks, c.enabledChecks)
+		})
+	}
+}
+
+func TestIgnoreResponseBody(t *testing.T) {
+	for _, tc := range []struct {
+		checkName string
+		ignore    bool
+	}{
+		{checkName: checks.ProcessCheckName, ignore: false},
+		{checkName: checks.RTProcessCheckName, ignore: false},
+		{checkName: checks.ProcessDiscovery.Name(), ignore: false},
+		{checkName: checks.ContainerCheckName, ignore: false},
+		{checkName: checks.RTContainerCheckName, ignore: false},
+		{checkName: checks.PodCheckName, ignore: true},
+		{checkName: checks.PodCheckManifestName, ignore: true},
+		{checkName: checks.ConnectionsCheckName, ignore: false},
+		{checkName: checks.ProcessEventsCheckName, ignore: true},
+	} {
+		t.Run(tc.checkName, func(t *testing.T) {
+			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))
+		})
+	}
+}
+
+func TestCollectorRunCheckWithRealTime(t *testing.T) {
+	check := checkmocks.NewCheck(t)
+
+	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
+	assert.NoError(t, err)
+	submitter := processmocks.NewSubmitter(t)
+	c.submitter = submitter
+
+	standardOption := &checks.RunOptions{
+		RunStandard: true,
+	}
+
+	result := checks.StandardRunResult(
+		[]model.MessageBody{
+			&model.CollectorProc{},
+		},
+	)
+
+	check.On("Run", mock.Anything, standardOption).Once().Return(result, nil)
+	check.On("Name").Return("foo")
+
+	submitStandard := submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
+	submitter.On("Submit", mock.Anything, checks.RTName(check.Name()), mock.Anything).Return(nil).NotBefore(submitStandard)
+
+	c.runCheckWithRealTime(check, standardOption)
+
+	rtResult := checks.CombinedRunResult{
+		Realtime: []model.MessageBody{
+			&model.CollectorProc{},
+		},
+	}
+
+	rtOption := &checks.RunOptions{
+		RunRealtime: true,
+	}
+
+	check.On("Run", mock.Anything, rtOption).Once().Return(rtResult, nil)
+
+	c.runCheckWithRealTime(check, rtOption)
+}
+
+func TestCollectorRunCheck(t *testing.T) {
+	check := checkmocks.NewCheck(t)
+
+	hostInfo := &checks.HostInfo{HostName: testHostName}
+
+	c, err := NewCollector(nil, hostInfo, []checks.Check{})
+	require.NoError(t, err)
+	submitter := processmocks.NewSubmitter(t)
+	require.NoError(t, err)
+	c.submitter = submitter
+
+	result := checks.StandardRunResult([]model.MessageBody{
+		&model.CollectorProc{},
+	})
+	check.On("Run", mock.Anything, mock.Anything).Return(result, nil)
+	check.On("Name").Return("foo")
+	check.On("Realtime").Return(false)
+	check.On("ShouldSaveLastRun").Return(true)
+	submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
+
+	c.runCheck(check)
 }

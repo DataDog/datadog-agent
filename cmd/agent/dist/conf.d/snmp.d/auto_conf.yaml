@@ -46,7 +46,7 @@ instances:
 
     ## @param authProtocol - string - optional
     ## Authentication type to use when connecting to your SNMP devices.
-    ## It can be one of: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
+    ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
     ## Default to MD5 when `authKey` is specified.
     #
     authProtocol: "%%extra_auth_protocol%%"
@@ -58,7 +58,7 @@ instances:
 
     ## @param privProtocol - string - optional
     ## Privacy type to use when connecting to your SNMP devices.
-    ## It can be one of: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
+    ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
     ## Default to DES when `privKey` is specified.
     #
     privProtocol: "%%extra_priv_protocol%%"
@@ -114,6 +114,11 @@ instances:
     #
     collect_device_metadata: "%%extra_collect_device_metadata%%"
 
+    ## @param collect_topology - boolean - optional - default: false
+    ## Enabled collection of topology data.
+    #
+    collect_topology: "%%extra_collect_topology%%"
+
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.
     ## Changing namespace will cause devices being recreated in NDM app.
@@ -121,7 +126,9 @@ instances:
     namespace: "%%extra_namespace%%"
 
     ## @param use_device_id_as_hostname - boolean - optional - default: false
-    ## Use an hash of a device IP address and the namespace as `hostname` for metrics and
-    ## service checks. This enables custom tags. It overrides any `hostname` tag.
+    ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+    ## for metrics and service checks (meaning that metrics and services checks will have
+    ## `host:device:<DEVICE_ID>` as tag).
+    ## This option is needed for custom tags.
     #
     use_device_id_as_hostname: "%%extra_use_device_id_as_hostname%%"

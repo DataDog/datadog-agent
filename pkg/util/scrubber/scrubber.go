@@ -17,7 +17,6 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strings"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
@@ -74,6 +73,13 @@ func New() *Scrubber {
 	}
 }
 
+// NewWithDefaults creates a new scrubber with the default replacers installed.
+func NewWithDefaults() *Scrubber {
+	s := New()
+	AddDefaultReplacers(s)
+	return s
+}
+
 // AddReplacer adds a replacer of the given kind to the scrubber.
 func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	switch kind {
@@ -87,17 +93,24 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 // ScrubFile scrubs credentials from file given by pathname
 func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
-	defer file.Close()
 	if err != nil {
 		return nil, err
 	}
-	return c.scrubReader(file)
+	defer file.Close()
+
+	var sizeHint int
+	stats, err := file.Stat()
+	if err == nil {
+		sizeHint = int(stats.Size())
+	}
+
+	return c.scrubReader(file, sizeHint)
 }
 
 // ScrubBytes scrubs credentials from slice of bytes
 func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 	r := bytes.NewReader(file)
-	return c.scrubReader(r)
+	return c.scrubReader(r, r.Len())
 }
 
 // ScrubLine scrubs credentials from a single line of text.  It can be safely
@@ -107,15 +120,12 @@ func (c *Scrubber) ScrubLine(message string) string {
 	return string(c.scrub([]byte(message), c.singleLineReplacers))
 }
 
-// NewWriter creates a new Writer tied to this scrubber.  The writer will write
-// scrubbed data to the given file path with the given permissions.
-func (c *Scrubber) NewWriter(path string, perms os.FileMode) (*Writer, error) {
-	return newWriterWithScrubber(path, perms, c)
-}
-
 // scrubReader applies the cleaning algorithm to a Reader
-func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
-	var cleanedFile []byte
+func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
+	var cleanedBuffer bytes.Buffer
+	if sizeHint > 0 {
+		cleanedBuffer.Grow(sizeHint)
+	}
 
 	scanner := bufio.NewScanner(file)
 
@@ -124,13 +134,15 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	first := true
 	for scanner.Scan() {
 		b := scanner.Bytes()
-		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
+		if blankRegex.Match(b) {
+			cleanedBuffer.WriteRune('\n')
+		} else if !commentRegex.Match(b) {
 			b = c.scrub(b, c.singleLineReplacers)
 			if !first {
-				cleanedFile = append(cleanedFile, byte('\n'))
+				cleanedBuffer.WriteRune('\n')
 			}
 
-			cleanedFile = append(cleanedFile, b...)
+			cleanedBuffer.Write(b)
 			first = false
 		}
 	}
@@ -140,7 +152,7 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	cleanedFile = c.scrub(cleanedFile, c.multiLineReplacers)
+	cleanedFile := c.scrub(cleanedBuffer.Bytes(), c.multiLineReplacers)
 
 	return cleanedFile, nil
 }
@@ -150,7 +162,7 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
 		containsHint := false
 		for _, hint := range repl.Hints {
-			if strings.Contains(string(data), hint) {
+			if bytes.Contains(data, []byte(hint)) {
 				containsHint = true
 				break
 			}

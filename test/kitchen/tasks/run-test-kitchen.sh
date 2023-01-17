@@ -14,52 +14,57 @@ if [ -f "$(pwd)/ssh-key.pub" ]; then
   rm ssh-key.pub
 fi
 
-ssh-keygen -f "$(pwd)/ssh-key" -P "" -t rsa -b 2048
-KITCHEN_SSH_KEY_PATH="$(pwd)/ssh-key"
-export KITCHEN_SSH_KEY_PATH
-
-# show that the ssh key is there
-echo "$(pwd)/ssh-key"
-echo "$KITCHEN_SSH_KEY_PATH"
-
-# start the ssh-agent and add the key
-eval "$(ssh-agent -s)"
-ssh-add "$KITCHEN_SSH_KEY_PATH"
-
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
 if [ "$KITCHEN_PROVIDER" == "azure" ]; then
+  # Generating SSH keys to connect to Azure VMs
+
+  ssh-keygen -f "$(pwd)/ed25519-key" -P "" -a 100 -t ed25519
+  KITCHEN_ED25519_SSH_KEY_PATH="$(pwd)/ed25519-key"
+  export KITCHEN_ED25519_SSH_KEY_PATH
+
+  # show that the ed25519 ssh key is there
+  ls "$(pwd)/ed25519-key"
+
+  ssh-keygen -f "$(pwd)/rsa-key" -P "" -t rsa -b 2048
+  KITCHEN_RSA_SSH_KEY_PATH="$(pwd)/rsa-key"
+  export KITCHEN_RSA_SSH_KEY_PATH
+
+  # show that the rsa ssh key is there
+  ls "$(pwd)/rsa-key"
+
+  # start the ssh-agent and add the keys
+  eval "$(ssh-agent -s)"
+  ssh-add "$KITCHEN_RSA_SSH_KEY_PATH"
+  ssh-add "$KITCHEN_ED25519_SSH_KEY_PATH"
+
   # Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
   # If running locally, they should be imported into the environment
-  if [ ! -f /root/.azure/credentials ]; then
-    mkdir -p /root/.azure
-    touch /root/.azure/credentials
-  fi
 
   # These should not be printed out
   set +x
   if [ -z ${AZURE_CLIENT_ID+x} ]; then
-    AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_CLIENT_ID="$(echo -e "${AZURE_CLIENT_ID}" | tr -d '[:space:]')"
     export AZURE_CLIENT_ID
   fi
   if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-    AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text)
+    AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_secret --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_CLIENT_SECRET="$(echo -e "${AZURE_CLIENT_SECRET}" | tr -d '[:space:]')"
     export AZURE_CLIENT_SECRET
   fi
   if [ -z ${AZURE_TENANT_ID+x} ]; then
-    AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_tenant_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_TENANT_ID="$(echo -e "${AZURE_TENANT_ID}" | tr -d '[:space:]')"
     export AZURE_TENANT_ID
   fi
   if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-    AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_subscription_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_SUBSCRIPTION_ID="$(echo -e "${AZURE_SUBSCRIPTION_ID}" | tr -d '[:space:]')"
     export AZURE_SUBSCRIPTION_ID
@@ -70,17 +75,34 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
     exit 1
   fi
 
-  # Create the Azure credentials file
-  (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > /root/.azure/credentials
+  # Create the Azure credentials file as requried by the kitchen-azurerm driver
+  mkdir -p ~/.azure/
+  (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > ~/.azure/credentials
   set -x
 
 elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
   echo "using ec2 kitchen provider"
+
+  # Setup the AWS credentials: grab the ED25519 ssh key that is needed to connect to Amazon Linux 2022 instances
+  # See: https://github.com/test-kitchen/kitchen-ec2/issues/588
+  # Note: this issue happens even when allowing RSA keys in the ssh service of the remote host (which was the fix we did for Ubuntu 22.04),
+  # therefore using the auto-generated SSH key is not possible at all.
+
+  # These should not be printed out
+  set +x
+  if [ -z ${KITCHEN_EC2_SSH_KEY_ID+x} ]; then
+    KITCHEN_EC2_SSH_KEY_ID="datadog-agent-kitchen"
+    export KITCHEN_EC2_SSH_KEY_ID
+    KITCHEN_EC2_SSH_KEY_PATH="$(pwd)/aws-ssh-key"
+    export KITCHEN_EC2_SSH_KEY_PATH
+    aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.aws_ec2_kitchen_ssh_key --with-decryption --query "Parameter.Value" --out text > $KITCHEN_EC2_SSH_KEY_PATH
+  fi
+  set -x
 fi
 
 # Generate a password to use for the windows servers
 if [ -z ${SERVER_PASSWORD+x} ]; then
-  export SERVER_PASSWORD="$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)0aZ"
+  export SERVER_PASSWORD="$(tr -dc A-Za-z0-9 < /dev/urandom | head -c32)0aZ"
 fi
 
 if [[ $# == 0 ]]; then
@@ -107,7 +129,9 @@ if [ -z ${AGENT_VERSION+x} ]; then
   popd
 fi
 
-invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json
+KITCHEN_IMAGE_SIZE="${KITCHEN_IMAGE_SIZE:-}"
+
+invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --imagesize="${KITCHEN_IMAGE_SIZE}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json
 
 bundle exec kitchen diagnose --no-instances --loader
 
@@ -124,26 +148,53 @@ set +o pipefail
 # Initially test every suite, as we only generate those we want to run
 test_suites=".*"
 # This for loop retries kitchen tests failing because of infrastructure/networking issues
-for attempt in $(seq 0 ${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}); do
-  bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee /tmp/runlog$attempt
-  result=${PIPESTATUS[0]}
+for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
+  bundle exec kitchen converge "$test_suites" -c -d always 2>&1 | tee "/tmp/runlog${attempt}"
+  converge_result=${PIPESTATUS[0]}
+
+  # HACK: Since December 24, 2022, the first verify attempt always fails, due to a bundler <-> ruby
+  # version issue at the start of the verifier.
+  # The kitchen verifier uses the latest version of busser (0.8.0). busser detects that we have rspec tests,
+  # and therefore installs the latest version of the busser-rspec gem (0.7.6).
+  # The busser-rspec gem has a postinstall hook that installs the latest versions of the rspec and bundler gems.
+  # The rspec install goes fine, but the bundler install fails since December 24, 2022, when 2.4.0 of bundler
+  # was released, which drops support for ruby < 2.6.
+  # Running kitchen verify another time does work, because the postinstall hook isn't run again,
+  # and we don't actually need bundler in the test suites (for suites that do have depedencies, we install them
+  # manually with lifecycle hooks in the platform definitions).
+  bundle exec kitchen verify "$test_suites" --no-log-overwrite -c -d always 2>&1 || true
+
+  bundle exec kitchen verify "$test_suites" --no-log-overwrite -c -d always 2>&1 | tee -a "/tmp/runlog${attempt}"
+  verify_result=${PIPESTATUS[0]}
+
   # Before destroying the kitchen machines, get the list of failed suites,
   # as their status will be reset to non-failing once they're destroyed.
   # failing_test_suites is a newline-separated list of the failing test suite names.
   failing_test_suites=$(bundle exec kitchen list --no-log-overwrite --json | jq -cr "[ .[] | select( .last_error != null ) ] | map( .instance ) | .[]")
 
   # Then, destroy the kitchen machines
+  # Do not fail on kitchen destroy, it breaks the infra failures filter
+  set +e
   bundle exec kitchen destroy "$test_suites" --no-log-overwrite
+  destroy_result=$?
+  set -e
 
-  if [ "$result" -eq 0 ]; then
+  # If the destory operation fails, it is not safe to continue running kitchen
+  # so we just exit with an infrastructure failure message.
+  if [ "$destroy_result" -ne 0 ]; then
+    echo "Failure while destroying kitchen infrastructure, skipping retries"
+    break
+  fi
+
+  if [ "$converge_result" -eq 0 ] && [ "$verify_result" -eq 0 ]; then
       # if kitchen test succeeded, exit with 0
       exit 0
   else
-    if ! invoke kitchen.should-rerun-failed /tmp/runlog$attempt; then
+    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}"; then
       # if kitchen test failed and shouldn't be rerun, exit with 1
       exit 1
     else
-      cp -R ${DD_AGENT_TESTING_DIR}/.kitchen/logs ${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}
+      cp -R "${DD_AGENT_TESTING_DIR}"/.kitchen/logs "${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}"
       # Only keep test suites that have a non-null error code
       # Build the result as a regexp: "test_suite1|test_suite2|test_suite3", as kitchen only
       # supports one instance name or a regexp as argument.
@@ -155,4 +206,5 @@ done
 
 # if we ran out of attempts because of infrastructure/networking issues, exit with 1
 echo "Ran out of retry attempts"
+echo "ERROR: The kitchen tests failed due to infrastructure failures."
 exit 1

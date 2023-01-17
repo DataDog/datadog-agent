@@ -7,12 +7,14 @@ package collector
 
 import (
 	"fmt"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"testing"
+
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/stretchr/testify/assert"
 )
 
 type MockCheck struct {

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -44,6 +44,43 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 						"ad.datadoghq.com/endpoints.check_names":  "[\"http_check\"]",
 						"ad.datadoghq.com/endpoints.init_configs": "[{}]",
 						"ad.datadoghq.com/endpoints.instances":    "[{\"name\": \"My endpoint\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+					Name:      "myservice",
+					Namespace: "default",
+				},
+			},
+			expectedOut: []configInfo{
+				{
+					tpl: integration.Config{
+						Name:                    "http_check",
+						ADIdentifiers:           []string{"kube_endpoint_uid://default/myservice/"},
+						InitConfig:              integration.Data("{}"),
+						Instances:               []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+						ClusterCheck:            false,
+						Source:                  "kube_endpoints:kube_endpoint_uid://default/myservice/",
+						IgnoreAutodiscoveryTags: false,
+					},
+					namespace: "default",
+					name:      "myservice",
+				},
+			},
+		},
+		{
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/endpoints.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My endpoint",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								]
+							}
+						}`,
 					},
 					Name:      "myservice",
 					Namespace: "default",
@@ -149,7 +186,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
 					InitConfig:    integration.Data("{}"),
@@ -157,7 +194,7 @@ func TestGenerateConfigs(t *testing.T) {
 					ClusterCheck:  true,
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
 					InitConfig:    integration.Data("{}"),
@@ -204,7 +241,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1", "kubernetes_pod://pod-uid-1"},
 					InitConfig:    integration.Data("{}"),
@@ -213,7 +250,7 @@ func TestGenerateConfigs(t *testing.T) {
 					NodeName:      "node1",
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2", "kubernetes_pod://pod-uid-2"},
 					InitConfig:    integration.Data("{}"),
@@ -261,7 +298,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
 					InitConfig:    integration.Data("{}"),
@@ -270,7 +307,7 @@ func TestGenerateConfigs(t *testing.T) {
 					NodeName:      "",
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
 					InitConfig:    integration.Data("{}"),

@@ -1,0 +1,78 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "network.json",
+    "type": "object",
+    "properties": {
+        "network": {
+            "type": "object",
+            "required": [
+                "device",
+                "l3_protocol",
+                "l4_protocol",
+                "source",
+                "destination",
+                "size"
+            ],
+            "properties": {
+                "device": {
+                    "type": "object",
+                    "required": [
+                        "netns",
+                        "ifindex",
+                        "ifname"
+                    ],
+                    "properties": {
+                        "netns": {
+                            "type": "number"
+                        },
+                        "ifindex": {
+                            "type": "number"
+                        },
+                        "ifname": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "l3_protocol": {
+                    "type": "string"
+                },
+                "l4_protocol": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "object",
+                    "required": [
+                        "ip",
+                        "port"
+                    ],
+                    "properties": {
+                        "ip": {
+                            "type": "string"
+                        },
+                        "port": {
+                            "type": "number"
+                        }
+                    }
+                },
+                "destination": {
+                    "type": "object",
+                    "required": [
+                        "ip",
+                        "port"
+                    ],
+                    "properties": {
+                        "ip": {
+                            "type": "string"
+                        },
+                        "port": {
+                            "type": "number"
+                        }
+                    }
+                },
+                "size": {
+                    "type": "number"
+                }
+            }
+        }
+    }
+}

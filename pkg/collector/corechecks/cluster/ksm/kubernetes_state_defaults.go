@@ -3,53 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
 
-import (
-	"regexp"
-
-	"k8s.io/kube-state-metrics/v2/pkg/options"
-)
-
 // ksmMetricPrefix defines the KSM metrics namespace
 const ksmMetricPrefix = "kubernetes_state."
 
-var (
-	// defaultLabelsMapper contains the default label to tag names mapping
-	defaultLabelsMapper = map[string]string{
-		"namespace":                           "kube_namespace",
-		"job_name":                            "kube_job",
-		"cronjob":                             "kube_cronjob",
-		"pod":                                 "pod_name",
-		"priority_class":                      "kube_priority_class",
-		"daemonset":                           "kube_daemon_set",
-		"replicationcontroller":               "kube_replication_controller",
-		"replicaset":                          "kube_replica_set",
-		"statefulset":                         "kube_stateful_set",
-		"deployment":                          "kube_deployment",
-		"service":                             "kube_service",
-		"endpoint":                            "kube_endpoint",
-		"container":                           "kube_container_name",
-		"container_id":                        "container_id",
-		"image":                               "image_name",
-		"label_tags_datadoghq_com_env":        "env",
-		"label_tags_datadoghq_com_service":    "service",
-		"label_tags_datadoghq_com_version":    "version",
-		"label_topology_kubernetes_io_region": "kube_region",
-		"label_topology_kubernetes_io_zone":   "kube_zone",
-		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
-		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
-	}
-
-	// metricNamesMapper translates KSM metric names to Datadog metric names
-	metricNamesMapper = map[string]string{
+// defaultMetricNamesMapper returns a map that translates KSM metric names to Datadog metric names
+func defaultMetricNamesMapper() map[string]string {
+	return map[string]string{
 		"kube_daemonset_status_current_number_scheduled":                                           "daemonset.scheduled",
 		"kube_daemonset_status_desired_number_scheduled":                                           "daemonset.desired",
 		"kube_daemonset_status_number_misscheduled":                                                "daemonset.misscheduled",
 		"kube_daemonset_status_number_ready":                                                       "daemonset.ready",
-		"kube_daemonset_updated_number_scheduled":                                                  "daemonset.updated",
+		"kube_daemonset_status_updated_number_scheduled":                                           "daemonset.updated",
 		"kube_deployment_spec_paused":                                                              "deployment.paused",
 		"kube_deployment_spec_replicas":                                                            "deployment.replicas_desired",
 		"kube_deployment_spec_strategy_rollingupdate_max_unavailable":                              "deployment.rollingupdate.max_unavailable",
@@ -113,95 +82,139 @@ var (
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_minallowed":             "vpa.spec_container_minallowed",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
+		"kube_job_duration":                                                                        "job.duration",
+		"kube_ingress_path":                                                                        "ingress.path",
 	}
+}
 
-	// metadata metrics are useful for label joins
-	// but shouldn't be submitted to Datadog
-	metadataMetricsRegex = regexp.MustCompile(".*_(info|labels|status_reason)")
+// defaultLabelsMapper returns a map that contains the default labels to tag names mapping
+func defaultLabelsMapper() map[string]string {
+	return map[string]string{
+		"namespace":                           "kube_namespace",
+		"job_name":                            "kube_job",
+		"cronjob":                             "kube_cronjob",
+		"pod":                                 "pod_name",
+		"priority_class":                      "kube_priority_class",
+		"daemonset":                           "kube_daemon_set",
+		"replicationcontroller":               "kube_replication_controller",
+		"replicaset":                          "kube_replica_set",
+		"statefulset":                         "kube_stateful_set",
+		"deployment":                          "kube_deployment",
+		"service":                             "kube_service",
+		"endpoint":                            "kube_endpoint",
+		"container":                           "kube_container_name",
+		"container_id":                        "container_id",
+		"image":                               "image_name",
+		"label_topology_kubernetes_io_region": "kube_region",
+		"label_topology_kubernetes_io_zone":   "kube_zone",
+		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
+		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
+		"ingress": "kube_ingress",
 
-	// defaultDeniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
-	defaultDeniedMetrics = options.MetricSet{
-		".*_generation":                                    {},
-		".*_metadata_resource_version":                     {},
-		"kube_pod_owner":                                   {},
-		"kube_pod_restart_policy":                          {},
-		"kube_pod_completion_time":                         {},
-		"kube_pod_status_scheduled_time":                   {},
-		"kube_cronjob_status_active":                       {},
-		"kube_node_status_phase":                           {},
-		"kube_cronjob_spec_starting_deadline_seconds":      {},
-		"kube_job_spec_active_dealine_seconds":             {},
-		"kube_job_spec_completions":                        {},
-		"kube_job_spec_parallelism":                        {},
-		"kube_job_status_active":                           {},
-		"kube_job_status_.*_time":                          {},
-		"kube_service_spec_external_ip":                    {},
-		"kube_service_status_load_balancer_ingress":        {},
-		"kube_ingress_path":                                {},
-		"kube_statefulset_status_current_revision":         {},
-		"kube_statefulset_status_update_revision":          {},
-		"kube_pod_container_status_last_terminated_reason": {},
-		"kube_lease_renew_time":                            {},
+		// Standard Datadog labels
+		"label_tags_datadoghq_com_env":     "env",
+		"label_tags_datadoghq_com_service": "service",
+		"label_tags_datadoghq_com_version": "version",
+
+		// Standard Kubernetes labels
+		"label_app_kubernetes_io_name":       "kube_app_name",
+		"label_app_kubernetes_io_instance":   "kube_app_instance",
+		"label_app_kubernetes_io_version":    "kube_app_version",
+		"label_app_kubernetes_io_component":  "kube_app_component",
+		"label_app_kubernetes_io_part_of":    "kube_app_part_of",
+		"label_app_kubernetes_io_managed_by": "kube_app_managed_by",
+
+		// Standard Helm labels
+		"label_helm_sh_chart": "helm_chart",
 	}
+}
 
-	defaultStandardLabels = []string{
+// defaultLabelsMapperByResourceKind returns a map that contains the default labels to tag names by resource kind mapping
+func defaultLabelsMapperByResourceKind() map[string]map[string]string {
+	return map[string]map[string]string{
+		"pod": {
+			"phase": "pod_phase",
+		},
+		"ingress": {
+			"host":         "kube_ingress_host",
+			"path":         "kube_ingress_path",
+			"service_name": "kube_service",
+			"service_port": "kube_service_port",
+		},
+	}
+}
+
+// defaultLabelJoins returns a map that contains the default label joins configuration
+func defaultLabelJoins() map[string]*JoinsConfig {
+	defaultStandardLabels := []string{
+		// Standard Datadog labels
 		"label_tags_datadoghq_com_env",
 		"label_tags_datadoghq_com_service",
 		"label_tags_datadoghq_com_version",
+
+		// Standard Kubernetes labels
+		"label_app_kubernetes_io_name",
+		"label_app_kubernetes_io_instance",
+		"label_app_kubernetes_io_version",
+		"label_app_kubernetes_io_component",
+		"label_app_kubernetes_io_part_of",
+		"label_app_kubernetes_io_managed_by",
+
+		// Standard Helm labels
+		"label_helm_sh_chart",
 	}
 
-	// defaultLabelJoins contains the default label joins configuration
-	defaultLabelJoins = map[string]*JoinsConfig{
+	return map[string]*JoinsConfig{
 		"kube_pod_status_phase": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"phase"},
 		},
 		"kube_pod_info": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name", "priority_class"},
 		},
 		"kube_persistentvolume_info": {
-			LabelsToMatch: []string{"persistentvolume"}, // persistent volumes are not namespaced
+			LabelsToMatch: getLabelToMatchForKind("persistentvolume"),
 			LabelsToGet:   []string{"storageclass"},
 		},
 		"kube_persistentvolumeclaim_info": {
-			LabelsToMatch: []string{"persistentvolumeclaim", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("persistentvolumeclaim"),
 			LabelsToGet:   []string{"storageclass"},
 		},
 		"kube_pod_labels": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_pod_status_reason": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"reason"},
 		},
 		"kube_deployment_labels": {
-			LabelsToMatch: []string{"deployment", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("deployment"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_replicaset_labels": {
-			LabelsToMatch: []string{"replicaset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("replicaset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_daemonset_labels": {
-			LabelsToMatch: []string{"daemonset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("daemonset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_statefulset_labels": {
-			LabelsToMatch: []string{"statefulset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("statefulset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_job_labels": {
-			LabelsToMatch: []string{"job_name", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("job"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_cronjob_labels": {
-			LabelsToMatch: []string{"cronjob", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("cronjob"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_node_labels": {
-			LabelsToMatch: []string{"node"},
+			LabelsToMatch: getLabelToMatchForKind("node"),
 			LabelsToGet: []string{
 				"label_topology_kubernetes_io_region",            // k8s v1.17+
 				"label_topology_kubernetes_io_zone",              // k8s v1.17+
@@ -210,8 +223,26 @@ var (
 			},
 		},
 		"kube_node_info": {
-			LabelsToMatch: []string{"node"},
+			LabelsToMatch: getLabelToMatchForKind("node"),
 			LabelsToGet:   []string{"container_runtime_version", "kernel_version", "kubelet_version", "os_image"},
 		},
 	}
-)
+}
+
+// getLabelToMatchForKind returns the set of labels use to match
+// a resource.
+// this function centralized the logic about label_joins.labelToMatch
+// configuration, because some resource like `job` is use a non standard
+// label or and because some other resource doesn't need the `namespace` label.
+func getLabelToMatchForKind(kind string) []string {
+	switch kind {
+	case "job": // job metrics use specific label
+		return []string{"job_name", "namespace"}
+	case "node": // persistent nodes are not namespaced
+		return []string{"node"}
+	case "persistentvolume": // persistent volumes are not namespaced
+		return []string{"persistentvolume"}
+	default:
+		return []string{kind, "namespace"}
+	}
+}

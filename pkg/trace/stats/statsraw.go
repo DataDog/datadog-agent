@@ -7,10 +7,9 @@ package stats
 
 import (
 	"math/rand"
-	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/golang/protobuf/proto"
@@ -102,9 +101,6 @@ type RawBucket struct {
 
 	// this should really remain private as it's subject to refactoring
 	data map[Aggregation]*groupedStats
-
-	// internal buffer for aggregate strings - not threadsafe
-	keyBuf strings.Builder
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
@@ -148,15 +144,15 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *WeightedSpan, origin, env, hostname, containerID string) {
-	if env == "" {
+func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey) {
+	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s.Span, origin, env, hostname, containerID)
-	sb.add(s, aggr)
+	aggr := NewAggregationFromSpan(s, origin, aggKey)
+	sb.add(s, weight, isTop, aggr)
 }
 
-func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
+func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation) {
 	var gs *groupedStats
 	var ok bool
 
@@ -164,20 +160,24 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
 		gs = newGroupedStats()
 		sb.data[aggr] = gs
 	}
-	if s.TopLevel {
-		gs.topLevelHits += s.Weight
+	if isTop {
+		gs.topLevelHits += weight
 	}
-	gs.hits += s.Weight
+	gs.hits += weight
 	if s.Error != 0 {
-		gs.errors += s.Weight
+		gs.errors += weight
 	}
-	gs.duration += float64(s.Duration) * s.Weight
+	gs.duration += float64(s.Duration) * weight
 	// alter resolution of duration distro
 	trundur := nsTimestampToFloat(s.Duration)
 	if s.Error != 0 {
-		gs.errDistribution.Add(trundur)
+		if err := gs.errDistribution.Add(trundur); err != nil {
+			log.Debugf("Error adding error distribution stats: %v", err)
+		}
 	} else {
-		gs.okDistribution.Add(trundur)
+		if err := gs.okDistribution.Add(trundur); err != nil {
+			log.Debugf("Error adding distribution stats: %v", err)
+		}
 	}
 }
 

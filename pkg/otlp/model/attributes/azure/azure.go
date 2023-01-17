@@ -17,8 +17,8 @@ package azure
 import (
 	"strings"
 
-	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
 const (
@@ -33,31 +33,35 @@ type HostInfo struct {
 
 // HostInfoFromAttributes gets Azure host info from attributes following
 // OpenTelemetry semantic conventions
-func HostInfoFromAttributes(attrs pdata.AttributeMap) (hostInfo *HostInfo) {
+func HostInfoFromAttributes(attrs pcommon.Map, usePreviewRules bool) (hostInfo *HostInfo) {
 	hostInfo = &HostInfo{}
 
 	// Add Azure VM ID as a host alias if available for compatibility with Azure integration
-	if vmID, ok := attrs.Get(conventions.AttributeHostID); ok {
-		hostInfo.HostAliases = append(hostInfo.HostAliases, vmID.StringVal())
+	if vmID, ok := attrs.Get(conventions.AttributeHostID); ok && !usePreviewRules {
+		hostInfo.HostAliases = append(hostInfo.HostAliases, vmID.Str())
 	}
 
 	return
 }
 
 // HostnameFromAttributes gets the Azure hostname from attributes
-func HostnameFromAttributes(attrs pdata.AttributeMap) (string, bool) {
+func HostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
+	if vmID, ok := attrs.Get(conventions.AttributeHostID); usePreviewRules && ok {
+		return vmID.Str(), true
+	}
+
 	if hostname, ok := attrs.Get(conventions.AttributeHostName); ok {
-		return hostname.StringVal(), true
+		return hostname.Str(), true
 	}
 
 	return "", false
 }
 
 // ClusterNameFromAttributes gets the Azure cluster name from attributes
-func ClusterNameFromAttributes(attrs pdata.AttributeMap) (string, bool) {
+func ClusterNameFromAttributes(attrs pcommon.Map) (string, bool) {
 	// Get cluster name from resource group from pkg/util/cloudprovider/azure:GetClusterName
 	if resourceGroup, ok := attrs.Get(AttributeResourceGroupName); ok {
-		splitAll := strings.Split(resourceGroup.StringVal(), "_")
+		splitAll := strings.Split(resourceGroup.Str(), "_")
 		if len(splitAll) < 4 || strings.ToLower(splitAll[0]) != "mc" {
 			return "", false // Failed to parse
 		}

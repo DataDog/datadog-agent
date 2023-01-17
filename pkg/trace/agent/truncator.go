@@ -6,9 +6,9 @@
 package agent
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Truncate checks that the span resource, meta and metrics are within the max length

@@ -68,14 +68,21 @@ SYSCALL_KPROBE4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t,
 
 int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHOWN);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
+
+    if (is_pipefs_mount_id(syscall->setattr.file.path_key.mount_id)) {
+        return 0;
+    }
 
     struct chown_event_t event = {
         .syscall.retval = retval,
+        .event.async = 0,
         .file = syscall->setattr.file,
         .uid = syscall->setattr.user,
         .gid = syscall->setattr.group,
@@ -97,63 +104,28 @@ int __attribute__((always_inline)) kprobe_sys_chown_ret(struct pt_regs *ctx) {
     return sys_chown_ret(ctx, retval);
 }
 
-SEC("tracepoint/syscalls/sys_exit_lchown")
-int tracepoint_syscalls_sys_exit_lchown(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chown_ret(args, args->ret);
-}
-
 SYSCALL_KRETPROBE(lchown) {
     return kprobe_sys_chown_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_fchown")
-int tracepoint_syscalls_sys_exit_fchown(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chown_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(fchown) {
     return kprobe_sys_chown_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_chown")
-int tracepoint_syscalls_sys_exit_chown(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chown_ret(args, args->ret);
-}
-
 SYSCALL_KRETPROBE(chown) {
     return kprobe_sys_chown_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_lchown16")
-int tracepoint_syscalls_sys_exit_lchown16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chown_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(lchown16) {
     return kprobe_sys_chown_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_fchown16")
-int tracepoint_syscalls_sys_exit_fchown16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chown_ret(args, args->ret);
-}
-
 SYSCALL_KRETPROBE(fchown16) {
     return kprobe_sys_chown_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_chown16")
-int tracepoint_syscalls_sys_exit_chown16(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chown_ret(args, args->ret);
-}
-
 SYSCALL_KRETPROBE(chown16) {
     return kprobe_sys_chown_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_fchownat")
-int tracepoint_syscalls_sys_exit_fchownat(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chown_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(fchownat) {

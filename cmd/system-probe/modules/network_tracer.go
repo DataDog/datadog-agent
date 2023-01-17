@@ -1,8 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux || windows
 // +build linux windows
 
 package modules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,8 +17,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -19,7 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
-	"github.com/DataDog/datadog-agent/pkg/network/http/debugging"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +42,8 @@ const inactivityRestartDuration = 20 * time.Minute
 
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = module.Factory{
-	Name: config.NetworkTracerModule,
+	Name:             config.NetworkTracerModule,
+	ConfigNamespaces: []string{"network_config", "service_monitoring_config"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 
@@ -44,7 +55,13 @@ var NetworkTracer = module.Factory{
 		log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 
 		t, err := tracer.NewTracer(ncfg)
-		return &networkTracer{tracer: t}, err
+
+		done := make(chan struct{})
+		if err == nil {
+			startTelemetryReporter(cfg, done)
+		}
+
+		return &networkTracer{tracer: t, done: done}, err
 	},
 }
 
@@ -52,6 +69,7 @@ var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
 	tracer       *tracer.Tracer
+	done         chan struct{}
 	restartTimer *time.Timer
 }
 
@@ -62,9 +80,9 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 
 // Register all networkTracer endpoints
 func (nt *networkTracer) Register(httpMux *module.Router) error {
-	var runCounter uint64
+	var runCounter = atomic.NewUint64(0)
 
-	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
@@ -80,9 +98,21 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
-		count := atomic.AddUint64(&runCounter, 1)
+		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
-	})
+	}))
+
+	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		id := getClientID(req)
+		err := nt.tracer.RegisterClient(id)
+		log.Debugf("Got request on /network_tracer/register?client_id=%s", id)
+		if err != nil {
+			log.Errorf("unable to register client: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {
 		cs, err := nt.tracer.DebugNetworkMaps()
@@ -138,10 +168,41 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, ebpfMaps)
 	})
 
+	httpMux.HandleFunc("/debug/conntrack/cached", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancelFunc()
+		table, err := nt.tracer.DebugCachedConntrack(ctx)
+		if err != nil {
+			log.Errorf("unable to retrieve cached conntrack table: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, table)
+	})
+
+	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancelFunc()
+		table, err := nt.tracer.DebugHostConntrack(ctx)
+		if err != nil {
+			log.Errorf("unable to retrieve host conntrack table: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, table)
+	})
+
+	httpMux.HandleFunc("/debug/telemetry", func(w http.ResponseWriter, req *http.Request) {
+		metrics := telemetry.GetMetrics()
+		utils.WriteAsJSON(w, metrics)
+	})
+
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
 	time.AfterFunc(inactivityLogDuration, func() {
-		if run := atomic.LoadUint64(&runCounter); run == 0 {
+		if runCounter.Load() == 0 {
 			log.Warnf("%v since the agent started without activity, the process-agent may not be configured correctly and/or running", inactivityLogDuration)
 		}
 	})
@@ -160,6 +221,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 // Close will stop all system probe activities
 func (nt *networkTracer) Close() {
+	close(nt.done)
 	nt.tracer.Stop()
 }
 
@@ -195,4 +257,32 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf) //nolint:errcheck
 	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
+}
+
+func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
+	}
+
+	statsdClient, err := statsd.New(statsdAddr)
+	if err != nil {
+		log.Errorf("failed to start statsd reporter for network_tracer: %s", err)
+		return
+	}
+
+	telemetry.SetStatsdClient(statsdClient)
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				telemetry.ReportStatsd()
+			case <-done:
+				return
+			}
+		}
+	}()
 }

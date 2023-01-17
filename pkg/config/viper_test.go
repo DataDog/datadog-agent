@@ -8,7 +8,6 @@ package config
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -154,10 +153,40 @@ float_list:
 
 	config.ReadConfig(bytes.NewBuffer(yamlExample))
 
-	os.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
-	defer os.Unsetenv("DD_FLOAT_LIST")
+	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
 
 	list, err := config.GetFloat64SliceE("float_list")
 	assert.Nil(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
+}
+
+func TestIsSectionSet(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("test.key")
+	config.BindEnv("othertest.key")
+	config.SetKnown("yetanothertest_key")
+	config.SetConfigType("yaml")
+
+	yamlExample := []byte(`
+test:
+  key:
+`)
+
+	config.ReadConfig(bytes.NewBuffer(yamlExample))
+
+	res := config.IsSectionSet("test")
+	assert.Equal(t, true, res)
+
+	res = config.IsSectionSet("othertest")
+	assert.Equal(t, false, res)
+
+	t.Setenv("DD_OTHERTEST_KEY", "value")
+
+	res = config.IsSectionSet("othertest")
+	assert.Equal(t, true, res)
+
+	config.Set("yetanothertest_key", "value")
+	res = config.IsSectionSet("yetanothertest")
+	assert.Equal(t, false, res)
 }

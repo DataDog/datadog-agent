@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The ``internal_profiling.period`` parameter is now taken into account by the agent.

@@ -74,16 +74,10 @@ if suse?
 end
 
 if osx?
-  # Blacklist lxml as it fails MacOS notarization: the etree.cpython-37m-darwin.so and objectify.cpython-37m-darwin.so
-  # binaries were built with a MacOS SDK lower than 10.9.
-  # This can be removed once a new lxml version with binaries built with a newer SDK is available.
-  blacklist_packages.push(/^lxml==/)
-  # Blacklist ibm_was, which depends on lxml
-  blacklist_folders.push('ibm_was')
-
   # Temporarily blacklist Aerospike until builder supports new dependency
   blacklist_packages.push(/^aerospike==/)
   blacklist_folders.push('aerospike')
+  blacklist_folders.push('teradata')
 end
 
 if arm?
@@ -92,6 +86,7 @@ if arm?
   blacklist_packages.push(/^aerospike==/)
 
   # This doesn't build on ARM
+  blacklist_folders.push('ibm_ace')
   blacklist_folders.push('ibm_mq')
   blacklist_packages.push(/^pymqi==/)
 end
@@ -109,6 +104,9 @@ filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
 
 build do
+  license "BSD-3-Clause"
+  license_file "./LICENSE"
+
   # The dir for confs
   if osx?
     conf_dir = "#{install_dir}/etc/conf.d"
@@ -126,16 +124,34 @@ build do
     python = "#{install_dir}/embedded/bin/python3"
   end
 
+  # If a python_mirror is set, it is set in a pip config file so that we do not leak the token in the CI output
+  pip_config_file = ENV['PIP_CONFIG_FILE']
+  pre_build_env = {
+    "PIP_CONFIG_FILE" => "#{pip_config_file}"
+  }
+
   # Install the checks along with their dependencies
   block do
+    if windows?
+      wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
+      build_deps_dir = "#{windows_safe_path(project_dir)}\\.build_deps"
+    else
+      wheel_build_dir = "#{project_dir}/.wheels"
+      build_deps_dir = "#{project_dir}/.build_deps"
+    end
+
     #
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} install wheel==0.34.1"
-    command "#{pip} install pip-tools==6.4.0"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
+    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env # Version from ./setuptools3.rb
+    command "#{pip} install wheel==0.38.4", :env => pre_build_env
+    command "#{pip} install pip-tools==6.4.0", :env => pre_build_env
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
+      "PIP_FIND_LINKS" => "#{build_deps_dir}",
+      "PIP_CONFIG_FILE" => "#{pip_config_file}",
       # Specify C99 standard explicitly to avoid issues while building some
       # wheels (eg. ddtrace)
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -143,6 +159,14 @@ build do
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
+    }
+    win_build_env = {
+      "PIP_FIND_LINKS" => "#{build_deps_dir}",
+      "PIP_CONFIG_FILE" => "#{pip_config_file}",
+    }
+    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
+    specific_build_env = {
+      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
     }
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
@@ -165,14 +189,26 @@ build do
     #
     if windows?
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
-      static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
+      static_reqs_out_folder = "#{windows_safe_path(project_dir)}\\"
+      static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
     else
       static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
-      static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
+      static_reqs_out_folder = "#{project_dir}/"
+      static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
     end
 
     # Remove any blacklisted requirements from the static-environment req file
     requirements = Array.new
+
+    # Creating a hash containing the requirements and requirements file path associated to every lib
+    requirements_custom = Hash.new()
+    specific_build_env.each do |lib, env|
+      requirements_custom[lib] = {
+        "req_lines" => Array.new,
+        "req_file_path" => static_reqs_out_folder + lib + "-py3.in",
+      }
+    end
+
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
       blacklist_flag = false
       blacklist_packages.each do |blacklist_regex|
@@ -183,7 +219,15 @@ build do
       end
 
       if !blacklist_flag
+        # Keeping the custom env requirements lines apart to install them with a specific env
+        requirements_custom.each do |lib, lib_req|
+          if Regexp.new('^' + lib + '==').freeze.match line
+            lib_req["req_lines"].push(line)
+          end
+        # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
+        # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
         requirements.push(line)
+        end
       end
     end
 
@@ -196,30 +240,43 @@ build do
         mode: 0640,
         vars: { requirements: requirements }
 
+    # Render the filtered libraries that are to be built with different env var
+    requirements_custom.each do |lib, lib_req|
+      erb source: "static_requirements.txt.erb",
+          dest: "#{lib_req["req_file_path"]}",
+          mode: 0640,
+          vars: { requirements: lib_req["req_lines"] }
+    end
+
+    # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
+    pip_max_retries = 20
+    pip_timeout = 20
+
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
     if windows?
-      wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
+      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
+      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
       command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
+      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file} " \
+        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => win_build_env
+      # Pip-compiling seperately each lib that needs a custom build installation
+      specific_build_env.each do |lib, env|
+        command "#{python} -m piptools compile --generate-hashes --output-file  #{windows_safe_path(install_dir)}\\agent_#{lib}_requirements-py3.txt #{requirements_custom[lib]["req_file_path"]} " \
+        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
+      end
     else
-      wheel_build_dir = "#{project_dir}/.wheels"
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
       command "#{pip} install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
-    end
-
-    # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
-    uninstall_buildtime_deps.each do |dep|
-      if windows?
-        command "#{python} -m pip uninstall -y #{dep}"
-      else
-        command "#{pip} uninstall -y #{dep}"
+      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file} " \
+        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => nix_build_env
+      # Pip-compiling seperately each lib that needs a custom build installation
+      specific_build_env.each do |lib, env|
+        command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/agent_#{lib}_requirements-py3.txt #{requirements_custom[lib]["req_file_path"]} " \
+        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
       end
     end
 
@@ -227,8 +284,18 @@ build do
     # Install static-environment requirements that the Agent and all checks will use
     #
     if windows?
-      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
+      # First we install the dependencies that need specific flags
+      specific_build_env.each do |lib, env|
+        command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\agent_#{lib}_requirements-py3.txt", :env => env
+      end
+      # Then we install the rest (already installed libraries will be ignored) with the main flags
+      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
     else
+      # First we install the dependencies that need specific flags
+      specific_build_env.each do |lib, env|
+        command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/agent_#{lib}_requirements-py3.txt", :env => env
+      end
+      # Then we install the rest (already installed libraries will be ignored) with the main flags
       command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
 
@@ -263,12 +330,21 @@ build do
       File.exist?(manifest_file_path) || next
 
       manifest = JSON.parse(File.read(manifest_file_path))
-      manifest['supported_os'].include?(os) || next
+      if manifest.key?("supported_os")
+        manifest["supported_os"].include?(os) || next
+      else
+        if os == "mac_os"
+          tag = "Supported OS::macOS"
+        else
+          tag = "Supported OS::#{os.capitalize}"
+        end
 
-      setup_file_path = "#{check_dir}/setup.py"
-      File.file?(setup_file_path) || next
+        manifest["tile"]["classifier_tags"].include?(tag) || next
+      end
+
+      File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 3.
-      support = `inv agent.check-supports-python-version #{setup_file_path} 3`
+      support = `inv agent.check-supports-python-version #{check_dir} 3`
       if support == "False"
         log.info(log_key) { "Skipping '#{check}' since it does not support Python 3." }
         next
@@ -281,7 +357,7 @@ build do
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows? then '"c:\program files\amazon\awscli\bin\aws"' else 'aws' end
+    awscli = if windows? then '"c:\Program files\python38\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \
@@ -377,7 +453,7 @@ build do
         end
 
         if windows?
-          command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+          command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
           command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         else
           command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
@@ -394,14 +470,26 @@ build do
             :cwd => tasks_dir_in
         end
       end
+
+      # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
+      uninstall_buildtime_deps.each do |dep|
+        if windows?
+          command "#{python} -m pip uninstall -y #{dep}"
+        else
+          command "#{pip} uninstall -y #{dep}"
+        end
+      end
     end
 
     block do
       # We have to run these operations in block, so they get applied after operations
       # from the last block
 
-      if linux?
-        patch :source => "psutil-pr2000.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/_pslinux.py"
+      # Patch applies to only one file: set it explicitly as a target, no need for -p
+      if windows?
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
+      else
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/__init__.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible

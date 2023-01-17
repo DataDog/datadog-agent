@@ -1,6 +1,7 @@
 #pragma once
 #include <heapapi.h>
 #include <memory>
+#include <optional>
 
 template <class P> struct heap_deleter
 {
@@ -17,3 +18,8 @@ inline sid_ptr make_sid(size_t sidLength)
 {
     return sid_ptr(static_cast<sid_ptr::pointer>(HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sidLength)));
 }
+
+namespace WellKnownSID
+{
+std::optional<sid_ptr> NTAuthority();
+} // namespace WellKnownSID

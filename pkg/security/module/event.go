@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -no_std_marshalers $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -6,6 +6,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 package module
+
+import "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 
 // AgentContext serializes the agent context to JSON
 // easyjson:json
@@ -22,4 +24,16 @@ type AgentContext struct {
 type Signal struct {
 	AgentContext `json:"agent"`
 	Title        string `json:"title"`
+}
+
+// Event is the interface that an event must implement to be sent to the backend
+type Event interface {
+	GetTags() []string
+	GetType() string
+}
+
+// EventSender defines an event sender
+type EventSender interface {
+	SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string)
+	SendProcessEventData(data []byte)
 }

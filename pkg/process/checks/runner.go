@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
@@ -50,6 +55,11 @@ func (r *runnerWithRealTime) run() {
 		return
 	}
 
+	// Run the check the first time to prime the caches.
+	r.RunCheck(RunOptions{
+		RunStandard: true,
+	})
+
 	ticker := r.newTicker(r.RtInterval)
 	for {
 		select {
@@ -62,7 +72,7 @@ func (r *runnerWithRealTime) run() {
 			if rtEnabled || r.counter == 0 {
 				r.RunCheck(RunOptions{
 					RunStandard: r.counter == 0,
-					RunRealTime: rtEnabled,
+					RunRealtime: rtEnabled,
 				})
 			}
 

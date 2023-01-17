@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from invoke.exceptions import Exit
 
-from .remote_api import RemoteAPI
+from .remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
 
@@ -19,11 +19,9 @@ class Gitlab(RemoteAPI):
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
 
     def __init__(self, project_name="", api_token=""):
-        super(Gitlab, self).__init__()
-
+        super(Gitlab, self).__init__("Gitlab")
         self.api_token = api_token
         self.project_name = project_name
-        self.api_name = "Gitlab"
         self.authorization_error_message = (
             "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
             "check and refresh it at "
@@ -131,12 +129,15 @@ class Gitlab(RemoteAPI):
         path = f"/projects/{quote(self.project_name, safe='')}/repository/commits/{commit_sha}"
         return self.make_request(path, json_output=True)
 
-    def artifact(self, job_id, artifact_name):
+    def artifact(self, job_id, artifact_name, ignore_not_found=False):
         path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/artifacts/{artifact_name}"
-        response = self.make_request(path, stream_output=True)
-        if response.status_code != 200:
-            return None
-        return response
+        try:
+            response = self.make_request(path, stream_output=True)
+            return response
+        except APIError as e:
+            if e.status_code == 404 and ignore_not_found:
+                return None
+            raise e
 
     def all_jobs(self, pipeline_id):
         """
@@ -158,6 +159,14 @@ class Gitlab(RemoteAPI):
         """
         path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}/jobs?per_page={per_page}&page={page}"
         return self.make_request(path, json_output=True)
+
+    def job_log(self, job_id):
+        """
+        Gets the log file for a given job.
+        """
+
+        path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/trace"
+        return self.make_request(path)
 
     def all_pipeline_schedules(self):
         """
@@ -259,7 +268,18 @@ class Gitlab(RemoteAPI):
         Look up a tag by its name.
         """
         path = f"/projects/{quote(self.project_name, safe='')}/repository/tags/{tag_name}"
-        return self.make_request(path, json_output=True)
+        try:
+            response = self.make_request(path, json_output=True)
+            return response
+        except APIError as e:
+            # If Gitlab API returns a "404 not found" error we return an empty dict
+            if e.status_code == 404:
+                print(
+                    f"Couldn't find the {tag_name} tag: Gitlab returned a 404 Not Found instead of a 200 empty response."
+                )
+                return dict()
+            else:
+                raise e
 
     def make_request(
         self, path, headers=None, data=None, json_input=False, json_output=False, stream_output=False, method=None

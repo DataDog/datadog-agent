@@ -16,25 +16,28 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Agent handles REST API calls
 type Agent struct {
-	runtimeAgent *secagent.RuntimeSecurityAgent
+	runtimeAgent    *secagent.RuntimeSecurityAgent
+	complianceAgent *compagent.Agent
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent) *Agent {
+func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compagent.Agent) *Agent {
 	return &Agent{
-		runtimeAgent: runtimeAgent,
+		runtimeAgent:    runtimeAgent,
+		complianceAgent: complianceAgent,
 	}
 }
 
@@ -66,7 +69,7 @@ func (a *Agent) stopAgent(w http.ResponseWriter, r *http.Request) {
 
 func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname, err := util.GetHostname(r.Context())
+	hname, err := hostname.Get(r.Context())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err) // or something like this
 		hname = ""
@@ -92,6 +95,10 @@ func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 
 	if a.runtimeAgent != nil {
 		s["runtimeSecurityStatus"] = a.runtimeAgent.GetStatus()
+	}
+
+	if a.complianceAgent != nil {
+		s["complianceStatus"] = a.complianceAgent.GetStatus()
 	}
 
 	jsonStats, err := json.Marshal(s)
@@ -128,12 +135,16 @@ func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("security_agent.log_file")
 
-	var runtimeAgentStatus map[string]interface{}
+	var runtimeAgentStatus, complianceStatus map[string]interface{}
 	if a.runtimeAgent != nil {
 		runtimeAgentStatus = a.runtimeAgent.GetStatus()
 	}
 
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus)
+	if a.complianceAgent != nil {
+		complianceStatus = a.complianceAgent.GetStatus()
+	}
+
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus, complianceStatus)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

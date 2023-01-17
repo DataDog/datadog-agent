@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -18,12 +19,14 @@ import (
 var openCapabilities = Capabilities{
 	"open.file.path": {
 		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 		ValidateFnc:     validateBasenameFilter,
+		FilterWeight:    15,
 	},
 	"open.file.name": {
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType,
+		FilterWeight:    10,
 	},
 	"open.flags": {
 		PolicyFlags:     PolicyFlagFlags,
@@ -31,7 +34,7 @@ var openCapabilities = Capabilities{
 	},
 }
 
-func openOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
+func openOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {
@@ -40,7 +43,7 @@ func openOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprover
 		return values
 	}
 
-	openApprovers, err := onNewBasenameApprovers(probe, model.FileOpenEventType, "file", approvers)
+	openApprovers, err := onNewBasenameApprovers(model.FileOpenEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}

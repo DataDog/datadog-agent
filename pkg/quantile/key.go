@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package quantile
 
 import (
@@ -10,7 +15,6 @@ const (
 	uvneginf = -uvinf
 
 	maxKey = uvinf - 1 // 1 spot for +/- inf
-	minKey = uvneginf + 1
 )
 
 // A Key represents a quantized version of a float64. See Config for more details

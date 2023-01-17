@@ -2,33 +2,35 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+//go:build !windows
 // +build !windows
 
 package host
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetPayload(t *testing.T) {
 	ctx := context.Background()
-	p := GetPayload(ctx, util.HostnameData{Hostname: "myhostname", Provider: ""})
+	p := GetPayload(ctx, hostname.Data{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
 	assert.NotEmpty(t, p.AgentFlavor)
 	assert.NotEmpty(t, p.PythonVersion)
@@ -75,7 +77,7 @@ func TestGetHostInfo(t *testing.T) {
 
 func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
-	meta := getMeta(ctx, util.HostnameData{})
+	meta := getMeta(ctx, hostname.Data{})
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
@@ -113,22 +115,26 @@ func TestGetLogsMeta(t *testing.T) {
 	// No transport
 	status.CurrentTransport = ""
 	meta := getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: ""}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: false}, meta)
 	// TCP transport
 	status.CurrentTransport = status.TransportTCP
 	meta = getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: "TCP"}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
 	// HTTP transport
 	status.CurrentTransport = status.TransportHTTP
 	meta = getLogsMeta()
-	assert.Equal(t, &LogsMeta{Transport: "HTTP"}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "HTTP", AutoMultilineEnabled: false}, meta)
+
+	// auto multiline enabled
+	config.Datadog.Set("logs_config.auto_multi_line_detection", true)
+	meta = getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: "HTTP", AutoMultilineEnabled: true}, meta)
+
+	config.Datadog.Set("logs_config.auto_multi_line_detection", false)
 }
 
 func TestGetInstallMethod(t *testing.T) {
-	dir, err := ioutil.TempDir("", "test_install_method")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir)
-
+	dir := t.TempDir()
 	installInfoPath := path.Join(dir, "install_info")
 
 	// ------------- Without file, the install is considered private
@@ -145,7 +151,7 @@ install_method:
   tool: chef
   installer_version: datadog-cookbook-4.2.1
 `
-	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+	assert.Nil(t, os.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
 
 	// the install is considered coming from chef (example)
 	installMethod = getInstallMethod(installInfoPath)
@@ -162,7 +168,7 @@ install_methodlol:
   name: chef-15
   version: datadog-cookbook-4.2.1
 `
-	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+	assert.Nil(t, os.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
 
 	// the parsing does not occur and the install is kept undefined
 	installMethod = getInstallMethod(installInfoPath)

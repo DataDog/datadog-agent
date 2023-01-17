@@ -2,6 +2,2091 @@
 Release Notes
 =============
 
+.. _Release Notes_7.41.1:
+
+7.41.1 / 6.41.1
+======
+
+.. _Release Notes_7.41.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-12-21
+
+
+.. _Release Notes_7.41.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.18.9``.
+
+
+.. _Release Notes_7.41.0:
+
+7.41.0 / 6.41.0
+======
+
+.. _Release Notes_7.41.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-12-09
+
+- Please refer to the `7.41.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7410>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.41.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Troubleshooting commands in the Agent CLI have been moved to the `diagnose` command. `troubleshooting metadata_v5`
+  command is now `diagnose show-metadata v5` and `troubleshooting metadata_inventory` is `diagnose show-metadata inventory`.
+
+- Journald launcher can now create multiple tailers on the same journal when 
+  ``config_id`` is specified. This change enables multiple configs to operate 
+  on the same journal which is useful for tagging different units. 
+  Note: This may have an impact on CPU usage. 
+
+- Upgrade tracer_agent debugger proxy to use logs intake API v2 
+  for uploading snapshots 
+
+- The Agent now defaults to TLS 1.2 instead of TLS 1.0. The ``force_tls_12`` configuration parameter has been removed since it's now the default behavior. To continue using TLS 1.0 or 1.1, you must set the ``min_tls_version`` configuration parameter to either `tlsv1.0` or `tlsv1.1`.
+
+
+.. _Release Notes_7.41.0_New Features:
+
+New Features
+------------
+
+- Added a required infrastructure to enable protocol classification for Network Performance Monitoring in the future.
+  The protocol classification will allow us to label each connection with a L7 protocol.
+  The features requires Linux kernel version 4.5 or greater.
+
+- parse the snmp configuration from the agent and pass it to the integrated snmpwalk command in case the customer only provides an ip address
+
+- The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
+  detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information. The
+  Agent configuration is scrubbed of any sensitive information and only contains configuration you’ve set using the
+  configuration file or environment variables.
+
+- Windows: Adds support for Windows Docker "Process Isolation" containers running on a Windows host.
+
+
+.. _Release Notes_7.41.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- APM: All spans can be sent through the error and rare samplers via custom feature flag `error_rare_sample_tracer_drop`. This can be useful if you want to run those samplers against traces that were not sampled by custom tracer sample rules. Note that even user manual drop spans may be kept if this feature flag is set.
+
+- APM: The trace-agent will log failures to lookup CPU usage at error level instead of debug.
+
+- Optionally poll Agent and Cluster Agent integration configuration files for changes after startup. This allows the Agent/Cluster Agent to pick up new
+  integration configuration without a restart.
+  This is enabled/disabled with the `autoconf_config_files_poll` boolean configuration variable.
+  The polling interval is configured with the `autoconf_config_files_poll_interval` (default 60s).
+  Note: Dynamic removal of logs configuration is currently not supported.
+
+- Added telemetry for the "container-lifecycle" check.
+
+- On Kubernetes, the "cluster name" can now be discovered by using
+  the Node label `ad.datadoghq.com/cluster-name` or any other label
+  key configured using to the configuration option:
+  `kubernetes_node_label_as_cluster_name`
+
+- Agents are now built with Go 1.18.8.
+
+- Go PDH checks now all use the PdhAddEnglishCounter API to
+  ensure proper localization support.
+
+- Use the `windows_counter_refresh_interval` configuration option to limit
+  how frequently the PDH object cache can be refreshed during counter
+  initialization in golang. This replaces the previously hardcoded limit
+  of 60 seconds.
+
+- [netflow] Add disable port rollup config.
+
+- The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.61.0.
+
+- The `disable_file_logging` setting is now respected in the process-agent.
+
+- The `process-agent check [check-name]` command no longer outputs to the configured log file to reduce noise in the log file.
+
+- Logs a warning when the process agent cannot read other processes due to misconfiguration.
+
+- DogStatsD caches metric metadata for shorter periods of time,
+  reducing memory usage when tags or metrics received are different
+  across subsequent aggregation intervals.
+
+- The ``agent`` CLI subcommands related to Windows services are now
+  consistent in use of dashes in the command names (``install-service``,
+  ``start-service``, and so on). The names without dashes are supported as
+  aliases.
+
+- The Agent now uses the V2 API to submit series data to the Datadog intake
+  by default. This can be reverted by setting ``use_v2_api.series`` to
+  false.
+
+
+.. _Release Notes_7.41.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- APM: The Rare Sampler is now disabled by default. If you wish to enable it explicitly you can set apm_config.enable_rare_sampler or DD_APM_ENABLE_RARE_SAMPLER to true.
+
+
+.. _Release Notes_7.41.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Don't include extra empty 'env' entries in sampling priority output shown by `agent status` command.
+
+- APM: Fix panic when DD_PROMETHEUS_SCRAPE_CHECKS is set.
+
+- APM: DogStatsD data can now be proxied through the "/dogstatsd/v1/proxy" endpoint
+  and the new "/dogstatsd/v2/proxy" endpoint over UDS, with multiple payloads
+  separated by newlines in a single request body.
+  See https://docs.datadoghq.com/developers/dogstatsd#setup for configuration details.
+
+- APM - remove extra error message from logs.
+
+- Fixes an issue where cluster check metrics would be sometimes sent with the host tags.
+
+- The containerd check no longer emits events related with pause containers when `exclude_pause_container` is set to `true`.
+
+- Discard aberrant values (close to 18 EiB) in the ``container.memory.rss`` metric.
+
+- Fix Cloud Foundry CAPI Metadata tags injection into application containers.
+
+- Fix Trace Agent's CPU stats by reading correct PID in procfs
+
+- Fix a potential panic when df outputs warnings or errors among its standard output.
+
+- The OTLP ingest is now consistent with the Datadog exporter (v0.56+) when getting a hostname from OTLP resource attributes for metrics and traces.
+
+- Make Agent write logs when SNMP trap listener starts and Agent
+  receives invalid packets.
+
+- Fixed a bug in the workloadmeta store. Subscribers that asked to receive
+  only `unset` events mistakenly got `set` events on the first subscription for
+  all the entities present in the store. This only affects the
+  `container_lifecycle` check.
+
+- Fix missing tags on the ``kubernetes_state.cronjob.complete`` service check.
+
+- In ``kubernetes_state_core`` check, fix the `labels_as_tags` feature when the same Kubernetes label must be turned into different Datadog tags, depending on the resource:
+  
+     labels_as_tags:
+       daemonset:
+         first_owner: kube_daemonset_label_first_owner
+       deployment:
+         first_owner: kube_deployment_label_first_owner
+
+- Normalize the EventID field in the output from the windowsevent log tailer.
+  The type will now always be a string containing the event ID, the sometimes
+  present qualifier value is retained in a new EventIDQualifier field.
+
+- Fix an issue where the security agent would panic, sending on a close
+  channel, if it received a signal when shutting down while all
+  components were disabled.
+
+- Fix tokenization of negative numeric values in the SQL obfuscator to remove extra characters prepended to the byte array.
+
+
+.. _Release Notes_7.40.1:
+
+7.40.1
+======
+
+.. _Release Notes_7.40.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-11-09
+
+- Please refer to the `7.40.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7401>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.40.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go 1.18.8.
+
+
+.. _Release Notes_7.40.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix log collection on Kubernetes distributions using ``cri-o`` like OpenShift, which
+  began failing in 7.40.0.
+
+.. _Release Notes_7.40.0:
+
+7.40.0 / 6.40.0
+======
+
+.. _Release Notes_7.40.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-11-02
+
+- Please refer to the ``7.40.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7400>``_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.40.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Starting Agent 7.40, the Agent will fail to start when unable to determine hostname instead of silently using unrelevant hostname (usually, a container id).
+  Hostname resolution is key to many features and failure to determine hostname means that the Agent is not configured properly.
+  This change mostly affects Agents running in containerized environments as we cannot rely on OS hostname.
+
+- Universal Service Monitoring now requires a Linux kernel version of 4.14 or greater.
+
+
+.. _Release Notes_7.40.0_New Features:
+
+New Features
+------------
+
+- The Agent RPM package now supports Amazon Linux 2022 and Fedora 30+ without requiring the installation of the additional ``libxcrypt-compat`` system package.
+
+- Add support for CAPI metadata and DCA tags collection in PCF containers.
+
+- Add a username and password dialog window to the Windows Installer
+
+- APM: DogStatsD data can now be proxied through the "/dogstatsd/v1/proxy" endpoint
+  over UDP. See https://docs.datadoghq.com/developers/dogstatsd#setup for configuration details.
+
+- Cloud Workload Security now has Agent version constraints for Macros in SECL expressions.
+
+- Added the "helm_values_as_tags" configuration option in the Helm check.  It
+  allows users to collect helm values from a Helm release and use them as
+  tags to attach to the metrics and events emitted by the Helm check.
+
+- Enable the new DogStatsD no-aggregation pipeline, capable of processing metrics
+  with timestamps.
+  Set ``dogstatsd_no_aggregation_pipeline`` to ``false`` to disable it.
+
+- Adds ability to identify the interpreter of a script inside a script via the shebang. Example rule would be ``exec.interpreter.file.name == ~"python*"``. This feature is currently limited to one layer of nested script. For example, a python script in a shell script will be caught, but a perl script inside a python script inside a shell script will not be caught.
+
+
+.. _Release Notes_7.40.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- JMXFetch now supports ZGC Cycles and ZGC Pauses beans support out of the box.
+
+- Adds new ``aws.lambda.enhanced.post_runtime_duration`` metric for AWS Lambda
+  functions. This gauge metric measures the elapsed milliseconds from when
+  the function returns the response to when the extensions finishes. This
+  includes performing activities like sending telemetry data to a preferred
+  destination after the function's response is returned. Note that
+  ``aws.lambda.enhanced.duration`` is equivalent to the sum of
+  ``aws.lambda.enhanced.runtime_duration`` and
+  ``aws.lambda.enhanced.post_runtime_duration``.
+
+- Add the ``flare`` command to the Cloud Foundry ``cluster agent`` to improve support
+  experience.
+
+- Add ``CreateContainerError`` and ``InvalidImageName`` to waiting reasons
+  for ``kubernetes_state.container.status_report.count.waiting`` in the Kubernetes State Core check.
+
+- [netflow] Ephemeral Port Rollup
+
+- APM: A warning is now logged when the agent is under heavy load.
+
+- APM: The "http.status_code" tag is now supported as a numeric value too when computing APM trace stats. If set as both a string and a numeric value, the numeric value takes precedence and the string value is ignored.
+
+- APM: Add support for cgroup2 via UDS.
+
+- A new config option, ``logs_config.file_wildcard_selection_mode``, 
+  allows you to configure how log wildcard file matches are
+  prioritized if the number of matches exceeds ``logs_config.open_files_limit``.
+  
+  The option defaults to ``by_name`` which is the previous behavior.
+  The new option is ``by_modification_time`` which prioritizes more recently
+  modified files, but using it can result in slower performance compared to using ``by_name``.
+
+- Agents are now built with Go 1.18.7.  This version of Go brings `changes to
+  the garbage collection runtime <https://go.dev/doc/go1.18#runtime>`_ that
+  may change the Agent's memory usage.  In internal testing, the RSS of Agent
+  processes showed a minor increase of a few MiB, while CPU usage remained
+  consistent.  Reducing the value of ``GOGC`` as described in the Go
+  documentation was effective in reducing the memory usage at a modest cost
+  in CPU usage.
+
+- KSM Core check: Add the ``helm_chart`` tag automatically from the standard helm label ``helm.sh/chart``.
+
+- Helm check: Add a ``helm_chart`` tag, equivalent to the standard helm label ``helm.sh/chart`` (see https://helm.sh/docs/chart_best_practices/labels/).
+
+- The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.60.0. In particular, this drops support for consuming OTLP/JSON v0.15.0 or below payloads.
+
+- Improve CCCache performance on cache miss, significantly reducing
+  the number of API calls to the CAPI.
+
+- Add more flags to increase control over the CCCache, such as ``refresh_on_cache_miss``, ``sidecars_tags``,
+  and ``isolation_segments_tags`` flags under ``cluster_agent`` properties.
+
+- Windows: Add a config option to control how often the agent refreshes performance counters.
+
+- Introduces an ``unbundle_events`` config to the ``docker`` integration. When
+  set to ``true``, Docker events are no longer bundled together by image name,
+  and instead generate separate Datadog events.
+
+- Introduces an ``unbundle_events`` config to the ``kubernetes_apiserver``
+  integration. When set to ``true``, Kubernetes events are no longer bundled
+  together by InvolvedObject, and instead generate separate Datadog events.
+
+- On Windows the Agent now uses high-resolution icon where possible.
+  The smaller resolution icons have been resampled for better visibility.
+
+
+.. _Release Notes_7.40.0_Known Issues:
+
+Known Issues
+------------
+
+- APM: OTLP Ingest: resource attributes such as service.name are correctly picked up by spans.
+- APM: The "/dogstatsd/v1/proxy" endpoint can only accept a single payload at a time. This will
+  be fixed in the v2 endpoint which will split payloads by newline.
+
+
+.. _Release Notes_7.40.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The following Windows Agent container versions are removed: 1909, 2004, and 20H2.
+
+
+.. _Release Notes_7.40.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Add the device field to the ``MetricPayload`` to ensure the device 
+  tag is properly handled by the backend. 
+
+- APM: Revised support for tracer single span sampling. See datadog-agent/pull/13461.
+
+- Fixed a problem that could trigger in the containerd collector when
+  fetching containers from multiple namespaces.
+
+- Fixed a crash when ``dogstatsd_metrics_stats_enable`` is true
+
+- Fix a bug in Autodiscovery preventing the Agent to correctly schedule checks or logs configurations on newly created PODs during a StatefulSet rollout.
+
+- The included ``aerospike`` Python package is now correctly built against
+  the embedded OpenSSL and thus the Aerospike integration can be successfully
+  used on RHEL/CentOS.
+
+- Fix configresolver to continue parsing when a null value is found. 
+
+- Fixed issue with CPU count on MacOS
+
+- The container CPU limit that is reported by ``docker`` and ``container`` checks on ECS was not defaulting to the task limit when no CPU limit is set at container level.
+
+- Fix potential panic when removing a service that the log agent is currently tailing.
+
+- On SUSE, fixes the permissions declared in the package list of the RPM package.
+  This was causing package conflicts between the datadog-agent package and other packages
+  with files in ``/usr/lib/systemd/system``.
+
+- Fixed a resource leak in the helm check.
+
+- Fix golang performance counter initialization errors when counters
+  are not available during agent/check init time.
+  Checks now retry the counter initilization on each interval.
+
+- [snmp] Cache snmp dynamic tags from devices
+
+
+.. _Release Notes_7.40.0_Other Notes:
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to ``0.47.1 https://github.com/DataDog/jmxfetch/releases/0.47.1``
+
+- The ``logs_config.cca_in_ad`` feature flag now defaults to true.  This
+  selects updated codepaths in Autodiscovery and the Logs Agent.  No behavior
+  change is expected.  Please report any behavior that is "fixed" by setting
+  this flag to false.
+
+
+.. _Release Notes_7.39.1:
+
+7.39.1 / 6.39.1
+======
+
+.. _Release Notes_7.39.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-09-27
+
+
+.. _Release Notes_7.39.1_Security Notes:
+
+Security Notes
+--------------
+
+- Bump ``github.com/open-policy-agent/opa`` to `v0.43.1 <https://github.com/open-policy-agent/opa/releases/tag/v0.43.1>`_ to patch CVE-2022-36085.
+
+
+.. _Release Notes_7.39.1_Other Notes:
+
+Other Notes
+-----------
+
+- Bump embedded Python3 to `3.8.14`.
+
+- Deactivated support of HTTP/2 in all non localhost endpoint used by Datadog Agent and Cluster Agent. (except endpoints)
+
+
+.. _Release Notes_7.39.0:
+
+7.39.0 / 6.39.0
+======
+
+.. _Release Notes_7.39.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-09-12
+
+- Please refer to the `7.39.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7390>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.39.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Starting with version 6.39.0, Agent 6 is no longer built for macOS.
+  Only Agent 7 will be built for macOS going forward. macOS 10.14 and
+  above are supported with Agent 7.39.0.
+
+
+.. _Release Notes_7.39.0_New Features:
+
+New Features
+------------
+
+- Add an integrated snmpwalk command to perform a walk for all snmp versions based on the gosnmp library.
+
+- APM: Add two options under the `vector` config prefix to send traces
+  to Vector instead of Datadog. Set `vector.traces.enabled` to true.
+  Set `vector.traces.url` to point to a Vector endpoint. This overrides 
+  the main endpoint. Additional endpoints remains fully functional.
+
+
+.. _Release Notes_7.39.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the `tagger-list` command to the `process-agent` to ease
+  tagging issue investigation.
+
+- Update SNMP traps database with bit enumerations.
+
+- Resolve SNMP trap variables with bit enumerations to their string representation.
+
+- Logs: Support filtering on arbitrary journal log fields
+
+- APM: The trace-agent version string has been made more consistent and is now available in different build environments.
+
+- Delay starting the auto multi-line detection timeout until at 
+  least one log has been processed. 
+
+- The ``helm`` check has new configuration parameters:
+  - ``extra_sync_timeout_seconds`` (default 120)
+  - ``informers_resync_interval_minutes`` (default 10)
+
+- Improves the `labelsAsTags` feature of the Kubernetes State Metrics core check by performing the transformations of characters ['/' , '-' , '.'] 
+  to underscores ['_'] within the Datadog agent.  
+  Previously users had to perform these conversions manually in order to discover the labels on their resources.
+
+- The new ``min_tls_version`` configuration parameter allows configuration of
+  the minimum TLS version used for connections to the Datadog intake.  This
+  replaces the ``force_tls_12`` configuration parameter which only allowed
+  the minimum to be set to tlsv1.2.
+
+- The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.56.0
+
+- 'agent status' command output is now parseable as JSON
+  directly from stdout. Before this change, the
+  logger front-matter made it hard to parse 'status'
+  output directly as JSON.
+
+- Raise the default ``logs_config.open_files_limit`` to ``200`` on 
+  Windows and macOS. Raised to ``500`` for all other operating systems. 
+
+- Support disabling DatadogMetric autogeneration with the
+  external_metrics_provider.enable_datadogmetric_autogen configuration option
+  (enabled by default).
+
+
+.. _Release Notes_7.39.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- APM: The `datadog.trace_agent.trace_writer.bytes_estimated` metric has been removed. It was meant to be a metric used for debugging, without any user added value.
+
+- APM: The trace-agent /info endpoint no longer reports "build_date".
+
+- The ``force_tls_12`` configuration parameter is deprecated, replaced by
+  ``min_tls_version``.  If ``min_tls_version`` is not given, but ``force_tls_12``
+  is true, then ``min_tls_version`` defaults to tlsv1.2.
+
+
+.. _Release Notes_7.39.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Traps variable OIDs that had the index as a suffix are now correctly resolved.
+
+- Agent status command should always log at info level to allow
+  full status output regardless of Agent log level settings.
+
+- APM: The "datadog.trace_agent.otlp.spans" metric was incorrectly reporting span count. This release fixes that.
+
+- Fix panic when Agent stops jmxfetch.
+
+- Fixed a bug in Kubernetes Autodiscovery based on pod annotations: The Agent no longer skips valid configurations if other invalid configurations exist.
+  Note: This regression was introduced in Agents 7.36.0 and 6.36.0
+
+- Fix a bug in autodiscovery that would not unschedule some checks when check configuration contains secrets.
+
+- Orchestrator check: make sure we don't return labels and annotations with a suffixed `:`
+
+- Fixed a bug in the Docker check that affects the
+  `docker.containers.running` metric. It was reporting wrong values in cases
+  where multiple containers with different `env`, `service`, `version`, etc.
+  tags were using the same image.
+
+- Fixed a deadlock in the DogStatsD when running the capture (`agent dogstatsd-capture`). The Agent now flushes the
+  captured messages properly when the capture stops.
+
+- Fix parsing of init_config in AD annotations v2.
+
+- The ``internal_profiling.period`` parameter is now taken into account by the agent.
+
+- Fix duplicated check or logs configurations, targeting dead containers when containers are re-created by Docker Compose.
+
+- Fix concurrent map access issues when using OTLP ingest.
+
+- [orchestrator check] Fixes race condition during check startup.
+
+- The Windows installer will now respect the DDAGENTUSER_PASSWORD option and update the services passwords when the user already exists.
+
+- The KSM Core check now handles cron job schedules with time zones.
+
+- The v5 metadata payload's filesystem information is now more robust against failures in the ``df`` command, such as when a mountpoint is stuck.
+
+- Fixes a disk check issue in the Docker Agent where a disproportionate amount of automount
+  request system logs would be produced by the host after each disk check run.
+
+- [epforwarder] Update NetFlow EP forwarder default configs
+
+- The Agent starts faster on a Windows Docker host with many containers running by fetching the containers in parallel.
+
+- On Windows, NPM driver adds support for Receive Segment Coalescing.
+  This works around a Windows bug which in some situations causes
+  system probe to hang on startup
+
+
+.. _Release Notes_7.38.2:
+
+7.38.2 / 6.38.2
+======
+
+.. _Release Notes_7.38.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-08-10
+
+- Please refer to the `7.38.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7382>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.38.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug making the agent creating a lot of zombie (defunct) processes.
+  This bug happened only with the docker images ``7.38.x`` when the containerized agent was launched without ``hostPID: true``.
+
+
+.. _Release Notes_7.38.1:
+
+7.38.1 / 6.38.1
+======
+
+.. _Release Notes_7.38.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-08-02
+
+
+.. _Release Notes_7.38.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes CWS rules with 'process.file.name !=""' expression.
+
+
+.. _Release Notes_7.38.0:
+
+7.38.0 / 6.38.0
+======
+
+.. _Release Notes_7.38.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-07-25
+
+- Please refer to the `7.38.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7380>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.38.0_New Features:
+
+New Features
+------------
+
+
+- Add NetFlow feature to listen to NetFlow traffic and forward them to Datadog.
+
+- The CWS agent now supports filtering events depending on whether they are performed by a thread.
+  A process is considered a thread if it's a child process that hasn't executed another program.
+
+- Adds a `diagnose datadog-connectivity` command that displays information about connectivity issues between the Agent and Datadog intake.
+
+- Adds support for tailing modes in the journald logs tailer.
+
+- The CWS agent now supports writing rules on processes termination.
+
+- Add support for new types of CI Visibility payloads to the Trace Agent, so
+  features that until now were Agentless-only are available as well when using
+  the Agent.
+
+
+.. _Release Notes_7.38.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Tags configured with `DD_TAGS` or `DD_EXTRA_TAGS` in an EKS Fargate environment are now attached to OTLP metrics.
+
+- Add NetFlow static enrichments (TCP flags, IP Protocol, EtherType, and more).
+
+- Report lines matched by auto multiline detection as metrics
+  and show on the status page. 
+
+- Add a `containerd_exclude_namespaces` configuration option for the Agent to
+  ignore containers from specific containerd namespaces.
+
+- The `log_level` of the agent is now appended
+  to the flare archive name upon its creation.
+
+- The metrics reported by KSM core now include the tags "kube_app_name",
+  "kube_app_instance", and so on, if they're related to a Kubernetes entity
+  that has a standard label like "app.kubernetes.io/name",
+  "app.kubernetes.io/instance", etc.
+
+- The Kubernetes State Metrics Core check now collects two ingress metrics:
+  ``kubernetes_state.ingress.count`` and ``kubernetes_state.ingress.path``.
+
+- Move process chunking code to util package to avoid cycle import when using it in orchestrator check.
+
+- APM: Add support for PostgreSQL JSON operators in the SQL obfuscate package.
+
+- The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.54.0 (OTLP v0.18.0).
+
+- The Agent now embeds Python-3.8.13, an upgrade from
+  Python-3.8.11.
+
+- APM: Updated Rare Sampler default configuration values to sample traces more uniformly across environments and services.
+
+- The OTLP ingest endpoint now supports Exponential Histograms with delta aggregation temporality.
+
+- The Windows installer now supports grouped Managed Service Accounts.
+
+- Enable https monitoring on arm64 with kernel >= 5.5.0.
+
+- Add ``otlp_config.debug.loglevel`` to determine log level when the OTLP Agent receives metrics/traces for debugging use cases.
+
+
+.. _Release Notes_7.38.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Deprecate``otlp_config.metrics.instrumentation_library_metadata_as_tags`` in 
+  in favor of ``otlp_config.metrics.instrumentation_scope_metadata_as_tags``.
+
+
+.. _Release Notes_7.38.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- When ``enable_payloads.series`` or ``enable_payloads.sketches`` are set to 
+  false, don't log the error ``Cannot append a metric in a closed buffered channel``.
+
+- Restrict permissions for the entrypoint executables of the Dockerfiles.
+
+- Revert `docker.mem.in_use` calculation to use RSS Memory instead of total memory.
+
+- Add missing telemetry metrics for HTTP log bytes sent.
+
+- Fix `panic` in `container`, `containerd`, and `docker` when container stats are temporarily not available
+
+- Fix prometheus check Metrics parsing by not enforcing a list of strings.
+
+- Fix potential deadlock when shutting down an Agent with a log TCP listener.
+
+- APM: Fixed trace rare sampler's oversampling behavior. With this fix, the rare sampler will sample rare traces more accurately.
+
+- Fix journald byte count on the status page. 
+
+- APM: Fixes an issue where certain (#> and #>>) PostgreSQL JSON operators were
+  being interpreted as comments and removed by the obfuscate package.
+
+- Scrubs HTTP Bearer tokens out of log output
+
+- Fixed the triggered "svType != tvType; key=containerd_namespace, st=[]interface
+  {}, tt=[]string, sv=[], tv=[]" error when using a secret backend
+  reader.
+
+- Fixed an issue that made the container check to show an error in the "agent
+  status" output when it was working properly but there were no containers
+  deployed.
+
+
+.. _Release Notes_7.37.1:
+
+7.37.1 / 6.37.1
+======
+
+.. _Release Notes_7.37.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-06-28
+
+
+.. _Release Notes_7.37.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where proxy config was ignored by the trace-agent.
+
+
+.. _Release Notes_7.37.0:
+
+7.37.0 / 6.37.0
+======
+
+.. _Release Notes_7.37.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-06-27
+
+- Please refer to the `7.37.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7370>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.37.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- OTLP ingest: Support for the deprecated ``experimental.otlp`` section and the ``DD_OTLP_GRPC_PORT`` and ``DD_OTLP_HTTP_PORT`` environment variables has been removed. Use the ``otlp_config`` section or the ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT`` and ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT`` environment variables instead.
+
+- OTLP: Deprecated settings ``otlp_config.metrics.report_quantiles`` and ``otlp_config.metrics.send_monotonic_counter`` have been removed in favor of ``otlp_config.metrics.summaries.mode`` and ``otlp_config.metrics.sums.cumulative_monotonic_mode`` respectively.
+
+
+.. _Release Notes_7.37.0_New Features:
+
+New Features
+------------
+
+- Adds User-level service unit filtering support for Journald log collection via ``include_user_units`` and ``exclude_user_units``.
+
+- A wildcard (`*`) can be used in either `exclude_units` or `exclude_user_units` if only a particular type of Journald log is desired.
+
+- A new `troubleshooting` section has been added to the Agent CLI. This section will hold helpers to understand the
+  Agent behavior. For now, the section only has two command to print the different metadata payloads sent by the Agent
+  (`v5` and `inventory`).
+
+- APM: Incoming OTLP traces are now allowed to set their own sampling priority.
+
+- Enable NPM NAT gateway lookup by default.
+
+- Partial support of IPv6 on EKS clusters
+  * Fix the kubelet client when the IP of the host is IPv6.
+  * Fix the substitution of `%%host%%` patterns inside the auto-discovery annotations:
+    If the concerned pod has an IPv6 and the `%%host%%` pattern appears inside an URL context, then the IPv6 is surrounded by square brackets.
+
+- OTLP ingest now supports the same settings and protocol version as the OpenTelemetry Collector OTLP receiver v0.50.0.
+
+- The Cloud Workload Security agent can now monitor and evaluate rules on bind syscall.
+
+- [corechecks/snmp] add scale factor option to metric configurations
+
+- Evaluate ``memory.usage`` metrics based on collected metrics.
+
+
+.. _Release Notes_7.37.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- APM: ``DD_APM_FILTER_TAGS_REQUIRE`` and ``DD_APM_FILTER_TAGS_REJECT`` can now be a literal JSON array.
+  e.g. ``["someKey:someValue"]`` This allows for matching tag values with the space character in them.
+
+- SNMP Traps are now sent to a dedicated intake via the epforwarder.
+
+- Update SNMP traps database to include integer enumerations.
+
+- The Agent now supports a single ``com.datadoghq.ad.checks`` label in Docker,
+  containerd, and Podman containers. It merges the contents of the existing
+  ``check_names``, ``init_configs`` (now optional), and ``instances`` annotations
+  into a single JSON value.
+
+- Add a new Agent telemetry metric ``autodiscovery_poll_duration`` (histogram)
+  to monitor configuration poll duration in Autodiscovery.
+
+- APM: Added ``/config/set`` endpoint in trace-agent to change configuration settings during runtime.
+  Supports changing log level(log_level).
+
+- APM: When the X-Datadog-Trace-Count contains an invalid value, an error will be issued.
+
+- Upgrade to Docker client 20.10, reducing the duration of `docker` check on Windows (requires Docker >= 20.10 on the host).
+
+- The Agent maintains scheduled cluster and endpoint checks when the Cluster Agent is unavailable.
+
+- The Cluster Agent followers now forward queries to the Cluster Agent leaders themselves. This allows a reduction in the overall number of connections to the Cluster Agent and better spreads the load between leader and forwarders.
+
+- The ``kube_namespace`` tag is now included in all metrics,
+  events, and service checks generated by the Helm check.
+
+- Include `install_info` to `version-history.json`
+
+- Allow nightly builds install on non-prod repos
+
+- Add a ``kubernetes_node_annotations_as_tags`` parameter to use Kubernetes node annotations as host tags.
+
+- Add more detailed logging around leadership status failures.
+
+- Move the experimental SNMP Traps Listener configuration under ``network_devices``.
+
+- Add support for the DNS Monitoring feature of NPM to Linux kernels older than 4.1.
+
+- Adds ``segment_name`` and ``segment_id`` tags to PCF containers that belong to an isolation segment.
+
+- Make logs agent ``additional_endpoints`` reliable by default.
+  This can be disabled by setting ``is_reliable: false``
+  on the additional endpoint.
+
+- On Windows, if a ``datadog.yaml`` file is found during an installation or
+  upgrade, the dialogs collecting the API Key and Site are skipped.
+
+- Resolve SNMP trap variables with integer enumerations to their string representation.
+
+- [corechecks/snmp] Add profile ``static_tags`` config
+
+- Report telemetry metrics about the retry queue capacity: ``datadog.agent.retry_queue_duration.capacity_secs``, ``datadog.agent.retry_queue_duration.bytes_per_sec`` and ``datadog.agent.retry_queue_duration.capacity_bytes``
+
+- Updated cloud providers to add the Instance ID as a host alias
+  for EC2 instances, matching what other cloud providers do. This
+  should help with correctly identifying hosts where the customer
+  has changed the hostname to be different from the Instance ID.
+
+- NTP check: Include ``/etc/ntpd.conf`` and ``/etc/openntpd/ntpd.conf`` for ``use_local_defined_servers``.
+
+- Kubernetes pod with short-lived containers do not have log lines duplicated with both container tags (the stopped one and the running one) when logs are collected.
+  This feature is enabled by default, set ``logs_config.validate_pod_container_id`` to ``false`` to disable it.
+
+
+.. _Release Notes_7.37.0_Security Notes:
+
+Security Notes
+--------------
+
+- The Agent is built with Go 1.17.11.
+
+
+.. _Release Notes_7.37.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Updates defaults for the port and binding host of the experimental traps listener.
+
+- APM: The Agent is now performing rare span detection on all spans,
+  as opposed to only dropped spans. This change will slightly reduce
+  the number of rare spans kept unnecessarily.
+
+- APM OTLP: This change ensures that the ingest now standardizes certain attribute keys to their correct Datadog tag counter parts, such as: container tags, "operation.name", "service.name", etc.
+
+- APM: Fix a bug where the APM section of the GUI would not show up in older Internet Explorer versions on Windows.
+
+- Support dynamic Auth Tokens in Kubernetes v1.22+ (Bound Service Account Token Volume).
+
+- The "%%host%%" autodiscovery tag now works properly when using containerd, but only on Linux and when using IP v4 addresses.
+
+- Enhanced the coverage of pause-containers filtering on Containerd.
+
+- APM: Fix the loss of trace metric container information when large payloads need to be split.
+
+- Fix `cri` check producing no metrics when running on `OpenShift / cri-o`.
+
+- Fix missing health status from Docker containers in Live Container View.
+
+- Fix Agent startup failure when running as a non-privileged user (for instance, when running on OpenShift with ``restricted`` SCC).
+
+- Fix missing container metrics (container, containerd checks and live container view) on AWS Bottlerocket.
+
+- APM: Fixed an issue where "CPU threshold exceeded" logs would show the wrong user CPU usage by a factor of 100.
+
+- Ensures that when ``kubernetes_namespace_labels_as_tags`` is set, the namespace labels are always attached to metrics and logs, even when the pod is not ready yet.
+
+- Add missing support for UDPv6 receive path to NPM.
+
+- The ``agent workload-list --verbose`` command and the ``workload-list.log`` file in the flare
+  do not show containers' environment variables anymore. Except for ``DD_SERVICE``, ``DD_ENV`` and ``DD_VERSION``.
+
+- Fixed a potential deadlock in the Python check runner during agent shutdown.
+
+- Fixes issue where trace-agent would not report any version info.
+
+- The DCA and the cluster runners no longer write warning logs to `/tmp`.
+
+- Fixes an issue where the Agent would panic when trying to inspect Docker
+  containers while the Docker daemon was unavailable or taking too long to
+  respond.
+
+
+.. _Release Notes_7.37.0_Other Notes:
+
+Other Notes
+-----------
+
+- Exclude teradata on Mac agents.
+
+
+.. _Release Notes_7.36.1:
+
+7.36.1 / 6.36.1
+======
+
+.. _Release Notes_7.36.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-31
+
+- Please refer to the `7.36.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7361>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.36.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where proxy config was ignored by the trace-agent.
+
+- This fixes a regression introduced in ``7.36.0`` where some logs sources attached to a container/pod would not be
+  unscheduled on container/pod stop if multiple logs configs were attached to the container/pod.
+  This could lead to duplicate log entries being created on container/pod restart as there would
+  be more than one tailer tailing the targeted source.
+
+
+.. _Release Notes_7.36.0:
+
+7.36.0 / 6.36.0
+======
+
+.. _Release Notes_7.36.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-24
+
+- Please refer to the `7.36.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7360>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.36.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Debian packages are now built on Debian 8. Newly built DEBs are supported
+  on Debian >= 8 and Ubuntu >= 14.
+
+- The OTLP endpoint will no longer enable the legacy OTLP/HTTP endpoint ``0.0.0.0:55681`` by default. To keep using the legacy endpoint, explicitly declare it via the ``otlp_config.receiver.protocols.http.endpoint`` configuration setting or its associated environment variable, ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT``.
+
+- Package signing keys were rotated:
+  
+  * DEB packages are now signed with key ``AD9589B7``, a signing subkey of key `F14F620E <https://keys.datadoghq.com/DATADOG_APT_KEY_F14F620E.public>`_
+  * RPM packages are now signed with key `FD4BF915 <https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public>`_
+
+
+.. _Release Notes_7.36.0_New Features:
+
+New Features
+------------
+
+- Adding support for IBM cloud. The agent will now detect that we're running on IBM cloud and collect host aliases
+  (vm name and ID).
+
+- Added event collection in the Helm check. The feature is disabled by default. To enable it, set the ``collect_events`` option to true.
+
+- Adds a service check for the Helm check. The check fails for a release when its latest revision is in "failed" state.
+
+- Adds a ``kube_qos`` (quality of service) tag to metrics associated with
+  kubernetes pods and their containers.
+
+- CWS can now track network devices creation and load TC classifiers dynamically.
+
+- CWS can now track network namespaces.
+
+- The DNS event type was added to CWS.
+
+- The OTLP ingest endpoint is now considered GA for metrics.
+
+.. _Release Notes_7.36.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Traps OIDs are now resolved to names using user-provided 'traps db' files in ``snmp.d/traps_db/``.
+
+- The Agent now supports a single ``ad.datadoghq.com/$IDENTIFIER.checks``
+  annotation in Kubernetes Pods and Services to configure Autodiscovery
+  checks. It merges the contents of the existing "check_names",
+  ``init_configs`` (now optional), and ``instances`` annotations into a single
+  JSON value.
+
+- ``DD_URL`` environment variable can now be used to set the Datadog intake URL just like ``DD_DD_URL``.
+  If both ``DD_DD_URL`` and `DD_URL` are set, ``DD_DD_URL`` will be used to avoid breaking change.
+
+- Added a ``process-agent version`` command, and made the output mimic the core agent.
+
+- Windows: Add Datadog registry to Flare.
+
+- Add ``--service`` flag to ``stream-logs`` command to filter
+  streamed logs in detail.
+
+- Support a simple date pattern for automatic multiline detection
+
+- APM: The OTLP ingest stringification of non-standard Datadog values such as Arrays and KeyValues is now consistent with OpenTelemetry attribute stringification.
+
+- APM: Connections to upload profiles to the Datadog intake are now closed
+  after 47 seconds of idleness. Common tracer setups send one profile every
+  60 seconds, which coincides with the intake's connection timeout and would
+  occasionally lead to errors.
+
+- The Cluster Agent now exposes a new metric ``cluster_checks_configs_info``.
+  It exposes the node and the check ID as tags.
+
+- KSM core check: add a new ``kubernetes_state.cronjob.complete``
+  service check that returns the status of the most recent job for
+  a cronjob.
+
+- Retry more HTTP status codes for the logs agent HTTP destination. 
+
+- ``COPYRIGHT-3rdparty.csv`` now contains each copyright statement exactly as it is shown on the original component.
+
+- Adds ``sidecar_present`` and ``sidecar_count`` tags on Cloud Foundry containers
+  that run apps with sidecar processes.
+
+- Agent flare now includes output from the ``process`` and ``container`` checks.
+
+- Add the ``--cfgpath`` parameter in the Process Agent replacing ``--config``.
+
+- Add the ``check`` subcommand in the Process Agent replacing ``--check`` (``-check``).
+  Only warn once if the ``-version`` flag is used.
+
+- Adds human readable output of process and container data in the ``check`` command
+  for the Process Agent.
+
+- The Agent flare command now collects Process Agent performance profile data in the flare bundle when the ``--profile`` flag is used.
+
+
+.. _Release Notes_7.36.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Deprecated ``process-agent --vesion`` in favor of ``process-agent version``.
+
+- The logs configuration ``use_http`` and ``use_tcp`` flags have been deprecated in favor of ``force_use_http`` and ``force_use_tcp``.
+
+- OTLP ingest: ``metrics.send_monotonic_counter`` has been deprecated in favor of ``metrics.sums.cumulative_monotonic_mode``. ``metrics.send_monotonic_counter`` will be removed in v7.37.
+
+- OTLP ingest: ``metrics.report_quantiles`` has been deprecated in favor of ``metrics.summaries.mode``. ``metrics.report_quantiles`` will be removed in v7.37 / v6.37.
+
+- Remove the unused ``--ddconfig`` (``-ddconfig``) parameter.
+  Deprecate the ``--config`` (``-config``) parameter (show warning on usage).
+
+- Deprecate the ``--check`` (``-check``) parameter (show warning on usage).
+
+
+.. _Release Notes_7.36.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Bump GoSNMP to fix incomplete support of SNMP v3 INFORMs.
+
+- APM: OTLP: Fixes an issue where attributes from different spans were merged leading to spans containing incorrect attributes.
+
+- APM: OTLP: Fixed an inconsistency where the error message was left empty in cases where the "exception" event was not found. Now, the span status message is used as a fallback.
+
+- Fixes an issue where some data coming from the Agent when running in ECS
+  Fargate did not have ``task_*``, ``ecs_cluster_name``, ``region``, and
+  ``availability_zone`` tags.
+
+- Collect the "0" value for resourceRequirements if it has been set
+
+- Fix a bug introduced in 7.33 that could prevent auto-discovery variable ``%%port_<name>%%`` to not be resolved properly.
+
+- Fix a panic in the Docker check when a failure happens early (when listing containers)
+
+- Fix missing ``docker.memory.limit`` (and ``docker.memory.in_use``) on Windows
+
+- Fixes a conflict preventing NPM/USM and the TCP Queue Length check from being enabled at the same time.
+
+- Fix permission of "/readsecret.sh" script in the agent Dockerfile when
+  executing with dd-agent user (for cluster check runners)
+
+- For Windows, fixes problem in upgrade wherein NPM driver is not automatically started by system probe.
+
+- Fix Gohai not being able to fetch network information when running on a non-English windows (when the output of
+  commands like ``ipconfig`` were not in English). ``gohai`` no longer relies on system commands but uses Golang ``net`` package
+  instead (same as Linux hosts).
+  This bug had the side effect of preventing network monitoring data to be linked back to the host.
+
+- Time-based metrics (for example, ``kubernetes_state.pod.age``, ``kubernetes_state.pod.uptime``) are now comparable in the Kubernetes state core check.
+
+- Fix a risk of panic when multiple KSM Core check instances run concurrently.
+
+- For Windows, includes NPM driver 1.3.2, which has a fix for a BSOD on system probe shutdown.
+
+- Adds new ``--json`` flag to ``check``. ``process-agent check --json`` now outputs valid json.
+
+- On Windows, includes NPM driver update which fixes performance
+  problem when host is under high connection load.
+
+- Previously, the Agent could not log the start or end of a check properly after the first five check runs. The Agent now can log the start and end of a check correctly.
+
+
+.. _Release Notes_7.36.0_Other Notes:
+
+Other Notes
+-----------
+
+- Include pre-generated trap db file in the ``conf.d/snmp.d/traps_db/`` folder.
+
+- Gohai dependency has been upgraded. This brings a newer version of gopsutil and a fix when fetching network
+  information in non-english Windows (see ``fixes`` section).
+
+
+.. _Release Notes_7.35.2:
+
+7.35.2 / 6.35.2
+======
+
+.. _Release Notes_7.35.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-05
+
+.. _Release Notes_7.35.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a regression impacting CSPM metering
+
+.. _Release Notes_7.35.1:
+
+7.35.1 / 6.35.1
+======
+
+.. _Release Notes_7.35.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-04-12
+
+
+.. _Release Notes_7.35.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The weak dependency of datadog-agent, datadog-iot-agent and dogstatsd deb
+  packages on the datadog-signing-keys package has been fixed to ensure
+  proper upgrade to version 1:1.1.0.
+
+
+.. _Release Notes_7.35.0:
+
+7.35.0 / 6.35.0
+======
+
+.. _Release Notes_7.35.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-04-07
+
+- Please refer to the `7.35.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7350>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.35.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Agent, Dogstatsd and IOT Agent RPMs now have proper preinstall dependencies.
+  On AlmaLinux, Amazon Linux, CentOS, Fedora, RHEL and Rocky Linux, these are:
+  
+  - ``coreutils`` (provided by package ``coreutils-single`` on certain platforms)
+  - ``grep``
+  - ``glibc-common``
+  - ``shadow-utils``
+  
+  On OpenSUSE and SUSE, these are:
+  
+  - ``coreutils``
+  - ``grep``
+  - ``glibc``
+  - ``shadow``
+
+- APM Breaking change: The `default head based sampling mechanism <https://docs.datadoghq.com/tracing/trace_ingestion/mechanisms?tab=environmentvariables#head-based-default-mechanism>`_
+  settings `apm_config.max_traces_per_second` or `DD_APM_MAX_TPS`, when set to 0, will be sending 
+  0% of traces to Datadog, instead of 100% in previous Agent versions. 
+
+- The OTLP ingest endpoint is now considered stable for traces.
+  Its configuration is located in the top-level `otlp_config section <https://github.com/DataDog/datadog-agent/blob/7.35.0/pkg/config/config_template.yaml#L2915-L2918>`_.
+  
+  Support for the deprecated ``experimental.otlp`` section and the ``DD_OTLP_GRPC_PORT`` and ``DD_OTLP_HTTP_PORT``
+  environment variables will be removed in Agent 7.37. Use the ``otlp_config`` section or the
+  ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT`` and ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT``
+  environment variables instead.
+
+- macOS 10.12 support has been removed. Only macOS 10.13 and later are now supported.
+
+
+.. _Release Notes_7.35.0_New Features:
+
+New Features
+------------
+
+- The Cloud Workload Security agent can now monitor and evaluate rules on signals (kill syscall).
+
+- CWS allows to write SECL rule on environment variable values. 
+
+- The security Agent now offers a command to directly download the policy file from the API.
+
+- CWS: Policy can now define macros with items specified as a YAML list
+  instead of a SECL expression, as:::
+  
+    - my_macro:
+      values:
+        - value1
+        - value2
+  
+  In addition, macros and rules can now be updated in later loaded policies
+  (``default.policy`` is loaded first, the other policies in the folder are loaded
+  in alphabetical order).
+  
+  The previous macro can be modified with:::
+  
+    - my_macro:
+      combine: merge
+      values:
+        - value3
+  
+  It can also be overriden with:::
+  
+    - my_macro:
+      combine: override
+      values:
+        - my-single-value
+  
+  Rules can now also be disabled with:::
+  
+    - my_rule:
+      disabled: true
+
+- Cloud Workload Security now works on Google's Container Optimized OS LTS versions, starting
+  from v81.
+
+- CWS: Allow setting variables to store states through rule actions.
+  Action rules can now be defined as follows:::
+  
+    - id: my_rule
+      expression: ...
+      actions:
+        - set:
+            name: my_boolean_variable
+            value: true
+        - set:
+            name: my_string_variable
+            value: a string
+        - set:
+            name: my_other_variable
+            field: process.file.name
+  
+  These actions will be executed when the rule is triggered by an event.
+  Right now, only ``set`` actions can be defined.
+  ``name`` is the name of the variable that will be set by the actions.
+  The value for the variable can be specified by using:
+
+  - ``value`` for a predefined value
+    (strings, integers, booleans, array of strings and array of integers are currently supported).
+  - ``field`` for the value of an event field.
+  
+  Variable arrays can be modified by specifying ``append: true``.
+  
+  Variables can be reused in rule expressions like a regular variable:::
+
+    - id: my_other_rule
+      expression: |-
+        open.file.path == ${my_other_variable}
+
+  By default, variables are global. They can be bounded to a specific process by using the ``process``
+  scope as follows:::
+
+    - set:
+        name: my_scoped_variable
+        scope: process
+        value: true
+  
+  The variable can be referenced in other expressions as ``${process.my_scoped_variable}``. When the process dies, the
+  variable with be automatically freed.
+
+- Configuration ``process_config.enabled`` is now split into two settings: ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled``. This will allow better control over the process Agent.
+  ``process_config.enabled`` now translates to these new settings:
+
+  * ``process_config.enabled=true``: ``process_config.process_collection.enabled=true``
+  * ``process_config.enabled=false``: ``process_config.container_collection.enabled=true`` and ``process_config.process_collection.enabled=false``
+  * ``process_config.enabled=disabled``: ``process_config.container_collection.enabled=false`` and ``process_config.process_collection.enabled=false``
+
+- Expose additional CloudFoundry metadata in the DCA API that the
+  PCF firehose nozzles can use to reduce the load on the CC API.
+
+- Added new "Helm" cluster check that collects information about the Helm releases deployed in the cluster.
+
+- Add the ``process_agent_runtime_config_dump.yaml`` file to the core Agent flare with ``process-agent`` runtime settings.
+
+- Add ``process-agent status`` output to the core Agent status command.
+
+- Added new ``process-agent status`` command to help with troubleshooting and for better consistency with the core Agent. This command is intended to eventually replace `process-agent --info`.
+
+- CWS rules can now be written on kernel module loading and deletion events.
+
+- The splice event type was added to CWS. It can be used to detect the Dirty Pipe vulnerability.
+
+- Add two options under a new config prefix to send logs
+  to Vector instead of Datadog. ``vector.logs.enabled``
+  must be set to true, along with ``vector.logs.url`` that
+  should be set to point to a Vector configured accordingly.
+  This overrides the main endpoints, additional endpoints
+  remains fully functional.
+
+- Adds new Windows system check, winkmem.  This check reports the top users
+  of paged and non-paged memory in the windows kernel.
+
+
+.. _Release Notes_7.35.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add support for the device_namespace tag in SNMP Traps.
+
+- SNMP Trap Listener now also supports protocol versions 1 and 3 on top of the existing v2 support.
+
+- The cluster agent has an external metrics provider feature to allow using Datadog queries in Kubernetes HorizontalPodAutoscalers.
+  It sometimes faces issues like:
+  
+    2022-01-01 01:01:01 UTC | CLUSTER | ERROR | (pkg/util/kubernetes/autoscalers/datadogexternal.go:79 in queryDatadogExternal) | Error while executing metric query ... truncated... API returned error: Query timed out
+  
+  To mitigate this problem, use the new ``external_metrics_provider.chunk_size`` parameter to reduce the number of queries that are batched by the Agent and sent together to Datadog.
+
+- Added a new implementation of the `containerd` check based on the `container` check. Several metrics are not emitted anymore: `containerd.mem.current.max`, `containerd.mem.kernel.limit`, `containerd.mem.kernel.max`, `containerd.mem.kernel.failcnt`, `containerd.mem.swap.limit`, `containerd.mem.swap.max`, `containerd.mem.swap.failcnt`, `containerd.hugetlb.max`, `containerd.hugetlb.failcount`, `containerd.hugetlb.usage`, `containerd.mem.rsshuge`, `containerd.mem.dirty`, `containerd.blkio.merged_recursive`, `containerd.blkio.queued_recursive`, `containerd.blkio.sectors_recursive`, `containerd.blkio.service_recursive_bytes`, `containerd.blkio.time_recursive`, `containerd.blkio.serviced_recursive`, `containerd.blkio.wait_time_recursive`, `containerd.blkio.service_time_recursive`.
+  The `containerd.image.size` now reports all images present on the host, container tags are removed.
+
+- Migrate the cri check to generic check infrastructure. No changes expected in metrics.
+
+- Tags configured with `DD_TAGS` or `DD_EXTRA_TAGS` in an ECS Fargate or EKS Fargate environment are now attached to Dogstatsd metrics.
+
+- Added a new implementation of the `docker` check based on the `container` check. Metrics produced do not change. Added the capability to run the `docker` check on Linux without access to `/sys` or `/proc`, although with a limited number of metrics.
+
+- The DogstatsD protocol now supports a new field that contains the client's container ID.
+  This allows enriching DogstatsD metrics with container tags.
+
+- When ``ec2_collect_tags`` is enabled, the Agent now attempts to fetch data
+  from the instance metadata service, falling back to the existing
+  EC2-API-based method of fetching tags.  Support for tags in the instance
+  metadata service is an opt-in EC2 feature, so this functionality will
+  not work automatically.
+
+- Add support for ECS metadata v4 API
+  https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v4.html
+
+- Agents are now built with Go 1.17.6.
+
+- On ECS Fargate and EKS Fargate, Agent-configured tags (``DD_TAGS``/``DD_EXTRA_TAGS``)
+  are now applied to all integration-collected metrics.
+
+- Logs from JMXFetch will now be included in the Agent logfile, regardless
+  of the ``log_level`` setting of the Agent.
+
+- Addition of two knobs to configure JMXFetch statsd client:
+  
+  * ``jmx_statsd_client_queue_size`` to set the client queue size.
+  * ``jmx_statsd_telemetry_enabled`` to enable the client telemetry.
+
+- KSMCore `node.ready` service check now reports `warning`
+  instead of `unknown` when a node enters an unknown state.
+
+- Added `DD_PROCESS_CONFIG_PROCESS_DD_URL` and `DD_PROCESS_AGENT_PROCESS_DD_URL` environment variables
+
+- Added `DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS` and `DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS` environment variables
+
+- Automatically extract the ``org.opencontainers.image.source`` container label into the ``git.repository_url`` tag.
+
+- The experimental OTLP ingest endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.43.1.
+
+- The OTLP ingest endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.44.0.
+
+- The OTLP ingest endpoint can now be configured through environment variables.
+
+- The OTLP ingest endpoint now always maps conventional metric resource-level attributes to metric tags.
+
+- OTLP ingest: the ``k8s.pod.uid`` and ``container.id`` semantic conventions
+  are now used for enriching tags in OTLP metrics.
+
+- Add the ``DD_PROCESS_CONFIG_MAX_PER_MESSAGE`` env variable to set the ``process_config.max_per_message``.
+  Add the ``DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE`` env variable to set the ``process_config.max_ctr_procs_per_message``.
+
+- Add the ``DD_PROCESS_CONFIG_EXPVAR_PORT`` and ``DD_PROCESS_AGENT_EXPVAR_PORT`` env variables to set the ``process_config.expvar_port``.
+  Add the ``DD_PROCESS_CONFIG_CMD_PORT`` env variable to set the ``process_config.cmd_port``.
+
+- Add the ``DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED`` env variable to set the ``process_config.internal_profiling.enabled``.
+
+- Add the `DD_PROCESS_CONFIG_SCRUB_ARGS` and `DD_PROCESS_AGENT_SCRUB_ARGS` env variables to set the `process_config.scrub_args`.
+  Add the `DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS` and `DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS` env variables to set the `process_config.custom_sensitive_words`.
+  Add the `DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS` and `DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS` env variables to set the `process_config.strip_proc_arguments`.
+
+- Added `DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS` and `DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS` environment variables
+
+- Add the ``DD_PROCESS_CONFIG_QUEUE_SIZE`` and ``DD_PROCESS_AGENT_QUEUE_SIZE`` env variables to set the ``process_config.queue_size``.
+  Add the ``DD_PROCESS_CONFIG_RT_QUEUE_SIZE`` and ``DD_PROCESS_AGENT_RT_QUEUE_SIZE`` env variables to set the ``process_config.rt_queue_size``.
+  Add the ``DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES`` and ``DD_PROCESS_AGENT_PROCESS_QUEUE_BYTES`` env variables to set the ``process_config.process_queue_bytes``.
+
+- Changes process payload chunking in the process Agent to take into account
+  the size of process details such as CLI and user name.
+  Adds the process_config.max_message_bytes setting for the target max (uncompressed) payload size.
+
+- When ``ec2_collect_tags`` is configured, the Agent retries API calls to gather EC2 tags before giving up.
+
+- Retry HTTP transaction when the HTTP status code is 404 (Not found).
+
+- Validate SNMP namespace to ensure it respects length and illegal character rules.
+
+- Include `/etc/chrony.conf` for `use_local_defined_servers`.
+
+
+.. _Release Notes_7.35.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The security Agent commands ``check-policies`` and ``reload`` are deprecated.
+  Use ``runtime policy check`` and ``runtime policy reload`` respectively instead.
+
+- Configuration ``process_config.enabled`` is now deprecated.  Use ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled`` settings instead to control container and process collection in the process Agent.
+
+- Removed ``API_KEY`` environment variable from the process agent. Use ``DD_API_KEY`` instead
+
+- Removes the ``DD_PROCESS_AGENT_CONTAINER_SOURCE`` environment variable from the Process Agent. The list of container sources now entirely depends on the activated features.
+
+- Removed unused ``process_config.windows.args_refresh_interval`` config setting
+
+- Removed unused ``process_config.windows.add_new_args`` config setting
+
+- Removes the ``process_config.max_ctr_procs_per_message`` setting.
+
+
+.. _Release Notes_7.35.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: OTLP: Fixes an issue where attributes from different spans were merged leading to spans containing incorrect attributes.
+
+- APM: Fixed an issue which caused a panic when receiving OTLP traces with invalid data (specifically duplicate SpanIDs).
+
+- Silence the misleading error message
+  ``No valid api key found, reporting the forwarder as unhealthy``
+  from the output of the ``agent check`` command.
+
+- Fixed a deadlock in the Logs Agent.
+
+- Exclude filters no longer apply to empty container names, images, or namespaces.
+
+- Fix CPU limit calculation for Windows containers.
+
+- Fix a rare panic in Gohai when collecting the system's Python version.
+
+- For Windows, includes NPM driver 1.3.2, which has a fix for a BSOD on system probe shutdown.
+
+- OTLP ingest now uses the exact sum and count values from OTLP Histograms when generating Datadog distributions.
+
+
+.. _Release Notes_7.35.0_Other Notes:
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to `0.46.0` https://github.com/DataDog/jmxfetch/releases/0.46.0
+
+
+.. _Release Notes_7.34.0:
+
+7.34.0 / 6.34.0
+======
+
+.. _Release Notes_7.34.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-03-02
+
+- Please refer to the `7.34.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7340>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.34.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- CWS uses `**` for subfolder matching instead of `*`.
+  Previously, `*` was used to match files and subfolders. With this
+  release, `*` will match only files and folders at the same level. Use`**`
+  at the end of a path to match files and subfolders. `**` must be
+  used at the end of the path. For example, the rule `open.file.path == "/etc/*"`
+  has to be converted to `open.file.path == "/etc/**"`.
+
+- `additional_endpoints` in the `logs_config` now uses the same compression
+  configuration as the main endpoint when sending to HTTP destinations. Agents 
+  that relied on using different compression settings for `additional_endpoints`
+  may need to be reconfigured. 
+
+
+.. _Release Notes_7.34.0_New Features:
+
+New Features
+------------
+
+- Autodiscovery of integrations now works with Podman containers. The minimum
+  Podman version supported is 3.0.0.
+
+- Cloud provider detection now support Oracle Cloud. This includes cloud provider detection, host aliases and NTP
+  servers.
+
+- APM: Add proxy endpoint to allow Instrumentation Libraries to submit telemetry data.
+
+- CWS now allows to write SECL rule based on process ancestor args.
+
+- CWS now exposes the first argument of exec event. Usually the
+  name of the executed program.
+
+- Add a new `runtime reload` command to the `security-agent`
+  to dynamically reload CWS policies.
+
+- Enables process discovery check to run by default in the process agent.
+  Process discovery is a lightweight process metadata collection check enabling
+  users to see recommendations for integrations running in their environments.
+
+- APM: Adds a new endpoint to the Datadog Agent to forward pipeline stats to the Datadog backend.
+
+- The Cloud Workload Security agent can now monitor and evaluate rules on mmap, mprotect and ptrace.
+
+- Add support for Shift JIS (Japanese) encoding.
+  It should be manually enabled in a log configuration using
+  ``encoding: shift-jis``.
+
+- Extend SNMP profile syntax to support metadata definitions
+
+- When running inside a container with the host `/etc` folder mounted to `/host/etc`, the agent will now report the
+  distro informations of the host instead of the one from the container.
+
+- Added telemetry for the workloadmeta store.
+
+
+.. _Release Notes_7.34.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add Autodiscovery telemetry.
+
+- APM: Add the option to collect SQL comments and commands during obfuscation.
+
+- Adds the process_config.disable_realtime_checks config setting in the process
+  Agent allowing users to disable realtime process and container checks. Note:
+  This prevents refresh of stats in the Live Processes and Live Containers pages
+  for processes and containers reported by the Agent.
+
+- [corechecks/snmp] Add additional metadata fields
+
+- Reduce the memory usage when flushing series.
+
+- Specifying ``auto_multi_line_detection: false`` in an integration's
+  ``logs_config`` will now disable detection for that integration, even if
+  detection is enabled globally.
+
+- Make ``agent checkconfig`` an alias of ``agent configcheck``
+
+- Added possibility to watch all the namespaces when running on containerd
+  outside Kubernetes. By default, the agent will report events and metrics
+  from all the namespaces. In order to select a specific one, please set the
+  `containerd_namespace` option.
+
+- The container check now works for containers managed by runtimes that
+  implement the CRI interface such as CRI-O.
+
+- ``cri.*`` and ``container.*`` metrics can now be collected from the CRI API
+  on Windows.
+
+- When using ``site: ddog-gov.com``, the agent now uses Agent-version-based
+  URLs and ``api.ddog-gov.com`` as it has previously done for other Datadog
+  domains.
+
+- Add telemetry for ECS queries.
+
+- Agents are now built with Go 1.16.12.
+
+- Add Kubelet queries telemetry.
+
+- Add the ``kubernetes_node_annotations_as_host_aliases`` parameter to specify a list
+  of Kubernetes node annotations that should be used as host aliases.
+  If not set, it defaults to ``cluster.k8s.io/machine``.
+
+- The experimental OTLP endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.41.0.
+
+- OTLP metrics tags are enriched when ``experimental.otlp.metrics.tag_cardinality`` is set to ``orchestrator``.
+  This can also be controlled via the ``DD_OTLP_TAG_CARDINALITY`` environment variable.
+
+- Make the Prometheus auto-discovery be able to schedule OpenMetrics V2 checks instead of legacy V1 ones.
+  
+  By default, the Prometheus annotations based auto-discovery will keep on scheduling openmetrics v1 check.
+  But the agent now has a `prometheus_scrape.version` parameter that can be set to ``2`` to schedule the v2.
+  
+  The changes between the two versions of the check are described in
+  https://datadoghq.dev/integrations-core/legacy/prometheus/#config-changes-between-versions
+
+- Raised the max batch size of logs and events from `100` to `1000` elements. Improves
+  performance in high volume scenarios. 
+
+- Add saturation metrics for network and memory.
+
+- The Agent no longer logs spurious warnings regarding proxy-related environment variables
+  ``DD_PROXY_NO_PROXY``, ``DD_PROXY_HTTP``, and ``DD_PROXY_HTTPS``.
+
+- [corechecks/snmp] Add agent host as tag when ``use_device_id_as_hostname`` is enabled.
+
+- [corechecks/snmp] Add profile metadata match syntax
+
+- [corechecks/snmp] Support multiple symbols for profile metadata
+
+- On Windows, the installer now uses a zipped Python integration folder, which
+  should result in faster install times.
+
+- Add support for Windows 2022 in published Docker images
+
+
+.. _Release Notes_7.34.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix SQL obfuscation error on statements using bind variables starting with digits
+
+- Adds Windows NPM driver 1.3.1, which contains a fix for the system crash on system-probe shutdown under heavy load.
+
+- ``DD_CLUSTER_NAME`` can be used to define the ``kube_cluster_name`` on EKS Fargate.
+
+- On Windows the Agent now correctly detects Windows 11.
+
+- Fixes an issue where the Docker check would undercount the number of
+  stopped containers in the `docker.containers.stopped` and
+  `docker.containers.stopped.total` metrics, accompanied by a "Cannot split
+  the image name" error in the logs.
+
+- Fixed a bug that caused a panic when running the docker check in cases
+  where there are containers stuck in the "Removal in Progress" state.
+
+- On EKS Fargate, the `container` check is scheduled while no suitable metrics collector is available, leading to excessive logging. Also fixes an issue with Liveness/Readiness probes failing regularly.
+
+- Allow Prometheus scrape `tls_verify` to be set to `false` and 
+  change `label_to_hostname` type to `string`.
+
+- Fixes truncated queries using temp tables in SQL Server.
+
+- Fixes an NPM issue on Windows where if the first packet on a UDP flow
+  is inbound, it is not counted correctly.
+
+- On macOS, fix a bug where the Agent would not gracefully stop when sent a SIGTERM signal.
+
+- Fix missing tags with eBPF checks (OOM Kill/TCP Queue Length) with some container runtimes (for instance, containerd 1.5).
+
+- The experimental OTLP endpoint now ignores hostname attributes with localhost-like names for hostname resolution.
+
+- Fixes an issue where cumulative-to-delta OTLP metrics conversion did not take the hostname into account.
+
+
+.. _Release Notes_7.33.1:
+
+7.33.1 / 6.33.1
+======
+
+.. _Release Notes_7.33.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-02-10
+
+
+.. _Release Notes_7.33.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a panic that happens occasionally when handling tags for deleted
+  containers or pods.
+
+- Fixes security module failing to start on kernels 4.14 and 4.15.
+
+.. _Release Notes_7.33.0:
+
+7.33.0 / 6.33.0
+======
+
+.. _Release Notes_7.33.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-01-26
+
+- Please refer to the `7.33.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7330>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.33.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- APM: The `apm_config.max_traces_per_second` setting no longer affects error sampling.
+  To change the TPS for errors, use `apm_config.error_traces_per_second` instead.
+
+- Starting from this version of the Agent, the Agent does not run on SLES 11. 
+  The new minimum requirement is SLES >= 12 or OpenSUSE >= 15 (including OpenSUSE 42).
+
+- Changed the default value of `logs_config.docker_container_use_file` to `true`.
+  The agent will now prefer to use files for collecting docker logs and fall back
+  to the docker socket when files are not available.
+
+- Upgrade Docker base image to ubuntu:21.10 as new stable release.
+
+
+.. _Release Notes_7.33.0_New Features:
+
+New Features
+------------
+
+- Autodiscovery of integrations now works with containerd.
+
+- Metadata information sent by the Agent are now part of the flares. This will allow for easier troubleshooting of
+  issues related to metadata.
+
+- APM: Added credit card obfuscation. It is off by default and can be enabled using the
+  env. var. DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED or `apm_config.obfuscation.credit_cards.enabled`.
+  There is also an option to enable an additional Luhn checksum check in order to eliminate
+  false negatives, but it comes with a performance cost and should not be used unless absolutely
+  needed. The option is DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN or `apm_config.obfuscation.credit_cards.luhn`.
+
+- APM: The rare sampler can now be disabled using the environment variable DD_APM_DISABLE_RARE_SAMPLER
+  or the `apm_config.disable_rare_sampler` configuration. By default the rare sampler catches 5 extra trace chunks
+  per second on top of the head base sampling.
+  The TPS is spread to catch all combinations of service, name, resource, http.status, error.type missed by 
+  head base sampling.
+
+- APM: The error sampler TPS can be configured using the environment variable DD_APM_ERROR_TPS
+  or the `apm_config.error_traces_per_second` configuration. It defaults to 10 extra trace chunks sampled 
+  per second on top of the base head sampling.
+  The TPS is spread to catch all combinations of service, name, resource, http.status, and error.type.
+
+- Add a generic `container` check. It generates `container.*` metrics based on all running containers, regardless of the container runtime used (among the supported ones).
+
+- Added new option "container_labels_as_tags" that allows the Agent to
+  extract container label values and set them as metric tags values. It's
+  equivalent to the existing "docker_labels_as_tags", but it also works with
+  containerd.
+
+- CSPM: enable the usage of the print function in Rego rules.
+
+- CSPM: add option to dump reports to file, when running checks manually.
+  CSPM: constants can now be defined in rego rules and will be usable from rego rules.
+
+- CWS: SECL expressions can now make use of predefined variables.
+  `${process.pid}` variable refers to the pid of the process that
+  trigger the event. 
+
+- Enable NPM DNS domain collection by default.
+
+- Exposed additional *experimental* configuration for OTLP metrics
+  translation via ``experimental.otlp.metrics``.
+
+- Add two options under a new config prefix to send metrics
+  to Vector instead of Datadog. `vector.metrics.enabled`
+  must be set to true, along with `vector.metrics.url` that
+  should be set to point to a Vector configured accordingly.
+
+- The bpf syscall is now monitored by CWS; rules can be written on BPF commands.
+
+- Add runtime settings support to the security-agent. Currenlty only the log-level
+  is supported.
+
+- APM: A new intake endpoint was added as /v0.6/traces, which accepts a new, more compact and efficient payload format.
+  For more details, check: https://github.com/DataDog/datadog-agent/blob/7.33.0/pkg/trace/api/version.go#L78.
+
+
+.. _Release Notes_7.33.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds Nomad namespace and datacenter to list of env vars extracted from Docker containers.
+
+- Add a new `On-disk storage` section to `agent status` command.
+
+- Run CSPM commands as a configurable user.
+  Defaults to 'nobody'.
+
+- CSPM: the findings query now defaults to `data.datadog.findings`
+
+- The ``docker.exit`` service check has a new tag ``exit_code``.
+  The ``143`` exit code is considered OK by default, in addition to ``0``.
+  The Docker check supports a parameter ``ok_exit_codes`` to allow choosing exit codes that are considered OK.
+
+- Allow dogstatsd replay files to be fully loaded into memory as opposed
+  to relying on MMAP. We still default to MMAPing replay targets.
+
+- ``kubernetes_state.node.*`` metrics are tagged with ``kubelet_version``,
+  ``container_runtime_version``, ``kernel_version``, and ``os_image``.
+
+- The Kube State Metrics Core check uses ksm v2.1.
+
+- Lowercase the cluster names discovered from cloud providers
+  to ease moving between different Datadog products.
+
+- On Windows, allow enabling process discovery in the process agent by providing PROCESS_DISCOVERY_ENABLED=true to the msiexec command.
+
+- Automatically extract the ``org.opencontainers.image.revision`` container label into the ``git.commit.sha`` tag.
+
+- The experimental OTLP endpoint now can be configured through the ``experimental.otlp.receiver`` section and supports the same settings as the OpenTelemetry Collector OTLP receiver v0.38.0.
+
+- The Process, APM, and Security agent now use the remote tagger introduced
+  in Agent 7.26 by default. To disable it in the respective agent, the following
+  settings need to be set to `false`:
+  
+  - apm_config.remote_tagger
+  - process_config.remote_tagger
+  - security_agent.remote_tagger
+
+- Allows the remote tagger timeout at startup to be configured by setting the
+  `remote_tagger_timeout_seconds` config value. It also now defaults to 30
+  seconds instead of 5 minutes.
+
+- Calls to cloud metadata APIs for metadata like hostnames and IP addresses
+  are now cached and the existing values used when the metadata service
+  returns an error.  This will prevent such metadata from temporarily
+  "disappearing" from hosts.
+
+- Datadog Process Agent Service is started automatically by the core agent on Windows when process discovery is enabled in the config.
+
+- All packages - datadog-agent, datadog-iot-agent and datadog-dogstatsd -
+  now support AlmaLinux and Rocky Linux distributions.
+
+- If unrecognized ``DD_..`` environment variables are set, the agent will now log a warning at startup, to help catch deployment typos.
+
+- Update the embedded ``pip`` version to 21.3.1 on Python 3 to
+  allow the use of newer build backends.
+
+- Metric series can now be submitted using the V2 API by setting
+  `use_v2_api.series` to true.  This value defaults to false, and
+  should only be set to true in internal testing scenarios.  The
+  default will change in a future release.
+
+- Add support for Windows 20H2 in published Docker images
+
+- Add a new agent command to dump the content of the workloadmeta store ``agent workload-list``.
+  The output of ``agent workload-list --verbose`` is included in the agent flare.
+
+
+.. _Release Notes_7.33.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Strip special characters (\n, \r and \t) from OctetString
+
+- APM: Fix bug where obfuscation fails for autovacuum sql text. 
+  For example, SQL text like `autovacuum: VACUUM ANALYZE fake.table` will no longer fail obfuscation. 
+
+- APM: Fix SQL obfuscation failures on queries with literals that include non alpha-numeric characters
+
+- APM: Fix obfuscation error on SQL queries using the '!' operator.
+
+- Fixed Windows Dockerfile scripts to make the ECS Fargate Python check run
+  when the agent is deployed in ECS Fargate Windows.
+
+- Fixing deadlock when stopping the agent righ when a metadata provider is scheduled.
+
+- Fix a bug where container_include/exclude_metrics was applied on Autodiscovery when using Docker, preventing logs collection configured through container_include/exclude_logs.
+
+- Fix inclusion of ``registry.json`` file in flare
+
+- Fixes an issue where the agent would remove tags from pods or containers
+  around 5 minutes after startup of either the agent itself, or the pods or
+  containers themselves.
+
+- APM: SQL query obfuscation doesn't drop redacted literals from the obfuscated query when they are preceded by a SQL comment.
+
+- The Kube State Metrics Core check supports VerticalPodAutoscaler metrics.
+
+- The experimental OTLP endpoint now uses the StartTimestamp field for reset detection on cumulative metrics transformations.
+
+- Allow configuring process discovery check in the process agent when both regular process and container checks are off.
+
+- Fix disk check reporting /dev/root instead of the actual
+  block device path and missing its tags when tag_by_label
+  is enabled.
+
+- Remove occasionally hanging autodiscovery errors 
+  from the agent status once a pod is deleted.
+
+
+.. _Release Notes_7.33.0_Other Notes:
+
+Other Notes
+-----------
+
+- The Windows installer only creates the datadog.yaml file on new installs.
+
+
+.. _Release Notes_7.32.4:
+
+7.32.4 / 6.32.4
+======
+
+.. _Release Notes_7.32.4_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-12-22
+
+
+- JMXFetch: Remove all dependencies on ``log4j`` and use ``java.util.logging`` instead.
+
+.. _Release Notes_7.32.3:
+
+7.32.3 / 6.32.3
+======
+
+.. _Release Notes_7.32.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-12-15
+
+.. _Release Notes_7.32.3_Security Notes:
+
+- Upgrade the log4j dependency to 2.12.2 in JMXFetch to fully address `CVE-2021-44228 <https://nvd.nist.gov/vuln/detail/CVE-2021-44228>`_ and `CVE-2021-45046 <https://nvd.nist.gov/vuln/detail/CVE-2021-45046>`_
+
+.. _Release Notes_7.32.2:
+
+7.32.2 / 6.32.2
+======
+
+.. _Release Notes_7.32.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-12-11
+
+
+.. _Release Notes_7.32.2_Security Notes:
+
+Security Notes
+--------------
+
+- Set ``-Dlog4j2.formatMsgNoLookups=True`` when starting the JMXfetch process to mitigate vulnerability described in `CVE-2021-44228 <https://nvd.nist.gov/vuln/detail/CVE-2021-44228>`_
+
+
 .. _Release Notes_7.32.1:
 
 7.32.1 / 6.32.1

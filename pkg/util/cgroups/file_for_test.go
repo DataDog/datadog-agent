@@ -75,26 +75,26 @@ func (cfs *cgroupMemoryFS) deleteCgroupV1File(cg *cgroupV1, controller, name str
 
 // for cgroup v1 only
 func (cfs *cgroupMemoryFS) createCgroupV1(id, path string) *cgroupV1 {
-	cg := newCgroupV1(id, path, cfs.mountPoints)
+	cg := newCgroupV1(id, path, cfs.mountPoints, nil)
 	cg.fr = cfs
 	return cg
 }
 
 // for cgroup v2 only
 func (cfs *cgroupMemoryFS) createCgroupV2(id, path string) *cgroupV2 {
-	cg := newCgroupV2(id, filepath.Join(cfs.rootPath, path), cfs.controllers)
+	cg := newCgroupV2(id, cfs.rootPath, path, cfs.controllers, nil)
 	cg.fr = cfs
 	return cg
 }
 
 // for cgroup v2 only
 func (cfs *cgroupMemoryFS) setCgroupV2File(cg *cgroupV2, name, content string) {
-	cfs.files[filepath.Join(cg.fullPath, name)] = content
+	cfs.files[filepath.Join(cg.cgroupRoot, cg.relativePath, name)] = content
 }
 
 // for cgroup v2 only
 func (cfs *cgroupMemoryFS) deleteCgroupV2File(cg *cgroupV2, name string) {
-	delete(cfs.files, filepath.Join(cg.fullPath, name))
+	delete(cfs.files, filepath.Join(cg.cgroupRoot, cg.relativePath, name))
 }
 
 func (cfs *cgroupMemoryFS) open(path string) (file, error) {

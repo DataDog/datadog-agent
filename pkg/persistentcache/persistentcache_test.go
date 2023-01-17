@@ -6,24 +6,21 @@
 package persistentcache
 
 import (
-	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWritePersistentCache(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "fake-datadog-run-")
-	require.Nil(t, err, fmt.Sprintf("%v", err))
-	defer os.RemoveAll(testDir)
-	mockConfig := config.Mock()
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("run_path", testDir)
-	err = Write("mykey", "myvalue")
+	err := Write("mykey", "myvalue")
 	assert.Nil(t, err)
 	value, err := Read("mykey")
 	assert.Equal(t, "myvalue", value)
@@ -34,12 +31,10 @@ func TestWritePersistentCache(t *testing.T) {
 }
 
 func TestWritePersistentCacheColons(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "fake-datadog-run-")
-	require.Nil(t, err, fmt.Sprintf("%v", err))
-	defer os.RemoveAll(testDir)
-	mockConfig := config.Mock()
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("run_path", testDir)
-	err = Write("my:key", "myvalue")
+	err := Write("my:key", "myvalue")
 	assert.Nil(t, err)
 	value, err := Read("my:key")
 	assert.Equal(t, "myvalue", value)
@@ -55,12 +50,10 @@ func TestWritePersistentCacheColons(t *testing.T) {
 }
 
 func TestWritePersistentCacheInvalidChar(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "fake-datadog-run-")
-	require.Nil(t, err, fmt.Sprintf("%v", err))
-	defer os.RemoveAll(testDir)
-	mockConfig := config.Mock()
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("run_path", testDir)
-	err = Write("my/key", "myvalue")
+	err := Write("my/key", "myvalue")
 	assert.Nil(t, err)
 	value, err := Read("my/key")
 	assert.Equal(t, "myvalue", value)

@@ -6,7 +6,6 @@
 package collectors
 
 import (
-	"context"
 	"time"
 )
 
@@ -21,22 +20,6 @@ type TagInfo struct {
 	StandardTags         []string  // the discovered standard tags (env, version, service) for the entity
 	DeleteEntity         bool      // true if the entity is to be deleted from the store
 	ExpiryDate           time.Time // keep in cache until expiryDate
-}
-
-// CollectionMode informs the Tagger of how to schedule a Collector
-type CollectionMode int
-
-// Return values for Collector.Init to inform the Tagger of the scheduling needed
-const (
-	NoCollection     CollectionMode = iota // Not available
-	PullCollection                         // Call regularly via the Pull method
-	StreamCollection                       // Will continuously feed updates on the channel from Steam() to Stop()
-)
-
-// Collector retrieve entity tags from a given source and feeds
-// updates via the TagInfo channel
-type Collector interface {
-	Detect(context.Context, chan<- []*TagInfo) (CollectionMode, error)
 }
 
 // CollectorPriority helps resolving dupe tags from collectors
@@ -61,14 +44,3 @@ const (
 	OrchestratorCardinality
 	HighCardinality
 )
-
-// Streamer feeds back TagInfo when detecting changes
-type Streamer interface {
-	Stream() error
-	Stop() error
-}
-
-// Puller has to be triggered regularly
-type Puller interface {
-	Pull(context.Context) error
-}

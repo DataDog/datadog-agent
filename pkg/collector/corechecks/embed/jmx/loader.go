@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build jmx
 // +build jmx
 
 package jmx
@@ -54,7 +55,7 @@ func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.D
 
 	cf := integration.Config{
 		ADIdentifiers: config.ADIdentifiers,
-		Entity:        config.Entity,
+		ServiceID:     config.ServiceID,
 		InitConfig:    config.InitConfig,
 		Instances:     []integration.Data{instance},
 		LogsConfig:    config.LogsConfig,

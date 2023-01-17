@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package admission
@@ -12,7 +13,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -35,6 +36,7 @@ const jsonContentType = "application/json"
 
 type admissionFunc func([]byte, string, dynamic.Interface) ([]byte, error)
 
+// Server TODO <container-integrations>
 type Server struct {
 	decoder runtime.Decoder
 	mux     *http.ServeMux
@@ -56,12 +58,12 @@ func (s *Server) initDecoder() {
 	scheme := runtime.NewScheme()
 	err := admiv1.AddToScheme(scheme)
 	if err != nil {
-		log.Warnf("Couldn't register the admission/v1 scheme: %w", err)
+		log.Warnf("Couldn't register the admission/v1 scheme: %v", err)
 	}
 
 	err = admiv1beta1.AddToScheme(scheme)
 	if err != nil {
-		log.Warnf("Couldn't register the admission/v1beta1 scheme: %w", err)
+		log.Warnf("Couldn't register the admission/v1beta1 scheme: %v", err)
 	}
 
 	s.decoder = serializer.NewCodecFactory(scheme).UniversalDeserializer()
@@ -77,6 +79,11 @@ func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface) {
 
 // Run starts the kubernetes admission webhook server.
 func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error {
+	var tlsMinVersion uint16 = tls.VersionTLS13
+	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
+		tlsMinVersion = tls.VersionTLS10
+	}
+
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
 		Handler: s.mux,
@@ -90,6 +97,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 				}
 				return cert, nil
 			},
+			MinVersion: tlsMinVersion,
 		},
 	}
 	go func() error {
@@ -107,13 +115,19 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 // It supports both v1 and v1beta1 requests.
 func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface) {
 	metrics.WebhooksReceived.Inc()
+
+	start := time.Now()
+	defer func() {
+		metrics.WebhooksResponseDuration.Observe(time.Since(start).Seconds())
+	}()
+
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		log.Warnf("Invalid method %s, only POST requests are allowed", r.Method)
 		return
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Warnf("Could not read request body: %v", err)

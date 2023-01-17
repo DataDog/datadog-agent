@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows || darwin
 // +build linux windows darwin
 
 package v5
@@ -12,14 +13,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
+	"github.com/DataDog/datadog-agent/pkg/metadata/internal/resources"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // GetPayload returns the complete metadata payload as seen in Agent v5
-func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
+func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 	cp := common.GetPayload(hostnameData.Hostname)
 	hp := host.GetPayload(ctx, hostnameData)
 	rp := resources.GetPayload(hostnameData.Hostname)

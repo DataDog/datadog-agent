@@ -10,17 +10,21 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
 type testServerHandler struct {
@@ -30,7 +34,7 @@ type testServerHandler struct {
 func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	json, err := ioutil.ReadFile("./testdata/okay.json")
+	json, err := os.ReadFile("./testdata/okay.json")
 	if err != nil {
 		h.t.Errorf("error loading json file: %v", err)
 	}
@@ -62,7 +66,7 @@ type testServerWarningHandler struct {
 func (h *testServerWarningHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	json, err := ioutil.ReadFile("./testdata/warning.json")
+	json, err := os.ReadFile("./testdata/warning.json")
 	if err != nil {
 		h.t.Errorf("error loading json file: %v", err)
 	}
@@ -118,6 +122,8 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "key1"
 	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
+	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
+	conf.Proxy = nil
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
@@ -151,7 +157,7 @@ func TestInfo(t *testing.T) {
 	info := buf.String()
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
-	expectedInfo, err := ioutil.ReadFile("./testdata/okay.info")
+	expectedInfo, err := os.ReadFile("./testdata/okay.info")
 	re := regexp.MustCompile(`\r\n`)
 	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
 	assert.NoError(err)
@@ -195,7 +201,7 @@ func TestWarning(t *testing.T) {
 	assert.NoError(err)
 	info := buf.String()
 
-	expectedWarning, err := ioutil.ReadFile("./testdata/warning.info")
+	expectedWarning, err := os.ReadFile("./testdata/warning.info")
 	re := regexp.MustCompile(`\r\n`)
 	expectedWarningString := re.ReplaceAllString(string(expectedWarning), "\n")
 	assert.NoError(err)
@@ -292,8 +298,12 @@ func TestInfoReceiverStats(t *testing.T) {
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
-		Stats{TracesReceived: 23, TracesBytes: 3244, SpansReceived: 213, SpansDropped: 14},
+		Stats{},
 	}
+	t1.Stats.TracesReceived.Store(23)
+	t1.Stats.TracesBytes.Store(3244)
+	t1.Stats.SpansReceived.Store(213)
+	t1.Stats.SpansDropped.Store(14)
 	t2 := &TagStats{
 		Tags{Lang: "go"},
 		Stats{},
@@ -333,7 +343,7 @@ func TestInfoReceiverStats(t *testing.T) {
 	default:
 		t.Errorf("bad stats type: %v", s)
 	}
-	stats.Stats[t1.Tags].TracesReceived++
+	stats.Stats[t1.Tags].TracesReceived.Inc()
 	UpdateReceiverStats(stats)
 	s = publishReceiverStats()
 	switch s := s.(type) {
@@ -362,5 +372,147 @@ func TestInfoConfig(t *testing.T) {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
 	}
+	for i, e := range confCopy.TelemetryConfig.Endpoints {
+		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
+		conf.TelemetryConfig.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
+	}
+	conf.ContainerTags = nil
+
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
+}
+
+func TestPublishUptime(t *testing.T) {
+	up := publishUptime()
+	// just test the type, as the time itself is nondeterministic
+	_, ok := up.(int)
+	require.True(t, ok)
+}
+
+func TestPublishReceiverStats(t *testing.T) {
+	receiverStats = []TagStats{{
+		Tags: Tags{
+			Lang: "go",
+		},
+		Stats: Stats{
+			TracesReceived: atom(1),
+			TracesDropped: &TracesDropped{
+				atom(1),
+				atom(2),
+				atom(3),
+				atom(4),
+				atom(5),
+				atom(6),
+				atom(7),
+				atom(8),
+			},
+			SpansMalformed: &SpansMalformed{
+				atom(1),
+				atom(2),
+				atom(3),
+				atom(4),
+				atom(5),
+				atom(6),
+				atom(7),
+				atom(8),
+				atom(9),
+				atom(10),
+				atom(11),
+				atom(12),
+			},
+			TracesFiltered:     atom(4),
+			TracesPriorityNone: atom(5),
+			TracesPerSamplingPriority: samplingPriorityStats{
+				[maxAbsPriority*2 + 1]atomic.Int64{
+					maxAbsPriority + 0: atom(1),
+					maxAbsPriority + 1: atom(2),
+					maxAbsPriority + 2: atom(3),
+					maxAbsPriority + 3: atom(4),
+					maxAbsPriority + 4: atom(5),
+				},
+			},
+			ClientDroppedP0Traces: atom(7),
+			ClientDroppedP0Spans:  atom(8),
+			TracesBytes:           atom(9),
+			SpansReceived:         atom(10),
+			SpansDropped:          atom(11),
+			SpansFiltered:         atom(12),
+			EventsExtracted:       atom(13),
+			EventsSampled:         atom(14),
+			PayloadAccepted:       atom(15),
+			PayloadRefused:        atom(16),
+		},
+	}}
+
+	testExpvarPublish(t, publishReceiverStats,
+		[]interface{}{map[string]interface{}{
+			"ClientDroppedP0Spans":  8.0,
+			"ClientDroppedP0Traces": 7.0,
+			"EndpointVersion":       "",
+			"EventsExtracted":       13.0,
+			"EventsSampled":         14.0,
+			"Interpreter":           "",
+			"Lang":                  "go",
+			"LangVendor":            "",
+			"LangVersion":           "",
+			"PayloadAccepted":       15.0,
+			"PayloadRefused":        16.0,
+			"SpansDropped":          11.0,
+			"SpansFiltered":         12.0,
+			"SpansMalformed": map[string]interface{}{
+				"DuplicateSpanID":       1.0,
+				"ServiceEmpty":          2.0,
+				"ServiceTruncate":       3.0,
+				"ServiceInvalid":        4.0,
+				"SpanNameEmpty":         5.0,
+				"SpanNameTruncate":      6.0,
+				"SpanNameInvalid":       7.0,
+				"ResourceEmpty":         8.0,
+				"TypeTruncate":          9.0,
+				"InvalidStartDate":      10.0,
+				"InvalidDuration":       11.0,
+				"InvalidHTTPStatusCode": 12.0,
+			},
+			"SpansReceived": 10.0,
+			"TracerVersion": "",
+			"TracesBytes":   9.0,
+			"TracesDropped": map[string]interface{}{
+				"DecodingError":   1.0,
+				"PayloadTooLarge": 2.0,
+				"EmptyTrace":      3.0,
+				"TraceIDZero":     4.0,
+				"SpanIDZero":      5.0,
+				"ForeignSpan":     6.0,
+				"Timeout":         7.0,
+				"EOF":             8.0,
+			},
+			"TracesFiltered":            4.0,
+			"TracesPerSamplingPriority": map[string]interface{}{},
+			"TracesPriorityNone":        5.0,
+			"TracesReceived":            1.0,
+		}})
+}
+
+func TestPublishWatchdogInfo(t *testing.T) {
+	watchdogInfo = watchdog.Info{
+		CPU: watchdog.CPUInfo{UserAvg: 1.2},
+		Mem: watchdog.MemInfo{Alloc: 1000},
+	}
+
+	testExpvarPublish(t, publishWatchdogInfo,
+		map[string]interface{}{
+			"CPU": map[string]interface{}{"UserAvg": 1.2},
+			"Mem": map[string]interface{}{"Alloc": 1000.0},
+		})
+}
+
+func TestPublishRateLimiterStats(t *testing.T) {
+	rateLimiterStats = RateLimiterStats{1.0, 2.0, 3.0, 4.0}
+
+	testExpvarPublish(t, publishRateLimiterStats,
+		map[string]interface{}{
+			"TargetRate":          1.0,
+			"RecentPayloadsSeen":  2.0,
+			"RecentTracesSeen":    3.0,
+			"RecentTracesDropped": 4.0,
+		})
 }

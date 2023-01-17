@@ -8,9 +8,10 @@ package event
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestLegacyCases(t *testing.T) {

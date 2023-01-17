@@ -15,7 +15,7 @@ import (
 const (
 	// maxInvocationsStored is the number of invocations stored in order
 	// to determine whether to flush during every invocation or periodically.
-	maxInvocationsStored = 10
+	maxInvocationsStored = 30
 
 	// defaultFlushInterval is the default interval between flushes when
 	// the extension is flushing telemetry periodically.
@@ -45,18 +45,13 @@ func (d *Daemon) StoreInvocationTime(t time.Time) bool {
 // InvocationInterval computes the invocation interval of the current function.
 // This function returns 0 if not enough invocations were done.
 func (d *Daemon) InvocationInterval() time.Duration {
-	// with less than 3 invocations, we don't have enough data to compute
-	// something reliable.
-	if len(d.lastInvocations) < 3 {
+	// with less than 20 invocations, we may switch to periodical flushing prematurely.
+	if len(d.lastInvocations) < 20 {
 		return 0
 	}
-
-	var total int64
-	for i := 1; i < len(d.lastInvocations); i++ {
-		total += int64(d.lastInvocations[i].Sub(d.lastInvocations[i-1]))
-	}
-
-	return time.Duration(total / int64(len(d.lastInvocations)-1))
+	invs := len(d.lastInvocations)
+	total := int64(d.lastInvocations[invs-1].Sub(d.lastInvocations[0]))
+	return time.Duration(total / int64(invs-1))
 }
 
 // AutoSelectStrategy uses the invocation interval of the function to select the
@@ -71,9 +66,9 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 		return &flush.AtTheEnd{}
 	}
 
-	// if running more than 1 time every 5 minutes, we can switch to the flush strategy
+	// if running more than 1 time every 2 minutes, we can switch to the flush strategy
 	// of flushing at least every 20 seconds (at the start of the invocation)
-	if freq.Seconds() < 60*5 {
+	if freq.Seconds() < 60*2 {
 		return flush.NewPeriodically(defaultFlushInterval)
 	}
 

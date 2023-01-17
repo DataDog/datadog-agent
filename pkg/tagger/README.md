@@ -57,6 +57,23 @@ cache. Cache invalidation is triggered by the collectors (or source) by either:
 * **OrchestratorCardinality**: tags that change value for each pod or task
 * **HighCardinality**: typically tags that change value for each web request, user agent, container, etc.
 
+## Entity IDs
+
+Tagger entities are identified by a string-typed ID, with one of the following forms:
+
+<!-- NOTE: a similar table appears in pkg/autodiscovery/README.md; please keep both in sync -->
+| *Service*                         | *Tagger Entity*                                                    |
+|-----------------------------------|--------------------------------------------------------------------|
+| workloadmeta.KindContainer        | `container_id://<sha>`                                             |
+| workloadmeta.KindGardenContainer  | `container_id://<sha>`                                             |
+| workloadmeta.KindKubernetesPod    | `kubernetes_pod_uid://<uid>`                                       |
+| workloadmeta.KindECSTask          | `ecs_task://<task-id>`                                             |
+| CloudFoundry LRP                  | `<processGuid>/<svcName>/<instanceGuid>`  or `<appGuid>/<svcName>` |
+| Container runtime or orchestrator | (none)                                                             |
+| Kubernetes Endpoint               | `kube_endpoint_uid://<namespace>/<name>/<ip>`                      |
+| Kubernetes Service                | `kube_service://<namespace>/<name>`                                |
+| SNMP Config                       | config hash                                                        |
+
 ## Tagger
 
 The Tagger handles the glue between **Collectors** and **TagStore** and the

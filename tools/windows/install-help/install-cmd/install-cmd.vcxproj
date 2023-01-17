@@ -179,11 +179,14 @@
   <ItemGroup>
     <ClCompile Include="..\cal\caninstall.cpp" />
     <ClCompile Include="..\cal\customactiondata.cpp" />
+    <ClCompile Include="..\cal\PropertyView.cpp" />
     <ClCompile Include="..\cal\ddreg.cpp" />
     <ClCompile Include="..\cal\Error.cpp" />
+    <ClCompile Include="..\cal\Logoncli.cpp" />
     <ClCompile Include="..\cal\FinalizeInstall.cpp" />
     <ClCompile Include="..\cal\stopservices.cpp" />
     <ClCompile Include="..\cal\PropertyReplacer.cpp" />
+    <ClCompile Include="..\cal\SID.cpp" />
     <ClCompile Include="..\cal\strings.cpp" />
     <ClCompile Include="..\cal\TargetMachine.cpp" />
     <ClCompile Include="..\cal\usercreate.cpp" />
@@ -212,6 +215,5 @@
     </ResourceCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

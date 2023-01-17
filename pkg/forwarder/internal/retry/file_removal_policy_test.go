@@ -1,7 +1,11 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package retry
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,8 +17,7 @@ import (
 
 func TestFileRemovalPolicyUnknownDomain(t *testing.T) {
 	a := assert.New(t)
-	root, clean := createTmpFolder(a)
-	defer clean()
+	root := t.TempDir()
 	p, err := NewFileRemovalPolicy(root, 1, FileRemovalPolicyTelemetry{})
 	a.NoError(err)
 
@@ -36,8 +39,7 @@ func TestFileRemovalPolicyUnknownDomain(t *testing.T) {
 
 func TestFileRemovalPolicyOutdatedFiles(t *testing.T) {
 	a := assert.New(t)
-	root, clean := createTmpFolder(a)
-	defer clean()
+	root := t.TempDir()
 	outDatedFileDayCount := 2
 	p, err := NewFileRemovalPolicy(root, outDatedFileDayCount, FileRemovalPolicyTelemetry{})
 	a.NoError(err)
@@ -63,8 +65,7 @@ func TestFileRemovalPolicyOutdatedFiles(t *testing.T) {
 
 func TestFileRemovalPolicyExistingDomain(t *testing.T) {
 	a := assert.New(t)
-	root, clean := createTmpFolder(a)
-	defer clean()
+	root := t.TempDir()
 	telemetry := FileRemovalPolicyTelemetry{}
 	_, err := NewFileRemovalPolicy(root, 1, telemetry)
 	a.NoError(err)
@@ -81,7 +82,7 @@ func createRetryFile(a *assert.Assertions, root string, filename string) string 
 func createFile(a *assert.Assertions, root string, filename string) string {
 	a.NoError(os.MkdirAll(root, 0755))
 	fullPath := path.Join(root, filename)
-	a.NoError(ioutil.WriteFile(fullPath, []byte{1, 2, 3}, 0644))
+	a.NoError(os.WriteFile(fullPath, []byte{1, 2, 3}, 0644))
 	return fullPath
 }
 

@@ -3,19 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
 	"testing"
 
+	"github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -44,15 +48,16 @@ func TestUnlink(t *testing.T) {
 	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
-				return err
+				return error(err)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
+			assert.Equal(t, event.Async, false)
 		})
 	}))
 
@@ -67,15 +72,75 @@ func TestUnlink(t *testing.T) {
 	t.Run("unlinkat", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
-				return err
+				return error(err)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
+			assert.Equal(t, event.Async, false)
+		})
+	})
+
+	testAtFile, testAtFilePtr, err = test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testAtFile)
+
+	inode = getInode(t, testAtFile)
+
+	t.Run("io_uring", func(t *testing.T) {
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest, err := iouring.Unlinkat(unix.AT_FDCWD, testAtFile, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{"unlinkat not supported by io_uring"}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to unlink file with io_uring: %d", ret)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
+			assertRights(t, event.Unlink.File.Mode, expectedMode)
+			assertNearTime(t, event.Unlink.File.MTime)
+			assertNearTime(t, event.Unlink.File.CTime)
+			assert.Equal(t, event.Async, true)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
 }
@@ -108,7 +173,7 @@ func TestUnlinkInvalidate(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "unlink.file.path", testFile)
 		})

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -24,6 +25,7 @@ const (
 	metricRetrieverStoreID            string = "mr"
 )
 
+// MetricsRetriever is responsible for querying and storing external metrics
 type MetricsRetriever struct {
 	refreshPeriod int64
 	metricsMaxAge int64
@@ -32,6 +34,7 @@ type MetricsRetriever struct {
 	isLeader      func() bool
 }
 
+// NewMetricsRetriever returns a new MetricsRetriever
 func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscalers.ProcessorInterface, isLeader func() bool, store *DatadogMetricsInternalStore) (*MetricsRetriever, error) {
 	return &MetricsRetriever{
 		refreshPeriod: refreshPeriod,
@@ -42,6 +45,7 @@ func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscale
 	}, nil
 }
 
+// Run starts retrieving external metrics
 func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting MetricsRetriever")
 	tickerRefreshProcess := time.NewTicker(time.Duration(mr.refreshPeriod) * time.Second)

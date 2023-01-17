@@ -11,12 +11,14 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -73,35 +75,50 @@ func httpOK(w http.ResponseWriter) (n uint64, ok bool) {
 
 type writeCounter struct {
 	w io.Writer
-	n uint64
+	n *atomic.Uint64
 }
 
 func newWriteCounter(w io.Writer) *writeCounter {
-	return &writeCounter{w: w}
+	return &writeCounter{
+		w: w,
+		n: atomic.NewUint64(0),
+	}
 }
 
 func (wc *writeCounter) Write(p []byte) (n int, err error) {
-	atomic.AddUint64(&wc.n, uint64(len(p)))
+	wc.n.Add(uint64(len(p)))
 	return wc.w.Write(p)
 }
 
-func (wc *writeCounter) N() uint64 { return atomic.LoadUint64(&wc.n) }
+func (wc *writeCounter) N() uint64 { return wc.n.Load() }
 
 // httpRateByService outputs, as a JSON, the recommended sampling rates for all services.
 // It returns the number of bytes written and a boolean specifying whether the write was
 // successful.
-func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) (n uint64, ok bool) {
-	w.Header().Set("Content-Type", "application/json")
-	response := traceResponse{
-		Rates: dynConf.RateByService.GetAll(), // this is thread-safe
-	}
+func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *sampler.DynamicConfig) (n uint64, ok bool) {
 	wc := newWriteCounter(w)
-	ok = true
-	encoder := json.NewEncoder(wc)
-	if err := encoder.Encode(response); err != nil {
-		tags := []string{"error:response-error"}
-		metrics.Count(receiverErrorKey, 1, tags, 1)
-		ok = false
+	var err error
+	defer func() {
+		n, ok = wc.N(), err == nil
+		if err != nil {
+			tags := []string{"error:response-error"}
+			metrics.Count(receiverErrorKey, 1, tags, 1)
+		}
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	currentState := dynConf.RateByService.GetNewState(ratesVersion) // this is thread-safe
+	response := traceResponse{
+		Rates: currentState.Rates,
 	}
-	return wc.N(), ok
+	if ratesVersion != "" {
+		w.Header().Set(header.RatesPayloadVersion, currentState.Version)
+		if ratesVersion == currentState.Version {
+			_, err = wc.Write([]byte("{}"))
+			return
+		}
+	}
+	encoder := json.NewEncoder(wc)
+	err = encoder.Encode(response)
+	return
 }

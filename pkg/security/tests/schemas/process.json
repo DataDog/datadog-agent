@@ -42,6 +42,12 @@
         "exec_time": {
             "$ref": "/schemas/datetime.json"
         },
+        "is_kthread": {
+            "type": "boolean"
+        },
+        "is_kworker": {
+            "type": "boolean"
+        },
         "credentials": {
             "type": "object",
             "properties": {
@@ -139,6 +145,21 @@
                 },
                 "change_time": {
                     "$ref": "/schemas/datetime.json"
+                },
+                "envs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "argv0": {
+                    "type": "string"
                 }
             },
             "required": [

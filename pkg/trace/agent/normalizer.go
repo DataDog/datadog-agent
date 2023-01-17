@@ -10,15 +10,14 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -41,23 +40,23 @@ var (
 // is invalid beyond repair
 func normalize(ts *info.TagStats, s *pb.Span) error {
 	if s.TraceID == 0 {
-		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
+		ts.TracesDropped.TraceIDZero.Inc()
 		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
 	}
 	if s.SpanID == 0 {
-		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
+		ts.TracesDropped.SpanIDZero.Inc()
 		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
 	}
 	svc, err := traceutil.NormalizeService(s.Service, ts.Lang)
 	switch err {
 	case traceutil.ErrEmpty:
-		atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
+		ts.SpansMalformed.ServiceEmpty.Inc()
 		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", s.Service, s)
 	case traceutil.ErrTooLong:
-		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
+		ts.SpansMalformed.ServiceTruncate.Inc()
 		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", traceutil.MaxServiceLen, s)
 	case traceutil.ErrInvalid:
-		atomic.AddInt64(&ts.SpansMalformed.ServiceInvalid, 1)
+		ts.SpansMalformed.ServiceInvalid.Inc()
 		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
 	s.Service = svc
@@ -76,18 +75,18 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	s.Name, err = traceutil.NormalizeName(s.Name)
 	switch err {
 	case traceutil.ErrEmpty:
-		atomic.AddInt64(&ts.SpansMalformed.SpanNameEmpty, 1)
+		ts.SpansMalformed.SpanNameEmpty.Inc()
 		log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s: %s", s.Name, s)
 	case traceutil.ErrTooLong:
-		atomic.AddInt64(&ts.SpansMalformed.SpanNameTruncate, 1)
+		ts.SpansMalformed.SpanNameTruncate.Inc()
 		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", traceutil.MaxServiceLen, s)
 	case traceutil.ErrInvalid:
-		atomic.AddInt64(&ts.SpansMalformed.SpanNameInvalid, 1)
+		ts.SpansMalformed.SpanNameInvalid.Inc()
 		log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s: %s", s.Name, s)
 	}
 
 	if s.Resource == "" {
-		atomic.AddInt64(&ts.SpansMalformed.ResourceEmpty, 1)
+		ts.SpansMalformed.ResourceEmpty.Inc()
 		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
 		s.Resource = s.Name
 	}
@@ -106,17 +105,17 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	// if s.Start is very little, less than year 2000 probably a unit issue so discard
 	// (or it is "le bug de l'an 2000")
 	if s.Duration < 0 {
-		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
+		ts.SpansMalformed.InvalidDuration.Inc()
 		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0: %s", s)
 		s.Duration = 0
 	}
 	if s.Duration > math.MaxInt64-s.Start {
-		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
+		ts.SpansMalformed.InvalidDuration.Inc()
 		log.Debugf("Fixing malformed trace. Duration is too large and causes overflow (reason:invalid_duration), setting span.duration=0: %s", s)
 		s.Duration = 0
 	}
 	if s.Start < Year2000NanosecTS {
-		atomic.AddInt64(&ts.SpansMalformed.InvalidStartDate, 1)
+		ts.SpansMalformed.InvalidStartDate.Inc()
 		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now(): %s", s)
 		now := time.Now().UnixNano()
 		s.Start = now - s.Duration
@@ -126,7 +125,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 
 	if len(s.Type) > MaxTypeLen {
-		atomic.AddInt64(&ts.SpansMalformed.TypeTruncate, 1)
+		ts.SpansMalformed.TypeTruncate.Inc()
 		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
 		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
 	}
@@ -135,7 +134,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
-			atomic.AddInt64(&ts.SpansMalformed.InvalidHTTPStatusCode, 1)
+			ts.SpansMalformed.InvalidHTTPStatusCode.Inc()
 			log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
 			delete(s.Meta, "http.status_code")
 		}
@@ -147,10 +146,18 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 // * populates Origin field if it wasn't populated
 // * populates Priority field if it wasn't populated
 func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
-	if chunk.Priority == int32(sampler.PriorityNone) && root.Metrics != nil {
+	// check if priority is already populated
+	if chunk.Priority == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.
 		if p, ok := root.Metrics[tagSamplingPriority]; ok {
 			chunk.Priority = int32(p)
+		} else {
+			for _, s := range chunk.Spans {
+				if p, ok := s.Metrics[tagSamplingPriority]; ok {
+					chunk.Priority = int32(p)
+					break
+				}
+			}
 		}
 	}
 	if chunk.Origin == "" && root.Meta != nil {
@@ -169,7 +176,7 @@ func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
 //   - a reason tag explaining the reason the traces failed normalization
 func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	if len(t) == 0 {
-		atomic.AddInt64(&ts.TracesDropped.EmptyTrace, 1)
+		ts.TracesDropped.EmptyTrace.Inc()
 		return errors.New("trace is empty (reason:empty_trace)")
 	}
 
@@ -177,15 +184,21 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	firstSpan := t[0]
 
 	for _, span := range t {
+		if span == nil {
+			continue
+		}
+		if firstSpan == nil {
+			firstSpan = span
+		}
 		if span.TraceID != firstSpan.TraceID {
-			atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
+			ts.TracesDropped.ForeignSpan.Inc()
 			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
 		}
 		if err := normalize(ts, span); err != nil {
 			return err
 		}
 		if _, ok := spanIDs[span.SpanID]; ok {
-			atomic.AddInt64(&ts.SpansMalformed.DuplicateSpanID, 1)
+			ts.SpansMalformed.DuplicateSpanID.Inc()
 			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
 		}
 		spanIDs[span.SpanID] = struct{}{}

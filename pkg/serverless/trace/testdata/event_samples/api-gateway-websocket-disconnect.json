@@ -1,0 +1,45 @@
+{
+    "headers": {
+        "Host": "p62c47itsb.execute-api.sa-east-1.amazonaws.com",
+        "x-api-key": "",
+        "X-Forwarded-For": "",
+        "x-restapi": "",
+        "x-datadog-trace-id": "12345",
+        "x-datadog-parent-id": "67890",
+        "x-datadog-sampling-priority": "2"
+    },
+    "multiValueHeaders": {
+        "Host": [
+            "p62c47itsb.execute-api.sa-east-1.amazonaws.com"
+        ],
+        "x-api-key": [
+            ""
+        ],
+        "X-Forwarded-For": [
+            ""
+        ],
+        "x-restapi": [
+            ""
+        ]
+    },
+    "requestContext": {
+        "routeKey": "$disconnect",
+        "disconnectStatusCode": 1000,
+        "eventType": "DISCONNECT",
+        "extendedRequestId": "Fc2ydE4LmjQFhdg=",
+        "requestTime": "10/Sep/2021:14:27:14 +0000",
+        "messageDirection": "IN",
+        "disconnectReason": "",
+        "stage": "dev",
+        "connectedAt": 1631284003070,
+        "requestTimeEpoch": 1631284034737,
+        "identity": {
+            "sourceIp": "38.122.226.210"
+        },
+        "requestId": "Fc2ydE4LmjQFhdg=",
+        "domainName": "p62c47itsb.execute-api.sa-east-1.amazonaws.com",
+        "connectionId": "Fc2tgfl3mjQCJfA=",
+        "apiId": "p62c47itsb"
+    },
+    "isBase64Encoded": false
+}

@@ -1,13 +1,18 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"go4.org/intern"
 )
 
 var dnsPool = sync.Pool{
@@ -95,11 +100,19 @@ func (f *dnsFormatter) DNS() map[string]*model.DNSEntry {
 	ipToNames := make(map[string]*model.DNSEntry, len(f.conns.DNS))
 	for addr, names := range f.conns.DNS {
 		entry := dnsPool.Get().(*model.DNSEntry)
-		entry.Names = names
+		entry.Names = internStrings(names)
 		ipToNames[f.ipc.Get(addr)] = entry
 	}
 
 	return ipToNames
+}
+
+func internStrings(arr []dns.Hostname) []string {
+	strs := make([]string, len(arr))
+	for i, a := range arr {
+		strs[i] = dns.ToString(a)
+	}
+	return strs
 }
 
 func (f *dnsFormatter) Domains() []string {
@@ -110,7 +123,7 @@ func (f *dnsFormatter) Domains() []string {
 	return domains
 }
 
-func formatDNSStatsByDomainByQueryType(stats map[*intern.Value]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+func formatDNSStatsByDomainByQueryType(stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
 	m := make(map[int32]*model.DNSStatsByQueryType)
 	for d, bytype := range stats {
 
@@ -124,23 +137,23 @@ func formatDNSStatsByDomainByQueryType(stats map[*intern.Value]map[dns.QueryType
 			ms.DnsTimeouts = stat.Timeouts
 			byqtype.DnsStatsByQueryType[int32(t)] = &ms
 		}
-		pos, ok := domainSet[d.Get().(string)]
+		pos, ok := domainSet[dns.ToString(d)]
 		if !ok {
 			pos = len(domainSet)
-			domainSet[d.Get().(string)] = pos
+			domainSet[dns.ToString(d)] = pos
 		}
 		m[int32(pos)] = byqtype
 	}
 	return m
 }
 
-func formatDNSStatsByDomain(stats map[*intern.Value]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
+func formatDNSStatsByDomain(stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
 	for d, bytype := range stats {
-		pos, ok := domainSet[d.Get().(string)]
+		pos, ok := domainSet[dns.ToString(d)]
 		if !ok {
 			pos = len(domainSet)
-			domainSet[d.Get().(string)] = pos
+			domainSet[dns.ToString(d)] = pos
 		}
 
 		for _, stat := range bytype {

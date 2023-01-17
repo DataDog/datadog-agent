@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build !windows
-// +build kubeapiserver
+//go:build !windows && kubeapiserver
+// +build !windows,kubeapiserver
 
 package main
 
@@ -14,7 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/klog"
+	klogv1 "k8s.io/klog"
+	klogv2 "k8s.io/klog/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,10 +25,12 @@ import (
 // into ERROR, along with the formatting just being off. To make the
 // conversion, we set a redirectLogger as klog's output, and parse the severity
 // and log message out of every log line.
-// NOTE: on klog v2, used by newer versions of client-go than the one we have
-// right now, this parsing is no longer necessary, as it allows us to use
-// klog.SetLogger() instead of klog.SetOutputBySeverity().
-type redirectLogger struct{}
+// NOTE: on klog v2 this parsing is no longer necessary, as it allows us to use
+// klog.SetLogger() instead of klog.SetOutputBySeverity(). unfortunately we
+// still have some dependencies stuck on v1, so we keep the parsing.
+type redirectLogger struct {
+	stackDepth int
+}
 
 func (l redirectLogger) Write(b []byte) (int, error) {
 	// klog log lines have the following format:
@@ -47,15 +50,15 @@ func (l redirectLogger) Write(b []byte) (int, error) {
 
 	switch b[0] {
 	case 'I':
-		log.InfoStackDepth(6, msg)
+		log.InfoStackDepth(l.stackDepth, msg)
 	case 'W':
-		log.WarnStackDepth(6, msg)
+		log.WarnStackDepth(l.stackDepth, msg)
 	case 'E':
-		log.ErrorStackDepth(6, msg)
+		log.ErrorStackDepth(l.stackDepth, msg)
 	case 'F':
-		log.CriticalStackDepth(6, msg)
+		log.CriticalStackDepth(l.stackDepth, msg)
 	default:
-		log.InfoStackDepth(6, msg)
+		log.InfoStackDepth(l.stackDepth, msg)
 	}
 
 	return 0, nil
@@ -65,7 +68,10 @@ func init() {
 	// klog takes configuration from command line flags or, like we're
 	// doing here, a flagset passed as a parameter
 	flagset := flag.NewFlagSet("", flag.ContinueOnError)
-	klog.InitFlags(flagset)
+
+	// klog v1 and v2 use the same flags, so we only need to init it once,
+	// with either of them (v2 chosen by roll of the dice)
+	klogv2.InitFlags(flagset)
 
 	var err error
 
@@ -94,5 +100,6 @@ func init() {
 	// out of the log instead of having an output for each severity. having
 	// an output just for the lowest level captures the logs on all enabled
 	// severities just once.
-	klog.SetOutputBySeverity("INFO", redirectLogger{})
+	klogv1.SetOutputBySeverity("INFO", redirectLogger{6})
+	klogv2.SetOutputBySeverity("INFO", redirectLogger{7})
 }

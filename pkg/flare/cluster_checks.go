@@ -15,7 +15,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -41,7 +41,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		return err
 	}
 
-	r, err := util.DoGet(c, urlstr)
+	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
@@ -128,7 +128,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	}
 
 	// Query the cluster agent API
-	r, err := util.DoGet(c, urlstr)
+	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
@@ -154,7 +154,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 
 func endpointschecksEnabled() bool {
 	for _, provider := range config.Datadog.GetStringSlice("extra_config_providers") {
-		if provider == providers.KubeEndpointsProviderName {
+		if provider == names.KubeEndpointsRegisterName {
 			return true
 		}
 	}

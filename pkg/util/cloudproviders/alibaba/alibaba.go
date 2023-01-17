@@ -26,7 +26,7 @@ var (
 
 // IsRunningOn returns true if the agent is running on Alibaba
 func IsRunningOn(ctx context.Context) bool {
-	if _, err := GetHostAlias(ctx); err == nil {
+	if _, err := GetHostAliases(ctx); err == nil {
 		return true
 	}
 	return false
@@ -37,25 +37,25 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 
 		if !config.IsCloudProviderEnabled(CloudProviderName) {
-			return "", fmt.Errorf("cloud provider is disabled by configuration")
+			return nil, fmt.Errorf("cloud provider is disabled by configuration")
 		}
 
 		endpoint := metadataURL + "/latest/meta-data/instance-id"
 		res, err := httputils.Get(ctx, endpoint, nil, timeout)
 		if err != nil {
-			return "", fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
+			return nil, fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
 		}
 		maxLength := config.Datadog.GetInt("metadata_endpoints_max_hostname_size")
 		if len(res) > maxLength {
-			return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
+			return nil, fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
 		}
-		return res, err
+		return []string{res}, nil
 	},
 }
 
-// GetHostAlias returns the VM ID from the Alibaba Metadata api
-func GetHostAlias(ctx context.Context) (string, error) {
-	return instanceIDFetcher.FetchString(ctx)
+// GetHostAliases returns the VM ID from the Alibaba Metadata api
+func GetHostAliases(ctx context.Context) ([]string, error) {
+	return instanceIDFetcher.FetchStringSlice(ctx)
 }
 
 // GetNTPHosts returns the NTP hosts for Alibaba if it is detected as the cloud provider, otherwise an empty array.

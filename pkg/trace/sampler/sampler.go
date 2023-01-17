@@ -4,24 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package sampler contains all the logic of the agent-side trace sampling
-//
-// Currently implementation is based on the scoring of the "signature" of each trace
-// Based on the score, we get a sample rate to apply to the given trace
-//
-// Current score implementation is super-simple, it is a counter with polynomial decay per signature.
-// We increment it for each incoming trace then we periodically divide the score by two every X seconds.
-// Right after the division, the score is an approximation of the number of received signatures over X seconds.
-// It is different from the scoring in the Agent.
-//
-// Since the sampling can happen at different levels (client, agent, server) or depending on different rules,
-// we have to track the sample rate applied at previous steps. This way, sampling twice at 50% can result in an
-// effective 25% sampling. The rate is stored as a metric in the trace root.
 package sampler
 
 import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 const (
@@ -48,6 +37,9 @@ const (
 
 	// KeyHTTPStatusCode is the key of the http status code in the meta map
 	KeyHTTPStatusCode = "http.status_code"
+
+	// KeySpanSamplingMechanism is the metric key holding a span sampling rule that a span was kept on.
+	KeySpanSamplingMechanism = "_dd.span_sampling.mechanism"
 )
 
 // SamplingPriority is the type encoding a priority sampling decision.
@@ -68,7 +60,22 @@ const (
 
 	// PriorityUserKeep is the value set by a user to explicitly keep a trace.
 	PriorityUserKeep SamplingPriority = 2
+
+	// 2^64 - 1
+	maxTraceID      = ^uint64(0)
+	maxTraceIDFloat = float64(maxTraceID)
+	// Good number for Knuth hashing (large, prime, fit in int64 for languages without uint64)
+	samplerHasher = uint64(1111111111111111111)
 )
+
+// SampleByRate returns whether to keep a trace, based on its ID and a sampling rate.
+// This assumes that trace IDs are nearly uniformly distributed.
+func SampleByRate(traceID uint64, rate float64) bool {
+	if rate < 1 {
+		return traceID*samplerHasher < uint64(rate*maxTraceIDFloat)
+	}
+	return true
+}
 
 // GetSamplingPriority returns the value of the sampling priority metric set on this span and a boolean indicating if
 // such a metric was actually found or not.
@@ -158,6 +165,21 @@ func IsAnalyzedSpan(s *pb.Span) bool {
 	return v == 1
 }
 
+func weightRoot(s *pb.Span) float32 {
+	if s == nil {
+		return 1
+	}
+	clientRate, ok := s.Metrics[KeySamplingRateGlobal]
+	if !ok || clientRate <= 0.0 || clientRate > 1.0 {
+		clientRate = 1
+	}
+	preSamplerRate, ok := s.Metrics[KeySamplingRatePreSampler]
+	if !ok || preSamplerRate <= 0.0 || preSamplerRate > 1.0 {
+		preSamplerRate = 1
+	}
+	return float32(1.0 / (preSamplerRate * clientRate))
+}
+
 func getMetric(s *pb.Span, k string) (float64, bool) {
 	if s.Metrics == nil {
 		return 0, false
@@ -180,4 +202,31 @@ func setMetric(s *pb.Span, key string, val float64) {
 		s.Metrics = make(map[string]float64)
 	}
 	s.Metrics[key] = val
+}
+
+// ApplySpanSampling searches chunk for spans that have a span sampling tag set.
+// If it finds such spans, then it replaces chunk's spans with only those spans,
+// and sets the chunk's sampling priority to "user keep." Tracers that wish to
+// keep certain spans even when the trace is dropped will set the appropriate
+// tags on the spans to be kept.
+// ApplySpanSampling returns whether any changes were actually made.
+// Do not call ApplySpanSampling on a chunk that the other samplers have
+// decided to keep. Doing so might wrongfully remove spans from a kept trace.
+func ApplySpanSampling(chunk *pb.TraceChunk) bool {
+	var sampledSpans []*pb.Span
+	for _, span := range chunk.Spans {
+		if _, ok := traceutil.GetMetric(span, KeySpanSamplingMechanism); ok {
+			// Keep only those spans that have a span sampling tag.
+			sampledSpans = append(sampledSpans, span)
+		}
+	}
+	if sampledSpans == nil {
+		// No span sampling tags → no span sampling.
+		return false
+	}
+
+	chunk.Spans = sampledSpans
+	chunk.Priority = int32(PriorityUserKeep)
+	chunk.DroppedTrace = false
+	return true
 }

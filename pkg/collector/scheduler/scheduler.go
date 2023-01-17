@@ -9,8 +9,9 @@ import (
 	"expvar"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,7 +40,7 @@ func init() {
 // Scheduler keeps things rolling.
 // More docs to come...
 type Scheduler struct {
-	running          uint32                      // Flag to see if the scheduler is running
+	running          *atomic.Bool                // Flag to see if the scheduler is running
 	checksPipe       chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
 	done             chan bool                   // Guard for the main loop
 	halted           chan bool                   // Used to internally communicate all queues are done
@@ -69,7 +70,7 @@ func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 		jobQueues:        make(map[time.Duration]*jobQueue),
 		checkToQueue:     make(map[check.ID]*jobQueue),
 		tlmTrackedChecks: make(map[check.ID]string),
-		running:          0,
+		running:          atomic.NewBool(false),
 		cancelOneTime:    make(chan bool),
 		wgOneTime:        sync.WaitGroup{},
 	}
@@ -85,10 +86,10 @@ func (s *Scheduler) Enter(check check.Check) error {
 	}
 
 	if check.Interval() < minAllowedInterval {
-		return fmt.Errorf("Schedule interval must be greater than %v or 0", minAllowedInterval)
+		return fmt.Errorf("schedule interval must be greater than %v or 0", minAllowedInterval)
 	}
 
-	log.Infof("Scheduling check %v with an interval of %v", check, check.Interval())
+	log.Infof("Scheduling check %s with an interval of %v", check.ID(), check.Interval())
 
 	// sync when accessing `jobQueues` and `check2queue`
 	s.mu.Lock()
@@ -153,7 +154,7 @@ func (s *Scheduler) Cancel(id check.ID) error {
 // This doesn't block but waits for the queues to be ready before returning.
 func (s *Scheduler) Run() {
 	// Invoking Run does nothing if the Scheduler is already running
-	if atomic.LoadUint32(&s.running) != 0 {
+	if s.running.Load() {
 		log.Debug("Scheduler is already running")
 		return
 	}
@@ -164,7 +165,7 @@ func (s *Scheduler) Run() {
 		s.startQueues()
 
 		// set internal state
-		atomic.StoreUint32(&s.running, 1)
+		s.running.Store(true)
 
 		// notify queues are up
 		s.started <- true
@@ -173,7 +174,7 @@ func (s *Scheduler) Run() {
 		<-s.done
 
 		// someone asked to stop
-		atomic.StoreUint32(&s.running, 0)
+		s.running.Store(false)
 		log.Debug("Exited Scheduler loop, shutting down queues...")
 		s.stopQueues()
 
@@ -188,7 +189,7 @@ func (s *Scheduler) Run() {
 // Stop the scheduler, blocks until the scheduler is fully stopped.
 func (s *Scheduler) Stop() error {
 	// Stopping when the Scheduler is not running is a noop.
-	if atomic.LoadUint32(&s.running) == 0 {
+	if !s.running.Load() {
 		log.Debug("Scheduler is already stopped")
 		return nil
 	}

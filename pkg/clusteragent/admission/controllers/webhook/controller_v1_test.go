@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
@@ -14,9 +15,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
-	"github.com/stretchr/testify/assert"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,9 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-var (
-	v1Cfg = NewConfig(true, false)
-)
+var v1Cfg = NewConfig(true, false)
 
 func TestSecretNotFoundV1(t *testing.T) {
 	f := newFixtureV1(t)
@@ -118,8 +118,62 @@ func TestUpdateOutdatedWebhookV1(t *testing.T) {
 	}
 }
 
+func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
+	f := newFixtureV1(t)
+	c, _ := f.createController()
+	c.config = NewConfig(true, false)
+
+	holdValue := config.Datadog.Get("admission_controller.failure_policy")
+	defer config.Datadog.Set("admission_controller.failure_policy", holdValue)
+
+	config.Datadog.Set("admission_controller.failure_policy", "Ignore")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "ignore")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "BadVal")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Ignore, *webhookSkeleton.FailurePolicy)
+}
+
+func TestAdmissionControllerFailureModeFail(t *testing.T) {
+	holdValue := config.Datadog.Get("admission_controller.failure_policy")
+	defer config.Datadog.Set("admission_controller.failure_policy", holdValue)
+
+	f := newFixtureV1(t)
+	c, _ := f.createController()
+
+	config.Datadog.Set("admission_controller.failure_policy", "Fail")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Fail, *webhookSkeleton.FailurePolicy)
+
+	config.Datadog.Set("admission_controller.failure_policy", "fail")
+	c.config = NewConfig(true, false)
+
+	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.Fail, *webhookSkeleton.FailurePolicy)
+}
+
 func TestGenerateTemplatesV1(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
+	defaultReinvocationPolicy := admiv1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
@@ -148,6 +202,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					},
 				},
 			},
+			ReinvocationPolicy:      &defaultReinvocationPolicy,
 			FailurePolicy:           &failurePolicy,
 			MatchPolicy:             &matchPolicy,
 			SideEffects:             &sideEffects,
@@ -169,6 +224,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -190,6 +246,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", false)
 				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -207,6 +264,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", false)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -228,6 +286,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", false)
 				mockConfig.Set("admission_controller.mutate_unlabelled", false)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -240,10 +299,51 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 		},
 		{
+			name: "lib injection, mutate all",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.inject_config.enabled", false)
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", true)
+			},
+			configFunc: func() Config { return NewConfig(false, false) },
+			want: func() []admiv1.MutatingWebhook {
+				webhook := webhook("datadog.webhook.auto.instrumentation", "/injectlib", &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
+					},
+				}, nil)
+				return []admiv1.MutatingWebhook{webhook}
+			},
+		},
+		{
+			name: "lib injection, mutate labelled",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.inject_config.enabled", false)
+				mockConfig.Set("admission_controller.mutate_unlabelled", false)
+				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", true)
+			},
+			configFunc: func() Config { return NewConfig(false, false) },
+			want: func() []admiv1.MutatingWebhook {
+				webhook := webhook("datadog.webhook.auto.instrumentation", "/injectlib", &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				}, nil)
+				return []admiv1.MutatingWebhook{webhook}
+			},
+		},
+		{
 			name: "config and tags injection, mutate labelled",
 			setupConfig: func() {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -266,6 +366,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
@@ -296,6 +397,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.Set("admission_controller.mutate_unlabelled", false)
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.Set("admission_controller.namespace_selector_fallback", true)
 			},
 			configFunc: func() Config { return NewConfig(false, true) },
@@ -313,10 +415,79 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				return []admiv1.MutatingWebhook{webhookConfig, webhookTags}
 			},
 		},
+		{
+			name: "AKS-specific label selector without namespace selector enabled",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.add_aks_selectors", true)
+				mockConfig.Set("admission_controller.namespace_selector_fallback", false)
+				mockConfig.Set("admission_controller.inject_config.enabled", true)
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+				mockConfig.Set("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+			},
+			configFunc: func() Config { return NewConfig(false, false) },
+			want: func() []admiv1.MutatingWebhook {
+				webhook := webhook(
+					"datadog.webhook.config",
+					"/injectconfig",
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "admission.datadoghq.com/enabled",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+						},
+					},
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpDoesNotExist,
+							},
+						},
+					},
+				)
+				return []admiv1.MutatingWebhook{webhook}
+			},
+		},
+		{
+			name: "AKS-specific label selector with namespace selector enabled",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.add_aks_selectors", true)
+				mockConfig.Set("admission_controller.namespace_selector_fallback", true)
+				mockConfig.Set("admission_controller.inject_config.enabled", true)
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+			},
+			configFunc: func() Config { return NewConfig(false, true) },
+			want: func() []admiv1.MutatingWebhook {
+				webhook := webhook(
+					"datadog.webhook.config",
+					"/injectconfig",
+					nil,
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "admission.datadoghq.com/enabled",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpDoesNotExist,
+							},
+						},
+					},
+				)
+				return []admiv1.MutatingWebhook{webhook}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
+			defer resetMockConfig(mockConfig) // Reset to default
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()
@@ -328,6 +499,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 }
 
 func TestGetWebhookSkeletonV1(t *testing.T) {
+	defaultReinvocationPolicy := admiv1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
@@ -335,6 +507,8 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 	path := "/bar"
 	defaultTimeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
+	namespaceSelector, _ := buildLabelSelectors(true)
+	_, objectSelector := buildLabelSelectors(false)
 	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1.MutatingWebhook {
 		return admiv1.MutatingWebhook{
 			Name: "datadog.webhook.foo",
@@ -358,6 +532,7 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 					},
 				},
 			},
+			ReinvocationPolicy:      &defaultReinvocationPolicy,
 			FailurePolicy:           &failurePolicy,
 			MatchPolicy:             &matchPolicy,
 			SideEffects:             &sideEffects,
@@ -385,7 +560,7 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 				path:       "/bar",
 			},
 			namespaceSelector: false,
-			want:              webhook(&defaultTimeout, buildLabelSelector(), nil),
+			want:              webhook(&defaultTimeout, objectSelector, nil),
 		},
 		{
 			name: "namespace selector",
@@ -394,7 +569,7 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 				path:       "/bar",
 			},
 			namespaceSelector: true,
-			want:              webhook(&defaultTimeout, nil, buildLabelSelector()),
+			want:              webhook(&defaultTimeout, nil, namespaceSelector),
 		},
 		{
 			name: "custom timeout",
@@ -404,7 +579,7 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 			},
 			timeout:           &customTimeout,
 			namespaceSelector: false,
-			want:              webhook(&customTimeout, buildLabelSelector(), nil),
+			want:              webhook(&customTimeout, objectSelector, nil),
 		},
 	}
 	for _, tt := range tests {
@@ -433,19 +608,24 @@ func newFixtureV1(t *testing.T) *fixtureV1 {
 	return f
 }
 
-func (f *fixtureV1) run(t *testing.T) *ControllerV1 {
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
+func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
-	c := NewControllerV1(
+
+	return NewControllerV1(
 		f.client,
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration().V1().MutatingWebhookConfigurations(),
 		func() bool { return true },
 		make(chan struct{}),
 		v1Cfg,
-	)
+	), factory
+}
+
+func (f *fixtureV1) run(t *testing.T) *ControllerV1 {
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	c, factory := f.createController()
 
 	factory.Start(stopCh)
 	go c.Run(stopCh)
@@ -462,8 +642,8 @@ func (f *fixtureV1) populateWebhooksCache(webhooks ...*admiv1.MutatingWebhookCon
 }
 
 func validateV1(w *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) error {
-	if len(w.Webhooks) != 2 {
-		return fmt.Errorf("Webhooks should contain 2 entries, got %d", len(w.Webhooks))
+	if len(w.Webhooks) != 3 {
+		return fmt.Errorf("Webhooks should contain 3 entries, got %d", len(w.Webhooks))
 	}
 
 	for i := 0; i < len(w.Webhooks); i++ {
@@ -473,4 +653,43 @@ func validateV1(w *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) error 
 	}
 
 	return nil
+}
+
+func TestAdmissionControllerReinvocationPolicyV1(t *testing.T) {
+	f := newFixtureV1(t)
+	c, _ := f.createController()
+	c.config = NewConfig(true, false)
+
+	defaultValue := config.Datadog.Get("admission_controller.reinvocation_policy")
+	defer config.Datadog.Set("admission_controller.reinvocation_policy", defaultValue)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "IfNeeded")
+	c.config = NewConfig(true, false)
+	webhook := c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "ifneeded")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "Never")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "never")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "wrong")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	config.Datadog.Set("admission_controller.reinvocation_policy", "")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar")
+	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
 }

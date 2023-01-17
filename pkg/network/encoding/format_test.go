@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
@@ -5,11 +10,9 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 func TestFormatRouteIdx(t *testing.T) {
@@ -76,75 +79,6 @@ func TestFormatRouteIdx(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestFormatHTTPStats(t *testing.T) {
-	var (
-		clientPort = uint16(52800)
-		serverPort = uint16(8080)
-		localhost  = util.AddressFromString("127.0.0.1")
-	)
-
-	httpKey1 := http.NewKey(
-		localhost,
-		localhost,
-		clientPort,
-		serverPort,
-		"/testpath-1",
-		http.MethodGet,
-	)
-	var httpStats1 http.RequestStats
-	for i := range httpStats1 {
-		httpStats1[i].Count = 1
-		httpStats1[i].FirstLatencySample = 10
-	}
-
-	httpKey2 := httpKey1
-	httpKey2.Path = "/testpath-2"
-	var httpStats2 http.RequestStats
-	for i := range httpStats2 {
-		httpStats2[i].Count = 1
-		httpStats2[i].FirstLatencySample = 20
-	}
-
-	in := map[http.Key]http.RequestStats{
-		httpKey1: httpStats1,
-		httpKey2: httpStats2,
-	}
-	out := &model.HTTPAggregations{
-		EndpointAggregations: []*model.HTTPStats{
-			{
-				Path:   "/testpath-1",
-				Method: model.HTTPMethod_Get,
-				StatsByResponseStatus: []*model.HTTPStats_Data{
-					{Count: 1, FirstLatencySample: 10, Latencies: nil},
-					{Count: 1, FirstLatencySample: 10, Latencies: nil},
-					{Count: 1, FirstLatencySample: 10, Latencies: nil},
-					{Count: 1, FirstLatencySample: 10, Latencies: nil},
-					{Count: 1, FirstLatencySample: 10, Latencies: nil},
-				},
-			},
-			{
-				Path:   "/testpath-2",
-				Method: model.HTTPMethod_Get,
-				StatsByResponseStatus: []*model.HTTPStats_Data{
-					{Count: 1, FirstLatencySample: 20, Latencies: nil},
-					{Count: 1, FirstLatencySample: 20, Latencies: nil},
-					{Count: 1, FirstLatencySample: 20, Latencies: nil},
-					{Count: 1, FirstLatencySample: 20, Latencies: nil},
-					{Count: 1, FirstLatencySample: 20, Latencies: nil},
-				},
-			},
-		},
-	}
-
-	result := FormatHTTPStats(in)
-
-	aggregationKey := httpKey1
-	aggregationKey.Path = ""
-	aggregationKey.Method = http.MethodUnknown
-	aggregations := result[aggregationKey].EndpointAggregations
-	assert.ElementsMatch(t, out.EndpointAggregations, aggregations)
 }
 
 func BenchmarkConnectionReset(b *testing.B) {

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package autoscalers
@@ -12,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // TestDatadogExternalQuery tests that the outputs gotten from Datadog are appropriately dealt with.
@@ -41,7 +43,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 			},
 			[]string{"mymetric{foo:bar}"},
 			map[string]Point{"mymetric{foo:bar}": {Value: 0, Valid: false}},
-			fmt.Errorf("Returned series slice empty"),
+			fmt.Errorf("none of the queries mymetric{foo:bar} returned any point, there might be an issue with them"),
 		},
 		{
 			"metricName yields rate limiting error response from Datadog",

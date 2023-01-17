@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package serializer
 
@@ -11,11 +12,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func generateData(points int, items int, tags int) metrics.Series {
@@ -33,22 +37,22 @@ func generateData(points int, items int, tags int) metrics.Series {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags: func() []string {
+			Tags: tagset.CompositeTagsFromSlice(func() []string {
 				ts := make([]string, tags)
 				for t := 0; t < tags; t++ {
 					ts[t] = fmt.Sprintf("tag%d:foobar", t)
 				}
 				return ts
-			}(),
+			}()),
 		})
 	}
 	return series
 }
 
-var payloads forwarder.Payloads
+var payloads transaction.BytesPayloads
 
 func BenchmarkSeries(b *testing.B) {
-	bench := func(points, items, tags int, build func(series metrics.Series) (forwarder.Payloads, error)) func(b *testing.B) {
+	bench := func(points, items, tags int, build func(series metrics.Series) (transaction.BytesPayloads, error)) func(b *testing.B) {
 		return func(b *testing.B) {
 			series := generateData(points, items, tags)
 
@@ -62,7 +66,7 @@ func BenchmarkSeries(b *testing.B) {
 				payloads, err = build(series)
 				payloadCount += len(payloads)
 				for _, pl := range payloads {
-					payloadCompressedSize += uint64(len(*pl))
+					payloadCompressedSize += uint64(pl.Len())
 				}
 				require.NoError(b, err)
 			}
@@ -71,13 +75,15 @@ func BenchmarkSeries(b *testing.B) {
 		}
 	}
 	bufferContext := marshaler.DefaultBufferContext()
-	pb := func(series metrics.Series) (forwarder.Payloads, error) {
-		return series.MarshalSplitCompress(bufferContext)
+	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
+		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
+		return iterableSeries.MarshalSplitCompress(bufferContext)
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true)
-	json := func(series metrics.Series) (forwarder.Payloads, error) {
-		return payloadBuilder.Build(series)
+	json := func(series metrics.Series) (transaction.BytesPayloads, error) {
+		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
+		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	}
 
 	for _, items := range []int{5, 10, 100, 500, 1000, 10000, 100000} {

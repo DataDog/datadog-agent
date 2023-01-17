@@ -26,18 +26,25 @@ const (
 )
 
 var (
-	apiKeyStatusUnknown = expvar.String{}
-	apiKeyInvalid       = expvar.String{}
-	apiKeyValid         = expvar.String{}
-	apiKeyFake          = expvar.String{}
+	apiKeyEndpointUnreachable  = expvar.String{}
+	apiKeyUnexpectedStatusCode = expvar.String{}
+	apiKeyInvalid              = expvar.String{}
+	apiKeyValid                = expvar.String{}
+	apiKeyFake                 = expvar.String{}
 
 	validateAPIKeyTimeout = 10 * time.Second
 
-	apiKeyStatus = expvar.Map{}
+	apiKeyStatus  = expvar.Map{}
+	apiKeyFailure = expvar.Map{}
+
+	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
+	// with 'api.' (see computeDomainsURL).
+	domainURLRegexp = regexp.MustCompile(`([a-z]{2}\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
 )
 
 func init() {
-	apiKeyStatusUnknown.Set("Unable to validate API Key")
+	apiKeyEndpointUnreachable.Set("Unable to reach the API Key validation endpoint")
+	apiKeyUnexpectedStatusCode.Set("Unexpected response code from the API Key validation endpoint")
 	apiKeyInvalid.Set("API Key invalid")
 	apiKeyValid.Set("API Key valid")
 	apiKeyFake.Set("Fake API Key that skips validation")
@@ -45,7 +52,9 @@ func init() {
 
 func initForwarderHealthExpvars() {
 	apiKeyStatus.Init()
+	apiKeyFailure.Init()
 	transaction.ForwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
+	transaction.ForwarderExpvars.Set("APIKeyFailure", &apiKeyFailure)
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
@@ -133,23 +142,25 @@ func (fh *forwarderHealth) healthCheckLoop() {
 // computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
 func (fh *forwarderHealth) computeDomainsURL() {
 	for domain, dr := range fh.domainResolvers {
-		apiDomain := ""
-		re := regexp.MustCompile(`((us|eu)\d\.)?datadoghq.[a-z]+$`)
-		if re.MatchString(domain) {
-			apiDomain = "https://api." + re.FindString(domain)
-		} else {
-			apiDomain = domain
+		if domainURLRegexp.MatchString(domain) {
+			domain = "https://api." + domainURLRegexp.FindString(domain)
 		}
-		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], dr.GetAPIKeys()...)
+		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], dr.GetAPIKeys()...)
 	}
 }
 
-func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
+func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status *expvar.String) {
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
 	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
-	apiKeyStatus.Set(obfuscatedKey, status)
+	if status == &apiKeyInvalid {
+		apiKeyFailure.Set(obfuscatedKey, status)
+		apiKeyStatus.Delete(obfuscatedKey)
+	} else {
+		apiKeyStatus.Set(obfuscatedKey, status)
+		apiKeyFailure.Delete(obfuscatedKey)
+	}
 }
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
@@ -169,7 +180,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		fh.setAPIKeyStatus(apiKey, domain, &apiKeyEndpointUnreachable)
 		return false, err
 	}
 
@@ -177,7 +188,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		fh.setAPIKeyStatus(apiKey, domain, &apiKeyEndpointUnreachable)
 		return false, err
 	}
 	defer resp.Body.Close()
@@ -191,7 +202,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 		return false, nil
 	}
 
-	fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+	fh.setAPIKeyStatus(apiKey, domain, &apiKeyUnexpectedStatusCode)
 	return false, fmt.Errorf("Unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 
@@ -203,7 +214,12 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
 			if err != nil {
-				log.Debug(err)
+				log.Debugf(
+					"api_key '%s' for domain %s could not be validated: %s",
+					apiKey,
+					domain,
+					err.Error(),
+				)
 				apiError = true
 			} else if v {
 				log.Debugf("api_key '%s' for domain %s is valid", apiKey, domain)

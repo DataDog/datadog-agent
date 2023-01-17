@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue where some data coming from the Agent when running in ECS
+    Fargate did not have task_*, ecs_cluster_name, region, and
+    availability_zone tags.

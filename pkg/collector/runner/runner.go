@@ -9,8 +9,9 @@ import (
 	"fmt"
 
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
@@ -29,17 +30,13 @@ const (
 
 var (
 	// Atomic incrementing variables for generating globally unique runner and worker object IDs
-	runnerIDGenerator uint64
-	workerIDGenerator uint64
+	runnerIDGenerator = atomic.NewUint64(0)
+	workerIDGenerator = atomic.NewUint64(0)
 )
 
 // Runner is the object in charge of running all the checks
 type Runner struct {
-	// keep members that are used in atomic functions at the top of the structure
-	// important for 32 bit compiles.
-	// see https://github.com/golang/go/issues/599#issuecomment-419909701 for more information
-	isRunning uint32 // Flag to see if the Runner is, well, running
-
+	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
 	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
@@ -55,8 +52,8 @@ func NewRunner() *Runner {
 	numWorkers := config.Datadog.GetInt("check_runners")
 
 	r := &Runner{
-		id:                  int(atomic.AddUint64(&runnerIDGenerator, 1)),
-		isRunning:           1,
+		id:                  int(runnerIDGenerator.Inc()),
+		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
 		isStaticWorkerCount: numWorkers != 0,
 		pendingChecksChan:   make(chan check.Check),
@@ -115,13 +112,13 @@ func (r *Runner) AddWorker() {
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	worker, err := worker.NewWorker(
 		r.id,
-		int(atomic.AddUint64(&workerIDGenerator, 1)),
+		int(workerIDGenerator.Inc()),
 		r.pendingChecksChan,
 		r.checksTracker,
 		r.ShouldAddCheckStats,
 	)
 	if err != nil {
-		log.Errorf("Runner %d was unable to instantiate a worker: %s", err)
+		log.Errorf("Runner %d was unable to instantiate a worker: %s", r.id, err)
 		return nil, err
 	}
 
@@ -170,7 +167,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 // Stop closes the pending channel so all workers will exit their loop and terminate
 // All publishers to the pending channel need to have stopped before Stop is called
 func (r *Runner) Stop() {
-	if !atomic.CompareAndSwapUint32(&r.isRunning, 1, 0) {
+	if !r.isRunning.CAS(true, false) {
 		log.Debugf("Runner %d already stopped, nothing to do here...", r.id)
 		return
 	}

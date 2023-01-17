@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -51,6 +52,7 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 }
 
+// ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
 	informers          map[InformerName]cache.SharedInformer
 	InformerFactory    informers.SharedInformerFactory
@@ -105,7 +107,7 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 	ctx.InformerFactory.Start(ctx.StopCh)
 
 	// Wait for the cache to sync
-	if err := SyncInformers(ctx.informers); err != nil {
+	if err := SyncInformers(ctx.informers, 0); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -127,7 +129,8 @@ func startMetadataController(ctx ControllerContext, c chan error) {
 // startAutoscalersController starts the informers needed for autoscaling.
 // The synchronization of the informers is handled by the controller.
 func startAutoscalersController(ctx ControllerContext, c chan error) {
-	dogCl, err := autoscalers.NewDatadogClient()
+	var err error
+	dogCl, err = autoscalers.NewDatadogClient()
 	if err != nil {
 		c <- err
 		return
@@ -145,8 +148,8 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 	if ctx.WPAInformerFactory != nil {
 		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, ctx.WPAInformerFactory)
 	}
-	// mutate the Autoscaler controller to embed an informer against the HPAs
-	autoscalersController.EnableHPA(ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+
+	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)
 	go autoscalersController.RunHPA(ctx.StopCh)
 
 	autoscalersController.RunControllerLoop(ctx.StopCh)

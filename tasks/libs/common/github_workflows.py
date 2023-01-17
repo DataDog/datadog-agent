@@ -19,10 +19,10 @@ class GithubWorkflows(RemoteAPI):
     BASE_URL = "https://api.github.com"
 
     def __init__(self, repository="", api_token="", api_token_expiration_date=""):
+        super(GithubWorkflows, self).__init__("GitHub Workflows")
         self.api_token = api_token
         self.api_token_expiration_date = api_token_expiration_date
         self.repository = repository
-        self.api_name = "GitHub Workflows"
         self.authorization_error_message = (
             "HTTP 401: The token is invalid. Is the Github App still allowed to perform this action?"
         )

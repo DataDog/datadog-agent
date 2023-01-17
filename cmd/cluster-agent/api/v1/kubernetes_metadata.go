@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package v1
@@ -6,29 +12,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/gorilla/mux"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 )
 
 func installKubernetesMetadataEndpoints(r *mux.Router) {
-	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
-	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
-	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
-	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
-	r.HandleFunc("/tags/namespace/{ns}", getNamespaceMetadata).Methods("GET")
-	r.HandleFunc("/cluster/id", getClusterID).Methods("GET")
+	r.HandleFunc("/annotations/node/{nodeName}", api.WithTelemetryWrapper("getNodeAnnotations", getNodeAnnotations)).Methods("GET")
+	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", api.WithTelemetryWrapper("getPodMetadata", getPodMetadata)).Methods("GET")
+	r.HandleFunc("/tags/pod/{nodeName}", api.WithTelemetryWrapper("getPodMetadataForNode", getPodMetadataForNode)).Methods("GET")
+	r.HandleFunc("/tags/pod", api.WithTelemetryWrapper("getAllMetadata", getAllMetadata)).Methods("GET")
+	r.HandleFunc("/tags/node/{nodeName}", api.WithTelemetryWrapper("getNodeLabels", getNodeLabels)).Methods("GET")
+	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", getNamespaceLabels)).Methods("GET")
+	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
 }
 
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
-func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
+func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClient, string) (map[string]string, error), what string, filterList []string) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/node/localhost
@@ -52,55 +61,55 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getNodeMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 
 	vars := mux.Vars(r)
-	var labelBytes []byte
+	var dataBytes []byte
 	nodeName := vars["nodeName"]
-	nodeLabels, err := as.GetNodeLabels(cl, nodeName)
+	nodeData, err := f(cl, nodeName)
 	if err != nil {
-		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error()) //nolint:errcheck
+		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getNodeMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
-	labelBytes, err = json.Marshal(nodeLabels)
+
+	// Filter data to avoid returning too big useless data
+	if filterList != nil {
+		newNodeData := make(map[string]string)
+		for _, key := range filterList {
+			if value, found := nodeData[key]; found {
+				newNodeData[key] = value
+			}
+		}
+		nodeData = newNodeData
+	}
+
+	dataBytes, err = json.Marshal(nodeData)
 	if err != nil {
-		log.Errorf("Could not process the labels of the node %s from the informer's cache: %v", nodeName, err.Error()) //nolint:errcheck
+		log.Errorf("Could not process the %s of the node %s from the informer's cache: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getNodeMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
-	if len(labelBytes) > 0 {
+	if len(dataBytes) > 0 {
 		w.WriteHeader(http.StatusOK)
-		w.Write(labelBytes)
-		apiRequests.Inc(
-			"getNodeMetadata",
-			strconv.Itoa(http.StatusOK),
-		)
+		w.Write(dataBytes)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.Inc(
-		"getNodeMetadata",
-		strconv.Itoa(http.StatusNotFound),
-	)
-	fmt.Fprintf(w, "Could not find labels on the node: %s", nodeName)
+	fmt.Fprintf(w, "Could not find %s on the node: %s", what, nodeName)
 }
 
-// getNamespaceMetadata is only used when the node agent hits the DCA for the list of labels
-func getNamespaceMetadata(w http.ResponseWriter, r *http.Request) {
+func getNodeLabels(w http.ResponseWriter, r *http.Request) {
+	getNodeMetadata(w, r, as.GetNodeLabels, "labels", nil)
+}
+
+func getNodeAnnotations(w http.ResponseWriter, r *http.Request) {
+	getNodeMetadata(w, r, as.GetNodeAnnotations, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+}
+
+// getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
+func getNamespaceLabels(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/namespace/default
@@ -125,36 +134,20 @@ func getNamespaceMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not retrieve the namespace labels of %s: %v", nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getNamespaceMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 	labelBytes, err = json.Marshal(nsLabels)
 	if err != nil {
 		log.Errorf("Could not process the labels of the namespace %s from the informer's cache: %v", nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getNamespaceMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 	if len(labelBytes) > 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(labelBytes)
-		apiRequests.Inc(
-			"getNamespaceMetadata",
-			strconv.Itoa(http.StatusOK),
-		)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.Inc(
-		"getNamespaceMetadata",
-		strconv.Itoa(http.StatusNotFound),
-	)
 	fmt.Fprintf(w, "Could not find labels on the namespace: %s", nsName)
 }
 
@@ -187,10 +180,6 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName) //nolint:errcheck
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getPodMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 
@@ -198,26 +187,14 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getPodMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 	if len(metaBytes) != 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(metaBytes)
-		apiRequests.Inc(
-			"getPodMetadata",
-			strconv.Itoa(http.StatusOK),
-		)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.Inc(
-		"getPodMetadata",
-		strconv.Itoa(http.StatusNotFound),
-	)
 	fmt.Fprintf(w, "Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)
 }
 
@@ -233,27 +210,15 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	slcB, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getPodMetadataForNode",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 
 	if len(slcB) != 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(slcB)
-		apiRequests.Inc(
-			"getPodMetadataForNode",
-			strconv.Itoa(http.StatusOK),
-		)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.Inc(
-		"getPodMetadata",
-		strconv.Itoa(http.StatusNotFound),
-	)
 	return
 }
 
@@ -282,10 +247,6 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getAllMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes(cl)
@@ -299,25 +260,13 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	metaListBytes, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getAllMetadata",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 	if len(metaListBytes) != 0 {
 		w.Write(metaListBytes)
-		apiRequests.Inc(
-			"getAllMetadata",
-			strconv.Itoa(http.StatusOK),
-		)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.Inc(
-		"getAllMetadata",
-		strconv.Itoa(http.StatusNotFound),
-	)
 	return
 }
 
@@ -329,10 +278,6 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getClusterID",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 	coreCl := cl.Cl.CoreV1().(*corev1.CoreV1Client)
@@ -341,10 +286,6 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Failed to generate or retrieve the cluster ID: %v", err) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getClusterID",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 	// write response
@@ -352,17 +293,9 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Failed to marshal the cluster ID: %v", err) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc(
-			"getClusterID",
-			strconv.Itoa(http.StatusInternalServerError),
-		)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(j)
-	apiRequests.Inc(
-		"getClusterID",
-		strconv.Itoa(http.StatusOK),
-	)
 	return
 }

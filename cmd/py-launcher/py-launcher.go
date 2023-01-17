@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package main
@@ -10,7 +11,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -32,7 +32,8 @@ func main() {
 	flag.Parse()
 
 	flag.Usage = func() {
-		fmt.Println("This binary execute a python script in the context of the Datadog Agent.\n" +
+		// Disable: printf: `fmt.Println` arg list ends with redundant newline (govet)
+		fmt.Println("This binary execute a python script in the context of the Datadog Agent.\n" + //nolint:govet
 			"This includes synthetic modules (Go module bind to Python), logging facilities, configuration setup, ...\n")
 
 		fmt.Printf("Usage: %s [-conf datadog.yaml] -py PYTHON_FILE -- [ARGS FOR THE PYTHON SCRIPT]...\n", os.Args[0])
@@ -57,7 +58,7 @@ func main() {
 
 	pyRtLoader := python.GetRtLoader()
 	rtloader := (*C.rtloader_t)(pyRtLoader)
-	pythonCode, err := ioutil.ReadFile(*pythonScript)
+	pythonCode, err := os.ReadFile(*pythonScript)
 	if err != nil {
 		fmt.Printf("Could not read %s: %s\n", *pythonScript, err)
 		os.Exit(1)
@@ -68,6 +69,4 @@ func main() {
 	if res == 0 {
 		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(rtloader)))
 	}
-
-	python.Destroy()
 }

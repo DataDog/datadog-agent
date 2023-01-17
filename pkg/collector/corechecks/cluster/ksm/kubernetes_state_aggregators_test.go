@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
@@ -13,10 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 var _ metricAggregator = &sumValuesAggregator{}
 var _ metricAggregator = &countObjectsAggregator{}
+var _ metricAggregator = &lastCronJobCompleteAggregator{}
+var _ metricAggregator = &lastCronJobFailedAggregator{}
 
 func Test_counterAggregator(t *testing.T) {
 	tests := []struct {
@@ -186,6 +190,128 @@ func Test_counterAggregator(t *testing.T) {
 			for _, expected := range tt.expected {
 				s.AssertMetric(t, "Gauge", expected.name, expected.val, expected.hostname, expected.tags)
 			}
+		})
+	}
+}
+
+func Test_lastCronJobAggregator(t *testing.T) {
+	tests := []struct {
+		name            string
+		metricsComplete []ksmstore.DDMetric
+		metricsFailed   []ksmstore.DDMetric
+		expected        *serviceCheck
+	}{
+		{
+			name: "Last job succeeded",
+			metricsComplete: []ksmstore.DDMetric{
+				{
+					Labels: map[string]string{
+						"namespace": "foo",
+						"job_name":  "bar-112",
+						"condition": "true",
+					},
+					Val: 1,
+				},
+				{
+					Labels: map[string]string{
+						"namespace": "foo",
+						"job_name":  "bar-114",
+						"condition": "true",
+					},
+					Val: 1,
+				},
+			},
+			metricsFailed: []ksmstore.DDMetric{
+				{
+					Labels: map[string]string{
+						"namespace": "foo",
+						"job_name":  "bar-113",
+						"condition": "true",
+					},
+					Val: 1,
+				},
+			},
+			expected: &serviceCheck{
+				name:    "kubernetes_state.cronjob.complete",
+				status:  metrics.ServiceCheckOK,
+				tags:    []string{"namespace:foo", "cronjob:bar"},
+				message: "",
+			},
+		},
+		{
+			name: "Last job failed",
+			metricsFailed: []ksmstore.DDMetric{
+				{
+					Labels: map[string]string{
+						"namespace": "foo",
+						"job_name":  "bar-112",
+						"condition": "true",
+					},
+					Val: 1,
+				},
+				{
+					Labels: map[string]string{
+						"namespace": "foo",
+						"job_name":  "bar-114",
+						"condition": "true",
+					},
+					Val: 1,
+				},
+			},
+			metricsComplete: []ksmstore.DDMetric{
+				{
+					Labels: map[string]string{
+						"namespace": "foo",
+						"job_name":  "bar-113",
+						"condition": "true",
+					},
+					Val: 1,
+				},
+			},
+			expected: &serviceCheck{
+				name:    "kubernetes_state.cronjob.complete",
+				status:  metrics.ServiceCheckCritical,
+				tags:    []string{"namespace:foo", "cronjob:bar"},
+				message: "",
+			},
+		},
+	}
+
+	ksmCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{})
+
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+
+		t.Run(tt.name, func(t *testing.T) {
+			agg := newLastCronJobAggregator()
+			aggComplete := &lastCronJobCompleteAggregator{aggregator: agg}
+			aggFailed := &lastCronJobFailedAggregator{aggregator: agg}
+
+			for _, metric := range tt.metricsComplete {
+				aggComplete.accumulate(metric)
+			}
+			for _, metric := range tt.metricsFailed {
+				aggFailed.accumulate(metric)
+			}
+
+			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.LabelJoins))
+
+			s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, "", tt.expected.tags, tt.expected.message)
+			s.AssertNumberOfCalls(t, "ServiceCheck", 1)
+
+			// Ingest the metrics in the other order
+			for _, metric := range tt.metricsFailed {
+				aggFailed.accumulate(metric)
+			}
+			for _, metric := range tt.metricsComplete {
+				aggComplete.accumulate(metric)
+			}
+
+			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.LabelJoins))
+
+			s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, "", tt.expected.tags, tt.expected.message)
+			s.AssertNumberOfCalls(t, "ServiceCheck", 2)
 		})
 	}
 }

@@ -10,11 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 type sqlTestCase struct {
@@ -138,6 +138,229 @@ func TestScanDollarQuotedString(t *testing.T) {
 	})
 }
 
+func TestSQLMetadata(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out  string
+		cfg      SQLConfig
+		metadata SQLMetadata
+	}{
+		{
+			`
+/* Multi-line comment */
+SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT`,
+			"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO owners ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "clients,owners",
+				Commands:  []string{"SELECT", "BEGIN", "INSERT", "COMMIT"},
+				Comments:  []string{"/* Multi-line comment */"},
+			},
+		},
+		{
+			`
+-- Single line comment
+-- Another single line comment
+-- Another another single line comment
+GRANT USAGE, DELETE ON SCHEMA datadog TO datadog`,
+			"GRANT USAGE, DELETE ON SCHEMA datadog TO datadog",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "",
+				Commands:  []string{"GRANT", "DELETE"},
+				Comments: []string{
+					"-- Single line comment",
+					"-- Another single line comment",
+					"-- Another another single line comment",
+				},
+			},
+		},
+		{
+			// Complex query is sourced and modified from https://www.ibm.com/support/knowledgecenter/SSCRJT_6.0.0/com.ibm.swg.im.bigsql.doc/doc/tut_bsql_uc_complex_query.html
+			`
+/* Multi-line comment
+with line breaks */
+WITH sales AS
+(SELECT sf2.*
+	FROM gosalesdw28391.sls_order_method_dim AS md,
+		gosalesdw1920.sls_product_dim391 AS pd190,
+		gosalesdw3819.emp_employee_dim AS ed,
+		gosalesdw3919.sls_sales_fact3819 AS sf2
+	WHERE pd190.product_key = sf2.product_key
+	AND pd190.product_number381 > 10000
+	AND pd190.base_product_key > 30
+	AND md.order_method_key = sf2.order_method_key8319
+	AND md.order_method_code > 5
+	AND ed.employee_key = sf2.employee_key
+	AND ed.manager_code1 > 20),
+inventory3118 AS
+(SELECT if.*
+	FROM gosalesdw1592.go_branch_dim AS bd3221,
+	gosalesdw.dist_inventory_fact AS if
+	WHERE if.branch_key = bd3221.branch_key
+	AND bd3221.branch_code > 20)
+SELECT sales1828.product_key AS PROD_KEY,
+SUM(CAST (inventory3118.quantity_shipped AS BIGINT)) AS INV_SHIPPED3118,
+SUM(CAST (sales1828.quantity AS BIGINT)) AS PROD_QUANTITY,
+RANK() OVER ( ORDER BY SUM(CAST (sales1828.quantity AS BIGINT)) DESC) AS PROD_RANK
+FROM sales1828, inventory3118
+WHERE sales1828.product_key = inventory3118.product_key
+GROUP BY sales1828.product_key`,
+			"WITH sales SELECT sf?.* FROM gosalesdw?.sls_order_method_dim, gosalesdw?.sls_product_dim?, gosalesdw?.emp_employee_dim, gosalesdw?.sls_sales_fact? WHERE pd?.product_key = sf?.product_key AND pd?.product_number? > ? AND pd?.base_product_key > ? AND md.order_method_key = sf?.order_method_key? AND md.order_method_code > ? AND ed.employee_key = sf?.employee_key AND ed.manager_code? > ? ) inventory? SELECT if.* FROM gosalesdw?.go_branch_dim, gosalesdw.dist_inventory_fact WHERE if.branch_key = bd?.branch_key AND bd?.branch_code > ? ) SELECT sales?.product_key, SUM ( CAST ( inventory?.quantity_shipped ) ), SUM ( CAST ( sales?.quantity ) ), RANK ( ) OVER ( ORDER BY SUM ( CAST ( sales?.quantity ) ) DESC ) FROM sales?, inventory? WHERE sales?.product_key = inventory?.product_key GROUP BY sales?.product_key",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   true,
+			},
+			SQLMetadata{
+				TablesCSV: "gosalesdw?.sls_order_method_dim,gosalesdw?.go_branch_dim,sales?",
+				Commands:  []string{"SELECT", "SELECT", "SELECT"},
+				Comments:  []string{"/* Multi-line comment with line breaks */"},
+			},
+		},
+		{
+			`
+/*
+Multi-line comment
+with line breaks
+*/
+/* Two multi-line comments with
+line breaks */
+SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = 't'`,
+			"SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = ?",
+			SQLConfig{
+				TableNames:      false,
+				CollectCommands: false,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "",
+				Commands:  []string(nil),
+				Comments:  []string(nil),
+			},
+		},
+		{
+			`CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE (UPDATE d1 SET (c1, c2, c3) = (c1 + 1, c2 + 1, c3 + 1))`,
+			"CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE ( UPDATE d1 SET ( c1, c2, c3 ) = ( c1 + ? c2 + ? c3 + ? ) )",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "d1",
+				Commands:  []string{"CREATE", "SELECT", "UPDATE"},
+			},
+		},
+		{
+			`
+-- Testing table value constructor SQL expression
+SELECT * FROM (VALUES (1, 'dog')) AS d (id, animal)`,
+			"SELECT * FROM ( VALUES ( ? ) ) ( id, animal )",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "",
+				Commands:  []string{"SELECT"},
+			},
+		},
+		{
+			`ALTER TABLE table DROP COLUMN column`,
+			"ALTER TABLE table DROP COLUMN column",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "",
+				Commands:  []string{"ALTER", "DROP"},
+			},
+		},
+		{
+			`REVOKE ALL ON SCHEMA datadog FROM datadog`,
+			"REVOKE ALL ON SCHEMA datadog FROM datadog",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "datadog",
+				Commands:  []string{"REVOKE"},
+			},
+		},
+		{
+			`TRUNCATE TABLE datadog`,
+			"TRUNCATE TABLE datadog",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "",
+				Commands:  []string{"TRUNCATE"},
+			},
+		},
+		{
+			// Sourced from: SQL and Relational Theory, 2nd Edition by C.J. Date
+			`
+-- Testing explicit table SQL expression
+WITH T1 AS (SELECT PNO , PNAME , COLOR , WEIGHT , CITY FROM P WHERE  CITY = 'London'),
+T2 AS (SELECT PNO, PNAME, COLOR, WEIGHT, CITY, 2 * WEIGHT AS NEW_WEIGHT, 'Oslo' AS NEW_CITY FROM T1),
+T3 AS ( SELECT PNO , PNAME, COLOR, NEW_WEIGHT AS WEIGHT, NEW_CITY AS CITY FROM T2),
+T4 AS ( TABLE P EXCEPT CORRESPONDING TABLE T1)
+TABLE T4 UNION CORRESPONDING TABLE T3`,
+			"WITH T1 SELECT PNO, PNAME, COLOR, WEIGHT, CITY FROM P WHERE CITY = ? ) T2 SELECT PNO, PNAME, COLOR, WEIGHT, CITY, ? * WEIGHT, ? FROM T1 ), T3 SELECT PNO, PNAME, COLOR, NEW_WEIGHT, NEW_CITY FROM T2 ), T4 TABLE P EXCEPT CORRESPONDING TABLE T1 ) TABLE T4 UNION CORRESPONDING TABLE T3",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "P,T1,T2",
+				Commands:  []string{"SELECT", "SELECT", "SELECT"},
+				Comments: []string{
+					"-- Testing explicit table SQL expression",
+				},
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+			assert.Equal(tt.metadata.TablesCSV, oq.Metadata.TablesCSV)
+			assert.Equal(tt.metadata.Commands, oq.Metadata.Commands)
+			assert.Equal(tt.metadata.Comments, oq.Metadata.Comments)
+			// Cost() includes the query text size, exclude it to see if it matches the size the metadata filter collected.
+			assert.Equal(oq.Cost()-int64(len(oq.Query)), oq.Metadata.Size)
+		})
+	}
+}
+
 func TestSQLUTF8(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct{ in, out string }{
@@ -160,6 +383,10 @@ func TestSQLUTF8(t *testing.T) {
 		{
 			"SELECT     Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI As [Código Centro Trabajo], Cli_Establiments.CODIGO_CENTRO_AXAPTA As [Código C. Axapta],  Cli_Establiments.NOMESTAB As [Nombre],                                 Cli_Establiments.ADRECA As [Dirección], Cli_Establiments.CodPostal As [Código Postal], Cli_Establiments.Poblacio as [Población], Cli_Establiments.Provincia,                                Cli_Establiments.TEL As [Tel],  Cli_Establiments.EMAIL As [EMAIL],                                Cli_Establiments.PERS_CONTACTE As [Contacto], Cli_Establiments.PERS_CONTACTE_CARREC As [Cargo Contacto], Cli_Establiments.NumTreb As [Plantilla],                                Cli_Establiments.Localitzacio As [Localización], Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES As [Nombre Actividad], ACTIVO AS [Activo]                        FROM         Cli_Establiments LEFT OUTER JOIN                                    Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat                        Where CODCLI = '01234' AND CENTRE_CORRECTE = 3 AND ACTIVO = 5                        ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA ",
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
+		},
+		{
+			`select * from dollarField$ as df from some$dollar$filled_thing$$;`,
+			`select * from dollarField$ from some$dollar$filled_thing$$`,
 		},
 		{
 			"select * from `構わない`;",
@@ -247,7 +474,7 @@ GROUP BY sales1828.product_key`,
 				assert := assert.New(t)
 				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{ReplaceDigits: true})
 				assert.NoError(err)
-				assert.Empty(oq.TablesCSV)
+				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
@@ -312,7 +539,7 @@ GROUP BY sales1828.product_key`,
 				assert := assert.New(t)
 				oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
-				assert.Empty(oq.TablesCSV)
+				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
@@ -343,7 +570,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 			},
 			{
 				"SELECT host, status FROM ec2_status WHERE org_id = 42",
-				"ec2_status",
+				"ec?_status",
 				"SELECT host, status FROM ec?_status WHERE org_id = ?",
 			},
 			{
@@ -393,7 +620,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 			},
 			{
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
-				"sales_2019_07_01,item1001",
+				"sales_?_?_?,item?",
 				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
 			{
@@ -466,6 +693,11 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				"profile",
 				"SELECT age FROM profile",
 			},
+			{
+				"SELECT * from users where user_id =:0_USER",
+				"users",
+				"SELECT * from users where user_id = :0_USER",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
@@ -475,16 +707,16 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 						ReplaceDigits: true,
 					},
 				}).ObfuscateSQLString(tt.query)
-				assert.NoError(err)
-				assert.Equal(tt.tables, oq.TablesCSV)
+				require.NoError(t, err)
+				assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 
 				oq, err = NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
 					TableNames:    true,
 					ReplaceDigits: true,
 				})
-				assert.NoError(err)
-				assert.Equal(tt.tables, oq.TablesCSV)
+				require.NoError(t, err)
+				assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
@@ -493,7 +725,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 	t.Run("off", func(t *testing.T) {
 		oq, err := NewObfuscator(Config{}).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
-		assert.Empty(t, oq.TablesCSV)
+		assert.Empty(t, oq.Metadata.TablesCSV)
 	})
 }
 
@@ -848,6 +1080,26 @@ ORDER BY [b].[Name]`,
 			`SELECT id, name FROM emp WHERE name LIKE ?`,
 		},
 		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value < @name`,
+		},
+		{
+			`SELECT @@foo`,
+			`SELECT @@foo`,
+		},
+		{
 			`DROP TABLE IF EXISTS django_site;
 DROP TABLE IF EXISTS knowledgebase_article;
 
@@ -920,6 +1172,18 @@ LIMIT 1
 			query:    `SELECT * FROM dbo.Items WHERE id = 1 or /*!obfuscation*/ 1 = 1`,
 			expected: `SELECT * FROM dbo.Items WHERE id = ? or ? = ?`,
 		},
+		{
+			query:    `SELECT * FROM Items WHERE id = -1 OR id = -01 OR id = -108 OR id = -.018 OR id = -.08 OR id = -908129`,
+			expected: `SELECT * FROM Items WHERE id = ? OR id = ? OR id = ? OR id = ? OR id = ? OR id = ?`,
+		},
+		{
+			query:    "USING $09 SELECT",
+			expected: `USING ? SELECT`,
+		},
+		{
+			query:    "USING - SELECT",
+			expected: `USING - SELECT`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
@@ -927,6 +1191,106 @@ LIMIT 1
 			oq, err := o.ObfuscateSQLString(c.query)
 			require.NoError(t, err)
 			require.Equal(t, c.expected, oq.Query)
+		})
+	}
+}
+
+func TestPGJSONOperators(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out string
+	}{
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom #> ? from users",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom #>> ? from users",
+		},
+		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom #- ? from users",
+		},
+		{
+			"select users.custom -> 'foo' from users",
+			"select users.custom -> ? from users",
+		},
+		{
+			"select users.custom ->> 'foo' from users",
+			"select users.custom ->> ? from users",
+		},
+		{
+			"select * from users where user.custom @> '{a,b}'",
+			"select * from users where user.custom @> ?",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value <@ name`,
+		},
+		{
+			"select * from users where user.custom ? 'foo'",
+			"select * from users where user.custom ? ?",
+		},
+		{
+			"select * from users where user.custom ?| array [ '1', '2' ]",
+			"select * from users where user.custom ?| array [ ? ]",
+		},
+		{
+			"select * from users where user.custom ?& array [ '1', '2' ]",
+			"select * from users where user.custom ?& array [ ? ]",
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					DBMS: DBMSPostgres,
+				},
+			}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+		})
+	}
+}
+
+func TestObfuscatorDBMSBehavior(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out string
+		tables  string
+		cfg     SQLConfig
+	}{
+		{
+			"select * from ##ThisIsAGlobalTempTable where id = 1",
+			"select * from ##ThisIsAGlobalTempTable where id = ?",
+			"",
+			SQLConfig{
+				DBMS: DBMSSQLServer,
+			},
+		},
+		{
+			"select * from dbo.#ThisIsATempTable where id = 1",
+			"select * from dbo.#ThisIsATempTable where id = ?",
+			"",
+			SQLConfig{
+				DBMS: DBMSSQLServer,
+			},
+		},
+		{
+			"SELECT * from [db_users] where [id] = @1",
+			"SELECT * from db_users where id = @1",
+			"db_users",
+			SQLConfig{
+				DBMS:       DBMSSQLServer,
+				TableNames: true,
+			},
+		},
+	} {
+		t.Run(tt.cfg.DBMS, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+			assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 		})
 	}
 }
@@ -1270,18 +1634,13 @@ func TestSQLErrors(t *testing.T) {
 		},
 
 		{
-			"USING $09 SELECT",
-			`at position 9: invalid number`,
-		},
-
-		{
 			"INSERT VALUES (1, 2) INTO {ABC",
 			`at position 30: unexpected EOF in escape sequence`,
 		},
 
 		{
-			"SELECT one, :2two FROM profile",
-			`at position 13: bind variables should start with letters, got "2" (50)`,
+			"SELECT one, :.two FROM profile",
+			`at position 13: bind variables should start with letters or digits, got "." (46)`,
 		},
 
 		{
@@ -1328,7 +1687,7 @@ func TestSQLErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
 			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
 	}
@@ -1484,9 +1843,9 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 
 	b.Run("random", func(b *testing.B) {
 		b.ReportAllocs()
-		var j uint64
+		var j atomic.Uint64
 		for i := 0; i < b.N; i++ {
-			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))
+			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", j.Inc()))
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -1513,7 +1872,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 		return func(b *testing.B) {
 			o := NewObfuscator(Config{})
 			hitcount := int(float64(queries) * hitrate)
-			var idx uint64
+			var idx atomic.Uint64
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				for n := 0; n < hitcount; n++ {
@@ -1522,7 +1881,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 					}
 				}
 				for n := 0; n < queries-hitcount; n++ {
-					if _, err := fn(o, fmt.Sprintf(queryfmt, atomic.AddUint64(&idx, 1))); err != nil {
+					if _, err := fn(o, fmt.Sprintf(queryfmt, idx.Inc())); err != nil {
 						b.Fatal(err)
 					}
 				}
@@ -1602,6 +1961,32 @@ func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)
+}
+
+func TestParseNumber(t *testing.T) {
+	var testCases = []string{
+		"1234",
+		"-1234",
+		"1234e12",
+		"0xfa",
+		"01234567",
+		"09",
+		// Negatives are always parsed as decimals (not octal).
+		"-01234567",
+		"-012345678",
+	}
+
+	o := NewObfuscator(Config{})
+	for _, testCase := range testCases {
+		t.Run(testCase, func(t *testing.T) {
+			assert := assert.New(t)
+			oq, err := o.ObfuscateSQLString(testCase)
+			require.NoError(t, err)
+			if assert.NotNil(oq) {
+				assert.Equal("?", oq.Query)
+			}
+		})
+	}
 }
 
 // TestToUpper contains test data lifted from Go's bytes/bytes_test.go, but we test

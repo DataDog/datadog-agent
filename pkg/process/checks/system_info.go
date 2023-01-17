@@ -1,4 +1,10 @@
-// +build !windows
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !windows && !darwin
+// +build !windows,!darwin
 
 package checks
 
@@ -8,13 +14,12 @@ import (
 	"github.com/DataDog/gopsutil/mem"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // CollectSystemInfo collects a set of system-level information that will not
 // change until a restart. This bit of information should be passed along with
 // the process messages.
-func CollectSystemInfo(cfg *config.AgentConfig) (*model.SystemInfo, error) {
+func CollectSystemInfo() (*model.SystemInfo, error) {
 	hi, err := host.Info()
 	if err != nil {
 		return nil, err

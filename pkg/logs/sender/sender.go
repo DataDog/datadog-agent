@@ -6,220 +6,132 @@
 package sender
 
 import (
-	"context"
+	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-// Strategy should contain all logic to send logs to a remote destination
-// and forward them the next stage of the pipeline.
-type Strategy interface {
-	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error)
-	Flush(ctx context.Context)
-}
+var (
+	tlmPayloadsDropped = telemetry.NewCounter("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped")
+	tlmMessagesDropped = telemetry.NewCounter("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped")
+	tlmSendWaitTime    = telemetry.NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
+)
 
-// Sender contains all the logic to manage a stream of messages to destinations
-type Sender interface {
-	Start()
-	Stop()
-	Flush(ctx context.Context)
-}
-
-// SingleSender sends logs to different destinations.
-type SingleSender struct {
-	inputChan    chan *message.Message
-	outputChan   chan *message.Message
-	hasError     chan bool
+// Sender sends logs to different destinations. Destinations can be either
+// reliable or unreliable. The sender ensures that logs are sent to at least
+// one reliable destination and will block the pipeline if they are in an
+// error state. Unreliable destinations will only send logs when at least
+// one reliable destination is also sending logs. However they do not update
+// the auditor or block the pipeline if they fail. There will always be at
+// least 1 reliable destination (the main destination).
+type Sender struct {
+	inputChan    chan *message.Payload
+	outputChan   chan *message.Payload
 	destinations *client.Destinations
-	strategy     Strategy
 	done         chan struct{}
-	lastError    error
-	trackErrors  bool
+	bufferSize   int
 }
 
-// NewSingleSender returns a new sender.
-func NewSingleSender(inputChan chan *message.Message, outputChan chan *message.Message, destinations *client.Destinations, strategy Strategy) *SingleSender {
-	return &SingleSender{
+// NewSender returns a new sender.
+func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int) *Sender {
+	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
-		hasError:     make(chan bool, 1),
 		destinations: destinations,
-		strategy:     strategy,
 		done:         make(chan struct{}),
-		trackErrors:  false,
+		bufferSize:   bufferSize,
 	}
 }
 
 // Start starts the sender.
-func (s *SingleSender) Start() {
+func (s *Sender) Start() {
 	go s.run()
 }
 
 // Stop stops the sender,
 // this call blocks until inputChan is flushed
-func (s *SingleSender) Stop() {
+func (s *Sender) Stop() {
 	close(s.inputChan)
 	<-s.done
 }
 
-// Flush sends synchronously the messages that this sender has to send.
-func (s *SingleSender) Flush(ctx context.Context) {
-	s.strategy.Flush(ctx)
-}
+func (s *Sender) run() {
+	reliableDestinations := buildDestinationSenders(s.destinations.Reliable, s.outputChan, s.bufferSize)
 
-func (s *SingleSender) run() {
-	defer func() {
-		s.done <- struct{}{}
-	}()
-	s.strategy.Send(s.inputChan, s.outputChan, s.send)
-}
+	sink := additionalDestinationsSink(s.bufferSize)
+	unreliableDestinations := buildDestinationSenders(s.destinations.Unreliable, sink, s.bufferSize)
 
-// send sends a payload to multiple destinations,
-// it will forever retry for the main destination unless the error is not retryable
-// and only try once for additional destinations.
-func (s *SingleSender) send(payload []byte) error {
-	for {
-		err := s.destinations.Main.Send(payload)
-		if err != nil {
-			if s.trackErrors && s.lastError == nil {
-				s.hasError <- true
-			}
-			s.lastError = err
+	for payload := range s.inputChan {
+		var startInUse = time.Now()
 
-			metrics.DestinationErrors.Add(1)
-			metrics.TlmDestinationErrors.Inc()
-			if _, ok := err.(*client.RetryableError); ok {
-
-				// could not send the payload because of a client issue,
-				// let's retry
-				continue
-			}
-			return err
-		}
-		if s.trackErrors && s.lastError != nil {
-			s.lastError = nil
-			s.hasError <- false
-		}
-		break
-	}
-
-	for _, destination := range s.destinations.Additionals {
-		// send in the background so that the agent does not fall behind
-		// for the main destination
-		destination.SendAsync(payload)
-	}
-
-	return nil
-}
-
-// shouldStopSending returns true if a component should stop sending logs.
-func shouldStopSending(err error) bool {
-	return err == context.Canceled
-}
-
-// DualSender wraps 2 single senders to manage sending logs to 2 primary destinations
-type DualSender struct {
-	inputChan        chan *message.Message
-	mainSender       *SingleSender
-	additionalSender *SingleSender
-	done             chan struct{}
-}
-
-// NewDualSender creates a new dual sender
-func NewDualSender(inputChan chan *message.Message, mainSender *SingleSender, additionalSender *SingleSender) Sender {
-	mainSender.trackErrors = true
-	additionalSender.trackErrors = true
-	return &DualSender{
-		inputChan:        inputChan,
-		mainSender:       mainSender,
-		additionalSender: additionalSender,
-	}
-}
-
-// Start starts the child senders and manages any errors/back pressure.
-func (s *DualSender) Start() {
-	s.mainSender.Start()
-	s.additionalSender.Start()
-
-	// Splits a single stream of message into 2 equal streams.
-	// Acts like an AND gate in that the input will only block if both outputs block.
-	// This ensures backpressure is propagated to the input to prevent loss of measages in the pipeline.
-	go func() {
-		mainSenderHasErr := false
-		additionalSenderHasErr := false
-
-		for message := range s.inputChan {
-			sentMain := false
-			sentAdditional := false
-
-			// First collect any errors from the senders
-			select {
-			case mainSenderHasErr = <-s.mainSender.hasError:
-			default:
-			}
-
-			select {
-			case additionalSenderHasErr = <-s.additionalSender.hasError:
-			default:
-			}
-
-			// If both senders are failing, we want to block the pipeline until at least one succeeds
-			if mainSenderHasErr && additionalSenderHasErr {
-				select {
-				case s.mainSender.inputChan <- message:
-					sentMain = true
-				case s.additionalSender.inputChan <- message:
-					sentAdditional = true
-				case mainSenderHasErr = <-s.mainSender.hasError:
-				case additionalSenderHasErr = <-s.additionalSender.hasError:
+		sent := false
+		for !sent {
+			for _, destSender := range reliableDestinations {
+				if destSender.Send(payload) {
+					sent = true
 				}
 			}
 
-			if !sentMain {
-				mainSenderHasErr = sendMessage(mainSenderHasErr, s.mainSender, message)
+			if !sent {
+				// Throttle the poll loop while waiting for a send to succeed
+				// This will only happen when all reliable destinations
+				// are blocked so logs have no where to go.
+				time.Sleep(100 * time.Millisecond)
 			}
+		}
 
-			if !sentAdditional {
-				additionalSenderHasErr = sendMessage(additionalSenderHasErr, s.additionalSender, message)
+		for i, destSender := range reliableDestinations {
+			// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
+			// loss on intermittent failures.
+			if !destSender.lastSendSucceeded {
+				if !destSender.NonBlockingSend(payload) {
+					tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
+					tlmMessagesDropped.Add(float64(len(payload.Messages)), "true", strconv.Itoa(i))
+				}
 			}
 		}
-		s.done <- struct{}{}
-	}()
-}
 
-// Stop stops the sender,
-// this call blocks until inputChan is flushed
-func (s *DualSender) Stop() {
-	close(s.inputChan)
-	<-s.done
-	s.mainSender.Stop()
-	s.additionalSender.Stop()
-}
-
-// Flush sends synchronously the messages that the child senders have to send
-func (s *DualSender) Flush(ctx context.Context) {
-	s.mainSender.Flush(ctx)
-	s.additionalSender.Flush(ctx)
-}
-
-func sendMessage(hasError bool, sender *SingleSender, message *message.Message) bool {
-	if !hasError {
-		// If there is no error - block and write to the buffered channel until it succeeds or we get an error.
-		// If we don't block, the input can fill the buffered channels faster than sender can
-		// drain them - causing missing logs.
-		select {
-		case sender.inputChan <- message:
-		case hasError = <-sender.hasError:
+		// Attempt to send to unreliable destinations
+		for i, destSender := range unreliableDestinations {
+			if !destSender.NonBlockingSend(payload) {
+				tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
+				tlmMessagesDropped.Add(float64(len(payload.Messages)), "false", strconv.Itoa(i))
+			}
 		}
-	} else {
-		// Even if there is an error, try to put the log line in the buffered channel in case the
-		// error resolves quickly and there is room in the channel.
-		select {
-		case sender.inputChan <- message:
-		default:
-		}
+
+		inUse := float64(time.Since(startInUse) / time.Millisecond)
+		tlmSendWaitTime.Add(inUse)
 	}
-	return hasError
+
+	// Cleanup the destinations
+	for _, destSender := range reliableDestinations {
+		destSender.Stop()
+	}
+	for _, destSender := range unreliableDestinations {
+		destSender.Stop()
+	}
+	close(sink)
+	s.done <- struct{}{}
+}
+
+// Drains the output channel from destinations that don't update the auditor.
+func additionalDestinationsSink(bufferSize int) chan *message.Payload {
+	sink := make(chan *message.Payload, bufferSize)
+	go func() {
+		for {
+			<-sink
+		}
+	}()
+	return sink
+}
+
+func buildDestinationSenders(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*DestinationSender {
+	destinationSenders := []*DestinationSender{}
+	for _, destination := range destinations {
+		destinationSenders = append(destinationSenders, NewDestinationSender(destination, output, bufferSize))
+	}
+	return destinationSenders
 }

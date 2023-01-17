@@ -1,93 +1,69 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
-// +build !android
 
 package netlink
 
 import (
 	"crypto/rand"
-	"net"
+	"net/netip"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestIsNat(t *testing.T) {
-	src := net.ParseIP("1.1.1.1")
-	dst := net.ParseIP("2.2.2..2")
-	tdst := net.ParseIP("3.3.3.3")
+	src := "1.1.1.1"
+	dst := "2.2.2.2"
+	tdst := "3.3.3.3"
 	var srcPort uint16 = 42
 	var dstPort uint16 = 8080
 
 	t.Run("not nat", func(t *testing.T) {
-
 		c := Con{
-			ct.Con{
-				Origin: &ct.IPTuple{
-					Src: &src,
-					Dst: &dst,
-					Proto: &ct.ProtoTuple{
-						SrcPort: &srcPort,
-						DstPort: &dstPort,
-					},
-				},
-				Reply: &ct.IPTuple{
-					Src: &dst,
-					Dst: &src,
-					Proto: &ct.ProtoTuple{
-						SrcPort: &dstPort,
-						DstPort: &srcPort,
-					},
-				},
-			},
-			0,
+			Origin: newIPTuple(src, dst, srcPort, dstPort, uint8(unix.IPPROTO_TCP)),
+			Reply:  newIPTuple(dst, src, dstPort, srcPort, uint8(unix.IPPROTO_TCP)),
 		}
 		assert.False(t, IsNAT(c))
 	})
 
-	t.Run("nil proto field", func(t *testing.T) {
+	t.Run("zero proto field", func(t *testing.T) {
 		c := Con{
-			ct.Con{
-				Origin: &ct.IPTuple{
-					Src: &src,
-					Dst: &dst,
-				},
-				Reply: &ct.IPTuple{
-					Src: &dst,
-					Dst: &src,
-				},
-			},
-			0,
+			Origin: newIPTuple(src, dst, 0, 0, 0),
+			Reply:  newIPTuple(dst, src, 0, 0, 0),
+		}
+		assert.False(t, IsNAT(c))
+	})
+
+	t.Run("zero src port field", func(t *testing.T) {
+		c := Con{
+			Origin: newIPTuple(src, dst, 0, dstPort, uint8(unix.IPPROTO_TCP)),
+			Reply:  newIPTuple(dst, src, 0, srcPort, uint8(unix.IPPROTO_TCP)),
+		}
+		assert.False(t, IsNAT(c))
+	})
+	t.Run("zero dst port field", func(t *testing.T) {
+		c := Con{
+			Origin: newIPTuple(src, dst, srcPort, 0, uint8(unix.IPPROTO_TCP)),
+			Reply:  newIPTuple(dst, src, dstPort, 0, uint8(unix.IPPROTO_TCP)),
 		}
 		assert.False(t, IsNAT(c))
 	})
 
 	t.Run("nat", func(t *testing.T) {
-
 		c := Con{
-			ct.Con{
-				Origin: &ct.IPTuple{
-					Src: &src,
-					Dst: &dst,
-					Proto: &ct.ProtoTuple{
-						SrcPort: &srcPort,
-						DstPort: &dstPort,
-					},
-				},
-				Reply: &ct.IPTuple{
-					Src: &tdst,
-					Dst: &src,
-					Proto: &ct.ProtoTuple{
-						SrcPort: &dstPort,
-						DstPort: &srcPort,
-					},
-				},
-			},
-			0,
+			Origin: newIPTuple(src, dst, srcPort, dstPort, uint8(unix.IPPROTO_TCP)),
+			Reply:  newIPTuple(tdst, src, dstPort, srcPort, uint8(unix.IPPROTO_TCP)),
 		}
 		assert.True(t, IsNAT(c))
 	})
@@ -95,7 +71,7 @@ func TestIsNat(t *testing.T) {
 
 func TestRegisterNonNat(t *testing.T) {
 	rt := newConntracker(10000)
-	c := makeUntranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("50.30.40.10"), 6, 8080, 12345)
+	c := makeUntranslatedConn(netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("50.30.40.10"), 6, 8080, 12345)
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
@@ -112,7 +88,7 @@ func TestRegisterNonNat(t *testing.T) {
 
 func TestRegisterNat(t *testing.T) {
 	rt := newConntracker(10000)
-	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80)
+	c := makeTranslatedConn(netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("20.0.0.0"), netip.MustParseAddr("50.30.40.10"), 6, 12345, 80, 80)
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
@@ -147,7 +123,7 @@ func TestRegisterNat(t *testing.T) {
 
 func TestRegisterNatUDP(t *testing.T) {
 	rt := newConntracker(10000)
-	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 17, 12345, 80, 80)
+	c := makeTranslatedConn(netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("20.0.0.0"), netip.MustParseAddr("50.30.40.10"), 17, 12345, 80, 80)
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
@@ -182,7 +158,7 @@ func TestRegisterNatUDP(t *testing.T) {
 func TestTooManyEntries(t *testing.T) {
 	rt := newConntracker(2)
 
-	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80))
+	rt.register(makeTranslatedConn(netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("20.0.0.0"), netip.MustParseAddr("50.30.40.10"), 6, 12345, 80, 80))
 	tr := rt.GetTranslationForConn(network.ConnectionStats{
 		Source: util.AddressFromString("10.0.0.0"),
 		SPort:  12345,
@@ -194,7 +170,7 @@ func TestTooManyEntries(t *testing.T) {
 	require.Equal(t, "20.0.0.0", tr.ReplSrcIP.String())
 	require.Equal(t, uint16(80), tr.ReplSrcPort)
 
-	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.1"), net.ParseIP("20.0.0.1"), net.ParseIP("50.30.40.20"), 6, 12345, 80, 80))
+	rt.register(makeTranslatedConn(netip.MustParseAddr("10.0.0.1"), netip.MustParseAddr("20.0.0.1"), netip.MustParseAddr("50.30.40.20"), 6, 12345, 80, 80))
 	// old entry should be gone
 	tr = rt.GetTranslationForConn(network.ConnectionStats{
 		Source: util.AddressFromString("10.0.0.0"),
@@ -236,9 +212,9 @@ func TestConntrackCacheAdd(t *testing.T) {
 		cache := newConntrackCache(10, defaultOrphanTimeout)
 		cache.Add(
 			makeTranslatedConn(
-				net.ParseIP("1.1.1.1"),
-				net.ParseIP("2.2.2.2"),
-				net.ParseIP("3.3.3.3"),
+				netip.MustParseAddr("1.1.1.1"),
+				netip.MustParseAddr("2.2.2.2"),
+				netip.MustParseAddr("3.3.3.3"),
 				6,
 				12345,
 				80,
@@ -253,9 +229,9 @@ func TestConntrackCacheAdd(t *testing.T) {
 		cache := newConntrackCache(10, defaultOrphanTimeout)
 		cache.Add(
 			makeTranslatedConn(
-				net.ParseIP("1.1.1.1"),
-				net.ParseIP("2.2.2.2"),
-				net.ParseIP("3.3.3.3"),
+				netip.MustParseAddr("1.1.1.1"),
+				netip.MustParseAddr("2.2.2.2"),
+				netip.MustParseAddr("3.3.3.3"),
 				6,
 				12345,
 				80,
@@ -272,20 +248,16 @@ func TestConntrackCacheAdd(t *testing.T) {
 		}{
 			{
 				k: connKey{
-					srcIP:   util.AddressFromString("1.1.1.1"),
-					srcPort: 12345,
-					dstIP:   util.AddressFromString("3.3.3.3"),
-					dstPort: 80,
+					src: netip.AddrPortFrom(netip.MustParseAddr("1.1.1.1"), 12345),
+					dst: netip.AddrPortFrom(netip.MustParseAddr("3.3.3.3"), 80),
 				},
 				expectedReplSrcIP:   "2.2.2.2",
 				expectedReplSrcPort: 80,
 			},
 			{
 				k: connKey{
-					srcIP:   util.AddressFromString("2.2.2.2"),
-					srcPort: 80,
-					dstIP:   util.AddressFromString("1.1.1.1"),
-					dstPort: 12345,
+					src: netip.AddrPortFrom(netip.MustParseAddr("2.2.2.2"), 80),
+					dst: netip.AddrPortFrom(netip.MustParseAddr("1.1.1.1"), 12345),
 				},
 				expectedReplSrcIP:   "1.1.1.1",
 				expectedReplSrcPort: 12345,
@@ -315,9 +287,9 @@ func TestConntrackCacheAdd(t *testing.T) {
 		cache := newConntrackCache(10, defaultOrphanTimeout)
 		cache.Add(
 			makeTranslatedConn(
-				net.ParseIP("1.1.1.1"),
-				net.ParseIP("2.2.2.2"),
-				net.ParseIP("3.3.3.3"),
+				netip.MustParseAddr("1.1.1.1"),
+				netip.MustParseAddr("2.2.2.2"),
+				netip.MustParseAddr("3.3.3.3"),
 				6,
 				12345,
 				80,
@@ -331,9 +303,9 @@ func TestConntrackCacheAdd(t *testing.T) {
 		// values but different reply
 		cache.Add(
 			makeTranslatedConn(
-				net.ParseIP("1.1.1.1"),
-				net.ParseIP("4.4.4.4"),
-				net.ParseIP("3.3.3.3"),
+				netip.MustParseAddr("1.1.1.1"),
+				netip.MustParseAddr("4.4.4.4"),
+				netip.MustParseAddr("3.3.3.3"),
 				6,
 				12345,
 				80,
@@ -350,30 +322,24 @@ func TestConntrackCacheAdd(t *testing.T) {
 		}{
 			{
 				k: connKey{
-					srcIP:   util.AddressFromString("1.1.1.1"),
-					srcPort: 12345,
-					dstIP:   util.AddressFromString("3.3.3.3"),
-					dstPort: 80,
+					src: netip.AddrPortFrom(netip.MustParseAddr("1.1.1.1"), 12345),
+					dst: netip.AddrPortFrom(netip.MustParseAddr("3.3.3.3"), 80),
 				},
 				expectedReplSrcIP:   "4.4.4.4",
 				expectedReplSrcPort: 80,
 			},
 			{
 				k: connKey{
-					srcIP:   util.AddressFromString("4.4.4.4"),
-					srcPort: 80,
-					dstIP:   util.AddressFromString("1.1.1.1"),
-					dstPort: 12345,
+					src: netip.AddrPortFrom(netip.MustParseAddr("4.4.4.4"), 80),
+					dst: netip.AddrPortFrom(netip.MustParseAddr("1.1.1.1"), 12345),
 				},
 				expectedReplSrcIP:   "1.1.1.1",
 				expectedReplSrcPort: 12345,
 			},
 			{
 				k: connKey{
-					srcIP:   util.AddressFromString("2.2.2.2"),
-					srcPort: 80,
-					dstIP:   util.AddressFromString("1.1.1.1"),
-					dstPort: 12345,
+					src: netip.AddrPortFrom(netip.MustParseAddr("2.2.2.2"), 80),
+					dst: netip.AddrPortFrom(netip.MustParseAddr("1.1.1.1"), 12345),
 				},
 				expectedReplSrcIP:   "1.1.1.1",
 				expectedReplSrcPort: 12345,
@@ -465,52 +431,41 @@ func newConntracker(maxSize int) *realConntracker {
 	rt := &realConntracker{
 		maxStateSize: maxSize,
 		cache:        newConntrackCache(maxSize, defaultOrphanTimeout),
+		stats:        newStats(),
 	}
 
 	return rt
 }
 
-func makeUntranslatedConn(src, dst net.IP, proto uint8, srcPort, dstPort uint16) Con {
+func makeUntranslatedConn(src, dst netip.Addr, proto uint8, srcPort, dstPort uint16) Con {
 	return makeTranslatedConn(src, dst, dst, proto, srcPort, dstPort, dstPort)
 }
 
 // makes a translation where from -> to is shows as transFrom -> from
-func makeTranslatedConn(from, transFrom, to net.IP, proto uint8, fromPort, transFromPort, toPort uint16) Con {
-
+func makeTranslatedConn(from, transFrom, to netip.Addr, proto uint8, fromPort, transFromPort, toPort uint16) Con {
 	return Con{
-		ct.Con{
-			Origin: &ct.IPTuple{
-				Src: &from,
-				Dst: &to,
-				Proto: &ct.ProtoTuple{
-					Number:  &proto,
-					SrcPort: &fromPort,
-					DstPort: &toPort,
-				},
-			},
-			Reply: &ct.IPTuple{
-				Src: &transFrom,
-				Dst: &from,
-				Proto: &ct.ProtoTuple{
-					Number:  &proto,
-					SrcPort: &transFromPort,
-					DstPort: &fromPort,
-				},
-			},
+		Origin: ConTuple{
+			Src:   netip.AddrPortFrom(from, fromPort),
+			Dst:   netip.AddrPortFrom(to, toPort),
+			Proto: proto,
 		},
-		0,
+		Reply: ConTuple{
+			Src:   netip.AddrPortFrom(transFrom, transFromPort),
+			Dst:   netip.AddrPortFrom(from, fromPort),
+			Proto: proto,
+		},
 	}
 }
 
-func randomIPGen() func() net.IP {
-	b := make([]byte, 4)
-	return func() net.IP {
+func randomIPGen() func() netip.Addr {
+	var b [4]byte
+	return func() netip.Addr {
 		for {
-			if _, err := rand.Read(b); err != nil {
+			if _, err := rand.Read(b[:]); err != nil {
 				continue
 			}
 
-			return net.IPv4(b[0], b[1], b[2], b[3])
+			return netip.AddrFrom4(b)
 		}
 	}
 }

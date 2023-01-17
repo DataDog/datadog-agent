@@ -1,13 +1,67 @@
+// ReSharper disable CommentTypo
+// ReSharper disable IdentifierTypo
 #include "stdafx.h"
 #include "TargetMachine.h"
+#include <array>
 
 extern std::wstring versionhistoryfilename;
+
+void cleanupFolders()
+{
+    std::error_code ec;
+    const std::filesystem::path installPath(installdir);
+
+    // embedded is a symlink to bin created by us in the customaction, remove it here
+    std::filesystem::remove(installPath / "embedded", ec);
+    if (ec)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not remove embedded folder: %s", ec.message().c_str());
+    }
+
+    // Nuke the embedded2/3 folders since we don't support patching the Python installation
+    // and it's not tracked by the MSI installer anymore
+    for (const auto &folder : {"embedded2", "embedded3"})
+    {
+        std::filesystem::path folderPath = installPath / folder;
+        if (!exists(folderPath))
+        {
+            continue;
+        }
+
+        // Ensure no file is read-only
+        // Bug: We have to do this because of a bug in Microsoft's STL remove_all function
+        // See https://github.com/microsoft/STL/issues/1511
+        // It has been fixed starting with VS 2022 17.0 Preview 3
+        for (const auto &direntry : std::filesystem::recursive_directory_iterator(folderPath))
+        {
+            // Remove read-only if set
+            permissions(direntry, std::filesystem::perms::all, std::filesystem::perm_options::replace, ec);
+            if (ec)
+            {
+                WcaLog(LOGMSG_STANDARD, "Could not update permissions for %s: %s", direntry.path().c_str(),
+                       ec.message().c_str());
+            }
+        }
+
+        remove_all(folderPath, ec);
+        if (ec)
+        {
+            WcaLog(LOGMSG_STANDARD, "Could not delete folder %S: %s", folderPath.c_str(), ec.message().c_str());
+        }
+    }
+
+    // Remove the installdir only if it's empty
+    std::filesystem::remove(installPath, ec);
+    if (ec)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not delete folder %S: %s", installPath.c_str(), ec.message().c_str());
+    }
+}
 
 UINT doUninstallAs(UNINSTALL_TYPE t)
 {
 
     DWORD er = ERROR_SUCCESS;
-    CustomActionData data;
     LSA_HANDLE hLsa = NULL;
     std::wstring propval;
     ddRegKey regkey;
@@ -134,7 +188,7 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
     if (installState.getStringValue(installInstalledServices.c_str(), svcsInstalled))
     {
         // uninstall the services
-        uninstallServices(data);
+        uninstallServices();
     }
     else
     {
@@ -146,8 +200,7 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             DoStartSvc(agentService);
         }
     }
-    std::wstring embedded = installdir + L"\\embedded";
-    RemoveDirectory(embedded.c_str());
+    cleanupFolders();
     if (t == UNINSTALL_UNINSTALL)
     {
         if (regkey.deleteSubKey(strUninstallKeyName.c_str()))

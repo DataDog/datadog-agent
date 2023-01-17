@@ -7,7 +7,6 @@ package listeners
 
 import (
 	"context"
-	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,7 +32,7 @@ func init() {
 }
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener() (ServiceListener, error) {
+func NewEnvironmentListener(Config) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
@@ -69,26 +68,14 @@ func (l *EnvironmentListener) createServices() {
 	}
 
 	// Handle generic container check auto-activation.
-	// We're limited by the collectors in Metadata server on Linux.
-	// We're limited by the runtimes on Windows.
-	var containerFeatures []config.Feature
-	if runtime.GOOS == "linux" {
-		containerFeatures = []config.Feature{config.Docker, config.Containerd, config.Kubernetes, config.ECSFargate}
-	} else if runtime.GOOS == "windows" {
-		containerFeatures = []config.Feature{config.Docker, config.Containerd, config.ECSFargate}
-	}
-
-	for _, f := range containerFeatures {
-		if config.IsFeaturePresent(f) {
-			log.Infof("Listener created container service from environment")
-			l.newService <- &EnvironmentService{adIdentifier: "_container"}
-			break
-		}
+	if config.IsAnyContainerFeaturePresent() {
+		log.Infof("Listener created container service from environment")
+		l.newService <- &EnvironmentService{adIdentifier: "_container"}
 	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *EnvironmentService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *EnvironmentService) GetServiceID() string {
 	return s.adIdentifier
 }
 
@@ -113,8 +100,8 @@ func (s *EnvironmentService) GetPorts(context.Context) ([]ContainerPort, error) 
 }
 
 // GetTags retrieves a container's tags
-func (s *EnvironmentService) GetTags() ([]string, string, error) {
-	return nil, "", nil
+func (s *EnvironmentService) GetTags() ([]string, error) {
+	return nil, nil
 }
 
 // GetPid inspect the container and return its pid
@@ -126,11 +113,6 @@ func (s *EnvironmentService) GetPid(context.Context) (int, error) {
 // GetHostname returns nil and an error because port is not supported in this listener
 func (s *EnvironmentService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime is always before for environment service
-func (s *EnvironmentService) GetCreationTime() integration.CreationTime {
-	return integration.Before
 }
 
 // IsReady is always true
@@ -149,6 +131,10 @@ func (s *EnvironmentService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig is not supported
-func (s *EnvironmentService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *EnvironmentService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *EnvironmentService) FilterTemplates(configs map[string]integration.Config) {
 }

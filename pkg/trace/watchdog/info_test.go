@@ -7,8 +7,6 @@ package watchdog
 
 import (
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"runtime"
 	"testing"
 	"time"
@@ -24,60 +22,63 @@ func TestCPULow(t *testing.T) {
 	assert := assert.New(t)
 	runtime.GC()
 
-	_ = CPU(time.Now())
+	_, _ = CPU(time.Now())
 	globalCurrentInfo.cacheDelay = testDuration
 	time.Sleep(testDuration)
-	c := CPU(time.Now())
+	c, _ := CPU(time.Now())
 	t.Logf("CPU (sleep): %v", c)
 
-	// checking that CPU is low enough, this is theorically flaky,
+	// checking that CPU is low enough, this is theoretically flaky,
 	// but eating 50% of CPU for a time.Sleep is still not likely to happen often
-	assert.Condition(func() bool { return c.UserAvg >= 0.0 }, fmt.Sprintf("cpu avg should be positive, got %f", c.UserAvg))
-	assert.Condition(func() bool { return c.UserAvg <= 0.5 }, fmt.Sprintf("cpu avg should be below 0.5, got %f", c.UserAvg))
-}
-
-func doTestCPUHigh(t *testing.T, n int) {
-	assert := assert.New(t)
-	runtime.GC()
-
-	done := make(chan struct{}, 1)
-	c := CPU(time.Now())
-	globalCurrentInfo.cacheDelay = testDuration
-	for i := 0; i < n; i++ {
-		go func() {
-			j := 0
-			for {
-				select {
-				case <-done:
-					return
-				default:
-					j++
-				}
-			}
-		}()
-	}
-	time.Sleep(testDuration)
-	c = CPU(time.Now())
-	for i := 0; i < n; i++ {
-		done <- struct{}{}
-	}
-	t.Logf("CPU (%d goroutines): %v", n, c)
-
-	// Checking that CPU is high enough, a very simple ++ loop should be
-	// enough to stimulate one core and make it over 50%. One of the goals
-	// of this test is to check that values are not wrong by a factor 100, such
-	// as mismatching percentages and [0...1]  values.
-	assert.Condition(func() bool { return c.UserAvg >= 0.5 }, fmt.Sprintf("cpu avg is too low, got %f", c.UserAvg))
-	assert.Condition(func() bool { return c.UserAvg <= float64(n+1) }, fmt.Sprintf("cpu avg is too high, target is %d, got %f", n, c.UserAvg))
+	assert.LessOrEqualf(c.UserAvg, 0.5, "cpu avg should be below 0.5, got %f", c.UserAvg)
 }
 
 func TestCPUHigh(t *testing.T) {
-	doTestCPUHigh(t, 1)
-	if testing.Short() {
-		return
+	tests := []struct {
+		n        int
+		runShort bool // whether to run the test if testing.Short() is true
+	}{
+		{1, true},
+		{10, false},
+		{100, false},
 	}
-	doTestCPUHigh(t, 10)
-	doTestCPUHigh(t, 100)
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%d_goroutines", tc.n), func(t *testing.T) {
+			if !tc.runShort && testing.Short() {
+				t.Skip("skipping test in short mode")
+			}
+			assert := assert.New(t)
+			runtime.GC()
+
+			done := make(chan struct{}, 1)
+			c, _ := CPU(time.Now())
+			globalCurrentInfo.cacheDelay = testDuration
+			for i := 0; i < tc.n; i++ {
+				go func() {
+					j := 0
+					for {
+						select {
+						case <-done:
+							return
+						default:
+							j++
+						}
+					}
+				}()
+			}
+			time.Sleep(testDuration)
+			c, _ = CPU(time.Now())
+			for i := 0; i < tc.n; i++ {
+				done <- struct{}{}
+			}
+			t.Logf("CPU (%d goroutines): %v", tc.n, c)
+
+			// Checking that CPU is not "too high", the above loops create CPU usage, given that `1` means a single core at full
+			// utilization we want to verify that we did not accidentally mix integer percentage values and whole numbers
+			// (e.g. 15% should be `0.15` NOT `15`)
+			assert.LessOrEqualf(c.UserAvg, float64(tc.n+1), "cpu avg is too high, should never exceed %d, got %f", tc.n, c.UserAvg)
+		})
+	}
 }
 
 func TestMemLow(t *testing.T) {
@@ -92,8 +93,8 @@ func TestMemLow(t *testing.T) {
 
 	// Checking that Mem is low enough, this is theorically flaky,
 	// unless some other random GoRoutine is running, figures should remain low
-	assert.True(int64(m.Alloc)-int64(oldM.Alloc) <= 1e4, "over 10 Kb allocated since last call, way to high for almost no operation")
-	assert.True(m.Alloc <= 1e8, "over 100 Mb allocated, way to high for almost no operation")
+	assert.LessOrEqualf(m.Alloc-oldM.Alloc, uint64(1e4), "over 10 Kb allocated since last call, way to high for almost no operation")
+	assert.LessOrEqualf(m.Alloc, uint64(1e8), "over 100 Mb allocated (%d bytes), way to high for almost no operation", m.Alloc)
 }
 
 func doTestMemHigh(t *testing.T, n int) {
@@ -120,8 +121,8 @@ func doTestMemHigh(t *testing.T, n int) {
 	t.Logf("Mem (%d bytes): %v %v", n, oldM, m)
 
 	// Checking that Mem is high enough
-	assert.True(m.Alloc >= uint64(n), "not enough bytes allocated")
-	assert.True(int64(m.Alloc)-int64(oldM.Alloc) >= int64(n), "not enough bytes allocated since last call")
+	assert.GreaterOrEqualf(m.Alloc, uint64(n), "not enough bytes allocated")
+	assert.GreaterOrEqualf(int64(m.Alloc)-int64(oldM.Alloc), int64(n), "not enough bytes allocated since last call")
 	<-data
 }
 
@@ -133,31 +134,13 @@ func TestMemHigh(t *testing.T) {
 	doTestMemHigh(t, 1e7)
 }
 
-type testNetHandler struct {
-	t *testing.T
-}
-
-func (h *testNetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	r.Body.Close()
-	h.t.Logf("request")
-}
-
-func newTestNetServer(t *testing.T) *httptest.Server {
-	assert := assert.New(t)
-	server := httptest.NewServer(&testNetHandler{t: t})
-	assert.NotNil(server)
-	t.Logf("server on %v", server.URL)
-	return server
-}
-
 func BenchmarkCPU(b *testing.B) {
 	CPU(time.Now())                  // make sure globalCurrentInfo exists
 	globalCurrentInfo.cacheDelay = 0 // disable cache
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = CPU(time.Now())
+		_, _ = CPU(time.Now())
 	}
 }
 

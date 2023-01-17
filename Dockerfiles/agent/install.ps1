@@ -23,7 +23,9 @@ function Install-Service {
 }
 
 if ("$env:WITH_JMX" -ne "false") {
-    Invoke-WebRequest -OutFile jre-11.0.6.zip https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.6%2B10/OpenJDK11U-jre_x64_windows_hotspot_11.0.6_10.zip
+    $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {"https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.6%2B10"}
+    Invoke-WebRequest -OutFile jre-11.0.6.zip "${JDK_DOWNLOAD_URL}/OpenJDK11U-jre_x64_windows_hotspot_11.0.6_10.zip"
+    (Get-FileHash -Algorithm SHA256 jre-11.0.6.zip) -eq "f0d82b256c4aecf051d66ec31920c3527b656159930aa980d37a689a73634e8e"
     Expand-Archive -Path jre-11.0.6.zip -DestinationPath C:/
     Remove-Item jre-11.0.6.zip
     Move-Item C:/jdk-11.0.6+10-jre/ C:/java
@@ -66,7 +68,7 @@ $Env:DOCKER_DD_AGENT="true"
 Write-Output @"
 ---
 install_method:
-  tool: docker
-  tool_version: docker-win-$env:VARIANT
-  installer_version: docker-win-$env:VARIANT
+  tool: docker-win
+  tool_version: docker-win-$env:INSTALL_INFO
+  installer_version: docker-win-$env:INSTALL_INFO
 "@ > C:/ProgramData/Datadog/install_info

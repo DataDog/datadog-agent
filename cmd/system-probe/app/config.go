@@ -8,14 +8,15 @@ package app
 import (
 	"fmt"
 
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/system-probe/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -53,5 +54,15 @@ func getSettingsClient(cmd *cobra.Command, _ []string) (settings.Client, error) 
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
 func initRuntimeSettings() error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{ConfigKey: config.Namespace + ".log_level"})
+	err := settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{ConfigKey: config.Namespace + ".log_level"})
+	if err != nil {
+		return err
+	}
+
+	err = settings.RegisterRuntimeSetting(settings.ActivityDumpRuntimeSetting{ConfigKey: settings.MaxDumpSizeConfKey})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

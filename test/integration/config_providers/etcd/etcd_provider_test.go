@@ -45,6 +45,8 @@ func NewEtcdTestSuite(etcdVersion, containerName string) *EtcdTestSuite {
 }
 
 func (suite *EtcdTestSuite) SetupSuite() {
+	config.DetectFeatures()
+
 	suite.compose = &utils.ComposeConf{
 		ProjectName: "etcd",
 		FilePath:    "testdata/etcd.compose",
@@ -81,7 +83,7 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *EtcdTestSuite) SetupTest() {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 	mockConfig.Set("autoconf_template_dir", "/foo/")
 
 	suite.populateEtcd()
@@ -145,12 +147,12 @@ func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 		TemplateURL: suite.etcdURL,
 		TemplateDir: "/foo",
 	}
-	p, err := providers.NewEtcdConfigProvider(config)
+	p, err := providers.NewEtcdConfigProvider(&config)
 	if err != nil {
 		panic(err)
 	}
 
-	checks, err := p.Collect(ctx)
+	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -166,10 +168,10 @@ func (suite *EtcdTestSuite) TestBadConnection() {
 		TemplateURL: "http://127.0.0.1:1337",
 		TemplateDir: "/foo",
 	}
-	p, err := providers.NewEtcdConfigProvider(config)
+	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect(ctx)
+	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Empty(suite.T(), checks)
 }
@@ -183,10 +185,10 @@ func (suite *EtcdTestSuite) TestWorkingAuth() {
 		Username:    etcdUser,
 		Password:    etcdPass,
 	}
-	p, err := providers.NewEtcdConfigProvider(config)
+	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect(ctx)
+	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 2, len(checks))
 }
@@ -200,10 +202,10 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 		Username:    etcdUser,
 		Password:    "invalid",
 	}
-	p, err := providers.NewEtcdConfigProvider(config)
+	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect(ctx)
+	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Empty(suite.T(), checks)
 }

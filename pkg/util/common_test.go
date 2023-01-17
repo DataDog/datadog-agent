@@ -1,9 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package util
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,7 +33,7 @@ func TestJSONConverter(t *testing.T) {
 		var cf integration.RawMap
 
 		// Read file contents
-		yamlFile, err := ioutil.ReadFile(fmt.Sprintf("../collector/corechecks/embed/jmx/fixtures/%s.yaml", c))
+		yamlFile, err := os.ReadFile(fmt.Sprintf("../collector/corechecks/embed/jmx/fixtures/%s.yaml", c))
 		assert.Nil(t, err)
 
 		// Parse configuration
@@ -54,13 +58,8 @@ func TestJSONConverter(t *testing.T) {
 
 func TestCopyDir(t *testing.T) {
 	assert := assert.New(t)
-	src, err := ioutil.TempDir("", "copydir-test-src-")
-	assert.NoError(err)
-	defer os.RemoveAll(src)
-
-	dst, err := ioutil.TempDir("", "copydir-test-dst-")
-	assert.NoError(err)
-	defer os.RemoveAll(dst)
+	src := t.TempDir()
+	dst := t.TempDir()
 
 	files := map[string]string{
 		"a/b/c/d.txt": "d.txt",
@@ -70,17 +69,17 @@ func TestCopyDir(t *testing.T) {
 
 	for file, content := range files {
 		p := filepath.Join(src, file)
-		err = os.MkdirAll(filepath.Dir(p), os.ModePerm)
+		err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
 		assert.NoError(err)
-		err = ioutil.WriteFile(p, []byte(content), os.ModePerm)
+		err = os.WriteFile(p, []byte(content), os.ModePerm)
 		assert.NoError(err)
 	}
-	err = CopyDir(src, dst)
+	err := CopyDir(src, dst)
 	assert.NoError(err)
 
 	for file, content := range files {
 		p := filepath.Join(dst, file)
-		actual, err := ioutil.ReadFile(p)
+		actual, err := os.ReadFile(p)
 		assert.NoError(err)
 		assert.Equal(string(actual), content)
 	}

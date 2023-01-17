@@ -13,15 +13,16 @@ const (
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "/opt/datadog-agent/logs/security-agent.log"
+	// DefaultProcessAgentLogFile is the default process-agent log file
+	DefaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
 	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
+	// DefaultDDAgentBin the process agent's binary
+	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
 )
 
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
 }
-
-// NewAssetFs  Should never be called on non-android
-func setAssetFs(config Config) {}

@@ -17,11 +17,6 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
-  cookbook_file "#{wrk_dir}/stresssuite-master" do
-    source "stresssuite-master"
-    mode '755'
-  end
-
   ['polkit', 'unattended-upgrades', 'snapd', 'cron', 'walinuxagent',
    'multipathd', 'rsyslog', 'atd', 'chronyd', 'hv-kvp-daemon'].each do |s|
     service s do

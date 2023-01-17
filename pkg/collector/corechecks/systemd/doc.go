@@ -5,6 +5,5 @@
 
 /*
 Package systemd provides core checks for systemd
-
 */
 package systemd

@@ -8,26 +8,27 @@ package autodiscovery
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestNew(t *testing.T) {
-	cache := NewTemplateCache()
+	cache := newTemplateCache()
 	assert.Len(t, cache.adIDToDigests, 0)
 	assert.Len(t, cache.digestToADId, 0)
 	assert.Len(t, cache.digestToTemplate, 0)
 }
 
 func TestSet(t *testing.T) {
-	cache := NewTemplateCache()
+	cache := newTemplateCache()
 
 	tpl1 := integration.Config{ADIdentifiers: []string{"foo", "bar"}}
-	err := cache.Set(tpl1)
+	err := cache.set(tpl1)
 	require.Nil(t, err)
 	// adding again should be no-op
-	err = cache.Set(tpl1)
+	err = cache.set(tpl1)
 	require.Nil(t, err)
 
 	assert.Len(t, cache.adIDToDigests, 2)
@@ -37,7 +38,7 @@ func TestSet(t *testing.T) {
 	assert.Len(t, cache.digestToTemplate, 1)
 
 	tpl2 := integration.Config{ADIdentifiers: []string{"foo"}}
-	err = cache.Set(tpl2)
+	err = cache.set(tpl2)
 
 	require.Nil(t, err)
 	assert.Len(t, cache.adIDToDigests, 2)
@@ -48,21 +49,21 @@ func TestSet(t *testing.T) {
 
 	// no identifiers at all
 	tpl3 := integration.Config{ADIdentifiers: []string{}}
-	err = cache.Set(tpl3)
+	err = cache.set(tpl3)
 
 	require.NotNil(t, err)
 }
 
 func TestDel(t *testing.T) {
-	cache := NewTemplateCache()
+	cache := newTemplateCache()
 	tpl := integration.Config{ADIdentifiers: []string{"foo", "bar"}}
-	err := cache.Set(tpl)
+	err := cache.set(tpl)
 	require.Nil(t, err)
 	tpl2 := integration.Config{ADIdentifiers: []string{"foo"}}
-	err = cache.Set(tpl2)
+	err = cache.set(tpl2)
 	require.Nil(t, err)
 
-	err = cache.Del(tpl)
+	err = cache.del(tpl)
 	require.Nil(t, err)
 
 	require.Len(t, cache.adIDToDigests, 1)
@@ -70,7 +71,7 @@ func TestDel(t *testing.T) {
 	assert.Len(t, cache.digestToADId, 1)
 	assert.Len(t, cache.digestToTemplate, 1)
 
-	err = cache.Del(tpl2)
+	err = cache.del(tpl2)
 	require.Nil(t, err)
 
 	require.Len(t, cache.adIDToDigests, 0)
@@ -78,33 +79,33 @@ func TestDel(t *testing.T) {
 	assert.Len(t, cache.digestToTemplate, 0)
 
 	// delete for an unknown identifier
-	err = cache.Del(integration.Config{ADIdentifiers: []string{"baz"}})
+	err = cache.del(integration.Config{ADIdentifiers: []string{"baz"}})
 	require.NotNil(t, err)
 }
 
 func TestGet(t *testing.T) {
-	cache := NewTemplateCache()
+	cache := newTemplateCache()
 	tpl := integration.Config{ADIdentifiers: []string{"foo", "bar"}}
-	cache.Set(tpl)
+	cache.set(tpl)
 
-	ret, err := cache.Get("foo")
+	ret, err := cache.get("foo")
 	require.Nil(t, err)
 	assert.Len(t, ret, 1)
 	tpl2 := ret[0]
 	assert.True(t, tpl.Equal(&tpl2))
 
 	// id not in cache
-	_, err = cache.Get("baz")
+	_, err = cache.get("baz")
 	assert.NotNil(t, err)
 }
 
 func TestGetUnresolvedTemplates(t *testing.T) {
-	cache := NewTemplateCache()
+	cache := newTemplateCache()
 	tpl := integration.Config{ADIdentifiers: []string{"foo", "bar"}}
-	cache.Set(tpl)
+	cache.set(tpl)
 	expected := map[string][]integration.Config{
 		"foo,bar": {tpl},
 	}
 
-	assert.Equal(t, cache.GetUnresolvedTemplates(), expected)
+	assert.Equal(t, cache.getUnresolvedTemplates(), expected)
 }

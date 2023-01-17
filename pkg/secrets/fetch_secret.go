@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build secrets
 // +build secrets
 
 package secrets
@@ -47,7 +48,12 @@ func execCommand(inputPayload string) ([]byte, error) {
 		time.Duration(secretBackendTimeout)*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
+	cmd, done, err := commandContext(ctx, secretBackendCommand, secretBackendArguments...)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+
 	if err := checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {
 		return nil, err
 	}
@@ -72,7 +78,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 	// datadog.yaml.
 	log.Debugf("%s | calling secret_backend_command with payload: '%s'", time.Now().String(), inputPayload)
 	start := time.Now()
-	err := cmd.Run()
+	err = cmd.Run()
 	elapsed := time.Since(start)
 	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), secretBackendCommand, elapsed)
 

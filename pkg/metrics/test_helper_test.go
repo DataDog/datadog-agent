@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package metrics
@@ -11,8 +12,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestAssertSketchSeriesEqual(t *testing.T) {
@@ -41,29 +44,29 @@ func TestAssertSketchSeriesEqual(t *testing.T) {
 		}, {
 			name: "Tags same len",
 			s: [2]SketchSeries{
-				{Tags: []string{"a"}},
-				{Tags: []string{"b"}},
+				{Tags: tagset.CompositeTagsFromSlice([]string{"a"})},
+				{Tags: tagset.CompositeTagsFromSlice([]string{"b"})},
 			},
 		}, {
 			name: "Tags/diff len",
 			s: [2]SketchSeries{
-				{Tags: []string{"a"}},
-				{Tags: []string{"a", "b"}},
+				{Tags: tagset.CompositeTagsFromSlice([]string{"a"})},
+				{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})},
 			},
 		}, {
 			// AssertSerieEqual and friends don't catch this case.
 			// TODO: fix them
 			name: "Tags/exp=nil",
 			s: [2]SketchSeries{
-				{Tags: nil},
-				{Tags: []string{"a", "b"}},
+				{Tags: tagset.CompositeTagsFromSlice(nil)},
+				{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})},
 			},
 		},
 		{
 			name: "Tags/act=nil",
 			s: [2]SketchSeries{
-				{Tags: []string{"a", "b"}},
-				{Tags: nil},
+				{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})},
+				{Tags: tagset.CompositeTagsFromSlice(nil)},
 			},
 		}, {
 			name: "Host",
@@ -132,7 +135,7 @@ func TestAssertSketchSeriesEqual(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ft := &fakeTestingT{}
 
-			AssertSketchSeriesEqual(ft, tt.s[0], tt.s[1])
+			AssertSketchSeriesEqual(ft, &tt.s[0], &tt.s[1])
 			if tt.valid {
 				assert.Len(t, ft.msgs, 0, "should be equal")
 			} else {

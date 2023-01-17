@@ -3,19 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
 	"fmt"
-	"sync/atomic"
 
-	"github.com/DataDog/datadog-go/statsd"
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
-	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -25,9 +25,18 @@ import (
 
 // PerfMapStats contains the collected metrics for one event and one cpu in a perf buffer statistics map
 type PerfMapStats struct {
-	Bytes uint64
-	Count uint64
-	Lost  uint64
+	Bytes *atomic.Uint64
+	Count *atomic.Uint64
+	Lost  *atomic.Uint64
+}
+
+// NewPerfMapStats returns a new PerfMapStats correctly initialized
+func NewPerfMapStats() PerfMapStats {
+	return PerfMapStats{
+		Bytes: atomic.NewUint64(0),
+		Count: atomic.NewUint64(0),
+		Lost:  atomic.NewUint64(0),
+	}
 }
 
 // UnmarshalBinary parses a map entry and populates the current PerfMapStats instance
@@ -35,9 +44,9 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 	if len(data) < 24 {
 		return model.ErrNotEnoughData
 	}
-	s.Bytes = model.ByteOrder.Uint64(data[0:8])
-	s.Count = model.ByteOrder.Uint64(data[8:16])
-	s.Lost = model.ByteOrder.Uint64(data[16:24])
+	s.Bytes = atomic.NewUint64(model.ByteOrder.Uint64(data[0:8]))
+	s.Count = atomic.NewUint64(model.ByteOrder.Uint64(data[8:16]))
+	s.Lost = atomic.NewUint64(model.ByteOrder.Uint64(data[16:24]))
 	return nil
 }
 
@@ -45,9 +54,9 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 //nolint:structcheck,unused
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
-	probe *Probe
-	// statsdClient is a pointer to the statsdClient used to report the metrics of the perf buffer monitor
-	statsdClient *statsd.Client
+	probe        *Probe
+	config       *config.Config
+	statsdClient statsd.ClientInterface
 	// numCPU holds the current count of CPU
 	numCPU int
 	// perfBufferStatsMaps holds the pointers to the statistics kernel maps
@@ -61,39 +70,44 @@ type PerfBufferMonitor struct {
 	statsMapsNameToPerfBufferMapName map[string]string
 
 	// stats holds the collected user space metrics
-	stats map[string][][model.MaxEventType]PerfMapStats
+	stats map[string][][model.MaxKernelEventType]PerfMapStats
 	// kernelStats holds the aggregated kernel space metrics
-	kernelStats map[string][][model.MaxEventType]PerfMapStats
-	// readLostEvents is the count of lost events, collected by reading the perf buffer
-	readLostEvents map[string][]uint64
+	kernelStats map[string][][model.MaxKernelEventType]PerfMapStats
+	// readLostEvents is the count of lost events, collected by reading the perf buffer.  Note that the
+	// slices of Uint64 are properly aligned for atomic access, and are not moved after creation (they
+	// are indexed by cpuid)
+	readLostEvents map[string][]*atomic.Uint64
 	// sortingErrorStats holds the count of events that indicate that at least 1 event is miss ordered
-	sortingErrorStats map[string][model.MaxEventType]*int64
+	sortingErrorStats map[string][model.MaxKernelEventType]*atomic.Int64
 
 	// lastTimestamp is used to track the timestamp of the last event retrieved from the perf map
 	lastTimestamp uint64
 	// shouldBumpGeneration is used to track if the dentry cache generations should be bumped
-	shouldBumpGeneration uint64
+	shouldBumpGeneration *atomic.Bool
 }
 
 // NewPerfBufferMonitor instantiates a new event statistics counter
-func NewPerfBufferMonitor(p *Probe, client *statsd.Client) (*PerfBufferMonitor, error) {
+func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
-		statsdClient:        client,
+		config:              p.Config,
+		statsdClient:        p.StatsdClient,
 		perfBufferStatsMaps: make(map[string]*lib.Map),
 		perfBufferSize:      make(map[string]float64),
 
 		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
 		statsMapsNameToPerfBufferMapName: make(map[string]string),
 
-		stats:             make(map[string][][model.MaxEventType]PerfMapStats),
-		kernelStats:       make(map[string][][model.MaxEventType]PerfMapStats),
-		readLostEvents:    make(map[string][]uint64),
-		sortingErrorStats: make(map[string][model.MaxEventType]*int64),
+		stats:             make(map[string][][model.MaxKernelEventType]PerfMapStats),
+		kernelStats:       make(map[string][][model.MaxKernelEventType]PerfMapStats),
+		readLostEvents:    make(map[string][]*atomic.Uint64),
+		sortingErrorStats: make(map[string][model.MaxKernelEventType]*atomic.Int64),
+
+		shouldBumpGeneration: atomic.NewBool(false),
 	}
 	numCPU, err := utils.NumCPU()
 	if err != nil {
-		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
+		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 	pbm.numCPU = numCPU
 
@@ -104,9 +118,9 @@ func NewPerfBufferMonitor(p *Probe, client *statsd.Client) (*PerfBufferMonitor, 
 
 	// Select perf buffer statistics maps
 	for perfMapName, statsMapName := range pbm.perfBufferMapNameToStatsMapsName {
-		stats, ok, err := p.manager.GetMap(statsMapName)
+		stats, ok, err := p.Manager.GetMap(statsMapName)
 		if !ok {
-			return nil, errors.Errorf("map %s not found", statsMapName)
+			return nil, fmt.Errorf("map %s not found", statsMapName)
 		}
 		if err != nil {
 			return nil, err
@@ -114,43 +128,63 @@ func NewPerfBufferMonitor(p *Probe, client *statsd.Client) (*PerfBufferMonitor, 
 
 		pbm.perfBufferStatsMaps[perfMapName] = stats
 		// set default perf buffer size, it will be readjusted in the next loop if needed
-		pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultPerfRingBufferSize)
+		if stats.Type() == lib.RingBuf {
+			pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultRingBufferSize)
+		} else {
+			pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultPerfRingBufferSize)
+		}
+	}
+
+	maps := make(map[string]int, len(p.Manager.PerfMaps)+len(p.Manager.RingBuffers))
+	for _, pm := range p.Manager.PerfMaps {
+		maps[pm.Name] = pm.PerfRingBufferSize
+	}
+
+	for _, rb := range p.Manager.RingBuffers {
+		maps[rb.Name] = rb.RingBufferSize
 	}
 
 	// Prepare user space counters
-	for _, m := range p.manager.PerfMaps {
-		var stats, kernelStats [][model.MaxEventType]PerfMapStats
-		var usrLostEvents []uint64
-		var sortingErrorStats [model.MaxEventType]*int64
+	for mapName, size := range maps {
+		var stats, kernelStats [][model.MaxKernelEventType]PerfMapStats
+		var usrLostEvents []*atomic.Uint64
+		var sortingErrorStats [model.MaxKernelEventType]*atomic.Int64
 
 		for i := 0; i < pbm.numCPU; i++ {
-			stats = append(stats, [model.MaxEventType]PerfMapStats{})
-			kernelStats = append(kernelStats, [model.MaxEventType]PerfMapStats{})
-			usrLostEvents = append(usrLostEvents, 0)
+			stats = append(stats, initPerfMapStatsArray())
+			kernelStats = append(kernelStats, initPerfMapStatsArray())
+			usrLostEvents = append(usrLostEvents, atomic.NewUint64(0))
 		}
 
-		for i := 0; i < int(model.MaxEventType); i++ {
-			zero := int64(0)
-			sortingErrorStats[i] = &zero
+		for i := 0; i < int(model.MaxKernelEventType); i++ {
+			sortingErrorStats[i] = atomic.NewInt64(0)
 		}
 
-		pbm.stats[m.Name] = stats
-		pbm.kernelStats[m.Name] = kernelStats
-		pbm.readLostEvents[m.Name] = usrLostEvents
-		pbm.sortingErrorStats[m.Name] = sortingErrorStats
+		pbm.stats[mapName] = stats
+		pbm.kernelStats[mapName] = kernelStats
+		pbm.readLostEvents[mapName] = usrLostEvents
+		pbm.sortingErrorStats[mapName] = sortingErrorStats
 
 		// update perf buffer size if needed
-		if m.PerfRingBufferSize != 0 {
-			pbm.perfBufferSize[m.Name] = float64(m.PerfRingBufferSize)
+		if size != 0 {
+			pbm.perfBufferSize[mapName] = float64(size)
 		}
 	}
-	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxEventType)
+	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxKernelEventType)
 	return &pbm, nil
+}
+
+func initPerfMapStatsArray() [model.MaxKernelEventType]PerfMapStats {
+	var arr [model.MaxKernelEventType]PerfMapStats
+	for i := 0; i < len(arr); i++ {
+		arr[i] = NewPerfMapStats()
+	}
+	return arr
 }
 
 // getLostCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getLostCount(perfMap string, cpu int) uint64 {
-	return atomic.LoadUint64(&pbm.readLostEvents[perfMap][cpu])
+	return pbm.readLostEvents[perfMap][cpu].Load()
 }
 
 // GetLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
@@ -172,7 +206,7 @@ func (pbm *PerfBufferMonitor) GetLostCount(perfMap string, cpu int) uint64 {
 
 // getKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getKernelLostCount(eventType model.EventType, perfMap string, cpu int) uint64 {
-	return atomic.LoadUint64(&pbm.kernelStats[perfMap][cpu][eventType].Lost)
+	return pbm.kernelStats[perfMap][cpu][eventType].Lost.Load()
 }
 
 // GetKernelLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
@@ -207,7 +241,7 @@ func (pbm *PerfBufferMonitor) GetKernelLostCount(perfMap string, cpu int, evtTyp
 
 // getAndResetReadLostCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getAndResetReadLostCount(perfMap string, cpu int) uint64 {
-	return atomic.SwapUint64(&pbm.readLostEvents[perfMap][cpu], 0)
+	return pbm.readLostEvents[perfMap][cpu].Swap(0)
 }
 
 // GetAndResetLostCount returns the number of lost events and resets the counter for a given map and cpu. If a cpu of -1 is
@@ -229,45 +263,45 @@ func (pbm *PerfBufferMonitor) GetAndResetLostCount(perfMap string, cpu int) uint
 
 // getEventCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
-	return atomic.LoadUint64(&pbm.stats[perfMap][cpu][eventType].Count)
+	return pbm.stats[perfMap][cpu][eventType].Count.Load()
 }
 
 // getEventBytes is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
-	return atomic.LoadUint64(&pbm.stats[perfMap][cpu][eventType].Bytes)
+	return pbm.stats[perfMap][cpu][eventType].Bytes.Load()
 }
 
 // getKernelEventCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getKernelEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
-	return atomic.LoadUint64(&pbm.kernelStats[perfMap][cpu][eventType].Count)
+	return pbm.kernelStats[perfMap][cpu][eventType].Count.Load()
 }
 
 // getEventBytes is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getKernelEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
-	return atomic.LoadUint64(&pbm.kernelStats[perfMap][cpu][eventType].Bytes)
+	return pbm.kernelStats[perfMap][cpu][eventType].Bytes.Load()
 }
 
 // getKernelEventCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) swapKernelEventCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
-	return atomic.SwapUint64(&pbm.kernelStats[perfMap][cpu][eventType].Count, value)
+	return pbm.kernelStats[perfMap][cpu][eventType].Count.Swap(value)
 }
 
 // getKernelEventBytes is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) swapKernelEventBytes(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
-	return atomic.SwapUint64(&pbm.kernelStats[perfMap][cpu][eventType].Bytes, value)
+	return pbm.kernelStats[perfMap][cpu][eventType].Bytes.Swap(value)
 }
 
 // getKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) swapKernelLostCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
-	return atomic.SwapUint64(&pbm.kernelStats[perfMap][cpu][eventType].Lost, value)
+	return pbm.kernelStats[perfMap][cpu][eventType].Lost.Swap(value)
 }
 
 // GetEventStats returns the number of received events of the specified type
 func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap string, cpu int) (PerfMapStats, PerfMapStats) {
-	var stats, kernelStats PerfMapStats
+	stats, kernelStats := NewPerfMapStats(), NewPerfMapStats()
 	var maps []string
 
-	if eventType >= model.MaxEventType {
+	if eventType >= model.MaxKernelEventType {
 		return stats, kernelStats
 	}
 
@@ -285,20 +319,20 @@ func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap s
 		switch {
 		case cpu == -1:
 			for i := range pbm.stats[m] {
-				stats.Count += pbm.getEventCount(eventType, perfMap, i)
-				stats.Bytes += pbm.getEventBytes(eventType, perfMap, i)
+				stats.Count.Add(pbm.getEventCount(eventType, perfMap, i))
+				stats.Bytes.Add(pbm.getEventBytes(eventType, perfMap, i))
 
-				kernelStats.Count += pbm.getKernelEventCount(eventType, perfMap, i)
-				kernelStats.Bytes += pbm.getKernelEventBytes(eventType, perfMap, i)
-				kernelStats.Lost += pbm.getKernelLostCount(eventType, perfMap, i)
+				kernelStats.Count.Add(pbm.getKernelEventCount(eventType, perfMap, i))
+				kernelStats.Bytes.Add(pbm.getKernelEventBytes(eventType, perfMap, i))
+				kernelStats.Lost.Add(pbm.getKernelLostCount(eventType, perfMap, i))
 			}
 		case cpu >= 0 && pbm.numCPU > cpu:
-			stats.Count += pbm.getEventCount(eventType, perfMap, cpu)
-			stats.Bytes += pbm.getEventBytes(eventType, perfMap, cpu)
+			stats.Count.Add(pbm.getEventCount(eventType, perfMap, cpu))
+			stats.Bytes.Add(pbm.getEventBytes(eventType, perfMap, cpu))
 
-			kernelStats.Count += pbm.getKernelEventCount(eventType, perfMap, cpu)
-			kernelStats.Bytes += pbm.getKernelEventBytes(eventType, perfMap, cpu)
-			kernelStats.Lost += pbm.getKernelLostCount(eventType, perfMap, cpu)
+			kernelStats.Count.Add(pbm.getKernelEventCount(eventType, perfMap, cpu))
+			kernelStats.Bytes.Add(pbm.getKernelEventBytes(eventType, perfMap, cpu))
+			kernelStats.Lost.Add(pbm.getKernelLostCount(eventType, perfMap, cpu))
 		}
 
 	}
@@ -307,51 +341,51 @@ func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap s
 
 // getAndResetEventCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getAndResetEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
-	return atomic.SwapUint64(&pbm.stats[perfMap][cpu][eventType].Count, 0)
+	return pbm.stats[perfMap][cpu][eventType].Count.Swap(0)
 }
 
 // getAndResetEventBytes is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getAndResetEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
-	return atomic.SwapUint64(&pbm.stats[perfMap][cpu][eventType].Bytes, 0)
+	return pbm.stats[perfMap][cpu][eventType].Bytes.Swap(0)
 }
 
 // getAndResetSortingErrorCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *PerfBufferMonitor) getAndResetSortingErrorCount(eventType model.EventType, perfMap string) int64 {
-	return atomic.SwapInt64(pbm.sortingErrorStats[perfMap][eventType], 0)
+	return pbm.sortingErrorStats[perfMap][eventType].Swap(0)
 }
 
 // CountLostEvent adds `count` to the counter of lost events
-func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, m *manager.PerfMap, cpu int) {
+func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, mapName string, cpu int) {
 	// sanity check
-	if (pbm.readLostEvents[m.Name] == nil) || (len(pbm.readLostEvents[m.Name]) <= cpu) {
+	if (pbm.readLostEvents[mapName] == nil) || (len(pbm.readLostEvents[mapName]) <= cpu) {
 		return
 	}
-	atomic.AddUint64(&pbm.readLostEvents[m.Name][cpu], count)
+	pbm.readLostEvents[mapName][cpu].Add(count)
 }
 
 // CountEvent adds `count` to the counter of received events of the specified type
-func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, m *manager.PerfMap, cpu int) {
+func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, mapName string, cpu int) {
 	// check event order
 	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
-		atomic.AddInt64(pbm.sortingErrorStats[m.Name][eventType], 1)
-		atomic.SwapUint64(&pbm.shouldBumpGeneration, 1)
+		pbm.sortingErrorStats[mapName][eventType].Inc()
+		pbm.shouldBumpGeneration.Store(true)
 	} else {
 		pbm.lastTimestamp = timestamp
 	}
 
 	// sanity check
-	if (pbm.stats[m.Name] == nil) || (len(pbm.stats[m.Name]) <= cpu) || (len(pbm.stats[m.Name][cpu]) <= int(eventType)) {
+	if (pbm.stats[mapName] == nil) || (len(pbm.stats[mapName]) <= cpu) || (len(pbm.stats[mapName][cpu]) <= int(eventType)) {
 		return
 	}
 
-	atomic.AddUint64(&pbm.stats[m.Name][cpu][eventType].Count, count)
-	atomic.AddUint64(&pbm.stats[m.Name][cpu][eventType].Bytes, size)
+	pbm.stats[mapName][cpu][eventType].Count.Add(count)
+	pbm.stats[mapName][cpu][eventType].Bytes.Add(size)
 }
 
-func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client) error {
+func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
 	var count int64
 	var err error
-	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
+	tags := []string{pbm.config.StatsTagsCardinality, "", ""}
 
 	for m := range pbm.stats {
 		tags[1] = fmt.Sprintf("map:%s", m)
@@ -383,8 +417,8 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client)
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client *statsd.Client) error {
-	tags := []string{pbm.probe.config.StatsTagsCardinality, ""}
+func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterface) error {
+	tags := []string{pbm.config.StatsTagsCardinality, ""}
 
 	for m := range pbm.readLostEvents {
 		var total float64
@@ -399,23 +433,29 @@ func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client *statsd.Client) err
 			}
 		}
 
-		if total > 0 {
-			pbm.probe.DispatchCustomEvent(
-				NewEventLostReadEvent(m, total),
-			)
-		}
+		// Disable custom event for now
+		// if total > 0 {
+		// 	pbm.probe.DispatchCustomEvent(
+		// 		NewEventLostReadEvent(m, total),
+		// 	)
+		// }
 	}
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) error {
+func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInterface) error {
 	var (
 		id       uint32
 		iterator *lib.MapIterator
 		tmpCount uint64
 	)
+
 	cpuStats := make([]PerfMapStats, pbm.numCPU)
-	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
+	for i := 0; i < pbm.numCPU; i++ {
+		cpuStats[i] = NewPerfMapStats()
+	}
+
+	tags := []string{pbm.config.StatsTagsCardinality, "", ""}
 
 	// loop through the statistics buffers of each perf map
 	for perfMapName, statsMap := range pbm.perfBufferStatsMaps {
@@ -433,7 +473,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 			}
 
 			// retrieve event type from key
-			evtType := model.EventType(id % uint32(model.MaxEventType))
+			evtType := model.EventType(id % uint32(model.MaxKernelEventType))
 			tags[2] = fmt.Sprintf("event_type:%s", evtType)
 
 			// loop over each cpu entry
@@ -452,19 +492,19 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 				}
 
 				// Update stats to avoid sending twice the same data points
-				if tmpCount = pbm.swapKernelEventBytes(evtType, perfMapName, cpu, stats.Bytes); tmpCount <= stats.Bytes {
-					stats.Bytes -= tmpCount
+				if tmpCount = pbm.swapKernelEventBytes(evtType, perfMapName, cpu, stats.Bytes.Load()); tmpCount <= stats.Bytes.Load() {
+					stats.Bytes.Sub(tmpCount)
 				}
-				if tmpCount = pbm.swapKernelEventCount(evtType, perfMapName, cpu, stats.Count); tmpCount <= stats.Count {
-					stats.Count -= tmpCount
+				if tmpCount = pbm.swapKernelEventCount(evtType, perfMapName, cpu, stats.Count.Load()); tmpCount <= stats.Count.Load() {
+					stats.Count.Sub(tmpCount)
 				}
-				if tmpCount = pbm.swapKernelLostCount(evtType, perfMapName, cpu, stats.Lost); tmpCount <= stats.Lost {
-					stats.Lost -= tmpCount
-				}
+				if tmpCount = pbm.swapKernelLostCount(evtType, perfMapName, cpu, stats.Lost.Load()); tmpCount <= stats.Lost.Load() {
+					stats.Lost.Sub(tmpCount)
 
-				// purge dentry resolver generation if needed
-				if evtType == model.FileRenameEventType || evtType == model.FileUnlinkEventType || evtType == model.FileRmdirEventType {
-					atomic.SwapUint64(&pbm.shouldBumpGeneration, 1)
+					// purge dentry resolver generation if needed
+					if evtType == model.FileRenameEventType || evtType == model.FileUnlinkEventType || evtType == model.FileRmdirEventType {
+						pbm.shouldBumpGeneration.Store(true)
+					}
 				}
 
 				if client != nil {
@@ -472,12 +512,12 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 						return err
 					}
 				}
-				total += stats.Lost
-				perEvent[evtType.String()] += stats.Lost
+				total += stats.Lost.Load()
+				perEvent[evtType.String()] += stats.Lost.Load()
 			}
 		}
-		if iterator.Err() != nil {
-			return errors.Wrapf(iterator.Err(), "failed to dump the statistics buffer of map %s", perfMapName)
+		if err := iterator.Err(); err != nil {
+			return fmt.Errorf("failed to dump the statistics buffer of map %s: %w", perfMapName, err)
 		}
 
 		// send an alert if events were lost
@@ -485,26 +525,31 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 			pbm.probe.DispatchCustomEvent(
 				NewEventLostWriteEvent(perfMapName, perEvent),
 			)
+
+			// snapshot traced cgroups if a CgroupTracing event was lost
+			if pbm.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
+				pbm.probe.monitor.activityDumpManager.snapshotTracedCgroups()
+			}
 		}
 	}
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) sendKernelStats(client *statsd.Client, stats PerfMapStats, tags []string) error {
-	if stats.Count > 0 {
-		if err := client.Count(metrics.MetricPerfBufferEventsWrite, int64(stats.Count), tags, 1.0); err != nil {
+func (pbm *PerfBufferMonitor) sendKernelStats(client statsd.ClientInterface, stats PerfMapStats, tags []string) error {
+	if stats.Count.Load() > 0 {
+		if err := client.Count(metrics.MetricPerfBufferEventsWrite, int64(stats.Count.Load()), tags, 1.0); err != nil {
 			return err
 		}
 	}
 
-	if stats.Bytes > 0 {
-		if err := client.Count(metrics.MetricPerfBufferBytesWrite, int64(stats.Bytes), tags, 1.0); err != nil {
+	if stats.Bytes.Load() > 0 {
+		if err := client.Count(metrics.MetricPerfBufferBytesWrite, int64(stats.Bytes.Load()), tags, 1.0); err != nil {
 			return err
 		}
 	}
 
-	if stats.Lost > 0 {
-		if err := client.Count(metrics.MetricPerfBufferLostWrite, int64(stats.Lost), tags, 1.0); err != nil {
+	if stats.Lost.Load() > 0 {
+		if err := client.Count(metrics.MetricPerfBufferLostWrite, int64(stats.Lost.Load()), tags, 1.0); err != nil {
 			return err
 		}
 	}
@@ -518,7 +563,7 @@ func (pbm *PerfBufferMonitor) SendStats() error {
 		return err
 	}
 
-	if atomic.SwapUint64(&pbm.shouldBumpGeneration, 0) == 1 {
+	if pbm.shouldBumpGeneration.Swap(false) {
 		pbm.probe.resolvers.DentryResolver.BumpCacheGenerations()
 	}
 

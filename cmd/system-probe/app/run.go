@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package app
 
 import (
@@ -20,10 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -35,6 +42,8 @@ var ErrNotEnabled = errors.New("system-probe not enabled")
 var (
 	// flags variables
 	pidfilePath string
+
+	memoryMonitor *utils.MemoryMonitor
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -118,6 +127,10 @@ func run(_ *cobra.Command, _ []string) error {
 	return err
 }
 
+func isValidPort(port int) bool {
+	return port > 0 && port < 65536
+}
+
 // StartSystemProbe Initializes the system-probe process
 func StartSystemProbe() error {
 	cfg, err := config.New(configPath)
@@ -144,6 +157,18 @@ func StartSystemProbe() error {
 
 	if err := util.SetupCoreDump(); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
+	if ddconfig.Datadog.GetBool("system_probe_config.memory_controller.enabled") {
+		memoryPressureLevels := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
+		memoryThresholds := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.thresholds")
+		hierarchy := ddconfig.Datadog.GetString("system_probe_config.memory_controller.hierarchy")
+		memoryMonitor, err = utils.NewMemoryMonitor(hierarchy, ddconfig.IsContainerized(), memoryPressureLevels, memoryThresholds)
+		if err != nil {
+			log.Warnf("Can't set up memory controller: %v", err)
+		} else {
+			memoryMonitor.Start()
+		}
 	}
 
 	if err := initRuntimeSettings(); err != nil {
@@ -174,7 +199,11 @@ func StartSystemProbe() error {
 	}
 
 	// if a debug port is specified, we expose the default handler to that port
-	if cfg.DebugPort > 0 {
+	if isValidPort(cfg.DebugPort) {
+		// Expose telemetry endpoint
+		if cfg.TelemetryEnabled {
+			http.Handle("/telemetry", telemetry.Handler())
+		}
 		go func() {
 			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.DebugPort), http.DefaultServeMux)
 			if err != nil && err != http.ErrServerClosed {
@@ -193,6 +222,9 @@ func StartSystemProbe() error {
 func StopSystemProbe() {
 	module.Close()
 	profiling.Stop()
+	if memoryMonitor != nil {
+		memoryMonitor.Stop()
+	}
 	_ = os.Remove(pidfilePath)
 	log.Flush()
 }

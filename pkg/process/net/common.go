@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux || windows
 // +build linux windows
 
 package net
@@ -7,13 +13,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
@@ -40,6 +47,8 @@ var (
 	globalUtilOnce   sync.Once
 	globalSocketPath string
 )
+
+var _ SysProbeUtil = &RemoteSysProbeUtil{}
 
 // RemoteSysProbeUtil wraps interactions with a remote system probe service
 type RemoteSysProbeUtil struct {
@@ -111,7 +120,7 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 		return nil, fmt.Errorf("proc_stats request failed: Probe Path %s, url: %s, status code: %d", r.path, procStatsURL, resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +153,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 		return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +181,7 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	defer resp.Body.Close()
 	if err != nil {
 		return nil, err
@@ -185,6 +194,25 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	}
 
 	return stats, nil
+}
+
+// Register registers the client to system probe
+func (r *RemoteSysProbeUtil) Register(clientID string) error {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", registerURL, clientID), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
+	}
+
+	return nil
 }
 
 func newSystemProbe() *RemoteSysProbeUtil {
@@ -207,9 +235,12 @@ func newSystemProbe() *RemoteSysProbeUtil {
 }
 
 func (r *RemoteSysProbeUtil) init() error {
-	if resp, err := r.httpClient.Get(statsURL); err != nil {
+	resp, err := r.httpClient.Get(statsURL)
+	if err != nil {
 		return err
-	} else if resp.StatusCode != http.StatusOK {
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 	return nil

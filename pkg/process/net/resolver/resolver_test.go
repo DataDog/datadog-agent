@@ -1,13 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !linux
 // +build !linux
 
 package resolver
 
 import (
-	"net"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,46 +19,46 @@ func TestLocalResolver(t *testing.T) {
 	assert := assert.New(t)
 
 	resolver := &LocalResolver{}
-	containers := []*containers.Container{
+	containers := []*model.Container{
 		{
-			ID: "container-1",
-			AddressList: []containers.NetworkAddress{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
 				{
-					IP:       net.ParseIP("10.0.2.15"),
+					Ip:       "10.0.2.15",
 					Port:     32769,
-					Protocol: "tcp",
+					Protocol: model.ConnectionType_tcp,
 				},
 				{
-					IP:       net.ParseIP("172.17.0.4"),
+					Ip:       "172.17.0.4",
 					Port:     6379,
-					Protocol: "tcp",
+					Protocol: model.ConnectionType_tcp,
 				},
 			},
 		},
 		{
-			ID: "container-2",
-			AddressList: []containers.NetworkAddress{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
 				{
-					IP:       net.ParseIP("172.17.0.2"),
+					Ip:       "172.17.0.2",
 					Port:     80,
-					Protocol: "tcp",
+					Protocol: model.ConnectionType_tcp,
 				},
 			},
 		},
 		{
-			ID: "container-3",
-			AddressList: []containers.NetworkAddress{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
 				{
-					IP:       net.ParseIP("10.0.2.15"),
+					Ip:       "10.0.2.15",
 					Port:     32769,
-					Protocol: "udp",
+					Protocol: model.ConnectionType_udp,
 				},
 			},
 		},
 	}
 
 	// Generate network address => container ID map
-	resolver.LoadAddrs(containers)
+	resolver.LoadAddrs(containers, nil)
 
 	connections := &model.Connections{
 		Conns: []*model.Connection{
@@ -286,50 +290,18 @@ func TestResolveLoopbackConnections(t *testing.T) {
 	}
 
 	resolver := &LocalResolver{}
-	resolver.LoadAddrs(
-		[]*containers.Container{
-			{
-				ID:   "foo1",
-				Pids: []int32{1},
-			},
-			{
-				ID:   "foo2",
-				Pids: []int32{2},
-			},
-			{
-				ID:   "foo3",
-				Pids: []int32{3},
-			},
-			{
-				ID:   "foo4",
-				Pids: []int32{4},
-			},
-			{
-				ID:   "foo5",
-				Pids: []int32{5},
-			},
-			{
-				ID:   "foo6",
-				Pids: []int32{6},
-			},
-			{
-				ID:   "foo7",
-				Pids: []int32{7},
-			},
-			{
-				ID:   "bar",
-				Pids: []int32{20},
-			},
-			{
-				ID:   "foo20",
-				Pids: []int32{20},
-			},
-			{
-				ID:   "foo21",
-				Pids: []int32{21},
-			},
-		},
-	)
+	resolver.LoadAddrs(nil, map[int]string{
+		1:  "foo1",
+		2:  "foo2",
+		3:  "foo3",
+		4:  "foo4",
+		5:  "foo5",
+		6:  "foo6",
+		7:  "foo7",
+		8:  "bar",
+		20: "foo20",
+		21: "foo21",
+	})
 
 	conns := &model.Connections{}
 	for _, te := range tests {

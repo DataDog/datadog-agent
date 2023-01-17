@@ -11,11 +11,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	lsched "github.com/DataDog/datadog-agent/pkg/logs/scheduler"
-	lstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -25,30 +25,42 @@ import (
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(confdPath string) {
-	workloadmeta.GetGlobalStore().Start(context.Background())
+func LoadComponents(ctx context.Context, confdPath string) {
+	var catalog workloadmeta.CollectorCatalog
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		catalog = workloadmeta.ClusterAgentCatalog
+	} else {
+		catalog = workloadmeta.NodeAgentCatalog
+	}
 
-	// start the tagger. must be done before autodiscovery, as it needs to
-	// be the first subscribed to metadata store to avoid race conditions.
-	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-	if err := tagger.Init(); err != nil {
+	store := workloadmeta.CreateGlobalStore(catalog)
+	store.Start(ctx)
+
+	var t tagger.Tagger
+
+	if config.IsCLCRunner() {
+		options, err := remote.CLCRunnerOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+			t = local.NewFakeTagger()
+		} else if options.Disabled {
+			log.Info("remote tagger is disabled")
+			t = local.NewFakeTagger()
+		} else {
+			t = remote.NewTagger(options)
+		}
+	} else {
+		t = local.NewTagger(store)
+	}
+
+	tagger.SetDefaultTagger(t)
+	if err := tagger.Init(ctx); err != nil {
 		log.Errorf("failed to start the tagger: %s", err)
 	}
 
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment, if available
 	Coll = collector.NewCollector(GetPythonPaths()...)
-
-	// creating the meta scheduler
-	metaScheduler := scheduler.NewMetaScheduler()
-
-	// registering the check scheduler
-	metaScheduler.Register("check", collector.InitCheckScheduler(Coll))
-
-	// registering the logs scheduler
-	if lstatus.Get().IsRunning {
-		metaScheduler.Register("logs", lsched.GetScheduler())
-	}
 
 	// setup autodiscovery
 	confSearchPaths := []string{
@@ -59,5 +71,5 @@ func LoadComponents(confdPath string) {
 
 	// setup autodiscovery. must be done after the tagger is initialized
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, metaScheduler)
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())
 }

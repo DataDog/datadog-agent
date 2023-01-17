@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package cachedfetch
 
 import (
@@ -106,6 +111,26 @@ func TestFetchStringError(t *testing.T) {
 	}
 	v, err := f.FetchString(context.TODO())
 	require.Equal(t, "", v)
+	require.Error(t, err)
+}
+
+// FetchStringSlice casts to a []string
+func TestFetchStringSlice(t *testing.T) {
+	f := Fetcher{
+		Attempt: func(ctx context.Context) (interface{}, error) { return []string{"hello"}, nil },
+	}
+	v, err := f.FetchStringSlice(context.TODO())
+	require.Equal(t, []string{"hello"}, v)
+	require.NoError(t, err)
+}
+
+// FetchStringSlice casts to a []string
+func TestFetchStringSliceError(t *testing.T) {
+	f := Fetcher{
+		Attempt: func(ctx context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
+	}
+	v, err := f.FetchStringSlice(context.TODO())
+	require.Nil(t, v)
 	require.Error(t, err)
 }
 

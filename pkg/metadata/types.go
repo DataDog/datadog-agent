@@ -15,7 +15,7 @@ import (
 // through the forwarder.
 // A Metadata Collector normally uses a Metadata Provider to fill the payload.
 type Collector interface {
-	Send(ctx context.Context, s *serializer.Serializer) error
+	Send(ctx context.Context, s serializer.MetricSerializer) error
 }
 
 // CollectorWithInit is an optional interface that collectors that need to be

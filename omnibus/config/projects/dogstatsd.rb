@@ -21,12 +21,30 @@ else
   install_dir '/opt/datadog-dogstatsd'
   if redhat? || suse?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
+
+    # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
+    # because these would be used in a kickstart during package installation phase.
+    # All of the packages that we depend on in prerm/postrm scripts always have to be
+    # installed on all distros that we support, so we don't have to depend on them
+    # explicitly.
+
+    # postinst and posttrans scripts use a subset of preinst script deps, so we don't
+    # have to list them, because they'll already be there because of preinst
+    runtime_script_dependency :pre, "coreutils"
+    runtime_script_dependency :pre, "grep"
+    if redhat?
+      runtime_script_dependency :pre, "glibc-common"
+      runtime_script_dependency :pre, "shadow-utils"
+    else
+      runtime_script_dependency :pre, "glibc"
+      runtime_script_dependency :pre, "shadow"
+    end
   else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
   end
 end
 
@@ -75,6 +93,9 @@ package :rpm do
   priority 'extra'
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+    if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
+      gpg_key_name "#{ENV['RPM_GPG_KEY_NAME']}"
+    end
   end
 end
 
@@ -142,6 +163,15 @@ dependency 'datadog-dogstatsd'
 # This must be the last dependency in the project.
 
 dependency 'datadog-dogstatsd-finalize'
+
+# package scripts
+if linux?
+  if debian?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
+  else
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
+  end
+end
 
 if linux?
   extra_package_file '/etc/init/datadog-dogstatsd.conf'

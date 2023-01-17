@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -37,12 +38,13 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 var (
@@ -211,7 +213,7 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid types.UID, metricName st
 		},
 	}
 
-	if err := UnstructuredFromWPA(wpa, obj); err != nil {
+	if err := UnstructuredFromAutoscaler(wpa, obj); err != nil {
 		panic("Failed to construct unstructured WPA")
 	}
 
@@ -664,7 +666,7 @@ type testWriter struct {
 
 func (tw testWriter) Write(p []byte) (n int, err error) {
 	line := string(p)
-	strings.TrimRight(line, "\r\n")
+	line = strings.TrimRight(line, "\r\n")
 	tw.t.Log(line)
 	return len(p), nil
 }

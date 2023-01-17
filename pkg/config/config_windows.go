@@ -6,8 +6,10 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -15,13 +17,17 @@ var (
 	defaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = "c:\\programdata\\datadog\\run"
-	defaultSyslogURI            = ""
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	// DefaultProcessAgentLogFile is the default process-agent log file
+	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
+
 	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "localhost:3333"
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
+	// DefaultDDAgentBin the process agent's binary
+	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 )
 
 // ServiceName is the name that'll be used to register the Agent
@@ -35,10 +41,16 @@ func osinit() {
 		defaultRunPath = filepath.Join(pd, "run")
 		defaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
+		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
-}
 
-// NewAssetFs  Should never be called on non-android
-func setAssetFs(config Config) {}
+	// Process Agent
+	if _here, err := executable.Folder(); err == nil {
+		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
+		if _, err := os.Stat(agentFilePath); err == nil {
+			DefaultDDAgentBin = agentFilePath
+		}
+	}
+}

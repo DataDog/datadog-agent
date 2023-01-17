@@ -12,8 +12,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestGetInstanceID(t *testing.T) {
@@ -38,7 +40,34 @@ func TestGetInstanceID(t *testing.T) {
 	assert.Equal(t, lastRequest.URL.Path, "/meta-data/instance-id")
 }
 
+func TestGetHostAliases(t *testing.T) {
+	ctx := context.Background()
+	holdValue := config.Datadog.Get("cloud_provider_metadata")
+	defer config.Datadog.Set("cloud_provider_metadata", holdValue)
+	config.Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+
+	expected := "ins-nad6bga0"
+	var lastRequest *http.Request
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, expected)
+		lastRequest = r
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	aliases, err := GetHostAliases(ctx)
+	assert.NoError(t, err)
+	require.Len(t, aliases, 1)
+	assert.Equal(t, expected, aliases[0])
+	assert.Equal(t, lastRequest.URL.Path, "/meta-data/instance-id")
+}
+
 func TestGetNTPHosts(t *testing.T) {
+	holdValue := config.Datadog.Get("cloud_provider_metadata")
+	defer config.Datadog.Set("cloud_provider_metadata", holdValue)
+	config.Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+
 	ctx := context.Background()
 	expectedHosts := []string{"ntpupdate.tencentyun.com"}
 
@@ -49,7 +78,6 @@ func TestGetNTPHosts(t *testing.T) {
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	config.Datadog.Set("cloud_provider_metadata", []string{"tencent"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

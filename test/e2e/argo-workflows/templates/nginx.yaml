@@ -87,7 +87,7 @@ spec:
                 annotations:
                   ad.datadoghq.com/nginx.check_names: '["nginx"]'
                   ad.datadoghq.com/nginx.init_configs: '[{}]'
-                  ad.datadoghq.com/nginx.instances: '[{"nginx_status_url": "http://%%host%%/nginx_status", "tags": "%%tags%%"}]'
+                  ad.datadoghq.com/nginx.instances: '[{"nginx_status_url": "http://%%host%%/nginx_status"}]'
                   ad.datadoghq.com/nginx.logs: '[{"type": "docker","image": "nginx","service": "nginx","source": "nginx"}]'
               spec:
                 containers:
@@ -112,7 +112,7 @@ spec:
       resource:
         action: apply
         manifest: |
-          apiVersion: autoscaling/v2beta1
+          apiVersion: autoscaling/v2
           kind: HorizontalPodAutoscaler
           metadata:
             name: nginxext
@@ -127,11 +127,14 @@ spec:
             metrics:
             - type: External
               external:
-                metricName: nginx.net.request_per_s
-                metricSelector:
-                  matchLabels:
-                      kube_container_name: nginx
-                targetAverageValue: 9
+                metric:
+                  name: nginx.net.request_per_s
+                  selector:
+                    matchLabels:
+                        kube_container_name: nginx
+                target:
+                  type: AverageValue
+                  averageValue: 9
 
     - name: delete-service
       inputs:
@@ -179,7 +182,7 @@ spec:
       resource:
         action: delete
         manifest: |
-          apiVersion: autoscaling/v2beta1
+          apiVersion: autoscaling/v2
           kind: HorizontalPodAutoscaler
           metadata:
             name: nginxext
@@ -261,7 +264,7 @@ spec:
           while (1) {
             var nb = db.series.find({
             metric: "kubernetes_state.deployment.replicas_available",
-            tags: { $all: ["namespace:{{inputs.parameters.namespace}}", "deployment:nginx"] },
+            tags: { $all: ["kube_namespace:{{inputs.parameters.namespace}}", "kube_deployment:nginx"] },
             "points.0.1": { $eq: 1 } }).count();
             print("find: " + nb)
             if (nb != 0) {
@@ -297,7 +300,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -314,7 +317,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -396,7 +399,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail

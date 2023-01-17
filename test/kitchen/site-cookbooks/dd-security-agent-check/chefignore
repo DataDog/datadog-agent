@@ -34,7 +34,6 @@ mkmf.log
 ## COMPILED ##
 ##############
 a.out
-*.o
 *.pyc
 *.so
 *.com

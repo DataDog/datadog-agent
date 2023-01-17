@@ -38,6 +38,8 @@ var (
 	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
 	// ProcessDiscoveryEndpoint is a v1 endpoint used to sends process discovery checks
 	ProcessDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"}
+	// ProcessLifecycleEndpoint is a v2 endpoint used to send process lifecycle events
+	ProcessLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/proclcycle", Name: "process_lifecycle"}
 	// RtProcessesEndpoint is a v1 endpoint used to send real time process checks
 	RtProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
 	// ContainerEndpoint is a v1 endpoint used to send container checks
@@ -45,7 +47,17 @@ var (
 	// RtContainerEndpoint is a v1 endpoint used to send real time container checks
 	RtContainerEndpoint = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
 	// ConnectionsEndpoint is a v1 endpoint used to send connection checks
-	ConnectionsEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
-	// OrchestratorEndpoint is a v1 endpoint used to send orchestrator checks
-	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
+	ConnectionsEndpoint = transaction.Endpoint{Route: "/api/v1/connections", Name: "connections"}
+	// LegacyOrchestratorEndpoint is a v1 endpoint used to send orchestrator checks
+	LegacyOrchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
+	// OrchestratorEndpoint is a v2 endpoint used to send orchestrator checks
+	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v2/orch", Name: "orchestrator"}
+	// OrchestratorManifestEndpoint is a v2 endpoint used to send orchestrator manifests
+	OrchestratorManifestEndpoint = transaction.Endpoint{Route: "/api/v2/orchmanif", Name: "orchmanifest"}
+	// ContainerLifecycleEndpoint is an event platform endpoint used to send container lifecycle events
+	ContainerLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/contlcycle", Name: "contlcycle"}
+	// ContainerImageEndpoint is an event platform endpoint used to send container images
+	ContainerImageEndpoint = transaction.Endpoint{Route: "/api/v2/contimage", Name: "contimage"}
+	// SBOMEndpoint is an event platform endpoint used to send SBOM
+	SBOMEndpoint = transaction.Endpoint{Route: "/api/v2/sbom", Name: "sbom"}
 )

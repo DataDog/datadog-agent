@@ -5,10 +5,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall)
 
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
-    CustomActionData data;
-    // first, get the necessary initialization data
-    // need the dd-agent-username (if provided)
-    // need the dd-agent-password (if provided)
+    std::optional<CustomActionData> data;
     hr = WcaInitialize(hInstall, "CA: FinalizeInstall");
     ExitOnFailure(hr, "Failed to initialize");
     WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -16,13 +13,22 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall)
 #ifdef _DEBUG
     MessageBox(NULL, L"hi", L"bye", MB_OK);
 #endif
-    if (!data.init(hInstall))
+    // first, get the necessary initialization data
+    // need the dd-agent-username (if provided)
+    // need the dd-agent-password (if provided)
+    try
+    {
+        auto propertyView = std::make_shared<DeferredCAPropertyView>(hInstall);
+        data.emplace(propertyView);
+    }
+    catch (std::exception &)
     {
         WcaLog(LOGMSG_STANDARD, "Failed to load custom action property data");
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
-    er = doFinalizeInstall(data);
+
+    er = doFinalizeInstall(data.value());
 
 LExit:
     if (er == ERROR_SUCCESS)
@@ -82,7 +88,7 @@ extern "C" UINT __stdcall DoUninstall(MSIHANDLE hInstall)
 {
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     HRESULT hr = WcaInitialize(hInstall, "CA: DoUninstall");
-    UINT er = 0;
+    UINT er = ERROR_SUCCESS;
     ExitOnFailure(hr, "Failed to initialize");
 
     WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -101,7 +107,7 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall)
 {
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     HRESULT hr = WcaInitialize(hInstall, "CA: DoRollback");
-    UINT er = 0;
+    UINT er = ERROR_SUCCESS;
     ExitOnFailure(hr, "Failed to initialize");
 
     WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -120,18 +126,6 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall)
     if (er != 0)
     {
         hr = -1;
-    }
-    {
-        std::wstring dir_to_delete;
-        dir_to_delete = installdir + L"bin";
-        DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
-        dir_to_delete = installdir + L"embedded2";
-        DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
-        // python 3, on startup, leaves a bunch of __pycache__ directories,
-        // so we have to be more aggressive.
-        dir_to_delete = installdir + L"embedded3";
-        DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
-        DeleteFilesInDirectory(dir_to_delete.c_str(), L"__pycache__", true);
     }
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
@@ -158,4 +152,50 @@ extern "C" BOOL WINAPI DllMain(__in HINSTANCE hInst, __in ULONG ulReason, __in L
     }
 
     return TRUE;
+}
+
+/*
+ * Immediate custom action executed at the DDAgentUserDlg dialog
+ *
+ * Checks the provided username and password with the system
+ * state to ensure install should not fail.
+ *
+ */
+extern "C" UINT __stdcall ValidateDDAgentUserDlgInput(MSIHANDLE hInstall)
+{
+    std::optional<CustomActionData> data;
+    bool shouldResetPassword = false;
+    std::wstring resultMessage;
+
+    HRESULT hr = WcaInitialize(hInstall, "CA: " __FUNCTION__);
+    if (FAILED(hr))
+    {
+        return WcaFinalize(ERROR_INSTALL_FAILURE);
+    }
+    WcaLog(LOGMSG_STANDARD, "Initialized.");
+
+    try
+    {
+        auto propertyView = std::make_shared<ImmediateCAPropertyView>(hInstall);
+        data.emplace(propertyView);
+    }
+    catch (std::exception &)
+    {
+        WcaLog(LOGMSG_STANDARD, "Failed to load installer property data");
+        return WcaFinalize(ERROR_INSTALL_FAILURE);
+    }
+
+    if (!canInstall(data.value(), shouldResetPassword, &resultMessage))
+    {
+        MsiSetProperty(hInstall, L"DDAgentUser_Valid", L"False");
+        MsiSetProperty(hInstall, L"DDAgentUser_ResultMessage", resultMessage.c_str());
+        // Not an error. Must return success for the installer to continue
+    }
+    else
+    {
+        MsiSetProperty(hInstall, L"DDAgentUser_Valid", L"True");
+        MsiSetProperty(hInstall, L"DDAgentUser_ResultMessage", L"");
+    }
+
+    return WcaFinalize(ERROR_SUCCESS);
 }

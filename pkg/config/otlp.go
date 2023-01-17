@@ -5,31 +5,84 @@
 
 package config
 
-// Experimental OTLP configuration paths.
+// OTLP configuration paths.
 const (
-	ExperimentalOTLPSection         = "experimental.otlp"
-	ExperimentalOTLPHTTPPort        = ExperimentalOTLPSection + ".http_port"
-	ExperimentalOTLPgRPCPort        = ExperimentalOTLPSection + ".grpc_port"
-	ExperimentalOTLPTracePort       = ExperimentalOTLPSection + ".internal_traces_port"
-	ExperimentalOTLPMetricsEnabled  = ExperimentalOTLPSection + ".metrics_enabled"
-	ExperimentalOTLPTracesEnabled   = ExperimentalOTLPSection + ".traces_enabled"
-	ReceiverSubSectionKey           = "receiver"
-	ExperimentalOTLPReceiverSection = ExperimentalOTLPSection + "." + ReceiverSubSectionKey
-	ExperimentalOTLPMetrics         = ExperimentalOTLPSection + ".metrics"
+	OTLPSection               = "otlp_config"
+	OTLPTracesSubSectionKey   = "traces"
+	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
+	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
+	OTLPReceiverSubSectionKey = "receiver"
+	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
+	OTLPMetricsSubSectionKey  = "metrics"
+	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
+	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
+	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
+	OTLPDebugKey              = "debug"
+	OTLPDebug                 = OTLPSection + "." + OTLPDebugKey
 )
 
 // SetupOTLP related configuration.
 func SetupOTLP(config Config) {
-	config.BindEnvAndSetDefault(ExperimentalOTLPTracePort, 5003)
-	config.BindEnvAndSetDefault(ExperimentalOTLPMetricsEnabled, true)
-	config.BindEnvAndSetDefault(ExperimentalOTLPTracesEnabled, true)
-	config.BindEnv(ExperimentalOTLPHTTPPort, "DD_OTLP_HTTP_PORT")
-	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
+	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
+	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
+	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
 
-	config.SetKnown(ExperimentalOTLPMetrics)
-	// Set all subkeys of experimental.otlp.metrics as known
-	config.SetKnown(ExperimentalOTLPMetrics + ".*")
-	config.SetKnown(ExperimentalOTLPReceiverSection)
-	// Set all subkeys of experimental.otlp.receiver as known
-	config.SetKnown(ExperimentalOTLPReceiverSection + ".*")
+	// NOTE: This only partially works.
+	// The environment variable is also manually checked in pkg/otlp/config.go
+	config.BindEnvAndSetDefault(OTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
+
+	config.SetKnown(OTLPMetrics)
+	// Set all subkeys of otlp_config.metrics as known
+	config.SetKnown(OTLPMetrics + ".*")
+	config.SetKnown(OTLPReceiverSection)
+	// Set all subkeys of otlp_config.receiver as known
+	config.SetKnown(OTLPReceiverSection + ".*")
+	config.SetKnown(OTLPDebug)
+	// Set all subkeys of otlp_config.debug as known
+	config.SetKnown(OTLPDebug + ".*")
+
+	// set environment variables for selected fields
+	setupOTLPEnvironmentVariables(config)
+}
+
+// setupOTLPEnvironmentVariables sets up the environment variables associated with different OTLP ingest settings:
+// If there are changes in the OTLP receiver configuration, they should be reflected here.
+//
+// We don't need to set the default value: it is dealt with at the unmarshaling level
+// since we get the configuration through GetStringMap
+//
+// We are missing TLS settings: since some of them need more work to work right they are not included here.
+func setupOTLPEnvironmentVariables(config Config) {
+	// gRPC settings
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.endpoint")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.transport")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_recv_msg_size_mib")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_concurrent_streams")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.read_buffer_size")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.write_buffer_size")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
+
+	// Traces settingds
+	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
+	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
+
+	// HTTP settings
+	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
+	config.BindEnv(OTLPSection + ".receiver.protocols.http.max_request_body_size")
+	config.BindEnv(OTLPSection + ".receiver.protocols.http.include_metadata")
+
+	// Metrics settings
+	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
+	config.BindEnv(OTLPSection + ".metrics.resource_attributes_as_tags")
+	config.BindEnv(OTLPSection + ".metrics.instrumentation_library_metadata_as_tags")
+	config.BindEnv(OTLPSection + ".metrics.instrumentation_scope_metadata_as_tags")
+	config.BindEnv(OTLPSection + ".metrics.tag_cardinality")
+	config.BindEnv(OTLPSection + ".metrics.histograms.mode")
+	config.BindEnv(OTLPSection + ".metrics.histograms.send_count_sum_metrics")
+	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
+	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
+
+	// Debug settings
+	config.BindEnv(OTLPSection + ".debug.loglevel") // Deprecated
+	config.BindEnv(OTLPSection + ".debug.verbosity")
 }

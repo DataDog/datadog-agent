@@ -13,18 +13,22 @@ import (
 )
 
 type cgroupV2 struct {
-	identifier  string
-	fullPath    string
-	controllers map[string]struct{}
-	fr          fileReader
+	identifier   string
+	cgroupRoot   string
+	relativePath string
+	controllers  map[string]struct{}
+	fr           fileReader
+	pidMapper    pidMapper
 }
 
-func newCgroupV2(identifier, fullPath string, controllers map[string]struct{}) *cgroupV2 {
+func newCgroupV2(identifier, cgroupRoot, relativePath string, controllers map[string]struct{}, pidMapper pidMapper) *cgroupV2 {
 	return &cgroupV2{
-		identifier:  identifier,
-		fullPath:    fullPath,
-		controllers: controllers,
-		fr:          defaultFileReader,
+		identifier:   identifier,
+		cgroupRoot:   cgroupRoot,
+		relativePath: relativePath,
+		controllers:  controllers,
+		pidMapper:    pidMapper,
+		fr:           defaultFileReader,
 	}
 }
 
@@ -33,8 +37,8 @@ func (c *cgroupV2) Identifier() string {
 }
 
 func (c *cgroupV2) GetParent() (Cgroup, error) {
-	parentPath := filepath.Join(c.fullPath, "/..")
-	return newCgroupV2(filepath.Base(parentPath), parentPath, c.controllers), nil
+	parentPath := filepath.Join(c.relativePath, "/..")
+	return newCgroupV2(filepath.Base(parentPath), c.cgroupRoot, parentPath, c.controllers, c.pidMapper), nil
 }
 
 func (c *cgroupV2) GetStats(stats *Stats) error {
@@ -79,5 +83,5 @@ func (c *cgroupV2) controllerActivated(controller string) bool {
 }
 
 func (c *cgroupV2) pathFor(filename string) string {
-	return filepath.Join(c.fullPath, filename)
+	return filepath.Join(c.cgroupRoot, c.relativePath, filename)
 }

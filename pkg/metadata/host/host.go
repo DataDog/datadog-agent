@@ -17,19 +17,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-
-	"io/ioutil"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -46,7 +47,7 @@ type installInfo struct {
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
-func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
+func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 	meta := getMeta(ctx, hostnameData)
 	meta.Hostname = hostnameData.Hostname
 
@@ -62,6 +63,7 @@ func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
 		LogsMeta:      getLogsMeta(),
 		InstallMethod: getInstallMethod(getInstallInfoPath()),
 		ProxyMeta:     getProxyMeta(),
+		OtlpMeta:      getOtlpMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -73,7 +75,7 @@ func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
 
 // GetPayloadFromCache returns the payload from the cache if it exists, otherwise it creates it.
 // The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
-func GetPayloadFromCache(ctx context.Context, hostnameData util.HostnameData) *Payload {
+func GetPayloadFromCache(ctx context.Context, hostnameData hostname.Data) *Payload {
 	key := buildKey("payload")
 	if x, found := cache.Cache.Get(key); found {
 		return x.(*Payload)
@@ -83,7 +85,7 @@ func GetPayloadFromCache(ctx context.Context, hostnameData util.HostnameData) *P
 
 // GetMeta grabs the metadata from the cache and returns it,
 // if the cache is empty, then it queries the information directly
-func GetMeta(ctx context.Context, hostnameData util.HostnameData) *Meta {
+func GetMeta(ctx context.Context, hostnameData hostname.Data) *Meta {
 	key := buildKey("meta")
 	if x, found := cache.Cache.Get(key); found {
 		return x.(*Meta)
@@ -104,8 +106,9 @@ func GetPythonVersion() string {
 
 func getPublicIPv4(ctx context.Context) (string, error) {
 	publicIPFetcher := map[string]func(context.Context) (string, error){
-		"EC2": ec2.GetPublicIPv4,
-		"GCE": gce.GetPublicIPv4,
+		"EC2":   ec2.GetPublicIPv4,
+		"GCE":   gce.GetPublicIPv4,
+		"Azure": azure.GetPublicIPv4,
 	}
 	for name, fetcher := range publicIPFetcher {
 		publicIPv4, err := fetcher(ctx)
@@ -120,30 +123,29 @@ func getPublicIPv4(ctx context.Context) (string, error) {
 }
 
 // getMeta grabs the information and refreshes the cache
-func getMeta(ctx context.Context, hostnameData util.HostnameData) *Meta {
-	hostname, _ := os.Hostname()
+func getMeta(ctx context.Context, hostnameData hostname.Data) *Meta {
+	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
 	instanceID, _ := ec2.GetInstanceID(ctx)
 
 	var agentHostname string
 
-	if config.Datadog.GetBool("hostname_force_config_as_canonical") &&
-		hostnameData.Provider == util.HostnameProviderConfiguration {
+	if config.Datadog.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
 		agentHostname = hostnameData.Hostname
 	}
 
 	m := &Meta{
-		SocketHostname: hostname,
+		SocketHostname: osHostname,
 		Timezones:      []string{tzname},
-		SocketFqdn:     util.Fqdn(hostname),
+		SocketFqdn:     util.Fqdn(osHostname),
 		EC2Hostname:    ec2Hostname,
 		HostAliases:    cloudproviders.GetHostAliases(ctx),
 		InstanceID:     instanceID,
 		AgentHostname:  agentHostname,
 	}
 
-	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, hostname); finalClusterName != "" {
+	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
 		m.ClusterName = finalClusterName
 	}
 
@@ -216,7 +218,10 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 }
 
 func getLogsMeta() *LogsMeta {
-	return &LogsMeta{Transport: string(status.CurrentTransport)}
+	return &LogsMeta{
+		Transport:            string(status.CurrentTransport),
+		AutoMultilineEnabled: config.Datadog.GetBool("logs_config.auto_multi_line_detection"),
+	}
 }
 
 // Expose the value of no_proxy_nonexact_match as well as any warnings of proxy behavior change in the metadata payload.
@@ -227,9 +232,17 @@ func getProxyMeta() *ProxyMeta {
 	httputils.NoProxyMapMutex.Lock()
 	defer httputils.NoProxyMapMutex.Unlock()
 
+	NoProxyNonexactMatchExplicitlySetState := false
+	NoProxyNonexactMatch := false
+	if config.Datadog.IsSet("no_proxy_nonexact_match") {
+		NoProxyNonexactMatchExplicitlySetState = true
+		NoProxyNonexactMatch = config.Datadog.GetBool("no_proxy_nonexact_match")
+	}
+
 	return &ProxyMeta{
-		NoProxyNonexactMatch: config.Datadog.GetBool("no_proxy_nonexact_match"),
-		ProxyBehaviorChanged: len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0,
+		NoProxyNonexactMatch:              NoProxyNonexactMatch,
+		ProxyBehaviorChanged:              len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0,
+		NoProxyNonexactMatchExplicitlySet: NoProxyNonexactMatchExplicitlySetState,
 	}
 }
 
@@ -242,7 +255,7 @@ func getInstallInfoPath() string {
 }
 
 func getInstallInfo(infoPath string) (*installInfo, error) {
-	yamlContent, err := ioutil.ReadFile(infoPath)
+	yamlContent, err := os.ReadFile(infoPath)
 
 	if err != nil {
 		return nil, err
@@ -282,4 +295,8 @@ func getInstallMethod(infoPath string) *InstallMethod {
 		Tool:             &install.Method.Tool,
 		InstallerVersion: &install.Method.InstallerVersion,
 	}
+}
+
+func getOtlpMeta() *OtlpMeta {
+	return &OtlpMeta{Enabled: otlp.IsEnabled(config.Datadog)}
 }

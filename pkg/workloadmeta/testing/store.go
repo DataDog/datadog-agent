@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testing
 
 import (
@@ -34,11 +39,8 @@ func (s *Store) GetContainer(id string) (*workloadmeta.Container, error) {
 }
 
 // ListContainers returns metadata about all known containers.
-func (s *Store) ListContainers() ([]*workloadmeta.Container, error) {
-	entities, err := s.listEntitiesByKind(workloadmeta.KindContainer)
-	if err != nil {
-		return nil, err
-	}
+func (s *Store) ListContainers() []*workloadmeta.Container {
+	entities := s.listEntitiesByKind(workloadmeta.KindContainer)
 
 	// Not very efficient
 	containers := make([]*workloadmeta.Container, 0, len(entities))
@@ -46,7 +48,20 @@ func (s *Store) ListContainers() ([]*workloadmeta.Container, error) {
 		containers = append(containers, entity.(*workloadmeta.Container))
 	}
 
-	return containers, nil
+	return containers
+}
+
+// ListContainersWithFilter returns metadata about the containers that pass the given filter.
+func (s *Store) ListContainersWithFilter(filter workloadmeta.ContainerFilterFunc) []*workloadmeta.Container {
+	var res []*workloadmeta.Container
+
+	for _, container := range s.ListContainers() {
+		if filter(container) {
+			res = append(res, container)
+		}
+	}
+
+	return res
 }
 
 // GetKubernetesPod returns metadata about a Kubernetes pod.
@@ -89,6 +104,29 @@ func (s *Store) GetECSTask(id string) (*workloadmeta.ECSTask, error) {
 	return entity.(*workloadmeta.ECSTask), nil
 }
 
+// ListImages implements Store#ListImages
+func (s *Store) ListImages() []*workloadmeta.ContainerImageMetadata {
+	entities := s.listEntitiesByKind(workloadmeta.KindContainerImageMetadata)
+
+	images := make([]*workloadmeta.ContainerImageMetadata, 0, len(entities))
+	for _, entity := range entities {
+		image := entity.(*workloadmeta.ContainerImageMetadata)
+		images = append(images, image)
+	}
+
+	return images
+}
+
+// GetImage implements Store#GetImage
+func (s *Store) GetImage(id string) (*workloadmeta.ContainerImageMetadata, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindContainerImageMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.ContainerImageMetadata), nil
+}
+
 // Set sets an entity in the store.
 func (s *Store) Set(entity workloadmeta.Entity) {
 	s.mu.Lock()
@@ -122,7 +160,7 @@ func (s *Store) Start(ctx context.Context) {
 }
 
 // Subscribe is not implemented in the testing store.
-func (s *Store) Subscribe(name string, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
+func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
 	panic("not implemented")
 }
 
@@ -138,6 +176,11 @@ func (s *Store) Notify(events []workloadmeta.CollectorEvent) {
 
 // Dump is not implemented in the testing store.
 func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
+	panic("not implemented")
+}
+
+// Reset is not implemented in the testing store.
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
 	panic("not implemented")
 }
 
@@ -158,13 +201,13 @@ func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta
 	return entity, nil
 }
 
-func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) ([]workloadmeta.Entity, error) {
+func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) []workloadmeta.Entity {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(string(kind))
+		return nil
 	}
 
 	entities := make([]workloadmeta.Entity, 0, len(entitiesOfKind))
@@ -172,5 +215,5 @@ func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) ([]workloadmeta.Entit
 		entities = append(entities, entity)
 	}
 
-	return entities, nil
+	return entities
 }

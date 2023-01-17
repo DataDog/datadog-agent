@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build zk
 // +build zk
 
 package providers
@@ -17,6 +18,7 @@ import (
 
 	"github.com/samuel/go-zookeeper/zk"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -35,21 +37,25 @@ type zkBackend interface {
 type ZookeeperConfigProvider struct {
 	client      zkBackend
 	templateDir string
-	cache       *ProviderCache
+	cache       *providerCache
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
-func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
-	urls := strings.Split(cfg.TemplateURL, ",")
+func NewZookeeperConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+	if providerConfig == nil {
+		providerConfig = &config.ConfigurationProviders{}
+	}
+
+	urls := strings.Split(providerConfig.TemplateURL, ",")
 
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", "), err)
+		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", providerConfig.TemplateURL, strings.Join(urls, ", "), err)
 	}
-	cache := NewCPCache()
+	cache := newProviderCache()
 	return &ZookeeperConfigProvider{
 		client:      c,
-		templateDir: cfg.TemplateDir,
+		templateDir: providerConfig.TemplateDir,
 		cache:       cache,
 	}, nil
 }
@@ -86,16 +92,16 @@ func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	outdated := z.cache.LatestTemplateIdx
+	outdated := z.cache.mostRecentMod
 	adListUpdated := false
 
-	if z.cache.NumAdTemplates != len(identifiers) {
-		if z.cache.NumAdTemplates == 0 {
+	if z.cache.count != len(identifiers) {
+		if z.cache.count == 0 {
 			log.Infof("Initializing cache for %v", z.String())
 		}
 		log.Debugf("List of AD Template was modified, updating cache.")
 		adListUpdated = true
-		z.cache.NumAdTemplates = len(identifiers)
+		z.cache.count = len(identifiers)
 	}
 
 	for _, identifier := range identifiers {
@@ -113,9 +119,9 @@ func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) 
 			outdated = math.Max(float64(stat.Mtime), outdated)
 		}
 	}
-	if outdated > z.cache.LatestTemplateIdx || adListUpdated {
-		log.Debugf("Idx was %v and is now %v", z.cache.LatestTemplateIdx, outdated)
-		z.cache.LatestTemplateIdx = outdated
+	if outdated > z.cache.mostRecentMod || adListUpdated {
+		log.Debugf("Idx was %v and is now %v", z.cache.mostRecentMod, outdated)
+		z.cache.mostRecentMod = outdated
 		log.Infof("cache updated for %v", z.String())
 		return false, nil
 	}
@@ -170,7 +176,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 		return nil
 	}
 
-	checkNames, err := parseCheckNames(string(rawNames))
+	checkNames, err := utils.ParseCheckNames(string(rawNames))
 	if err != nil {
 		log.Errorf("Failed to retrieve check names at %s. Error: %s", checkNameKey, err)
 		return nil
@@ -188,7 +194,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 		return nil
 	}
 
-	return buildTemplates(key, checkNames, initConfigs, instances)
+	return utils.BuildTemplates(key, checkNames, initConfigs, instances)
 }
 
 func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
@@ -197,11 +203,11 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data
 		return nil, fmt.Errorf("Couldn't get key '%s' from zookeeper: %s", key, err)
 	}
 
-	return parseJSONValue(string(rawValue))
+	return utils.ParseJSONValue(string(rawValue))
 }
 
 func init() {
-	RegisterProvider("zookeeper", NewZookeeperConfigProvider)
+	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the ZookeeperConfigProvider

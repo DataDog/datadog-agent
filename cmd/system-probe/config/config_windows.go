@@ -1,11 +1,16 @@
-//+build windows
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
+// +build windows
 
 package config
 
 import (
 	"fmt"
 	"net"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -19,15 +24,13 @@ const (
 )
 
 var (
-	defaultConfigDir              = "c:\\programdata\\datadog\\"
-	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
+	defaultConfigDir = "c:\\programdata\\datadog\\"
 )
 
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfigDir = pd
-		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 	}
 }
 

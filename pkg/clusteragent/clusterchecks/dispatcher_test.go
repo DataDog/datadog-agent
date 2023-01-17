@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package clusterchecks
@@ -211,7 +212,7 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.False(t, upToDate)
 
 	// Give changes
-	node1.lastConfigChange = timestampNow()
+	node1.lastConfigChange = timestampNowNano()
 	node1.heartbeat = node1.heartbeat - 50
 	status2 := types.NodeStatus{LastChange: node1.lastConfigChange - 2}
 	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status2)
@@ -299,7 +300,8 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	// Register a node with a correct status & schedule a Check
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	dispatcher.Schedule([]integration.Config{
-		generateIntegration("A")})
+		generateIntegration("A"),
+	})
 
 	// Ensure it's dispatch correctly
 	allConfigs, err := dispatcher.getAllConfigs()
@@ -439,7 +441,7 @@ func TestPatchConfiguration(t *testing.T) {
 	}
 	initialDigest := checkConfig.Digest()
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("cluster_name", "testing")
 	clustername.ResetClusterName()
 	dispatcher := newDispatcher()
@@ -474,7 +476,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 		LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("cluster_name", "testing")
 	clustername.ResetClusterName()
 	dispatcher := newDispatcher()
@@ -510,7 +512,7 @@ func TestExtraTags(t *testing.T) {
 		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
-			mockConfig := config.Mock()
+			mockConfig := config.Mock(t)
 			mockConfig.Set("cluster_checks.extra_tags", tc.extraTagsConfig)
 			mockConfig.Set("cluster_name", tc.clusterNameConfig)
 			mockConfig.Set("cluster_checks.cluster_tag_name", tc.tagNameConfig)

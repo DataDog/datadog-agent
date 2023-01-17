@@ -1,0 +1,15 @@
+# Another profile
+#
+metrics:
+  - symbol:
+      OID: 1.3.6.1.2.1.1.999.0
+      name: someMetric
+
+metric_tags:
+  - column: # column syntax
+      OID: 1.3.6.1.2.1.1.5.0
+      name: sysName
+    tag: snmp_host2
+  - OID: 1.3.6.1.2.1.1.999.0
+    symbol: unknownSymbol
+    tag: unknown_symbol

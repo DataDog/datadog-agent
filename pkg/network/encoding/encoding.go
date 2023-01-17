@@ -1,15 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
 	"strings"
 	"sync"
 
+	"github.com/gogo/protobuf/jsonpb"
+
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gogo/protobuf/jsonpb"
 )
 
 var (
@@ -63,26 +70,27 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
-	httpIndex := FormatHTTPStats(conns.HTTP)
-	httpMatches := make(map[http.Key]struct{}, len(httpIndex))
+	httpEncoder := newHTTPEncoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
+	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		httpKey := httpKeyFromConn(conn)
-		httpAggregations := httpIndex[httpKey]
-		if httpAggregations != nil {
-			httpMatches[httpKey] = struct{}{}
-		}
-
-		agentConns[i] = FormatConnection(conn, routeIndex, httpAggregations, dnsFormatter, ipc)
+		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc, tagsSet)
 	}
 
-	if orphans := len(httpIndex) - len(httpMatches); orphans > 0 {
+	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
 		log.Debugf(
 			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
-			orphans,
+			httpEncoder.orphanEntries,
 		)
+
+		telemetry.NewMetric(
+			"usm.http.orphan_aggregations",
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(httpEncoder.orphanEntries))
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
@@ -95,9 +103,12 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.Conns = agentConns
 	payload.Domains = dnsFormatter.Domains()
 	payload.Dns = dnsFormatter.DNS()
-	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
+	payload.ConnTelemetryMap = FormatConnectionTelemetry(conns.ConnTelemetry)
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
+	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
+	payload.CORETelemetryByAsset = FormatCORETelemetry(conns.CORETelemetryByAsset)
 	payload.Routes = routes
+	payload.Tags = tagsSet.GetStrings()
 
 	return payload
 }

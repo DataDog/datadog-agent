@@ -8,16 +8,19 @@ package http
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"golang.org/x/net/http/httpproxy"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/net/http/httpproxy"
 )
 
 var (
@@ -32,6 +35,9 @@ var (
 
 	// NoProxyMapMutex Lock for all no proxy maps
 	NoProxyMapMutex = sync.Mutex{}
+
+	keyLogWriterInit sync.Once
+	keyLogWriter     io.Writer
 )
 
 func logSafeURLString(url *url.URL) string {
@@ -50,15 +56,53 @@ func warnOnce(warnMap map[string]bool, key string, format string, params ...inte
 	}
 }
 
+// minTLSVersionFromConfig determines the minimum TLS version defined by the given
+// config, accounting for defaults and deprecated configuration parameters.
+//
+// The returned result is one of the `tls.VersionTLSxxx` constants.
+func minTLSVersionFromConfig(cfg config.Config) uint16 {
+	var min uint16
+	minTLSVersion := cfg.GetString("min_tls_version")
+	switch strings.ToLower(minTLSVersion) {
+	case "tlsv1.0":
+		min = tls.VersionTLS10
+	case "tlsv1.1":
+		min = tls.VersionTLS11
+	case "tlsv1.2":
+		min = tls.VersionTLS12
+	case "tlsv1.3":
+		min = tls.VersionTLS13
+	default:
+		min = tls.VersionTLS12
+		if minTLSVersion != "" {
+			log.Warnf("Invalid `min_tls_version` %#v; using default", minTLSVersion)
+		}
+	}
+	return min
+}
+
 // CreateHTTPTransport creates an *http.Transport for use in the agent
 func CreateHTTPTransport() *http.Transport {
+	// It’s OK to reuse the same file for all the http.Transport objects we create
+	// because all the writes to that file are protected by a global mutex.
+	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
+	keyLogWriterInit.Do(func() {
+		sslKeyLogFile := config.Datadog.GetString("sslkeylogfile")
+		if sslKeyLogFile != "" {
+			var err error
+			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+			if err != nil {
+				log.Warnf("Failed to open %s for writing NSS keys: %v", sslKeyLogFile, err)
+			}
+		}
+	})
+
 	tlsConfig := &tls.Config{
+		KeyLogWriter:       keyLogWriter,
 		InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
 	}
 
-	if config.Datadog.GetBool("force_tls_12") {
-		tlsConfig.MinVersion = tls.VersionTLS12
-	}
+	tlsConfig.MinVersion = minTLSVersionFromConfig(config.Datadog)
 
 	// Most of the following timeouts are a copy of Golang http.DefaultTransport
 	// They are mostly used to act as safeguards in case we forget to add a general

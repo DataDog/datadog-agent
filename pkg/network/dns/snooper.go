@@ -1,16 +1,23 @@
-//+build windows linux_bpf
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package dns
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/google/gopacket"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket"
 )
 
 const (
@@ -22,15 +29,14 @@ var _ ReverseDNS = &socketFilterSnooper{}
 
 // socketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type socketFilterSnooper struct {
-	// Telemetry is at the beginning of the struct to keep all fields 64-bit aligned.
-	// see https://staticcheck.io/docs/checks#SA1027
-	decodingErrors int64
-	truncatedPkts  int64
+	// Telemetry
+	decodingErrors *atomic.Int64
+	truncatedPkts  *atomic.Int64
 
 	// DNS telemetry, values calculated *till* the last tick in pollStats
-	queries   int64
-	successes int64
-	errors    int64
+	queries   *atomic.Int64
+	successes *atomic.Int64
+	errors    *atomic.Int64
 
 	source          packetSource
 	parser          *dnsParser
@@ -77,6 +83,12 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &socketFilterSnooper{
+		decodingErrors: atomic.NewInt64(0),
+		truncatedPkts:  atomic.NewInt64(0),
+		queries:        atomic.NewInt64(0),
+		successes:      atomic.NewInt64(0),
+		errors:         atomic.NewInt64(0),
+
 		source:          source,
 		parser:          newDNSParser(source.PacketType(), cfg),
 		cache:           cache,
@@ -103,7 +115,7 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 }
 
 // Resolve IPs to DNS addresses
-func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]string {
+func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]Hostname {
 	return s.cache.Get(ips)
 }
 
@@ -123,18 +135,23 @@ func (s *socketFilterSnooper) GetStats() map[string]int64 {
 		stats[key] = value
 	}
 
-	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
-	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
+	stats["decoding_errors"] = s.decodingErrors.Load()
+	stats["truncated_packets"] = s.truncatedPkts.Load()
 	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
-	stats["queries"] = atomic.LoadInt64(&s.queries)
-	stats["successes"] = atomic.LoadInt64(&s.successes)
-	stats["errors"] = atomic.LoadInt64(&s.errors)
+	stats["queries"] = s.queries.Load()
+	stats["successes"] = s.successes.Load()
+	stats["errors"] = s.errors.Load()
 	if s.statKeeper != nil {
 		numStats, droppedStats := s.statKeeper.GetNumStats()
 		stats["num_stats"] = int64(numStats)
 		stats["dropped_stats"] = int64(droppedStats)
 	}
 	return stats
+}
+
+// Start starts the snooper (no-op currently)
+func (s *socketFilterSnooper) Start() error {
+	return nil // no-op as this is done in newSocketFilterSnooper above
 }
 
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
@@ -162,9 +179,9 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
-			atomic.AddInt64(&s.truncatedPkts, 1)
+			s.truncatedPkts.Inc()
 		default:
-			atomic.AddInt64(&s.decodingErrors, 1)
+			s.decodingErrors.Inc()
 		}
 		return nil
 	}
@@ -175,11 +192,11 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 
 	if pktInfo.pktType == successfulResponse {
 		s.cache.Add(t)
-		atomic.AddInt64(&s.successes, 1)
+		s.successes.Inc()
 	} else if pktInfo.pktType == failedResponse {
-		atomic.AddInt64(&s.errors, 1)
+		s.errors.Inc()
 	} else {
-		atomic.AddInt64(&s.queries, 1)
+		s.queries.Inc()
 	}
 
 	return nil
@@ -210,17 +227,20 @@ func (s *socketFilterSnooper) logDNSStats() {
 	defer ticker.Stop()
 
 	var (
-		queries   int64
-		successes int64
-		errors    int64
+		queries, lastQueries     int64
+		successes, lastSuccesses int64
+		errors, lastErrors       int64
 	)
 	for {
 		select {
 		case <-ticker.C:
-			queries = atomic.SwapInt64(&s.queries, 0)
-			successes = atomic.SwapInt64(&s.successes, 0)
-			errors = atomic.SwapInt64(&s.errors, 0)
-			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries, successes, errors)
+			queries = s.queries.Load()
+			successes = s.successes.Load()
+			errors = s.errors.Load()
+			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries-lastQueries, successes-lastSuccesses, errors-lastErrors)
+			lastQueries = queries
+			lastSuccesses = successes
+			lastErrors = errors
 		case <-s.exit:
 			return
 		}

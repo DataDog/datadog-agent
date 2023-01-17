@@ -12,28 +12,87 @@ if node['dd-agent-upgrade']['add_new_repo']
   case node['platform_family']
   when 'debian'
     include_recipe 'apt'
+    apt_trusted_d_keyring = '/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg'
+    apt_usr_share_keyring = '/usr/share/keyrings/datadog-archive-keyring.gpg'
+    apt_gpg_keys = {
+      'DATADOG_APT_KEY_CURRENT.public'           => 'https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public',
+      'D75CEA17048B9ACBF186794B32637D44F14F620E' => 'https://keys.datadoghq.com/DATADOG_APT_KEY_F14F620E.public',
+      'A2923DFF56EDA6E76E55E492D3A80E30382E94DE' => 'https://keys.datadoghq.com/DATADOG_APT_KEY_382E94DE.public',
+    }
 
-    apt_repository 'datadog-update' do
-      keyserver 'keyserver.ubuntu.com'
-      key 'A2923DFF56EDA6E76E55E492D3A80E30382E94DE'
-      uri node['dd-agent-upgrade']['aptrepo']
-      distribution node['dd-agent-upgrade']['aptrepo_dist']
-      components [node['dd-agent-upgrade']['agent_major_version']]
-      action :add
+    package 'install dependencies' do
+      package_name ['apt-transport-https', 'gnupg']
+      action :install
+    end
+
+    file apt_usr_share_keyring do
+      action :create_if_missing
+      content ''
+      mode '0644'
+    end
+
+    apt_gpg_keys.each do |key_fingerprint, key_url|
+      # Download the APT key
+      key_local_path = ::File.join(Chef::Config[:file_cache_path], key_fingerprint)
+      # By default, remote_file will use `If-Modified-Since` header to see if the file
+      # was modified remotely, so this works fine for the "current" key
+      remote_file "remote_file_#{key_fingerprint}" do
+        path key_local_path
+        source key_url
+        notifies :run, "execute[import apt datadog key #{key_fingerprint}]", :immediately
+      end
+
+      # Import the APT key
+      execute "import apt datadog key #{key_fingerprint}" do
+        command "/bin/cat #{key_local_path} | gpg --import --batch --no-default-keyring --keyring #{apt_usr_share_keyring}"
+        # the second part extracts the fingerprint of the key from output like "fpr::::A2923DFF56EDA6E76E55E492D3A80E30382E94DE:"
+        not_if "/usr/bin/gpg --no-default-keyring --keyring #{apt_usr_share_keyring} --list-keys --with-fingerprint --with-colons | grep \
+               $(cat #{key_local_path} | gpg --with-colons --with-fingerprint 2>/dev/null | grep 'fpr:' | sed 's|^fpr||' | tr -d ':')"
+        action :nothing
+      end
+    end
+
+    remote_file apt_trusted_d_keyring do
+      action :create
+      mode '0644'
+      source "file://#{apt_usr_share_keyring}"
+      only_if { (platform?('ubuntu') && node['platform_version'].to_i < 16) || (platform?('debian') && node['platform_version'].to_i < 9) }
+    end
+
+    # Add APT repositories
+    # Chef's apt_repository resource doesn't allow specifying the signed-by option and we can't pass
+    # it in uri, as that would make it fail parsing, hence we use the file and apt_update resources.
+    apt_update 'datadog' do
+      retries retries
+      ignore_failure true # this is exactly what apt_repository does
+      action :nothing
+    end
+
+    file '/etc/apt/sources.list.d/datadog.list' do
+      action :create
+      owner 'root'
+      group 'root'
+      mode '0644'
+      content "deb #{node['dd-agent-upgrade']['aptrepo']} #{node['dd-agent-upgrade']['aptrepo_dist']} #{node['dd-agent-upgrade']['agent_major_version']}"
+      notifies :update, 'apt_update[datadog]', :immediately
     end
 
   when 'rhel'
     include_recipe 'yum'
 
-    yum_repository 'datadog-update' do
-      name 'datadog-update'
-      description 'datadog-update'
+    yum_repository 'datadog' do
+      name 'datadog'
+      description 'datadog'
       url node['dd-agent-upgrade']['yumrepo']
       action :add
       make_cache true
       # Older versions of yum embed M2Crypto with SSL that doesn't support TLS1.2
       protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
-      gpgkey "#{protocol}://yum.datadoghq.com/DATADOG_RPM_KEY.public"
+      gpgkey [
+        "#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public",
+        "#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public",
+        "#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
+      ]
     end
   when 'suse'
     old_key_local_path = ::File.join(Chef::Config[:file_cache_path], 'DATADOG_RPM_KEY.public')
@@ -51,15 +110,15 @@ if node['dd-agent-upgrade']['add_new_repo']
       action :nothing
     end
 
-    zypper_repository 'datadog-update' do
-      name 'datadog-update'
-      description 'datadog-update'
+    zypper_repository 'datadog' do
+      name 'datadog'
+      description 'datadog'
       baseurl node['dd-agent-upgrade']['yumrepo_suse']
       action :add
       gpgcheck false
       # Older versions of yum embed M2Crypto with SSL that doesn't support TLS1.2
       protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
-      gpgkey "#{protocol}://yum.datadoghq.com/DATADOG_RPM_KEY.public"
+      gpgkey "#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public"
       gpgautoimportkeys false
     end
   end

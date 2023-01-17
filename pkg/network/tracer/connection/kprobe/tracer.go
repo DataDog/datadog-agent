@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package kprobe
@@ -6,8 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sync/atomic"
 	"unsafe"
+
+	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -15,16 +26,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
-	"golang.org/x/sys/unix"
 )
 
 const (
 	defaultClosedChannelSize = 500
+
+	probeUID = "net"
+)
+
+var (
+	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
+	// socket filter, and a tracepoint (4.7.0+).
+	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
 )
 
 type kprobeTracer struct {
@@ -37,11 +57,54 @@ type kprobeTracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 
-	pidCollisions int64
+	pidCollisions *atomic.Int64
 	removeTuple   *netebpf.ConnTuple
+
+	telemetry telemetry
+
+	// A method to run during the "Stop" action of the tracer to close the socket filter we've created for the protocol
+	// classification feature.
+	// If classification feature is disabled, then the value will be nil.
+	closeProtocolClassifierSocketFilterFn func()
 }
 
-func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
+type telemetry struct {
+	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
+	udpConns4, udpConns6 *atomic.Int64 `stats:""`
+}
+
+func newTelemetry() telemetry {
+	return telemetry{
+		tcpConns4: atomic.NewInt64(0),
+		udpConns4: atomic.NewInt64(0),
+		tcpConns6: atomic.NewInt64(0),
+		udpConns6: atomic.NewInt64(0),
+	}
+}
+
+// ClassificationSupported returns true if the current kernel version supports the classification feature.
+// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the socket
+// filter, and a tracepoint (4.7.0+)
+func ClassificationSupported(config *config.Config) bool {
+	if !config.ProtocolClassificationEnabled {
+		return false
+	}
+	currentKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
+		return false
+	}
+
+	return currentKernelVersion >= classificationMinimumKernel
+}
+
+// New creates a new tracer
+func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (connection.Tracer, error) {
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if config.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
+
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -55,13 +118,14 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
-		ConstantEditors: constants,
+		ConstantEditors:           constants,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}
 
 	runtimeTracer := false
@@ -99,24 +163,65 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(perfHandlerTCP, runtimeTracer)
-	setupDumpHandler(m)
+	m := newManager(config, perfHandlerTCP, runtimeTracer)
+	m.DumpHandler = dumpMapsHandler
+
+	var closeProtocolClassifierSocketFilterFn func()
+	if ClassificationSupported(config) {
+		socketFilerProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
+			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
+			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+			UID:          probeUID,
+		})
+		if socketFilerProbe == nil {
+			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
+		}
+
+		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilerProbe)
+		if err != nil {
+			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
+		}
+	} else {
+		// Kernels < 4.7.0 do not know about the per-cpu array map used
+		// in classification, preventing the program to load even though
+		// we won't use it. We change the type to a simple array map to
+		// circumvent that.
+		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+			Type:       ebpf.Array,
+			EditorFlag: manager.EditType,
+		}
+	}
+
+	currKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, errors.New("failed to detect kernel version")
+	}
+	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
+	m.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
-			mgrOptions.ExcludedSections = append(mgrOptions.ExcludedSections, p.Section)
+		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
+			mgrOptions.ExcludedFunctions = append(mgrOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
-	for probeName := range enabledProbes {
+	for probeName, funcName := range enabledProbes {
 		mgrOptions.ActivatedProbes = append(
 			mgrOptions.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probeName),
+					EBPFSection:  string(probeName),
+					EBPFFuncName: funcName,
+					UID:          probeUID,
 				},
 			})
 	}
+
+	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+
+	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
@@ -128,10 +233,13 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 
 	tr := &kprobeTracer{
-		m:             m,
-		config:        config,
-		closeConsumer: closeConsumer,
-		removeTuple:   &netebpf.ConnTuple{},
+		m:                                     m,
+		config:                                config,
+		closeConsumer:                         closeConsumer,
+		pidCollisions:                         atomic.NewInt64(0),
+		removeTuple:                           &netebpf.ConnTuple{},
+		telemetry:                             newTelemetry(),
+		closeProtocolClassifierSocketFilterFn: closeProtocolClassifierSocketFilterFn,
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -140,10 +248,19 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
 	}
 
-	tr.tcpStats, _, err = m.GetMap(string(probes.TcpStatsMap))
+	tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
 	if err != nil {
 		tr.Stop()
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
+	}
+
+	if bpfTelemetry != nil {
+		bpfTelemetry.MapErrMap = tr.GetMap(string(probes.MapErrTelemetryMap))
+		bpfTelemetry.HelperErrMap = tr.GetMap(string(probes.HelperErrTelemetryMap))
+	}
+
+	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
+		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
 	}
 
 	return tr, nil
@@ -176,11 +293,23 @@ func (t *kprobeTracer) FlushPending() {
 func (t *kprobeTracer) Stop() {
 	_ = t.m.Stop(manager.CleanAll)
 	t.closeConsumer.Stop()
+	if t.closeProtocolClassifierSocketFilterFn != nil {
+		t.closeProtocolClassifierSocketFilterFn()
+		// The stop can be called multiple times, by setting the field to nil we ensure it won't close the socket filter
+		// twice (which will lead to a panic).
+		t.closeProtocolClassifierSocketFilterFn = nil
+	}
 }
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	switch name {
 	case string(probes.SockByPidFDMap):
+		m, _, _ := t.m.GetMap(name)
+		return m
+	case string(probes.MapErrTelemetryMap):
+		m, _, _ := t.m.GetMap(name)
+		return m
+	case string(probes.HelperErrTelemetryMap):
 		m, _, _ := t.m.GetMap(name)
 		return m
 	default:
@@ -197,14 +326,18 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
-	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
+	tel := newTelemetry()
+	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
+
+		tel.addConnection(conn)
+
 		if filter != nil && !filter(conn) {
 			continue
 		}
 		if t.getTCPStats(tcp, key, seen) {
-			updateTCPStats(conn, tcp)
+			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 		*buffer.Next() = *conn
 	}
@@ -213,7 +346,56 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
+	t.telemetry.assign(tel)
+
 	return nil
+}
+
+func (t *telemetry) assign(other telemetry) {
+	t.tcpConns4.Store(other.tcpConns4.Load())
+	t.tcpConns6.Store(other.tcpConns6.Load())
+	t.udpConns4.Store(other.udpConns4.Load())
+	t.udpConns6.Store(other.udpConns6.Load())
+}
+
+func (t *telemetry) addConnection(conn *network.ConnectionStats) {
+	isTCP := conn.Type == network.TCP
+	switch conn.Family {
+	case network.AFINET6:
+		if isTCP {
+			t.tcpConns6.Inc()
+		} else {
+			t.udpConns6.Inc()
+		}
+	case network.AFINET:
+		if isTCP {
+			t.tcpConns4.Inc()
+		} else {
+			t.udpConns4.Inc()
+		}
+	}
+}
+
+func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
+	isTCP := conn.Type == network.TCP
+	switch conn.Family {
+	case network.AFINET6:
+		if isTCP {
+			t.tcpConns6.Dec()
+		} else {
+			t.udpConns6.Dec()
+		}
+	case network.AFINET:
+		if isTCP {
+			t.tcpConns4.Dec()
+		} else {
+			t.udpConns4.Dec()
+		}
+	}
+}
+
+func (t *telemetry) get() map[string]interface{} {
+	return atomicstats.Report(t)
 }
 
 func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
@@ -245,6 +427,8 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 		return err
 	}
 
+	t.telemetry.removeConnection(conn)
+
 	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
 	t.removeTuple.Pid = 0
 	// We can ignore the error for this map since it will not always contain the entry
@@ -269,20 +453,27 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	}
 
 	closeStats := t.closeConsumer.GetStats()
-	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
+	pidCollisions := t.pidCollisions.Load()
 
-	return map[string]int64{
+	stats := map[string]int64{
 		"closed_conn_polling_lost":     closeStats[perfLostStat],
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
-		"tcp_sent_miscounts":         int64(telemetry.Tcp_sent_miscounts),
-		"missed_tcp_close":           int64(telemetry.Missed_tcp_close),
-		"missed_udp_close":           int64(telemetry.Missed_udp_close),
-		"udp_sends_processed":        int64(telemetry.Udp_sends_processed),
-		"udp_sends_missed":           int64(telemetry.Udp_sends_missed),
-		"conn_stats_max_entries_hit": int64(telemetry.Conn_stats_max_entries_hit),
+		"tcp_failed_connects": int64(telemetry.Tcp_failed_connect),
+		"tcp_sent_miscounts":  int64(telemetry.Tcp_sent_miscounts),
+		"missed_tcp_close":    int64(telemetry.Missed_tcp_close),
+		"missed_udp_close":    int64(telemetry.Missed_udp_close),
+		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
+		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
+		"udp_dropped_conns":   int64(telemetry.Udp_dropped_conns),
 	}
+
+	for k, v := range t.telemetry.get() {
+		stats[k] = v.(int64)
+	}
+
+	return stats
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
@@ -291,52 +482,53 @@ func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
-	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns); err != nil {
+	tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true)
+	if err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
-	} else {
-		tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
-		if err != nil {
-			return fmt.Errorf("failed to get TCP port binding map: %w", err)
-		}
-		for p := range tcpPorts {
-			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
-			pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
-			state := netebpf.PortListening
-			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
-			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-				return fmt.Errorf("failed to update TCP port binding map: %w", err)
-			}
+	}
+
+	tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
+	if err != nil {
+		return fmt.Errorf("failed to get TCP port binding map: %w", err)
+	}
+	for p, count := range tcpPorts {
+		log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
+		pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
+		err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+			return fmt.Errorf("failed to update TCP port binding map: %w", err)
 		}
 	}
 
-	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns); err != nil {
+	udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false)
+	if err != nil {
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
-	} else {
-		udpPortMap, _, err := m.GetMap(string(probes.UdpPortBindingsMap))
-		if err != nil {
-			return fmt.Errorf("failed to get UDP port binding map: %w", err)
-		}
-		for p := range udpPorts {
-			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
-			// UDP port bindings currently do not have network namespace numbers
-			pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
-			state := netebpf.PortListening
-			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
-			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-				return fmt.Errorf("failed to update UDP port binding map: %w", err)
-			}
+	}
+
+	udpPortMap, _, err := m.GetMap(string(probes.UDPPortBindingsMap))
+	if err != nil {
+		return fmt.Errorf("failed to get UDP port binding map: %w", err)
+	}
+	for p, count := range udpPorts {
+		log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
+		// UDP port bindings currently do not have network namespace numbers
+		pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
+		err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+			return fmt.Errorf("failed to update UDP port binding map: %w", err)
 		}
 	}
 	return nil
 }
 
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
+func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}
-	conn.MonotonicRetransmits = tcpStats.Retransmits
-	conn.MonotonicTCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.MonotonicTCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+
+	conn.Monotonic.Retransmits = tcpStats.Retransmits
+	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -356,8 +548,9 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 	if err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 		if _, reported := seen[*tuple]; reported {
-			atomic.AddInt64(&t.pidCollisions, 1)
+			t.pidCollisions.Inc()
 			stats.Retransmits = 0
+			stats.State_transitions = 0
 		} else {
 			seen[*tuple] = struct{}{}
 		}
@@ -369,19 +562,29 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
 	*stats = network.ConnectionStats{
-		Pid:                  t.Pid,
-		NetNS:                t.Netns,
-		Source:               t.SourceAddress(),
-		Dest:                 t.DestAddress(),
-		SPort:                t.Sport,
-		DPort:                t.Dport,
-		SPortIsEphemeral:     network.IsPortInEphemeralRange(t.Sport),
-		MonotonicSentBytes:   s.Sent_bytes,
-		MonotonicRecvBytes:   s.Recv_bytes,
-		MonotonicSentPackets: s.Sent_packets,
-		MonotonicRecvPackets: s.Recv_packets,
-		LastUpdateEpoch:      s.Timestamp,
-		IsAssured:            s.IsAssured(),
+		Pid:              t.Pid,
+		NetNS:            t.Netns,
+		Source:           t.SourceAddress(),
+		Dest:             t.DestAddress(),
+		SPort:            t.Sport,
+		DPort:            t.Dport,
+		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
+		LastUpdateEpoch:  s.Timestamp,
+		IsAssured:        s.IsAssured(),
+		Cookie:           s.Cookie,
+	}
+
+	if network.IsValidProtocolValue(s.Protocol) {
+		stats.Protocol = network.ProtocolType(s.Protocol)
+	} else {
+		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
+	}
+
+	stats.Monotonic = network.StatCounters{
+		SentBytes:   s.Sent_bytes,
+		RecvBytes:   s.Recv_bytes,
+		SentPackets: s.Sent_packets,
+		RecvPackets: s.Recv_packets,
 	}
 
 	if t.Type() == netebpf.TCP {

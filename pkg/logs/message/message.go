@@ -9,9 +9,21 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
+
+// Payload represents an encoded collection of messages ready to be sent to the intake
+type Payload struct {
+	// The slice of sources messages encoded in the payload
+	Messages []*Message
+	// The encoded bytes to be sent to the intake (sometimes compressed)
+	Encoded []byte
+	// The content encoding. A header for HTTP, empty for TCP
+	Encoding string
+	// The size of the unencoded payload
+	UnencodedSize int
+}
 
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
@@ -34,7 +46,7 @@ type Lambda struct {
 }
 
 // NewMessageWithSource constructs message with content, status and log source.
-func NewMessageWithSource(content []byte, status string, source *config.LogSource, ingestionTimestamp int64) *Message {
+func NewMessageWithSource(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64) *Message {
 	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 
@@ -82,11 +94,11 @@ func (m *Message) GetHostname() string {
 	if m.Lambda != nil {
 		return m.Lambda.ARN
 	}
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		// this scenario is not likely to happen since
 		// the agent cannot start without a hostname
-		hostname = "unknown"
+		hname = "unknown"
 	}
-	return hostname
+	return hname
 }

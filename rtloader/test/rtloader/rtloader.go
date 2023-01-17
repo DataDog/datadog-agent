@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testrtloader
 
 /*
@@ -8,7 +13,6 @@ import "C"
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -34,7 +38,7 @@ func setUp() error {
 	}
 
 	var err error
-	tmpfile, err = ioutil.TempFile("", "testout")
+	tmpfile, err = os.CreateTemp("", "testout")
 	if err != nil {
 		return err
 	}
@@ -85,7 +89,7 @@ func runString(code string) (string, error) {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
-	output, err := ioutil.ReadFile(tmpfile.Name())
+	output, err := os.ReadFile(tmpfile.Name())
 	return string(output), err
 }
 

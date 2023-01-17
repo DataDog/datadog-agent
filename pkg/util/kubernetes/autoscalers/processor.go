@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package autoscalers
@@ -17,25 +18,24 @@ import (
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
+
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 const (
-	// chunkSize ensures batch queries are limited in size.
-	chunkSize = 35
 	// maxCharactersPerChunk is the maximum size of a single chunk to avoid 414 Request-URI Too Large
 	maxCharactersPerChunk = 7000
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
 	extraQueryCharacters = 16
 )
 
+// DatadogClient abstracts the dependency on the Datadog api
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 	GetRateLimitStats() map[string]datadog.RateLimit
@@ -84,7 +84,7 @@ func (p *Processor) ProcessEMList(emList []custommetrics.ExternalMetricValue) ma
 }
 
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
-func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue {
+func (p *Processor) ProcessHPAs(hpa interface{}) map[string]custommetrics.ExternalMetricValue {
 	externalMetrics := make(map[string]custommetrics.ExternalMetricValue)
 	emList := InspectHPA(hpa)
 	for _, em := range emList {
@@ -212,6 +212,9 @@ func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
 	if lengthOverspill && numBuckets == 0 {
 		return true, fmt.Errorf("Query is too long, could yield a server side error. Dropping")
 	}
+
+	chunkSize := config.Datadog.GetInt("external_metrics_provider.chunk_size")
+
 	return uriLength >= maxCharactersPerChunk || numBuckets >= chunkSize, nil
 }
 

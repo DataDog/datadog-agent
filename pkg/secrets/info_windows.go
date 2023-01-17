@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build secrets && windows
 // +build secrets,windows
 
 package secrets
@@ -11,10 +12,12 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 func (info *SecretInfo) populateRights() {
-	err := checkRights(info.ExecutablePath, secretBackendCommandAllowGroupExec)
+	execPath := fmt.Sprintf("\"%s\"", strings.TrimSpace(info.ExecutablePath))
+	err := checkRights(execPath, secretBackendCommandAllowGroupExec)
 	if err != nil {
 		info.Rights = fmt.Sprintf("Error: %s", err)
 	} else {
@@ -27,7 +30,7 @@ func (info *SecretInfo) populateRights() {
 		return
 	}
 
-	cmd := exec.Command(ps, "get-acl", "-Path", info.ExecutablePath, "|", "format-list")
+	cmd := exec.Command(ps, "get-acl", "-Path", execPath, "|", "format-list")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}

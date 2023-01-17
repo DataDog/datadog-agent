@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet && kubeapiserver
 // +build kubelet,kubeapiserver
 
 package hostinfo
@@ -17,19 +18,38 @@ import (
 )
 
 // GetTags gets the tags from the kubernetes apiserver
-func GetTags(ctx context.Context) ([]string, error) {
+func GetTags(ctx context.Context) (tags []string, err error) {
 	labelsToTags := getLabelsToTags()
-	if len(labelsToTags) == 0 {
-		// Nothing to extract
-		return nil, nil
+
+	if len(labelsToTags) > 0 {
+		var nodeLabels map[string]string
+		nodeInfo, e := NewNodeInfo()
+		if e != nil {
+			err = e
+		} else {
+			nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
+			if e != nil {
+				err = e
+			}
+		}
+
+		if len(nodeLabels) > 0 {
+			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
+		}
 	}
 
-	nodeLabels, err := GetNodeLabels(ctx)
-	if err != nil {
-		return nil, err
+	annotationsToTags := getAnnotationsToTags()
+
+	if len(annotationsToTags) > 0 {
+		nodeAnnotations, e := GetNodeAnnotations(ctx)
+		if e != nil {
+			err = e
+		} else {
+			tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
+		}
 	}
 
-	return extractTags(nodeLabels, labelsToTags), nil
+	return
 }
 
 func getDefaultLabelsToTags() map[string]string {
@@ -46,6 +66,16 @@ func getLabelsToTags() map[string]string {
 	}
 
 	return labelsToTags
+}
+
+func getAnnotationsToTags() map[string]string {
+	annotationsToTags := map[string]string{}
+	for k, v := range config.Datadog.GetStringMapString("kubernetes_node_annotations_as_tags") {
+		// viper lower-cases map keys from yaml, but not from envvars
+		annotationsToTags[strings.ToLower(k)] = v
+	}
+
+	return annotationsToTags
 }
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {

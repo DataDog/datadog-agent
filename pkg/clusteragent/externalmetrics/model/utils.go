@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package model
@@ -14,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
@@ -35,11 +36,11 @@ type tagGetter func(context.Context) (string, error)
 
 var templatedTags = map[string]tagGetter{
 	"kube_cluster_name": func(ctx context.Context) (string, error) {
-		hostname, err := util.GetHostname(ctx)
+		hname, err := hostname.Get(ctx)
 		if err != nil {
 			return "", err
 		}
-		return clustername.GetClusterName(ctx, hostname), nil
+		return clustername.GetClusterName(ctx, hname), nil
 	},
 }
 

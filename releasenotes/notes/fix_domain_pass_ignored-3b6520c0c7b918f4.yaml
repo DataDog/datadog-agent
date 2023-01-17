@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The Windows installer will now respect the DDAGENTUSER_PASSWORD option and update the services passwords when the user already exists.

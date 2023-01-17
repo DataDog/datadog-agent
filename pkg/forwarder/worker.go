@@ -32,10 +32,16 @@ type Worker struct {
 	// RequeueChan is the channel used to send failed transaction back to the Forwarder.
 	RequeueChan chan<- transaction.Transaction
 
-	resetConnectionChan chan struct{}
-	stopChan            chan struct{}
-	stopped             chan struct{}
-	blockedList         *blockedEndpoints
+	resetConnectionChan   chan struct{}
+	stopChan              chan struct{}
+	stopped               chan struct{}
+	blockedList           *blockedEndpoints
+	pointSuccessfullySent PointSuccessfullySent
+}
+
+// PointSuccessfullySent is called when sending successfully a point to the intake.
+type PointSuccessfullySent interface {
+	OnPointSuccessfullySent(int)
 }
 
 // NewWorker returns a new worker to consume Transaction from inputChan
@@ -44,20 +50,23 @@ func NewWorker(
 	highPrioChan <-chan transaction.Transaction,
 	lowPrioChan <-chan transaction.Transaction,
 	requeueChan chan<- transaction.Transaction,
-	blocked *blockedEndpoints) *Worker {
+	blocked *blockedEndpoints,
+	pointSuccessfullySent PointSuccessfullySent) *Worker {
 	return &Worker{
-		HighPrio:            highPrioChan,
-		LowPrio:             lowPrioChan,
-		RequeueChan:         requeueChan,
-		resetConnectionChan: make(chan struct{}, 1),
-		stopChan:            make(chan struct{}),
-		stopped:             make(chan struct{}),
-		Client:              newHTTPClient(),
-		blockedList:         blocked,
+		HighPrio:              highPrioChan,
+		LowPrio:               lowPrioChan,
+		RequeueChan:           requeueChan,
+		resetConnectionChan:   make(chan struct{}, 1),
+		stopChan:              make(chan struct{}),
+		stopped:               make(chan struct{}),
+		Client:                NewHTTPClient(),
+		blockedList:           blocked,
+		pointSuccessfullySent: pointSuccessfullySent,
 	}
 }
 
-func newHTTPClient() *http.Client {
+// NewHTTPClient creates a new http.Client
+func NewHTTPClient() *http.Client {
 	transport := httputils.CreateHTTPTransport()
 
 	return &http.Client{
@@ -182,6 +191,7 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 		requeue()
 		log.Errorf("Error while processing transaction: %v", err)
 	} else {
+		w.pointSuccessfullySent.OnPointSuccessfullySent(t.GetPointCount())
 		w.blockedList.recover(target)
 	}
 }
@@ -192,5 +202,5 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 func (w *Worker) resetConnections() {
 	log.Debug("Resetting worker's connections")
 	w.Client.CloseIdleConnections()
-	w.Client = newHTTPClient()
+	w.Client = NewHTTPClient()
 }

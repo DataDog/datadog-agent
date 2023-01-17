@@ -2,15 +2,17 @@
 @echo RELEASE_VERSION %RELEASE_VERSION%
 @echo MAJOR_VERSION %MAJOR_VERSION%
 @echo PY_RUNTIMES %PY_RUNTIMES%
+@echo GO_VERSION_CHECK %GO_VERSION_CHECK%
 
 if NOT DEFINED RELEASE_VERSION set RELEASE_VERSION=%~1
 if NOT DEFINED MAJOR_VERSION set MAJOR_VERSION=%~2
 if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~3
+if NOT DEFINED GO_VERSION_CHECK set GO_VERSION_CHECK=%~4
 
 set OMNIBUS_BUILD=agent.omnibus-build
 set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 
-if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--iot
+if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--flavor iot
 if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD=dogstatsd.omnibus-build && set OMNIBUS_ARGS=
 if "%OMNIBUS_TARGET%" == "agent_binaries" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --agent-binaries
 if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE%
@@ -45,6 +47,9 @@ cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 101
 pip3 install -r requirements.txt || exit /b 102
 
 inv -e deps || exit /b 103
+if "%GO_VERSION_CHECK%" == "true" (
+    inv -e check-go-version || exit /b 104
+)
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
-inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 104
+inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 105

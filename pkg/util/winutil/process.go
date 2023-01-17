@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
 // +build windows
 
 package winutil
@@ -194,14 +200,21 @@ func getCommandParamsForProcess32(h windows.Handle, includeImagePath bool) (*Pro
 }
 
 func readUnicodeString32(h windows.Handle, u unicodeString32) (string, error) {
+	if u.length > u.maxLength {
+		return "", fmt.Errorf("Invalid unicodeString32, maxLength %v < length %v", u.maxLength, u.length)
+	}
+	// length does not include null terminator, if it exists
+	// allocate two extra bytes so we can add it ourself
 	buf := make([]uint8, u.length+2)
-	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length+2))
+	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length))
 	if err != nil {
 		return "", err
 	}
-	if read != uint64(u.length+2) {
-		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString32) %v != %v", read, u.length+2)
+	if read != uint64(u.length) {
+		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString32) %v != %v", read, u.length)
 	}
+	// null terminate string
+	buf = append(buf, 0, 0)
 	return ConvertWindowsString(buf), nil
 }
 
@@ -289,14 +302,21 @@ func getCommandParamsForProcess64(h windows.Handle, includeImagePath bool) (*Pro
 }
 
 func readUnicodeString(h windows.Handle, u unicodeString) (string, error) {
+	if u.length > u.maxLength {
+		return "", fmt.Errorf("Invalid unicodeString, maxLength %v < length %v", u.maxLength, u.length)
+	}
+	// length does not include null terminator, if it exists
+	// allocate two extra bytes so we can add it ourself
 	buf := make([]uint8, u.length+2)
-	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length+2))
+	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length))
 	if err != nil {
 		return "", err
 	}
-	if read != uint64(u.length+2) {
-		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString) %v != %v", read, u.length+2)
+	if read != uint64(u.length) {
+		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString) %v != %v", read, u.length)
 	}
+	// null terminate string
+	buf = append(buf, 0, 0)
 	return ConvertWindowsString(buf), nil
 }
 
@@ -342,4 +362,41 @@ func GetImagePathForProcess(h windows.Handle) (string, error) {
 		return syscall.UTF16ToString(buf[:n]), nil
 	}
 	return "", lastErr
+}
+
+const (
+	processQueryLimitedInformation = windows.PROCESS_QUERY_LIMITED_INFORMATION
+
+	stillActive = windows.STATUS_PENDING
+)
+
+// IsProcess checks to see if a given pid is currently valid in the process table
+func IsProcess(pid int) bool {
+	h, err := windows.OpenProcess(processQueryLimitedInformation, false, uint32(pid))
+	if err != nil {
+		return false
+	}
+	var c windows.NTStatus
+	err = windows.GetExitCodeProcess(h, (*uint32)(&c))
+	windows.Close(h)
+	if err == nil {
+		return c == stillActive
+	}
+	return false
+}
+
+func getProcessStartTimeAsNs(pid uint64) (uint64, error) {
+	h, err := windows.OpenProcess(processQueryLimitedInformation, false, uint32(pid))
+	if err != nil {
+		return 0, fmt.Errorf("Error opening process %v", err)
+	}
+	var creation windows.Filetime
+	var exit windows.Filetime
+	var krn windows.Filetime
+	var user windows.Filetime
+	err = windows.GetProcessTimes(h, &creation, &exit, &krn, &user)
+	if err != nil {
+		return 0, err
+	}
+	return uint64(creation.Nanoseconds()), nil
 }

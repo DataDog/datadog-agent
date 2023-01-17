@@ -1,27 +1,27 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 type checkResult struct {
@@ -47,14 +47,15 @@ type checkPayload struct {
 
 // Collector will collect metrics from the local system and ship to the backend.
 type Collector struct {
-	// Set to 1 if enabled 0 is not. We're using an integer
-	// so we can use the sync/atomic for thread-safe access.
-	realTimeEnabled int32
+	// true if real-time is enabled
+	realTimeEnabled *atomic.Bool
 
-	groupID int32
+	// the next groupID to be issued
+	groupID *atomic.Int32
 
 	rtIntervalCh chan time.Duration
-	cfg          *config.AgentConfig
+
+	orchestrator *oconfig.OrchestratorConfig
 
 	// counters for each type of check
 	runCounters   sync.Map
@@ -63,77 +64,118 @@ type Collector struct {
 	// Controls the real-time interval, can change live.
 	realTimeInterval time.Duration
 
-	processResults   *api.WeightedQueue
-	rtProcessResults *api.WeightedQueue
-	podResults       *api.WeightedQueue
+	// Enables running realtime checks
+	runRealTime bool
+
+	// Drop payloads from specified checks
+	dropCheckPayloads []string
+
+	// Submits check payloads to datadog
+	submitter Submitter
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig) (Collector, error) {
-	sysInfo, err := checks.CollectSystemInfo(cfg)
-	if err != nil {
-		return Collector{}, err
+func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
+	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+
+	cfg := &checks.SysProbeConfig{}
+	if syscfg != nil && syscfg.Enabled {
+		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
 
-	enabledChecks := make([]checks.Check, 0)
-	for _, c := range checks.All {
-		if cfg.CheckIsEnabled(c.Name()) {
-			c.Init(cfg, sysInfo)
-			enabledChecks = append(enabledChecks, c)
+	for _, c := range enabledChecks {
+		if err := c.Init(cfg, hostInfo); err != nil {
+			return nil, err
 		}
 	}
 
-	return NewCollectorWithChecks(cfg, enabledChecks), nil
+	return NewCollectorWithChecks(enabledChecks, runRealTime)
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Collector {
-	return Collector{
+func NewCollectorWithChecks(checks []checks.Check, runRealTime bool) (*Collector, error) {
+	orchestrator := oconfig.NewDefaultOrchestratorConfig()
+	if err := orchestrator.Load(); err != nil {
+		return nil, err
+	}
+
+	return &Collector{
 		rtIntervalCh:  make(chan time.Duration),
-		cfg:           cfg,
-		groupID:       rand.Int31(),
+		orchestrator:  orchestrator,
+		groupID:       atomic.NewInt32(rand.Int31()),
 		enabledChecks: checks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
-		realTimeEnabled:  0,
-	}
+		realTimeEnabled:  atomic.NewBool(false),
+
+		runRealTime: runRealTime,
+	}, nil
 }
 
-func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
+func (l *Collector) runCheck(c checks.Check) {
 	runCounter := l.nextRunCounter(c.Name())
 	start := time.Now()
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	messages, err := c.Run(l.cfg, l.nextGroupID())
+	result, err := c.Run(l.nextGroupID, nil)
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	l.messagesToResults(start, c.Name(), messages, results)
 
-	if !c.RealTime() {
+	if result == nil {
+		// Check returned nothing
+		return
+	}
+
+	if c.ShouldSaveLastRun() {
+		checks.StoreCheckOutput(c.Name(), result.Payloads())
+	} else {
+		checks.StoreCheckOutput(c.Name(), nil)
+	}
+
+	l.submitter.Submit(start, c.Name(), result.Payloads())
+
+	if !c.Realtime() {
 		logCheckDuration(c.Name(), start, runCounter)
 	}
 }
 
-func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rtResults *api.WeightedQueue, options checks.RunOptions) {
-	runCounter := l.nextRunCounter(c.Name())
+func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOptions) {
 	start := time.Now()
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	run, err := c.RunWithOptions(l.cfg, l.nextGroupID, options)
+	result, err := c.Run(l.nextGroupID, options)
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	l.messagesToResults(start, c.Name(), run.Standard, results)
-	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
 
+	if result == nil {
+		// Check returned nothing
+		return
+	}
+
+	l.submitter.Submit(start, c.Name(), result.Payloads())
 	if options.RunStandard {
+		// We are only updating the run counter for the standard check
+		// since RT checks are too frequent and we only log standard check
+		// durations
+		runCounter := l.nextRunCounter(c.Name())
+		checks.StoreCheckOutput(c.Name(), result.Payloads())
 		logCheckDuration(c.Name(), start, runCounter)
+	}
+
+	rtName := checks.RTName(c.Name())
+	rtPayloads := result.RealtimePayloads()
+
+	l.submitter.Submit(start, rtName, rtPayloads)
+	if options.RunRealtime {
+		checks.StoreCheckOutput(rtName, rtPayloads)
 	}
 }
 
@@ -159,160 +201,54 @@ func logCheckDuration(name string, start time.Time, runCounter int32) {
 }
 
 func (l *Collector) nextGroupID() int32 {
-	return atomic.AddInt32(&l.groupID, 1)
+	return l.groupID.Inc()
 }
 
-func (l *Collector) messagesToResults(start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
-	if len(messages) == 0 {
-		return
-	}
-
-	payloads := make([]checkPayload, 0, len(messages))
-	sizeInBytes := 0
-
-	for _, m := range messages {
-		body, err := api.EncodePayload(m)
-		if err != nil {
-			log.Errorf("Unable to encode message: %s", err)
-			continue
-		}
-
-		extraHeaders := make(http.Header)
-		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
-		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
-		extraHeaders.Set(headers.ProcessVersionHeader, Version)
-		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
-
-		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
-			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-				extraHeaders.Set(headers.ClusterIDHeader, cid)
-			}
-		}
-
-		payloads = append(payloads, checkPayload{
-			body:    body,
-			headers: extraHeaders,
-		})
-
-		sizeInBytes += len(body)
-	}
-
-	result := &checkResult{
-		name:        name,
-		payloads:    payloads,
-		sizeInBytes: int64(sizeInBytes),
-	}
-	results.Add(result)
-	// update proc and container count for info
-	updateProcContainerCount(messages)
-}
+const (
+	secondsNumberOfBits = 22
+	hashNumberOfBits    = 28
+	chunkNumberOfBits   = 14
+	secondsMask         = 1<<secondsNumberOfBits - 1
+	hashMask            = 1<<hashNumberOfBits - 1
+	chunkMask           = 1<<chunkNumberOfBits - 1
+)
 
 func (l *Collector) run(exit chan struct{}) error {
-	eps := make([]string, 0, len(l.cfg.APIEndpoints))
-	for _, e := range l.cfg.APIEndpoints {
-		eps = append(eps, e.Endpoint.String())
+	err := l.submitter.Start()
+	if err != nil {
+		return err
 	}
-	orchestratorEps := make([]string, 0, len(l.cfg.Orchestrator.OrchestratorEndpoints))
-	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
-		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
+
+	checkNamesLength := len(l.enabledChecks)
+	if !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+		// checkNamesLength is double when realtime checks is enabled as we append the Process real time name
+		// as well as the original check name
+		checkNamesLength = checkNamesLength * 2
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
+
+	checkNames := make([]string, 0, checkNamesLength)
+	for _, check := range l.enabledChecks {
+		checkNames = append(checkNames, check.Name())
+
+		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
+		// process_rt doesn't show up in the enabled checks
+		if check.Name() == checks.Process.Name() && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+			checkNames = append(checkNames, checks.RTProcessCheckName)
+		}
+	}
+	updateEnabledChecks(checkNames)
+	updateDropCheckPayloads(l.dropCheckPayloads)
+	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
 
 	go util.HandleSignals(exit)
-
-	l.processResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
-	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
-	l.rtProcessResults = api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
-	l.podResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
-
-	go func() {
-		<-exit
-		l.processResults.Stop()
-		l.rtProcessResults.Stop()
-		l.podResults.Stop()
-	}()
 
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
-		heartbeat := time.NewTicker(15 * time.Second)
-		defer heartbeat.Stop()
-
-		queueSizeTicker := time.NewTicker(10 * time.Second)
-		defer queueSizeTicker.Stop()
-
-		queueLogTicker := time.NewTicker(time.Minute)
-		defer queueLogTicker.Stop()
-
-		tags := []string{
-			fmt.Sprintf("version:%s", Version),
-			fmt.Sprintf("revision:%s", GitCommit),
-		}
-		for {
-			select {
-			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
-			case <-queueSizeTicker.C:
-				updateQueueBytes(l.processResults.Weight(), l.rtProcessResults.Weight(), l.podResults.Weight())
-				updateQueueSize(l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len())
-			case <-queueLogTicker.C:
-				processSize, rtProcessSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len()
-				if processSize > 0 || rtProcessSize > 0 || podSize > 0 {
-					log.Infof(
-						"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], pod[size=%d, weight=%d]",
-						processSize, l.processResults.Weight(), rtProcessSize, l.rtProcessResults.Weight(), podSize, l.podResults.Weight(),
-					)
-				}
-			case <-exit:
-				return
-			}
-		}
-	}()
-
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
-	processForwarderOpts.DisableAPIKeyChecking = true
-	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
-	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
-
-	// rt forwarder can reuse processForwarder's config
-	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
-
-	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints)))
-	podForwarderOpts.DisableAPIKeyChecking = true
-	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
-	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
-
-	if err := processForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting forwarder: %s", err)
-	}
-
-	if err := rtProcessForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting RT forwarder: %s", err)
-	}
-
-	if err := podForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting pod forwarder: %s", err)
-	}
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		l.consumePayloads(l.processResults, processForwarder)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		l.consumePayloads(l.rtProcessResults, rtProcessForwarder)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		l.consumePayloads(l.podResults, podForwarder)
+		<-exit
+		l.submitter.Stop()
 	}()
 
 	for _, c := range l.enabledChecks {
@@ -331,65 +267,75 @@ func (l *Collector) run(exit chan struct{}) error {
 	<-exit
 	wg.Wait()
 
-	processForwarder.Stop()
-	rtProcessForwarder.Stop()
-	podForwarder.Stop()
+	for _, check := range l.enabledChecks {
+		log.Debugf("Cleaning up %s check", check.Name())
+		check.Cleanup()
+	}
+
 	return nil
 }
 
-func (l *Collector) resultsQueueForCheck(name string) *api.WeightedQueue {
-	switch name {
-	case checks.Pod.Name():
-		return l.podResults
-	case checks.Process.RealTimeName(), checks.RTContainer.Name():
-		return l.rtProcessResults
-	}
-	return l.processResults
-}
-
 func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), error) {
-	results := l.resultsQueueForCheck(c.Name())
-
-	if withRealTime, ok := c.(checks.CheckWithRealTime); ok {
-		rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
-
-		return checks.NewRunnerWithRealTime(
-			checks.RunnerConfig{
-				CheckInterval: l.cfg.CheckInterval(withRealTime.Name()),
-				RtInterval:    l.cfg.CheckInterval(withRealTime.RealTimeName()),
-
-				ExitChan:       exit,
-				RtIntervalChan: l.rtIntervalCh,
-				RtEnabled: func() bool {
-					return atomic.LoadInt32(&l.realTimeEnabled) == 1
-				},
-				RunCheck: func(options checks.RunOptions) {
-					l.runCheckWithRealTime(withRealTime, results, rtResults, options)
-				},
-			},
-		)
+	if !l.runRealTime || !c.SupportsRunOptions() {
+		return l.basicRunner(c, exit), nil
 	}
-	return l.basicRunner(c, results, exit), nil
+
+	rtName := checks.RTName(c.Name())
+	interval := checks.GetInterval(c.Name())
+	rtInterval := checks.GetInterval(rtName)
+
+	if interval < rtInterval || interval%rtInterval != 0 {
+		// Check interval must be greater or equal to realtime check interval and the intervals must be divisible
+		// in order to be run on the same goroutine
+		defaultInterval := checks.GetDefaultInterval(c.Name())
+		defaultRTInterval := checks.GetDefaultInterval(rtName)
+		log.Warnf(
+			"Invalid %s check interval overrides [%s,%s], resetting to defaults [%s,%s]",
+			c.Name(),
+			interval,
+			rtInterval,
+			defaultInterval,
+			defaultRTInterval,
+		)
+		interval = defaultInterval
+		rtInterval = defaultRTInterval
+	}
+
+	return checks.NewRunnerWithRealTime(
+		checks.RunnerConfig{
+			CheckInterval:  interval,
+			RtInterval:     rtInterval,
+			ExitChan:       exit,
+			RtIntervalChan: l.rtIntervalCh,
+			RtEnabled: func() bool {
+				return l.realTimeEnabled.Load()
+			},
+			RunCheck: func(options checks.RunOptions) {
+				l.runCheckWithRealTime(c, &options)
+			},
+		},
+	)
 }
 
-func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit chan struct{}) func() {
+func (l *Collector) basicRunner(c checks.Check, exit chan struct{}) func() {
 	return func() {
 		// Run the check the first time to prime the caches.
-		if !c.RealTime() {
-			l.runCheck(c, results)
+		if !c.Realtime() {
+			l.runCheck(c)
 		}
 
-		ticker := time.NewTicker(l.cfg.CheckInterval(c.Name()))
+		ticker := time.NewTicker(checks.GetInterval(c.Name()))
 		for {
 			select {
 			case <-ticker.C:
-				realTimeEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
-				if !c.RealTime() || realTimeEnabled {
-					l.runCheck(c, results)
+				realTimeEnabled := l.runRealTime && l.realTimeEnabled.Load()
+				if !c.Realtime() || realTimeEnabled {
+					l.runCheck(c)
 				}
 			case d := <-l.rtIntervalCh:
+
 				// Live-update the ticker.
-				if c.RealTime() {
+				if c.Realtime() {
 					ticker.Stop()
 					ticker = time.NewTicker(d)
 				}
@@ -402,61 +348,13 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 	}
 }
 
-func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
-	for {
-		// results.Poll() will return ok=false when stopped
-		item, ok := results.Poll()
-		if !ok {
-			return
-		}
-		result := item.(*checkResult)
-		for _, payload := range result.payloads {
-			var (
-				forwarderPayload = forwarder.Payloads{&payload.body}
-				responses        chan forwarder.Response
-				err              error
-				updateRTStatus   = true
-			)
-
-			switch result.name {
-			case checks.Process.Name():
-				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
-			case checks.Process.RealTimeName():
-				responses, err = fwd.SubmitRTProcessChecks(forwarderPayload, payload.headers)
-			case checks.Container.Name():
-				responses, err = fwd.SubmitContainerChecks(forwarderPayload, payload.headers)
-			case checks.RTContainer.Name():
-				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
-			case checks.Connections.Name():
-				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
-			case checks.Pod.Name():
-				// Orchestrator intake response does not change RT checks enablement or interval
-				updateRTStatus = false
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
-			case checks.ProcessDiscovery.Name():
-				// A Process Discovery check does not change the RT mode
-				updateRTStatus = false
-				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
-			default:
-				err = fmt.Errorf("unsupported payload type: %s", result.name)
-			}
-
-			if err != nil {
-				log.Errorf("Unable to submit payload: %s", err)
-				continue
-			}
-
-			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
-				if updateRTStatus {
-					l.updateRTStatus(statuses)
-				}
-			}
-		}
+func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
+	// If realtime mode is disabled in the config, do not change the real time status.
+	if !l.runRealTime {
+		return
 	}
-}
 
-func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
-	curEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
+	curEnabled := l.realTimeEnabled.Load()
 
 	// If any of the endpoints wants real-time we'll do that.
 	// We will pick the maximum interval given since generally this is
@@ -465,7 +363,7 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 	maxInterval := 0 * time.Second
 	activeClients := int32(0)
 	for _, s := range statuses {
-		shouldEnableRT = shouldEnableRT || (s.ActiveClients > 0 && l.cfg.AllowRealTime)
+		shouldEnableRT = shouldEnableRT || s.ActiveClients > 0
 		if s.ActiveClients > 0 {
 			activeClients += s.ActiveClients
 		}
@@ -477,10 +375,10 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 
 	if curEnabled && !shouldEnableRT {
 		log.Info("Detected 0 clients, disabling real-time mode")
-		atomic.StoreInt32(&l.realTimeEnabled, 0)
+		l.realTimeEnabled.Store(false)
 	} else if !curEnabled && shouldEnableRT {
 		log.Infof("Detected %d active clients, enabling real-time mode", activeClients)
-		atomic.StoreInt32(&l.realTimeEnabled, 1)
+		l.realTimeEnabled.Store(true)
 	}
 
 	if maxInterval != l.realTimeInterval {
@@ -528,6 +426,11 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 			continue
 		}
 
+		// some checks don't receive a response with a status used to enable RT mode
+		if ignoreResponseBody(checkName) {
+			continue
+		}
+
 		r, err := model.DecodeMessage(response.Body)
 		if err != nil {
 			log.Errorf("[%s] Could not decode response body: %s", checkName, err)
@@ -548,4 +451,13 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 	}
 
 	return statuses
+}
+
+func ignoreResponseBody(checkName string) bool {
+	switch checkName {
+	case checks.Pod.Name(), checks.PodCheckManifestName, checks.ProcessEvents.Name():
+		return true
+	default:
+		return false
+	}
 }

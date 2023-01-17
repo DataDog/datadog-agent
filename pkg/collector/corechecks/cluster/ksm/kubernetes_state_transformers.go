@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
@@ -21,13 +22,13 @@ import (
 
 // metricTransformerFunc is used to tweak or generate new metrics from a given KSM metric
 // For name translation only please use metricNamesMapper instead
-type metricTransformerFunc = func(aggregator.Sender, string, ksmstore.DDMetric, string, []string)
+type metricTransformerFunc = func(aggregator.Sender, string, ksmstore.DDMetric, string, []string, time.Time)
 
-var (
-	// metricTransformers contains KSM metric names and their corresponding transformer functions
-	// These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in metricNamesMapper
-	// For reference see METRIC_TRANSFORMERS in KSM check V1
-	metricTransformers = map[string]metricTransformerFunc{
+// defaultMetricTransformers returns a map that contains KSM metric names and their corresponding transformer functions
+// These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in defaultMetricNamesMapper
+// For reference see METRIC_TRANSFORMERS in KSM check V1
+func defaultMetricTransformers() map[string]metricTransformerFunc {
+	return map[string]metricTransformerFunc{
 		"kube_pod_created":                            podCreationTransformer,
 		"kube_pod_start_time":                         podStartTimeTransformer,
 		"kube_pod_status_phase":                       podPhaseTransformer,
@@ -51,14 +52,11 @@ var (
 		"kube_persistentvolume_status_phase":          pvPhaseTransformer,
 		"kube_service_spec_type":                      serviceTypeTransformer,
 	}
-)
-
-// now allows testing
-var now = time.Now
+}
 
 // nodeConditionTransformer generates service checks based on the metric kube_node_status_condition
 // It also submit the metric kubernetes_state.node.by_condition
-func nodeConditionTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func nodeConditionTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	if metric.Val != 1.0 {
 		// Only consider active metrics
 		return
@@ -126,6 +124,9 @@ func statusForCondition(status string, positiveEvent bool) metrics.ServiceCheckS
 		}
 		return metrics.ServiceCheckOK
 	case "unknown":
+		if positiveEvent {
+			return metrics.ServiceCheckWarning
+		}
 		return metrics.ServiceCheckUnknown
 	default:
 		log.Tracef("Unknown 'status' label: '%s'", status)
@@ -135,7 +136,7 @@ func statusForCondition(status string, positiveEvent bool) metrics.ServiceCheckS
 
 // nodeUnschedulableTransformer reports whether a node can schedule new pods
 // It adds a tag 'status' that can be either 'schedulable' or 'unschedulable' and always report the metric value '1'
-func nodeUnschedulableTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func nodeUnschedulableTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	status := ""
 	switch metric.Val {
 	case 0.0:
@@ -152,39 +153,41 @@ func nodeUnschedulableTransformer(s aggregator.Sender, name string, metric ksmst
 
 // submitAge generates a resource age or uptime metric based on a given timestamp
 // The metric value must correspond to a timestamp
-func submitAge(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
-	s.Gauge(name, float64(now().Unix())-metric.Val, hostname, tags)
+func submitAge(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	s.Gauge(name, float64(currentTime.Unix())-metric.Val, hostname, tags)
 }
 
 // nodeCreationTransformer generates the node age metric based on the creation timestamp
-func nodeCreationTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
-	submitAge(s, ksmMetricPrefix+"node.age", metric, hostname, tags)
+func nodeCreationTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	submitAge(s, ksmMetricPrefix+"node.age", metric, hostname, tags, currentTime)
 }
 
 // podCreationTransformer generates the pod age metric based on the creation timestamp
-func podCreationTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
-	submitAge(s, ksmMetricPrefix+"pod.age", metric, hostname, tags)
+func podCreationTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	submitAge(s, ksmMetricPrefix+"pod.age", metric, hostname, tags, currentTime)
 }
 
 // podStartTimeTransformer generates the pod uptime metric based on the start time timestamp
-func podStartTimeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
-	submitAge(s, ksmMetricPrefix+"pod.uptime", metric, hostname, tags)
+func podStartTimeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	submitAge(s, ksmMetricPrefix+"pod.uptime", metric, hostname, tags, currentTime)
 }
 
 // podPhaseTransformer sends status phase metrics for pods, the tag phase has the pod status
-func podPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func podPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"pod.status_phase", metric, hostname, tags)
 }
 
 var allowedWaitingReasons = map[string]struct{}{
-	"errimagepull":      {},
-	"imagepullbackoff":  {},
-	"crashloopbackoff":  {},
-	"containercreating": {},
+	"errimagepull":         {},
+	"imagepullbackoff":     {},
+	"crashloopbackoff":     {},
+	"containercreating":    {},
+	"createcontainererror": {},
+	"invalidimagename":     {},
 }
 
 // containerWaitingReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_waiting_reason
-func containerWaitingReasonTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func containerWaitingReasonTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	if reason, found := metric.Labels["reason"]; found {
 		// Filtering according to the reason here is paramount to limit cardinality
 		if _, allowed := allowedWaitingReasons[strings.ToLower(reason)]; allowed {
@@ -200,7 +203,7 @@ var allowedTerminatedReasons = map[string]struct{}{
 }
 
 // containerTerminatedReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_terminated_reason
-func containerTerminatedReasonTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func containerTerminatedReasonTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	if reason, found := metric.Labels["reason"]; found {
 		// Filtering according to the reason here is paramount to limit cardinality
 		if _, allowed := allowedTerminatedReasons[strings.ToLower(reason)]; allowed {
@@ -210,12 +213,12 @@ func containerTerminatedReasonTransformer(s aggregator.Sender, name string, metr
 }
 
 // containerResourceRequestsTransformer transforms the generic ksm resource request metrics into resource-specific metrics
-func containerResourceRequestsTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func containerResourceRequestsTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitContainerResourceMetric(s, name, metric, hostname, tags, "requested")
 }
 
 // containerResourceLimitsTransformer transforms the generic ksm resource limit metrics into resource-specific metrics
-func containerResourceLimitsTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func containerResourceLimitsTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitContainerResourceMetric(s, name, metric, hostname, tags, "limit")
 }
 
@@ -241,12 +244,12 @@ func submitContainerResourceMetric(s aggregator.Sender, name string, metric ksms
 }
 
 // nodeAllocatableTransformer transforms the generic ksm node allocatable metrics into resource-specific metrics
-func nodeAllocatableTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func nodeAllocatableTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitNodeResourceMetric(s, name, metric, hostname, tags, "allocatable")
 }
 
 // nodeCapacityTransformer transforms the generic ksm node capacity metrics into resource-specific metrics
-func nodeCapacityTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func nodeCapacityTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitNodeResourceMetric(s, name, metric, hostname, tags, "capacity")
 }
 
@@ -278,10 +281,10 @@ func submitNodeResourceMetric(s aggregator.Sender, name string, metric ksmstore.
 }
 
 // cronJobNextScheduleTransformer sends a service check to alert if the cronjob's next schedule is in the past
-func cronJobNextScheduleTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func cronJobNextScheduleTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	message := ""
 	var status metrics.ServiceCheckStatus
-	timeDiff := int64(metric.Val) - now().Unix()
+	timeDiff := int64(metric.Val) - currentTime.Unix()
 	if timeDiff >= 0 {
 		status = metrics.ServiceCheckOK
 	} else {
@@ -292,12 +295,12 @@ func cronJobNextScheduleTransformer(s aggregator.Sender, name string, metric ksm
 }
 
 // cronJobLastScheduleTransformer sends the duration since the last time the cronjob was scheduled
-func cronJobLastScheduleTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
-	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(now().Unix())-metric.Val, hostname, tags)
+func cronJobLastScheduleTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(currentTime.Unix())-metric.Val, hostname, tags)
 }
 
 // jobCompleteTransformer sends a metric and a service check based on kube_job_complete
-func jobCompleteTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func jobCompleteTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
 		if tag == "condition:true" {
 			jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, append(tags[:i], tags[i+1:]...))
@@ -308,7 +311,7 @@ func jobCompleteTransformer(s aggregator.Sender, name string, metric ksmstore.DD
 }
 
 // jobFailedTransformer sends a metric and a service check based on kube_job_failed
-func jobFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func jobFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
 		if tag == "condition:true" {
 			jobMetric(s, metric, ksmMetricPrefix+"job.completion.failed", hostname, append(tags[:i], tags[i+1:]...))
@@ -359,7 +362,7 @@ func jobServiceCheck(s aggregator.Sender, metric ksmstore.DDMetric, status metri
 }
 
 // jobStatusSucceededTransformer sends a metric based on kube_job_status_succeeded
-func jobStatusSucceededTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func jobStatusSucceededTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	jobMetric(s, metric, ksmMetricPrefix+"job.succeeded", hostname, tags)
 }
 
@@ -373,7 +376,7 @@ func jobStatusSucceededTransformer(s aggregator.Sender, name string, metric ksms
 //
 // In order to reduce the cardinality, we are here removing the `reason` tag.
 // The resulting datadog metric is 0 if there are no failed pods and 1 otherwise.
-func jobStatusFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func jobStatusFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	// Remove the `reason` tag to reduce the cardinality
 	reasonTagIndex := -1
 	for idx, tag := range tags {
@@ -401,7 +404,7 @@ func jobMetric(s aggregator.Sender, metric ksmstore.DDMetric, metricName string,
 }
 
 // resourcequotaTransformer generates dedicated metrics per resource per type from the kube_resourcequota metric
-func resourcequotaTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func resourcequotaTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	resource, found := metric.Labels["resource"]
 	if !found {
 		log.Debugf("Couldn't find 'resource' label, ignoring metric '%s'", name)
@@ -429,7 +432,7 @@ var constraintsMapper = map[string]string{
 }
 
 // limitrangeTransformer generates dedicated metrics per resource per type from the kube_limitrange metric
-func limitrangeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func limitrangeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	constraintLabel, found := metric.Labels["constraint"]
 	if !found {
 		log.Debugf("Couldn't find 'constraint' label, ignoring metric '%s'", name)
@@ -459,11 +462,11 @@ func submitActiveMetric(s aggregator.Sender, metricName string, metric ksmstore.
 }
 
 // pvPhaseTransformer generates metrics per persistentvolume and per phase from the kube_persistentvolume_status_phase metric
-func pvPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func pvPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"persistentvolume.by_phase", metric, hostname, tags)
 }
 
 // serviceTypeTransformer generates metrics per service, namespace, and type from the kube_service_spec_type metric
-func serviceTypeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+func serviceTypeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"service.type", metric, hostname, tags)
 }

@@ -10,8 +10,6 @@
   variables:
     LANG: C.UTF-8
   before_script:
-    - cd $SRC_PATH
-    - python3.6 -m pip install --user -r requirements.txt
     - export DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - export DOCKER_REGISTRY_PWD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
@@ -32,8 +30,8 @@ k8s-e2e-dev:
   # engineers trigger the correct sequence of jobs when needed.
   needs: []
   script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=default
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=default
 
 k8s-e2e-main:
   extends: .k8s_e2e_template
@@ -44,8 +42,8 @@ k8s-e2e-main:
   #   - dev_master-a6
   #   - dev_master-a7
   script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
 
 k8s-e2e-tags-6:
   extends: .k8s_e2e_template
@@ -54,7 +52,7 @@ k8s-e2e-tags-6:
   script:
     - AGENT_VERSION=$(inv -e agent.version --major-version 6)
     - DCA_VERSION=$(inv -e cluster-agent.version)
-    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
+    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION} --argo-workflow=default
 
 k8s-e2e-tags-7:
   extends: .k8s_e2e_template
@@ -63,4 +61,70 @@ k8s-e2e-tags-7:
   script:
     - AGENT_VERSION=$(inv -e agent.version --major-version 7)
     - DCA_VERSION=$(inv -e cluster-agent.version)
-    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
+    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION} --argo-workflow=default
+
+.k8s-e2e-cws-cspm-init:
+  - set +x
+  - export DATADOG_AGENT_SITE=datadoghq.com
+  - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_api_key --with-decryption --query "Parameter.Value" --out text)
+  - export DATADOG_AGENT_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_app_key --with-decryption --query "Parameter.Value" --out text)
+
+k8s-e2e-cws-dev:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_dev_branch_manual]
+  needs: []
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cws
+
+k8s-e2e-cws-main:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_main]
+  # needs:
+  #   - dev_master-a6
+  #   - dev_master-a7
+  retry: 1
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=cws
+
+k8s-e2e-cspm-dev:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_dev_branch_manual]
+  needs: []
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cspm
+
+k8s-e2e-cspm-main:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_main]
+  # needs:
+  #   - dev_master-a6
+  #   - dev_master-a7
+  retry: 1
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=cspm
+
+k8s-e2e-otlp-dev:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_dev_branch_manual]
+  needs: [] # See note on k8s-e2e-dev above
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=otlp
+
+k8s-e2e-otlp-main:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_main]
+  # needs:
+  #   - dev_master-a6
+  #   - dev_master-a7
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=otlp

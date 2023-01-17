@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package api
@@ -17,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestUDS(t *testing.T) {
@@ -46,6 +47,7 @@ func TestUDS(t *testing.T) {
 
 		resp, err := client.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(payload))
 		if err == nil {
+			resp.Body.Close()
 			t.Fatalf("expected to fail, got response %#v", resp)
 		}
 	})
@@ -63,6 +65,7 @@ func TestUDS(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		resp.Body.Close()
 		if resp.StatusCode != 200 {
 			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 		}

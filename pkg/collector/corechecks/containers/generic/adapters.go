@@ -17,17 +17,17 @@ type MetricsAdapter interface {
 	AdaptMetrics(metricName string, value float64) (string, float64)
 }
 
-// ContainerLister abstracts away how to list all known containers
-type ContainerLister interface {
-	List() ([]*workloadmeta.Container, error)
+// ContainerAccessor abstracts away how to list all running containers
+type ContainerAccessor interface {
+	ListRunning() []*workloadmeta.Container
 }
 
-// MetadataContainerLister implements ContainerLister interface using Workload meta service
-type MetadataContainerLister struct{}
+// MetadataContainerAccessor implements ContainerLister interface using Workload meta service
+type MetadataContainerAccessor struct{}
 
-// List returns all known containers
-func (l MetadataContainerLister) List() ([]*workloadmeta.Container, error) {
-	return workloadmeta.GetGlobalStore().ListContainers()
+// ListRunning returns all running containers
+func (l MetadataContainerAccessor) ListRunning() []*workloadmeta.Container {
+	return workloadmeta.GetGlobalStore().ListContainersWithFilter(workloadmeta.GetRunningContainers)
 }
 
 // GenericMetricsAdapter implements MetricsAdapter API in a basic way.

@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -193,15 +195,22 @@ func (c *ControllerV1) generateTemplates() {
 		webhooks = append(webhooks, webhook)
 	}
 
+	// Auto instrumentation - lib injection
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled") {
+		webhook := c.getWebhookSkeleton("auto-instrumentation", config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"))
+		webhooks = append(webhooks, webhook)
+	}
+
 	c.webhookTemplates = webhooks
 }
 
 func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.MutatingWebhook {
-	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
 	timeout := c.config.getTimeout()
+	failurePolicy := c.getAdmiV1FailurePolicy()
+	reinvocationPolicy := c.getReinvocationPolicy()
 	webhook := admiv1.MutatingWebhook{
 		Name: c.config.configName(nameSuffix),
 		ClientConfig: admiv1.WebhookClientConfig{
@@ -224,6 +233,7 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 				},
 			},
 		},
+		ReinvocationPolicy:      &reinvocationPolicy,
 		FailurePolicy:           &failurePolicy,
 		MatchPolicy:             &matchPolicy,
 		SideEffects:             &sideEffects,
@@ -231,13 +241,33 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 		AdmissionReviewVersions: []string{"v1", "v1beta1"},
 	}
 
-	labelSelector := buildLabelSelector()
-	if c.config.useNamespaceSelector() {
-		webhook.NamespaceSelector = labelSelector
-		return webhook
-	}
-
-	webhook.ObjectSelector = labelSelector
+	webhook.NamespaceSelector, webhook.ObjectSelector = buildLabelSelectors(c.config.useNamespaceSelector())
 
 	return webhook
+}
+
+func (c *ControllerV1) getAdmiV1FailurePolicy() admiv1.FailurePolicyType {
+	policy := strings.ToLower(c.config.getFailurePolicy())
+	switch policy {
+	case "ignore":
+		return admiv1.Ignore
+	case "fail":
+		return admiv1.Fail
+	default:
+		_ = log.Warnf("Unknown failure policy %s - defaulting to 'Ignore'", policy)
+		return admiv1.Ignore
+	}
+}
+
+func (c *ControllerV1) getReinvocationPolicy() admiv1.ReinvocationPolicyType {
+	policy := strings.ToLower(c.config.getReinvocationPolicy())
+	switch policy {
+	case "ifneeded":
+		return admiv1.IfNeededReinvocationPolicy
+	case "never":
+		return admiv1.NeverReinvocationPolicy
+	default:
+		log.Warnf("Unknown reinvocation policy %q - defaulting to %q", c.config.getReinvocationPolicy(), admiv1.IfNeededReinvocationPolicy)
+		return admiv1.IfNeededReinvocationPolicy
+	}
 }

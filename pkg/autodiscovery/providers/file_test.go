@@ -14,71 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func TestGetIntegrationConfig(t *testing.T) {
-	// file does not exist
-	_, err := GetIntegrationConfigFromFile("foo", "")
-	assert.NotNil(t, err)
-
-	// file contains invalid Yaml
-	_, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
-	assert.NotNil(t, err)
-
-	// valid yaml, invalid configuration file
-	config, err := GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
-	assert.NotNil(t, err)
-	assert.Equal(t, len(config.Instances), 0)
-
-	// valid metric file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/metrics.yaml")
-	assert.Nil(t, err)
-	assert.NotNil(t, config.MetricConfig)
-
-	// valid logs-agent file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/logs-agent_only.yaml")
-	assert.Nil(t, err)
-	assert.NotNil(t, config.LogsConfig)
-
-	// valid configuration file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
-	require.Nil(t, err)
-	assert.Equal(t, config.Name, "foo")
-	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
-	assert.Equal(t, config.Source, "file:tests/testcheck.yaml")
-	assert.Equal(t, len(config.Instances), 1)
-	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
-	assert.Len(t, config.ADIdentifiers, 0)
-	assert.Nil(t, config.MetricConfig)
-	assert.Nil(t, config.LogsConfig)
-
-	// autodiscovery
-	config, err = GetIntegrationConfigFromFile("foo", "tests/ad.yaml")
-	require.Nil(t, err)
-	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
-
-	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
-	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
-	assert.NotNil(t, err)
-}
-
-func TestNewYamlConfigProvider(t *testing.T) {
-	paths := []string{"foo", "bar", "foo/bar"}
-	provider := NewFileConfigProvider(paths)
-	assert.Equal(t, len(provider.paths), len(paths))
-
-	for i, p := range provider.paths {
-		assert.Equal(t, p, paths[i])
-	}
-	assert.Zero(t, len(provider.Errors))
-}
 
 func TestCollect(t *testing.T) {
 	ctx := context.Background()
 	config.Datadog.Set("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
-	provider := NewFileConfigProvider(paths)
+	ResetReader(paths)
+	provider := NewFileConfigProvider()
 	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)
@@ -138,13 +81,12 @@ func TestCollect(t *testing.T) {
 
 func TestEnvVarReplacement(t *testing.T) {
 	ctx := context.Background()
-	err := os.Setenv("test_envvar_key", "test_value")
-	require.NoError(t, err)
+	t.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
-	defer os.Unsetenv("test_envvar_key")
 
 	paths := []string{"tests"}
-	provider := NewFileConfigProvider(paths)
+	ResetReader(paths)
+	provider := NewFileConfigProvider()
 	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)

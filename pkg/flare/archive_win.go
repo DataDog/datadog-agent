@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package flare
@@ -11,16 +12,17 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"golang.org/x/sys/windows"
 )
 
 var (
@@ -36,59 +38,50 @@ var (
 )
 
 const (
-	evtExportLogChannelPath         uint32 = 0x1
-	evtExportLogFilePath            uint32 = 0x2
-	evtExportLogTolerateQueryErrors uint32 = 0x1000
-	evtExportLogOverwrite           uint32 = 0x2000
+	evtExportLogChannelPath uint32 = 0x1
 )
 
-func zipCounterStrings(tempDir, hostname string) error {
-	bufferIncrement := uint32(1024)
-	bufferSize := bufferIncrement
-	var counterlist []uint16
-	for {
-		var regtype uint32
-		counterlist = make([]uint16, bufferSize)
-		var sz uint32
-		sz = bufferSize
-		regerr := windows.RegQueryValueEx(windows.HKEY_PERFORMANCE_DATA,
-			windows.StringToUTF16Ptr("Counter 009"),
-			nil, // reserved
-			&regtype,
-			(*byte)(unsafe.Pointer(&counterlist[0])),
-			&sz)
-		if regerr == error(windows.ERROR_MORE_DATA) {
-			// buffer's not big enough
-			bufferSize += bufferIncrement
-			continue
-		}
-		// must set the length of the slice to the actual amount of data
-		// sz is in bytes, but it's a slice of uint16s, so divide the returned
-		// buffer size by two.
-		counterlist = counterlist[:(sz / 2)]
-		break
-	}
-	clist := winutil.ConvertWindowsStringList(counterlist)
-	fname := filepath.Join(tempDir, hostname, "counter_strings.txt")
-	err := ensureParentDirsExist(fname)
-	if err != nil {
-		return err
-	}
-	f, err := os.Create(fname)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	for i := 0; i < len(clist); i++ {
-		f.WriteString(clist[i])
-		f.WriteString("\r\n")
-	}
-	f.Sync()
-	return nil
+func getCounterStrings(fb flarehelpers.FlareBuilder) error {
+	return fb.AddFileFromFunc("counter_strings.txt",
+		func() ([]byte, error) {
+			bufferIncrement := uint32(1024)
+			bufferSize := bufferIncrement
+			var counterlist []uint16
+			for {
+				var regtype uint32
+				counterlist = make([]uint16, bufferSize)
+				var sz uint32
+				sz = bufferSize
+				regerr := windows.RegQueryValueEx(windows.HKEY_PERFORMANCE_DATA,
+					windows.StringToUTF16Ptr("Counter 009"),
+					nil, // reserved
+					&regtype,
+					(*byte)(unsafe.Pointer(&counterlist[0])),
+					&sz)
+				if regerr == error(windows.ERROR_MORE_DATA) {
+					// buffer's not big enough
+					bufferSize += bufferIncrement
+					continue
+				}
+				// must set the length of the slice to the actual amount of data
+				// sz is in bytes, but it's a slice of uint16s, so divide the returned
+				// buffer size by two.
+				counterlist = counterlist[:(sz / 2)]
+				break
+			}
+			clist := winutil.ConvertWindowsStringList(counterlist)
 
+			f := &bytes.Buffer{}
+			for i := 0; i < len(clist); i++ {
+				f.Write([]byte(clist[i])) //nolint:errcheck
+				f.Write([]byte("\r\n"))   //nolint:errcheck
+			}
+			return f.Bytes(), nil
+		},
+	)
 }
 
-func zipTypeperfData(tempDir, hostname string) error {
+func getTypeperfData(fb flarehelpers.FlareBuilder) error {
 	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
 
@@ -98,21 +91,13 @@ func zipTypeperfData(tempDir, hostname string) error {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
-		return err
-	}
-	f := filepath.Join(tempDir, hostname, "typeperf.txt")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
+		log.Errorf("Could not write typeperf data: %s", err)
 	}
 
-	err = ioutil.WriteFile(f, out.Bytes(), os.ModePerm)
-	if err != nil {
-		return err
-	}
-	return nil
+	return fb.AddFile("typeperf.txt", out.Bytes())
 }
-func zipLodctrOutput(tempDir, hostname string) error {
+
+func getLodctrOutput(fb flarehelpers.FlareBuilder) error {
 	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
 
@@ -127,23 +112,12 @@ func zipLodctrOutput(tempDir, hostname string) error {
 		// it succeeds.  Log the error in case it's some other error,
 		// but continue on.
 	}
-	f := filepath.Join(tempDir, hostname, "lodctr.txt")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		log.Warnf("Error in ensureParentDirsExist %v", err)
-		return err
-	}
 
-	err = ioutil.WriteFile(f, out.Bytes(), os.ModePerm)
-	if err != nil {
-		log.Warnf("Error writing file %v", err)
-		return err
-	}
-	return nil
+	return fb.AddFile("lodctr.txt", out.Bytes())
 }
 
-// zipWindowsEventLogs exports Windows event logs.
-func zipWindowsEventLogs(tempDir, hostname string) error {
+// getWindowsEventLogs exports Windows event logs.
+func getWindowsEventLogs(fb flarehelpers.FlareBuilder) error {
 	var err error
 
 	for eventLogChannel := range eventLogChannelsToExport {
@@ -152,11 +126,10 @@ func zipWindowsEventLogs(tempDir, hostname string) error {
 
 		// Export one event log file to the temporary location.
 		errExport := exportWindowsEventLog(
+			fb,
 			eventLogChannel,
 			eventLogQuery,
-			eventLogFileName,
-			tempDir,
-			hostname)
+			eventLogFileName)
 
 		if errExport != nil {
 			log.Warnf("could not export event log %v, error: %v", eventLogChannel, errExport)
@@ -164,16 +137,14 @@ func zipWindowsEventLogs(tempDir, hostname string) error {
 		}
 	}
 
-	return err
+	return log.Errorf("Could not export Windows event logs: %s", err)
 }
 
 // exportWindowsEventLog exports one event log file to the temporary location.
 // destFileName might contain a path.
-func exportWindowsEventLog(eventLogChannel, eventLogQuery, destFileName, tempDir, hostname string) error {
+func exportWindowsEventLog(fb flarehelpers.FlareBuilder, eventLogChannel, eventLogQuery, destFileName string) error {
 	// Put all event logs under "eventlog" folder
-	destFullFileName := filepath.Join(tempDir, hostname, "eventlog", destFileName)
-
-	err := ensureParentDirsExist(destFullFileName)
+	destFullFileName, err := fb.PrepareFilePath(filepath.Join("eventlog", destFileName))
 	if err != nil {
 		log.Warnf("cannot create folder for %s: %v", destFullFileName, err)
 		return err
@@ -206,55 +177,87 @@ func exportWindowsEventLog(eventLogChannel, eventLogQuery, destFileName, tempDir
 	return err
 }
 
-func (p permissionsInfos) add(filePath string) {}
-func (p permissionsInfos) commit(tempDir, hostname string, mode os.FileMode) error {
-	return nil
+func getServiceStatus(fb flarehelpers.FlareBuilder) error {
+	return fb.AddFileFromFunc(
+		"servicestatus.txt",
+		func() ([]byte, error) {
+			cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+			defer cancelfunc()
+
+			cmd := exec.CommandContext(cancelctx, "powershell", "-c", "get-service", "data*,ddnpm", "|", "fl")
+
+			var out bytes.Buffer
+			cmd.Stdout = &out
+			err := cmd.Run()
+			if err != nil {
+				log.Warnf("Error running powershell command %v", err)
+				// for some reason the lodctr command returns error 259 even when
+				// it succeeds.  Log the error in case it's some other error,
+				// but continue on.
+			}
+
+			f := &bytes.Buffer{}
+			_, err = f.Write(out.Bytes())
+			if err != nil {
+				log.Warnf("Error writing file %v", err)
+				return nil, err
+			}
+			// compute the location of the driver
+			ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
+			if err == nil {
+				pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
+				fi, err := os.Stat(pathtodriver)
+				if err != nil {
+					f.Write([]byte(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))) //nolint:errcheck
+				} else {
+					f.Write([]byte(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))) //nolint:errcheck
+				}
+			} else {
+				return nil, fmt.Errorf("Error getting path to datadog agent binaries %v", err)
+			}
+			return f.Bytes(), nil
+		})
 }
 
-func zipServiceStatus(tempDir, hostname string) error {
-	f := filepath.Join(tempDir, hostname, "servicestatus.txt")
-	err := ensureParentDirsExist(f)
+// getDatadogRegistry function saves all Datadog registry keys and values from HKLM\Software\Datadog.
+// The implementation is based on the invoking Windows built-in reg.exe command, which does all
+// heavy lifting (instead of relying on explicit and recursive Registry API calls).
+// More technical details can be found in the PR https://github.com/DataDog/datadog-agent/pull/11290
+func getDatadogRegistry(fb flarehelpers.FlareBuilder) error {
+	// Generate raw exported registry file which we will scrub just in case
+	rawf, err := fb.PrepareFilePath("datadog-raw.reg")
 	if err != nil {
 		return fmt.Errorf("Error in ensureParentDirsExist %v", err)
 	}
 
-	fh, err := os.Create(f)
-	if err != nil {
-		return fmt.Errorf("Error creating temp file %s %v", f, err)
+	// reg.exe is built in Windows utility which will be always present
+	// https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg
+	cmd := exec.Command("reg", "export", "HKLM\\Software\\Datadog", rawf, "/y")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if stderr.Len() > 0 {
+			return fmt.Errorf("Error getting Datadog registry exported via reg command. %v [%s]", stderr.String(), err)
+		}
+		return fmt.Errorf("Error getting Datadog registry exported via reg command. %v", err)
 	}
-	defer fh.Close()
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
-	defer cancelfunc()
+	// Temporary datadog-raw.reg is created. Remove it when the function exits
+	defer os.Remove(rawf)
 
-	cmd := exec.CommandContext(cancelctx, "powershell", "-c", "get-service", "data*,ddnpm", "|", "fl")
-
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err = cmd.Run()
+	// Read raw registry file in memory ...
+	data, err := os.ReadFile(rawf)
 	if err != nil {
-		log.Warnf("Error running powershell command %v", err)
-		// for some reason the lodctr command returns error 259 even when
-		// it succeeds.  Log the error in case it's some other error,
-		// but continue on.
-	}
-
-	_, err = fh.Write(out.Bytes())
-	if err != nil {
-		log.Warnf("Error writing file %v", err)
 		return err
 	}
-	// compute the location of the driver
-	ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
-	if err == nil {
-		pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
-		fi, err := os.Stat(pathtodriver)
-		if err != nil {
-			fh.WriteString(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))
-		} else {
-			fh.WriteString(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))
-		}
-	} else {
-		return fmt.Errorf("Error getting path to datadog agent binaries %v", err)
-	}
-	return nil
+
+	return fb.AddFile("datadog.reg", data)
+}
+
+func getWindowsData(fb flarehelpers.FlareBuilder) {
+	getTypeperfData(fb)     //nolint:errcheck
+	getLodctrOutput(fb)     //nolint:errcheck
+	getCounterStrings(fb)   //nolint:errcheck
+	getWindowsEventLogs(fb) //nolint:errcheck
+	getServiceStatus(fb)    //nolint:errcheck
+	getDatadogRegistry(fb)  //nolint:errcheck
 }

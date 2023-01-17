@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package memory
@@ -11,10 +12,10 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/v3/mem"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
@@ -32,7 +33,7 @@ const mbSize float64 = 1024 * 1024
 
 // Run executes the check
 func (c *Check) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -67,6 +68,8 @@ func (c *Check) Run() error {
 		sender.Gauge("system.swap.free", float64(s.Free)/mbSize, "", nil)
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
 		sender.Gauge("system.swap.pct_free", (100-s.UsedPercent)/100, "", nil)
+		sender.Rate("system.swap.swap_in", float64(s.Sin)/mbSize, "", nil)
+		sender.Rate("system.swap.swap_out", float64(s.Sout)/mbSize, "", nil)
 	} else {
 		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
@@ -80,7 +83,7 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -89,7 +92,7 @@ func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error 
 	sender.Gauge("system.mem.buffered", float64(v.Buffers)/mbSize, "", nil)
 	sender.Gauge("system.mem.shared", float64(v.Shared)/mbSize, "", nil)
 	sender.Gauge("system.mem.slab", float64(v.Slab)/mbSize, "", nil)
-	sender.Gauge("system.mem.slab_reclaimable", float64(v.SReclaimable)/mbSize, "", nil)
+	sender.Gauge("system.mem.slab_reclaimable", float64(v.Sreclaimable)/mbSize, "", nil)
 	sender.Gauge("system.mem.page_tables", float64(v.PageTables)/mbSize, "", nil)
 	sender.Gauge("system.mem.commit_limit", float64(v.CommitLimit)/mbSize, "", nil)
 	sender.Gauge("system.mem.committed_as", float64(v.CommittedAS)/mbSize, "", nil)
@@ -98,7 +101,7 @@ func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error 
 }
 
 func (c *Check) freebsdSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

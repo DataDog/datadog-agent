@@ -1,39 +1,44 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package metrics
 
 import (
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 )
 
 type testStatsClient struct {
-	counts int64
+	counts atomic.Int64
 }
 
 func (ts *testStatsClient) Gauge(name string, value float64, tags []string, rate float64) error {
-	atomic.AddInt64(&ts.counts, 1)
+	ts.counts.Inc()
 	return nil
 }
 
 func (ts *testStatsClient) Count(name string, value int64, tags []string, rate float64) error {
-	atomic.AddInt64(&ts.counts, 1)
+	ts.counts.Inc()
 	return nil
 }
 
 func (ts *testStatsClient) Histogram(name string, value float64, tags []string, rate float64) error {
-	atomic.AddInt64(&ts.counts, 1)
+	ts.counts.Inc()
 	return nil
 }
 
 func (ts *testStatsClient) Timing(name string, value time.Duration, tags []string, rate float64) error {
-	atomic.AddInt64(&ts.counts, 1)
+	ts.counts.Inc()
 	return nil
 }
 
 func (ts *testStatsClient) Flush() error {
-	atomic.AddInt64(&ts.counts, 1)
+	ts.counts.Inc()
 	return nil
 }
 
@@ -57,6 +62,6 @@ func TestForwarding(t *testing.T) {
 		assert.NoError(t, Histogram("stat", 1, nil, 1))
 		assert.NoError(t, Timing("stat", time.Second, nil, 1))
 		assert.NoError(t, Flush())
-		assert.Equal(t, atomic.LoadInt64(&testclient.counts), int64(5))
+		assert.Equal(t, testclient.counts.Load(), int64(5))
 	})
 }

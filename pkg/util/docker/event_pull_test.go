@@ -185,12 +185,3 @@ func TestProcessContainerEvent(t *testing.T) {
 		}
 	}
 }
-
-func TestContainerEntityName(t *testing.T) {
-	ev := &ContainerEvent{}
-	assert.Equal(t, "", ev.ContainerEntityName())
-	ev = &ContainerEvent{
-		ContainerID: "ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73",
-	}
-	assert.Equal(t, "container_id://ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73", ev.ContainerEntityName())
-}

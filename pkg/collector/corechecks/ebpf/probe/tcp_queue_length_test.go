@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux_bpf
 // +build linux_bpf
 
 package probe
@@ -13,9 +14,41 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+var (
+	missingBTFS = map[string]struct{}{
+		"4.18.0-1018-azure":            {},
+		"4.18.0-147.43.1.el8_1.x86_64": {},
+	}
+)
+
+func isMissingBTF(kv string) bool {
+	_, ok := missingBTFS[kv]
+	return ok
+}
+
+func TestTCPQueueLengthCompile(t *testing.T) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kv < kernel.VersionCode(4, 8, 0) {
+		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
+	}
+
+	cfg := ebpf.NewConfig()
+	cfg.BPFDebug = true
+	_, err = runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	require.NoError(t, err)
+}
 
 func TestTCPQueueLengthTracer(t *testing.T) {
 	kv, err := kernel.HostVersion()
@@ -28,6 +61,11 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 
 	cfg := ebpf.NewConfig()
 
+	fullKV := host.GetStatusInformation().KernelVersion
+	if cfg.EnableCORE && isMissingBTF(fullKV) {
+		t.Skipf("Skipping CO-RE tests for kernel version %v due to missing BTFs", fullKV)
+	}
+
 	tcpTracer, err := NewTCPQueueLengthTracer(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -35,14 +73,14 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 
 	beforeStats := extractGlobalStats(t, tcpTracer)
 	if beforeStats.ReadBufferMaxUsage > 10 {
-		t.Error("max usage of read buffer is too big before the stress test")
+		t.Errorf("max usage of read buffer is too big before the stress test: %d > 10", beforeStats.ReadBufferMaxUsage)
 	}
 
 	runTCPLoadTest()
 
 	afterStats := extractGlobalStats(t, tcpTracer)
 	if afterStats.ReadBufferMaxUsage < 1000 {
-		t.Error("max usage of read buffer is too low after the stress test")
+		t.Errorf("max usage of read buffer is too low after the stress test: %d < 1000", afterStats.ReadBufferMaxUsage)
 	}
 
 	defer tcpTracer.Close()
@@ -56,9 +94,16 @@ func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) TCPQueueLeng
 		t.Error("failed to get and flush stats")
 	}
 
-	globalStats, ok := stats[""]
-	if !ok {
-		return TCPQueueLengthStatsValue{}
+	globalStats := TCPQueueLengthStatsValue{}
+
+	for _, cgroupStats := range stats {
+		if cgroupStats.ReadBufferMaxUsage > globalStats.ReadBufferMaxUsage {
+			globalStats.ReadBufferMaxUsage = cgroupStats.ReadBufferMaxUsage
+		}
+
+		if cgroupStats.WriteBufferMaxUsage > globalStats.WriteBufferMaxUsage {
+			globalStats.WriteBufferMaxUsage = cgroupStats.WriteBufferMaxUsage
+		}
 	}
 
 	return globalStats
@@ -128,10 +173,9 @@ func server() error {
 	return handleRequest(conn)
 }
 
-const MSG_LEN = 10000
-
 func client() error {
 	defer wg.Done()
+	const msgLen = 10000
 
 	serverReadyCond.Wait()
 
@@ -141,11 +185,11 @@ func client() error {
 	}
 	defer conn.Close()
 
-	msg := make([]byte, MSG_LEN)
-	for i := 0; i < MSG_LEN-1; i++ {
+	msg := make([]byte, msgLen)
+	for i := 0; i < msgLen-1; i++ {
 		msg[i] = 4
 	}
-	msg[MSG_LEN-1] = 0
+	msg[msgLen-1] = 0
 
 	conn.Write(msg)
 

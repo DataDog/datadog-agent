@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build consul
 // +build consul
 
 package providers
@@ -133,7 +134,7 @@ func TestConsulGetTemplates(t *testing.T) {
 	queryOptions := &consul.QueryOptions{}
 	queryOptions = queryOptions.WithContext(ctx)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default
@@ -202,7 +203,7 @@ func TestConsulCollect(t *testing.T) {
 	queryOptions := &consul.QueryOptions{}
 	queryOptions = queryOptions.WithContext(ctx)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default
@@ -300,7 +301,7 @@ func TestConsulCollect(t *testing.T) {
 func TestIsUpToDate(t *testing.T) {
 	// We want to check:
 	// The cache is properly initialized
-	// LatestTemplateIdx and NumAdTemplates are properly set
+	// mostRecentMod and count are properly set
 	// If the number of ADTemplate is modified we update
 	// If nothing changed we don't update
 
@@ -337,19 +338,19 @@ func TestIsUpToDate(t *testing.T) {
 	}
 	kv.On("List", "/datadog/check_configs", queryOptions).Return(consul.KVPairs{kvNginx, kvNginxNames, kvNginxInit, kvNginxInstances}, nil, nil).Times(1)
 
-	cache := NewCPCache()
+	cache := newProviderCache()
 	consulCli := ConsulConfigProvider{
 		Client:      provider,
 		TemplateDir: "/datadog/check_configs",
 		cache:       cache,
 	}
-	assert.Equal(t, int(0), consulCli.cache.NumAdTemplates)
-	assert.Equal(t, float64(0), consulCli.cache.LatestTemplateIdx)
+	assert.Equal(t, int(0), consulCli.cache.count)
+	assert.Equal(t, float64(0), consulCli.cache.mostRecentMod)
 
 	update, _ := consulCli.IsUpToDate(ctx)
 	assert.False(t, update)
-	assert.Equal(t, int(4), consulCli.cache.NumAdTemplates)
-	assert.Equal(t, float64(12), consulCli.cache.LatestTemplateIdx)
+	assert.Equal(t, int(4), consulCli.cache.count)
+	assert.Equal(t, float64(12), consulCli.cache.mostRecentMod)
 
 	kvNewTemplate := &consul.KVPair{
 		Key:         "/datadog/check_configs/new",
@@ -360,8 +361,8 @@ func TestIsUpToDate(t *testing.T) {
 	kv.On("List", "/datadog/check_configs", queryOptions).Return(consul.KVPairs{kvNewTemplate, kvNginx, kvNginxNames, kvNginxInit, kvNginxInstances}, nil, nil)
 	update, _ = consulCli.IsUpToDate(ctx)
 	assert.False(t, update)
-	assert.Equal(t, int(5), consulCli.cache.NumAdTemplates)
-	assert.Equal(t, float64(15), consulCli.cache.LatestTemplateIdx)
+	assert.Equal(t, int(5), consulCli.cache.count)
+	assert.Equal(t, float64(15), consulCli.cache.mostRecentMod)
 
 	update, _ = consulCli.IsUpToDate(ctx)
 	assert.True(t, update)

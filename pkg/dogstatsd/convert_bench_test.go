@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
@@ -26,8 +31,11 @@ var (
 
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 	parser := newParser(newFloat64ListPool())
-	namespaceBlacklist := []string{}
-	metricBlocklist := []string{}
+
+	conf := enrichConfig{
+		defaultHostname:           "default-hostname",
+		entityIDPrecedenceEnabled: true,
+	}
 
 	for i := 1; i < 1000; i *= 4 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(sb *testing.B) {
@@ -42,7 +50,7 @@ func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 					continue
 				}
 
-				benchSamples = enrichMetricSample(samples, parsed, "", namespaceBlacklist, metricBlocklist, "default-hostname", "", true, false)
+				benchSamples = enrichMetricSample(samples, parsed, "", conf)
 			}
 		})
 	}

@@ -8,21 +8,21 @@ package writer
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"testing"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 // uid is an atomically incremented ID, used by the expectResponses function to
 // create payload IDs for the test server.
-var uid uint64
+var uid = atomic.NewUint64(0)
 
 // expectResponses creates a new payload for the test server. The test server will
 // respond with the given status codes, in the given order, for each subsequent
@@ -32,7 +32,7 @@ func expectResponses(codes ...int) *payload {
 		codes = []int{http.StatusOK}
 	}
 	p := newPayload(nil)
-	p.body.WriteString(strconv.FormatUint(atomic.AddUint64(&uid, 1), 10))
+	p.body.WriteString(strconv.FormatUint(uid.Inc(), 10))
 	p.body.WriteString("|")
 	for i, code := range codes {
 		if i > 0 {
@@ -56,7 +56,13 @@ func newTestServerWithLatency(d time.Duration) *testServer {
 // By default, the testServer always returns http.StatusOK.
 func newTestServer() *testServer {
 	srv := &testServer{
-		seen: make(map[string]*requestStatus),
+		seen:     make(map[string]*requestStatus),
+		total:    atomic.NewUint64(0),
+		accepted: atomic.NewUint64(0),
+		retried:  atomic.NewUint64(0),
+		failed:   atomic.NewUint64(0),
+		peak:     atomic.NewInt64(0),
+		active:   atomic.NewInt64(0),
 	}
 	srv.server = httptest.NewServer(srv)
 	srv.URL = srv.server.URL
@@ -67,7 +73,6 @@ func newTestServer() *testServer {
 // failed, retriable and accepted requests. It also allows manipulating it's HTTTP
 // status code response by means of the request's body (see expectResponses).
 type testServer struct {
-	t       *testing.T
 	URL     string
 	server  *httptest.Server
 	latency time.Duration
@@ -77,9 +82,9 @@ type testServer struct {
 	payloads []*payload
 
 	// stats
-	total, accepted uint64
-	retried, failed uint64
-	peak, active    int64
+	total, accepted *atomic.Uint64
+	retried, failed *atomic.Uint64
+	peak, active    *atomic.Int64
 }
 
 // requestStatus keeps track of how many times a custom payload was seen and what
@@ -98,22 +103,22 @@ func (rs *requestStatus) nextResponse() int {
 
 // Peak returns the maximum number of simultaneous connections that were active
 // while the server was running.
-func (ts *testServer) Peak() int { return int(atomic.LoadInt64(&ts.peak)) }
+func (ts *testServer) Peak() int { return int(ts.peak.Load()) }
 
 // Failed returns the number of connections to which the server responded with an
 // HTTP status code that is non-2xx and non-5xx.
-func (ts *testServer) Failed() int { return int(atomic.LoadUint64(&ts.failed)) }
+func (ts *testServer) Failed() int { return int(ts.failed.Load()) }
 
 // Failed returns the number of connections to which the server responded with a
 // 5xx HTTP status code.
-func (ts *testServer) Retried() int { return int(atomic.LoadUint64(&ts.retried)) }
+func (ts *testServer) Retried() int { return int(ts.retried.Load()) }
 
 // Total returns the total number of connections which reached the server.
-func (ts *testServer) Total() int { return int(atomic.LoadUint64(&ts.total)) }
+func (ts *testServer) Total() int { return int(ts.total.Load()) }
 
 // Failed returns the number of connections to which the server responded with a
 // 2xx HTTP status code.
-func (ts *testServer) Accepted() int { return int(atomic.LoadUint64(&ts.accepted)) }
+func (ts *testServer) Accepted() int { return int(ts.accepted.Load()) }
 
 // Payloads returns the payloads that were accepted by the server, as received.
 func (ts *testServer) Payloads() []*payload {
@@ -124,17 +129,17 @@ func (ts *testServer) Payloads() []*payload {
 
 // ServeHTTP responds based on the request body.
 func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	atomic.AddUint64(&ts.total, 1)
+	ts.total.Inc()
 
-	if v := atomic.AddInt64(&ts.active, 1); v > atomic.LoadInt64(&ts.peak) {
-		atomic.SwapInt64(&ts.peak, v)
+	if v := ts.active.Inc(); v > ts.peak.Load() {
+		ts.peak.Swap(v)
 	}
-	defer atomic.AddInt64(&ts.active, -1)
+	defer ts.active.Dec()
 	if ts.latency > 0 {
 		time.Sleep(ts.latency)
 	}
 
-	slurp, err := ioutil.ReadAll(req.Body)
+	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		panic(fmt.Sprintf("error reading request body: %v", err))
 	}
@@ -143,9 +148,9 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(statusCode)
 	switch {
 	case isRetriable(statusCode):
-		atomic.AddUint64(&ts.retried, 1)
+		ts.retried.Inc()
 	case statusCode/100 == 2: // 2xx
-		atomic.AddUint64(&ts.accepted, 1)
+		ts.accepted.Inc()
 		// for 2xx, we store the payload contents too
 		headers := make(map[string]string, len(req.Header))
 		for k, vs := range req.Header {
@@ -160,7 +165,7 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			headers: headers,
 		})
 	default:
-		atomic.AddUint64(&ts.failed, 1)
+		ts.failed.Inc()
 	}
 }
 

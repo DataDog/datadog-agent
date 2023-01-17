@@ -12,14 +12,17 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -42,10 +45,6 @@ const (
 // This is a var so that it can be changed for testing
 var defaultResponseTimeout = 30 * time.Second
 
-// Payloads is a slice of pointers to byte arrays, an alias for the slices of
-// payloads we pass into the forwarder
-type Payloads []*[]byte
-
 // Response contains the response details of a successfully posted transaction
 type Response struct {
 	Domain     string
@@ -58,23 +57,26 @@ type Response struct {
 type Forwarder interface {
 	Start() error
 	Stop()
-	SubmitV1Series(payload Payloads, extra http.Header) error
-	SubmitV1Intake(payload Payloads, extra http.Header) error
-	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
-	SubmitEvents(payload Payloads, extra http.Header) error
-	SubmitServiceChecks(payload Payloads, extra http.Header) error
-	SubmitSeries(payload Payloads, extra http.Header) error
-	SubmitSketchSeries(payload Payloads, extra http.Header) error
-	SubmitHostMetadata(payload Payloads, extra http.Header) error
-	SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error
-	SubmitMetadata(payload Payloads, extra http.Header) error
-	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
+	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitV1Intake(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error)
+	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -198,33 +200,40 @@ type DefaultForwarder struct {
 	domainForwarders map[string]*domainForwarder
 	domainResolvers  map[string]resolver.DomainResolver
 	healthChecker    *forwarderHealth
-	internalState    uint32
+	internalState    *atomic.Uint32
 	m                sync.Mutex // To control Start/Stop races
 
 	completionHandler transaction.HTTPCompletionHandler
+
+	agentName                       string
+	queueDurationCapacity           *retry.QueueDurationCapacity
+	retryQueueDurationCapacityMutex sync.Mutex
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(options *Options) *DefaultForwarder {
+	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]resolver.DomainResolver{},
-		internalState:    Stopped,
+		internalState:    atomic.NewUint32(Stopped),
 		healthChecker: &forwarderHealth{
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
 		completionHandler: options.CompletionHandler,
+		agentName:         agentName,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	var diskUsageLimit *retry.DiskUsageLimit
 
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
-	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
+	} else if agentName != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
 		if storagePath == "" {
 			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
@@ -232,7 +241,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
-		storagePath = path.Join(storagePath, agentFolder)
+		storagePath = path.Join(storagePath, agentName)
 		optionalRemovalPolicy, err = retry.NewFileRemovalPolicy(storagePath, outdatedFileInDays, retry.FileRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
@@ -243,6 +252,10 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			}
 			log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 		}
+
+		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
+		diskUsageLimit = retry.NewDiskUsageLimit(storagePath, filesystem.NewDisk(), storageMaxSize, diskRatio)
+
 	} else {
 		log.Infof("Retry queue storage on disk is disabled because the feature is unavailable for this process.")
 	}
@@ -266,26 +279,38 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				}
 			}
 
+			pointCountTelemetry := retry.NewPointCountTelemetry(domain, telemetry.GetStatsTelemetryProvider())
 			transactionContainer := retry.BuildTransactionRetryQueue(
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
-				storageMaxSize,
+				diskUsageLimit,
 				transactionContainerSort,
-				resolver)
+				resolver,
+				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
 			fwd := newDomainForwarder(
 				domain,
 				transactionContainer,
 				options.NumberOfWorkers,
 				options.ConnectionResetInterval,
-				domainForwarderSort)
+				domainForwarderSort,
+				pointCountTelemetry)
 			f.domainForwarders[domain] = fwd
 			// Register all alternate domains for each forwarder
 			for _, v := range resolver.GetAlternateDomains() {
 				f.domainForwarders[v] = fwd
 			}
 		}
+	}
+
+	timeInterval := config.Datadog.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
+	if f.agentName != "" {
+		f.queueDurationCapacity = retry.NewQueueDurationCapacity(
+			time.Duration(timeInterval)*time.Second,
+			10*time.Second,
+			options.RetryQueuePayloadsTotalMaxSize,
+			diskUsageLimit)
 	}
 
 	if optionalRemovalPolicy != nil {
@@ -299,10 +324,13 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	return f
 }
 
-func getAgentFolder(options *Options) string {
+func getAgentName(options *Options) string {
 	if HasFeature(options.EnabledFeatures, CoreFeatures) {
 		return "core"
 	}
+	// If a new Agent is supported by this function, the implementation of
+	// QueueDurationCapacity.ComputeCapacity must be updated.
+	// More specifically, `totalBytesPerSec` should takes into account other Agent processes.
 	return ""
 }
 
@@ -312,7 +340,7 @@ func (f *DefaultForwarder) Start() error {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState == Started {
+	if f.internalState.Load() == Started {
 		return fmt.Errorf("the forwarder is already started")
 	}
 
@@ -330,7 +358,7 @@ func (f *DefaultForwarder) Start() error {
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
 	f.healthChecker.Start()
-	f.internalState = Started
+	f.internalState.Store(Started)
 	return nil
 }
 
@@ -341,12 +369,12 @@ func (f *DefaultForwarder) Stop() {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState == Stopped {
+	if f.internalState.Load() == Stopped {
 		log.Warnf("the forwarder is already stopped")
 		return
 	}
 
-	f.internalState = Stopped
+	f.internalState.Store(Stopped)
 
 	purgeTimeout := config.Datadog.GetDuration("forwarder_stop_timeout") * time.Second
 	if purgeTimeout > 0 {
@@ -390,13 +418,14 @@ func (f *DefaultForwarder) State() uint32 {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	return f.internalState
-}
-func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
-	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityNormal, true)
+	return f.internalState.Load()
 }
 
-func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority transaction.Priority, storableOnDisk bool) []*transaction.HTTPTransaction {
+func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header) []*transaction.HTTPTransaction {
+	return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityNormal, true)
+}
+
+func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header, priority transaction.Priority, storableOnDisk bool) []*transaction.HTTPTransaction {
 	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
 	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
 
@@ -406,9 +435,6 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t := transaction.NewHTTPTransaction()
 				t.Domain, _ = dr.Resolve(endpoint)
 				t.Endpoint = endpoint
-				if apiKeyInQueryString {
-					t.Endpoint.Route = fmt.Sprintf("%s?api_key=%s", endpoint.Route, apiKey)
-				}
 				t.Payload = payload
 				t.Priority = priority
 				t.StorableOnDisk = storableOnDisk
@@ -439,90 +465,113 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 }
 
 func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
-	if atomic.LoadUint32(&f.internalState) == Stopped {
+	if f.internalState.Load() == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
+	if config.Datadog.GetBool("telemetry.enabled") {
+		f.retryQueueDurationCapacityMutex.Lock()
+		defer f.retryQueueDurationCapacityMutex.Unlock()
 
-	for _, t := range transactions {
-		f.domainForwarders[t.Domain].sendHTTPTransactions(t)
+		now := time.Now()
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
+
+			if f.queueDurationCapacity != nil {
+				if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
+					log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+				}
+			}
+		}
+
+		if f.queueDurationCapacity != nil {
+			if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
+				log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+			} else {
+				telemetry := telemetry.GetStatsTelemetryProvider()
+				metricPrefix := "datadog.agent.retry_queue_duration."
+				for domain, t := range capacities {
+					tags := []string{
+						"agent:" + f.agentName,
+						"domain:" + domain,
+					}
+					telemetry.Gauge(metricPrefix+"capacity_secs", t.Capacity.Seconds(), tags)
+					telemetry.Gauge(metricPrefix+"bytes_per_sec", t.BytesPerSec, tags)
+					telemetry.Gauge(metricPrefix+"capacity_bytes", float64(t.AvailableSpace), tags)
+				}
+			}
+		}
+	} else {
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
+		}
 	}
 	return nil
 }
 
-// SubmitEvents will send an event type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.EventsEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitServiceChecks will send a service check type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.ServiceChecksEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
-func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, false, extra)
+func (f *DefaultForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
+func (f *DefaultForwarder) SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
-		func(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header) []*transaction.HTTPTransaction {
 			// Host metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
-			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityHigh, storableOnDisk)
+			return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityHigh, storableOnDisk)
 		})
 }
 
 // SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
+func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
-		func(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header) []*transaction.HTTPTransaction {
 			// Agentchecks metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
-			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityNormal, storableOnDisk)
+			return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityNormal, storableOnDisk)
 		})
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.V1MetadataEndpoint, payload, false, extra)
+func (f *DefaultForwarder) SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.V1MetadataEndpoint, payload, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
-func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, true, extra)
+func (f *DefaultForwarder) SubmitV1Series(payloads transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.V1SeriesEndpoint, payloads, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSeries will send timeseries to the v2 endpoint
-func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, extra)
+func (f *DefaultForwarder) SubmitSeries(payloads transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payloads, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
-func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, true, extra)
+func (f *DefaultForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
+func (f *DefaultForwarder) SubmitV1Intake(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, extra, f.createHTTPTransactions)
 }
 
 func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
-	payload Payloads,
+	payload transaction.BytesPayloads,
 	extra http.Header,
-	createHTTPTransactions func(endpoint transaction.Endpoint, payload Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction) error {
-	transactions := createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, true, extra)
+	createHTTPTransactions func(endpoint transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header) []*transaction.HTTPTransaction) error {
+	transactions := createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, extra)
 
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
@@ -533,44 +582,77 @@ func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 }
 
 // SubmitProcessChecks sends process checks
-func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true)
 }
 
 // SubmitProcessDiscoveryChecks sends process discovery checks
-func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
+// SubmitProcessEventChecks sends process events checks
+func (f *DefaultForwarder) SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
+}
+
 // SubmitRTProcessChecks sends real time process checks
-func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
 }
 
 // SubmitContainerChecks sends container checks
-func (f *DefaultForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
-func (f *DefaultForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false)
 }
 
 // SubmitConnectionChecks sends connection checks
-func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true)
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
 	bumpOrchestratorPayload(payloadType)
 
-	return f.submitProcessLikePayload(endpoints.OrchestratorEndpoint, payload, extra, true)
+	endpoint := endpoints.OrchestratorEndpoint
+	if config.Datadog.IsSet("orchestrator_explorer.use_legacy_endpoint") {
+		endpoint = endpoints.LegacyOrchestratorEndpoint
+	}
+
+	return f.submitProcessLikePayload(endpoint, payload, extra, true)
 }
 
-func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {
-	transactions := f.createHTTPTransactions(ep, payload, false, extra)
+// SubmitOrchestratorManifests sends orchestrator manifests
+func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
+}
+
+// SubmitContainerLifecycleEvents sends container lifecycle events
+func (f *DefaultForwarder) SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.ContainerLifecycleEndpoint, payload, extra)
+	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitContainerImages sends container image
+func (f *DefaultForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.ContainerImageEndpoint, payload, extra)
+	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitSBOM sends SBOM
+func (f *DefaultForwarder) SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.SBOMEndpoint, payload, extra)
+	return f.sendHTTPTransactions(transactions)
+}
+
+func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header, retryable bool) (chan Response, error) {
+	transactions := f.createHTTPTransactions(ep, payload, extra)
 	results := make(chan Response, len(transactions))
 	internalResults := make(chan Response, len(transactions))
 	expectedResponses := len(transactions)

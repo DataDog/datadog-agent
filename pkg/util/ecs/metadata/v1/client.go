@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package v1
@@ -17,6 +18,7 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry"
 )
 
 const (
@@ -80,6 +82,11 @@ func (c *Client) get(ctx context.Context, path string, v interface{}) error {
 	}
 
 	resp, err := client.Do(req)
+
+	defer func() {
+		telemetry.AddQueryToTelemetry(path, resp)
+	}()
+
 	if err != nil {
 		return err
 	}

@@ -9,8 +9,18 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+)
+
+// ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
+// connection after reading the response
+type ShouldCloseConnection int
+
+const (
+	// LeaveConnectionOpen keeps the underlying connection open after reading the request response
+	LeaveConnectionOpen ShouldCloseConnection = iota
+	// CloseConnection closes the underlying connection after reading the request response
+	CloseConnection
 )
 
 // GetClient is a convenience function returning an http client
@@ -29,19 +39,22 @@ func GetClient(verify bool) *http.Client {
 }
 
 // DoGet is a wrapper around performing HTTP GET requests
-func DoGet(c *http.Client, url string) (body []byte, e error) {
+func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
 	req, e := http.NewRequest("GET", url, nil)
 	if e != nil {
 		return body, e
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
+	if conn == CloseConnection {
+		req.Close = true
+	}
 
 	r, e := c.Do(req)
 	if e != nil {
 		return body, e
 	}
-	body, e = ioutil.ReadAll(r.Body)
+	body, e = io.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
 		return body, e
@@ -66,7 +79,7 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 	if e != nil {
 		return resp, e
 	}
-	resp, e = ioutil.ReadAll(r.Body)
+	resp, e = io.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
 		return resp, e

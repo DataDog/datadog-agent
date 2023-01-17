@@ -89,11 +89,42 @@ If your commit is only shipping documentation changes or example files, and is a
 complete no-op for the test suite, please add **[skip ci]** in the commit message
 body to skip the build and give that slot to someone else who does need it.
 
-### Squash your commits
+### Pull request workflow
 
-Please rebase your changes on `main` and squash your commits whenever possible,
-it keeps history cleaner and it's easier to revert things. It also makes developers
-happier!
+The goals ordered by priority are:
+- Make PR reviews (both initial and follow-up reviews) easy for reviewers using
+ GitHub
+- On the `main` branch, have a meaningful commit history that allows
+ understanding (even years later) what each commit does, and why. 
+
+You must open the PR when the code is reviewable or you must set the PR as
+ draft if you want to share code before it's ready for actual reviews.
+
+#### Before the first PR review
+
+Before the first PR review, meaningful commits are best: logically-encapsulated
+ commits help the reviews go quicker and make the job for the reviewer easier.
+ Conflicts with `main` can be resolved with a `git rebase origin/main` and a
+ force push if it makes future review(s) easier.
+
+#### After the first review
+
+After the first review, to make follow-up reviews easier:
+- Avoid force pushes: rewriting the history that was already
+ reviewed makes follow-up reviews painful as GitHub loses track of each
+ comment. Instead, address reviews with additional commits on the PR branch.
+- Resolve merge conflicts with `main` using `git merge origin/main`
+
+#### How to merge to `main`
+
+Once reviews are complete, the merge to `main` should be done with either:
+- the squash-merge option, to keep the history of `main` clean (even though
+ some context/details are lost in the squash). The commit message for this
+ squash should always be edited to concisely describe the commit without
+ extraneous “address review comments” text. 
+- the “rebase-merge” option, after manually rewriting the PR’s commit history
+ and force-pushing to the branch. When using this option, the branch must have
+ a clean history. 
 
 ### Reno
 
@@ -239,7 +270,7 @@ or review the latest changes. For new integrations, please open a pull request
 in the [integrations-extras][extras] repo.
 
 
-[troubleshooting]: https://datadog.zendesk.com/hc/en-us/sections/200766955-Troubleshooting
+[troubleshooting]: https://help.datadoghq.com/
 [kb]: https://datadog.zendesk.com/hc/en-us
 [support]: http://docs.datadoghq.com/help/
 [flare]: https://github.com/DataDog/dd-agent/wiki/Send-logs-to-support

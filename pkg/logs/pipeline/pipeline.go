@@ -7,43 +7,44 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
 	InputChan chan *message.Message
 	processor *processor.Processor
-	sender    sender.Sender
+	strategy  sender.Strategy
+	sender    *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
-	mainDestinations := getMainDestinations(endpoints, destinationsContext)
-	reliableAdditionalDestinations := getReliableAdditionalDestinations(endpoints, destinationsContext)
+func NewPipeline(outputChan chan *message.Payload,
+	processingRules []*config.ProcessingRule,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	diagnosticMessageReceiver diagnostic.MessageReceiver,
+	serverless bool,
+	pipelineID int) *Pipeline {
 
-	senderChan := make(chan *message.Message, config.ChanSize)
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID)
 
-	var logSender sender.Sender
+	strategyInput := make(chan *message.Message, config.ChanSize)
+	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
-	// If there is a reliable additional endpoint - we are dual-shipping so we need to spawn an additional sender.
-	if reliableAdditionalDestinations != nil {
-		mainSender := sender.NewSingleSender(make(chan *message.Message, config.ChanSize), outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
-		additionalSender := sender.NewSingleSender(make(chan *message.Message, config.ChanSize), outputChan, reliableAdditionalDestinations, getStrategy(endpoints, serverless, pipelineID))
+	var logsSender *sender.Sender
 
-		logSender = sender.NewDualSender(senderChan, mainSender, additionalSender)
-	} else {
-		logSender = sender.NewSingleSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
-	}
+	strategy := getStrategy(strategyInput, senderInput, endpoints, serverless, pipelineID)
+	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	var encoder processor.Encoder
 	if serverless {
@@ -57,72 +58,66 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	}
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, senderChan, processingRules, encoder, diagnosticMessageReceiver)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
-		sender:    logSender,
+		strategy:  strategy,
+		sender:    logsSender,
 	}
 }
 
 // Start launches the pipeline
 func (p *Pipeline) Start() {
 	p.sender.Start()
+	p.strategy.Start()
 	p.processor.Start()
 }
 
 // Stop stops the pipeline
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
+	p.strategy.Stop()
 	p.sender.Stop()
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
-	p.sender.Flush(ctx)    // flush the sender
 }
 
-func getMainDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
-	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.GetUnReliableAdditionals() {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
-		}
-		return client.NewDestinations(main, additionals)
-	}
-	main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int) *client.Destinations {
+	reliable := []client.Destination{}
 	additionals := []client.Destination{}
-	for _, endpoint := range endpoints.GetUnReliableAdditionals() {
-		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
-	}
-	return client.NewDestinations(main, additionals)
-}
-
-func getReliableAdditionalDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
-	reliableEndpoints := endpoints.GetReliableAdditionals()
-	var reliableAdditionalEndpoint config.Endpoint
-
-	if len(reliableEndpoints) >= 1 {
-		log.Infof("Found an additional reliable endpoint. Only the first additional endpoint marked as reliable will be used at this time.")
-		reliableAdditionalEndpoint = reliableEndpoints[0]
-	} else {
-		return nil
-	}
 
 	if endpoints.UseHTTP {
-		backup := http.NewDestination(reliableAdditionalEndpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-		return client.NewDestinations(backup, []client.Destination{})
+		for i, endpoint := range endpoints.GetReliableEndpoints() {
+			telemetryName := fmt.Sprintf("logs_%d_reliable_%d", pipelineID, i)
+			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
+		}
+		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
+			telemetryName := fmt.Sprintf("logs_%d_unreliable_%d", pipelineID, i)
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
+		}
+		return client.NewDestinations(reliable, additionals)
 	}
-	backup := tcp.NewDestination(reliableAdditionalEndpoint, endpoints.UseProto, destinationsContext)
-	return client.NewDestinations(backup, []client.Destination{})
+	for _, endpoint := range endpoints.GetReliableEndpoints() {
+		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, true))
+	}
+	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
+		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false))
+	}
+	return client.NewDestinations(reliable, additionals)
 }
 
-func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
-		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", pipelineID)
+		encoder := sender.IdentityContentType
+		if endpoints.Main.UseCompression {
+			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+		}
+		return sender.NewBatchStrategy(inputChan, outputChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
-	return sender.StreamStrategy
+	return sender.NewStreamStrategy(inputChan, outputChan)
 }

@@ -10,7 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -92,6 +92,11 @@ type Payload struct {
 	RequestID          string         `json:"requestId"`
 }
 
+// FlushableAgent allows flushing
+type FlushableAgent interface {
+	Flush()
+}
+
 // ReportInitError reports an init error to the environment.
 func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 	var err error
@@ -121,6 +126,7 @@ func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 		return fmt.Errorf("ReportInitError: while POST init error route: %s", err)
 	}
 
+	defer response.Body.Close()
 	if response.StatusCode >= 300 {
 		return fmt.Errorf("ReportInitError: received an HTTP %s", response.Status)
 	}
@@ -150,7 +156,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	daemon.StoreInvocationTime(time.Now())
 
 	var body []byte
-	if body, err = ioutil.ReadAll(response.Body); err != nil {
+	if body, err = io.ReadAll(response.Body); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't read the body: %v", err)
 	}
 	defer response.Body.Close()
@@ -163,15 +169,15 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if payload.EventType == Invoke {
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
-	}
-	if payload.EventType == Shutdown {
+	} else if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
-			metricsChan := daemon.MetricAgent.GetMetricChannel()
-			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
-			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), metricsChan)
+			ecs := daemon.ExecutionContext.GetCurrentState()
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+			metricTags = tags.AddInitTypeTag(metricTags)
+			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
+			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
@@ -185,11 +191,12 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	doneChannel := make(chan bool)
+	daemon.TellDaemonRuntimeStarted()
 	go invocationHandler(doneChannel, daemon, arn, requestID)
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
-		err := daemon.SaveCurrentExecutionContext()
+		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
 		if err != nil {
 			log.Debug("Unable to save the current state")
 		}
@@ -202,20 +209,21 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 }
 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
-	daemon.TellDaemonRuntimeStarted()
 	log.Debug("Received invocation event...")
-	daemon.SetExecutionContext(arn, requestID)
-	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
+	daemon.ComputeGlobalTags(config.GetGlobalConfiguredTags(true))
+	daemon.StartLogCollection()
+	ecs := daemon.ExecutionContext.GetCurrentState()
 
 	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
-		metricsChan := daemon.MetricAgent.GetMetricChannel()
-		metrics.SendInvocationEnhancedMetric(metricTags, metricsChan)
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+		metricTags = tags.AddInitTypeTag(metricTags)
+		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
 	}
 
-	if daemon.ExecutionContext.Coldstart {
+	if ecs.Coldstart {
 		daemon.UpdateStrategy()
 	}
 

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
@@ -5,7 +10,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -17,26 +22,45 @@ var ProcessDiscovery = &ProcessDiscoveryCheck{}
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
 	probe      procutil.Probe
-	info       *model.SystemInfo
+	info       *HostInfo
 	initCalled bool
+
+	maxBatchSize int
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (d *ProcessDiscoveryCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	d.info = info
 	d.initCalled = true
-	d.probe = getProcessProbe(cfg)
+	d.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
+
+	d.maxBatchSize = getMaxBatchSize()
+	return nil
+}
+
+// IsEnabled returns true if the check is enabled by configuration
+func (d *ProcessDiscoveryCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (d *ProcessDiscoveryCheck) SupportsRunOptions() bool {
+	return false
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.
-func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName }
+func (d *ProcessDiscoveryCheck) Name() string { return DiscoveryCheckName }
 
-// RealTime returns a value that says whether this check should be run in real time.
-func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
+// Realtime returns a value that says whether this check should be run in real time.
+func (d *ProcessDiscoveryCheck) Realtime() bool { return false }
+
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (d *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
 
 // Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent.
 // It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	if !d.initCalled {
 		return nil, fmt.Errorf("ProcessDiscoveryCheck.Run called before Init")
 	}
@@ -48,15 +72,17 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 	}
 
 	host := &model.Host{
-		Name:        cfg.HostName,
-		NumCpus:     calculateNumCores(d.info),
-		TotalMemory: d.info.TotalMemory,
+		Name:        d.info.HostName,
+		NumCpus:     calculateNumCores(d.info.SystemInfo),
+		TotalMemory: d.info.SystemInfo.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), cfg.MaxPerMessage)
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), d.maxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
+
+	groupID := nextGroupID()
 	for i, procDiscoveryChunk := range procDiscoveryChunks {
 		payload[i] = &model.CollectorProcDiscovery{
-			HostName:           cfg.HostName,
+			HostName:           d.info.HostName,
 			GroupId:            groupID,
 			GroupSize:          int32(len(procDiscoveryChunks)),
 			ProcessDiscoveries: procDiscoveryChunk,
@@ -64,8 +90,11 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 		}
 	}
 
-	return payload, nil
+	return StandardRunResult(payload), nil
 }
+
+// Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
+func (d *ProcessDiscoveryCheck) Cleanup() {}
 
 func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))

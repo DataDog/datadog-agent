@@ -5,7 +5,8 @@ NOTE: Changes made to this template should be reflected on the following templat
 ==========
 Logs Agent
 ==========
-{{if eq .is_running false }}
+
+{{- if eq .is_running false }}
 
   Logs Agent is not running
 {{- end }}
@@ -19,7 +20,7 @@ Logs Agent
 
 {{- if and (eq .use_http false) (eq .is_running true) }}
 
-    You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.
+    You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.
 {{ end }}
 
 {{- if .metrics }}
@@ -66,12 +67,11 @@ Logs Agent
         {{$input}}
       {{- end }}
       {{- end }}
-      BytesRead: {{ .bytes_read }}
       Average Latency (ms): {{ .all_time_avg_latency }}
       24h Average Latency (ms): {{ .recent_avg_latency }}
       Peak Latency (ms): {{ .all_time_peak_latency }}
       24h Peak Latency (ms): {{ .recent_peak_latency }}
-      {{- if .info }} 
+      {{- if .info }}
       {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
       {{$key}}: {{index $value 0}} {{ else }}
       {{$key}}:

@@ -1,15 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
-// +build !android
 
 package netlink
 
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
+	"net/netip"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ct "github.com/florianl/go-conntrack"
 )
 
 const (
@@ -37,14 +41,27 @@ const (
 	ctaProtoDstPort = 3
 )
 
+// ConTuple represents a tuple within a conntrack entry
+type ConTuple struct {
+	Src   netip.AddrPort
+	Dst   netip.AddrPort
+	Proto uint8
+}
+
+// IsZero returns c is its zero value
+func (c ConTuple) IsZero() bool {
+	return AddrPortIsZero(c.Src) && AddrPortIsZero(c.Dst) && c.Proto == 0
+}
+
 // Con represents a conntrack entry, along with any network namespace info (nsid)
 type Con struct {
-	ct.Con
-	NetNS int32
+	Origin ConTuple
+	Reply  ConTuple
+	NetNS  uint32
 }
 
 func (c Con) String() string {
-	return fmt.Sprintf("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d proto=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort, *c.Con.Origin.Proto.Number)
+	return fmt.Sprintf("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d proto=%d", c.NetNS, c.Origin.Src.Addr(), c.Origin.Dst.Addr(), c.Origin.Src.Port(), c.Origin.Dst.Port(), c.Reply.Src.Addr(), c.Reply.Dst.Addr(), c.Reply.Src.Port(), c.Reply.Dst.Port(), c.Origin.Proto)
 }
 
 // Decoder is responsible for decoding netlink messages
@@ -61,7 +78,6 @@ func NewDecoder() *Decoder {
 
 // DecodeAndReleaseEvent decodes a single Event into a slice of []ct.Con objects and
 // releases the underlying buffer.
-// TODO: Replace the intermediate ct.Con object by the same format we use in the cache
 func (d *Decoder) DecodeAndReleaseEvent(e Event) []Con {
 	msgs := e.Messages()
 	conns := make([]Con, 0, len(msgs))
@@ -87,20 +103,17 @@ func (d *Decoder) DecodeAndReleaseEvent(e Event) []Con {
 }
 
 func (d *Decoder) unmarshalCon(c *Con) error {
-	c.Origin = &ct.IPTuple{}
-	c.Reply = &ct.IPTuple{}
-
 	for toDecode := 2; toDecode > 0 && d.scanner.Next(); {
 		switch d.scanner.Type() {
 		case ctaTupleOrig:
 			toDecode--
 			d.scanner.Nested(func() error {
-				return d.unmarshalTuple(c.Origin)
+				return d.unmarshalTuple(&c.Origin)
 			})
 		case ctaTupleReply:
 			toDecode--
 			d.scanner.Nested(func() error {
-				return d.unmarshalTuple(c.Reply)
+				return d.unmarshalTuple(&c.Reply)
 			})
 		}
 	}
@@ -108,7 +121,7 @@ func (d *Decoder) unmarshalCon(c *Con) error {
 	return d.scanner.Err()
 }
 
-func (d *Decoder) unmarshalTuple(t *ct.IPTuple) error {
+func (d *Decoder) unmarshalTuple(t *ConTuple) error {
 	for toDecode := 2; toDecode > 0 && d.scanner.Next(); {
 		switch d.scanner.Type() {
 		case ctaTupleIP:
@@ -127,50 +140,74 @@ func (d *Decoder) unmarshalTuple(t *ct.IPTuple) error {
 }
 
 // We might also want to consider deferring the allocation of the IP byte slice
-func (d *Decoder) unmarshalTupleIP(t *ct.IPTuple) error {
+func (d *Decoder) unmarshalTupleIP(t *ConTuple) error {
 	for toDecode := 2; toDecode > 0 && d.scanner.Next(); {
 		switch d.scanner.Type() {
-		case ctaIPv4Src, ctaIPv6Src:
+		case ctaIPv4Src:
 			toDecode--
-			data := copySlice(d.scanner.Bytes())
-			ip := net.IP(data)
-			t.Src = &ip
-		case ctaIPv4Dst, ctaIPv6Dst:
+			ip, err := ipv4(d.scanner.Bytes())
+			if err != nil {
+				return err
+			}
+			t.Src = AddrPortWithAddr(t.Src, ip)
+		case ctaIPv6Src:
 			toDecode--
-			data := copySlice(d.scanner.Bytes())
-			ip := net.IP(data)
-			t.Dst = &ip
+			ip, err := ipv6(d.scanner.Bytes())
+			if err != nil {
+				return err
+			}
+			t.Src = AddrPortWithAddr(t.Src, ip)
+		case ctaIPv4Dst:
+			toDecode--
+			ip, err := ipv4(d.scanner.Bytes())
+			if err != nil {
+				return err
+			}
+			t.Dst = AddrPortWithAddr(t.Dst, ip)
+		case ctaIPv6Dst:
+			toDecode--
+			ip, err := ipv6(d.scanner.Bytes())
+			if err != nil {
+				return err
+			}
+			t.Dst = AddrPortWithAddr(t.Dst, ip)
 		}
 	}
 
 	return d.scanner.Err()
 }
 
-func (d *Decoder) unmarshalProto(t *ct.IPTuple) error {
-	t.Proto = &ct.ProtoTuple{}
-
+func (d *Decoder) unmarshalProto(t *ConTuple) error {
 	for toDecode := 3; toDecode > 0 && d.scanner.Next(); {
 		switch d.scanner.Type() {
 		case ctaProtoNum:
 			toDecode--
 			protoNum := d.scanner.Bytes()[0]
-			t.Proto.Number = &protoNum
+			t.Proto = protoNum
 		case ctaProtoSrcPort:
 			toDecode--
 			port := binary.BigEndian.Uint16(d.scanner.Bytes())
-			t.Proto.SrcPort = &port
+			t.Src = AddrPortWithPort(t.Src, port)
 		case ctaProtoDstPort:
 			toDecode--
 			port := binary.BigEndian.Uint16(d.scanner.Bytes())
-			t.Proto.DstPort = &port
+			t.Dst = AddrPortWithPort(t.Dst, port)
 		}
 	}
 
 	return d.scanner.Err()
 }
 
-func copySlice(src []byte) []byte {
-	dst := make([]byte, len(src))
-	copy(dst, src)
-	return dst
+func ipv4(b []byte) (netip.Addr, error) {
+	if len(b) != 4 {
+		return netip.Addr{}, fmt.Errorf("invalid IPv4 size")
+	}
+	return netip.AddrFrom4(*(*[4]byte)(b)), nil
+}
+
+func ipv6(b []byte) (netip.Addr, error) {
+	if len(b) != 16 {
+		return netip.Addr{}, fmt.Errorf("invalid IPv6 size")
+	}
+	return netip.AddrFrom16(*(*[16]byte)(b)), nil
 }

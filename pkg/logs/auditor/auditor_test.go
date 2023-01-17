@@ -7,7 +7,6 @@ package auditor
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 var testpath = "testpath"
@@ -28,27 +28,23 @@ type AuditorTestSuite struct {
 	testPath string
 
 	a      *RegistryAuditor
-	source *config.LogSource
+	source *sources.LogSource
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
-	var err error
-
-	suite.testDir, err = ioutil.TempDir("", "tests")
-	suite.NoError(err)
+	suite.testDir = suite.T().TempDir()
 
 	suite.testPath = fmt.Sprintf("%s/auditor.json", suite.testDir)
 
-	_, err = os.Create(suite.testPath)
+	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
+	suite.T().Cleanup(func() {
+		suite.NoError(f.Close())
+	})
 
 	suite.a = New("", DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.a.registryPath = suite.testPath
-	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
-}
-
-func (suite *AuditorTestSuite) TearDownTest() {
-	os.Remove(suite.testDir)
+	suite.source = sources.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
 func (suite *AuditorTestSuite) TestAuditorStartStop() {
@@ -80,7 +76,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 		TailingMode: "end",
 	}
 	suite.a.flushRegistry()
-	r, err := ioutil.ReadFile(suite.testPath)
+	r, err := os.ReadFile(suite.testPath)
 	suite.Nil(err)
 	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0}}}", string(r))
 
@@ -98,7 +94,7 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
 	offset := suite.a.GetOffset(suite.source.Config.Path)
 	suite.Equal("42", offset)
 
-	othersource := config.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
+	othersource := sources.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
 	offset = suite.a.GetOffset(othersource.Config.Path)
 	suite.Equal("", offset)
 }

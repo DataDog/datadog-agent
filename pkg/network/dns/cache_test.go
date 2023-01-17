@@ -1,4 +1,10 @@
-//+build windows linux_bpf
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows || linux_bpf
+// +build windows linux_bpf
 
 package dns
 
@@ -9,8 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 var disableAutomaticExpiration = 1 * time.Hour
@@ -29,9 +36,9 @@ func TestMultipleIPsForSameName(t *testing.T) {
 	localhost := util.AddressFromString("127.0.0.1")
 	connections := []util.Address{localhost, datadog1, datadog2}
 	actual := cache.Get(connections)
-	expected := map[util.Address][]string{
-		datadog1: {"datadoghq.com"},
-		datadog2: {"datadoghq.com"},
+	expected := map[util.Address][]Hostname{
+		datadog1: {ToHostname("datadoghq.com")},
+		datadog2: {ToHostname("datadoghq.com")},
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -52,7 +59,7 @@ func TestMultipleNamesForSameIP(t *testing.T) {
 	connections := []util.Address{localhost, raddr}
 
 	names := cache.Get(connections)
-	expected := []string{"i-03e46c9ff42db4abc", "ip-172-22-116-123.ec2.internal"}
+	expected := []Hostname{ToHostname("i-03e46c9ff42db4abc"), ToHostname("ip-172-22-116-123.ec2.internal")}
 	assert.ElementsMatch(t, expected, names[raddr])
 }
 
@@ -104,8 +111,8 @@ func TestDNSCacheExpiration(t *testing.T) {
 		laddr3, raddr3,
 	}
 	names := cache.Get(stats)
-	assert.Contains(t, names[raddr1], "host-a")
-	assert.Contains(t, names[raddr2], "host-b")
+	assert.Contains(t, names[raddr1], ToHostname("host-a"))
+	assert.Contains(t, names[raddr2], ToHostname("host-b"))
 	assert.Nil(t, names[raddr3])
 
 	// entries should still be around after expiration that are referenced
@@ -185,7 +192,7 @@ func TestDNSCacheMerge(t *testing.T) {
 	t1.add(util.AddressFromString("192.168.0.1"), ttl)
 	cache.Add(t1)
 	res := cache.Get(conns)
-	assert.Equal(t, []string{"host-b"}, res[util.AddressFromString("192.168.0.1")])
+	assert.Equal(t, []Hostname{ToHostname("host-b")}, res[util.AddressFromString("192.168.0.1")])
 
 	t2 := newTranslation("host-a")
 	t2.add(util.AddressFromString("192.168.0.1"), ttl)
@@ -197,7 +204,7 @@ func TestDNSCacheMerge(t *testing.T) {
 
 	res = cache.Get(conns)
 
-	assert.Equal(t, []string{"host-a", "host-b"}, res[util.AddressFromString("192.168.0.1")])
+	assert.ElementsMatch(t, []Hostname{ToHostname("host-a"), ToHostname("host-b")}, res[util.AddressFromString("192.168.0.1")])
 }
 
 func TestDNSCacheMerge_MixedCaseNames(t *testing.T) {
@@ -221,7 +228,7 @@ func TestDNSCacheMerge_MixedCaseNames(t *testing.T) {
 	cache.Add(tr)
 
 	res := cache.Get(conns)
-	assert.Equal(t, []string{"host.name.com"}, res[util.AddressFromString("192.168.0.1")])
+	assert.Equal(t, []Hostname{ToHostname("host.name.com")}, res[util.AddressFromString("192.168.0.1")])
 }
 
 func TestGetOversizedDNS(t *testing.T) {
@@ -232,7 +239,7 @@ func TestGetOversizedDNS(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		cache.Add(&translation{
-			dns: fmt.Sprintf("%d.host.com", i),
+			dns: ToHostname(fmt.Sprintf("%d.host.com", i)),
 			ips: map[util.Address]time.Time{addr: exp},
 		})
 	}
@@ -245,7 +252,7 @@ func TestGetOversizedDNS(t *testing.T) {
 
 	for i := 5; i < 100; i++ {
 		cache.Add(&translation{
-			dns: fmt.Sprintf("%d.host.com", i),
+			dns: ToHostname(fmt.Sprintf("%d.host.com", i)),
 			ips: map[util.Address]time.Time{addr: exp},
 		})
 	}
@@ -319,7 +326,7 @@ func payloadGen(size int, resolveRatio float64, added []util.Address) []util.Add
 
 func newTranslation(domain string) *translation {
 	return &translation{
-		dns: strings.ToLower(domain),
+		dns: ToHostname(strings.ToLower(domain)),
 		ips: make(map[util.Address]time.Time),
 	}
 }

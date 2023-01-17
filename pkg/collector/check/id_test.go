@@ -9,22 +9,25 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-func TestIdentify(t *testing.T) {
+func TestBuildID(t *testing.T) {
 	testCheck := &StubCheck{}
 
 	instance1 := integration.Data("key1:value1\nkey2:value2")
 	initConfig1 := integration.Data("key:value")
 	instance2 := instance1
 	initConfig2 := initConfig1
-	assert.Equal(t, Identify(testCheck, instance1, initConfig1), Identify(testCheck, instance2, initConfig2))
+	assert.Equal(t, BuildID(testCheck.String(), 1, instance1, initConfig1), BuildID(testCheck.String(), 1, instance2, initConfig2))
+	// Different integration config digest
+	assert.NotEqual(t, BuildID(testCheck.String(), 1, instance1, initConfig1), BuildID(testCheck.String(), 2, instance2, initConfig2))
 
 	instance3 := integration.Data("key1:value1\nkey2:value3")
 	initConfig3 := integration.Data("key:value")
-	assert.NotEqual(t, Identify(testCheck, instance1, initConfig1), Identify(testCheck, instance3, initConfig3))
+	assert.NotEqual(t, BuildID(testCheck.String(), 1, instance1, initConfig1), BuildID(testCheck.String(), 1, instance3, initConfig3))
 }
 
 func TestIDToCheckName(t *testing.T) {

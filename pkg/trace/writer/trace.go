@@ -11,17 +11,14 @@ import (
 	"math"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -32,6 +29,14 @@ const pathTraces = "/api/v0.2/traces"
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
 var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
+
+type samplerTPSReader interface {
+	GetTargetTPS() float64
+}
+
+type samplerEnabledReader interface {
+	IsEnabled() bool
+}
 
 // SampledChunks represents the result of a trace sampling operation.
 type SampledChunks struct {
@@ -51,15 +56,18 @@ type TraceWriter struct {
 	// Channel should only be received from when testing.
 	In chan *SampledChunks
 
-	hostname  string
-	env       string
-	targetTPS float64
-	errorTPS  float64
-	senders   []*sender
-	stop      chan struct{}
-	stats     *info.TraceWriterInfo
-	wg        sync.WaitGroup // waits for gzippers
-	tick      time.Duration  // flush frequency
+	prioritySampler samplerTPSReader
+	errorsSampler   samplerTPSReader
+	rareSampler     samplerEnabledReader
+
+	hostname     string
+	env          string
+	senders      []*sender
+	stop         chan struct{}
+	stats        *info.TraceWriterInfo
+	wg           sync.WaitGroup // waits for gzippers
+	tick         time.Duration  // flush frequency
+	agentVersion string
 
 	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
 	bufferedSize   int                 // estimated buffer size
@@ -68,24 +76,26 @@ type TraceWriter struct {
 	syncMode  bool
 	flushChan chan chan struct{}
 
-	easylog *logutil.ThrottledLogger
+	easylog *log.ThrottledLogger
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
+func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader) *TraceWriter {
 	tw := &TraceWriter{
-		In:        make(chan *SampledChunks, 1000),
-		hostname:  cfg.Hostname,
-		env:       cfg.DefaultEnv,
-		targetTPS: cfg.TargetTPS,
-		errorTPS:  cfg.ErrorTPS,
-		stats:     &info.TraceWriterInfo{},
-		stop:      make(chan struct{}),
-		flushChan: make(chan chan struct{}),
-		syncMode:  cfg.SynchronousFlushing,
-		tick:      5 * time.Second,
-		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		In:              make(chan *SampledChunks, 1000),
+		prioritySampler: prioritySampler,
+		errorsSampler:   errorsSampler,
+		rareSampler:     rareSampler,
+		hostname:        cfg.Hostname,
+		env:             cfg.DefaultEnv,
+		stats:           &info.TraceWriterInfo{},
+		stop:            make(chan struct{}),
+		flushChan:       make(chan chan struct{}),
+		syncMode:        cfg.SynchronousFlushing,
+		tick:            5 * time.Second,
+		agentVersion:    cfg.AgentVersion,
+		easylog:         log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -178,9 +188,9 @@ func (w *TraceWriter) FlushSync() error {
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledChunks) {
-	atomic.AddInt64(&w.stats.Spans, pkg.SpanCount)
-	atomic.AddInt64(&w.stats.Traces, int64(len(pkg.TracerPayload.Chunks)))
-	atomic.AddInt64(&w.stats.Events, pkg.EventCount)
+	w.stats.Spans.Add(pkg.SpanCount)
+	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
+	w.stats.Events.Add(pkg.EventCount)
 
 	size := pkg.Size
 	if size+w.bufferedSize > MaxPayloadSize {
@@ -212,7 +222,7 @@ outer:
 
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
-	w.tracerPayloads = w.tracerPayloads[:0]
+	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))
 }
 
 const headerLanguages = "X-Datadog-Reported-Languages"
@@ -228,21 +238,22 @@ func (w *TraceWriter) flush() {
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
 	p := pb.AgentPayload{
-		AgentVersion:   version.AgentVersion,
-		HostName:       w.hostname,
-		Env:            w.env,
-		TargetTPS:      w.targetTPS,
-		ErrorTPS:       w.errorTPS,
-		TracerPayloads: w.tracerPayloads,
+		AgentVersion:       w.agentVersion,
+		HostName:           w.hostname,
+		Env:                w.env,
+		TargetTPS:          w.prioritySampler.GetTargetTPS(),
+		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
+		RareSamplerEnabled: w.rareSampler.IsEnabled(),
+		TracerPayloads:     w.tracerPayloads,
 	}
+	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
 	}
 
-	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(b)))
-	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.bufferedSize))
+	w.stats.BytesUncompressed.Add(int64(len(b)))
 
 	w.wg.Add(1)
 	go func() {
@@ -272,15 +283,14 @@ func (w *TraceWriter) flush() {
 }
 
 func (w *TraceWriter) report() {
-	metrics.Count("datadog.trace_agent.trace_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", atomic.SwapInt64(&w.stats.BytesUncompressed, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes_estimated", atomic.SwapInt64(&w.stats.BytesEstimated, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.errors", atomic.SwapInt64(&w.stats.Errors, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.traces", atomic.SwapInt64(&w.stats.Traces, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.events", atomic.SwapInt64(&w.stats.Events, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.spans", atomic.SwapInt64(&w.stats.Spans, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", w.stats.BytesUncompressed.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.retries", w.stats.Retries.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.bytes", w.stats.Bytes.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.errors", w.stats.Errors.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.traces", w.stats.Traces.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.events", w.stats.Events.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.spans", w.stats.Spans.Swap(0), nil, 1)
 }
 
 var _ eventRecorder = (*TraceWriter)(nil)
@@ -294,17 +304,17 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	switch t {
 	case eventTypeRetry:
 		log.Debugf("Retrying to flush trace payload; error: %s", data.err)
-		atomic.AddInt64(&w.stats.Retries, 1)
+		w.stats.Retries.Inc()
 
 	case eventTypeSent:
 		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
 		timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
-		atomic.AddInt64(&w.stats.Bytes, int64(data.bytes))
-		atomic.AddInt64(&w.stats.Payloads, 1)
+		w.stats.Bytes.Add(int64(data.bytes))
+		w.stats.Payloads.Inc()
 
 	case eventTypeRejected:
 		log.Warnf("Trace writer payload rejected by edge: %v", data.err)
-		atomic.AddInt64(&w.stats.Errors, 1)
+		w.stats.Errors.Inc()
 
 	case eventTypeDropped:
 		w.easylog.Warn("Trace writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)

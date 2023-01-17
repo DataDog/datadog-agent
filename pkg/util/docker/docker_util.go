@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -12,7 +13,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,7 +27,6 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -40,8 +42,6 @@ type DockerUtil struct {
 	queryTimeout time.Duration
 	// tracks the last time we invalidate our internal caches
 	lastInvalidate time.Time
-	// networkMappings by container id
-	networkMappings map[string][]dockerNetwork
 	// image sha mapping cache
 	imageNameBySha map[string]string
 	// event subscribers and state
@@ -74,7 +74,6 @@ func (d *DockerUtil) init() error {
 
 	d.cfg = cfg
 	d.cli = cli
-	d.networkMappings = make(map[string][]dockerNetwork)
 	d.imageNameBySha = make(map[string]string)
 	d.lastInvalidate = time.Now()
 	d.eventState = newEventStreamState()
@@ -105,7 +104,6 @@ func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]ty
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
-
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
@@ -139,6 +137,39 @@ func (d *DockerUtil) RawContainerList(ctx context.Context, options types.Contain
 	return d.cli.ContainerList(ctx, options)
 }
 
+// RawContainerListWithFilter is like RawContainerList but with a container filter.
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options types.ContainerListOptions, filter *containers.Filter) ([]types.Container, error) {
+	containers, err := d.RawContainerList(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+
+	if filter == nil {
+		return containers, nil
+	}
+
+	isExcluded := func(container types.Container) bool {
+		for _, name := range container.Names {
+			if filter.IsExcluded(name, container.Image, "") {
+				log.Tracef("Container with name %q and image %q is filtered-out", name, container.Image)
+				return true
+			}
+		}
+
+		return false
+	}
+
+	filtered := []types.Container{}
+	for _, container := range containers {
+		if !isExcluded(container) {
+			filtered = append(filtered, container)
+		}
+	}
+
+	return filtered, nil
+}
+
+// GetHostname returns the hostname from the docker api
 func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
@@ -173,35 +204,53 @@ func (d *DockerUtil) ResolveImageName(ctx context.Context, image string) (string
 	}
 
 	d.Lock()
-	defer d.Unlock()
-	if _, ok := d.imageNameBySha[image]; !ok {
-		ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
-		defer cancel()
-		r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
-		if err != nil {
-			// Only log errors that aren't "not found" because some images may
-			// just not be available in docker inspect.
-			if !client.IsErrNotFound(err) {
-				return image, err
-			}
-			d.imageNameBySha[image] = image
-		}
-
-		// Try RepoTags first and fall back to RepoDigest otherwise.
-		if len(r.RepoTags) > 0 {
-			sort.Strings(r.RepoTags)
-			d.imageNameBySha[image] = r.RepoTags[0]
-		} else if len(r.RepoDigests) > 0 {
-			// Digests formatted like quay.io/foo/bar@sha256:hash
-			sort.Strings(r.RepoDigests)
-			sp := strings.SplitN(r.RepoDigests[0], "@", 2)
-			d.imageNameBySha[image] = sp[0]
-		} else {
-			log.Debugf("No information in image/inspect to resolve: %s", image)
-			d.imageNameBySha[image] = image
-		}
+	if preferredName, found := d.imageNameBySha[image]; found {
+		d.Unlock()
+		return preferredName, nil
 	}
-	return d.imageNameBySha[image], nil
+
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	defer cancel()
+	r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
+	if err != nil {
+		// Only log errors that aren't "not found" because some images may
+		// just not be available in docker inspect.
+		if !client.IsErrNotFound(err) {
+			d.Unlock()
+			return image, err
+		}
+		d.imageNameBySha[image] = image
+	}
+
+	d.Unlock()
+	return d.GetPreferredImageName(r.ID, r.RepoTags, r.RepoDigests), nil
+}
+
+// GetPreferredImageName returns preferred image name based on RepoTags and RepoDigests
+func (d *DockerUtil) GetPreferredImageName(imageID string, repoTags []string, repoDigests []string) string {
+	d.Lock()
+	defer d.Unlock()
+
+	if preferredName, found := d.imageNameBySha[imageID]; found {
+		return preferredName
+	}
+
+	var preferredName string
+	// Try RepoTags first and fall back to RepoDigest otherwise.
+	if len(repoTags) > 0 {
+		sort.Strings(repoTags)
+		preferredName = repoTags[0]
+	} else if len(repoDigests) > 0 {
+		// Digests formatted like quay.io/foo/bar@sha256:hash
+		sort.Strings(repoDigests)
+		sp := strings.SplitN(repoDigests[0], "@", 2)
+		preferredName = sp[0]
+	} else {
+		preferredName = imageID
+	}
+
+	d.imageNameBySha[imageID] = preferredName
+	return preferredName
 }
 
 // ResolveImageNameFromContainer will resolve the container sha image name to their user-friendly name.
@@ -270,16 +319,6 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 	return container, nil
 }
 
-// InspectSelf returns the inspect content of the container the current agent is running in
-func (d *DockerUtil) InspectSelf(ctx context.Context) (types.ContainerJSON, error) {
-	cID, err := providers.ContainerImpl().GetAgentCID()
-	if err != nil {
-		return types.ContainerJSON{}, err
-	}
-
-	return d.Inspect(ctx, cID, false)
-}
-
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns
 // a map mapping containerID to container labels as a map[string]string
 func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[string]string, error) {
@@ -302,10 +341,11 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 	return labelMap, nil
 }
 
+// GetContainerStats returns docker container stats
 func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*types.StatsJSON, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	stats, err := d.cli.ContainerStats(ctx, containerID, false)
+	stats, err := d.cli.ContainerStatsOneShot(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}
@@ -315,4 +355,48 @@ func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) 
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
 	return containerStats, nil
+}
+
+// ContainerLogs returns a container logs reader
+func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
+	return d.cli.ContainerLogs(ctx, container, options)
+}
+
+// GetContainerPIDs returns a list of containerID's running PIDs
+func (d *DockerUtil) GetContainerPIDs(ctx context.Context, containerID string) ([]int, error) {
+
+	// Index into the returned [][]string slice for process IDs
+	pidIdx := -1
+
+	// Docker API to collect PIDs associated with containerID
+	procs, err := d.cli.ContainerTop(ctx, containerID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get PIDs for container %s: %s", containerID, err)
+	}
+
+	// get the offset into the string[][] slice for the process ID index
+	for idx, val := range procs.Titles {
+		if val == "PID" {
+			pidIdx = idx
+			break
+		}
+	}
+	if pidIdx == -1 {
+		return nil, fmt.Errorf("unable to locate PID index into returned process slice")
+	}
+
+	// Create slice large enough to hold each PID
+	pids := make([]int, len(procs.Processes))
+
+	// Iterate returned Processes and pull out their PIDs
+	for idx, entry := range procs.Processes {
+		// Convert to ints
+		pid, sterr := strconv.Atoi(entry[pidIdx])
+		if sterr != nil {
+			log.Debugf("unable to convert PID to int: %s", sterr)
+			continue
+		}
+		pids[idx] = pid
+	}
+	return pids, nil
 }

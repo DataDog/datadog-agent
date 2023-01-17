@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
 // +build windows
 
 package modules
@@ -5,9 +11,10 @@ package modules
 import (
 	"time"
 
+	"golang.org/x/sys/windows/svc/eventlog"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"golang.org/x/sys/windows/svc/eventlog"
 )
 
 // All System Probe modules should register their factories here
@@ -25,5 +32,5 @@ func inactivityEventLog(duration time.Duration) {
 		return
 	}
 	defer elog.Close()
-	elog.Warning(msgSysprobeRestartInactivity, duration.String())
+	_ = elog.Warning(msgSysprobeRestartInactivity, duration.String())
 }

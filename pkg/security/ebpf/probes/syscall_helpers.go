@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -12,15 +13,14 @@ import (
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// runtimeArch holds the CPU architecture of the running machine
-var runtimeArch string
+// RuntimeArch holds the CPU architecture of the running machine
+var RuntimeArch string
 
 func resolveRuntimeArch() {
 	var uname unix.Utsname
@@ -30,24 +30,12 @@ func resolveRuntimeArch() {
 
 	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
 	case "x86_64":
-		runtimeArch = "x64"
+		RuntimeArch = "x64"
 	case "aarch64":
-		runtimeArch = "arm64"
+		RuntimeArch = "arm64"
 	default:
-		runtimeArch = "ia32"
+		RuntimeArch = "ia32"
 	}
-}
-
-// currentKernelVersion is the current kernel version
-var currentKernelVersion *kernel.Version
-
-func resolveCurrentKernelVersion() error {
-	var err error
-	currentKernelVersion, err = kernel.NewKernelVersion()
-	if err != nil {
-		return errors.New("couldn't resolve kernel version")
-	}
-	return nil
 }
 
 // cache of the syscall prefix depending on kernel version
@@ -87,32 +75,40 @@ func getCompatSyscallFnName(name string) string {
 // ShouldUseSyscallExitTracepoints returns true if the kernel version is old and we need to use tracepoints to handle syscall exits
 // instead of kretprobes
 func ShouldUseSyscallExitTracepoints() bool {
+	currentKernelVersion, err := kernel.NewKernelVersion()
+	if err != nil || currentKernelVersion == nil {
+		return false
+	}
+
 	return currentKernelVersion != nil && (currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel())
 }
 
-func expandKprobe(hookpoint string, syscallName string, flag int) []string {
+func ShouldUseModuleLoadTracepoint() bool {
+	currentKernelVersion, err := kernel.NewKernelVersion()
+	// the condition may need to be fine-tuned based on the kernel version
+	return err == nil && currentKernelVersion != nil && currentKernelVersion.IsRH7Kernel()
+}
+
+func expandKprobe(hookpoint string, flag int) []string {
 	var sections []string
 	if flag&Entry == Entry {
 		sections = append(sections, "kprobe/"+hookpoint)
 	}
-	if flag&Exit == Exit {
-		if len(syscallName) > 0 && ShouldUseSyscallExitTracepoints() {
-			sections = append(sections, "tracepoint/syscalls/sys_exit_"+syscallName)
-		} else {
-			sections = append(sections, "kretprobe/"+hookpoint)
-		}
+	if flag&Exit == Exit && !ShouldUseSyscallExitTracepoints() {
+		sections = append(sections, "kretprobe/"+hookpoint)
 	}
+
 	return sections
 }
 
 func expandSyscallSections(syscallName string, flag int, compat ...bool) []string {
-	sections := expandKprobe(getSyscallFnName(syscallName), syscallName, flag)
+	sections := expandKprobe(getSyscallFnName(syscallName), flag)
 
-	if runtimeArch == "x64" {
+	if RuntimeArch == "x64" {
 		if len(compat) > 0 && compat[0] && syscallPrefix != "sys_" {
-			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), "", flag)...)
+			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), flag)...)
 		} else {
-			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), "", flag)...)
+			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), flag)...)
 		}
 	}
 
@@ -157,12 +153,8 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 	syscallName := probe.SyscallFuncName
 	probe.SyscallFuncName = ""
 
-	if len(runtimeArch) == 0 {
+	if len(RuntimeArch) == 0 {
 		resolveRuntimeArch()
-	}
-
-	if currentKernelVersion == nil {
-		_ = resolveCurrentKernelVersion()
 	}
 
 	if flag&ExpandTime32 == ExpandTime32 {
@@ -187,12 +179,8 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, compat ...bool) []manager.ProbesSelector {
 	var selectors []manager.ProbesSelector
 
-	if len(runtimeArch) == 0 {
+	if len(RuntimeArch) == 0 {
 		resolveRuntimeArch()
-	}
-
-	if currentKernelVersion == nil {
-		_ = resolveCurrentKernelVersion()
 	}
 
 	if flag&ExpandTime32 == ExpandTime32 {

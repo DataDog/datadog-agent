@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package dogstatsd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,17 +34,14 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
 	var composeFile string
 	dir := os.ExpandEnv("$SCRATCH_VOLUME_PATH")
 	if dir == "" { // Running on the host
-		var err error
-		dir, err = ioutil.TempDir("", "dd-test-")
-		assert.Nil(t, err)
-		defer os.RemoveAll(dir) // clean up
+		dir = t.TempDir()
 		socketVolume = dir
 		composeFile = "mount_path.compose"
 
@@ -55,6 +52,9 @@ func testUDSOriginDetection(t *testing.T) {
 	socketPath := filepath.Join(dir, "dsd.socket")
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", true)
+
+	// Env dectection
+	config.DetectFeatures()
 
 	// Start DSD
 	packetsChannel := make(chan packets.Packets)

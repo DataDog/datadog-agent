@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
@@ -26,6 +27,8 @@ type Config struct {
 	svcName                  string
 	svcPort                  int32
 	timeout                  int32
+	failurePolicy            string
+	reinvocationPolicy       string
 }
 
 // NewConfig creates a webhook controller configuration
@@ -39,18 +42,22 @@ func NewConfig(admissionV1Enabled, namespaceSelectorEnabled bool) Config {
 		svcName:                  config.Datadog.GetString("admission_controller.service_name"),
 		svcPort:                  int32(443),
 		timeout:                  config.Datadog.GetInt32("admission_controller.timeout_seconds"),
+		failurePolicy:            config.Datadog.GetString("admission_controller.failure_policy"),
+		reinvocationPolicy:       config.Datadog.GetString("admission_controller.reinvocation_policy"),
 	}
 }
 
-func (w *Config) getWebhookName() string     { return w.webhookName }
-func (w *Config) getSecretName() string      { return w.secretName }
-func (w *Config) getSecretNs() string        { return w.namespace }
-func (w *Config) useAdmissionV1() bool       { return w.admissionV1Enabled }
-func (w *Config) useNamespaceSelector() bool { return w.namespaceSelectorEnabled }
-func (w *Config) getServiceNs() string       { return w.namespace }
-func (w *Config) getServiceName() string     { return w.svcName }
-func (w *Config) getServicePort() int32      { return w.svcPort }
-func (w *Config) getTimeout() int32          { return w.timeout }
+func (w *Config) getWebhookName() string        { return w.webhookName }
+func (w *Config) getSecretName() string         { return w.secretName }
+func (w *Config) getSecretNs() string           { return w.namespace }
+func (w *Config) useAdmissionV1() bool          { return w.admissionV1Enabled }
+func (w *Config) useNamespaceSelector() bool    { return w.namespaceSelectorEnabled }
+func (w *Config) getServiceNs() string          { return w.namespace }
+func (w *Config) getServiceName() string        { return w.svcName }
+func (w *Config) getServicePort() int32         { return w.svcPort }
+func (w *Config) getTimeout() int32             { return w.timeout }
+func (w *Config) getFailurePolicy() string      { return w.failurePolicy }
+func (w *Config) getReinvocationPolicy() string { return w.reinvocationPolicy }
 func (w *Config) configName(suffix string) string {
 	return strings.ReplaceAll(fmt.Sprintf("%s.%s", w.webhookName, suffix), "-", ".")
 }

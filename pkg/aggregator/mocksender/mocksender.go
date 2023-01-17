@@ -18,8 +18,12 @@ import (
 // functional mocked Sender for testing
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
-	// The MockSender will be injected in the corecheck via the aggregator
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts.FlushInterval = 1 * time.Hour
+	opts.DontStartForwarders = true
+	aggregator.InitAndStartAgentDemultiplexer(opts, "")
+
 	SetSender(mockSender, id)
 
 	return mockSender

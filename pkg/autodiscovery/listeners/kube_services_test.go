@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -12,8 +12,6 @@ import (
 	"context"
 	"sort"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -49,13 +47,12 @@ func TestProcessService(t *testing.T) {
 		},
 	}
 
-	svc := processService(ksvc, true)
-	assert.Equal(t, "kube_service_uid://test", svc.GetEntity())
-	assert.Equal(t, integration.Before, svc.GetCreationTime())
+	svc := processService(ksvc)
+	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
 	adID, err := svc.GetADIdentifiers(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_service_uid://test"}, adID)
+	assert.Equal(t, []string{"kube_service://default/myservice"}, adID)
 
 	hosts, err := svc.GetHosts(ctx)
 	assert.NoError(t, err)
@@ -65,7 +62,7 @@ func TestProcessService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 
-	tags, _, err := svc.GetTags()
+	tags, err := svc.GetTags()
 	assert.NoError(t, err)
 	expectedTags := []string{
 		"kube_service:myservice",
@@ -77,9 +74,6 @@ func TestProcessService(t *testing.T) {
 	sort.Strings(expectedTags)
 	sort.Strings(tags)
 	assert.Equal(t, expectedTags, tags)
-
-	svc = processService(ksvc, false)
-	assert.Equal(t, integration.After, svc.GetCreationTime())
 }
 
 func TestServicesDiffer(t *testing.T) {
@@ -349,6 +343,80 @@ func TestServicesDiffer(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.result, servicesDiffer(tc.first, tc.second))
+		})
+	}
+}
+
+func TestShouldIgnore(t *testing.T) {
+	tests := []struct {
+		name      string
+		targetAll bool
+		ksvc      *v1.Service
+		want      bool
+	}{
+		{
+			name:      "no targetAll, with dd annotations",
+			targetAll: false,
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+					Name:      "myservice",
+					Namespace: "default",
+				},
+			},
+			want: false,
+		},
+		{
+			name:      "no targetAll, with prom annotations",
+			targetAll: false,
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"prometheus.io/scrape": "true",
+					},
+					Name:      "myservice",
+					Namespace: "default",
+				},
+			},
+			want: false,
+		},
+		{
+			name:      "with targetAll, no annotations",
+			targetAll: true,
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{},
+					Name:        "myservice",
+					Namespace:   "default",
+				},
+			},
+			want: false,
+		},
+		{
+			name:      "no targetAll, no annotations",
+			targetAll: false,
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{},
+					Name:        "myservice",
+					Namespace:   "default",
+				},
+			},
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &KubeServiceListener{
+				promInclAnnot:     getPrometheusIncludeAnnotations(),
+				targetAllServices: tt.targetAll,
+			}
+
+			assert.Equal(t, tt.want, l.shouldIgnore(tt.ksvc))
 		})
 	}
 }

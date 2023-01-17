@@ -16,7 +16,7 @@ spec:
       annotations:
         ad.datadoghq.com/nginx.check_names: '["nginx"]'
         ad.datadoghq.com/nginx.init_configs: '[{}]'
-        ad.datadoghq.com/nginx.instances: '[{"nginx_status_url": "http://%%host%%/nginx_status", "tags": "%%tags%%"}]'
+        ad.datadoghq.com/nginx.instances: '[{"nginx_status_url": "http://%%host%%/nginx_status"}]'
         ad.datadoghq.com/nginx.logs: '[{"type": "docker","image": "nginx","service": "nginx","source": "nginx"}]'
     spec:
       containers:

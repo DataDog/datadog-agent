@@ -6,7 +6,6 @@
 package persistentcache
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -44,7 +43,7 @@ func Write(key, value string) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(path, []byte(value), 0600)
+	return os.WriteFile(path, []byte(value), 0600)
 }
 
 // Read returns a value previously stored, or the empty string.
@@ -57,7 +56,7 @@ func Read(key string) (string, error) {
 	if os.IsNotExist(err) {
 		return "", nil
 	}
-	content, err := ioutil.ReadFile(path)
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}

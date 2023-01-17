@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -21,43 +21,67 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	kubeServiceAnnotationFormat = "ad.datadoghq.com/service.instances"
+	kubeServiceID    = "service"
+	kubeServicesName = "kube_services"
 )
 
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
-	informer      infov1.ServiceInformer
-	services      map[k8stypes.UID]Service
-	promInclAnnot types.PrometheusAnnotations
-	newService    chan<- Service
-	delService    chan<- Service
-	m             sync.RWMutex
+	informer          infov1.ServiceInformer
+	services          map[k8stypes.UID]Service
+	promInclAnnot     types.PrometheusAnnotations
+	newService        chan<- Service
+	delService        chan<- Service
+	targetAllServices bool
+	m                 sync.RWMutex
 }
 
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
-	entity       string
-	tags         []string
-	hosts        map[string]string
-	ports        []ContainerPort
-	creationTime integration.CreationTime
+	entity string
+	tags   []string
+	hosts  map[string]string
+	ports  []ContainerPort
 }
 
 // Make sure KubeServiceService implements the Service interface
 var _ Service = &KubeServiceService{}
 
 func init() {
-	Register("kube_services", NewKubeServiceListener)
+	Register(kubeServicesName, NewKubeServiceListener)
 }
 
-func NewKubeServiceListener() (ServiceListener, error) {
+// isServiceAnnotated returns true if the Service has an annotation with a given key
+func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
+	if ksvc == nil {
+		return false
+	}
+
+	annotations := ksvc.GetAnnotations()
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".checks"]; found {
+		return true
+	}
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".instances"]; found {
+		return true
+	}
+
+	return false
+}
+
+// NewKubeServiceListener returns the kube service implementation of the ServiceListener interface
+func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -70,12 +94,14 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	}
 
 	return &KubeServiceListener{
-		services:      make(map[k8stypes.UID]Service),
-		informer:      servicesInformer,
-		promInclAnnot: getPrometheusIncludeAnnotations(),
+		services:          make(map[k8stypes.UID]Service),
+		informer:          servicesInformer,
+		promInclAnnot:     getPrometheusIncludeAnnotations(),
+		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
 	}, nil
 }
 
+// Listen starts watching service events
 func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc
@@ -93,7 +119,7 @@ func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Servic
 		log.Errorf("Cannot list Kubernetes services: %s", err)
 	}
 	for _, s := range services {
-		l.createService(s, true)
+		l.createService(s)
 	}
 }
 
@@ -105,18 +131,29 @@ func (l *KubeServiceListener) Stop() {
 func (l *KubeServiceListener) added(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", obj)
+		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
-	l.createService(castedObj, false)
+	l.createService(castedObj)
 }
 
 func (l *KubeServiceListener) deleted(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Errorf("Received unexpected object: %T", obj)
+			return
+		}
+
+		castedObj, ok = deletedState.Obj.(*v1.Service)
+		if !ok {
+			log.Errorf("Expected DeletedFinalStateUnknown to contain *v1.Service, got: %T", deletedState.Obj)
+			return
+		}
 	}
+
 	l.removeService(castedObj)
 }
 
@@ -124,19 +161,19 @@ func (l *KubeServiceListener) updated(old, obj interface{}) {
 	// Cast the updated object or return on failure
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", obj)
+		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
 	// Cast the old object, consider it an add on cast failure
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", old)
-		l.createService(castedObj, false)
+		log.Errorf("Expected a *v1.Service type, got: %T", old)
+		l.createService(castedObj)
 		return
 	}
 	if servicesDiffer(castedObj, castedOld) || l.promInclAnnot.AnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
 		l.removeService(castedObj)
-		l.createService(castedObj, false)
+		l.createService(castedObj)
 	}
 }
 
@@ -149,7 +186,7 @@ func servicesDiffer(first, second *v1.Service) bool {
 		return false
 	}
 	// AD annotations - check templates
-	if isServiceAnnotated(first, kubeServiceAnnotationFormat) != isServiceAnnotated(second, kubeServiceAnnotationFormat) {
+	if isServiceAnnotated(first, kubeServiceID) != isServiceAnnotated(second, kubeServiceID) {
 		return true
 	}
 	// AD labels - standard tags
@@ -176,32 +213,37 @@ func servicesDiffer(first, second *v1.Service) bool {
 	return false
 }
 
-func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
+func (l *KubeServiceListener) shouldIgnore(ksvc *v1.Service) bool {
+	if l.targetAllServices {
+		return false
+	}
+
+	// Ignore services with no AD or Prometheus AD include annotation
+	return !isServiceAnnotated(ksvc, kubeServiceID) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
+}
+
+func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	if ksvc == nil {
 		return
 	}
 
-	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations()) {
-		// Ignore services with no AD or Prometheus AD include annotation
+	if l.shouldIgnore(ksvc) {
 		return
 	}
 
-	svc := processService(ksvc, firstRun)
+	svc := processService(ksvc)
 
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
 	l.m.Unlock()
 
 	l.newService <- svc
+	telemetry.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
 }
 
-func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
+func processService(ksvc *v1.Service) *KubeServiceService {
 	svc := &KubeServiceService{
-		entity:       apiserver.EntityForService(ksvc),
-		creationTime: integration.After,
-	}
-	if firstRun {
-		svc.creationTime = integration.Before
+		entity: apiserver.EntityForService(ksvc),
 	}
 
 	// Service tags
@@ -247,13 +289,14 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 		l.m.Unlock()
 
 		l.delService <- svc
+		telemetry.WatchedResources.Dec(kubeServicesName, telemetry.ResourceKubeService)
 	} else {
 		log.Debugf("Entity %s not found, not removing", ksvc.UID)
 	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *KubeServiceService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeServiceService) GetServiceID() string {
 	return s.entity
 }
 
@@ -284,18 +327,13 @@ func (s *KubeServiceService) GetPorts(context.Context) ([]ContainerPort, error) 
 }
 
 // GetTags retrieves tags
-func (s *KubeServiceService) GetTags() ([]string, string, error) {
-	return s.tags, "", nil
+func (s *KubeServiceService) GetTags() ([]string, error) {
+	return s.tags, nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
 func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime returns the creation time of the service compare to the agent start.
-func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
 }
 
 // IsReady returns if the service is ready
@@ -316,6 +354,10 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *KubeServiceService) FilterTemplates(map[string]integration.Config) {
 }

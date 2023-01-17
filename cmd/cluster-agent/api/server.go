@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -21,13 +22,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 var (
@@ -57,7 +65,7 @@ func StartServer() error {
 	if err != nil {
 		// we use the listener to handle commands for the agent, there's
 		// no way we can recover from this error
-		return fmt.Errorf("Unable to create the api server: %v", err)
+		return fmt.Errorf("unable to create the api server: %v", err)
 	}
 	// Internal token
 	util.CreateAndSetAuthToken() //nolint:errcheck
@@ -83,26 +91,46 @@ func StartServer() error {
 		return fmt.Errorf("invalid key pair: %v", err)
 	}
 
-	tlsConfig := tls.Config{
+	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
+		MinVersion:   tls.VersionTLS13,
 	}
 
-	if config.Datadog.GetBool("force_tls_12") {
-		tlsConfig.MinVersion = tls.VersionTLS12
+	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
+		tlsConfig.MinVersion = tls.VersionTLS10
 	}
 
-	srv := &http.Server{
-		Handler: router,
-		ErrorLog: stdLog.New(&config.ErrorLogWriter{
-			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-		}, "Error from the agent http API server: ", 0), // log errors to seelog,
-		TLSConfig:    &tlsConfig,
-		ReadTimeout:  config.Datadog.GetDuration("cluster_agent.server.read_timeout_seconds") * time.Second,
-		WriteTimeout: config.Datadog.GetDuration("cluster_agent.server.write_timeout_seconds") * time.Second,
-		IdleTimeout:  config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second,
+	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
+
+	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
+		if token != util.GetDCAAuthToken() {
+			return struct{}{}, errors.New("Invalid session token")
+		}
+
+		return struct{}{}, nil
+	})
+
+	opts := []grpc.ServerOption{
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 	}
 
-	tlsListener := tls.NewListener(listener, &tlsConfig)
+	grpcSrv := grpc.NewServer(opts...)
+	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
+		taggerServer: taggerserver.NewServer(tagger.GetDefaultTagger()),
+	})
+
+	timeout := config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
+	srv := grpcutil.NewMuxedGRPCServer(
+		listener.Addr().String(),
+		tlsConfig,
+		grpcSrv,
+		grpcutil.TimeoutHandlerFunc(router, timeout),
+	)
+	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
+
+	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
@@ -148,8 +176,13 @@ func isExternalPath(path string) bool {
 		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8) ||
 		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/tags/namespace/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/annotations/node/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7 ||
-		strings.HasPrefix(path, "/api/v1/cluster/id") && len(strings.Split(path, "/")) == 5
+		strings.HasPrefix(path, "/api/v1/cluster/id") && len(strings.Split(path, "/")) == 5 ||
+		strings.HasPrefix(path, "/api/v1/cf/apps") && len(strings.Split(path, "/")) == 5 ||
+		strings.HasPrefix(path, "/api/v1/cf/apps/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/cf/orgs") && len(strings.Split(path, "/")) == 5 ||
+		strings.HasPrefix(path, "/api/v1/cf/org_quotas") && len(strings.Split(path, "/")) == 5
 }

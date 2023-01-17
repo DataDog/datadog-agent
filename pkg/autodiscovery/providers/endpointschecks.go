@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package providers
@@ -10,10 +11,12 @@ package providers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,16 +25,25 @@ import (
 // EndpointsChecksConfigProvider implements the ConfigProvider interface
 // for the endpoints check feature.
 type EndpointsChecksConfigProvider struct {
-	dcaClient      clusteragent.DCAClientInterface
-	nodeName       string
-	flushedConfigs bool
+	dcaClient        clusteragent.DCAClientInterface
+	degradedDuration time.Duration
+	heartbeat        time.Time
+	nodeName         string
+	flushedConfigs   bool
 }
 
 // NewEndpointsChecksConfigProvider returns a new ConfigProvider collecting
 // endpoints check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
-	c := &EndpointsChecksConfigProvider{}
+func NewEndpointsChecksConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+	c := &EndpointsChecksConfigProvider{
+		degradedDuration: defaultDegradedDeadline,
+	}
+
+	if providerConfig.DegradedDeadlineMinutes > 0 {
+		c.degradedDuration = time.Duration(providerConfig.DegradedDeadlineMinutes) * time.Minute
+	}
+
 	var err error
 	c.nodeName, err = getNodename(context.TODO())
 	if err != nil {
@@ -55,6 +67,10 @@ func (c *EndpointsChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, e
 	return false, nil
 }
 
+func (c *EndpointsChecksConfigProvider) withinDegradedModePeriod() bool {
+	return withinDegradedModePeriod(c.heartbeat, c.degradedDuration)
+}
+
 // Collect retrieves endpoints checks configurations the cluster-agent dispatched to this agent
 func (c *EndpointsChecksConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	if c.dcaClient == nil {
@@ -65,15 +81,27 @@ func (c *EndpointsChecksConfigProvider) Collect(ctx context.Context) ([]integrat
 	}
 	reply, err := c.dcaClient.GetEndpointsCheckConfigs(ctx, c.nodeName)
 	if err != nil {
+		if (errors.IsRemoteService(err) || errors.IsTimeout(err)) && c.withinDegradedModePeriod() {
+			// Degraded mode: return true to keep the configs scheduled
+			// during a Cluster Agent / network outage
+			return nil, err
+		}
+
 		if !c.flushedConfigs {
 			// On first error after grace period, mask the error once
 			// to delete the configurations and de-schedule the checks
+			// Returning nil, nil here unschedules the checks when the
+			// the degraded mode deadline is exceeded.
 			c.flushedConfigs = true
 			return nil, nil
 		}
+
 		return nil, err
 	}
+
 	c.flushedConfigs = false
+	c.heartbeat = time.Now()
+
 	return reply.Configs, nil
 }
 
@@ -105,7 +133,7 @@ func (c *EndpointsChecksConfigProvider) initClient() error {
 }
 
 func init() {
-	RegisterProvider("endpointschecks", NewEndpointsChecksConfigProvider)
+	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the EndpointsChecksConfigProvider

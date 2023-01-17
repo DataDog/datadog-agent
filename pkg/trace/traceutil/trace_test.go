@@ -8,8 +8,9 @@ package traceutil
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestGetRootFromCompleteTrace(t *testing.T) {
@@ -58,4 +59,82 @@ func TestTraceChildrenMap(t *testing.T) {
 	assert.Equal([]*pb.Span{trace[5]}, childrenMap[4])
 	assert.Equal([]*pb.Span(nil), childrenMap[5])
 	assert.Equal([]*pb.Span(nil), childrenMap[6])
+}
+
+func TestGetEnv(t *testing.T) {
+	tts := []struct {
+		name     string
+		in       pb.Trace
+		expected string
+	}{
+		{
+			name: "no-env",
+			in: pb.Trace{
+				&pb.Span{ParentID: 5},
+				&pb.Span{ParentID: 0},
+			},
+			expected: "",
+		},
+		{
+			name: "root_env",
+			in: pb.Trace{
+				&pb.Span{ParentID: 5},
+				&pb.Span{ParentID: 0, Meta: map[string]string{"env": "root"}},
+			},
+			expected: "root",
+		},
+		{
+			name: "env",
+			in: pb.Trace{
+				&pb.Span{SpanID: 24, ParentID: 5, Meta: map[string]string{"env": "env"}},
+				&pb.Span{ParentID: 0},
+			},
+			expected: "env",
+		},
+	}
+
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, GetEnv(GetRoot(tc.in), &pb.TraceChunk{Spans: tc.in}))
+		})
+	}
+}
+
+func TestGetAppVersion(t *testing.T) {
+	tts := []struct {
+		name     string
+		in       pb.Trace
+		expected string
+	}{
+		{
+			name: "no-version",
+			in: pb.Trace{
+				&pb.Span{ParentID: 5},
+				&pb.Span{ParentID: 0},
+			},
+			expected: "",
+		},
+		{
+			name: "root_ver",
+			in: pb.Trace{
+				&pb.Span{ParentID: 5},
+				&pb.Span{ParentID: 0, Meta: map[string]string{"version": "root_ver"}},
+			},
+			expected: "root_ver",
+		},
+		{
+			name: "version",
+			in: pb.Trace{
+				&pb.Span{SpanID: 24, ParentID: 5, Meta: map[string]string{"version": "version"}},
+				&pb.Span{ParentID: 0},
+			},
+			expected: "version",
+		},
+	}
+
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, GetAppVersion(GetRoot(tc.in), &pb.TraceChunk{Spans: tc.in}))
+		})
+	}
 }

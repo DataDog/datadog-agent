@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -23,6 +24,7 @@ type Capability struct {
 	PolicyFlags     PolicyFlag
 	FieldValueTypes eval.FieldValueType
 	ValidateFnc     func(value rules.FilterValue) bool
+	FilterWeight    int
 }
 
 // Capabilities represents the filtering capabilities for a set of fields
@@ -54,9 +56,10 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 
 	for field, cap := range caps {
 		fcs = append(fcs, rules.FieldCapability{
-			Field:       field,
-			Types:       cap.FieldValueTypes,
-			ValidateFnc: cap.ValidateFnc,
+			Field:        field,
+			Types:        cap.FieldValueTypes,
+			ValidateFnc:  cap.ValidateFnc,
+			FilterWeight: cap.FilterWeight,
 		})
 	}
 
@@ -67,7 +70,7 @@ func validateBasenameFilter(value rules.FilterValue) bool {
 	switch value.Type {
 	case eval.ScalarValueType:
 		return true
-	case eval.PatternValueType:
+	case eval.GlobValueType:
 		basename := path.Base(value.Value.(string))
 		if !strings.Contains(basename, "*") {
 			return true
@@ -81,7 +84,7 @@ func oneBasenameCapabilities(event string) Capabilities {
 	return Capabilities{
 		event + ".file.path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 			ValidateFnc:     validateBasenameFilter,
 		},
 		event + ".file.name": {
@@ -95,7 +98,7 @@ func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 	return Capabilities{
 		event + "." + field1 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
 			ValidateFnc:     validateBasenameFilter,
 		},
 		event + "." + field1 + ".name": {
@@ -104,7 +107,7 @@ func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 		},
 		event + "." + field2 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
 			ValidateFnc:     validateBasenameFilter,
 		},
 		event + "." + field2 + ".name": {
@@ -133,4 +136,7 @@ func init() {
 	allCapabilities["rmdir"] = oneBasenameCapabilities("rmdir")
 	allCapabilities["unlink"] = oneBasenameCapabilities("unlink")
 	allCapabilities["utimes"] = oneBasenameCapabilities("utimes")
+	allCapabilities["mmap"] = mmapCapabilities
+	allCapabilities["mprotect"] = mprotectCapabilities
+	allCapabilities["splice"] = spliceCapabilities
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package utils
@@ -10,12 +11,13 @@ package utils
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/gopsutil/process"
 
@@ -33,6 +35,66 @@ func Getpid() int32 {
 	return int32(os.Getpid())
 }
 
+var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
+
+// NetNSPath represents a network namespace path
+type NetNSPath struct {
+	mu         sync.Mutex
+	pid        uint32
+	cachedPath string
+}
+
+// NetNSPathFromPid returns a new NetNSPath from the given Pid
+func NetNSPathFromPid(pid uint32) *NetNSPath {
+	return &NetNSPath{
+		pid: pid,
+	}
+}
+
+// NetNSPathFromPath returns a new NetNSPath from the given path
+func NetNSPathFromPath(path string) *NetNSPath {
+	return &NetNSPath{
+		cachedPath: path,
+	}
+}
+
+// GetPath returns the path for the given network namespace
+func (path *NetNSPath) GetPath() string {
+	path.mu.Lock()
+	defer path.mu.Unlock()
+
+	if path.cachedPath == "" {
+		path.cachedPath = filepath.Join(util.HostProc(), fmt.Sprintf("%d/ns/net", path.pid))
+	}
+	return path.cachedPath
+}
+
+// GetProcessNetworkNamespace returns the network namespace of a pid after parsing /proc/[pid]/ns/net
+func (path *NetNSPath) GetProcessNetworkNamespace() (uint32, error) {
+	// open netns
+	f, err := os.Open(path.GetPath())
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	l, err := os.Readlink(f.Name())
+	if err != nil {
+		return 0, err
+	}
+
+	matches := networkNamespacePattern.FindSubmatch([]byte(l))
+	if len(matches) <= 1 {
+		return 0, fmt.Errorf("couldn't parse network namespace ID: %s", l)
+	}
+
+	netns, err := strconv.ParseUint(string(matches[1]), 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(netns), nil
+}
+
 // CgroupTaskPath returns the path to the cgroup file of a pid in /proc
 func CgroupTaskPath(tgid, pid uint32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/task/%d/cgroup", tgid, pid))
@@ -48,21 +110,31 @@ func StatusPath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/status", pid))
 }
 
+// ModulesPath returns the path to the modules file in /proc
+func ModulesPath() string {
+	return filepath.Join(util.HostProc(), "modules")
+}
+
+// RootPath returns the path to the root folder of a pid in /proc
+func RootPath(pid int32) string {
+	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
+}
+
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process
 func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 	var capEff, capPrm uint64
-	contents, err := ioutil.ReadFile(StatusPath(pid))
+	contents, err := os.ReadFile(StatusPath(pid))
 	if err != nil {
 		return 0, 0, err
 	}
 	lines := strings.Split(string(contents), "\n")
 	for _, line := range lines {
-		tabParts := strings.SplitN(line, "\t", 2)
-		if len(tabParts) < 2 {
+		capKind, value, found := strings.Cut(line, "\t")
+		if !found {
 			continue
 		}
-		value := tabParts[1]
-		switch strings.TrimRight(tabParts[0], ":") {
+
+		switch strings.TrimRight(capKind, ":") {
 		case "CapEff":
 			capEff, err = strconv.ParseUint(value, 16, 64)
 			if err != nil {
@@ -111,7 +183,8 @@ func GetProcesses() ([]*process.Process, error) {
 
 	var processes []*process.Process
 	for _, pid := range pids {
-		proc, err := process.NewProcess(pid)
+		var proc *process.Process
+		proc, err = process.NewProcess(pid)
 		if err != nil {
 			// the process does not exist anymore, continue
 			continue
@@ -172,8 +245,8 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 	}
 }
 
-// EnvVars returns a map with the environment variables of the given pid
-func EnvVars(pid int32) (map[string]string, error) {
+// EnvVars returns a array with the environment variables of the given pid
+func EnvVars(pid int32) ([]string, error) {
 	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
 
 	f, err := os.Open(filename)
@@ -197,17 +270,87 @@ func EnvVars(pid int32) (map[string]string, error) {
 	scanner := bufio.NewScanner(f)
 	scanner.Split(zero)
 
-	envs := make(map[string]string)
+	var envs []string
 	for scanner.Scan() {
-		if els := strings.SplitN(scanner.Text(), "=", 2); len(els) == 2 {
-			key := els[0]
-			value := els[1]
-
-			if len(key) > 0 {
-				envs[key] = value
-			}
+		text := scanner.Text()
+		if len(text) > 0 {
+			envs = append(envs, text)
 		}
 	}
 
 	return envs, nil
+}
+
+// ProcFSModule is a representation of a line in /proc/modules
+type ProcFSModule struct {
+	// Name is the name of the module
+	Name string
+	// Size is the memory size of the module, in bytes
+	Size int
+	// InstancesCount lists how many instances of the module are currently loaded
+	InstancesCount int
+	// DependsOn lists the modules which the current module depends on
+	DependsOn []string
+	// State is the state which the current module is in
+	State string
+	// Address is the address at which the module was loaded
+	Address int64
+	// TaintState is the kernel taint state of the module
+	TaintState string
+}
+
+// FetchLoadedModules returns a map of loaded modules
+func FetchLoadedModules() (map[string]ProcFSModule, error) {
+	procModules, err := os.ReadFile(ModulesPath())
+	if err != nil {
+		return nil, err
+	}
+
+	output := make(map[string]ProcFSModule)
+	lines := strings.Split(string(procModules), "\n")
+	for _, line := range lines {
+		split := strings.Split(line, " ")
+		if len(split) < 6 {
+			continue
+		}
+
+		newModule := ProcFSModule{
+			Name:  split[0],
+			State: split[4],
+		}
+
+		if len(split) >= 7 {
+			newModule.TaintState = split[6]
+		}
+
+		newModule.Size, err = strconv.Atoi(split[1])
+		if err != nil {
+			// set to 0 by default
+			newModule.Size = 0
+		}
+
+		newModule.InstancesCount, err = strconv.Atoi(split[2])
+		if err != nil {
+			// set to 0 by default
+			newModule.InstancesCount = 0
+		}
+
+		if split[3] != "-" {
+			newModule.DependsOn = strings.Split(split[3], ",")
+			// remove empty entry
+			if len(newModule.DependsOn[len(newModule.DependsOn)-1]) == 0 {
+				newModule.DependsOn = newModule.DependsOn[0 : len(newModule.DependsOn)-1]
+			}
+		}
+
+		newModule.Address, err = strconv.ParseInt(strings.TrimPrefix(split[5], "0x"), 16, 64)
+		if err != nil {
+			// set to 0 by default
+			newModule.Address = 0
+		}
+
+		output[newModule.Name] = newModule
+	}
+
+	return output, nil
 }

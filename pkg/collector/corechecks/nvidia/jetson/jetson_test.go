@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build jetson
 // +build jetson
 
 package nvidia
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 const (
@@ -24,9 +26,8 @@ const (
 )
 
 func TestNano(t *testing.T) {
-
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(nil, nil, "test")
+	tegraCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -79,9 +80,8 @@ func TestNano(t *testing.T) {
 }
 
 func TestTX1(t *testing.T) {
-
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(nil, nil, "test")
+	tegraCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -133,9 +133,8 @@ func TestTX1(t *testing.T) {
 }
 
 func TestTX2(t *testing.T) {
-
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(nil, nil, "test")
+	tegraCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -197,9 +196,8 @@ func TestTX2(t *testing.T) {
 }
 
 func TestAgxXavier(t *testing.T) {
-
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(nil, nil, "test")
+	tegraCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 	mock := mocksender.NewMockSender(tegraCheck.ID())
@@ -265,9 +263,8 @@ func TestAgxXavier(t *testing.T) {
 }
 
 func TestXavierNx(t *testing.T) {
-
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(nil, nil, "test")
+	tegraCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 	mock := mocksender.NewMockSender(tegraCheck.ID())

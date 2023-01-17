@@ -13,6 +13,9 @@ else
          :target_filename => "Microsoft_VC141_CRT_x64.msm"
 end
 build do
+  license "Microsoft Visual Studio 2015"
+  license_file "https://s3.amazonaws.com/dd-agent-omnibus/omnibus/vcredist_140_license.txt"
+
    # expand the MSM so that anyone that needs the individual components can find it
    script_root = "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/tools/windows/decompress_merge_module.ps1"
    if windows_arch_i386?

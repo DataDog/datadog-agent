@@ -3,20 +3,30 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
+	"errors"
+	"net"
 	"reflect"
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSetFieldValue(t *testing.T) {
-	event := &Event{}
+	event := &model.Event{}
+	var readOnlyError *eval.ErrFieldReadOnly
 
 	for _, field := range event.GetFields() {
 		kind, err := event.GetFieldType(field)
@@ -26,46 +36,60 @@ func TestSetFieldValue(t *testing.T) {
 
 		switch kind {
 		case reflect.String:
-			if err = event.SetFieldValue(field, "aaa"); err != nil {
+			if err = event.SetFieldValue(field, "aaa"); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 		case reflect.Int:
-			if err = event.SetFieldValue(field, 123); err != nil {
+			if err = event.SetFieldValue(field, 123); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 		case reflect.Bool:
-			if err = event.SetFieldValue(field, true); err != nil {
+			if err = event.SetFieldValue(field, true); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
+		case reflect.Struct:
+			switch field {
+			case "network.destination.ip", "network.source.ip":
+				_, ipnet, err := net.ParseCIDR("127.0.0.1/24")
+				if err != nil {
+					t.Error(err)
+				}
+
+				if err = event.SetFieldValue(field, *ipnet); err != nil {
+					t.Error(err)
+				}
+			}
 		default:
-			t.Errorf("type unknown: %v", kind)
+			t.Errorf("type of field %s unknown: %v", field, kind)
 		}
 	}
 }
 
-func TestExecArgsFlags(t *testing.T) {
-	e := Event{
-		Event: model.Event{
-			Exec: model.ExecEvent{
-				Process: model.Process{
-					ArgsEntry: &model.ArgsEntry{
-						Values: []string{
-							"-abc", "--verbose", "test",
-							"-v=1", "--host=myhost",
-							"-9", "-", "--",
-						},
-					},
-				},
+func TestProcessArgsFlags(t *testing.T) {
+	var argsEntry model.ArgsEntry
+	argsEntry.SetValues([]string{
+		"cmd", "-abc", "--verbose", "test",
+		"-v=1", "--host=myhost",
+		"-9", "-", "--",
+	})
+
+	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&procutil.DataScrubber{}, NewProcessResolverOpts(nil))
+
+	e := model.Event{
+		Exec: model.ExecEvent{
+			Process: &model.Process{
+				ArgsEntry: &argsEntry,
+			},
+		},
+		FieldHandlers: &FieldHandlers{
+			resolvers: &Resolvers{
+				ProcessResolver: resolver,
 			},
 		},
 	}
 
-	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
-	e.resolvers = &Resolvers{
-		ProcessResolver: resolver,
-	}
-
-	flags := e.ResolveExecArgsFlags(&e.Exec)
+	flags := e.FieldHandlers.ResolveProcessArgsFlags(&e, e.Exec.Process)
 	sort.Strings(flags)
 
 	hasFlag := func(flags []string, flag string) bool {
@@ -102,29 +126,31 @@ func TestExecArgsFlags(t *testing.T) {
 	}
 }
 
-func TestExecArgsOptions(t *testing.T) {
-	e := Event{
-		Event: model.Event{
-			Exec: model.ExecEvent{
-				Process: model.Process{
-					ArgsEntry: &model.ArgsEntry{
-						Values: []string{
-							"--config", "/etc/myfile", "--host=myhost", "--verbose",
-							"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
-							"--", "---", "-9",
-						},
-					},
-				},
+func TestProcessArgsOptions(t *testing.T) {
+	var argsEntry model.ArgsEntry
+	argsEntry.SetValues([]string{
+		"cmd", "--config", "/etc/myfile", "--host=myhost", "--verbose",
+		"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
+		"--", "---", "-9",
+	})
+
+	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&procutil.DataScrubber{}, NewProcessResolverOpts(nil))
+
+	e := model.Event{
+		Exec: model.ExecEvent{
+			Process: &model.Process{
+				ArgsEntry: &argsEntry,
+			},
+		},
+		FieldHandlers: &FieldHandlers{
+			resolvers: &Resolvers{
+				ProcessResolver: resolver,
 			},
 		},
 	}
 
-	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
-	e.resolvers = &Resolvers{
-		ProcessResolver: resolver,
-	}
-
-	options := e.ResolveExecArgsOptions(&e.Exec)
+	options := e.FieldHandlers.ResolveProcessArgsOptions(&e, e.Exec.Process)
 	sort.Strings(options)
 
 	hasOption := func(options []string, option string) bool {
@@ -158,5 +184,60 @@ func TestExecArgsOptions(t *testing.T) {
 
 	if len(options) != 5 {
 		t.Errorf("expected 5 options, got %d", len(options))
+	}
+}
+
+func TestBestGuessServiceValues(t *testing.T) {
+
+	type testEntry struct {
+		name     string
+		values   []string
+		expected string
+	}
+
+	entries := []testEntry{
+		{
+			name: "basic",
+			values: []string{
+				"datadog-agent",
+				"d",
+				"datadog-a",
+			},
+			expected: "datadog-agent",
+		},
+		{
+			name: "single",
+			values: []string{
+				"aa",
+			},
+			expected: "aa",
+		},
+		{
+			name:     "empty",
+			values:   []string{},
+			expected: "",
+		},
+		{
+			name: "divergent",
+			values: []string{
+				"aa",
+				"bb",
+			},
+			expected: "aa",
+		},
+		{
+			name: "divergent-2",
+			values: []string{
+				"bb",
+				"aa",
+			},
+			expected: "bb",
+		},
+	}
+
+	for _, entry := range entries {
+		t.Run(entry.name, func(t *testing.T) {
+			assert.Equal(t, entry.expected, bestGuessServiceTag(entry.values))
+		})
 	}
 }

@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Use the `windows_counter_refresh_interval` configuration option to limit
+    how frequently the PDH object cache can be refreshed during counter
+    initialization in golang. This replaces the previously hardcoded limit
+    of 60 seconds.

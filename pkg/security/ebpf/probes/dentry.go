@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -10,8 +11,26 @@ package probes
 import manager "github.com/DataDog/ebpf-manager"
 
 // getDentryResolverTailCallRoutes is the list of routes used during the dentry resolution process
-func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
+func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	routes := []manager.TailCallRoute{
+		// activity dump filter programs
+		{
+			ProgArrayName: "dentry_resolver_kprobe_progs",
+			Key:           ActivityDumpFilterKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/dentry_resolver_ad_filter",
+				EBPFFuncName: "kprobe_dentry_resolver_ad_filter",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_tracepoint_progs",
+			Key:           ActivityDumpFilterTracepointKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/dentry_resolver_ad_filter",
+				EBPFFuncName: "tracepoint_dentry_resolver_ad_filter",
+			},
+		},
+
 		// dentry resolver programs
 		{
 			ProgArrayName: "dentry_resolver_kprobe_progs",
@@ -119,6 +138,22 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager
 				EBPFFuncName: "kprobe_dr_selinux_callback",
 			},
 		},
+		{
+			ProgArrayName: "dentry_resolver_kprobe_callbacks",
+			Key:           DentryResolverUnshareMntNSStageOneCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/dr_unshare_mntns_stage_one_callback",
+				EBPFFuncName: "kprobe_dr_unshare_mntns_stage_one_callback",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_kprobe_callbacks",
+			Key:           DentryResolverUnshareMntNSStageTwoCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/dr_unshare_mntns_stage_two_callback",
+				EBPFFuncName: "kprobe_dr_unshare_mntns_stage_two_callback",
+			},
+		},
 
 		// dentry resolver tracepoint callbacks
 		{
@@ -165,29 +200,34 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager
 
 	// add routes for programs with the bpf_probe_write_user only if necessary
 	if ERPCDentryResolutionEnabled {
+		ebpfSuffix := "_mmap"
+		if !supportMmapableMaps {
+			ebpfSuffix = "_write_user"
+		}
+
 		routes = append(routes, []manager.TailCallRoute{
 			{
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/dentry_resolver_erpc",
-					EBPFFuncName: "kprobe_dentry_resolver_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_erpc" + ebpfSuffix,
+					EBPFFuncName: "kprobe_dentry_resolver_erpc" + ebpfSuffix,
 				},
 			},
 			{
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverParentERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/dentry_resolver_parent_erpc",
-					EBPFFuncName: "kprobe_dentry_resolver_parent_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_parent_erpc" + ebpfSuffix,
+					EBPFFuncName: "kprobe_dentry_resolver_parent_erpc" + ebpfSuffix,
 				},
 			},
 			{
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverSegmentERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/dentry_resolver_segment_erpc",
-					EBPFFuncName: "kprobe_dentry_resolver_segment_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_segment_erpc" + ebpfSuffix,
+					EBPFFuncName: "kprobe_dentry_resolver_segment_erpc" + ebpfSuffix,
 				},
 			},
 		}...)

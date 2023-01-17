@@ -4,6 +4,7 @@ require 'rspec'
 require 'rbconfig'
 require 'yaml'
 require 'find'
+require 'tempfile'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
@@ -30,7 +31,7 @@ def get_service_name(flavor)
   # Return the service name of the given flavor depending on the OS
   if os == :windows
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadogagent"
     when "datadog-dogstatsd"
       # Placeholder, not used yet
@@ -38,7 +39,7 @@ def get_service_name(flavor)
     end
   else
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadog-agent"
     when "datadog-dogstatsd"
       "datadog-dogstatsd"
@@ -234,16 +235,20 @@ def integration_freeze
 end
 
 def json_info
-  info_output = `#{agent_command} status -j 2>&1`
-  info_output = info_output.gsub("Getting the status from the agent.", "")
+  tmpfile = Tempfile.new('agent-status')
+  begin
+    `#{agent_command} status -j -o #{tmpfile.path}`
+    info_output = File.read(tmpfile.path)
 
-  # removes any stray log lines
-  info_output = info_output.gsub(/[0-9]+[ ]\[[a-zA-Z]+\][a-zA-Z \t%:\\]+$/, "")
-
-  JSON.parse(info_output)
+    JSON.parse(info_output)
+  ensure
+    tmpfile.close
+    tmpfile.unlink
+  end
 end
 
 def windows_service_status(service)
+  raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
   return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
 end
@@ -268,7 +273,7 @@ def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
   return windows_service_status(service) != "NOTINSTALLED"
 end
-  
+
 def is_flavor_running?(flavor)
   is_service_running?(get_service_name(flavor))
 end
@@ -368,8 +373,13 @@ def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
-  signature_hash = "748A3B5C681AF45FAC149A76FE59E7CBBDFF058C"
-  return output.upcase.strip == signature_hash
+  signature_hash = "33ACB4126192A96253EBF0616F222844E0E3EF0D"
+  if output.upcase.strip == signature_hash.upcase.strip
+    return true
+  end
+
+  puts("expected hash = #{signature_hash}, msi's hash = #{output}")
+  return false
 end
 
 def is_dpkg_package_installed(package)
@@ -441,14 +451,30 @@ shared_examples_for "an installed Agent" do
 
       program_files = safe_program_files
       verify_signature_files = [
+        # TODO: Uncomment this when we start shipping the security agent on Windows
+        # "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-three.dll",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
       ]
+      libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-two.dll"
+      if File.file?(libdatadog_agent_two)
+        verify_signature_files += [
+          libdatadog_agent_two,
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python.exe",
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\pythonw.exe",
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python27.dll"
+        ]
+      end
+
       verify_signature_files.each do |vf|
-        is_signed = is_file_signed(vf)
-        expect(is_signed).to be_truthy
+        expect(is_file_signed(vf)).to be_truthy
       end
     end
   end
@@ -524,8 +550,21 @@ shared_examples_for "a running Agent with no errors" do
 end
 
 shared_examples_for "a running Agent with APM" do
+  if os == :windows
+    it 'has the apm agent running' do
+      expect(is_process_running?("trace-agent.exe")).to be_truthy
+      expect(is_service_running?("datadog-trace-agent")).to be_truthy
+    end
+  end
   it 'is bound to the port that receives traces by default' do
     expect(is_port_bound(8126)).to be_truthy
+  end
+end
+
+shared_examples_for "a running Agent with process enabled" do
+  it 'has the process agent running' do
+    expect(is_process_running?("process-agent.exe")).to be_truthy
+    expect(is_service_running?("datadog-process-agent")).to be_truthy
   end
 end
 
@@ -681,14 +720,14 @@ shared_examples_for 'an Agent with integrations' do
 
   before do
     freeze_content = File.read(integrations_freeze_file)
-    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==1.5.3')
+    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==2.2.1')
     File.write(integrations_freeze_file, freeze_content)
 
     integration_remove('datadog-cilium')
   end
 
   it 'can uninstall an installed package' do
-    integration_install('datadog-cilium==1.5.3')
+    integration_install('datadog-cilium==2.2.1')
 
     expect do
       integration_remove('datadog-cilium')
@@ -699,32 +738,32 @@ shared_examples_for 'an Agent with integrations' do
     integration_remove('datadog-cilium')
 
     expect do
-      integration_install('datadog-cilium==1.5.3')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.5\.3}) }.from(false).to(true)
+      integration_install('datadog-cilium==2.2.1')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==2\.2\.1}) }.from(false).to(true)
   end
 
   it 'can upgrade an installed package' do
     expect do
-      integration_install('datadog-cilium==1.6.0')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.6\.0}) }.from(false).to(true)
+      integration_install('datadog-cilium==2.3.0')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==2\.3\.0}) }.from(false).to(true)
   end
 
   it 'can downgrade an installed package' do
     integration_remove('datadog-cilium')
-    integration_install('datadog-cilium==1.6.0')
+    integration_install('datadog-cilium==2.3.0')
 
     expect do
-      integration_install('datadog-cilium==1.5.3')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.5\.3}) }.from(false).to(true)
+      integration_install('datadog-cilium==2.2.1')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==2\.2\.1}) }.from(false).to(true)
   end
 
   it 'cannot downgrade an installed package to a version older than the one shipped with the agent' do
     integration_remove('datadog-cilium')
-    integration_install('datadog-cilium==1.5.3')
+    integration_install('datadog-cilium==2.2.1')
 
     expect do
-      integration_install('datadog-cilium==1.5.2')
-    end.to raise_error(/Failed to install integrations package 'datadog-cilium==1\.5\.2'/)
+      integration_install('datadog-cilium==2.2.0')
+    end.to raise_error(/Failed to install integrations package 'datadog-cilium==2\.2\.0'/)
   end
 end
 
@@ -736,11 +775,11 @@ shared_examples_for 'an Agent that is removed' do
       expect(system(uninstallcmd)).to be_truthy
     else
       if system('which apt-get &> /dev/null')
-        expect(system("sudo apt-get -q -y remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo apt-get -q -y remove #{get_agent_flavor} > /dev/null")).to be_truthy
       elsif system('which yum &> /dev/null')
-        expect(system("sudo yum -y remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo yum -y remove #{get_agent_flavor} > /dev/null")).to be_truthy
       elsif system('which zypper &> /dev/null')
-        expect(system("sudo zypper --non-interactive remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo zypper --non-interactive remove #{get_agent_flavor} > /dev/null")).to be_truthy
       else
         raise 'Unknown package manager'
       end
@@ -819,11 +858,6 @@ shared_examples_for 'an Agent with APM enabled' do
     expect(confYaml).to have_key("apm_config")
     expect(confYaml["apm_config"]).to have_key("enabled")
     expect(confYaml["apm_config"]["enabled"]).to be_truthy
-    expect(is_port_bound(8126)).to be_truthy
-  end
-  it 'has the apm agent running' do
-    expect(is_process_running?("trace-agent.exe")).to be_truthy
-    expect(is_service_running?("datadog-trace-agent")).to be_truthy
   end
 end
 
@@ -840,12 +874,9 @@ shared_examples_for 'an Agent with process enabled' do
   it 'has process enabled' do
     confYaml = read_conf_file()
     expect(confYaml).to have_key("process_config")
-    expect(confYaml["process_config"]).to have_key("enabled")
-    expect(confYaml["process_config"]["enabled"]).to be_truthy
-  end
-  it 'has the process agent running' do
-    expect(is_process_running?("process-agent.exe")).to be_truthy
-    expect(is_service_running?("datadog-process-agent")).to be_truthy
+    expect(confYaml["process_config"]).to have_key("process_collection")
+    expect(confYaml["process_config"]["process_collection"]).to have_key("enabled")
+    expect(confYaml["process_config"]["process_collection"]["enabled"]).to be_truthy
   end
 end
 
@@ -877,7 +908,7 @@ shared_examples_for 'an upgraded Agent with the expected version' do
     # Match the first line of the manifest file
     expect(File.open(version_manifest_file) {|f| f.readline.strip}).to match "agent #{agent_expected_version}"
   end
-end 
+end
 
 def get_user_sid(uname)
   output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip
@@ -891,43 +922,6 @@ def get_sddl_for_object(name)
   sddl
 end
 
-def equal_sddl?(left, right)
-  # First, split the sddl into the ownership (user and group), and the dacl
-  left_array = left.split("D:")
-  right_array = right.split("D:")
-
-  # compare the ownership & group.  Must be the same
-  if left_array[0] != right_array[0]
-    return false
-  end
-  left_dacl = left_array[1].scan(/(\([^)]*\))/)
-  right_dacl = right_array[1].scan(/(\([^)]*\))/)
-
-
-  # if they're different lengths, they're different
-  if left_dacl.length != right_dacl.length
-    return false
-  end
-
-  ## now need to break up the DACL list, because they may be listed in different
-  ## orders... the order doesn't matter but the components should be the same.  So..
-
-  left_dacl.each do |left_entry|
-    found = false
-    right_dacl.each do |right_entry|
-      if left_entry == right_entry
-        found = true
-        right_dacl.delete(right_entry)
-        break
-      end
-    end
-    if !found
-      return false
-    end
-  end
-  return false if right_dacl.length != 0
-  return true
-end
 def get_security_settings
   fname = "secout.txt"
   system "secedit /export /cfg  #{fname} /areas USER_RIGHTS"
@@ -975,4 +969,281 @@ def get_username_from_tasklist(exename)
   #username is fully qualified <domain>\username
   uname = output.split(' ')[7].partition('\\').last
   uname
+end
+
+if os == :windows
+  require 'English'
+
+  module SDDLHelper
+    @@ace_types = {
+      'A' => 'Access Allowed',
+      'D' => 'Access Denied',
+      'OA' => 'Object Access Allowed',
+      'OD' => 'Object Access Denied',
+      'AU' => 'System Audit',
+      'AL' => 'System Alarm',
+      'OU' => 'Object System Audit',
+      'OL' => 'Object System Alarm'
+    }
+
+    def self.ace_types
+      @@ace_types
+    end
+
+    @@ace_flags = {
+      'CI' => 'Container Inherit',
+      'OI' => 'Object Inherit',
+      'NP' => 'No Propagate',
+      'IO' => 'Inheritance Only',
+      'ID' => 'Inherited',
+      'SA' => 'Successful Access Audit',
+      'FA' => 'Failed Access Audit'
+    }
+
+    def self.ace_flags
+      @@ace_flags
+    end
+
+    @@permissions = {
+      'GA' => 'Generic All',
+      'GR' => 'Generic Read',
+      'GW' => 'Generic Write',
+      'GX' => 'Generic Execute',
+
+      'RC' => 'Read Permissions',
+      'SD' => 'Delete',
+      'WD' => 'Modify Permissions',
+      'WO' => 'Modify Owner',
+      'RP' => 'Read All Properties',
+      'WP' => 'Write All Properties',
+      'CC' => 'Create All Child Objects',
+      'DC' => 'Delete All Child Objects',
+      'LC' => 'List Contents',
+      'SW' => 'All Validated Writes',
+      'LO' => 'List Object',
+      'DT' => 'Delete Subtree',
+      'CR' => 'All Extended Rights',
+
+      'FA' => 'File All Access',
+      'FR' => 'File Generic Read',
+      'FW' => 'File Generic Write',
+      'FX' => 'File Generic Execute',
+
+      'KA' => 'Key All Access',
+      'KR' => 'Key Read',
+      'KW' => 'Key Write',
+      'KX' => 'Key Execute'
+    }
+
+    def self.permissions
+      @@permissions
+    end
+
+    @@trustee = {
+      'AO' => 'Account Operators',
+      'RU' => 'Alias to allow previous Windows 2000',
+      'AN' => 'Anonymous Logon',
+      'AU' => 'Authenticated Users',
+      'BA' => 'Built-in Administrators',
+      'BG' => 'Built in Guests',
+      'BO' => 'Backup Operators',
+      'BU' => 'Built-in Users',
+      'CA' => 'Certificate Server Administrators',
+      'CG' => 'Creator Group',
+      'CO' => 'Creator Owner',
+      'DA' => 'Domain Administrators',
+      'DC' => 'Domain Computers',
+      'DD' => 'Domain Controllers',
+      'DG' => 'Domain Guests',
+      'DU' => 'Domain Users',
+      'EA' => 'Enterprise Administrators',
+      'ED' => 'Enterprise Domain Controllers',
+      'WD' => 'Everyone',
+      'PA' => 'Group Policy Administrators',
+      'IU' => 'Interactively logged-on user',
+      'LA' => 'Local Administrator',
+      'LG' => 'Local Guest',
+      'LS' => 'Local Service Account',
+      'SY' => 'Local System',
+      'NU' => 'Network Logon User',
+      'NO' => 'Network Configuration Operators',
+      'NS' => 'Network Service Account',
+      'PO' => 'Printer Operators',
+      'PS' => 'Self',
+      'PU' => 'Power Users',
+      'RS' => 'RAS Servers group',
+      'RD' => 'Terminal Server Users',
+      'RE' => 'Replicator',
+      'RC' => 'Restricted Code',
+      'SA' => 'Schema Administrators',
+      'SO' => 'Server Operators',
+      'SU' => 'Service Logon User'
+    }
+
+    def self.trustee
+      @@trustee
+    end
+
+    def self.lookup_trustee(trustee)
+      if @@trustee[trustee].nil?
+        nt_account = `powershell -command "(New-Object System.Security.Principal.SecurityIdentifier('#{trustee}')).Translate([System.Security.Principal.NTAccount]).Value"`.strip
+        return nt_account if 0 == $CHILD_STATUS
+
+        # Can't lookup, just return value
+        return trustee
+      end
+
+      @@trustee[trustee]
+    end
+  end
+
+  class SDDL
+    def initialize(sddl_str)
+      sddl_str.scan(/(.):(.*?)(?=.:|$)/) do |m|
+        case m[0]
+        when 'D'
+          @dacls = []
+          m[1].scan(/(\((?<ace_type>.*?);(?<ace_flags>.*?);(?<permissions>.*?);(?<object_type>.*?);(?<inherited_object_type>.*?);(?<trustee>.*?)\))/) do |ace_type, ace_flags, permissions, object_type, inherited_object_type, trustee|
+            @dacls.append(DACL.new(ace_type, ace_flags, permissions, object_type, inherited_object_type, trustee))
+          end
+        when 'O'
+          @owner = m[1]
+        when 'G'
+          @group = m[1]
+        end
+      end
+    end
+
+    attr_reader :owner, :group, :dacls
+
+    def to_s
+      str  = "Owner: #{SDDLHelper.lookup_trustee(@owner)}\n"
+      str += "Group: #{SDDLHelper.lookup_trustee(@owner)}\n"
+      @dacls.each do |dacl|
+        str += dacl.to_s
+      end
+      str
+    end
+
+    def ==(other_sddl)
+      return false if
+        @owner != other_sddl.owner ||
+        @group != other_sddl.group ||
+        @dacls.length != other_sddl.dacls.length
+
+      @dacls.each do |d1|
+        if other_sddl.dacls.find { |d2| d1 == d2 }.eql? nil
+          return false
+        end
+      end
+
+      other_sddl.dacls.each do |d1|
+        if @dacls.find { |d2| d1 == d2 }.eql? nil
+          return false
+        end
+      end
+    end
+
+    def eql?(other_sddl)
+      self == other_sddl
+    end
+
+  end
+
+  class DACL
+    def initialize(ace_type, ace_flags, permissions, object_type, inherited_object_type, trustee)
+      @ace_type = ace_type
+      @ace_flags = ace_flags
+      @permissions = permissions
+      @object_type = object_type
+      @inherited_object_type = inherited_object_type
+      @trustee = trustee
+    end
+
+    attr_reader :ace_type, :ace_flags, :permissions, :object_type, :inherited_object_type, :trustee
+
+    def ==(other_dacl)
+      return false if other_dacl.eql? nil
+
+      @ace_type == other_dacl.ace_type &&
+      @ace_flags == other_dacl.ace_flags &&
+      @permissions == other_dacl.permissions &&
+      @object_type == other_dacl.object_type &&
+      @inherited_object_type == other_dacl.inherited_object_type &&
+      @trustee == other_dacl.trustee
+    end
+
+    def eql?(other_dacl)
+      self == other_dacl
+    end
+
+    def to_s
+      str = "  Trustee: #{SDDLHelper.lookup_trustee(@trustee)}\n"
+      str += "  Type: #{SDDLHelper.ace_types[@ace_type]}\n"
+      str += "  Permissions: \n    - #{break_flags(@permissions, SDDLHelper.permissions).join("\n    - ")}\n" if permissions != ''
+      str += "  Inheritance: \n    - #{break_flags(@ace_flags, SDDLHelper.ace_flags).join("\n    - ")}\n" if ace_flags != ''
+      str
+    end
+
+    private
+
+    def break_flags(flags, lookup_dict)
+      return [lookup_dict[flags]] if flags.length <= 2
+
+      idx = 0
+      flags_str = ''
+      flags_list = []
+      flags.each_char do |ch|
+        if idx.positive? && idx.even?
+          flags_list.append(lookup_dict[flags_str])
+          flags_str = ''
+        end
+        flags_str += ch
+        idx += 1
+      end
+      flags_list
+    end
+  end
+
+  RSpec::Matchers.define :have_sddl_equal_to do |expected|
+    def get_difference(actual, expected)
+      actual_sddl = SDDL.new(actual)
+      expected_sddl = SDDL.new(expected)
+
+      difference = ''
+      if expected_sddl.owner != actual_sddl.owner
+        difference += " => expected owner to be \"#{SDDLHelper.lookup_trustee(expected_sddl.owner)}\" but was \"#{SDDLHelper.lookup_trustee(actual_sddl.owner)}\"\n"
+      end
+      if expected_sddl.group != actual_sddl.group
+        difference += " => expected owner to be \"#{SDDLHelper.lookup_trustee(expected_sddl.owner)}\" but was \"#{SDDLHelper.lookup_trustee(actual_sddl.owner)}\"\n"
+      end
+
+      expected_sddl.dacls.each do |expected_dacl|
+        actual_dacl = actual_sddl.dacls.find { |d| expected_dacl == d }
+        if actual_dacl.eql? nil
+          difference += " => expected missing DACL\n#{expected_dacl}\n"
+        end
+      end
+
+      actual_sddl.dacls.each do |actual_dacl|
+        expected_dacl = expected_sddl.dacls.find { |d| actual_dacl == d }
+        if expected_dacl.eql? nil
+          difference += " => found unexpected DACL\n#{actual_dacl}\n"
+        end
+      end
+
+      difference
+    end
+
+    match do |actual|
+      actual_sddl = SDDL.new(actual)
+      expected_sddl = SDDL.new(expected)
+      return actual_sddl == expected_sddl
+    end
+
+    failure_message do |actual|
+      get_difference(actual, expected)
+    end
+  end
+
 end

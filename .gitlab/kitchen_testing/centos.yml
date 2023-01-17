@@ -16,7 +16,6 @@
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77,rhel-81"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -25,7 +24,6 @@
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -37,49 +35,54 @@
     KITCHEN_OSVERS: "rhel-81"
     DEFAULT_KITCHEN_OSVERS: "rhel-81"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM_SUFFIX="${KITCHEN_PLATFORM_SUFFIX}fips"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-# Kitchen: scenarios (os * agent)
+# Kitchen: scenarios (os * agent * (cloud + arch))
 # -------------------------------
 
 .kitchen_scenario_centos_all_non_fips_a6:
   extends:
     - .kitchen_agent_a6
     - .kitchen_os_centos_all_non_fips
-  needs: ["deploy_rpm_testing-a6"]
+    - .kitchen_azure_x64
+  needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_centos_all_non_fips_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_centos_all_non_fips
-  needs: ["deploy_rpm_testing-a7"]
+    - .kitchen_azure_x64
+  needs: ["deploy_rpm_testing-a7_x64"]
 
 .kitchen_scenario_centos_6_7_non_fips_a6:
   extends:
     - .kitchen_os_centos_6_7_non_fips
     - .kitchen_agent_a6
-  needs: ["deploy_rpm_testing-a6"]
+    - .kitchen_azure_x64
+  needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_centos_6_7_non_fips_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_centos_6_7_non_fips
-  needs: ["deploy_rpm_testing-a7"]
+    - .kitchen_azure_x64
+  needs: ["deploy_rpm_testing-a7_x64"]
 
 .kitchen_scenario_centos_8_fips_a6:
   extends:
     - .kitchen_agent_a6
     - .kitchen_os_centos_8_fips
-  needs: ["deploy_rpm_testing-a6"]
+    - .kitchen_azure_x64
+  needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_centos_8_fips_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_centos_8_fips
-  needs: ["deploy_rpm_testing-a7"]
+    - .kitchen_azure_x64
+  needs: ["deploy_rpm_testing-a7_x64"]
 
 # Kitchen: final test matrix (tests * scenarios)
 # ----------------------------------------------
@@ -212,3 +215,11 @@ kitchen_centos_fips_upgrade7_iot_agent-a7:
   extends:
     - .kitchen_scenario_centos_8_fips_a7
     - .kitchen_test_upgrade7_iot_agent
+
+kitchen_centos_process_agent-a7:
+  variables:
+    KITCHEN_OSVERS: "rhel-81"
+    DEFAULT_KITCHEN_OSVERS: "rhel-81"
+  extends:
+    - .kitchen_scenario_centos_all_non_fips_a7
+    - .kitchen_test_process_agent

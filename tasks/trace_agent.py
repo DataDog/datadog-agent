@@ -4,6 +4,7 @@ import sys
 from invoke import task
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .flavor import AgentFlavor
 from .go import deps
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
@@ -17,6 +18,7 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
+    flavor=AgentFlavor.base.name,
     major_version='7',
     python_runtimes='3',
     arch="x64",
@@ -26,6 +28,7 @@ def build(
     Build the trace agent.
     """
 
+    flavor = AgentFlavor[flavor]
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
@@ -47,7 +50,8 @@ def build(
 
     build_include = (
         get_default_build_tags(
-            build="trace-agent"
+            build="trace-agent",
+            flavor=flavor,
         )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
         if build_include is None
         else filter_incompatible_tags(build_include.split(","), arch=arch)
@@ -59,16 +63,19 @@ def build(
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
-    agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent", android=False))
+    agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
-    ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
+    # go generate only works if you are in the module the target file is in, so we
+    # need to move into the pkg/trace module.
+    with ctx.cd("./pkg/trace"):
+        ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
     ctx.run(cmd, env=env)
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
+def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
     """
     Run integration tests for trace agent
     """
@@ -77,23 +84,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
     go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""
-    exec_opts = ""
 
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = f'INTEGRATION=yes go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}" {exec_opts}'
-
-    prefixes = [
-        "./pkg/trace/test/testsuite/...",
-    ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
+    go_cmd = f'go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}"'
+    ctx.run(f"{go_cmd} ./cmd/trace-agent/test/testsuite/...", env={"INTEGRATION": "yes"})
 
 
 @task
@@ -108,7 +101,6 @@ def cross_compile(ctx, tag=""):
     print(f"Building tag {tag}...")
 
     env = {
-        "TRACE_AGENT_VERSION": tag,
         "V": tag,
     }
 
@@ -131,3 +123,15 @@ def cross_compile(ctx, tag=""):
     ctx.run("git checkout -")
 
     print(f"Done! Binaries are located in ./bin/trace-agent/{tag}")
+
+
+@task
+def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
+    """
+    Runs the benchmarks. Use "--bench=X" to specify benchmarks to run. Use the "--output=X" argument to specify where to output results.
+    """
+    if not bench:
+        print("Argument --bench=<bench_regex> is required.")
+        return
+    with ctx.cd("./pkg/trace"):
+        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 10 -benchtime 2s ./... | tee {output}")

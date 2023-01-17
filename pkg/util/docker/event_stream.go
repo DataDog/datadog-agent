@@ -14,10 +14,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //// eventStreamState logic unit tested in event_stream_test.go
@@ -82,10 +83,11 @@ func (e *eventStreamState) unsubscribe(name string) error {
 func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 	fltrs := filters.NewArgs()
 	fltrs.Add("type", "container")
-	fltrs.Add("event", "start")
-	fltrs.Add("event", "die")
-	fltrs.Add("event", "died")
-	fltrs.Add("event", "rename")
+	fltrs.Add("event", ContainerEventActionStart)
+	fltrs.Add("event", ContainerEventActionDie)
+	fltrs.Add("event", ContainerEventActionDied)
+	fltrs.Add("event", ContainerEventActionRename)
+	fltrs.Add("event", ContainerEventActionHealthStatus)
 
 	// On initial subscribe, don't go back in time. On reconnect, we'll
 	// resume at the latest timestamp we got.

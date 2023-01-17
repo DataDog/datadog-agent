@@ -1,0 +1,59 @@
+{
+    "headers": {
+        "Host": "p62c47itsb.execute-api.sa-east-1.amazonaws.com",
+        "Sec-WebSocket-Extensions": "permessage-deflate; client_max_window_bits",
+        "Sec-WebSocket-Key": "cdxrfyi/jZ7kKMSRkIgBjg==",
+        "Sec-WebSocket-Version": "13",
+        "X-Amzn-Trace-Id": "Root=1-613b6b23-34ae0ce37f8d09ae19095835",
+        "X-Forwarded-For": "38.122.226.210",
+        "X-Forwarded-Port": "443",
+        "X-Forwarded-Proto": "https",
+        "x-datadog-trace-id": "12345",
+        "x-datadog-parent-id": "67890",
+        "x-datadog-sampling-priority": "2"
+    },
+    "multiValueHeaders": {
+        "Host": [
+            "p62c47itsb.execute-api.sa-east-1.amazonaws.com"
+        ],
+        "Sec-WebSocket-Extensions": [
+            "permessage-deflate; client_max_window_bits"
+        ],
+        "Sec-WebSocket-Key": [
+            "cdxrfyi/jZ7kKMSRkIgBjg=="
+        ],
+        "Sec-WebSocket-Version": [
+            "13"
+        ],
+        "X-Amzn-Trace-Id": [
+            "Root=1-613b6b23-34ae0ce37f8d09ae19095835"
+        ],
+        "X-Forwarded-For": [
+            "38.122.226.210"
+        ],
+        "X-Forwarded-Port": [
+            "443"
+        ],
+        "X-Forwarded-Proto": [
+            "https"
+        ]
+    },
+    "requestContext": {
+        "routeKey": "$connect",
+        "eventType": "CONNECT",
+        "extendedRequestId": "Fc2tgH1RmjQFnOg=",
+        "requestTime": "10/Sep/2021:14:26:43 +0000",
+        "messageDirection": "IN",
+        "stage": "dev",
+        "connectedAt": 1631284003070,
+        "requestTimeEpoch": 1631284003071,
+        "identity": {
+            "sourceIp": "38.122.226.210"
+        },
+        "requestId": "Fc2tgH1RmjQFnOg=",
+        "domainName": "p62c47itsb.execute-api.sa-east-1.amazonaws.com",
+        "connectionId": "Fc2tgfl3mjQCJfA=",
+        "apiId": "p62c47itsb"
+    },
+    "isBase64Encoded": false
+}

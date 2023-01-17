@@ -10,9 +10,10 @@ import (
 	"bytes"
 	"testing"
 
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
 )
 
 func TestExtractShortPathFromFullPath(t *testing.T) {
@@ -28,7 +29,7 @@ func TestExtractShortPathFromFullPath(t *testing.T) {
 	assert.Equal(t, "cmd/agent/collector.go", extractShortPathFromFullPath("/home/jenkins/workspace/process-agent-build-ddagent/go/src/github.com/DataDog/datadog-process-agent/cmd/agent/collector.go"))
 	// various possible dependency paths
 	assert.Equal(t, "collector@v0.35.0/receiver/otlpreceiver/otlp.go", extractShortPathFromFullPath("/Users/runner/programming/go/pkg/mod/go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go"))
-	assert.Equal(t, "collector@v0.35.0/receiver/otlpreceiver/otlp.go", extractShortPathFromFullPath("/gomodcache/go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go"))
+	assert.Equal(t, "collector@v0.35.0/receiver/otlpreceiver/otlp.go", extractShortPathFromFullPath("/modcache/go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go"))
 }
 
 func TestSeelogConfig(t *testing.T) {

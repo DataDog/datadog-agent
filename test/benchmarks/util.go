@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -36,6 +41,6 @@ func InitLogging(level string) error {
 
 // SetHostname sets the hostname
 func SetHostname(hostname string) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 	mockConfig.Set("hostname", hostname)
 }

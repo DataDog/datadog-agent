@@ -34,7 +34,7 @@ AMI="$(curl "https://builds.coreos.fedoraproject.org/streams/${UPDATE_STREAM}.js
 tee specification.json << EOF
 {
   "ImageId": "${AMI}",
-  "InstanceType": "c5.2xlarge",
+  "InstanceType": "t3.2xlarge",
   "Monitoring": {
     "Enabled": false
   },
@@ -54,5 +54,7 @@ tee specification.json << EOF
   "SecurityGroupIds": ["sg-7fedd80a"]
 }
 EOF
+
+export CI_COMMIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA:-$(git describe --tags --always --dirty --match 7.\*)}
 
 exec ./02-ec2.sh

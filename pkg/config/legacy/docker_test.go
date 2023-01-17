@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build docker
-// +build linux
+//go:build docker && linux
+// +build docker,linux
+
 // As we compare some paths, running the tests on Linux only
 
 package legacy
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -67,33 +67,33 @@ instances:
   tags:
   - tag:value
   - value
+  capped_metrics:
+    docker.cpu.system: 1000
+    docker.cpu.user: 1000
   collect_events: false
+  unbundle_events: false
   filtered_event_types:
   - top
   - exec_start
   - exec_create
-  capped_metrics:
-    docker.cpu.system: 1000
-    docker.cpu.user: 1000
+  collected_event_types: []
 `
 )
 
 func TestConvertDocker(t *testing.T) {
-	dir, err := ioutil.TempDir("", "agent_test_legacy")
-	require.Nil(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	src := filepath.Join(dir, "docker_daemon.yaml")
 	dst := filepath.Join(dir, "docker.yaml")
 
-	err = ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
+	err := os.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
 	require.Nil(t, err)
 
 	configConverter := config.NewConfigConverter()
 	err = ImportDockerConf(src, dst, true, configConverter)
 	require.Nil(t, err)
 
-	newConf, err := ioutil.ReadFile(filepath.Join(dir, "docker.yaml"))
+	newConf, err := os.ReadFile(filepath.Join(dir, "docker.yaml"))
 	require.Nil(t, err)
 
 	assert.Equal(t, dockerNewConf, string(newConf))

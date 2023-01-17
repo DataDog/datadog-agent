@@ -9,8 +9,7 @@ import (
 	"container/list"
 	"sync"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // defaultServiceRateKey specifies the key for the default rate to be used by any service that
@@ -34,11 +33,12 @@ type catalogEntry struct {
 	sig Signature
 }
 
-// newServiceLookup returns a new serviceKeyCatalog.
-func newServiceLookup() *serviceKeyCatalog {
+// newServiceLookup returns a new serviceKeyCatalog with maxEntries maximum number of entries.
+// If maxEntries is 0, a default of 5000 (maxCatalogEntries) will be used.
+func newServiceLookup(maxEntries int) *serviceKeyCatalog {
 	entries := maxCatalogEntries
-	if v := coreconfig.Datadog.GetInt("apm_config.max_catalog_entries"); v > 0 {
-		entries = v
+	if maxEntries > 0 {
+		entries = maxEntries
 	}
 	return &serviceKeyCatalog{
 		items:      make(map[ServiceSignature]*list.Element),
@@ -70,20 +70,22 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 
 // ratesByService returns a map of service signatures mapping to the rates identified using
 // the signatures.
-func (cat *serviceKeyCatalog) ratesByService(localRates, remoteRates map[Signature]float64, defaultRate float64) map[ServiceSignature]float64 {
-	rbs := make(map[ServiceSignature]float64, len(localRates)+1)
+func (cat *serviceKeyCatalog) ratesByService(agentEnv string, rates map[Signature]float64, defaultRate float64) map[ServiceSignature]float64 {
+	rbs := make(map[ServiceSignature]float64, len(rates)+1)
 	cat.mu.Lock()
 	defer cat.mu.Unlock()
 	for key, el := range cat.items {
 		sig := el.Value.(catalogEntry).sig
-		// todo:raphael distinguish remote rates from local rates with a separate priority value
-		if rate, ok := remoteRates[sig]; ok {
-			rbs[key] = rate
-		} else if rate, ok := localRates[sig]; ok {
+		if rate, ok := rates[sig]; ok {
 			rbs[key] = rate
 		} else {
 			cat.ll.Remove(el)
 			delete(cat.items, key)
+			continue
+		}
+
+		if rateWithEmptyEnv(key.Env, agentEnv) {
+			rbs[ServiceSignature{Name: key.Name}] = rbs[key]
 		}
 	}
 	rbs[ServiceSignature{}] = defaultRate

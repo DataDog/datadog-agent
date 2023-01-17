@@ -2,7 +2,7 @@
 
 printf '=%.0s' {0..79} ; echo
 set -ex
-cd "$(dirname $0)"
+cd "$(dirname "$0")"
 
 ../run-instance/10-setup-kind.sh
 ../run-instance/11-setup-kind-cluster.sh

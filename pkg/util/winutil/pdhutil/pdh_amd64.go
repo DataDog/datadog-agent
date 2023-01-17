@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package pdhutil
@@ -20,7 +21,7 @@ type PDH_FMT_COUNTERVALUE_LARGE struct {
 
 // Union specialization for long values
 type PDH_FMT_COUNTERVALUE_LONG struct {
-	CStatus    uint32
-	intpadding uint32
-	LongValue  int32
+	CStatus   uint32
+	_         uint32 // intpadding
+	LongValue int32
 }

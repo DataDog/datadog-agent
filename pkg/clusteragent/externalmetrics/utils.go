@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -19,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/DataDog/datadog-operator/api/v1alpha1"
+	"github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 )
 
 const (
@@ -101,6 +102,7 @@ func setQueryConfigValues(aggregator string, rollup int) {
 	queryConfigRollup = rollup
 }
 
+// UnstructuredIntoDDM converts an unstructured object into a DatadogMetric
 func UnstructuredIntoDDM(obj interface{}, structDest *v1alpha1.DatadogMetric) error {
 	unstrObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
@@ -109,6 +111,7 @@ func UnstructuredIntoDDM(obj interface{}, structDest *v1alpha1.DatadogMetric) er
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
 
+// UnstructuredFromDDM converts a DatadogMetric object into an Unstructured
 func UnstructuredFromDDM(structIn *v1alpha1.DatadogMetric, unstructOut *unstructured.Unstructured) error {
 	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
 	if err != nil {

@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // FIXTURE
@@ -48,7 +49,7 @@ func TestNewScheduler(t *testing.T) {
 
 	assert.Equal(t, c, s.checksPipe)
 	assert.Equal(t, len(s.jobQueues), 0)
-	assert.Equal(t, s.running, uint32(0))
+	assert.False(t, s.running.Load())
 }
 
 func TestEnter(t *testing.T) {
@@ -124,7 +125,7 @@ func TestRun(t *testing.T) {
 	intl := 1 * time.Second
 	s.Enter(&TestCheck{intl: intl})
 	s.Run()
-	assert.Equal(t, uint32(1), s.running)
+	assert.True(t, s.running.Load())
 	assert.True(t, s.jobQueues[intl].running)
 
 	// Calling Run again should be a non blocking, noop procedure
@@ -138,7 +139,7 @@ func TestStop(t *testing.T) {
 
 	err := s.Stop()
 	assert.Nil(t, err)
-	assert.Equal(t, uint32(0), s.running)
+	assert.False(t, s.running.Load())
 	assert.False(t, s.jobQueues[10*time.Second].running)
 
 	// stopping again should be non blocking, noop and return nil

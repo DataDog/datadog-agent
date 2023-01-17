@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
@@ -13,6 +18,7 @@ Protocol tcp Dynamic Port Range
 Start Port      : 49152
 Number of Ports : 16384`
 
+//nolint:misspell // misspell only handles english
 var frenchOut = `
 Plage de ports dynamique du protocole tcp
 ---------------------------------
