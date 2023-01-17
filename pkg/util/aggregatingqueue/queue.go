@@ -3,31 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package sbom
+package queue
 
 import (
 	"time"
-
-	model "github.com/DataDog/agent-payload/v5/sbom"
 )
 
-type queue struct {
+type queue[T any] struct {
 	maxNbItem        int
 	maxRetentionTime time.Duration
-	flushCB          func([]*model.SBOMEntity)
-	enqueueCh        chan *model.SBOMEntity
-	data             []*model.SBOMEntity
+	flushCB          func([]T)
+	enqueueCh        chan T
+	data             []T
 	timer            *time.Timer
 }
 
-// newQueue returns a chan to enqueue newly discovered container images
-func newQueue(maxNbItem int, maxRetentionTime time.Duration, flushCB func([]*model.SBOMEntity)) chan *model.SBOMEntity {
-	q := queue{
+// NewQueue returns a chan to enqueue elements
+// The flushCB function will be called with a slice of elements as soon as
+// * either maxNbItem elements have been enqueued since the last flush
+// * or maxRetentionTime has elapsed since the first element has been enqueued after the last flush.
+func NewQueue[T any](maxNbItem int, maxRetentionTime time.Duration, flushCB func([]T)) chan T {
+	q := queue[T]{
 		maxNbItem:        maxNbItem,
 		maxRetentionTime: maxRetentionTime,
 		flushCB:          flushCB,
-		enqueueCh:        make(chan *model.SBOMEntity),
-		data:             make([]*model.SBOMEntity, 0, maxNbItem),
+		enqueueCh:        make(chan T),
+		data:             make([]T, 0, maxNbItem),
 		timer:            time.NewTimer(maxRetentionTime),
 	}
 
@@ -40,11 +41,11 @@ func newQueue(maxNbItem int, maxRetentionTime time.Duration, flushCB func([]*mod
 			select {
 			case <-q.timer.C:
 				q.flush()
-			case sbom, more := <-q.enqueueCh:
+			case elem, more := <-q.enqueueCh:
 				if !more {
 					return
 				}
-				q.enqueue(sbom)
+				q.enqueue(elem)
 			}
 		}
 	}()
@@ -52,7 +53,7 @@ func newQueue(maxNbItem int, maxRetentionTime time.Duration, flushCB func([]*mod
 	return q.enqueueCh
 }
 
-func (q *queue) enqueue(elem *model.SBOMEntity) {
+func (q *queue[T]) enqueue(elem T) {
 	if len(q.data) == 0 {
 		q.timer.Reset(q.maxRetentionTime)
 	}
@@ -64,8 +65,8 @@ func (q *queue) enqueue(elem *model.SBOMEntity) {
 	}
 }
 
-func (q *queue) flush() {
+func (q *queue[T]) flush() {
 	q.timer.Stop()
 	q.flushCB(q.data)
-	q.data = make([]*model.SBOMEntity, 0, q.maxNbItem)
+	q.data = make([]T, 0, q.maxNbItem)
 }
