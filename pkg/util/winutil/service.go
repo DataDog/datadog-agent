@@ -49,6 +49,9 @@ func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*m
 	return &mgr.Service{Name: serviceName, Handle: h}, err
 }
 
+// Start serviceName via SCM
+// Does not block until service is started
+// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicea#remarks
 func StartService(serviceName string) error {
 
 	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
@@ -70,6 +73,8 @@ func StartService(serviceName string) error {
 	return nil
 }
 
+// This function sends a control code to a specified service and waits up to
+// timeout for the service to transition to the requested state
 func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAccess uint32, timeout int64) error {
 
 	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
@@ -107,7 +112,7 @@ func StopService(serviceName string) error {
 
 	deps, err := ListDependentServices(serviceName, windows.SERVICE_ACTIVE)
 	if err != nil {
-		return fmt.Errorf("could not list dependent services")
+		return fmt.Errorf("could not list dependent services: %v", err)
 	}
 
 	for _, dep := range deps {
@@ -129,6 +134,7 @@ func RestartService(serviceName string) error {
 }
 
 // when Go has their version, replace ours with the upstream
+// https://github.com/golang/go/issues/56766
 func ListDependentServices(serviceName string, state enumServiceState) ([]EnumServiceStatus, error) {
 	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
