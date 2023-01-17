@@ -844,8 +844,9 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
 
 SEC("kprobe/do_vfs_ioctl")
 int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    log_debug("[kprobe__do_vfs_ioctl] ioctl captured\n");
     if (is_usm_erpc_request(ctx)) {
-        return handle_erpc_request(ctx);
+        handle_erpc_request(ctx);
     }
 
     return 0;
