@@ -80,11 +80,9 @@ type TCPState uint8
 type StaticTableEnumKey = uint8
 
 const (
-	AuthorityKey StaticTableEnumKey = 0x1
-	MethodKey    StaticTableEnumKey = 0x2
-	PathKey      StaticTableEnumKey = 0x4
-	SchemeKey    StaticTableEnumKey = 0x6
-	StatusKey    StaticTableEnumKey = 0x9
+	MethodKey StaticTableEnumKey = 0x2
+	PathKey   StaticTableEnumKey = 0x4
+	StatusKey StaticTableEnumKey = 0x9
 )
 
 type StaticTableEnumValue = uint8
@@ -94,8 +92,6 @@ const (
 	PostValue      StaticTableEnumValue = 0x3
 	EmptyPathValue StaticTableEnumValue = 0x4
 	IndexPathValue StaticTableEnumValue = 0x5
-	HttpValue      StaticTableEnumValue = 0x6
-	HttpsValue     StaticTableEnumValue = 0x7
 	K200Value      StaticTableEnumValue = 0x8
 	K204Value      StaticTableEnumValue = 0x9
 	K206Value      StaticTableEnumValue = 0xa

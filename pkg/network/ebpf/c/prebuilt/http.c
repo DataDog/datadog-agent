@@ -93,11 +93,9 @@ int socket__http2_filter(struct __sk_buff *skb) {
         log_debug("[http2] http2 magic was found, aborting");
         return 0;
     }
-//    http2_conn->frag_head = (char *)http2_conn->request_fragment;
-//    http2_conn->frag_end = http2_conn->frag_head + final_payload_length;
 
     process_frames(http2_conn, skb);
-//    http2_process(http2, NULL, NO_TAGS);
+    http2_process(http2_conn, NULL, NO_TAGS);
     return 0;
 }
 

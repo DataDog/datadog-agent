@@ -33,10 +33,8 @@
 
 
 typedef enum {
-    kAuthority = 1,
     kMethod = 2,
     kPath = 4,
-    kScheme = 6,
     kStatus = 9,
 } __attribute__ ((packed)) header_key;
 
@@ -45,8 +43,6 @@ typedef enum {
     kPOST = 3,
     kEmptyPath = 4,
     kIndexPath = 5,
-    kHTTP = 6,
-    kHTTPS = 7,
     k200 = 8,
     k204 = 9,
     k206 = 10,
@@ -128,11 +124,9 @@ typedef struct {
     bool end_of_stream;
     __u8  request_method;
     __u8  packet_type;
-    __u8  schema;
     __u8  stream_id;
     __u64  path_size;
     char path[32] __attribute__ ((aligned (8)));
-    char authority[32] __attribute__ ((aligned (8)));
 } http2_transaction_t;
 
 // This struct is used in the map lookup that returns the active batch for a certain CPU core

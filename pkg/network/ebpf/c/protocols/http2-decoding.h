@@ -17,6 +17,7 @@
 
 /* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
 BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_transaction_t, 1)
+BPF_PERCPU_ARRAY_MAP(http_trans_alloc, __u32, http_transaction_t, 1)
 
 /* This map holds one entry per CPU storing state associated to current http batch*/
 BPF_PERCPU_ARRAY_MAP(http2_batch_state, __u32, http_batch_state_t, 1)
@@ -127,10 +128,8 @@ static __always_inline int http2_responding(http2_transaction_t *http2) {
 //}
 
 static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_info_t *skb_info,__u64 tags) {
-    char *buffer = (char *)http2_stack->request_fragment;
     http2_packet_t packet_type = HTTP2_PACKET_UNKNOWN;
     http2_method_t method = HTTP2_METHOD_UNKNOWN;
-    http2_schema_t schema = HTTP2_SCHEMA_UNKNOWN;
 
     if (http2_stack->request_method > 0) {
         method = http2_stack->request_method;
@@ -140,69 +139,60 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
         packet_type = http2_stack->packet_type;
     }
 
-    if (http2_stack->schema > 0) {
-        schema = http2_stack->schema;
-    }
-
     if (packet_type != 0){
-        log_debug("[slavin4] ----------------------------------");
-        log_debug("[slavin4] XXXXXXXXXXXXXXXXXXXXXXXXXX The method is %d", method);
-        log_debug("[slavin4] XXXXXXXXXXXXXXXXXXXXXXXXXX The packet_type is %d", packet_type);
-        log_debug("[slavin4] XXXXXXXXXXXXXXXXXXXXXXXXXX The schema is %d", schema);
-        log_debug("[slavin4] ----------------------------------");
-        log_debug("[slavin4] the response status code is %d", http2_stack->response_status_code);
-        log_debug("[slavin4] the end of stream is %d", http2_stack->end_of_stream);
-
+        log_debug("[http2] ----------------------------------\n");
+        log_debug("[http2] The method is %d\n", method);
+        log_debug("[http2] The packet_type is %d\n", packet_type);
+        log_debug("[http2] the response status code is %d\n", http2_stack->response_status_code);
+        log_debug("[http2] the end of stream is %d\n", http2_stack->end_of_stream);
+        log_debug("[http2] ----------------------------------\n");
     }
 
     if (packet_type == 3) {
         packet_type = HTTP2_RESPONSE;
-    }
-
-    if (packet_type == 2) {
+    } else if (packet_type == 2) {
         packet_type = HTTP2_REQUEST;
     }
 
     http2_transaction_t *http2 = http2_fetch_state(http2_stack, packet_type);
     if (!http2 || http2_seen_before(http2, skb_info)) {
-        log_debug("[tasik2] the http2 have been seen before!");
+        log_debug("[http2] the http2 has been seen before!\n");
         return 0;
     }
 
     if (packet_type == HTTP2_REQUEST) {
-        log_debug("[slavin4] http2_process request: type=%d method=%d\n", packet_type, method);
-        http2_begin_request(http2, method, buffer);
+        log_debug("[http2] http2_process request: type=%d method=%d\n", packet_type, method);
+        http2_begin_request(http2, method, (char *)http2_stack->request_fragment);
+        http2_update_seen_before(http2, skb_info);
+    } else if (packet_type == HTTP2_RESPONSE) {
+        log_debug("[http2] http2_begin_response: htx=%llx status=%d\n", http2, http2->response_status_code);
         http2_update_seen_before(http2, skb_info);
     }
-   else if (packet_type == HTTP2_RESPONSE) {
-        log_debug("[tasik] http2_begin_response: htx=%llx status=%d\n", http2, http2->response_status_code);
-        http2_update_seen_before(http2, skb_info);
-    }
 
-    http2->tags |= tags;
-
-
-    if ((http2_stack->response_status_code > 0 )) {
-        http_transaction_t http;
-
+    if (http2_stack->response_status_code > 0) {
         http2_transaction_t *trans = bpf_map_lookup_elem(&http2_in_flight, &http2->old_tup);
         if (trans != NULL) {
-            bpf_memset(&http, 0, sizeof(http));
-            bpf_memcpy(&http.tup, &trans->tup, sizeof(conn_tuple_t));
+            const __u32 zero = 0;
+            http_transaction_t *http = bpf_map_lookup_elem(&http_trans_alloc, &zero);
+            if (http == NULL) {
+                return 0;
+            }
+            bpf_memset(http, 0, sizeof(http_transaction_t));
+            bpf_memcpy(&http->tup, &trans->tup, sizeof(conn_tuple_t));
 
-            http.request_fragment[0] = 'z';
-            http.request_fragment[1] = http2->path_size;
-            bpf_memcpy(&http.request_fragment[8], trans->path, HTTP2_MAX_PATH_LEN);
+            http->request_fragment[0] = 'z';
+            http->request_fragment[1] = http2->path_size;
+            bpf_memcpy(&http->request_fragment[8], trans->path, HTTP2_MAX_PATH_LEN);
 
-            http.response_status_code = http2_stack->response_status_code;
-            http.request_started = trans->request_started;
-            http.request_method = trans->request_method;
-            http.response_last_seen = bpf_ktime_get_ns();
-            http.owned_by_src_port = trans->owned_by_src_port;
-            http.tcp_seq = trans->tcp_seq;
-            http.tags = trans->tags;
+            http->response_status_code = http2_stack->response_status_code;
+            http->request_started = trans->request_started;
+            http->request_method = trans->request_method;
+            http->response_last_seen = bpf_ktime_get_ns();
+            http->owned_by_src_port = trans->owned_by_src_port;
+            http->tcp_seq = trans->tcp_seq;
+            http->tags = trans->tags;
 
-            http_enqueue(&http);
+            http_enqueue(http);
 //            bpf_map_delete_elem(&http2_in_flight, &http2_stack->tup);
         }
     }
@@ -241,10 +231,6 @@ static __always_inline bool classify_static_value(http2_transaction_t* http2_tra
      if ((name == kMethod) && (value == kPOST)){
         http2_transaction->request_method = value;
         http2_transaction->packet_type = 2; // this will be request and we need to make it better
-        return true;
-     }
-     if (value == kHTTP) {
-        http2_transaction->schema = value;
         return true;
      }
      if ((value <= k500) && (value >= k200)) {

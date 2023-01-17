@@ -36,11 +36,9 @@ type TCPState uint8
 type StaticTableEnumKey = C.header_key
 
 const (
-	AuthorityKey StaticTableEnumKey = C.kAuthority
-	MethodKey    StaticTableEnumKey = C.kMethod
-	PathKey      StaticTableEnumKey = C.kPath
-	SchemeKey    StaticTableEnumKey = C.kScheme
-	StatusKey    StaticTableEnumKey = C.kStatus
+	MethodKey StaticTableEnumKey = C.kMethod
+	PathKey   StaticTableEnumKey = C.kPath
+	StatusKey StaticTableEnumKey = C.kStatus
 )
 
 type StaticTableEnumValue = C.header_value
@@ -50,8 +48,6 @@ const (
 	PostValue      StaticTableEnumValue = C.kPOST
 	EmptyPathValue StaticTableEnumValue = C.kEmptyPath
 	IndexPathValue StaticTableEnumValue = C.kIndexPath
-	HttpValue      StaticTableEnumValue = C.kHTTP
-	HttpsValue     StaticTableEnumValue = C.kHTTPS
 	K200Value      StaticTableEnumValue = C.k200
 	K204Value      StaticTableEnumValue = C.k204
 	K206Value      StaticTableEnumValue = C.k206

@@ -306,12 +306,6 @@ func (e *ebpfProgram) Init() error {
 
 		staticTableEntries := []staticTableEntry{
 			{
-				Index: 1,
-				Value: netebpf.StaticTableValue{
-					Name: netebpf.AuthorityKey,
-				},
-			},
-			{
 				Index: 2,
 				Value: netebpf.StaticTableValue{
 					Name:  netebpf.MethodKey,
@@ -337,20 +331,6 @@ func (e *ebpfProgram) Init() error {
 				Value: netebpf.StaticTableValue{
 					Name:  netebpf.PathKey,
 					Value: netebpf.IndexPathValue,
-				},
-			},
-			{
-				Index: 6,
-				Value: netebpf.StaticTableValue{
-					Name:  netebpf.SchemeKey,
-					Value: netebpf.HttpValue,
-				},
-			},
-			{
-				Index: 7,
-				Value: netebpf.StaticTableValue{
-					Name:  netebpf.SchemeKey,
-					Value: netebpf.HttpsValue,
 				},
 			},
 			{
