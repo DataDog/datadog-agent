@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Merge will merge the security-agent configuration into the existing datadog configuration
+// Merge will merge additional configuration into an existing configuration. The default is merging security-agent.yaml into datadog.yaml.
 func Merge(configPaths []string) error {
 	for _, configPath := range configPaths {
 		if f, err := os.Open(configPath); err == nil {
