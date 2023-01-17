@@ -80,12 +80,12 @@ func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func
 // NewSecurityAgentParams creates a new instance of Params for the Security Agent.
 func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...func(*Params)) Params {
 	params := NewParams(common.DefaultConfPath, options...)
-	// TODO: Uncomment once we stop using the MergeConfigurationFiles for SecAgent launch
-	// This code block currently breaks the setup of only have security-agent.yaml and NOT datadog.yaml
-	//if len(securityAgentConfigFilePaths) > 0 {
-	//	params.confFilePath = securityAgentConfigFilePaths[0]
-	//}
-	params.securityAgentConfigFilePaths = securityAgentConfigFilePaths
+
+	// By default, we load datadog.yaml and then merge security-agent.yaml
+	if len(securityAgentConfigFilePaths) > 0 {
+		params.confFilePath = securityAgentConfigFilePaths[0]                  // Default: datadog.yaml
+		params.securityAgentConfigFilePaths = securityAgentConfigFilePaths[1:] // Default: security-agent.yaml
+	}
 	params.configLoadSecurityAgent = true
 
 	params.configLoadSecrets = true
