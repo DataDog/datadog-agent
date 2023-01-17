@@ -15,6 +15,11 @@ powershell_script 'stop-datadog-agent' do
       {
         Write-Host "Stopping " + $dependentService.name;
         sc.exe stop $dependentService.name
+        $dependentService = Get-Service -Name $dependentService.name
+        while ($dependentService.Status -ne "stopped")
+        {
+          Start-Sleep -Seconds 1
+        }
       }
       sc.exe stop $serviceName
     }
