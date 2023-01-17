@@ -2,8 +2,8 @@
 #define __IP_H
 
 #include "ktypes.h"
-#include "bpf_helpers.h"
-#include "bpf_builtins.h"
+#include "bpf_tracing.h"
+#include "bpf_core_read.h"
 #include "bpf_endian.h"
 
 #ifdef COMPILE_CORE
@@ -44,18 +44,62 @@ struct __tcphdr {
 #define __IPPROTO_TCP 6
 #define __IPPROTO_UDP 17
 
+// TODO: these are mostly hacky placehodlers until we decide on what is the best
+// approach to work around the eBPF bug described here:
+// https://github.com/torvalds/linux/commit/e6a18d36118bea3bf497c9df4d9988b6df120689
+// We should consider using something like `asm volatile("":::"r1")` so this patch
+// can also benefit hosts running kernel 4.4
+__maybe_unused static __always_inline u64 __load_word(void *ptr, u32 offset) {
+#ifdef COMPILE_PREBUILT
+    return load_word(ptr, offset);
+#else
+    if (bpf_helper_exists(BPF_FUNC_skb_load_bytes)) {
+        u32 res = 0;
+        bpf_skb_load_bytes(ptr, offset, &res, sizeof(res));
+        return bpf_htonl(res);
+    }
+    return load_word(ptr, offset);
+#endif
+}
+
+__maybe_unused static __always_inline u64 __load_half(void *ptr, u32 offset) {
+#ifdef COMPILE_PREBUILT
+    return load_half(ptr, offset);
+#else
+    if (bpf_helper_exists(BPF_FUNC_skb_load_bytes)) {
+        u16 res = 0;
+        bpf_skb_load_bytes(ptr, offset, &res, sizeof(res));
+        return bpf_htons(res);
+    }
+    return load_half(ptr, offset);
+#endif
+}
+
+__maybe_unused static __always_inline u64 __load_byte(void *ptr, u32 offset) {
+#ifdef COMPILE_PREBUILT
+    return load_byte(ptr, offset);
+#else
+    if (bpf_helper_exists(BPF_FUNC_skb_load_bytes)) {
+        u8 res = 0;
+        bpf_skb_load_bytes(ptr, offset, &res, sizeof(res));
+        return res;
+    }
+    return load_byte(ptr, offset);
+#endif
+}
+
 static __always_inline void read_ipv6_skb(struct __sk_buff *skb, __u64 off, __u64 *addr_l, __u64 *addr_h) {
-    *addr_h |= (__u64)load_word(skb, off) << 32;
-    *addr_h |= (__u64)load_word(skb, off + 4);
+    *addr_h |= (__u64)__load_word(skb, off) << 32;
+    *addr_h |= (__u64)__load_word(skb, off + 4);
     *addr_h = bpf_ntohll(*addr_h);
 
-    *addr_l |= (__u64)load_word(skb, off + 8) << 32;
-    *addr_l |= (__u64)load_word(skb, off + 12);
+    *addr_l |= (__u64)__load_word(skb, off + 8) << 32;
+    *addr_l |= (__u64)__load_word(skb, off + 12);
     *addr_l = bpf_ntohll(*addr_l);
 }
 
 static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u64 *addr) {
-    *addr = load_word(skb, off);
+    *addr = __load_word(skb, off);
     *addr = bpf_ntohll(*addr) >> 32;
 }
 
@@ -65,16 +109,16 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     bpf_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
 
-    __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
+    __u16 l3_proto = __load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto = 0;
     switch (l3_proto) {
     case ETH_P_IP:
     {
-        __u8 ipv4_hdr_len = (load_byte(skb, info->data_off) & 0x0f) << 2;
+        __u8 ipv4_hdr_len = (__load_byte(skb, info->data_off) & 0x0f) << 2;
         if (ipv4_hdr_len < sizeof(struct iphdr)) {
             return 0;
         }
-        l4_proto = load_byte(skb, info->data_off + offsetof(struct iphdr, protocol));
+        l4_proto = __load_byte(skb, info->data_off + offsetof(struct iphdr, protocol));
         tup->metadata |= CONN_V4;
         read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, saddr), &tup->saddr_l);
         read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, daddr), &tup->daddr_l);
@@ -82,7 +126,7 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
         break;
     }
     case ETH_P_IPV6:
-        l4_proto = load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
+        l4_proto = __load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
         tup->metadata |= CONN_V6;
         read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, saddr), &tup->saddr_l, &tup->saddr_h);
         read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, daddr), &tup->daddr_l, &tup->daddr_h);
@@ -95,19 +139,19 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     switch (l4_proto) {
     case __IPPROTO_UDP:
         tup->metadata |= CONN_TYPE_UDP;
-        tup->sport = load_half(skb, info->data_off + offsetof(struct udphdr, source));
-        tup->dport = load_half(skb, info->data_off + offsetof(struct udphdr, dest));
+        tup->sport = __load_half(skb, info->data_off + offsetof(struct udphdr, source));
+        tup->dport = __load_half(skb, info->data_off + offsetof(struct udphdr, dest));
         info->data_off += sizeof(struct udphdr);
         break;
     case __IPPROTO_TCP:
         tup->metadata |= CONN_TYPE_TCP;
-        tup->sport = load_half(skb, info->data_off + offsetof(struct __tcphdr, source));
-        tup->dport = load_half(skb, info->data_off + offsetof(struct __tcphdr, dest));
+        tup->sport = __load_half(skb, info->data_off + offsetof(struct __tcphdr, source));
+        tup->dport = __load_half(skb, info->data_off + offsetof(struct __tcphdr, dest));
 
-        info->tcp_seq = load_word(skb, info->data_off + offsetof(struct __tcphdr, seq));
-        info->tcp_flags = load_byte(skb, info->data_off + TCP_FLAGS_OFFSET);
+        info->tcp_seq = __load_word(skb, info->data_off + offsetof(struct __tcphdr, seq));
+        info->tcp_flags = __load_byte(skb, info->data_off + TCP_FLAGS_OFFSET);
         // TODO: Improve readability and explain the bit twiddling below
-        info->data_off += ((load_byte(skb, info->data_off + offsetof(struct __tcphdr, ack_seq) + 4) & 0xF0) >> 4) * 4;
+        info->data_off += ((__load_byte(skb, info->data_off + offsetof(struct __tcphdr, ack_seq) + 4) & 0xF0) >> 4) * 4;
         break;
     default:
         return 0;
