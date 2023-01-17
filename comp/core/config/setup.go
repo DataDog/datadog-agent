@@ -30,7 +30,7 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 	}
 
 	// set the paths where a config file is expected
-	if len(confFilePath) != 0 {
+	if confFilePath != "" {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
 		config.Datadog.AddConfigPath(confFilePath)
