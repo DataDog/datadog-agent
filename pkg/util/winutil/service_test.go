@@ -1,7 +1,6 @@
 package winutil
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -83,58 +82,86 @@ func TestOpenService(t *testing.T) {
 
 func TestListDependentServices(t *testing.T) {
 
-	nTestServices := 3
-
 	// test that ListDependentServices returns an error if the service name is not valid
-	_, err := ListDependentServices("notaservice", windows.SERVICE_ACTIVE)
+	notAServiceName := "notaservice"
+	_, err := ListDependentServices(notAServiceName, windows.SERVICE_ACTIVE)
 	assert.NotNil(t, err, "Expected ListDependentServices to return an error with invalid service name")
 
 	// open the SC manager so we can create some test services
 	m, _ := OpenSCManager(windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_CREATE_SERVICE)
 	defer m.Disconnect()
 
-	// install the test services
-	for i := 0; i < nTestServices; i++ {
-
-		// general config for all test services
-		c := mgr.Config{
-			StartType:   mgr.StartDisabled,
-			DisplayName: "Test Service",
-			Description: "This is a test service",
-		}
-
-		// all services will depend on the first
-		if i != 0 {
-			c.Dependencies = append(c.Dependencies, "service1")
-		}
-
-		// install the service
-		serviceName := fmt.Sprintf("service%d", i+1)
-		install(t, m, serviceName, "", c)
+	// install the base service, it will have no dependents, but several dependents
+	baseServiceName := "baseservice"
+	c := mgr.Config{
+		StartType:   mgr.StartDisabled,
+		DisplayName: "Base Test Service",
+		Description: "This is the base test service",
 	}
+	install(t, m, baseServiceName, "", c)
 
-	// test that ListDependentServices returns an empty list for service with no dependencies
-	deps, err := ListDependentServices("service2", windows.SERVICE_STATE_ALL)
+	// install a first level dependent service, it will depend on the base service
+	firstLevelServiceName := "dependentservice-firstlevel"
+	c = mgr.Config{
+		StartType:    mgr.StartDisabled,
+		DisplayName:  "Dependent Test Service: First Level",
+		Description:  "This service depends on the base service",
+		Dependencies: []string{baseServiceName},
+	}
+	install(t, m, firstLevelServiceName, "", c)
+
+	// install a second level service, it will depend on the first level
+	secondLevelServiceName := "dependentservice-secondlevel"
+	c = mgr.Config{
+		StartType:    mgr.StartDisabled,
+		DisplayName:  "Dependent Test Service: Second Level",
+		Description:  "This service depends on the dependent service",
+		Dependencies: []string{firstLevelServiceName},
+	}
+	install(t, m, secondLevelServiceName, "", c)
+
+	// test that ListDependentServices returns an empty list for service with no dependents
+	deps, err := ListDependentServices(secondLevelServiceName, windows.SERVICE_STATE_ALL)
 	assert.Nilf(t, err, "Unexpected error: %v", err)
 	assert.Zero(t, len(deps), "")
 
-	// test that ListDependentServices returns a list of dependent services for service with dependencies
-	deps, err = ListDependentServices("service1", windows.SERVICE_STATE_ALL)
+	// test that ListDependentServices returns a list of dependent services for service with dependents
+	deps, err = ListDependentServices(firstLevelServiceName, windows.SERVICE_STATE_ALL)
+	assert.Nilf(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, 1, len(deps), "Expected ListDependentServices to return a list of dependent services")
+
+	// the deps
+	t.Logf("%s has the following dependents", firstLevelServiceName)
+	for _, dep := range deps {
+		t.Log(dep.serviceName)
+	}
+
+	// test that ListDependentServices returns a list of dependent services for service with nested dependents
+	deps, err = ListDependentServices(baseServiceName, windows.SERVICE_STATE_ALL)
 	assert.Nilf(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, 2, len(deps), "Expected ListDependentServices to return a list of dependent services")
 
 	// the deps
+	t.Logf("%s has the following dependents", baseServiceName)
 	for _, dep := range deps {
-		t.Logf("Dependent: %s", dep.serviceName)
+		t.Log(dep.serviceName)
 	}
 
-	// clean up test services
-	for i := 0; i < nTestServices; i++ {
-		serviceName := fmt.Sprintf("service%d", i+1)
-		s, err := OpenService(m, serviceName, windows.SERVICE_START|windows.DELETE)
-		assert.Nil(t, err, "Unexpected error: %v", err)
-		assert.NotNil(t, s, "Expected OpenService to return a valid service handle")
-		remove(t, s)
-		s.Close()
-	}
+	s, err := OpenService(m, baseServiceName, windows.SERVICE_START|windows.DELETE)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.NotNil(t, s, "Expected OpenService to return a valid service handle")
+	remove(t, s)
+	s.Close()
+
+	s, err = OpenService(m, firstLevelServiceName, windows.SERVICE_START|windows.DELETE)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.NotNil(t, s, "Expected OpenService to return a valid service handle")
+	remove(t, s)
+	s.Close()
+
+	s, err = OpenService(m, secondLevelServiceName, windows.SERVICE_START|windows.DELETE)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.NotNil(t, s, "Expected OpenService to return a valid service handle")
+	remove(t, s)
+	s.Close()
 }

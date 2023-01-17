@@ -199,7 +199,7 @@ func enumDependentServices(h windows.Handle, state enumServiceState) (services [
 		}
 	}
 
-	servicearray := make([]uint8, bufsz) // TODO convert to uint16 and bufsz/2 to allow windows.UTF16toString call
+	servicearray := make([]uint8, bufsz)
 	ret, _, err := procEnumDependentServices.Call(uintptr(h),
 		uintptr(state),
 		uintptr(unsafe.Pointer(&servicearray[0])),
