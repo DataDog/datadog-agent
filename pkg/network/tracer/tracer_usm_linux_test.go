@@ -595,6 +595,11 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 // GoTLS test
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
+	cfg := testConfig()
+	if !cfg.EnableRuntimeCompiler {
+		t.Skip("GoTLS not supported when runtime compiler is disabled")
+	}
+
 	clientBin := buildGoTLSClientBin(t)
 
 	if !goTLSSupported() {
@@ -632,7 +637,6 @@ func testHTTPGoTLSCaptureNewProcess(clientBin string) func(t *testing.T) {
 		cfg.EnableGoTLSSupport = true
 		cfg.EnableHTTPMonitoring = true
 		cfg.EnableHTTPSMonitoring = true
-		cfg.EnableRuntimeCompiler = true
 
 		tr, err := NewTracer(cfg)
 		require.NoError(t, err)
