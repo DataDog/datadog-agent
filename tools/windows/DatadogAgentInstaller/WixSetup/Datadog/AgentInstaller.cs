@@ -33,35 +33,6 @@ namespace WixSetup.Datadog
         private const string BinSource = @"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin";
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
 
-        private WixEntity[] Permissions
-        {
-            get
-            {
-                return new WixEntity[]
-                {
-                    new DirPermission
-                    {
-                        User = "[WIX_ACCOUNT_ADMINISTRATORS]",
-                        GenericAll = true,
-                        ChangePermission = true
-                    },
-                    new DirPermission
-                    {
-                        User = "[WIX_ACCOUNT_LOCALSYSTEM]",
-                        GenericAll = true,
-                        ChangePermission = true
-                    },
-                    new DirPermission
-                    {
-                        User = "[WIX_ACCOUNT_USERS]",
-                        GenericAll = false,
-                        ChangePermission = true
-                    }
-                };
-            }
-        }
-
-
         private readonly AgentBinaries _agentBinaries;
         private readonly AgentFeatures _agentFeatures = new AgentFeatures();
         private readonly AgentPython _agentPython = new AgentPython();
@@ -175,7 +146,7 @@ namespace WixSetup.Datadog
                         WorkingDirectory = "AGENT",
                     }
                 ),
-                new Dir("logs", Permissions)
+                new Dir("logs")
             )
             // enable the ability to repair the installation even when the original MSI is no longer available.
             //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008 R2
@@ -386,19 +357,11 @@ namespace WixSetup.Datadog
         private Dir CreateAppDataFolder()
         {
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
-                Permissions.Combine(new WixEntity[]
-                {
-                    new DirFiles($@"{EtcSource}\*.yaml.example"),
-                    new Dir("checks.d"),
-
-                    new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
-                        Permissions.Combine(new WixEntity[]
-                        {
-                            new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
-                        })
-                    )
-                })
-            );
+                new DirFiles($@"{EtcSource}\*.yaml.example"),
+                new Dir("checks.d"),
+                new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
+                    new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
+                ));
 
             return new Dir(new Id("%CommonAppData%"), appData)
             {
