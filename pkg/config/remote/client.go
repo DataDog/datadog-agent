@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,12 +32,14 @@ const (
 	maximalMaxBackoffTime = 90 * time.Second
 	minBackoffFactor      = 2.0
 	recoveryInterval      = 2
+
+	maxMessageSize = 1024 * 1024 * 500 // 500MB, current backend limit
 )
 
 // ConfigUpdater defines the interface that an agent client uses to get config updates
 // from the core remote-config service
 type ConfigUpdater interface {
-	ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
+	ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest, ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error)
 }
 
 // Client is a remote-configuration client to obtain configurations from the local API
@@ -75,8 +78,11 @@ type agentGRPCConfigFetcher struct {
 	client pbgo.AgentSecureClient
 }
 
-func newAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
-	c, err := grpc.GetDDAgentSecureClient(context.Background())
+// NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
+func NewAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
+	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), grpc.WithDefaultCallOptions(
+		grpc.MaxCallRecvMsgSize(maxMessageSize),
+	))
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +93,7 @@ func newAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
 }
 
 // ClientGetConfigs implements the ConfigUpdater interface for agentGRPCConfigFetcher
-func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest, opts ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error) {
 	// When communicating with the core service via grpc, the auth token is handled
 	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
 	// or that if it restarts that the auth token remains the same. Thus we need to do this every request.
@@ -101,7 +107,7 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	return g.client.ClientGetConfigs(ctx, request)
+	return g.client.ClientGetConfigs(ctx, request, opts)
 }
 
 // NewClient creates a new client
@@ -111,7 +117,7 @@ func NewClient(agentName string, updater ConfigUpdater, agentVersion string, pro
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
 func NewGRPCClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	grpcClient, err := newAgentGRPCConfigFetcher()
+	grpcClient, err := NewAgentGRPCConfigFetcher()
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +127,7 @@ func NewGRPCClient(agentName string, agentVersion string, products []data.Produc
 
 // NewUnverifiedClient creates a new client that does not perform any TUF verification
 func NewUnverifiedClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	grpcClient, err := newAgentGRPCConfigFetcher()
+	grpcClient, err := NewAgentGRPCConfigFetcher()
 	if err != nil {
 		return nil, err
 	}

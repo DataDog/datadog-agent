@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -34,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -188,7 +188,7 @@ func Run(ctx context.Context) {
 	}()
 
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
-		client, err := grpc.GetDDAgentSecureClient(context.Background())
+		rcClient, err := rc.NewAgentGRPCConfigFetcher()
 		if err != nil {
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)
 		}
@@ -198,7 +198,7 @@ func Run(ctx context.Context) {
 		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, client, token, cfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, rcClient, token, cfg) },
 		})
 	}
 

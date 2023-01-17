@@ -16,6 +16,7 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -41,7 +42,7 @@ func putBuffer(buffer *bytes.Buffer) {
 	bufferPool.Put(buffer)
 }
 
-func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, token string, cfg *config.AgentConfig) http.Handler {
+func remoteConfigHandler(r *api.HTTPReceiver, client remote.ConfigUpdater, token string, cfg *config.AgentConfig) http.Handler {
 	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
