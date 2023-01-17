@@ -72,7 +72,7 @@ func evpProxyErrorHandler(message string) http.Handler {
 
 // evpProxyForwarder creates an http.ReverseProxy which can forward payloads to
 // one or more endpoints, based on the request received and the Agent configuration.
-// Headers are not proxied, instead we add our own known set of header.
+// Headers are not proxied, instead we add our own known set of headers.
 // See also evpProxyTransport below.
 func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
 	endpoints := evpProxyEndpointsFromConfig(conf)
