@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,7 +35,8 @@ func newMockFlush[T any]() (callback func([]T), getAccumulator func() [][]T) {
 
 func TestQueue(t *testing.T) {
 	callback, accumulator := newMockFlush[int]()
-	queue := NewQueue(3, 50*time.Millisecond, callback)
+	cl := clock.NewMock()
+	queue := newQueue(3, 1*time.Minute, callback, cl)
 
 	for i := 0; i <= 10; i++ {
 		queue <- i
@@ -50,7 +52,7 @@ func TestQueue(t *testing.T) {
 		},
 	)
 
-	time.Sleep(100 * time.Millisecond)
+	cl.Add(2 * time.Minute)
 
 	assert.Equal(
 		t,

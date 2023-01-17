@@ -6,30 +6,36 @@
 package queue
 
 import (
-	"time"
+	"github.com/benbjohnson/clock"
 )
 
 type queue[T any] struct {
+	clock            clock.Clock
 	maxNbItem        int
-	maxRetentionTime time.Duration
+	maxRetentionTime clock.Duration
 	flushCB          func([]T)
 	enqueueCh        chan T
 	data             []T
-	timer            *time.Timer
+	timer            *clock.Timer
 }
 
 // NewQueue returns a chan to enqueue elements
 // The flushCB function will be called with a slice of elements as soon as
 // * either maxNbItem elements have been enqueued since the last flush
 // * or maxRetentionTime has elapsed since the first element has been enqueued after the last flush.
-func NewQueue[T any](maxNbItem int, maxRetentionTime time.Duration, flushCB func([]T)) chan T {
+func NewQueue[T any](maxNbItem int, maxRetentionTime clock.Duration, flushCB func([]T)) chan T {
+	return newQueue(maxNbItem, maxRetentionTime, flushCB, clock.New())
+}
+
+func newQueue[T any](maxNbItem int, maxRetentionTime clock.Duration, flushCB func([]T), cl clock.Clock) chan T {
 	q := queue[T]{
+		clock:            cl,
 		maxNbItem:        maxNbItem,
 		maxRetentionTime: maxRetentionTime,
 		flushCB:          flushCB,
 		enqueueCh:        make(chan T),
 		data:             make([]T, 0, maxNbItem),
-		timer:            time.NewTimer(maxRetentionTime),
+		timer:            cl.Timer(maxRetentionTime),
 	}
 
 	if !q.timer.Stop() {
