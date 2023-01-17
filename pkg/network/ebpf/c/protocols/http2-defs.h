@@ -90,11 +90,6 @@ typedef enum
     HTTP2_METHOD_UNKNOWN,
     HTTP2_GET,
     HTTP2_POST,
-    HTTP2_PUT,
-    HTTP2_DELETE,
-    HTTP2_HEAD,
-    HTTP2_OPTIONS,
-    HTTP2_PATCH
 } http2_method_t;
 
 typedef struct {

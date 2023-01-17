@@ -63,10 +63,7 @@ static __always_inline int http2_responding(http2_transaction_t *http2) {
 static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_info_t *skb_info,__u64 tags) {
     http2_packet_t packet_type = HTTP2_PACKET_UNKNOWN;
     http2_method_t method = HTTP2_METHOD_UNKNOWN;
-
-    if (http2_stack->request_method > 0) {
-        method = http2_stack->request_method;
-    }
+    __u64 response_code;
 
     if (http2_stack->packet_type > 0) {
         packet_type = http2_stack->packet_type;
@@ -117,9 +114,27 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
             http->request_fragment[1] = http2->path_size;
             bpf_memcpy(&http->request_fragment[8], trans->path, HTTP2_MAX_PATH_LEN);
 
-            http->response_status_code = http2_stack->response_status_code;
+            // todo: take it out to a function?!
+            if (trans->request_method == 2) {
+                log_debug("[slavin] found http2 get");
+                method = HTTP2_GET;
+            } else if (trans->request_method == 3) {
+                log_debug("[slavin] found http2 post");
+                method = HTTP2_POST;
+            }
+
+            // todo: take it out to a function and add all the other options as well.
+            switch(http2_stack->response_status_code) {
+            case k200: response_code = 200;
+            case k204: response_code = 204;
+            case k206: response_code = 206;
+            case k400: response_code = 400;
+            case k500: response_code = 500;
+            }
+
+            http->response_status_code = response_code;
             http->request_started = trans->request_started;
-            http->request_method = trans->request_method;
+            http->request_method = method;
             http->response_last_seen = bpf_ktime_get_ns();
             http->owned_by_src_port = trans->owned_by_src_port;
             http->tcp_seq = trans->tcp_seq;
@@ -265,6 +280,8 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
     char *beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
     // create the new dynamic value which will be added to the internal table.
     bpf_memcpy(dynamic_value.value.buffer, beginning, HTTP2_MAX_PATH_LEN);
+
+
     dynamic_value.value.string_len = str_len;
     dynamic_value.index = index;
 
@@ -319,7 +336,7 @@ static __always_inline bool process_headers(http2_transaction_t* http2_transacti
 static __always_inline void process_frames(http2_transaction_t* http2_transaction, struct __sk_buff *skb) {
     struct http2_frame current_frame = {};
     bool is_end_of_stream;
-    bool is_data_frame;
+    bool is_supported_frame;
     __s64 remaining_length = 0;
 
 #pragma unroll
@@ -344,8 +361,8 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
         log_debug("[http2] ----------\n");
 
         is_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
-        is_data_frame = current_frame.type == kDataFrame;
-        if (is_data_frame && is_end_of_stream){
+        is_supported_frame = current_frame.type == kDataFrame || current_frame.type == kHeadersFrame;
+        if (is_supported_frame && is_end_of_stream){
             log_debug("[http2] found end of stream %d\n", current_frame.stream_id);
             //TODO: handle_end_of_stream();
             http2_transaction->end_of_stream = true;
