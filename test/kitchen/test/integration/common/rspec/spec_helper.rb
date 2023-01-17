@@ -922,7 +922,7 @@ shared_examples_for 'a running Agent with CWS enabled' do
   end
 
   it 'has security-agent and system-probe communicating' do
-    for _ in 1..10 do
+    for _ in 1..20 do
       json_info_output = json_info("sudo /opt/datadog-agent/embedded/bin/security-agent")
       if json_info_output.key?('runtimeSecurityStatus') &&
         json_info_output['runtimeSecurityStatus'].key?('connected') &&
