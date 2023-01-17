@@ -19,7 +19,7 @@ var (
 
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
 //   - the "long image name" with registry and prefix, without tag
-//    - the registry
+//   - the registry
 //   - the "short image name", without registry, prefix nor tag
 //   - the image tag if present
 //   - an error if parsing failed
