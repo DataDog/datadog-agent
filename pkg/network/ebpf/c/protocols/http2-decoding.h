@@ -16,7 +16,7 @@
 #include "ip.h"
 
 /* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
-BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_transaction_t, 1)
+BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_connection_t, 1)
 
 /* This map holds one entry per CPU storing state associated to current http batch*/
 BPF_PERCPU_ARRAY_MAP(http2_batch_state, __u32, http_batch_state_t, 1)

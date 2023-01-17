@@ -101,6 +101,14 @@ typedef enum
     HTTP2_PATCH
 } http2_method_t;
 
+typedef struct {
+    conn_tuple_t tup;
+    char request_fragment[HTTP2_BUFFER_SIZE] __attribute__ ((aligned (8)));
+
+    char *frag_head;
+    char *frag_end;
+} http2_connection_t;
+
 // HTTP2 transaction information associated to a certain socket (tuple_t)
 typedef struct {
     conn_tuple_t old_tup;

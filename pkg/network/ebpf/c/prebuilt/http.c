@@ -68,29 +68,32 @@ SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
     const __u32 zero = 0;
-    http2_transaction_t *http2 = bpf_map_lookup_elem(&http2_trans_alloc, &zero);
-    if (http2 == NULL) {
+    http2_connection_t *http2_conn = bpf_map_lookup_elem(&http2_trans_alloc, &zero);
+    if (http2_conn == NULL) {
         return 0;
     }
-    bpf_memset(http2, 0, sizeof(http2_transaction_t));
+    bpf_memset(http2_conn, 0, sizeof(http2_connection_t));
 
-    if (!read_conn_tuple_skb(skb, &skb_info, &http2->tup)) {
+    if (!read_conn_tuple_skb(skb, &skb_info, &http2_conn->tup)) {
         return 0;
     }
 
-    // src_port represents the source port number *before* normalization
-    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http2->owned_by_src_port = http2->tup.sport;
-    // todo: need to understand what to do with this function.
-    http2->old_tup = http2->tup;
-    normalize_tuple(&http2->tup);
+//    // src_port represents the source port number *before* normalization
+//    // for more context please refer to http-types.h comment on `owned_by_src_port` field
+//    http2->owned_by_src_port = http2->tup.sport;
+//    // todo: need to understand what to do with this function.
+//    http2->old_tup = http2->tup;
+//    normalize_tuple(&http2->tup);
 
-    read_into_buffer_skb((char *)http2->request_fragment, skb, &skb_info);
-
-    if (is_http2_preface(http2->request_fragment,  skb->len)) {
+    read_into_buffer_skb((char *)http2_conn->request_fragment, skb, &skb_info);
+    const __u32 payload_length = skb->len - skb_info.data_off;
+    const __u32 final_payload_length = HTTP2_BUFFER_SIZE < payload_length ? HTTP2_BUFFER_SIZE : payload_length;
+    if (is_http2_preface(http2_conn->request_fragment, final_payload_length)) {
         log_debug("[http2] http2 magic was found, aborting");
         return 0;
     }
+    http2_conn->frag_head = (char *)http2_conn->request_fragment;
+    http2_conn->frag_end = http2_conn->frag_head + final_payload_length;
 
 //    process_http2_frames(http2, skb);
 //    http2_process(http2, NULL, NO_TAGS);
