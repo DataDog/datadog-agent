@@ -68,6 +68,7 @@ SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
     const __u32 zero = 0;
+    // TODO: replace http2_transaction_t with http2_connection_t
     http2_transaction_t *http2_conn = bpf_map_lookup_elem(&http2_trans_alloc, &zero);
     if (http2_conn == NULL) {
         return 0;

@@ -63,6 +63,9 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 			}
 		}
 
+		fmt.Printf("type %T, error %s\n", err2, err2)
+		fmt.Printf("type %T, error %s\n", err3, err3)
+		fmt.Printf("type %T, error %s\n", err4, err4)
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
