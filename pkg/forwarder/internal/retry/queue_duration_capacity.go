@@ -16,7 +16,7 @@ import (
 // the in-memory retry queue and the disk storage retry queue can store.
 // For each domain, the capacity in bytes is the sum of:
 // - the in-memory retry queue capacity. We assume there is enough memory for all in-memory retry queues (one by domain)
-// - the available disk storage * `domain relative speed“ where `domain relative speed` is the number of
+// - the available disk storage * `domain relative speed` where `domain relative speed` is the number of
 // bytes per second for this domain, divided by the total number of bytes per second for all domains. If a domain receives
 // twice the traffic compared to anoter one, twice disk storage capacity is allocated to this domain. Disk storage is shared
 // across domain.
