@@ -268,7 +268,7 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
         dynamic_value.index = static_value->name;
     }
 
-    __u64 str_len = read_var_int(http2_transaction, 7, current_char_as_number);
+    __u64 str_len = read_var_int(http2_transaction, 6, current_char_as_number);
     if (str_len == -1 || str_len == 0){
         return;
     }
