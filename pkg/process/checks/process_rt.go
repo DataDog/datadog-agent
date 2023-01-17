@@ -19,7 +19,7 @@ import (
 
 // runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
 // Underying procutil.Probe is responsible for the actual implementation
-func (p *ProcessCheck) runRealtime(groupID int32) (*RunResult, error) {
+func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (*RunResult, error) {
 
 	// if processCheck haven't fetched any PIDs, return early
 	if len(p.lastPIDs) == 0 {
-		return &RunResult{}, nil
+		return CombinedRunResult{}, nil
 	}
 
 	procs, err := p.probe.StatsForPIDs(p.lastPIDs, time.Now())
@@ -58,7 +58,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (*RunResult, error) {
 		p.realtimeLastCPUTime = cpuTimes[0]
 		p.realtimeLastRun = time.Now()
 		log.Debug("first run of rtprocess check - no stats to report")
-		return &RunResult{}, nil
+		return CombinedRunResult{}, nil
 	}
 
 	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, p.getLastConnRates())
@@ -85,9 +85,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (*RunResult, error) {
 	p.realtimeLastProcs = procs
 	p.realtimeLastCPUTime = cpuTimes[0]
 
-	return &RunResult{
-		RealTime: messages,
-	}, nil
+	return CombinedRunResult{Realtime: messages}, nil
 }
 
 // fmtProcessStats formats and chunks a slice of ProcessStat into chunks.

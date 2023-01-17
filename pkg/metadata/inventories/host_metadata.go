@@ -11,16 +11,16 @@ import (
 	"github.com/DataDog/gohai/network"
 	"github.com/DataDog/gohai/platform"
 
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // for testing purpose
 var (
-	cpuGet                         = cpu.Get
-	memoryGet                      = memory.Get
-	networkGet                     = network.Get
-	platformGet                    = platform.Get
-	systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
+	cpuGet      = cpu.Get
+	memoryGet   = memory.Get
+	networkGet  = network.Get
+	platformGet = platform.Get
 )
 
 // HostMetadata contains metadata about the host
@@ -148,7 +148,10 @@ func getHostMetadata() *HostMetadata {
 		logErrorf("OS version not found in agent metadata cache") //nolint:errcheck
 	}
 
-	systemSpecificHosttMetadataGet(metadata)
+	metadata.HypervisorGuestUUID = dmi.GetHypervisorUUID()
+	metadata.DmiProductUUID = dmi.GetProductUUID()
+	metadata.DmiBoardAssetTag = dmi.GetBoardAssetTag()
+	metadata.DmiBoardVendor = dmi.GetBoardVendor()
 
 	return metadata
 }

@@ -10,8 +10,6 @@ package checks
 
 import (
 	"errors"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 // ProcessEvents is a ProcessEventsCheck singleton
@@ -26,17 +24,27 @@ func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo) error {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
+func (e *ProcessEventsCheck) IsEnabled() bool {
+	return false
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (e *ProcessEventsCheck) SupportsRunOptions() bool {
+	return false
+}
+
 // Name returns the name of the ProcessEventsCheck.
 func (e *ProcessEventsCheck) Name() string { return ProcessEventsCheckName }
 
-// RealTime returns a value that says whether this check should be run in real time.
-func (e *ProcessEventsCheck) RealTime() bool { return false }
+// Realtime returns a value that says whether this check should be run in real time.
+func (e *ProcessEventsCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
 
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
-func (e *ProcessEventsCheck) Run(groupID int32) ([]model.MessageBody, error) {
+func (e *ProcessEventsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	return nil, errors.New("the process_events check is not supported on this system")
 }
 

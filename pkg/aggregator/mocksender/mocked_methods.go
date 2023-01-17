@@ -117,6 +117,16 @@ func (m *MockSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycl
 	m.Called(msgs)
 }
 
+// ContainerImage submit container image messages
+func (m *MockSender) ContainerImage(msgs []serializer.ContainerImageMessage) {
+	m.Called(msgs)
+}
+
+// SBOM submit sbom data
+func (m *MockSender) SBOM(msgs []serializer.SBOMMessage) {
+	m.Called(msgs)
+}
+
 // OrchestratorManifest submit orchestrator manifest messages
 func (m *MockSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string) {
 	m.Called(msgs, clusterID)

@@ -19,16 +19,17 @@ var (
 
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
 //   - the "long image name" with registry and prefix, without tag
+//    - the registry
 //   - the "short image name", without registry, prefix nor tag
 //   - the image tag if present
 //   - an error if parsing failed
-func SplitImageName(image string) (string, string, string, error) {
+func SplitImageName(image string) (string, string, string, string, error) {
 	// See TestSplitImageName for supported formats (number 6 will surprise you!)
 	if image == "" {
-		return "", "", "", ErrEmptyImage
+		return "", "", "", "", ErrEmptyImage
 	}
 	if strings.HasPrefix(image, "sha256:") {
-		return "", "", "", ErrImageIsSha256
+		return "", "", "", "", ErrImageIsSha256
 	}
 	long := image
 	if pos := strings.LastIndex(long, "@sha"); pos > 0 {
@@ -36,9 +37,10 @@ func SplitImageName(image string) (string, string, string, error) {
 		long = long[0:pos]
 	}
 
-	var short, tag string
+	var registry, short, tag string
 	lastColon := strings.LastIndex(long, ":")
 	lastSlash := strings.LastIndex(long, "/")
+	firstSlash := strings.Index(long, "/")
 
 	if lastColon > -1 && lastColon > lastSlash {
 		// We have a tag
@@ -51,5 +53,9 @@ func SplitImageName(image string) (string, string, string, error) {
 	} else {
 		short = long
 	}
-	return long, short, tag, nil
+	if firstSlash > -1 && firstSlash != lastSlash {
+		// we have a registry
+		registry = long[:firstSlash]
+	}
+	return long, registry, short, tag, nil
 }

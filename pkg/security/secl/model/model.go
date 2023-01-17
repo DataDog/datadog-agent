@@ -748,6 +748,7 @@ type PIDContext struct {
 	Tid       uint32 `field:"tid"` // Thread ID of the thread
 	NetNS     uint32 `field:"-"`
 	IsKworker bool   `field:"is_kworker"` // Indicates whether the process is a kworker
+	Inode     uint64 `field:"-"`          // used to track exec and event loss
 }
 
 // RenameEvent represents a rename event

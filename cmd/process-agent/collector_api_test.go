@@ -323,7 +323,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.RealTimeName(),
+		name: checks.RTProcessCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -454,7 +454,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.RealTimeName(),
+		name: checks.RTProcessCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -484,7 +484,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.RealTimeName(),
+		name: checks.RTProcessCheckName,
 		data: [][]process.MessageBody{{m1}, {m2}},
 	}
 
@@ -602,7 +602,15 @@ func (t *testCheck) Name() string {
 	return t.name
 }
 
-func (t *testCheck) RealTime() bool {
+func (t *testCheck) IsEnabled() bool {
+	return true
+}
+
+func (t *testCheck) SupportsRunOptions() bool {
+	return false
+}
+
+func (t *testCheck) Realtime() bool {
 	return false
 }
 
@@ -610,13 +618,13 @@ func (t *testCheck) ShouldSaveLastRun() bool {
 	return false
 }
 
-func (t *testCheck) Run(_ int32) ([]process.MessageBody, error) {
+func (t *testCheck) Run(_ func() int32, _ *checks.RunOptions) (checks.RunResult, error) {
 	if len(t.data) > 0 {
-		result := t.data[0]
+		result := checks.StandardRunResult(t.data[0])
 		t.data = t.data[1:]
 		return result, nil
 	}
-	return nil, nil
+	return checks.StandardRunResult{}, nil
 }
 
 func (t *testCheck) Cleanup() {}
