@@ -1,3 +1,11 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
+// +build windows
+
 package winutil
 
 import (
@@ -140,6 +148,13 @@ func TestListDependentServices(t *testing.T) {
 	deps, err = ListDependentServices(baseServiceName, windows.SERVICE_STATE_ALL)
 	assert.Nilf(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, 2, len(deps), "Expected ListDependentServices to return a list of dependent services")
+
+	// ensure that we get the deps back in reverse startup order
+	// so that when this is used to stop services, we stop the outermost ones
+	// first
+	// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumdependentservicesa#parameters
+	assert.EqualValues(t, secondLevelServiceName, deps[0].serviceName)
+	assert.EqualValues(t, firstLevelServiceName, deps[1].serviceName)
 
 	// the deps
 	t.Logf("%s has the following dependents", baseServiceName)
