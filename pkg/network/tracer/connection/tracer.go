@@ -59,7 +59,6 @@ type Tracer interface {
 
 const (
 	defaultClosedChannelSize = 500
-	ProbeUID                 = "net"
 )
 
 type tracer struct {
@@ -96,7 +95,7 @@ func newTelemetry() telemetry {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
+func NewTracer(c *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -109,19 +108,19 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: constants,
 	}
 
 	closedChannelSize := defaultClosedChannelSize
-	if config.ClosedChannelSize > 0 {
-		closedChannelSize = config.ClosedChannelSize
+	if c.ClosedChannelSize > 0 {
+		closedChannelSize = c.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	currKernelVersion, err := kernel.HostVersion()
@@ -139,7 +138,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 
 	var closeTracerFn func()
-	closeTracerFn, err = fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+	closeTracerFn, err = fentry.LoadTracer(c, m, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -148,7 +147,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	if err != nil {
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
-		closeTracerFn, err = kprobe.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+		closeTracerFn, err = kprobe.LoadTracer(c, m, mgrOptions, perfHandlerTCP)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +165,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 
 	tr := &tracer{
 		m:             m,
-		config:        config,
+		config:        c,
 		closeConsumer: closeConsumer,
 		pidCollisions: atomic.NewInt64(0),
 		removeTuple:   &netebpf.ConnTuple{},

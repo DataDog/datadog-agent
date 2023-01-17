@@ -52,7 +52,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  sec,
 				EBPFFuncName: funcName,
-				UID:          probeUID,
+				UID:          probes.UID,
 			},
 		}
 		mgr.Probes = append(mgr.Probes, p)

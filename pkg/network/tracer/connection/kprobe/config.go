@@ -42,7 +42,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 	}
 
 	if c.CollectTCPConns {
-		if ClassificationSupported(c) {
+		if c.ClassificationSupported() {
 			enableProbe(enabled, probes.ProtocolClassifierSocketFilter)
 			enableProbe(enabled, probes.NetDevQueue)
 		}

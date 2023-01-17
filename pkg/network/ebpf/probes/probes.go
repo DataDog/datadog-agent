@@ -184,6 +184,8 @@ const (
 	ProtocolClassificationBufMap BPFMapName = "classification_buf"
 )
 
+const UID = "net"
+
 // SectionName returns the SectionName for the given BPF map
 func (b BPFMapName) SectionName() string {
 	return fmt.Sprintf("maps/%s", b)

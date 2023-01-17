@@ -23,7 +23,6 @@ import (
 	"time"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -31,10 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -270,7 +269,7 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
-	if kprobe.ClassificationSupported(c) {
+	if c.ClassificationSupported() {
 		enableProbe(p, probes.NetDevQueue)
 	}
 
@@ -700,7 +699,7 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 		return nil, errors.Wrap(err, "error retrieving expected value")
 	}
 
-	protocolClassificationSupported := kprobe.ClassificationSupported(cfg)
+	protocolClassificationSupported := cfg.ClassificationSupported()
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for netebpf.TracerState(status.State) != netebpf.StateReady {
 		if err := eventGenerator.Generate(status, expected); err != nil {

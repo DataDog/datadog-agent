@@ -11,42 +11,15 @@ package kprobe
 import (
 	"fmt"
 
-	"github.com/cilium/ebpf"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/filter"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/protocol"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
-
-const probeUID = "net"
-
-var (
-	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
-	// socket filter, and a tracepoint (4.7.0+).
-	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
-)
-
-// ClassificationSupported returns true if the current kernel version supports the classification feature.
-// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the socket
-// filter, and a tracepoint (4.7.0+)
-func ClassificationSupported(config *config.Config) bool {
-	if !config.ProtocolClassificationEnabled {
-		return false
-	}
-	currentKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
-		return false
-	}
-
-	return currentKernelVersion >= classificationMinimumKernel
-}
 
 // LoadTracer loads the prebuilt or runtime compiled tracer, depending on config
 func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
@@ -90,30 +63,9 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	initManager(m, config, perfHandlerTCP, runtimeTracer)
 
-	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported(config) {
-		socketFilerProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
-			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
-			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
-			UID:          probeUID,
-		})
-		if socketFilerProbe == nil {
-			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
-		}
-
-		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilerProbe)
-		if err != nil {
-			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
-		}
-	} else {
-		// Kernels < 4.7.0 do not know about the per-cpu array map used
-		// in classification, preventing the program to load even though
-		// we won't use it. We change the type to a simple array map to
-		// circumvent that.
-		mgrOpts.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
-			Type:       ebpf.Array,
-			EditorFlag: manager.EditType,
-		}
+	closeFn, err := protocol.EnableProtocolClassification(config, m, &mgrOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enable protocol classification: %w", err)
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
@@ -129,7 +81,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probeName),
 					EBPFFuncName: funcName,
-					UID:          probeUID,
+					UID:          probes.UID,
 				},
 			})
 	}
@@ -138,5 +90,5 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
 
-	return closeProtocolClassifierSocketFilterFn, nil
+	return closeFn, nil
 }

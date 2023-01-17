@@ -17,10 +17,10 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/protocol"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
-
-const probeUID = "net"
 
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
@@ -35,6 +35,8 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		filename = "tracer-fentry-debug.o"
 	}
 
+	var closeFn func()
+
 	err := ddebpf.LoadCOREAsset(&config.Config, filename, func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
@@ -47,6 +49,11 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		}
 
 		initManager(m, config, perfHandlerTCP)
+
+		closeFn, err = protocol.EnableProtocolClassification(config, m, &o)
+		if err != nil {
+			return fmt.Errorf("failed to enable protocol classification: %w", err)
+		}
 
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {
@@ -61,7 +68,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						EBPFSection:  string(probeName),
 						EBPFFuncName: funcName,
-						UID:          probeUID,
+						UID:          probes.UID,
 					},
 				})
 		}
@@ -69,9 +76,5 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		return m.InitWithOptions(ar, o)
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, nil
+	return closeFn, err
 }

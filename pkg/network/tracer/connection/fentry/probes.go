@@ -10,6 +10,7 @@ package fentry
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
 const (
@@ -67,6 +68,8 @@ const (
 )
 
 var programs = map[string]string{
+	string(probes.NetDevQueue):                    "tracepoint__net__net_dev_queue",
+	string(probes.ProtocolClassifierSocketFilter): "socket__classifier",
 	doSendfileRet:        "do_sendfile_exit", // no
 	inet6BindRet:         "inet6_bind_exit",
 	inetBindRet:          "inet_bind_exit",
@@ -101,6 +104,11 @@ func enableProgram(enabled map[string]string, name string) {
 func enabledPrograms(c *config.Config) (map[string]string, error) {
 	enabled := make(map[string]string, 0)
 	if c.CollectTCPConns {
+		if c.ClassificationSupported() {
+			enableProgram(enabled, string(probes.ProtocolClassifierSocketFilter))
+			enableProgram(enabled, string(probes.NetDevQueue))
+		}
+
 		enableProgram(enabled, tcpSendMsgReturn)
 		enableProgram(enabled, tcpRecvMsgReturn)
 		enableProgram(enabled, tcpClose)
