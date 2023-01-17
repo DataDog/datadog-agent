@@ -101,16 +101,9 @@ const (
 	K500Value      StaticTableEnumValue = 0xe
 )
 
-type StaticTableValue struct {
-	Name  uint8
+type StaticTableValue = struct {
+	Key   uint8
 	Value uint8
-}
-
-type DynamicTableEnumKey = uint8
-
-type DynamicTableEnumValue = struct {
-	Buffer [32]int8
-	Len    uint64
 }
 
 const (

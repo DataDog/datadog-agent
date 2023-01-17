@@ -15,7 +15,7 @@
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_PATH_LEN 32
 
-#define MAX_STATIC_TABLE_INDEX 64
+#define MAX_STATIC_TABLE_INDEX 61
 
 #define HTTP2_FRAME_HEADER_SIZE 9
 
@@ -24,19 +24,11 @@
 // This determines the size of the payload fragment that is captured for each HTTP request
 #define HTTP2_BUFFER_SIZE (8 * 20)
 
-#define HTTP2_BATCH_SIZE 15
-
-// HTTP_BATCH_PAGES controls how many `http_batch_t` instances exist for each CPU core
-// It's desirable to set this >= 1 to allow batch insertion and flushing to happen idependently
-// without risk of overriding data.
-#define HTTP2_BATCH_PAGES 3
-
-
 typedef enum {
     kMethod = 2,
     kPath = 4,
     kStatus = 9,
-} __attribute__ ((packed)) header_key;
+} __attribute__ ((packed)) static_table_key_t;
 
 typedef enum {
     kGET = 2,
@@ -50,43 +42,36 @@ typedef enum {
     k400 = 12,
     k404 = 13,
     k500 = 14,
-} __attribute__ ((packed)) header_value;
+} __attribute__ ((packed)) static_table_value_t;
 
 typedef struct {
-    header_key name;
-    header_value value;
-} static_table_value;
+    static_table_key_t key;
+    static_table_value_t value;
+} static_table_entry_t;
 
 typedef struct {
     char buffer[32] __attribute__ ((aligned (8)));
     __u64 string_len;
-} __attribute__ ((packed)) dynamic_string_value;
+} string_value_t;
 
+// TODO: Do we need the index? Should it be static_table_key_t?
 typedef struct {
     __u64 index;
-    dynamic_string_value value;
-} dynamic_table_value;
+    string_value_t value;
+} dynamic_table_entry_t;
 
 typedef struct {
     __u64 index;
     conn_tuple_t old_tup;
-} dynamic_table_index;
+} dynamic_table_index_t;
 
-typedef enum
-{
+typedef enum {
     HTTP2_PACKET_UNKNOWN,
     HTTP2_REQUEST,
     HTTP2_RESPONSE
 } http2_packet_t;
 
-typedef enum
-{
-    HTTP2_SCHEMA_UNKNOWN,
-    HTTP_SCHEMA,
-} http2_schema_t;
-
-typedef enum
-{
+typedef enum {
     HTTP2_METHOD_UNKNOWN,
     HTTP2_GET,
     HTTP2_POST,
@@ -123,18 +108,5 @@ typedef struct {
     __u64  path_size;
     char path[32] __attribute__ ((aligned (8)));
 } http2_transaction_t;
-
-// This struct is used in the map lookup that returns the active batch for a certain CPU core
-typedef struct {
-    __u32 cpu;
-    // page_num can be obtained from (http_batch_state_t->idx % HTTP_BATCHES_PER_CPU)
-    __u32 page_num;
-} http2_batch_key_t;
-
-typedef struct {
-    __u64 idx;
-    __u8 pos;
-    http2_transaction_t txs[HTTP2_BATCH_SIZE];
-} http2_batch_t;
 
 #endif
