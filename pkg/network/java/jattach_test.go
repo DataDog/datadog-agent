@@ -55,7 +55,7 @@ func testInject(t *testing.T, prefix string) {
 		}
 		t.Log(o)
 	}()
-	time.Sleep(MINIMUM_JAVA_AGE_TO_ATTACH_MS * time.Millisecond) // give a chance to spawn java and to be old enough
+	time.Sleep(100 * time.Millisecond) // give a chance to spawn java
 
 	pid := findJustWait(t)
 	require.NotEqual(t, pid, 0, "Can't find java JustWait process")
@@ -76,6 +76,8 @@ func testInject(t *testing.T, prefix string) {
 	// equivalent to jattach <pid> load instrument false testdata/TestAgentLoaded.jar=<tempfile>
 	err = InjectAgent(pid, "testdata/TestAgentLoaded.jar", tfile.Name())
 	require.NoError(t, err)
+
+	time.Sleep((MINIMUM_JAVA_AGE_TO_ATTACH_MS + 200) * time.Millisecond) // wait java process to be old enough to be injected
 
 	// check if agent was loaded
 	_, err = os.Stat(tfile.Name())
