@@ -14,7 +14,9 @@
 #include "protocols/http-buffer.h"
 #include "protocols/tags-types.h"
 #include "protocols/protocol-dispatcher-helpers.h"
-
+#include "protocols/http2.h"
+#include "protocols/http2-defs.h"
+#include "protocols/http2-decoding.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -47,6 +49,51 @@ int socket__http_filter(struct __sk_buff* skb) {
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
     http_process(&http, &skb_info, NO_TAGS);
+    return 0;
+}
+
+// The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+// We check that the given buffer is not empty and its size is at least 24 bytes.
+static __always_inline bool http2_marker_prefix(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, 9)
+
+#define HTTP2_PREFIX "PRI * HTT"
+
+    bool match = !bpf_memcmp(buf, HTTP2_PREFIX, sizeof(HTTP2_PREFIX)-1);
+
+    return match;
+}
+
+SEC("socket/http2_filter")
+int socket__http2_filter(struct __sk_buff *skb) {
+    skb_info_t skb_info;
+    const __u32 zero = 0;
+    http2_transaction_t *http2 = bpf_map_lookup_elem(&http2_trans_alloc, &zero);
+    if (http2 == NULL) {
+        return 0;
+    }
+    bpf_memset(http2, 0, sizeof(http2_transaction_t));
+
+    if (!read_conn_tuple_skb(skb, &skb_info, &http2->tup)) {
+        return 0;
+    }
+
+    // src_port represents the source port number *before* normalization
+    // for more context please refer to http-types.h comment on `owned_by_src_port` field
+    http2->owned_by_src_port = http2->tup.sport;
+    // todo: need to understand what to do with this function.
+    http2->old_tup = http2->tup;
+    normalize_tuple(&http2->tup);
+
+    read_into_buffer_skb((char *)http2->request_fragment, skb, &skb_info);
+
+    if (is_http2_preface(http2->request_fragment,  skb->len)) {
+        log_debug("[http2] http2 magic was found, aborting");
+        return 0;
+    }
+
+//    process_http2_frames(http2, skb);
+//    http2_process(http2, NULL, NO_TAGS);
     return 0;
 }
 
