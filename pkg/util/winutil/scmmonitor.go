@@ -23,8 +23,8 @@ type ServiceInfo struct {
 	DisplayName []string
 }
 
-// Service is the return value from a query by pid.
-type Service struct {
+// ServiceList is the return value from a query by pid.
+type ServiceList struct {
 	essp      []*windows.ENUM_SERVICE_STATUS_PROCESS
 	startTime uint64
 }
@@ -33,7 +33,7 @@ type Service struct {
 // The object will maintain a table of active services indexed by PID
 type SCMMonitor struct {
 	mux              sync.Mutex
-	pidToService     map[uint64]*Service
+	pidToService     map[uint64]*ServiceList
 	nonServicePid    map[uint64]uint64 // start time of this pid
 	lastMapTime      uint64            // ns since jan1 1970
 	serviceRefreshes uint64
@@ -42,7 +42,7 @@ type SCMMonitor struct {
 // GetServiceMonitor returns a service monitor object
 func GetServiceMonitor() *SCMMonitor {
 	return &SCMMonitor{
-		pidToService:  make(map[uint64]*Service),
+		pidToService:  make(map[uint64]*ServiceList),
 		nonServicePid: make(map[uint64]uint64),
 	}
 }
@@ -95,12 +95,12 @@ func (scm *SCMMonitor) refreshCache() error {
 
 	services := unsafe.Slice((*windows.ENUM_SERVICE_STATUS_PROCESS)(unsafe.Pointer(&buf[0])), servicesReturned)
 
-	newmap := make(map[uint64]*Service)
+	newmap := make(map[uint64]*ServiceList)
 	for idx, svc := range services {
-		var thissvc *Service
+		var thissvc *ServiceList
 		var ok bool
 		if thissvc, ok = newmap[uint64(svc.ServiceStatusProcess.ProcessId)]; !ok {
-			thissvc = &Service{}
+			thissvc = &ServiceList{}
 			newmap[uint64(svc.ServiceStatusProcess.ProcessId)] = thissvc
 		}
 		thissvc.essp = append(thissvc.essp, &services[idx])
@@ -113,7 +113,7 @@ func (scm *SCMMonitor) refreshCache() error {
 	return nil
 }
 
-func (s *Service) toServiceInfo() *ServiceInfo {
+func (s *ServiceList) toServiceInfo() *ServiceInfo {
 	var si ServiceInfo
 	for _, inf := range s.essp {
 		si.DisplayName = append(si.DisplayName, windows.UTF16PtrToString(inf.DisplayName))
