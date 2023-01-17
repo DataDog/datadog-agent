@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -22,7 +23,7 @@ type processor struct {
 
 func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
 	return &processor{
-		queue: newQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
+		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
 			sender.ContainerImage([]contimage.ContainerImagePayload{
 				{
 					Version: "v1",
