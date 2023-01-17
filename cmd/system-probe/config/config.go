@@ -42,6 +42,7 @@ const (
 	TCPQueueLengthTracerModule ModuleName = "tcp_queue_length_tracer"
 	SecurityRuntimeModule      ModuleName = "security_runtime"
 	ProcessModule              ModuleName = "process"
+	EventMonitorModule         ModuleName = "event_monitor"
 )
 
 func key(pieces ...string) string {

@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
-
-package module
+package event_monitor
 
 import (
 	"errors"
@@ -37,8 +34,8 @@ var (
 	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExecEventType}
 )
 
-// Module represents the system-probe module for runtime monitoring
-type Module struct {
+// EventMonitor represents the system-probe module for runtime monitoring
+type EventMonitor struct {
 	sync.RWMutex
 	Probe *probe.Probe
 
@@ -66,7 +63,7 @@ type EventTypeHandler interface {
 }
 
 // Register the runtime security agent module
-func (m *Module) Register(_ *module.Router) error {
+func (m *EventMonitor) Register(_ *module.Router) error {
 	if err := m.Init(); err != nil {
 		return err
 	}
@@ -75,7 +72,7 @@ func (m *Module) Register(_ *module.Router) error {
 }
 
 // AddEventTypeHandler register an event handler
-func (m *Module) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
+func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
 	if !slices.Contains(allowedEventTypes, eventType) {
 		return errors.New("event type not allowed")
 	}
@@ -86,12 +83,12 @@ func (m *Module) AddEventTypeHandler(eventType model.EventType, handler EventTyp
 }
 
 // RegisterEventModule register an event module
-func (m *Module) RegisterEventModule(em EventModule) {
+func (m *EventMonitor) RegisterEventModule(em EventModule) {
 	m.eventModules = append(m.eventModules, em)
 }
 
 // Init initializes the module
-func (m *Module) Init() error {
+func (m *EventMonitor) Init() error {
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.secconfig.SocketPath)
 
@@ -105,7 +102,7 @@ func (m *Module) Init() error {
 }
 
 // Start the module
-func (m *Module) Start() error {
+func (m *EventMonitor) Start() error {
 	ln, err := net.Listen("unix", m.secconfig.SocketPath)
 	if err != nil {
 		return fmt.Errorf("unable to register security runtime module: %w", err)
@@ -151,7 +148,7 @@ func (m *Module) Start() error {
 }
 
 // Close the module
-func (m *Module) Close() {
+func (m *EventMonitor) Close() {
 	// stop event modules
 	for _, em := range m.eventModules {
 		em.Stop()
@@ -173,12 +170,12 @@ func (m *Module) Close() {
 }
 
 // SendStats send stats
-func (m *Module) SendStats() {
+func (m *EventMonitor) SendStats() {
 	// TODO
 }
 
 // GetStats returns statistics about the module
-func (m *Module) GetStats() map[string]interface{} {
+func (m *EventMonitor) GetStats() map[string]interface{} {
 	debug := map[string]interface{}{}
 
 	if m.Probe != nil {
@@ -190,11 +187,7 @@ func (m *Module) GetStats() map[string]interface{} {
 	return debug
 }
 
-func getStatdClient(config *config.Config, opts ...Opts) (statsd.ClientInterface, error) {
-	if len(opts) != 0 && opts[0].StatsdClient != nil {
-		return opts[0].StatsdClient, nil
-	}
-
+func getStatdClient(config *config.Config) (statsd.ClientInterface, error) {
 	statsdAddr := os.Getenv("STATSD_URL")
 	if statsdAddr == "" {
 		statsdAddr = config.StatsdAddr
@@ -204,14 +197,14 @@ func getStatdClient(config *config.Config, opts ...Opts) (statsd.ClientInterface
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(sysProbeConfig *sysconfig.Config, opts ...Opts) (*Module, error) {
+func NewEventMonitor(sysProbeConfig *sysconfig.Config) (*EventMonitor, error) {
 	// TODO move probe config parameter to a common place
 	config, err := config.NewConfig(sysProbeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("invalid event monitoring configuration: %w", err)
 	}
 
-	statsdClient, err := getStatdClient(config, opts...)
+	statsdClient, err := getStatdClient(config)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +214,7 @@ func NewModule(sysProbeConfig *sysconfig.Config, opts ...Opts) (*Module, error) 
 		return nil, err
 	}
 
-	return &Module{
+	return &EventMonitor{
 		Config:       sysProbeConfig,
 		Probe:        probe,
 		StatsdClient: statsdClient,

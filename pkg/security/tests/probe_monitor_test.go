@@ -38,7 +38,7 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.module.SendStats()
+	test.cws.SendStats()
 
 	key := metrics.MetricRuleSetLoaded
 	assert.NotEmpty(t, test.statsdClient.Get(key))
@@ -56,7 +56,7 @@ func TestRulesetLoaded(t *testing.T) {
 		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
 			assert.Equal(t, events.RulesetLoadedRuleID, rule.ID, "wrong rule")
 
-			test.module.SendStats()
+			test.cws.SendStats()
 
 			assert.Equal(t, count+1, test.statsdClient.Get(key))
 

@@ -41,6 +41,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/event_monitor"
 	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -239,8 +240,8 @@ type testModule struct {
 	opts          testOpts
 	st            *simpleTest
 	t             testing.TB
-	module        *module.Module
-	cws           *module.CWS
+	eventMonitor  *event_monitor.EventMonitor
+	cws           *module.CWSModule
 	probe         *sprobe.Probe
 	eventHandlers eventHandlers
 	cmdWrapper    cmdWrapper
@@ -828,16 +829,16 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	testMod.module, err = module.NewModule(sysProbeConfig)
+	testMod.eventMonitor, err = event_monitor.NewEventMonitor(sysProbeConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	cws, err := module.NewCWS(testMod.module)
+	cws, err := module.NewCWSModule(testMod.eventMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
-	testMod.module.RegisterEventModule(cws)
+	testMod.eventMonitor.RegisterEventModule(cws)
 
 	testMod.cws = cws
 	testMod.probe = probe
@@ -854,7 +855,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 	testMod.probe.AddNewNotifyDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
 
-	if err := testMod.module.Init(); err != nil {
+	if err := testMod.eventMonitor.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
 	}
 
@@ -864,7 +865,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.New("failed to runtime compile module")
 	}
 
-	if err := testMod.module.Start(); err != nil {
+	if err := testMod.eventMonitor.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
 
@@ -1459,7 +1460,7 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 }
 
 func (tm *testModule) cleanup() {
-	tm.module.Close()
+	tm.eventMonitor.Close()
 }
 
 func (tm *testModule) validateAbnormalPaths() {
@@ -1468,7 +1469,7 @@ func (tm *testModule) validateAbnormalPaths() {
 
 func (tm *testModule) Close() {
 	if tm.config.RuntimeEnabled {
-		tm.module.SendStats()
+		tm.eventMonitor.SendStats()
 	}
 
 	if !tm.opts.disableAbnormalPathCheck {
