@@ -394,7 +394,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.68.0 // indirect
 	go.opentelemetry.io/collector/featuregate v0.68.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.68.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.69.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.37.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.37.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.12.0 // indirect
