@@ -354,7 +354,7 @@ func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			// Pod check metadata
 			case checks.PodCheckName:
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(model.K8SResource_POD))
 			// Pod check manifest data
 			case checks.PodCheckManifestName:
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
