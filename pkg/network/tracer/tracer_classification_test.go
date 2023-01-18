@@ -54,6 +54,7 @@ type testContext struct {
 }
 
 func setupTracer(t *testing.T, cfg *config.Config) *Tracer {
+	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -277,6 +278,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				serverPort:       "5672",
 				clientDialer:     defaultDialer,
 				expectedProtocol: network.ProtocolAMQP,
+				extras:           make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				host, port, _ := net.SplitHostPort(ctx.serverAddress)
