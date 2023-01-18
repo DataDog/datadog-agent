@@ -157,7 +157,9 @@ func (t *DockerSocketTailer) run(
 					}
 				}()
 				stopTailer(inner)
-				close(erroredContainerID)
+				if erroredContainerID != nil {
+					close(erroredContainerID)
+				}
 			}
 			return
 
