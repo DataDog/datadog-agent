@@ -11,11 +11,9 @@ package http
 import (
 	"fmt"
 	"math"
-	"os"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -25,16 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	httpInFlightMap   = "http_in_flight"
-	http2InFlightMap  = "http2_in_flight"
-	httpBatchesMap    = "http_batches"
-	httpBatchStateMap = "http_batch_state"
-	httpBatchEvents   = "http_batch_events"
+	httpInFlightMap  = "http_in_flight"
+	http2InFlightMap = "http2_in_flight"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
@@ -50,29 +46,22 @@ const (
 	// enough for typical workloads (e.g. some amount of processes blocked on
 	// the accept syscall).
 	maxActive = 128
-
-	// size of the channel containing completed http_notification_objects
-	batchNotificationsChanSize = 100
-
-	probeUID = "http"
+	probeUID  = "http"
 )
 
 type ebpfProgram struct {
 	*errtelemetry.Manager
-	cfg         *config.Config
-	bytecode    bytecode.AssetReader
-	offsets     []manager.ConstantEditor
-	subprograms []subprogram
-	mapCleaner  *ddebpf.MapCleaner
-	mapCleaner2 *ddebpf.MapCleaner
-
-	batchCompletionHandler *ddebpf.PerfHandler
+	cfg             *config.Config
+	bytecode        bytecode.AssetReader
+	offsets         []manager.ConstantEditor
+	subprograms     []subprogram
+	probesResolvers []probeResolver
+	mapCleaner      *ddebpf.MapCleaner
+	mapCleaner2     *ddebpf.MapCleaner
 }
 
-type subprogram interface {
-	ConfigureManager(*errtelemetry.Manager)
-	ConfigureOptions(*manager.Options)
-
+type probeResolver interface {
+	// GetAllUndefinedProbes returns all undefined probes.
 	// Subprogram probes maybe defined in the same ELF file as the probes
 	// of the main program. The cilium loader loads all programs defined
 	// in an ELF file in to the kernel. Therefore, these programs may be
@@ -95,6 +84,11 @@ type subprogram interface {
 	// To reiterate, this is necessary due to the fact that the cilium loader loads
 	// all programs defined in an ELF file regardless if they are later attached or not.
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
+}
+
+type subprogram interface {
+	ConfigureManager(*errtelemetry.Manager)
+	ConfigureOptions(*manager.Options)
 	Start()
 	Stop()
 }
@@ -124,13 +118,10 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		return nil, err
 	}
 
-	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
 			{Name: http2InFlightMap},
-			{Name: httpBatchesMap},
-			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},
 			{Name: protocolDispatcherProgramsMap},
 			{Name: "ssl_read_args"},
@@ -139,18 +130,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "ssl_ctx_by_pid_tgid"},
 			{Name: "http2_static_table"},
 			{Name: "http2_dynamic_table"},
-		},
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{Name: httpBatchEvents},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 256 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      batchCompletionHandler.RecordHandler,
-					LostHandler:        batchCompletionHandler.LostHandler,
-					RecordGetter:       batchCompletionHandler.RecordGetter,
-				},
-			},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -178,21 +157,27 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	// Add the subprograms even if nil, so that the manager can get the
-	// undefined probes from them when they are not enabled. Subprograms
-	// functions do checks for nil before doing anything.
-	ebpfSubprograms := []subprogram{
-		newGoTLSProgram(c),
-		newSSLProgram(c, sockFD),
+	subprogramProbesResolvers := make([]probeResolver, 0, 2)
+	subprograms := make([]subprogram, 0, 2)
+
+	goTLSProg := newGoTLSProgram(c)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
+	if goTLSProg != nil {
+		subprograms = append(subprograms, goTLSProg)
+	}
+	openSSLProg := newSSLProgram(c, sockFD)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
+	if openSSLProg != nil {
+		subprograms = append(subprograms, openSSLProg)
 	}
 
 	program := &ebpfProgram{
-		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
-		bytecode:               bc,
-		cfg:                    c,
-		offsets:                offsets,
-		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            ebpfSubprograms,
+		Manager:         errtelemetry.NewManager(mgr, bpfTelemetry),
+		bytecode:        bc,
+		cfg:             c,
+		offsets:         offsets,
+		subprograms:     subprograms,
+		probesResolvers: subprogramProbesResolvers,
 	}
 
 	return program, nil
@@ -206,7 +191,8 @@ func (e *ebpfProgram) Init() error {
 	for _, tc := range tailCalls {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
-	for _, s := range e.subprograms {
+
+	for _, s := range e.probesResolvers {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
 	}
 
@@ -216,11 +202,6 @@ func (e *ebpfProgram) Init() error {
 	}
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
-	}
-
-	onlineCPUs, err := cpupossible.Get()
-	if err != nil {
-		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
 	}
 
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
@@ -242,11 +223,6 @@ func (e *ebpfProgram) Init() error {
 			http2InFlightMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				EditorFlag: manager.EditMaxEntries,
-			},
-			httpBatchesMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
@@ -290,7 +266,10 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureOptions(&options)
 	}
 
-	err = e.InitWithOptions(e.bytecode, options)
+	// configure event stream
+	events.Configure("http", e.Manager.Manager, &options)
+
+	err := e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
 	}
@@ -299,85 +278,85 @@ func (e *ebpfProgram) Init() error {
 	if err == nil {
 		type staticTableEntry struct {
 			Index uint64
-			Value netebpf.StaticTableValue
+			Value StaticTableValue
 		}
 
 		staticTableEntries := []staticTableEntry{
 			{
 				Index: 2,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.MethodKey,
-					Value: netebpf.GetValue,
+				Value: StaticTableValue{
+					Key:   MethodKey,
+					Value: GetValue,
 				},
 			},
 			{
 				Index: 3,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.MethodKey,
-					Value: netebpf.PostValue,
+				Value: StaticTableValue{
+					Key:   MethodKey,
+					Value: PostValue,
 				},
 			},
 			{
 				Index: 4,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.PathKey,
-					Value: netebpf.EmptyPathValue,
+				Value: StaticTableValue{
+					Key:   PathKey,
+					Value: EmptyPathValue,
 				},
 			},
 			{
 				Index: 5,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.PathKey,
-					Value: netebpf.IndexPathValue,
+				Value: StaticTableValue{
+					Key:   PathKey,
+					Value: IndexPathValue,
 				},
 			},
 			{
 				Index: 8,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.StatusKey,
-					Value: netebpf.K200Value,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K200Value,
 				},
 			},
 			{
 				Index: 9,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.StatusKey,
-					Value: netebpf.K204Value,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K204Value,
 				},
 			},
 			{
 				Index: 10,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.StatusKey,
-					Value: netebpf.K206Value,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K206Value,
 				},
 			},
 			{
 				Index: 11,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.StatusKey,
-					Value: netebpf.K304Value,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K304Value,
 				},
 			},
 			{
 				Index: 12,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.StatusKey,
-					Value: netebpf.K400Value,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K400Value,
 				},
 			},
 			{
 				Index: 13,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.StatusKey,
-					Value: netebpf.K404Value,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K404Value,
 				},
 			},
 			{
 				Index: 14,
-				Value: netebpf.StaticTableValue{
-					Key:   netebpf.StatusKey,
-					Value: netebpf.K500Value,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K500Value,
 				},
 			},
 		}
@@ -413,7 +392,6 @@ func (e *ebpfProgram) Start() error {
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	err := e.Stop(manager.CleanAll)
-	e.batchCompletionHandler.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
 	}

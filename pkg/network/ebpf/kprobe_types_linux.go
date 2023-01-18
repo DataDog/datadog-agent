@@ -69,42 +69,15 @@ type UDPRecvSock struct {
 	Msg *_Ctype_struct_msghdr
 }
 type BindSyscallArgs struct {
-	Port uint16
+	Addr *_Ctype_struct_sockaddr
+	Sk   *_Ctype_struct_sock
 }
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
+type _Ctype_struct_sockaddr uint64
 
 type TCPState uint8
-
-type StaticTableEnumKey = uint8
-
-const (
-	MethodKey StaticTableEnumKey = 0x2
-	PathKey   StaticTableEnumKey = 0x4
-	StatusKey StaticTableEnumKey = 0x9
-)
-
-type StaticTableEnumValue = uint8
-
-const (
-	GetValue       StaticTableEnumValue = 0x2
-	PostValue      StaticTableEnumValue = 0x3
-	EmptyPathValue StaticTableEnumValue = 0x4
-	IndexPathValue StaticTableEnumValue = 0x5
-	K200Value      StaticTableEnumValue = 0x8
-	K204Value      StaticTableEnumValue = 0x9
-	K206Value      StaticTableEnumValue = 0xa
-	K304Value      StaticTableEnumValue = 0xb
-	K400Value      StaticTableEnumValue = 0xc
-	K404Value      StaticTableEnumValue = 0xd
-	K500Value      StaticTableEnumValue = 0xe
-)
-
-type StaticTableValue = struct {
-	Key   uint8
-	Value uint8
-}
 
 const (
 	Established TCPState = 0x1

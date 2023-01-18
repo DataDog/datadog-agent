@@ -66,6 +66,11 @@ func (m *mockUptane) DirectorRoot(version uint64) ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (m *mockUptane) StoredOrgUUID() (string, error) {
+	args := m.Called()
+	return args.Get(0).(string), args.Error(1)
+}
+
 func (m *mockUptane) Targets() (data.TargetFiles, error) {
 	args := m.Called()
 	return args.Get(0).(data.TargetFiles), args.Error(1)
@@ -133,7 +138,9 @@ func TestServiceBackoffFailure(t *testing.T) {
 		CurrentDirectorRootVersion:   0,
 		Products:                     []string{},
 		NewProducts:                  []string{},
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
@@ -158,7 +165,9 @@ func TestServiceBackoffFailure(t *testing.T) {
 		NewProducts:                  []string{},
 		HasError:                     true,
 		Error:                        httpError,
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
@@ -208,7 +217,9 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 		CurrentDirectorRootVersion:   0,
 		Products:                     []string{},
 		NewProducts:                  []string{},
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, nil)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
@@ -334,7 +345,9 @@ func TestService(t *testing.T) {
 		CurrentDirectorRootVersion:   0,
 		Products:                     []string{},
 		NewProducts:                  []string{},
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, nil)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
@@ -368,6 +381,7 @@ func TestService(t *testing.T) {
 	}
 	fileAPM1 := []byte(`testapm1`)
 	fileAPM2 := []byte(`testapm2`)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TargetsMeta").Return(targets, nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustom, nil)
 
@@ -417,6 +431,7 @@ func TestService(t *testing.T) {
 		BackendClientState: []byte(`test_state`),
 		HasError:           false,
 		Error:              "",
+		OrgUuid:            "abcdef",
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -476,6 +491,7 @@ func TestServiceClientPredicates(t *testing.T) {
 			AppVersion: "1",
 		},
 	}
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TargetsMeta").Return([]byte(`{"signed": "testtargets"}`), nil)
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
 
@@ -523,6 +539,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		BackendClientState: []byte(`test_state`),
 		HasError:           false,
 		Error:              "",
+		OrgUuid:            "abcdef",
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -561,10 +578,12 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, nil)
 
 	// No explicit refresh interval is provided by the backend
 	testTargetsCustomNoOverride := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustomNoOverride, nil)
@@ -596,10 +615,12 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, nil)
 
 	// An acceptable refresh interval is provided by the backend
 	testTargetsCustomOk := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ==", "agent_refresh_interval": 42}`)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustomOk, nil)
@@ -631,10 +652,12 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, nil)
 
 	// A too small refresh interval is provided by the backend (the refresh interval should not change)
 	testTargetsCustomOverrideOutOfRangeSmall := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ==", "agent_refresh_interval": -1}`)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustomOverrideOutOfRangeSmall, nil)
@@ -666,10 +689,12 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, nil)
 
 	// A too large refresh interval is provided by the backend (the refresh interval should not change)
 	testTargetsCustomOverrideOutOfRangeBig := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ==", "agent_refresh_interval": 500}`)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustomOverrideOutOfRangeBig, nil)
@@ -704,10 +729,12 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
+		OrgUuid:                      "abcdef",
 	}).Return(lastConfigResponse, nil)
 
 	// An interval is provided, but it should not be applied
 	testTargetsCustomOk := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ==", "agent_refresh_interval": 42}`)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustomOk, nil)
@@ -752,6 +779,7 @@ func TestConfigExpiration(t *testing.T) {
 			AppVersion: "1",
 		},
 	}
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TargetsMeta").Return([]byte(`{"signed": "testtargets"}`), nil)
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
 	uptaneClient.On("Targets").Return(data.TargetFiles{
@@ -783,6 +811,7 @@ func TestConfigExpiration(t *testing.T) {
 		BackendClientState: []byte(`test_state`),
 		HasError:           false,
 		Error:              "",
+		OrgUuid:            "abcdef",
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end

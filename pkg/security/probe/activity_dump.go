@@ -504,7 +504,7 @@ func (ad *ActivityDump) debug(w io.Writer) {
 	}
 }
 
-func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
+func (ad *ActivityDump) isEventTypeTraced(event *model.Event) bool {
 	for _, evtType := range ad.LoadConfig.TracedEventTypes {
 		if evtType == event.GetEventType() {
 			return true
@@ -515,7 +515,7 @@ func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
 
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
 // false if the event was dropped.
-func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
+func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	ad.Lock()
 	defer ad.Unlock()
 
@@ -541,7 +541,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	}()
 
 	// find the node where the event should be inserted
-	entry, _ := event.ResolveProcessCacheEntry()
+	entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event)
 	node := ad.findOrCreateProcessActivityNode(entry, Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
@@ -573,6 +573,11 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 // matches the activity dump selector.
 func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) (node *ProcessActivityNode) {
 	if entry == nil {
+		return node
+	}
+
+	// drop processes with abnormal paths
+	if entry.GetPathResolutionError() != "" {
 		return node
 	}
 
@@ -1098,12 +1103,17 @@ func extractFirstParent(path string) (string, int) {
 
 // InsertFileEventInProcess inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
+func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType) bool {
 	var filePath string
 	if generationType != Snapshot {
-		filePath = event.ResolveFilePath(fileEvent)
+		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
 	} else {
 		filePath = fileEvent.PathnameStr
+	}
+
+	// drop file events with abnormal paths
+	if event != nil && event.PathResolutionError != nil {
+		return false
 	}
 
 	parent, nextParentIndex := extractFirstParent(filePath)
@@ -1163,8 +1173,8 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 }
 
 func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
-	evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
-	evt.Event.Type = uint32(model.BindEventType)
+	evt := NewEvent(ad.adm.fieldHandlers)
+	evt.Type = uint32(model.BindEventType)
 
 	evt.Bind.SyscallEvent.Retval = 0
 	evt.Bind.AddrFamily = family
@@ -1305,8 +1315,8 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 			continue
 		}
 
-		evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
-		evt.Event.Type = uint32(model.FileOpenEventType)
+		evt := NewEvent(ad.adm.fieldHandlers)
+		evt.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
 		if err != nil {
@@ -1418,7 +1428,7 @@ type OpenNode struct {
 }
 
 // NewFileActivityNode returns a new FileActivityNode instance
-func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *FileActivityNode {
+func NewFileActivityNode(fileEvent *model.FileEvent, event *model.Event, name string, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *FileActivityNode {
 	nodeStats.fileNodes++
 	fan := &FileActivityNode{
 		Name:           name,
@@ -1441,12 +1451,12 @@ func (fan *FileActivityNode) getNodeLabel() string {
 	return label
 }
 
-func (fan *FileActivityNode) enrichFromEvent(event *Event) {
+func (fan *FileActivityNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
 	}
 	if fan.FirstSeen.IsZero() {
-		fan.FirstSeen = event.ResolveEventTimestamp()
+		fan.FirstSeen = event.FieldHandlers.ResolveEventTimestamp(event)
 	}
 
 	switch event.GetEventType() {
@@ -1461,7 +1471,7 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 
 // InsertFileEventInFile inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType) bool {
+func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType) bool {
 	currentFan := fan
 	currentPath := remainingPath
 	somethingChanged := false

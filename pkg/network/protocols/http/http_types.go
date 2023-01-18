@@ -13,33 +13,34 @@ package http
 #include "../../ebpf/c/protocols/tags-types.h"
 #include "../../ebpf/c/protocols/http-types.h"
 #include "../../ebpf/c/protocols/protocol-classification-defs.h"
+#include "../../ebpf/c/protocols/http2-decoding-defs.h"
 */
 import "C"
 
 type httpConnTuple C.conn_tuple_t
-type httpBatchState C.http_batch_state_t
 type sslSock C.ssl_sock_t
 type sslReadArgs C.ssl_read_args_t
 
 type ebpfHttpTx C.http_transaction_t
-type httpBatch C.http_batch_t
-type httpBatchKey C.http_batch_key_t
 
 type libPath C.lib_path_t
 
 type ProtocolType C.protocol_t
 
+// Add tests to TestProtocolValue
 const (
-	ProtocolUnknown ProtocolType = C.PROTOCOL_UNKNOWN
-	ProtocolHTTP    ProtocolType = C.PROTOCOL_HTTP
-	ProtocolHTTP2   ProtocolType = C.PROTOCOL_HTTP2
-	ProtocolTLS     ProtocolType = C.PROTOCOL_TLS
-	ProtocolMax     ProtocolType = C.MAX_PROTOCOLS
+	ProtocolUnknown  ProtocolType = C.PROTOCOL_UNKNOWN
+	ProtocolHTTP     ProtocolType = C.PROTOCOL_HTTP
+	ProtocolHTTP2    ProtocolType = C.PROTOCOL_HTTP2
+	ProtocolTLS      ProtocolType = C.PROTOCOL_TLS
+	ProtocolMONGO    ProtocolType = C.PROTOCOL_MONGO
+	ProtocolPostgres ProtocolType = C.PROTOCOL_POSTGRES
+	ProtocolAMQP     ProtocolType = C.PROTOCOL_AMQP
+	ProtocolRedis    ProtocolType = C.PROTOCOL_REDIS
+	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
 )
 
 const (
-	HTTPBatchSize  = C.HTTP_BATCH_SIZE
-	HTTPBatchPages = C.HTTP_BATCH_PAGES
 	HTTPBufferSize = C.HTTP_BUFFER_SIZE
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE
@@ -60,3 +61,29 @@ var (
 		Go:      "tls.library:go",
 	}
 )
+
+type StaticTableEnumKey = C.static_table_key_t
+
+const (
+	MethodKey StaticTableEnumKey = C.kMethod
+	PathKey   StaticTableEnumKey = C.kPath
+	StatusKey StaticTableEnumKey = C.kStatus
+)
+
+type StaticTableEnumValue = C.static_table_key_t
+
+const (
+	GetValue       StaticTableEnumValue = C.kGET
+	PostValue      StaticTableEnumValue = C.kPOST
+	EmptyPathValue StaticTableEnumValue = C.kEmptyPath
+	IndexPathValue StaticTableEnumValue = C.kIndexPath
+	K200Value      StaticTableEnumValue = C.k200
+	K204Value      StaticTableEnumValue = C.k204
+	K206Value      StaticTableEnumValue = C.k206
+	K304Value      StaticTableEnumValue = C.k304
+	K400Value      StaticTableEnumValue = C.k400
+	K404Value      StaticTableEnumValue = C.k404
+	K500Value      StaticTableEnumValue = C.k500
+)
+
+type StaticTableValue = C.static_table_entry_t

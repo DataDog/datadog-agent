@@ -61,6 +61,10 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/
 
 Write-Host "Generating Chocolatey $installMethod package version $agentVersion in $outputDirectory"
 
+if ([System.Net.WebRequest]::Create($url).GetResponse().StatusCode -ne 200) {
+    Write-Error "Package $($url) doesn't exists, cannot continue publishing process."
+}
+
 if (!(Test-Path $outputDirectory)) {
     New-Item -ItemType Directory -Path $outputDirectory
 }
@@ -71,3 +75,6 @@ if ($installMethod -eq "online") {
 }
 
 choco pack --out=$outputDirectory $nuspecFile package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
+
+# restore installScript (useful for local testing/deployment)
+git checkout $installScript

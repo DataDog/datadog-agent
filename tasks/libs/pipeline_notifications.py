@@ -25,7 +25,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/remote-config": "#remote-config-monitoring",
     "@DataDog/agent-all": "#datadog-agent-pipelines",
     "@DataDog/ebpf-platform": "#ebpf-platform",
-    "@DataDog/Networks": "#networks",
+    "@DataDog/Networks": "#network-performance-monitoring",
     "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
     "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
     "@DataDog/opentelemetry": "#opentelemetry-ops",

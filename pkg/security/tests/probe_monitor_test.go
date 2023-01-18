@@ -19,8 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -53,8 +53,8 @@ func TestRulesetLoaded(t *testing.T) {
 		err = test.GetCustomEventSent(t, func() error {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.RulesetLoadedRuleID, rule.ID, "wrong rule")
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+			assert.Equal(t, events.RulesetLoadedRuleID, rule.ID, "wrong rule")
 
 			test.module.SendStats()
 
@@ -106,8 +106,8 @@ func truncatedParents(t *testing.T, opts testOpts) {
 				return err
 			}
 			return f.Close()
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.AbnormalPathRuleID, rule.ID, "wrong rule")
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+			assert.Equal(t, events.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
 		}, getEventTimeout, model.CustomTruncatedParentsEventType)
 		if err != nil {
@@ -120,7 +120,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 				return err
 			}
 			return f.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			// check the length of the filepath that triggered the custom event
 			filepath, err := event.GetFieldValue("open.file.path")
 			if err == nil {
@@ -187,8 +187,8 @@ func TestNoisyProcess(t *testing.T) {
 				}
 			}
 			return nil
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.NoisyProcessRuleID, rule.ID, "wrong rule")
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+			assert.Equal(t, events.NoisyProcessRuleID, rule.ID, "wrong rule")
 			return true
 		}, getEventTimeout, model.CustomNoisyProcessEventType)
 		if err != nil {

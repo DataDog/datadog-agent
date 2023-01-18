@@ -38,14 +38,13 @@ const (
 )
 
 var (
-	filename             string
-	pkgname              string
-	output               string
-	verbose              bool
-	mock                 bool
-	docOutput            string
-	fieldsResolverOutput string
-	buildTags            string
+	filename            string
+	pkgname             string
+	output              string
+	verbose             bool
+	docOutput           string
+	fieldHandlersOutput string
+	buildTags           string
 )
 
 var (
@@ -80,7 +79,7 @@ func qualifiedType(module *common.Module, kind string) string {
 // handleBasic adds fields of "basic" type to list of exposed SECL fields of the module
 func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) *common.StructField {
 	if verbose {
-		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s\n", name, kind, alias)
+		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s, isArray: %v\n", name, kind, alias, isArray)
 	}
 
 	basicType := origTypeToBasicType(kind)
@@ -398,7 +397,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						dejavu[fieldBasename] = true
 
 						if len(fieldType) != 0 {
-							if err := handleField(module, astFile, fieldBasename, fieldBasenameSECLNormalized, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, constants, fieldCommentText, seclField); err != nil {
+							if err := handleField(module, astFile, fieldBasename, fieldBasenameSECLNormalized, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, isArray, opOverrides, constants, fieldCommentText, seclField); err != nil {
 								log.Print(err)
 							}
 
@@ -507,7 +506,6 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		AllFields:  make(map[string]*common.StructField),
 		Iterators:  make(map[string]*common.StructField),
 		EventTypes: make(map[string]*common.EventTypeMetadata),
-		Mock:       mock,
 	}
 
 	// If the target package is different from the model package
@@ -554,7 +552,7 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 
 		if field, ok := allFields[path]; ok {
 			if field.IsOrigTypePtr {
-				result += fmt.Sprintf("if e.%s == nil { e.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 			}
 		}
 	}
@@ -562,13 +560,13 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
-func getFieldResolver(allFields map[string]*common.StructField, field *common.StructField) string {
+func getFieldHandler(allFields map[string]*common.StructField, field *common.StructField) string {
 	if field.Handler == "" || field.Iterator != nil || field.CachelessResolution {
 		return ""
 	}
 
 	if field.Prefix == "" {
-		return fmt.Sprintf("ev.%s(ev)", field.Handler)
+		return fmt.Sprintf("ev.FieldHandlers.%s(ev)", field.Handler)
 	}
 
 	ptr := "&"
@@ -576,21 +574,14 @@ func getFieldResolver(allFields map[string]*common.StructField, field *common.St
 		ptr = ""
 	}
 
-	return fmt.Sprintf("ev.%s(%sev.%s)", field.Handler, ptr, field.Prefix)
+	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s)", field.Handler, ptr, field.Prefix)
 }
 
-func fieldADPrint(field *common.StructField, resolver string) string {
+func fieldADPrint(field *common.StructField, handler string) string {
 	if field.SkipADResolution {
-		return fmt.Sprintf("if !forADs { _ = %s }", resolver)
+		return fmt.Sprintf("if !forADs { _ = %s }", handler)
 	}
-	return fmt.Sprintf("_ = %s", resolver)
-}
-
-func override(str string, mock bool) string {
-	if !strings.Contains(str, ".") && !mock {
-		return "model." + str
-	}
-	return str
+	return fmt.Sprintf("_ = %s", handler)
 }
 
 func getHolder(allFields map[string]*common.StructField, field *common.StructField) *common.StructField {
@@ -629,22 +620,55 @@ func getChecks(allFields map[string]*common.StructField, field *common.StructFie
 	return checks
 }
 
+func getHandlers(allFields map[string]*common.StructField) map[string]string {
+	handlers := make(map[string]string)
+
+	for _, field := range allFields {
+		if field.Handler != "" && !field.IsLength {
+			returnType := field.ReturnType
+			if field.IsArray {
+				returnType = "[]" + returnType
+			}
+
+			handler := fmt.Sprintf("%s(ev *Event, e *%s) %s", field.Handler, field.Struct, returnType)
+
+			if _, exists := handlers[handler]; exists {
+				continue
+			}
+
+			name := "e" + strings.TrimPrefix(field.Name, field.Prefix)
+
+			if field.ReturnType == "int" {
+				if field.IsArray {
+					handlers[handler] = fmt.Sprintf("{ var result []int; for _, value := range %s { result = append(result, int(value)) }; return result }", name)
+				} else {
+					handlers[handler] = fmt.Sprintf("{ return int(%s) }", name)
+				}
+			} else {
+				handlers[handler] = fmt.Sprintf("{ return %s }", name)
+			}
+		}
+	}
+
+	return handlers
+}
+
 var funcMap = map[string]interface{}{
-	"TrimPrefix":       strings.TrimPrefix,
-	"TrimSuffix":       strings.TrimSuffix,
-	"HasPrefix":        strings.HasPrefix,
-	"NewField":         newField,
-	"Override":         override,
-	"GetFieldResolver": getFieldResolver,
-	"FieldADPrint":     fieldADPrint,
-	"GetChecks":        getChecks,
+	"TrimPrefix":      strings.TrimPrefix,
+	"TrimSuffix":      strings.TrimSuffix,
+	"HasPrefix":       strings.HasPrefix,
+	"NewField":        newField,
+	"GetFieldHandler": getFieldHandler,
+	"FieldADPrint":    fieldADPrint,
+	"GetChecks":       getChecks,
+	"GetHandlers":     getHandlers,
 }
 
 //go:embed accessors.tmpl
 var accessorsTemplateCode string
 
-//go:embed fields_resolver.tmpl
-var fieldsResolverTemplate string
+//go:embed field_handlers.tmpl
+var fieldHandlersTemplate string
 
 func main() {
 	module, err := parseFile(filename, pkgname)
@@ -652,8 +676,8 @@ func main() {
 		panic(err)
 	}
 
-	if len(fieldsResolverOutput) > 0 {
-		if err = GenerateContent(fieldsResolverOutput, module, fieldsResolverTemplate); err != nil {
+	if len(fieldHandlersOutput) > 0 {
+		if err = GenerateContent(fieldHandlersOutput, module, fieldHandlersTemplate); err != nil {
 			panic(err)
 		}
 	}
@@ -719,9 +743,8 @@ func removeEmptyLines(input *bytes.Buffer) string {
 
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
-	flag.BoolVar(&mock, "mock", false, "Mock accessors")
 	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
-	flag.StringVar(&fieldsResolverOutput, "fields-resolver", "", "Fields resolver output file")
+	flag.StringVar(&fieldHandlersOutput, "field-handlers", "", "Field handlers output file")
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")

@@ -53,6 +53,7 @@ message LatestConfigsRequest {
   bool has_error = 11;
   string error = 12;
   string trace_agent_env = 13;
+  string org_uuid = 14;
 }
 
 message LatestConfigsResponse {
