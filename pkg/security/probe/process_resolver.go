@@ -20,7 +20,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -1283,10 +1282,10 @@ func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // NewProcessVariables returns a provider for variables attached to a process cache entry
-func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) unsafe.Pointer) rules.VariableProvider {
-	var variables *eval.ScopedVariables
-	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
-		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
+func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *model.ProcessCacheEntry) rules.VariableProvider {
+	var variables *eval.ScopedVariables[*model.ProcessCacheEntry]
+	variables = eval.NewScopedVariables(scoper, func(key *model.ProcessCacheEntry) {
+		key.SetReleaseCallback(func() {
 			variables.ReleaseVariable(key)
 		})
 	})
