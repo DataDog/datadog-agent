@@ -16,13 +16,11 @@
     - tar -cJf minimized-btfs.tar.xz *
     - $S3_CP_CMD minimized-btfs.tar.xz $S3_ARTIFACTS_URI/minimized-btfs-$ARCH.tar.xz
 
-
 generate_minimized_btfs_x64:
   needs: ["build_system-probe-x64"]
   extends: .generate_minimized_btfs_common
   variables:
     ARCH: amd64
-
 
 generate_minimized_btfs_arm64:
   needs: ["build_system-probe-arm64"]
