@@ -175,7 +175,7 @@ func denyToStr(aceType uint8) string {
 	return ""
 }
 
-func (p permissionsInfos) addAgetExeFiles() {
+func (p permissionsInfos) addAgentExeFiles() {
 	// Get Datadog bin directory (optional if err)
 	installDir, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
 	if err == nil {
@@ -233,7 +233,7 @@ func (p permissionsInfos) commit() ([]byte, error) {
 	var sb strings.Builder
 
 	// These files are not explicitly copied but their privileges are "interesting"
-	p.addAgetExeFiles()
+	p.addAgentExeFiles()
 
 	for _, info := range p {
 		sb.WriteString("File: ")

@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    Added parity to Linux-based permissions.log Flare file
-    on Window to include permissions of Datadog agent
-    configuration directory (by default C:\ProgramData\Datadog)
-    and Agent executable files.
+    Added parity to Unix-based ``permissions.log`` Flare file on
+    Windows. ``permissions.log`` file list the original rights/ACL
+    of the files copied into a Agent flare. This will ease
+    troubleshooting permissions issues.
