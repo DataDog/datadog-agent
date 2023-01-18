@@ -236,7 +236,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			404,
 			30*time.Millisecond,
 		)
-		tx.SetRequestMethod(0) /* This is MethodUnknown */
+		tx.SetRequestMethod(MethodUnknown)
 
 		sk.Process(tx)
 		tel.log()
