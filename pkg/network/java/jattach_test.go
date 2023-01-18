@@ -55,7 +55,7 @@ func testInject(t *testing.T, prefix string) {
 		}
 		t.Log(o)
 	}()
-	time.Sleep(100 * time.Millisecond) // give a chance to spawn java
+	time.Sleep(time.Second) // give a chance to spawn java
 
 	pid := findJustWait(t)
 	require.NotEqual(t, pid, 0, "Can't find java JustWait process")
