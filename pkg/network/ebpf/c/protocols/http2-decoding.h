@@ -151,7 +151,7 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
             http->tags = trans->tags;
 
             http_batch_enqueue(http);
-//            bpf_map_delete_elem(&http2_in_flight, &http2_stack->tup);
+            bpf_map_delete_elem(&http2_in_flight, &http2_stack->tup);
         }
     }
 
@@ -350,10 +350,12 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
         remaining_length = (__s64)sizeof(http2_transaction->request_fragment) - (__s64)http2_transaction->current_offset_in_request_fragment;
         // We have left less than frame header, nothing to read.
         if (HTTP2_FRAME_HEADER_SIZE > remaining_length) {
+            log_debug("[http2] the HTTP2_FRAME_HEADER_SIZE is bigger then the remaining_length: %d", remaining_length);
             return;
         }
         // Reading the header.
         if (!read_http2_frame_header(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
+            log_debug("[http2] unable to read_http2_frame_header");
             return;
         }
         // Modifying the offset.
@@ -410,7 +412,7 @@ static __always_inline void http2_entrypoint(struct __sk_buff *skb, skb_info_t *
     }
 
     process_frames(http2_conn);
-    http2_process(http2_conn, NULL, NO_TAGS);
+    http2_process(http2_conn, skb_info, NO_TAGS);
     return;
 }
 
