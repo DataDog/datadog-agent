@@ -27,6 +27,8 @@ type SysProbeConfig struct {
 	MaxConnsPerMessage int
 	// System probe collection configuration
 	SystemProbeAddress string
+	// System probe process module on/off configuration
+	ProcessModuleEnabled bool
 }
 
 // Check is an interface for Agent checks that collect data. Each check returns
@@ -92,14 +94,16 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-var All = []Check{
-	Process,
-	Container,
-	RTContainer,
-	Connections,
-	Pod,
-	ProcessDiscovery,
-	ProcessEvents,
+func All() []Check {
+	return []Check{
+		NewProcessCheck(),
+		NewContainerCheck(),
+		NewRTContainerCheck(),
+		NewConnectionsCheck(),
+		NewPodCheck(),
+		NewProcessDiscoveryCheck(),
+		NewProcessEventsCheck(),
+	}
 }
 
 // RTName returns the name of the corresponding realtime check

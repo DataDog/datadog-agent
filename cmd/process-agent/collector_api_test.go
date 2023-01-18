@@ -75,7 +75,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Connections.Name(),
+		name: checks.ConnectionsCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -114,7 +114,7 @@ func TestSendContainerMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Container.Name(),
+		name: checks.ContainerCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -151,7 +151,7 @@ func TestSendProcMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.Name(),
+		name: checks.ProcessCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -191,7 +191,7 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.ProcessDiscovery.Name(),
+		name: checks.DiscoveryCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -240,7 +240,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.ProcessEvents.Name(),
+		name: checks.ProcessEventsCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -284,7 +284,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.Name(),
+		name: checks.ProcessCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -401,7 +401,7 @@ func getPodCheckMessage(t *testing.T) (string, checks.Check) {
 	pd = append(pd, m, mm)
 
 	check := &testCheck{
-		name: checks.Pod.Name(),
+		name: checks.PodCheckName,
 		data: [][]process.MessageBody{pd},
 	}
 	return clusterID, check
@@ -521,7 +521,7 @@ func TestMultipleAPIKeys(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Connections.Name(),
+		name: checks.ConnectionsCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
