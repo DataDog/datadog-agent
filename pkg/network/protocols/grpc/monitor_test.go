@@ -486,7 +486,7 @@ func TestGRPCScenarios(t *testing.T) {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableRuntimeCompiler = true
 	for _, tt := range tests {
-		for _, val := range []bool{false} {
+		for _, val := range []bool{false, true} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", val)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
 				s, err := grpc.NewServer(srvAddr)
