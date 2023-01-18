@@ -133,7 +133,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	reporter, err := NewCheckReporter(config, stopper, checkArgs.report, checkArgs.dumpReports)
+	reporter, err := NewCheckReporter(log, config, stopper, checkArgs.report, checkArgs.dumpReports)
 	if err != nil {
 		return err
 	}

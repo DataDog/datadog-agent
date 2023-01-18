@@ -79,7 +79,7 @@ func eventRun(log log.Component, config config.Component, eventArgs *cliParams) 
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := command.NewLogContextCompliance()
+	endpoints, dstContext, err := command.NewLogContextCompliance(log)
 	if err != nil {
 		return err
 	}

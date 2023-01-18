@@ -14,9 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -28,11 +29,11 @@ type RunCheckReporter struct {
 }
 
 // NewCheckReporter creates a new RunCheckReporter
-func NewCheckReporter(config config.Component, stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
+func NewCheckReporter(log log.Component, config config.Component, stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
 	if report {
-		endpoints, dstContext, err := command.NewLogContextCompliance()
+		endpoints, dstContext, err := command.NewLogContextCompliance(log)
 		if err != nil {
 			return nil, err
 		}
@@ -58,7 +59,7 @@ func (r *RunCheckReporter) Report(event *event.Event) {
 
 	eventJSON, err := utils.PrettyPrintJSON(event, "  ")
 	if err != nil {
-		log.Errorf("Failed to marshal rule event: %v", err)
+		pkglog.Errorf("Failed to marshal rule event: %v", err)
 		return
 	}
 

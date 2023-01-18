@@ -702,7 +702,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(agent)
 
-	endpoints, ctx, err := command.NewLogContextRuntime()
+	endpoints, ctx, err := command.NewLogContextRuntime(log)
 	if err != nil {
 		_ = log.Error(err)
 	}
