@@ -1616,7 +1616,7 @@ api_key:
   #   - HISTFILESIZE
 
   ## @param activity_dump - custom object - optional
-  ## Activity dumps section to configure if/how the agent sends activity dumps to the backend for security profiles learning.
+  ## Activity dump section configures if/how the Agent sends activity dumps to Datadog
   #
   # activity_dump:
 
@@ -1639,7 +1639,7 @@ api_key:
     #  cgroup_dump_timeout: 30
 
   ## @param network - custom object - optional
-  ## Network section to configure CWS network features.
+  ## Network section is used to configure Cloud Workload Security (CWS) network features.
   #
   # network:
 
