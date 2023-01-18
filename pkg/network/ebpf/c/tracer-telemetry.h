@@ -14,6 +14,7 @@ enum telemetry_counter
     udp_send_processed,
     udp_send_missed,
     udp_dropped_conns,
+    invalid_tcp_retrans,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -42,6 +43,9 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case udp_dropped_conns:
         __sync_fetch_and_add(&val->udp_dropped_conns, 1);
+        break;
+    case invalid_tcp_retrans:
+        __sync_fetch_and_add(&val->invalid_tcp_retrans, 1);
         break;
     }
 }

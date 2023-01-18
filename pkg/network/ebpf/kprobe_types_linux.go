@@ -54,6 +54,7 @@ type Telemetry struct {
 	Udp_sends_processed uint64
 	Udp_sends_missed    uint64
 	Udp_dropped_conns   uint64
+	Invalid_tcp_retrans uint64
 }
 type PortBinding struct {
 	Netns     uint32

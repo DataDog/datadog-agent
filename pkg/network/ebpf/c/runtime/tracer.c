@@ -403,6 +403,11 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
     args.segs = 0;
+    args.total_retrans_pre = 0;
+    if (bpf_probe_read_kernel_with_telemetry(&(args.total_retrans_pre), sizeof(args.total_retrans_pre), &(tcp_sk(sk)->total_retrans)) < 0) {
+        return 0;
+    }
+
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
 
     return 0;
@@ -412,21 +417,23 @@ SEC("kretprobe/tcp_retransmit_skb")
 int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     log_debug("kretprobe/tcp_retransmit\n");
     u64 tid = bpf_get_current_pid_tgid();
-    if (PT_REGS_RC(ctx) < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-        return 0;
-    }
     tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
     if (args == NULL) {
         return 0;
     }
     struct sock* sk = args->sk;
+    u32 total_retrans_pre = args->total_retrans_pre;
     u32 total_retrans = 0;
     bpf_probe_read_kernel_with_telemetry(&total_retrans, sizeof(total_retrans), &(tcp_sk(sk)->total_retrans));
 
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
 
-    return handle_retransmit(sk, total_retrans, RETRANSMIT_COUNT_ABSOLUTE);
+    if (total_retrans >= total_retrans_pre) {
+        return handle_retransmit(sk, total_retrans-total_retrans_pre);
+    }
+
+    increment_telemetry_count(invalid_tcp_retrans);
+    return 0;
 }
 
 SEC("kprobe/tcp_set_state")
@@ -446,7 +453,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx) {
     }
 
     tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats, RETRANSMIT_COUNT_NONE);
+    update_tcp_stats(&t, stats);
 
     return 0;
 }

@@ -463,12 +463,7 @@ int kprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_retransmit_skb")
 int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
-    int ret = PT_REGS_RC(ctx);
     __u64 tid = bpf_get_current_pid_tgid();
-    if (ret < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-        return 0;
-    }
     tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
     if (args == NULL) {
         return 0;
@@ -477,7 +472,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     int segs = args->segs;
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
     log_debug("kretprobe/tcp_retransmit: segs: %d\n", segs);
-    return handle_retransmit(sk, segs, RETRANSMIT_COUNT_INCREMENT);
+    return handle_retransmit(sk, segs);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -497,7 +492,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx) {
     }
 
     tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats, RETRANSMIT_COUNT_NONE);
+    update_tcp_stats(&t, stats);
 
     return 0;
 }
