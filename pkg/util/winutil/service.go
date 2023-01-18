@@ -52,7 +52,7 @@ func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*m
 // Start serviceName via SCM
 // Does not block until service is started
 // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicea#remarks
-func StartService(serviceName string) error {
+func StartService(serviceName string, serviceArgs ...string) error {
 
 	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
@@ -62,13 +62,13 @@ func StartService(serviceName string) error {
 
 	service, err := OpenService(manager, serviceName, windows.SERVICE_START)
 	if err != nil {
-		return fmt.Errorf("could not open service: %v", err)
+		return fmt.Errorf("could not open service %s: %v", serviceName, err)
 	}
 	defer service.Close()
 
-	err = service.Start()
+	err = service.Start(serviceArgs...)
 	if err != nil {
-		return fmt.Errorf("could not start service: %v", err)
+		return fmt.Errorf("could not start service %s: %v", serviceName, err)
 	}
 	return nil
 }
