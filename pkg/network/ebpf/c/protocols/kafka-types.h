@@ -7,12 +7,16 @@ typedef enum
     KAFKA_FETCH
 } kafka_operation_t;
 
-// The maximum request API version for fetch request is 13
-// The maximum request API version for produce is 9
-// So setting it to the maximum between the 2
-// Reference: https://kafka.apache.org/protocol.html#protocol_messages
-#define KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION 13
+typedef struct {
+    int32_t message_size;
+    int16_t api_key;
+    int16_t api_version;
+    int32_t correlation_id;
+    int16_t client_id_size;
+} kafka_header;
 
-#define CLIENT_ID_MAX_STRING_SIZE 30
+typedef struct {
+    uint32_t offset;
+} kafka_context;
 
 #endif
