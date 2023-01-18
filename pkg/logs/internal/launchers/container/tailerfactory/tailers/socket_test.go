@@ -100,7 +100,7 @@ func TestDockerSocketTailer_run_canStopWithError(t *testing.T) {
 			return &dockerTailerPkg.Tailer{}, erroredContainerID, nil
 		},
 		func(*dockerTailerPkg.Tailer) {
-			// Simulate an error occuring at the same time as as the tailer is trying to stop.
+			// Simulate an error occurring at the same time as as the tailer is trying to stop.
 			// This can happen in the real socket tailer implementation as these errors are handled by
 			// the same goroutine that manages the tailer shutdown. This test ensures any pending errors
 			// do not prevent the tailer from being stopped.
