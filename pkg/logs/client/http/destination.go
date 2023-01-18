@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -299,6 +300,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 		return err
 	}
+
+	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
+	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
+
 	if resp.StatusCode >= http.StatusBadRequest {
 		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
 	}
