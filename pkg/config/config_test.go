@@ -61,8 +61,9 @@ func TestDefaults(t *testing.T) {
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{
-		"enabled":  true,
-		"interval": 4 * time.Hour,
+		"enabled":        true,
+		"hint_frequency": 60,
+		"interval":       4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
 }
 
