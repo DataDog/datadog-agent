@@ -107,7 +107,7 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	return g.client.ClientGetConfigs(ctx, request, opts)
+	return g.client.ClientGetConfigs(ctx, request, opts...)
 }
 
 // NewClient creates a new client

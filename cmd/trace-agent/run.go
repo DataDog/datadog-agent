@@ -19,7 +19,6 @@ import (
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -188,17 +187,14 @@ func Run(ctx context.Context) {
 	}()
 
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
+		// Auth tokens are handled by the rcClient
 		rcClient, err := rc.NewAgentGRPCConfigFetcher()
 		if err != nil {
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)
 		}
-		token, err := security.FetchAuthToken()
-		if err != nil {
-			osutil.Exitf("could obtain the auth token for the tracer remote config client: %v", err)
-		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, rcClient, token, cfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, rcClient, cfg) },
 		})
 	}
 
