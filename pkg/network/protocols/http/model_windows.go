@@ -177,7 +177,7 @@ func (tx *WinHttpTransaction) RequestStarted() uint64 {
 }
 
 func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
-	tx.Txn.RequestMethod = m
+	tx.Txn.RequestMethod = uint32(m)
 }
 
 // below is copied from pkg/trace/stats/statsraw.go
