@@ -180,6 +180,7 @@ const (
 	HelperErrTelemetryMap        BPFMapName = "helper_err_telemetry_map"
 	TcpRecvMsgArgsMap            BPFMapName = "tcp_recvmsg_args"
 	ProtocolClassificationBufMap BPFMapName = "classification_buf"
+	ConnectionProtocolMap        BPFMapName = "connection_protocol"
 )
 
 // SectionName returns the SectionName for the given BPF map
