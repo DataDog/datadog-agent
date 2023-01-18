@@ -1628,7 +1628,7 @@ api_key:
 
     ## @param traced_cgroups_count - integer - optional - default: 5
     ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_TRACED_CGROUPS_COUNT - integer - optional - default: 5
-    ## Defines the number of concurrent cgroups to be learned.
+    ## Defines the number of concurrent cgroups to be traced.
     #
     #  traced_cgroups_count: 5
 
