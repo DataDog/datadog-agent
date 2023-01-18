@@ -79,7 +79,7 @@ func TestOOMKillProbe(t *testing.T) {
 	cfg := testConfig()
 
 	fullKV := host.GetStatusInformation().KernelVersion
-	if cfg.EnableCORE && isMissingBTF(fullKV) {
+	if cfg.EnableCORE && isMissingBTF(cfg, fullKV) {
 		t.Skipf("Skipping CO-RE tests for kernel version %v due to missing BTFs", fullKV)
 	}
 
