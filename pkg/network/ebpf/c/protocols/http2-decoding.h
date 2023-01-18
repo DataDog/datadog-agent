@@ -125,11 +125,21 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
 
             // todo: take it out to a function and add all the other options as well.
             switch(http2_stack->response_status_code) {
-            case k200: response_code = 200;
-            case k204: response_code = 204;
-            case k206: response_code = 206;
-            case k400: response_code = 400;
-            case k500: response_code = 500;
+            case k200:
+                response_code = 200;
+                break;
+            case k204:
+                response_code = 204;
+                break;
+            case k206:
+                response_code = 206;
+                break;
+            case k400:
+                response_code = 400;
+                break;
+            case k500:
+                response_code = 500;
+                break;
             }
 
             http->response_status_code = response_code;
@@ -156,11 +166,12 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
 //
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
 // The error is errNeedMore if p doesn't contain a complete integer.
-static __always_inline __u64 read_var_int(http2_transaction_t* http2_transaction, __u64 factor, __u64 current_char_as_number){
+static __always_inline __u64 read_var_int(http2_transaction_t* http2_transaction, __u64 factor){
     if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
         return false;
     }
 
+    __u64 current_char_as_number = http2_transaction->request_fragment[http2_transaction->current_offset_in_request_fragment];
     current_char_as_number &= (1 << factor) - 1;
 
     if (current_char_as_number < (1 << factor) - 1) {
@@ -187,8 +198,8 @@ static __always_inline bool classify_static_value(http2_transaction_t* http2_tra
 }
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-static __always_inline void parse_field_indexed(http2_transaction_t* http2_transaction, __u64 current_char_as_number){
-    __u64 index = read_var_int(http2_transaction, 7, current_char_as_number);
+static __always_inline void parse_field_indexed(http2_transaction_t* http2_transaction){
+    __u64 index = read_var_int(http2_transaction, 7);
     if (index <= MAX_STATIC_TABLE_INDEX) {
         static_table_entry_t* static_value = bpf_map_lookup_elem(&http2_static_table, &index);
         if (static_value != NULL) {
@@ -214,14 +225,14 @@ static __always_inline void parse_field_indexed(http2_transaction_t* http2_trans
     }
 
     // index 5 represents the :path header - from dynamic table
-    if ((dynamic_value_new->index == 5) && (sizeof(dynamic_value_new->value.buffer)>0)){
+    if (dynamic_value_new->index == 5){
         bpf_memcpy(http2_transaction->path, dynamic_value_new->value.buffer, HTTP2_MAX_PATH_LEN);
         http2_transaction->path_size = dynamic_value_new->value.string_len;
     }
 }
 
-static __always_inline bool update_current_offset(http2_transaction_t* http2_transaction, __u64 current_char_as_number){
-    __u64 str_len = read_var_int(http2_transaction, 6, current_char_as_number);
+static __always_inline bool update_current_offset(http2_transaction_t* http2_transaction){
+    __u64 str_len = read_var_int(http2_transaction, 6);
     if (str_len == -1) {
         return false;
     }
@@ -231,7 +242,7 @@ static __always_inline bool update_current_offset(http2_transaction_t* http2_tra
 
 //// parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 //// which will be stored in the dynamic table.
-static __always_inline void parse_field_literal(http2_transaction_t* http2_transaction, bool index_type, __u64 current_char_as_number){
+static __always_inline void parse_field_literal(http2_transaction_t* http2_transaction, bool index_type){
     __u64 counter = 0;
 
     // global counter is the counter which help us with the calc of the index in our internal hpack dynamic table
@@ -243,19 +254,19 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
     // update the global counter.
     bpf_map_update_elem(&http2_dynamic_counter_table, &http2_transaction->old_tup, &counter, BPF_ANY);
 
-     __u64 index = read_var_int(http2_transaction, 6, current_char_as_number);
+    __u64 index = read_var_int(http2_transaction, 6);
 
     dynamic_table_entry_t dynamic_value = {};
     dynamic_table_index_t dynamic_index = {};
     static_table_entry_t *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
     if (static_value == NULL) {
-        update_current_offset(http2_transaction, current_char_as_number);
+        update_current_offset(http2_transaction);
 
         // Literal Header Field with Incremental Indexing - New Name, which means we need to read the body as well,
         // so we are reading again and updating the len.
         // TODO: Better document.
         if (index == 0) {
-            update_current_offset(http2_transaction, current_char_as_number);
+            update_current_offset(http2_transaction);
         }
         return;
     }
@@ -264,7 +275,7 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
         dynamic_value.index = static_value->key;
     }
 
-    __u64 str_len = read_var_int(http2_transaction, 6, current_char_as_number);
+    __u64 str_len = read_var_int(http2_transaction, 6);
     if (str_len == -1 || str_len == 0){
         return;
     }
@@ -276,7 +287,6 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
     char *beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
     // create the new dynamic value which will be added to the internal table.
     bpf_memcpy(dynamic_value.value.buffer, beginning, HTTP2_MAX_PATH_LEN);
-
 
     dynamic_value.value.string_len = str_len;
     dynamic_value.index = index;
@@ -314,13 +324,13 @@ static __always_inline bool process_headers(http2_transaction_t* http2_transacti
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             log_debug("[http2] first char %d & 128 != 0; calling parse_field_indexed", current_ch);
-            parse_field_indexed(http2_transaction, current_ch);
+            parse_field_indexed(http2_transaction);
         } else if ((current_ch&192) == 64) {
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 10
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
             log_debug("[http2] first char %d & 192 == 64; calling parse_field_literal", current_ch);
-            parse_field_literal(http2_transaction, true, current_ch);
+            parse_field_literal(http2_transaction, true);
         }
     }
 
@@ -351,11 +361,6 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
         // Modifying the remaining length.
         remaining_length -= HTTP2_FRAME_HEADER_SIZE;
 
-        log_debug("[http2] ----------\n");
-        log_debug("[http2] length is %lu; type is %d\n", current_frame.length, current_frame.type);
-        log_debug("[http2] flags are %d; stream id is %lu\n", current_frame.flags, current_frame.stream_id);
-        log_debug("[http2] ----------\n");
-
         is_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
         is_supported_frame = current_frame.type == kDataFrame || current_frame.type == kHeadersFrame;
         if (is_supported_frame && is_end_of_stream){
@@ -370,6 +375,11 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
             http2_transaction->current_offset_in_request_fragment += (__u32)current_frame.length;
             continue;
         }
+
+        log_debug("[http2] ----------\n");
+        log_debug("[http2] length is %lu; type is %d\n", current_frame.length, current_frame.type);
+        log_debug("[http2] flags are %d; stream id is %lu\n", current_frame.flags, current_frame.stream_id);
+        log_debug("[http2] ----------\n");
 
         // Checking we can process the entire frame.
         if (remaining_length < (__s64)current_frame.length) {
@@ -395,7 +405,7 @@ static __always_inline void http2_entrypoint(struct __sk_buff *skb, skb_info_t *
     const __u32 payload_length = skb->len - skb_info->data_off;
     const __u32 final_payload_length = HTTP2_BUFFER_SIZE < payload_length ? HTTP2_BUFFER_SIZE : payload_length;
     if (is_http2_preface(http2_conn->request_fragment, final_payload_length)) {
-        log_debug("[http2] http2 magic was found, aborting");
+        log_debug("[http2] http2 magic was found, aborting\n");
         return;
     }
 

@@ -57,17 +57,16 @@ static __always_inline bool is_empty_frame_header(const char *frame) {
 // This function reads the http2 frame header and validate the frame.
 static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_size, struct http2_frame *out) {
     if (buf == NULL) {
-        log_debug("[http2 - error] the buffer is null");
+        log_debug("[http2] error the buffer is null");
         return false;
     }
 
     if (buf_size < HTTP2_FRAME_HEADER_SIZE) {
-        log_debug("[http2 - error] the buffer is smaller then the HTTP2_FRAME_HEADER_SIZE");
+        log_debug("[http2] error the buffer is smaller then the HTTP2_FRAME_HEADER_SIZE");
         return false;
     }
 
     if (is_empty_frame_header(buf)) {
-        log_debug("[http2 - error] the buf is empty!");
         return false;
     }
 

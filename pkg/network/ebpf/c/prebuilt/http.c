@@ -59,7 +59,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
     bpf_memset(http2_conn, 0, sizeof(http2_transaction_t));
-    if (!read_conn_tuple_skb(skb, &skb_info, &http2_conn->tup)) {
+    if (read_conn_tuple_skb(skb, &skb_info, &http2_conn->tup)) {
         http2_entrypoint(skb, &skb_info, http2_conn);
     }
 
