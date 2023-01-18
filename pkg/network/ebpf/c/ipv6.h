@@ -34,7 +34,7 @@ static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct
 #endif
 }
 
-static __always_inline bool is_ipv6_enabled() {
+static __maybe_unused __always_inline bool is_ipv6_enabled() {
 #ifdef COMPILE_RUNTIME
 #ifdef FEATURE_IPV6_ENABLED
     return true;
