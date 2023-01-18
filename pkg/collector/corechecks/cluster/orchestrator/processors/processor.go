@@ -30,7 +30,7 @@ type ProcessorContext struct {
 	ClusterID          string
 	HostName           string
 	MsgGroupID         int32
-	NodeType           orchestrator.NodeType
+	NodeType           model.K8SResource
 	ApiGroupVersionTag string
 }
 

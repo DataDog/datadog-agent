@@ -9,11 +9,10 @@
 package k8s
 
 import (
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-
 	v1Informers "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions/autoscaling.k8s.io/v1"
 	v1Listers "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/listers/autoscaling.k8s.io/v1"
 
@@ -47,7 +46,7 @@ func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "verticalpodautoscalers",
-			NodeType:                  orchestrator.K8sVerticalPodAutoscaler,
+			NodeType:                  model.K8SResource_VERTICALPODAUTOSCALER,
 			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.VerticalPodAutoscalerHandlers)),

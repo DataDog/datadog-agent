@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	agentModel "github.com/DataDog/agent-payload/v5/process"
 	"path"
 )
 
@@ -16,17 +17,17 @@ var (
 
 // CheckStats holds statistics for the DCA status command regarding the last run check. Information is saved in the KubernetesResourceCache.
 type CheckStats struct {
-	// CacheHits contains the number of cache hits for a NodeType per run.
+	// CacheHits contains the number of cache hits for a agentModel.K8SResources per run.
 	CacheHits int
 
-	// CacheMiss contains the number of cache miss/send Data for a NodeType per run.
+	// CacheMiss contains the number of cache miss/send Data for a agentModel.K8SResources per run.
 	CacheMiss int
 
-	NodeType
+	agentModel.K8SResource
 }
 
 // BuildStatsKey builds a orchestrator statsKey prefixed key.
-func BuildStatsKey(nodeType NodeType) string {
+func BuildStatsKey(nodeType agentModel.K8SResource) string {
 	keys := append([]string{statsKey}, nodeType.String())
 	return path.Join(keys...)
 }

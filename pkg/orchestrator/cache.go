@@ -7,6 +7,7 @@ package orchestrator
 
 import (
 	"expvar"
+	agentModel "github.com/DataDog/agent-payload/v5/process"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -29,11 +30,11 @@ const (
 var (
 	// cache hit
 	cacheExpVars = expvar.NewMap("orchestrator-cache")
-	cacheHits    = map[NodeType]*expvar.Int{}
+	cacheHits    = map[agentModel.K8SResource]*expvar.Int{}
 
 	// cache miss, send to backend
 	sendExpVars = expvar.NewMap("orchestrator-sends")
-	cacheMiss   = map[NodeType]*expvar.Int{}
+	cacheMiss   = map[agentModel.K8SResource]*expvar.Int{}
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
@@ -55,7 +56,7 @@ func init() {
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
 // It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 // 0 == defaultDuration
-func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType NodeType) bool {
+func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType agentModel.K8SResource) bool {
 	cacheKey := string(uid)
 	value, hit := KubernetesResourceCache.Get(cacheKey)
 
@@ -73,22 +74,22 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType Node
 	}
 }
 
-func incCacheHit(nodeType NodeType) {
+func incCacheHit(nodeType agentModel.K8SResource) {
 	if nodeType.String() == "" {
 		log.Errorf("Unknown NodeType %v will not update cache hits", nodeType)
 		return
 	}
 	e := cacheHits[nodeType]
 	e.Add(1)
-	tlmCacheHits.Inc(nodeType.TelemetryTags()...)
+	tlmCacheHits.Inc(TelemetryTags(nodeType)...)
 }
 
-func incCacheMiss(nodeType NodeType) {
+func incCacheMiss(nodeType agentModel.K8SResource) {
 	if nodeType.String() == "" {
 		log.Errorf("Unknown NodeType %v will not update cache misses", nodeType)
 		return
 	}
 	e := cacheMiss[nodeType]
 	e.Add(1)
-	tlmCacheMisses.Inc(nodeType.TelemetryTags()...)
+	tlmCacheMisses.Inc(TelemetryTags(nodeType)...)
 }

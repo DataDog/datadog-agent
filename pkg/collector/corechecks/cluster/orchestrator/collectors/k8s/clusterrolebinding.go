@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"k8s.io/apimachinery/pkg/labels"
 	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
 	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
@@ -46,7 +46,7 @@ func NewClusterRoleBindingCollector() *ClusterRoleBindingCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "clusterrolebindings",
-			NodeType:                  orchestrator.K8sClusterRoleBinding,
+			NodeType:                  model.K8SResource_CLUSTERROLEBINDING,
 			Version:                   "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleBindingHandlers)),
