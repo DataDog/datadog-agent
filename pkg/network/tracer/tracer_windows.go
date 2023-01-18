@@ -16,6 +16,10 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
+	"golang.org/x/sys/windows/svc/mgr"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -24,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -52,13 +57,85 @@ type Tracer struct {
 	destExcludes   []*network.ConnectionFilter
 }
 
+func isClosedSourceAllowed() bool {
+	ddRegKey := `SOFTWARE\DataDog\Datadog Agent`
+	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
+	if err != nil {
+		log.Warnf("unable to open registry key %s: %v", ddRegKey, err)
+		return false
+	}
+	defer regKey.Close()
+
+	ddRegName := "AllowClosedSource"
+	val, _, err := regKey.GetIntegerValue("AllowClosedSource")
+	if err != nil {
+		log.Warnf("unable to get value for %s: %v", ddRegName, err)
+		return false
+	}
+
+	if val == 1 {
+		log.Infof("%s is set; closed-source software allowed", ddRegName)
+		return true
+	} else if val == 0 {
+		log.Infof("%s is not set; closed-source software not allowed", ddRegName)
+		return false
+	} else {
+		log.Infof("Unexpected value set for %s: %d", ddRegName, ddRegName)
+		return false
+	}
+}
+
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
 	di, err := network.NewDriverInterface(config, driver.NewHandle)
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
-		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
+		// check registry to see if closed source is allowed
+		if isClosedSourceAllowed() {
+			manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
+			if err != nil {
+				return nil, err
+			}
+			defer manager.Disconnect()
+
+			ddnpmServiceAccess := windows.SERVICE_CHANGE_CONFIG | windows.SERVICE_START
+			ddnpmServiceHandle, err := winutil.OpenService(manager, "ddnpm", uint32(ddnpmServiceAccess))
+			if err != nil {
+				return nil, err
+			}
+			defer ddnpmServiceHandle.Close()
+
+			newConfig := mgr.Config{
+				StartType: mgr.StartManual,
+			}
+			err = ddnpmServiceHandle.UpdateConfig(newConfig)
+			if err != nil {
+				log.Warnf("could not enable %s: %v", err)
+				return nil, err
+			}
+			err = ddnpmServiceHandle.Start()
+			if err != nil {
+				log.Warnf("Unable to start ddnpm driver")
+				return nil, err
+			}
+
+			sysProbeServiceAccess := windows.SERVICE_CHANGE_CONFIG
+			sysProbeServiceHandle, err := winutil.OpenService(manager, "datadog-systemprobe", uint32(sysProbeServiceAccess))
+			if err != nil {
+				return nil, err
+			}
+			defer sysProbeServiceHandle.Close()
+			newConfig = mgr.Config{
+				Dependencies: []string{"ddnpm"},
+			}
+			err = sysProbeServiceHandle.UpdateConfig(newConfig)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, fmt.Errorf("The Windows driver was not enabled, ensure closed source is allowed")
+		}
 	} else if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
