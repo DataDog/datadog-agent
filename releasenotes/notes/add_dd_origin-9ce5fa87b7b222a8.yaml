@@ -1,3 +1,0 @@
-features:
-  - |
-    Added _dd.origin tag for Azure and GCP during serverless initialization
