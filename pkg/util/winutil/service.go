@@ -54,19 +54,19 @@ func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*m
 // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicea#remarks
 func StartService(serviceName string) error {
 
-	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
+	defer manager.Disconnect()
 
-	s, err := OpenService(m, serviceName, windows.SERVICE_START)
+	service, err := OpenService(manager, serviceName, windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not open service: %v", err)
 	}
-	defer s.Close()
+	defer service.Close()
 
-	err = s.Start()
+	err = service.Start()
 	if err != nil {
 		return fmt.Errorf("could not start service: %v", err)
 	}
@@ -77,19 +77,19 @@ func StartService(serviceName string) error {
 // timeout for the service to transition to the requested state
 func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAccess uint32, timeout int64) error {
 
-	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
+	defer manager.Disconnect()
 
-	s, err := OpenService(m, serviceName, desiredAccess)
+	service, err := OpenService(manager, serviceName, desiredAccess)
 	if err != nil {
 		return fmt.Errorf("could not open service %s: %v", serviceName, err)
 	}
-	defer s.Close()
+	defer service.Close()
 
-	status, err := s.Control(command)
+	status, err := service.Control(command)
 	if err != nil {
 		return fmt.Errorf("could not send control %d: %v", command, err)
 	}
@@ -100,7 +100,7 @@ func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAc
 			return fmt.Errorf("timeout waiting for service %s to go to state %d; current state: %d", serviceName, to, status.State)
 		}
 		time.Sleep(300 * time.Millisecond)
-		status, err = s.Query()
+		status, err = service.Query()
 		if err != nil {
 			return fmt.Errorf("could not retrieve status for %s: %v", serviceName, err)
 		}
@@ -139,19 +139,19 @@ func RestartService(serviceName string) error {
 // when Go has their version, replace ours with the upstream
 // https://github.com/golang/go/issues/56766
 func ListDependentServices(serviceName string, state enumServiceState) ([]EnumServiceStatus, error) {
-	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
 		return nil, err
 	}
-	defer m.Disconnect()
+	defer manager.Disconnect()
 
-	s, err := OpenService(m, serviceName, windows.SERVICE_ENUMERATE_DEPENDENTS)
+	service, err := OpenService(manager, serviceName, windows.SERVICE_ENUMERATE_DEPENDENTS)
 	if err != nil {
 		return nil, fmt.Errorf("could not open service %s: %v", serviceName, err)
 	}
-	defer s.Close()
+	defer service.Close()
 
-	deps, err := enumDependentServices(s.Handle, state)
+	deps, err := enumDependentServices(service.Handle, state)
 	if err != nil {
 		return nil, fmt.Errorf("could not enumerate dependent services: %v", err)
 	}
