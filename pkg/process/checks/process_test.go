@@ -354,7 +354,7 @@ func TestProcessCheckHints(t *testing.T) {
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	first, err := processCheck.run(0, false)
 	require.NoError(t, err)
-	assert.Equal(t, &RunResult{}, first)
+	assert.Equal(t, CombinedRunResult{}, first)
 
 	expected := []model.MessageBody{
 		&model.CollectorProc{
@@ -366,8 +366,8 @@ func TestProcessCheckHints(t *testing.T) {
 	}
 	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
-	assert.Nil(t, actual.RealTime)
+	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
+	assert.Nil(t, actual.RealtimePayloads())
 
 	expectedUnspecified := []model.MessageBody{
 		&model.CollectorProc{
@@ -380,7 +380,8 @@ func TestProcessCheckHints(t *testing.T) {
 
 	actual, err = processCheck.run(0, false)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, expectedUnspecified, actual.Standard) // ordering is not guaranteed
+	assert.ElementsMatch(t, expectedUnspecified, actual.Payloads()) // ordering is not guaranteed
+	assert.Nil(t, actual.RealtimePayloads())
 
 	expectedDiscovery := []model.MessageBody{
 		&model.CollectorProc{
@@ -393,7 +394,7 @@ func TestProcessCheckHints(t *testing.T) {
 
 	actual, err = processCheck.run(0, false)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, expectedDiscovery, actual.Standard) // ordering is not guaranteed
+	assert.ElementsMatch(t, expectedDiscovery, actual.Payloads()) // ordering is not guaranteed
 }
 
 func BenchmarkProcessCheck(b *testing.B) {
