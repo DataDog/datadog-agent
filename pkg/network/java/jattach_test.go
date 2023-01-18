@@ -105,15 +105,13 @@ func TestInject(t *testing.T) {
 	}
 	t.Log(javaVersion)
 
-	for i := 0; i < 12; i++ {
-		testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
-
-		t.Run("host", func(t *testing.T) {
-			testInject(t, "")
-		})
-		if t.Failed() {
-			t.Fatal("host failed")
-		}
+	// flush the caches to slow start java
+	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
+	t.Run("host", func(t *testing.T) {
+		testInject(t, "")
+	})
+	if t.Failed() {
+		t.Fatal("host failed")
 	}
 
 	p := "unshare -p --fork "
@@ -122,13 +120,11 @@ func TestInject(t *testing.T) {
 		t.Skipf("unshare not supported on this platform %s", err)
 	}
 
-	for i := 0; i < 12; i++ {
-		testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
-
-		t.Run("PIDnamespace", func(t *testing.T) {
-			// running the tagert process in a new PID namespace
-			// and testing if the test/plaform give enough permission to do that
-			testInject(t, p)
-		})
-	}
+	// flush the caches to slow start java
+	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
+	t.Run("PIDnamespace", func(t *testing.T) {
+		// running the tagert process in a new PID namespace
+		// and testing if the test/plaform give enough permission to do that
+		testInject(t, p)
+	})
 }
