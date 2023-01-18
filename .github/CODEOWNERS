@@ -276,6 +276,7 @@
 /pkg/proto/pbgo/                        # do not notify anyone
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
+/pkg/network/config/protocol.go         @DataDog/universal-service-monitoring
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
 /pkg/network/*_windows*.go              @DataDog/windows-kernel-integrations
 /pkg/network/driver_*.go                @DataDog/windows-kernel-integrations
@@ -295,6 +296,7 @@
 /pkg/network/protocols/http/etw_*.go            @DataDog/windows-kernel-integrations
 /pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
+/pkg/network/tracer/connection/protocol/        @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/gotls_client       @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/postgres           @DataDog/universal-service-monitoring
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
