@@ -7,6 +7,7 @@ package testutil
 
 import (
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 	"testing"
@@ -43,4 +44,19 @@ func RunCommand(cmd string) (string, error) {
 		return string(out), fmt.Errorf("%s returned %s: %s", c, err, out)
 	}
 	return string(out), nil
+}
+
+func StartCommand(cmd string) (*exec.Cmd, io.WriteCloser, error) {
+	args := strings.Split(cmd, " ")
+	c := exec.Command(args[0], args[1:]...)
+	clientInput, err := c.StdinPipe()
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not get command %s standard input: %w", c, err)
+	}
+
+	err = c.Start()
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not start command %s: %w", c, err)
+	}
+	return c, clientInput, nil
 }

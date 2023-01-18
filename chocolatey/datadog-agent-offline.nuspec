@@ -4,12 +4,13 @@
     <id>datadog-agent-offline</id>
     <version>$package_version$</version>
     <packageSourceUrl>https://github.com/DataDog/datadog-agent/tree/main/chocolatey</packageSourceUrl>
+    <owners>Datadog</owners>
     <title>Datadog Agent Offline Install</title>
     <authors>Datadog</authors>
     <projectUrl>https://github.com/DataDog/datadog-agent</projectUrl>
     <iconUrl>https://datadog-prod.imgix.net/img/dd_logo_70x75.png</iconUrl>
     <copyright>$copyright$</copyright>
-    <license type="expression">Apache-2.0</license>
+    <licenseUrl>https://raw.githubusercontent.com/DataDog/datadog-agent/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <docsUrl>https://docs.datadoghq.com</docsUrl>
     <tags>datadog agent monitoring admin</tags>

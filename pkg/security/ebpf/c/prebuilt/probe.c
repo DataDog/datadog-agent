@@ -19,6 +19,9 @@
 #include <uapi/linux/udp.h>
 #include <uapi/linux/tcp.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 #include "defs.h"
 #include "buffer_selector.h"
 #include "process.h"
@@ -75,6 +78,8 @@
 #include "procfs.h"
 #include "offset.h"
 
+#pragma clang diagnostic pop
+
 struct invalidate_dentry_event_t {
     struct kevent_t event;
     u64 inode;
@@ -99,6 +104,11 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
         send_event(ctx, EVENT_INVALIDATE_DENTRY, event);
     }
 }
+
+// unit tests
+#ifdef __BALOUM__
+#include "tests.h"
+#endif
 
 __u32 _version SEC("version") = 0xFFFFFFFE;
 

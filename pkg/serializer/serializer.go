@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"github.com/benbjohnson/clock"
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -100,13 +101,18 @@ type MetricSerializer interface {
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 	SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error
 	SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostName string) error
+	SendContainerImage(msgs []ContainerImageMessage, hostname string) error
+	SendSBOM(msgs []SBOMMessage, hostname string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
+	clock                 clock.Clock
 	Forwarder             forwarder.Forwarder
 	orchestratorForwarder forwarder.Forwarder
 	contlcycleForwarder   forwarder.Forwarder
+	contimageForwarder    forwarder.Forwarder
+	sbomForwarder         forwarder.Forwarder
 
 	seriesJSONPayloadBuilder *stream.JSONPayloadBuilder
 
@@ -128,11 +134,14 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcycleForwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcycleForwarder, contimageForwarder, sbomForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
+		clock:                         clock.New(),
 		Forwarder:                     forwarder,
 		orchestratorForwarder:         orchestratorForwarder,
 		contlcycleForwarder:           contlcycleForwarder,
+		contimageForwarder:            contimageForwarder,
+		sbomForwarder:                 sbomForwarder,
 		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
@@ -460,22 +469,104 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 		return errors.New("container lifecycle forwarder is not setup")
 	}
 
+	payloads := make([]*[]byte, 0, len(msgs))
+
 	for _, msg := range msgs {
-		extraHeaders := make(http.Header)
-		extraHeaders.Set("Content-Type", protobufContentType)
 		msg.Host = hostname
 		encoded, err := proto.Marshal(&msg)
 		if err != nil {
 			return log.Errorf("Unable to encode message: %v", err)
 		}
 
-		payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&encoded})
-		if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(payloads, extraHeaders); err != nil {
-			return log.Errorf("Unable to submit container lifecycle payload: %v", err)
+		payloads = append(payloads, &encoded)
+	}
+
+	bytePayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
+
+	extraHeaders := make(http.Header)
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(s.clock.Now().Unix())))
+	extraHeaders.Set(headers.EVPOriginHeader, "agent")
+	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+
+	if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(bytePayloads, extraHeaders); err != nil {
+		return log.Errorf("Unable to submit container lifecycle payloads: %v", err)
+	}
+
+	log.Tracef("Sent container lifecycle events %+v", msgs)
+
+	return nil
+}
+
+// SendContainerImage serializes & sends container image payloads
+func (s *Serializer) SendContainerImage(msgs []ContainerImageMessage, hostname string) error {
+	if s.contimageForwarder == nil {
+		return errors.New("container image forwarder is not setup")
+	}
+
+	payloads := make([]*[]byte, 0, len(msgs))
+
+	for i := range msgs {
+		msgs[i].Host = hostname
+		encoded, err := proto.Marshal(&msgs[i])
+		if err != nil {
+			return log.Errorf("Unable to encode message: %+v", err)
 		}
 
-		log.Tracef("Sent container lifecycle event %+v", msg)
+		payloads = append(payloads, &encoded)
 	}
+
+	bytesPayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
+
+	extraHeaders := make(http.Header)
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(s.clock.Now().Unix())))
+	extraHeaders.Set(headers.EVPOriginHeader, "agent")
+	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+
+	if err := s.contimageForwarder.SubmitContainerImages(bytesPayloads, extraHeaders); err != nil {
+		return log.Errorf("Unable to submit container image payload: %v", err)
+	}
+
+	log.Tracef("Send container images %+v", msgs)
+
+	return nil
+}
+
+// SendSBOM serializes & sends sbom payloads
+func (s *Serializer) SendSBOM(msgs []SBOMMessage, hostname string) error {
+	if s.sbomForwarder == nil {
+		return errors.New("SBOM forwarder is not setup")
+	}
+
+	payloads := make([]*[]byte, 0, len(msgs))
+
+	for i := range msgs {
+		msgs[i].Host = hostname
+		encoded, err := proto.Marshal(&msgs[i])
+		if err != nil {
+			return log.Errorf("Unable to encode message: %+v", err)
+		}
+
+		payloads = append(payloads, &encoded)
+	}
+
+	bytesPayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
+
+	extraHeaders := make(http.Header)
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(s.clock.Now().Unix())))
+	extraHeaders.Set(headers.EVPOriginHeader, "agent")
+	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+
+	if err := s.sbomForwarder.SubmitSBOM(bytesPayloads, extraHeaders); err != nil {
+		return log.Errorf("Unable to submit SBOM payload: %v", err)
+	}
+
+	log.Tracef("Send SBOM %+v", msgs)
 
 	return nil
 }

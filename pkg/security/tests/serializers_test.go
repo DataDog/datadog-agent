@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -48,19 +49,19 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *sprobe.EventSerializer {
 		tb.Fatal(err)
 	}
 
-	var workingEvent *sprobe.Event
+	var workingEvent *model.Event
 	test.WaitSignal(tb, func() error {
 		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 		if errno != 0 {
 			return error(errno)
 		}
 		return syscall.Close(int(fd))
-	}, func(event *sprobe.Event, r *rules.Rule) {
+	}, func(event *model.Event, r *rules.Rule) {
 		workingEvent = event
 		assert.Equal(tb, "open", event.GetType(), "wrong event type")
 	})
 
-	return sprobe.NewEventSerializer(workingEvent)
+	return sprobe.NewEventSerializer(workingEvent, test.probe)
 }
 
 func BenchmarkSerializersEasyJson(b *testing.B) {

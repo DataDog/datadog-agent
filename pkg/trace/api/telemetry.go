@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -81,6 +82,12 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			// that net/http gives it: Go-http-client/1.1
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
+		}
+
+		if cid := r.containerIDProvider.GetContainerID(req.Context(), req.Header); cid != "" {
+			req.Header.Set(header.ContainerID, cid)
+		} else {
+			metrics.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
 		}
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)

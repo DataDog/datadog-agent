@@ -19,13 +19,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func validateResolution(test *testModule, event *sprobe.Event, testFile string, pathFnc func(uint32, uint64, uint32, bool) (string, error), parentFnc func(uint32, uint64, uint32) (uint32, uint64, error), nameFnc func(uint32, uint64, uint32) (string, error)) {
+func validateResolution(test *testModule, event *model.Event, testFile string, pathFnc func(uint32, uint64, uint32, bool) (string, error), parentFnc func(uint32, uint64, uint32) (uint32, uint64, error), nameFnc func(uint32, uint64, uint32) (string, error)) {
 	basename := path.Base(testFile)
 
 	// Force an eRPC resolution to refresh the entry with the last generation as lost events may have invalidated the entry
@@ -103,7 +102,7 @@ func TestDentryResolutionERPC(t *testing.T) {
 	test.WaitSignal(t, func() error {
 		_, err = os.Create(testFile)
 		return err
-	}, func(event *sprobe.Event, rule *rules.Rule) {
+	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_erpc_rule")
 
 		test.module.SendStats()
@@ -157,7 +156,7 @@ func TestDentryResolutionMap(t *testing.T) {
 			return err
 		}
 		return nil
-	}, func(event *sprobe.Event, rule *rules.Rule) {
+	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_map_rule")
 
 		test.module.SendStats()
@@ -207,7 +206,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *sprobe.Event, _ *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
@@ -276,7 +275,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *sprobe.Event, _ *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
@@ -345,7 +344,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *sprobe.Event, _ *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
@@ -414,7 +413,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *sprobe.Event, _ *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID

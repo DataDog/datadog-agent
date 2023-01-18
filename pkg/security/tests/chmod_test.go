@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -54,7 +54,7 @@ func TestChmod(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o707)
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
@@ -63,9 +63,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChmodSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChmodSchema(t, event)
 		})
 	})
 
@@ -77,7 +75,7 @@ func TestChmod(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o757)
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
@@ -86,9 +84,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChmodSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChmodSchema(t, event)
 		})
 	})
 
@@ -98,7 +94,7 @@ func TestChmod(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o717, "wrong mode")
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
@@ -107,9 +103,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChmodSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChmodSchema(t, event)
 		})
 	}))
 }

@@ -10,9 +10,13 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
+
+func testGroupId(groupID int32) func() int32 {
+	return func() int32 {
+		return groupID
+	}
+}
 
 func TestProcessDiscoveryCheck(t *testing.T) {
 	prev := getMaxBatchSize
@@ -23,18 +27,22 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	maxBatchSize := 10
 	getMaxBatchSize = func() int { return maxBatchSize }
 
-	cfg := &config.AgentConfig{}
-	ProcessDiscovery.Init(cfg, &model.SystemInfo{
-		Cpus:        []*model.CPUInfo{{Number: 0}},
-		TotalMemory: 0,
-	})
+	ProcessDiscovery.Init(
+		nil,
+		&HostInfo{
+			SystemInfo: &model.SystemInfo{
+				Cpus:        []*model.CPUInfo{{Number: 0}},
+				TotalMemory: 0,
+			},
+		},
+	)
 
 	// Test check runs without error
-	result, err := ProcessDiscovery.Run(cfg, 0)
+	result, err := ProcessDiscovery.Run(testGroupId(0), nil)
 	assert.NoError(t, err)
 
 	// Test that result has the proper number of chunks, and that those chunks are of the correct type
-	for _, elem := range result {
+	for _, elem := range result.Payloads() {
 		assert.IsType(t, &model.CollectorProcDiscovery{}, elem)
 		collectorProcDiscovery := elem.(*model.CollectorProcDiscovery)
 		for _, proc := range collectorProcDiscovery.ProcessDiscoveries {

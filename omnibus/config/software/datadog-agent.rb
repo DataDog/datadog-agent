@@ -151,12 +151,7 @@ build do
   end
 
   # Security agent
-  if windows?
-    platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
-
-    copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-  else
+  unless windows?
     command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
     copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"

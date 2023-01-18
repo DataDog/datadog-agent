@@ -57,6 +57,7 @@ type cliParams struct {
 	checkPause                int
 	checkName                 string
 	checkDelay                int
+	instanceFilter            string
 	logLevel                  string
 	formatJSON                bool
 	formatTable               bool
@@ -105,8 +106,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithConfigName(globalParams.ConfigName)).
-					LogForOneShot(globalParams.LoggerName, "off", true)),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					LogParams:    log.LogForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -117,6 +119,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().IntVar(&cliParams.checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	cmd.Flags().StringVarP(&cliParams.logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&cliParams.checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
+	cmd.Flags().StringVarP(&cliParams.instanceFilter, "instance-filter", "", "", "filter instances using jq style syntax, example: --instance-filter '.ip_address == \"127.0.0.51\"'")
 	cmd.Flags().BoolVarP(&cliParams.formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	cmd.Flags().BoolVarP(&cliParams.formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&cliParams.breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
@@ -149,11 +152,17 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	previousIntegrationTracing := false
+	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
 		if pkgconfig.Datadog.IsSet("integration_tracing") {
 			previousIntegrationTracing = pkgconfig.Datadog.GetBool("integration_tracing")
+
+		}
+		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
+			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
 		pkgconfig.Datadog.Set("integration_tracing", true)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -186,8 +195,12 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-	allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances))
+
+	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter)
 	cancelTimeout()
+	if err != nil {
+		return err
+	}
 
 	// make sure the checks in cs are not JMX checks
 	for idx := range allConfigs {
@@ -476,6 +489,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	if cliParams.generateIntegrationTraces {
 		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
 	}
 
 	return nil

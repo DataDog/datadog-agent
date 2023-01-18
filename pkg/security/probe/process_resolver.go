@@ -29,7 +29,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -103,7 +103,7 @@ type ProcessResolver struct {
 	manager      *manager.Manager
 	config       *config.Config
 	statsdClient statsd.ClientInterface
-	scrubber     *pconfig.DataScrubber
+	scrubber     *procutil.DataScrubber
 
 	resolvers        *Resolvers
 	execFileCacheMap *lib.Map
@@ -413,7 +413,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
+	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't get the filesystem: %w", proc.Pid, err)
 	}
@@ -443,15 +443,13 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	// args and envs
 	if len(filledProc.Cmdline) > 0 {
-		entry.ArgsEntry = &model.ArgsEntry{
-			Values: filledProc.Cmdline,
-		}
+		entry.ArgsEntry = &model.ArgsEntry{}
+		entry.ArgsEntry.SetValues(filledProc.Cmdline)
 	}
 
 	if envs, err := utils.EnvVars(proc.Pid); err == nil {
-		entry.EnvsEntry = &model.EnvsEntry{
-			Values: envs,
-		}
+		entry.EnvsEntry = &model.EnvsEntry{}
+		entry.EnvsEntry.SetValues(envs)
 	}
 
 	if parent := p.entryCache[entry.PPid]; parent != nil {
@@ -478,9 +476,9 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	//print "Hello from Perl\n";
 	//
 	//EOF
-	if valueCount := len(entry.ArgsEntry.Values); valueCount > 1 {
-		firstArg := entry.ArgsEntry.Values[0]
-		lastArg := entry.ArgsEntry.Values[valueCount-1]
+	if values, _ := entry.ArgsEntry.ToArray(); len(values) > 1 {
+		firstArg := values[0]
+		lastArg := values[len(values)-1]
 		// Example result: comm value: pyscript.py | args: [/usr/bin/python3 ./pyscript.py]
 		if path.Base(lastArg) == entry.Comm && path.IsAbs(firstArg) {
 			entry.LinuxBinprm.FileEvent = entry.FileEvent
@@ -544,6 +542,10 @@ func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 		prev.Release()
 	}
 
+	if entry.IsContainerInit() {
+		p.resolvers.CgroupsResolver.AddPID1(entry.ContainerID, entry.Pid)
+	}
+
 	p.addedEntries.Inc()
 	p.cacheSize.Inc()
 }
@@ -557,7 +559,7 @@ func (p *ProcessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
 
 	parent := p.entryCache[entry.PPid]
 	if parent == nil && entry.PPid >= 1 {
-		parent = p.resolve(entry.PPid, entry.PPid)
+		parent = p.resolve(entry.PPid, entry.PPid, entry.Inode)
 	}
 
 	if parent != nil {
@@ -584,6 +586,15 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	}
 	entry.Exit(exitTime)
 
+	if entry.IsContainerInit() {
+		p.resolvers.CgroupsResolver.Release(entry.ContainerID)
+	}
+
+	// Release also the parent if the entry is a fork child. The parent could have increased the ref counter too
+	if entry.IsThread && entry.Ancestor.IsContainerInit() {
+		p.resolvers.CgroupsResolver.Release(entry.Ancestor.ContainerID)
+	}
+
 	delete(p.entryCache, entry.Pid)
 	entry.Release()
 }
@@ -597,15 +608,15 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) Resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.resolve(pid, tid)
+	return p.resolve(pid, tid, inode)
 }
 
-func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
-	if entry := p.resolveFromCache(pid, tid); entry != nil {
+func (p *ProcessResolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+	if entry := p.resolveFromCache(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
 	}
@@ -631,28 +642,31 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.PIDContext) (string, error) {
-
-	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
+func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
+	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
-		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
+
+		return pathnameStr, err
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, ctx)
+	if fileEvent.Inode == 0 {
+		return onError("", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
+	}
+
+	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, pidCtx, ctrCtx)
 	if err != nil {
-		fileEvent.SetPathnameStr("")
-		fileEvent.SetBasenameStr("")
-
-		p.pathErrStats.Inc()
-
-		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
+		return onError(pathnameStr, err)
 	}
 
-	fileEvent.SetPathnameStr(pathnameStr)
-	fileEvent.SetBasenameStr(path.Base(fileEvent.PathnameStr))
+	if fileEvent.FileFields.IsFileless() {
+		fileEvent.SetPathnameStr("")
+	} else {
+		fileEvent.SetPathnameStr(pathnameStr)
+	}
+	fileEvent.SetBasenameStr(path.Base(pathnameStr))
 
 	return fileEvent.PathnameStr, nil
 }
@@ -678,7 +692,7 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID, entry.Pid)
+		fs, err := p.resolvers.MountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid, entry.ContainerID)
 		if err != nil {
 			return "", err
 		}
@@ -696,15 +710,22 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 }
 
 // ResolveFromCache resolves cache entry from the cache
-func (p *ProcessResolver) ResolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) ResolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-	return p.resolveFromCache(pid, tid)
+	return p.resolveFromCache(pid, tid, inode)
 }
 
-func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	entry, exists := p.entryCache[pid]
 	if !exists {
+		return nil
+	}
+
+	// Compare inode to ensure that the cache is up-to-date.
+	// Be sure to compare with the file inode and not the pidcontext which can be empty
+	// if the entry originates from procfs.
+	if inode != 0 && inode != entry.Process.FileEvent.Inode {
 		return nil
 	}
 
@@ -715,14 +736,14 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 }
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
-func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext); err != nil {
-		return fmt.Errorf("failed to resolve exec path: %w", err)
+func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
+	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
+		return &ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
 	}
 
 	if entry.HasInterpreter() {
-		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext); err != nil {
-			return fmt.Errorf("failed to resolve interpreter path: %w", err)
+		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
+			return &ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
 		}
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow
@@ -766,12 +787,11 @@ func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessC
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid})
 
-	var cc model.ContainerContext
-	read, err := cc.UnmarshalBinary(procCache)
+	var ctrCtx model.ContainerContext
+	read, err := ctrCtx.UnmarshalBinary(procCache)
 	if err != nil {
 		return nil
 	}
-	entry.ContainerID = cc.ID
 
 	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:]); err != nil {
 		return nil
@@ -782,7 +802,7 @@ func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessC
 	}
 
 	// resolve paths and other context fields
-	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
+	if err = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
 		return nil
 	}
 
@@ -843,7 +863,7 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 	entry, inserted := p.syncCache(proc, filledProc)
 	if entry != nil {
 		// consider kworker processes with 0 as ppid
-		entry.IsKworker = filledProc.Ppid == 0
+		entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 	}
 
 	ppid = uint32(filledProc.Ppid)
@@ -869,9 +889,7 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 
 		p.argsSize.Add(int64(entry.TotalSize))
 
-		pce.ArgsEntry = &model.ArgsEntry{
-			ArgsEnvsCacheEntry: entry,
-		}
+		pce.ArgsEntry = model.NewArgsEntry(entry)
 
 		// attach to a process thus retain the head of the chain
 		// note: only the head of the list is retained and when released
@@ -939,9 +957,7 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 
 		p.envsSize.Add(int64(entry.TotalSize))
 
-		pce.EnvsEntry = &model.EnvsEntry{
-			ArgsEnvsCacheEntry: entry,
-		}
+		pce.EnvsEntry = model.NewEnvsEntry(entry)
 
 		// attach to a process thus retain the head of the chain
 		// note: only the head of the list is retained and when released
@@ -1003,7 +1019,7 @@ func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 }
 
 // UpdateUID updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateUID(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1013,16 +1029,16 @@ func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
 	entry := p.entryCache[pid]
 	if entry != nil {
 		entry.Credentials.UID = e.SetUID.UID
-		entry.Credentials.User = e.ResolveSetuidUser(&e.SetUID)
+		entry.Credentials.User = e.FieldHandlers.ResolveSetuidUser(e, &e.SetUID)
 		entry.Credentials.EUID = e.SetUID.EUID
-		entry.Credentials.EUser = e.ResolveSetuidEUser(&e.SetUID)
+		entry.Credentials.EUser = e.FieldHandlers.ResolveSetuidEUser(e, &e.SetUID)
 		entry.Credentials.FSUID = e.SetUID.FSUID
-		entry.Credentials.FSUser = e.ResolveSetuidFSUser(&e.SetUID)
+		entry.Credentials.FSUser = e.FieldHandlers.ResolveSetuidFSUser(e, &e.SetUID)
 	}
 }
 
 // UpdateGID updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateGID(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1032,16 +1048,16 @@ func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
 	entry := p.entryCache[pid]
 	if entry != nil {
 		entry.Credentials.GID = e.SetGID.GID
-		entry.Credentials.Group = e.ResolveSetgidGroup(&e.SetGID)
+		entry.Credentials.Group = e.FieldHandlers.ResolveSetgidGroup(e, &e.SetGID)
 		entry.Credentials.EGID = e.SetGID.EGID
-		entry.Credentials.EGroup = e.ResolveSetgidEGroup(&e.SetGID)
+		entry.Credentials.EGroup = e.FieldHandlers.ResolveSetgidEGroup(e, &e.SetGID)
 		entry.Credentials.FSGID = e.SetGID.FSGID
-		entry.Credentials.FSGroup = e.ResolveSetgidFSGroup(&e.SetGID)
+		entry.Credentials.FSGroup = e.FieldHandlers.ResolveSetgidFSGroup(e, &e.SetGID)
 	}
 }
 
 // UpdateCapset updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateCapset(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateCapset(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1280,7 +1296,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *pconfig.DataScrubber, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	scrubber *procutil.DataScrubber, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1291,7 +1307,6 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		config:         config,
 		statsdClient:   statsdClient,
 		scrubber:       scrubber,
-		resolvers:      resolvers,
 		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,

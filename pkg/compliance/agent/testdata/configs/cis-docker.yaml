@@ -7,17 +7,15 @@ rules:
 - id: cis-docker-1
   scope:
     - docker
-  resources:
+  input:
     - file:
         path: /files/daemon.json
-      condition: file.permissions == 0644
+      type: object
 - id: cis-docker-2
   scope:
     - docker
   skipOnKubernetes: true
-  resources:
+  input:
     - file:
         path: /files/daemon.json
-      condition: file.permissions == 0644
-
-
+      type: object

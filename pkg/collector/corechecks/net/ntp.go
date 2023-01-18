@@ -139,7 +139,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *NTPCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	cfg := new(ntpConfig)
 	err := cfg.parse(data, initConfig, getLocalDefinedNTPServers)
 	if err != nil {
@@ -147,10 +147,10 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data,
 		return err
 	}
 
-	c.BuildID(data, initConfig)
+	c.BuildID(integrationConfigDigest, data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(initConfig, data, source)
+	err = c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}

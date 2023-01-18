@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
-	"github.com/opencontainers/image-spec/specs-go/v1"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -78,12 +79,25 @@ type Store interface {
 	// entities with kind KindContainerImageMetadata.
 	ListImages() []*ContainerImageMetadata
 
+	// GetImage returns metadata about a container image. It fetches the entity
+	// with kind KindContainerImageMetadata and the given ID.
+	GetImage(id string) (*ContainerImageMetadata, error)
+
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.
 	Notify(events []CollectorEvent)
 
 	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
+
+	// Reset resets the state of the store so that newEntities are the only
+	// entities stored. This function sends events to the subscribers in the
+	// following cases:
+	// - EventTypeSet: one for each entity in newEntities that doesn't exist in
+	// the store. Also, when the entity exists, but with different values.
+	// - EventTypeUnset: one for each entity that exists in the store but is not
+	// present in newEntities.
+	Reset(newEntities []Entity, source Source)
 }
 
 // Kind is the kind of an entity.
@@ -120,6 +134,10 @@ const (
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
 	SourceClusterOrchestrator Source = "cluster_orchestrator"
+
+	// SourceRemoteWorkloadmeta represents entities detected by the remote
+	// workloadmeta.
+	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -253,6 +271,7 @@ type ContainerImage struct {
 	ID        string
 	RawName   string
 	Name      string
+	Registry  string
 	ShortName string
 	Tag       string
 }
@@ -264,7 +283,7 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 		Name:    imageName,
 	}
 
-	name, shortName, tag, err := containers.SplitImageName(imageName)
+	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}
@@ -274,6 +293,7 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 	}
 
 	image.Name = name
+	image.Registry = registry
 	image.ShortName = shortName
 	image.Tag = tag
 
@@ -606,6 +626,7 @@ var _ Entity = &ECSTask{}
 type ContainerImageMetadata struct {
 	EntityID
 	EntityMeta
+	Registry     string
 	ShortName    string
 	RepoTags     []string
 	RepoDigests  []string
@@ -616,6 +637,7 @@ type ContainerImageMetadata struct {
 	Architecture string
 	Variant      string
 	Layers       []ContainerImageLayer
+	CycloneDXBOM *cyclonedx.BOM
 }
 
 // ContainerImageLayer represents a layer of a container image

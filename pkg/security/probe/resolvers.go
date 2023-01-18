@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -22,11 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
-	probe             *Probe
+	manager           *manager.Manager
 	MountResolver     *resolvers.MountResolver
 	ContainerResolver *resolvers.ContainerResolver
 	TimeResolver      *resolvers.TimeResolver
@@ -35,6 +37,8 @@ type Resolvers struct {
 	DentryResolver    *resolvers.DentryResolver
 	ProcessResolver   *ProcessResolver
 	NamespaceResolver *NamespaceResolver
+	CgroupsResolver   *resolvers.CgroupsResolver
+	TCResolver        *resolvers.TCResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -54,18 +58,31 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient)
-	if err != nil {
-		return nil, err
-	}
-
 	namespaceResolver, err := NewNamespaceResolver(probe)
 	if err != nil {
 		return nil, err
 	}
 
+	cgroupsResolver, err := resolvers.NewCgroupsResolver()
+	if err != nil {
+		return nil, err
+	}
+
+	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient, cgroupsResolver, resolvers.MountResolverOpts{UseProcFS: true})
+	if err != nil {
+		return nil, err
+	}
+
+	tcResolver := resolvers.NewTCResolver(config)
+
+	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
+		probe.scrubber, NewProcessResolverOpts(probe.Config.EnvsWithValue))
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
-		probe:             probe,
+		manager:           probe.Manager,
 		MountResolver:     mountResolver,
 		ContainerResolver: &resolvers.ContainerResolver{},
 		TimeResolver:      timeResolver,
@@ -73,35 +90,47 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		TagsResolver:      resolvers.NewTagsResolver(config),
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
+		CgroupsResolver:   cgroupsResolver,
+		TCResolver:        tcResolver,
+		ProcessResolver:   processResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
-		probe.scrubber, resolvers, NewProcessResolverOpts(probe.Config.EnvsWithValue))
-	if err != nil {
-		return nil, err
-	}
-	resolvers.ProcessResolver = processResolver
+	resolvers.ProcessResolver.resolvers = resolvers
 
 	return resolvers, nil
 }
 
-// resolveBasename resolves the inode to a filename
+// resolveBasename resolves an inode/mount ID pair to a file basename
 func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 	return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID)
 }
 
-// resolveFileFieldsPath resolves the inode to a full path
-func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDContext) (string, error) {
+// resolveFileFieldsPath resolves an inode/mount ID pair to a full path
+func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err
 	}
 
-	mountPath, rootPath, mountErr := r.MountResolver.ResolveMountPaths(e.MountID, ctx.Pid)
-	if mountErr != nil {
-		return pathStr, mountErr
+	if e.IsFileless() {
+		return pathStr, err
 	}
 
+	mountPath, err := r.MountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		}
+		return pathStr, err
+	}
+
+	rootPath, err := r.MountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		}
+		return pathStr, err
+	}
 	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
@@ -112,22 +141,6 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDCon
 	}
 
 	return pathStr, err
-}
-
-// ResolveFileFieldsUser resolves the user id of the file to a username
-func (r *Resolvers) ResolveFileFieldsUser(e *model.FileFields) string {
-	if len(e.User) == 0 {
-		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
-	}
-	return e.User
-}
-
-// ResolveFileFieldsGroup resolves the group id of the file to a group name
-func (r *Resolvers) ResolveFileFieldsGroup(e *model.FileFields) string {
-	if len(e.Group) == 0 {
-		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
-	}
-	return e.Group
 }
 
 // ResolveCredentialsUser resolves the user id of the process to a username
@@ -178,14 +191,6 @@ func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
 	return e.FSGroup
 }
 
-// ResolvePCEContainerTags resolves the container tags of a ProcessCacheEntry
-func (r *Resolvers) ResolvePCEContainerTags(e *model.ProcessCacheEntry) []string {
-	if len(e.ContainerTags) == 0 && len(e.ContainerID) > 0 {
-		e.ContainerTags = r.TagsResolver.Resolve(e.ContainerID)
-	}
-	return e.ContainerTags
-}
-
 // Start the resolvers
 func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
@@ -197,7 +202,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.DentryResolver.Start(r.probe.Manager); err != nil {
+	if err := r.DentryResolver.Start(r.manager); err != nil {
 		return err
 	}
 
@@ -213,7 +218,7 @@ func (r *Resolvers) Snapshot() error {
 	r.ProcessResolver.SetState(snapshotted)
 	r.NamespaceResolver.SetState(snapshotted)
 
-	selinuxStatusMap, err := managerhelper.Map(r.probe.Manager, "selinux_enforce_status")
+	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {
 		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}
