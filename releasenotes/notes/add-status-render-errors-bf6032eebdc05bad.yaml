@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    Add ``Status render errors`` section in ``agent status`` to highlight errors while rendering ``/templates/*.tmpl``.
+    The status page now includes a ``Status render errors`` section to highlight errors that occurred while rendering it.
