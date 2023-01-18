@@ -54,7 +54,6 @@ type testContext struct {
 }
 
 func setupTracer(t *testing.T, cfg *config.Config) *Tracer {
-	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	if err != nil {
 		t.Fatal(err)
