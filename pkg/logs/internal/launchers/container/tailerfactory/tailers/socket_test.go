@@ -108,15 +108,15 @@ func TestDockerSocketTailer_run_canStopWithError(t *testing.T) {
 			tailerStopped.Inc()
 		})
 
-	// wait until the inner tailer has started a third time due to two errors
+	// wait until the inner tailer has started
 	for tailerStarted.Load() < 1 {
 		time.Sleep(1 * time.Millisecond)
 	}
 
-	// stop the tailer
+	// stop the tailer - this should not block.
 	dst.Stop()
 
-	// check that the tailer was started and subsequently stopped twice
+	// check that the tailer was started and subsequently stopped
 	require.Equal(t, int32(1), tailerStarted.Load())
 	require.Equal(t, int32(1), tailerStopped.Load())
 }
