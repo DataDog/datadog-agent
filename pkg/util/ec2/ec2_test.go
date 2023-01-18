@@ -36,7 +36,6 @@ func resetPackageVars() {
 	token = httputils.NewAPIToken(getToken)
 
 	instanceIDFetcher.Reset()
-	localIPv4Fetcher.Reset()
 	publicIPv4Fetcher.Reset()
 	hostnameFetcher.Reset()
 	networkIDFetcher.Reset()
@@ -379,28 +378,6 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	assert.Contains(t, err.Error(), "too many mac addresses returned")
 }
 
-func TestGetLocalIPv4(t *testing.T) {
-	ip := "10.0.0.2"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/local-ipv4":
-			io.WriteString(w, ip)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-
-	defer ts.Close()
-	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	ips, err := GetLocalIPv4()
-	require.NoError(t, err)
-	assert.Equal(t, []string{ip}, ips)
-}
-
 func TestGetPublicIPv4(t *testing.T) {
 	ctx := context.Background()
 	ip := "10.0.0.2"
@@ -453,6 +430,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	var requestWithToken *http.Request
 	var seq int
 	config.Datadog.SetDefault("ec2_prefer_imdsv2", true)
+	ctx := context.Background()
 
 	ipv4 := "198.51.100.1"
 	tok := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
@@ -481,7 +459,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 				return
 			}
 			switch r.RequestURI {
-			case "/local-ipv4":
+			case "/public-ipv4":
 				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
 				seq++
 				requestWithToken = r
@@ -500,9 +478,9 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	ips, err := GetLocalIPv4()
+	ips, err := GetPublicIPv4(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
+	assert.Equal(t, ipv4, ips)
 
 	assert.Nil(t, requestWithoutToken)
 
@@ -512,13 +490,13 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	assert.Equal(t, http.MethodPut, requestForToken.Method)
 	assert.Equal(t, "/", requestForToken.RequestURI)
 	assert.Equal(t, tok, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
-	assert.Equal(t, "/local-ipv4", requestWithToken.RequestURI)
+	assert.Equal(t, "/public-ipv4", requestWithToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithToken.Method)
 
 	// Ensure token has been cached
-	ips, err = GetLocalIPv4()
+	ips, err = GetPublicIPv4(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
+	assert.Equal(t, ipv4, ips)
 	// Unchanged
 	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
 	// Incremented
@@ -526,9 +504,9 @@ func TestMetedataRequestWithToken(t *testing.T) {
 
 	// Force refresh
 	token.ExpirationDate = time.Now()
-	ips, err = GetLocalIPv4()
+	ips, err = GetPublicIPv4(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
+	assert.Equal(t, ipv4, ips)
 	// Incremented
 	assert.Equal(t, "3", requestForToken.Header.Get("X-sequence"))
 	assert.Equal(t, "4", requestWithToken.Header.Get("X-sequence"))
@@ -550,7 +528,7 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 			token := r.Header.Get("X-aws-ec2-metadata-token")
 			assert.Equal(t, token, "")
 			switch r.RequestURI {
-			case "/local-ipv4":
+			case "/public-ipv4":
 				requestWithoutToken = r
 				io.WriteString(w, ipv4)
 			default:
@@ -566,11 +544,11 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	ips, err := GetLocalIPv4()
+	ips, err := GetPublicIPv4(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
+	assert.Equal(t, ipv4, ips)
 
-	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
+	assert.Equal(t, "/public-ipv4", requestWithoutToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
 }
 
