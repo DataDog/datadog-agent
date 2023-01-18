@@ -32,8 +32,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	// TODO: The SecAgent Check package should be a component
-	// The globalParams input should always be nil here. This is used to differentiate between entering from Cluster-Agent or the Security-Agent
-	complianceCmd.AddCommand(check.CommandsWrapped(nil, bundleParams)...)
+	// The globalParams input should always be nil here. A cleaner way of doing this is pending refactoring the check package into a component.
+	complianceCmd.AddCommand(check.CommandsWrapped(nil, bundleParams, true)...)
 
 	return []*cobra.Command{complianceCmd}
 }
