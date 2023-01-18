@@ -357,6 +357,9 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func dumpProcessCache(log log.Component, config config.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -374,6 +377,9 @@ func dumpProcessCache(log log.Component, config config.Component, processCacheDu
 }
 
 func dumpNetworkNamespace(log log.Component, config config.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -494,6 +500,9 @@ func checkPoliciesInner(dir string) error {
 }
 
 func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	return checkPoliciesInner(args.dir)
 }
 
@@ -556,6 +565,9 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 }
 
 func evalRule(log log.Component, config config.Component, evalArgs *evalCliParams) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	cfg := &secconfig.Config{
 		PoliciesDir:         evalArgs.dir,
 		EnableKernelFilters: true,
@@ -630,6 +642,9 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 }
 
 func runRuntimeSelfTest(log log.Component, config config.Component) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -650,6 +665,9 @@ func runRuntimeSelfTest(log log.Component, config config.Component) error {
 }
 
 func reloadRuntimePolicies(log log.Component, config config.Component) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -665,6 +683,9 @@ func reloadRuntimePolicies(log log.Component, config config.Component) error {
 }
 
 func newRuntimeReporter(log log.Component, config config.Component, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
@@ -688,6 +709,9 @@ func newRuntimeReporter(log log.Component, config config.Component, stopper star
 }
 
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
@@ -721,6 +745,9 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 }
 
 func downloadPolicy(log log.Component, config config.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	apiKey := config.GetString("api_key")
 	appKey := config.GetString("app_key")
 
@@ -791,6 +818,9 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 }
 
 func dumpDiscarders(log log.Component, config config.Component) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)

@@ -76,6 +76,9 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 }
 
 func eventRun(log log.Component, config config.Component, eventArgs *cliParams) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
