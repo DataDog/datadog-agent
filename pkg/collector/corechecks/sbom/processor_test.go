@@ -36,7 +36,7 @@ func TestProcessEvents(t *testing.T) {
 							ID:   strconv.Itoa(i),
 						},
 						CycloneDXBOM: &cyclonedx.BOM{
-							SpecVersion: "1.4",
+							SpecVersion: cyclonedx.SpecVersion1_4,
 							Version:     42,
 							Components: &[]cyclonedx.Component{
 								{
