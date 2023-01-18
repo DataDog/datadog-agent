@@ -7,7 +7,6 @@ package host
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path"
 	"sync"
@@ -27,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
@@ -104,24 +101,6 @@ func GetPythonVersion() string {
 	return "n/a"
 }
 
-func getPublicIPv4(ctx context.Context) (string, error) {
-	publicIPFetcher := map[string]func(context.Context) (string, error){
-		"EC2":   ec2.GetPublicIPv4,
-		"GCE":   gce.GetPublicIPv4,
-		"Azure": azure.GetPublicIPv4,
-	}
-	for name, fetcher := range publicIPFetcher {
-		publicIPv4, err := fetcher(ctx)
-		if err == nil {
-			log.Debugf("%s public IP = %s", name, publicIPv4)
-			return publicIPv4, nil
-		}
-		log.Debugf("could not fetch %s public IPv4: %s", name, err)
-	}
-	log.Infof("No public IPv4 address found")
-	return "", errors.New("No public IPv4 address found")
-}
-
 // getMeta grabs the information and refreshes the cache
 func getMeta(ctx context.Context, hostnameData hostname.Data) *Meta {
 	osHostname, _ := os.Hostname()
@@ -165,7 +144,7 @@ func getNetworkMeta(ctx context.Context) *NetworkMeta {
 
 	networkMeta := &NetworkMeta{ID: nid}
 
-	publicIPv4, err := getPublicIPv4(ctx)
+	publicIPv4, err := cloudproviders.GetPublicIPv4(ctx)
 	if err == nil {
 		log.Infof("Adding public IPv4 %s to network metadata", publicIPv4)
 		networkMeta.PublicIPv4 = publicIPv4
