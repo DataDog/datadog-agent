@@ -427,7 +427,7 @@ require (
 )
 
 require (
-	github.com/CycloneDX/cyclonedx-go v0.6.0
+	github.com/CycloneDX/cyclonedx-go v0.7.0
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/safchain/baloum v0.0.0-20221229104256-b1fc8f70a86b
