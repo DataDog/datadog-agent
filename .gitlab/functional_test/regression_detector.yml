@@ -3,7 +3,7 @@ single-machine-performance-regression_detector:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   needs:
-    - job: docker_build_agent7_single_machine_performance
+    - job: single_machine_performance-amd64-a7
       artifacts: false
   artifacts:
     expire_in: 1 weeks

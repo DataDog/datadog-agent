@@ -55,18 +55,29 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
+func (c *ContainerCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (c *ContainerCheck) SupportsRunOptions() bool {
+	return false
+}
+
 // Name returns the name of the ProcessCheck.
 func (c *ContainerCheck) Name() string { return ContainerCheckName }
 
-// RealTime indicates if this check only runs in real-time mode.
-func (c *ContainerCheck) RealTime() bool { return false }
+// Realtime indicates if this check only runs in real-time mode.
+func (c *ContainerCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.
-func (c *ContainerCheck) Run(groupID int32) ([]model.MessageBody, error) {
+func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	c.Lock()
 	defer c.Unlock()
 	startTime := time.Now()
@@ -96,6 +107,7 @@ func (c *ContainerCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	}
 	chunked := chunkContainers(containers, groupSize)
 	messages := make([]model.MessageBody, 0, groupSize)
+	groupID := nextGroupID()
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorContainer{
 			HostName:          c.hostInfo.HostName,
@@ -111,7 +123,7 @@ func (c *ContainerCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	numContainers := float64(len(containers))
 	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
 	log.Debugf("collected %d containers in %s", int(numContainers), time.Now().Sub(startTime))
-	return messages, nil
+	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ContainerCheck before the agent exits

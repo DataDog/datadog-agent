@@ -732,6 +732,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
 	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
+	config.BindEnvAndSetDefault("ec2_use_dmi", true)                             // should the agent leverage DMI information to know if it's running on EC2 or not.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
@@ -1016,12 +1017,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false) // to be enabled only in e2e tests
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
+	config.BindEnvAndSetDefault("telemetry.python_memory", true)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
@@ -1062,6 +1065,16 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
 	config.BindEnv("container_lifecycle.dd_url")
 	config.BindEnv("container_lifecycle.additional_endpoints")
+
+	// Container image configuration
+	config.BindEnvAndSetDefault("container_image.enabled", false)
+	config.BindEnv("container_image.dd_url")
+	config.BindEnv("container_image.additional_endpoints")
+
+	// SBOM configuration
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnv("sbom.dd_url")
+	config.BindEnv("sbom.additional_endpoints")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1225,6 +1238,9 @@ func InitConfig(config Config) {
 	// Vector integration
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
+
+	// Datadog Agent Manager System Tray
+	config.BindEnvAndSetDefault("system_tray.log_file", "")
 
 	setupAPM(config)
 	SetupOTLP(config)

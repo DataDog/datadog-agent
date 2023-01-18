@@ -27,34 +27,43 @@ const (
 type Action string
 
 const (
-	// ApplyConfig instructs the patcher to apply the patch request
-	ApplyConfig Action = "apply"
-	// DisableInjection instructs the patcher to disable library injection
-	DisableInjection Action = "disable"
+	// EnableConfig instructs the patcher to apply the patch request
+	EnableConfig Action = "enable"
+	// DisableConfig instructs the patcher to disable library injection
+	DisableConfig Action = "disable"
 )
 
 // PatchRequest holds the required data to target a k8s object and apply library configuration
 type PatchRequest struct {
-	Action    Action           `yaml:"action"`
-	K8sTarget K8sTarget        `yaml:"k8s_target"`
-	LibID     LibID            `yaml:"lib_id"`
-	LibConfig common.LibConfig `yaml:"lib_config"`
+	ID            string `json:"id"`
+	Revision      int64  `json:"revision"`
+	SchemaVersion string `json:"schema_version"`
+	Action        Action `json:"action"`
+
+	// Library parameters
+	LibConfig common.LibConfig `json:"lib_config"`
+
+	// Target k8s object
+	K8sTarget K8sTarget `json:"k8s_target"`
 }
 
 // Validate returns whether a patch request is applicable
 func (pr PatchRequest) Validate(clusterName string) error {
-	if err := pr.K8sTarget.validate(clusterName); err != nil {
-		return err
+	if pr.LibConfig.Language == "" {
+		return errors.New("library language is empty")
 	}
-	return pr.LibID.validate()
+	if pr.LibConfig.Version == "" {
+		return errors.New("library version is empty")
+	}
+	return pr.K8sTarget.validate(clusterName)
 }
 
 // K8sTarget represent the targetet k8s object
 type K8sTarget struct {
-	ClusterName string        `yaml:"cluster_name"`
-	Kind        TargetObjKind `yaml:"kind"`
-	Name        string        `yaml:"name"`
-	Namespace   string        `yaml:"namespace"`
+	Cluster   string        `json:"cluster"`
+	Kind      TargetObjKind `json:"kind"`
+	Name      string        `json:"name"`
+	Namespace string        `json:"namespace"`
 }
 
 // String returns a string representation of the targeted k8s object
@@ -63,8 +72,8 @@ func (k K8sTarget) String() string {
 }
 
 func (k K8sTarget) validate(clusterName string) error {
-	if k.ClusterName != clusterName {
-		return fmt.Errorf("target cluster name %q is different from the local one %q", k.ClusterName, clusterName)
+	if k.Cluster != clusterName {
+		return fmt.Errorf("target cluster name %q is different from the local one %q", k.Cluster, clusterName)
 	}
 	if k.Name == "" {
 		return errors.New("target object name is empty")
@@ -76,22 +85,6 @@ func (k K8sTarget) validate(clusterName string) error {
 	case KindDeployment:
 	default:
 		return fmt.Errorf("target kind %q is not supported", k.Kind)
-	}
-	return nil
-}
-
-// LibID hold the minimal information to inject a library
-type LibID struct {
-	Language string `yaml:"language"`
-	Version  string `yaml:"version"`
-}
-
-func (li LibID) validate() error {
-	if li.Language == "" {
-		return errors.New("library language is empty")
-	}
-	if li.Version == "" {
-		return errors.New("library version is empty")
 	}
 	return nil
 }

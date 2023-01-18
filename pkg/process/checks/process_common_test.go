@@ -74,7 +74,6 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 		},
 		CreateTime: process.Stats.CreateTime,
 		IoStat:     &model.IOStat{},
-		Networks:   &model.ProcessNetworks{},
 	}
 }
 
@@ -95,8 +94,7 @@ func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*mode
 				SystemPct: float32(cpu.SystemPct),
 				TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 			},
-			IoStat:   &model.IOStat{},
-			Networks: &model.ProcessNetworks{},
+			IoStat: &model.IOStat{},
 		})
 	}
 

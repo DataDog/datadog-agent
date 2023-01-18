@@ -12,6 +12,7 @@ RUN set -ex \
     && apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         curl \
+        default-jre \
         doxygen \
         file \
         g++ \

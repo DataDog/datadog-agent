@@ -176,6 +176,8 @@
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
+/comp/process @DataDog/processes
+/comp/systray @DataDog/windows-agent
 # END COMPONENTS
 
 # pkg
@@ -211,6 +213,7 @@
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
@@ -218,6 +221,7 @@
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
+/pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/agent-platform
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-platform @DataDog/windows-agent
@@ -249,6 +253,7 @@
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
+/pkg/util/aggregatingqueue              @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containerd/                   @DataDog/container-integrations
@@ -291,9 +296,11 @@
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
 /pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/etw_*.go            @DataDog/windows-kernel-integrations
 /pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/gotls_client       @DataDog/universal-service-monitoring
+/pkg/network/tracer/testutil/postgres           @DataDog/universal-service-monitoring
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform

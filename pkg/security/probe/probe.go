@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -87,13 +86,12 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handlers       [model.MaxAllEventType][]EventHandler
-	monitor        *Monitor
-	resolvers      *Resolvers
-	event          *model.Event
-	fieldHandlers  *FieldHandlers
-	eventMarshaler *EventMarshaler
-	scrubber       *procutil.DataScrubber
+	handlers      [model.MaxAllEventType][]EventHandler
+	monitor       *Monitor
+	resolvers     *Resolvers
+	event         *model.Event
+	fieldHandlers *FieldHandlers
+	scrubber      *procutil.DataScrubber
 
 	// Ring
 	eventStream EventStream
@@ -222,20 +220,11 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 	return err
 }
 
-func isSyscallWrapperRequired() (bool, error) {
-	openSyscall, err := manager.GetSyscallFnName("open")
-	if err != nil {
-		return false, err
-	}
-
-	return !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_"), nil
-}
-
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
-	useSyscallWrapper, err := isSyscallWrapperRequired()
+	useSyscallWrapper, err := ebpf.IsSyscallWrapperRequired()
 	if err != nil {
 		return err
 	}
@@ -316,7 +305,10 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
-	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
+	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := MarshalEvent(event, p)
+		return eventJSON, event.GetEventType(), err
+	})
 
 	// send wildcard first
 	for _, handler := range p.handlers[model.UnknownEventType] {
@@ -341,7 +333,10 @@ func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
+	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := MarshalCustomEvent(event)
+		return eventJSON, event.GetEventType(), err
+	})
 
 	// send specific event
 	if p.Config.AgentMonitoringEvents {
@@ -355,6 +350,20 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 			handler.HandleCustomEvent(rule, event)
 		}
 	}
+}
+
+func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
+	if !seclog.DefaultLogger.IsTracing() {
+		return
+	}
+
+	eventJSON, eventType, err := marshaller()
+	if err != nil {
+		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
+		return
+	}
+
+	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -372,7 +381,6 @@ func (p *Probe) GetMonitor() *Monitor {
 func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
-	p.event.JSONMarshaler = p.eventMarshaler.MarshalJSONEvent
 	return p.event
 }
 
@@ -701,7 +709,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve tracee process context
-		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
+		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0)
 		if cacheEntry != nil {
 			event.PTrace.Tracee = &cacheEntry.ProcessContext
 		}
@@ -742,7 +750,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve target process context
-		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
+		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0)
 		if cacheEntry != nil {
 			event.Signal.Target = &cacheEntry.ProcessContext
 		}
@@ -808,13 +816,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	p.resolvers.ProcessResolver.DequeueExited()
 }
 
-// OnRuleMatch is called when a rule matches just before sending
-func (p *Probe) OnRuleMatch(rule *rules.Rule, ev *model.Event) {
-	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
-}
-
 // AddNewNotifyDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *Probe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCallback) {
 	p.notifyDiscarderPushedCallbacksLock.Lock()
@@ -824,16 +825,16 @@ func (p *Probe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCall
 }
 
 // OnNewDiscarder is called when a new discarder is found
-func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) error {
+func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 	// discarders disabled
 	if !p.Config.EnableDiscarders {
-		return nil
+		return
 	}
 
 	if p.isRuntimeDiscarded {
 		fakeTime := time.Unix(0, int64(ev.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
-			return nil
+			return
 		}
 	}
 
@@ -853,7 +854,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 		}
 	}
 
-	return nil
+	return
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
@@ -1114,7 +1115,6 @@ func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet
 	eventCtor := func() eval.Event {
 		return &model.Event{
 			FieldHandlers: p.fieldHandlers,
-			JSONMarshaler: p.eventMarshaler.MarshalJSONEvent,
 		}
 	}
 
@@ -1329,10 +1329,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Name:  "syscall_monitor_event_period",
 			Value: uint64(p.Config.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
-		manager.ConstantEditor{
-			Name:  "setup_new_exec_is_last",
-			Value: utils.BoolTouint64(!p.kernelVersion.IsRH7Kernel() && p.kernelVersion.Code >= kernel.Kernel5_5), // the setup_new_exec kprobe is after security_bprm_committed_creds in kernels that are not RH7, and additionally, have a kernel version of at least 5.5
-		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
@@ -1380,8 +1376,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.fieldHandlers = &FieldHandlers{probe: p, resolvers: resolvers}
-	p.eventMarshaler = &EventMarshaler{probe: p}
+	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
 
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()
@@ -1435,7 +1430,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name", "linux/tty.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructUID, "struct cred", "uid", "linux/cred.h")
-
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {

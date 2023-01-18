@@ -37,7 +37,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
-	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore)
+	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
 	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces, ipAddresses, topologyLinks)
 
@@ -257,12 +257,17 @@ func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []m
 	return ipAddresses
 }
 
-func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []metadata.TopologyLinkMetadata {
+func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
 		// in that case, we just return a nil slice.
 		return nil
 	}
+
+	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
+
+	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
+
 	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
 		log.Debugf("Unable to build links metadata: no lldp_remote indexes found")
@@ -282,6 +287,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		//       See https://www.rfc-editor.org/rfc/rfc2021
 
 		localPortNum := indexElems[1]
+		lldpRemIndex := indexElems[2]
 
 		remoteDeviceIDType := lldp.ChassisIDSubtypeMap[store.GetColumnAsString("lldp_remote.chassis_id_type", strIndex)]
 		remoteDeviceID := formatID(remoteDeviceIDType, store, "lldp_remote.chassis_id", strIndex)
@@ -292,6 +298,8 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
 		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
 
+		localInterfaceIDType, localInterfaceID = resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
+
 		newLink := metadata.TopologyLinkMetadata{
 			Remote: &metadata.TopologyLinkSide{
 				Device: &metadata.TopologyLinkDevice{
@@ -299,6 +307,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
+					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
@@ -310,7 +319,6 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 				Interface: &metadata.TopologyLinkInterface{
 					ID:     localInterfaceID,
 					IDType: localInterfaceIDType,
-					// TODO: We can possibly resolve locally to ifIndex to avoid having to resolve on backend side
 				},
 				Device: &metadata.TopologyLinkDevice{
 					ID:     deviceID,
@@ -321,6 +329,76 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		links = append(links, newLink)
 	}
 	return links
+}
+
+func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string]int32, localInterfaceIDType string, localInterfaceID string) (string, string) {
+	if localInterfaceID == "" {
+		return localInterfaceIDType, localInterfaceID
+	}
+
+	var typesToTry []string
+	if localInterfaceIDType == "" {
+		// "smart resolution" by multiple types when localInterfaceIDType is not provided (which is often the case).
+		// CAVEAT: In case the smart resolution returns false positives, the solution is to configure the device to provide a proper localInterfaceIDType.
+		// The order of `typesToTry` has been arbitrary define (not sure if there is an order that can lead to lower false positive).
+		typesToTry = []string{"mac_address", "interface_name", "interface_alias", "interface_index"}
+	} else {
+		typesToTry = []string{localInterfaceIDType}
+	}
+	for _, idType := range typesToTry {
+		interfaceIndexByIDValue, ok := interfaceIndexByIDType[idType]
+		if ok {
+			ifIndex, ok := interfaceIndexByIDValue[localInterfaceID]
+			if ok {
+				return metadata.IDTypeNDM, deviceID + ":" + strconv.Itoa(int(ifIndex))
+			}
+		}
+	}
+	return localInterfaceIDType, localInterfaceID
+}
+
+func buildInterfaceIndexByIDType(interfaces []metadata.InterfaceMetadata) map[string]map[string]int32 {
+	interfaceIndexByIDType := make(map[string]map[string]int32) // map[ID_TYPE]map[ID_VALUE]IF_INDEX
+	for _, idType := range []string{"mac_address", "interface_name", "interface_alias", "interface_index"} {
+		interfaceIndexByIDType[idType] = make(map[string]int32)
+	}
+	for _, devInterface := range interfaces {
+		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = devInterface.Index
+		interfaceIndexByIDType["interface_name"][devInterface.Name] = devInterface.Index
+		interfaceIndexByIDType["interface_alias"][devInterface.Alias] = devInterface.Index
+
+		// interface_index is not a type defined by LLDP, it's used in local interface "smart resolution" when the idType is not present
+		interfaceIndexByIDType["interface_index"][strconv.Itoa(int(devInterface.Index))] = devInterface.Index
+	}
+	return interfaceIndexByIDType
+}
+
+func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
+	remManAddrByRemIndex := make(map[string]string)
+	for _, fullIndex := range remManIndexes {
+		indexElems := strings.Split(fullIndex, ".")
+		if len(indexElems) < 9 {
+			// We expect the index to be at least 9 elements (IPv4)
+			// 1 lldpRemTimeMark
+			// 1 lldpRemLocalPortNum
+			// 1 lldpRemIndex
+			// 1 lldpRemManAddrSubtype (1 for IPv4, 2 for IPv6)
+			// 5|17 lldpRemManAddr (4 for IPv4 and 17 for IPv6)
+			//      the first elements is the IP type e.g. 4 for IPv4
+			continue
+		}
+		lldpRemIndex := indexElems[2]
+		lldpRemManAddrSubtype := indexElems[3]
+		ipAddrType := indexElems[4]
+		lldpRemManAddr := indexElems[5:]
+
+		// We only support IPv4 for the moment
+		// TODO: Support IPv6
+		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
+			remManAddrByRemIndex[lldpRemIndex] = strings.Join(lldpRemManAddr, ".")
+		}
+	}
+	return remManAddrByRemIndex
 }
 
 func formatID(idType string, store *metadata.Store, field string, strIndex string) string {

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -88,7 +89,7 @@ func TestProcessCheckFirstRun(t *testing.T) {
 		Return(processesByPid, nil)
 
 	// The first run returns nothing because processes must be observed on two consecutive runs
-	expected := &RunResult{}
+	expected := CombinedRunResult{}
 
 	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
@@ -112,7 +113,7 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	first, err := processCheck.run(0, false)
 	require.NoError(t, err)
-	assert.Equal(t, &RunResult{}, first)
+	assert.Equal(t, CombinedRunResult{}, first)
 
 	expected := []model.MessageBody{
 		&model.CollectorProc{
@@ -143,8 +144,8 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	}
 	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
-	assert.Nil(t, actual.RealTime)
+	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
+	assert.Nil(t, actual.RealtimePayloads())
 }
 
 func TestProcessCheckWithRealtime(t *testing.T) {
@@ -163,7 +164,7 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	first, err := processCheck.run(0, true)
 	require.NoError(t, err)
-	assert.Equal(t, &RunResult{}, first)
+	assert.Equal(t, CombinedRunResult{}, first)
 
 	expectedProcs := []model.MessageBody{
 		&model.CollectorProc{
@@ -196,9 +197,9 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 	expectedStats := makeProcessStatModels(t, proc1, proc2, proc3, proc4, proc5)
 	actual, err := processCheck.run(0, true)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, expectedProcs, actual.Standard) // ordering is not guaranteed
-	require.Len(t, actual.RealTime, 1)
-	rt := actual.RealTime[0].(*model.CollectorRealTime)
+	assert.ElementsMatch(t, expectedProcs, actual.Payloads()) // ordering is not guaranteed
+	require.Len(t, actual.RealtimePayloads(), 1)
+	rt := actual.RealtimePayloads()[0].(*model.CollectorRealTime)
 	assert.ElementsMatch(t, expectedStats, rt.Stats)
 	assert.Equal(t, int32(1), rt.GroupSize)
 	assert.Equal(t, int32(len(processCheck.hostInfo.SystemInfo.Cpus)), rt.NumCpus)
@@ -307,4 +308,23 @@ func TestDisallowList(t *testing.T) {
 		assert.Equal(t, c.disallowListed, isDisallowListed(c.cmdline, disallowList),
 			fmt.Sprintf("Case %v failed", c))
 	}
+}
+
+func TestConnRates(t *testing.T) {
+	p := &ProcessCheck{}
+
+	p.initConnRates()
+
+	var transmitter subscriptions.Transmitter[ProcessConnRates]
+	transmitter.Chs = append(transmitter.Chs, p.connRatesReceiver.Ch)
+
+	rates := ProcessConnRates{
+		1: &model.ProcessNetworks{},
+	}
+	transmitter.Notify(rates)
+
+	close(p.connRatesReceiver.Ch)
+
+	assert.Eventually(t, func() bool { return p.getLastConnRates() != nil }, 10*time.Second, time.Millisecond)
+	assert.Equal(t, rates, p.getLastConnRates())
 }

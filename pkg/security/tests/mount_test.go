@@ -438,9 +438,8 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPointPath)
 			assertFieldEqual(t, event, "mount.fs_type", "tmpfs")
 			assertFieldEqual(t, event, "process.file.path", executable)
-			if !validateMountSchema(t, event) {
-				t.Error(event.String())
-			}
+
+			test.validateMountSchema(t, event)
 		})
 	})
 
@@ -462,9 +461,8 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "mount.source.path", bindMountSourcePath)
 			assertFieldEqual(t, event, "mount.fs_type", testDrive.FSType())
 			assertFieldEqual(t, event, "process.file.path", executable)
-			if !validateMountSchema(t, event) {
-				t.Error(event.String())
-			}
+
+			test.validateMountSchema(t, event)
 		})
 	})
 
@@ -490,9 +488,8 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "mount.source.path", "/")
 			assertFieldNotEqual(t, event, "mount.fs_type", "overlay")
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
-			if !validateMountSchema(t, event) {
-				t.Error(event.String())
-			}
+
+			test.validateMountSchema(t, event)
 		})
 	})
 
@@ -515,7 +512,7 @@ func TestMountEvent(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			t.Errorf("shouldn't get an event: event %s matched rule %s", event, rule.Expression)
+			t.Errorf("shouldn't get an event: event %s matched rule %s", test.debugEvent(event), rule.Expression)
 		})
 		if err == nil {
 			t.Error("shouldn't get an event")

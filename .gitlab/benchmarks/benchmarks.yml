@@ -4,7 +4,7 @@ benchmark:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent
   timeout: 1h
   rules:
-    !reference [.on_trace_agent_changes_or_manual]
+    !reference [.manual] # TODO: run this benchmark automatically when the trace-agent changes
   interruptible: true
   # tags: ["runner:apm-k8s-tweaked-metal"] # TODO: Commented out until we have the metal runners available in this repo
   tags: ["runner:main"]

@@ -41,7 +41,7 @@ pull_test_dockers_arm64:
   stage: functional_test
   variables:
     AGENT_MAJOR_VERSION: 7
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
   script:
     - echo -n "--tags ci.job.name:${CI_JOB_NAME}" > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/tags.txt
