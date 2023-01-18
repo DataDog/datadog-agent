@@ -7,6 +7,7 @@ package cloudproviders
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -111,4 +112,23 @@ func GetHostAliases(ctx context.Context) []string {
 	}
 
 	return util.SortUniqInPlace(aliases)
+}
+
+// GetPublicIPv4 returns the public IPv4 from different providers
+func GetPublicIPv4(ctx context.Context) (string, error) {
+	publicIPProvider := map[string]func(context.Context) (string, error){
+		"EC2":   ec2.GetPublicIPv4,
+		"GCE":   gce.GetPublicIPv4,
+		"Azure": azure.GetPublicIPv4,
+	}
+	for name, fetcher := range publicIPProvider {
+		publicIPv4, err := fetcher(ctx)
+		if err == nil {
+			log.Debugf("%s public IP: %s", name, publicIPv4)
+			return publicIPv4, nil
+		}
+		log.Debugf("Could not fetch %s public IPv4: %s", name, err)
+	}
+	log.Infof("No public IPv4 address found")
+	return "", errors.New("No public IPv4 address found")
 }
