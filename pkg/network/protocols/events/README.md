@@ -65,6 +65,7 @@ func callback(data []byte) {
 	event := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
 	...
 }
+```
 
 Aside from that, it is _recommended_ (though not strictly necessary) to call
 `Consumer.Sync()` every time there is a connection check in system-probe, so
