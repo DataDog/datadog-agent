@@ -194,14 +194,22 @@ static __always_inline int handle_retransmit(struct sock *sk, int count, retrans
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0;
     u32 rtt_var = 0;
+    u32 total_retrans = 0;
     bpf_probe_read_kernel(&rtt, sizeof(rtt), sock_rtt(sk));
     bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), sock_rtt_var(sk));
+#ifdef COMPILE_RUNTIME
+    bpf_probe_read_kernel(&total_retrans, sizeof(total_retrans), &(tcp_sk(sk)->total_retrans));
+#endif
 
-    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = { .retransmits = total_retrans, .rtt = rtt, .rtt_var = rtt_var };
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
+#ifdef COMPILE_RUNTIME
+    update_tcp_stats(t, stats, RETRANSMIT_COUNT_ABSOLUTE);
+#else
     update_tcp_stats(t, stats, RETRANSMIT_COUNT_NONE);
+#endif
 }
 
 
