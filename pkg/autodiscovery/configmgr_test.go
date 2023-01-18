@@ -414,6 +414,10 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 	})
 }
 
+func TestSimpleConfigManagement(t *testing.T) {
+	suite.Run(t, &ConfigManagerSuite{factory: newSimpleConfigManager})
+}
+
 type ReconcilingConfigManagerSuite struct {
 	ConfigManagerSuite // include all ConfigManager tests, and more..
 }

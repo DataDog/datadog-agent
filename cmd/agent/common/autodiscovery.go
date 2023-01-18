@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,7 +34,7 @@ var (
 		"container": {"kubelet": struct{}{}},
 	}
 
-	legacyProviders = []string{"kubelet", "container", "docker"}
+	incompatibleProviders = []string{"kubelet", "container", "docker"}
 )
 
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
@@ -74,16 +75,28 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 		}
 
-		var enableContainerProvider bool
-		for _, p := range legacyProviders {
-			if _, found := uniqueConfigProviders[p]; found {
-				enableContainerProvider = true
-				delete(uniqueConfigProviders, p)
+		ccaInAD := util.CcaInAD()
+		if ccaInAD {
+			var enableContainerProvider bool
+			for _, p := range incompatibleProviders {
+				if _, found := uniqueConfigProviders[p]; found {
+					enableContainerProvider = true
+					delete(uniqueConfigProviders, p)
+				}
 			}
-		}
 
-		if enableContainerProvider {
-			uniqueConfigProviders[names.KubeContainer] = config.ConfigurationProviders{Name: names.KubeContainer}
+			if enableContainerProvider {
+				uniqueConfigProviders[names.KubeContainer] = config.ConfigurationProviders{Name: names.KubeContainer}
+			}
+		} else {
+			// The "docker" config provider was replaced with the "container" one
+			// that supports Docker, but also other runtimes. We need this
+			// conversion to avoid breaking configs that included "docker".
+			if options, found := uniqueConfigProviders["docker"]; found {
+				delete(uniqueConfigProviders, "docker")
+				options.Name = names.Container
+				uniqueConfigProviders["container"] = options
+			}
 		}
 
 		for _, provider := range extraConfigProviders {

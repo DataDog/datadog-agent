@@ -13,13 +13,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	dockerLaunchersPkg "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
 	dockerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 var (
@@ -82,7 +81,7 @@ func (t *DockerSocketTailer) tryStartTailer() (*dockerTailerPkg.Tailer, chan str
 		t.pipeline,
 		erroredContainerID,
 		t.readTimeout)
-	since, err := since(t.registry, inner.Identifier())
+	since, err := dockerLaunchersPkg.Since(t.registry, inner.Identifier())
 	if err != nil {
 		log.Warnf("Could not recover tailing from last committed offset %v: %v",
 			dockerutilPkg.ShortContainerID(t.ContainerID), err)
@@ -166,32 +165,4 @@ func (t *DockerSocketTailer) run(
 			continue
 		}
 	}
-}
-
-// since returns the date from when logs should be collected.
-func since(registry auditor.Registry, identifier string) (time.Time, error) {
-	var since time.Time
-	var err error
-	offset := registry.GetOffset(identifier)
-	switch {
-	case isEOFCorruptedOffset(offset):
-		since = time.Time{}
-	case offset != "":
-		// an offset was registered, tail from the offset
-		since, err = time.Parse(config.DateFormat, offset)
-		if err != nil {
-			since = time.Now().UTC()
-		}
-	default:
-		// a new service has been discovered and was launched after the agent start, tail from the beginning
-		since = time.Time{}
-	}
-	return since, err
-}
-
-// isEOFCorruptedOffset return true if the offset doesn't contain a
-// valid timestamp value due to a file rotation.
-func isEOFCorruptedOffset(offset string) bool {
-	// check if the offset value is equal to EOF char
-	return len(offset) > 0 && offset[0] == 0x03
 }
