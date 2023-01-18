@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type GlobalParams struct {
@@ -49,9 +48,6 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 				return fmt.Errorf("no Security Agent config files to load, exiting.")
 			}
 			return nil
-		},
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			log.Flush()
 		},
 	}
 

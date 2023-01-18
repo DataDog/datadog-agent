@@ -94,6 +94,9 @@ func CommandsWrapped(globalParams *command.GlobalParams, bundleParams core.Bundl
 }
 
 func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}

@@ -65,6 +65,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func requestFlare(log log.Component, config config.Component, params *cliParams) error {
+	// TODO: Remove once the log component has self-flushing capabilities
+	defer log.Flush()
+
 	if params.customerEmail == "" {
 		var err error
 		params.customerEmail, err = input.AskForEmail()
