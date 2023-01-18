@@ -219,11 +219,11 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
+			log.Warnf("Could not send payload: %v", err)
 		}
 
 		if err == context.Canceled {
 			d.updateRetryState(nil, isRetrying)
-			log.Warnf("Could not send payload: %v", err)
 			return
 		}
 
@@ -296,6 +296,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.
+		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 		return err
 	}
 	if resp.StatusCode >= http.StatusBadRequest {
