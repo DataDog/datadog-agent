@@ -35,10 +35,10 @@ type enumServiceState uint32
 
 func OpenSCManager(desiredAccess uint32) (*mgr.Mgr, error) {
 	h, err := windows.OpenSCManager(nil, nil, desiredAccess)
-	if h == 0 {
+	if err != nil {
 		return nil, err
 	}
-	return &mgr.Mgr{Handle: h}, err
+	return &mgr.Mgr{Handle: h}, nil
 }
 
 func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*mgr.Service, error) {
@@ -46,7 +46,7 @@ func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*m
 	if err != nil {
 		return nil, err
 	}
-	return &mgr.Service{Name: serviceName, Handle: h}, err
+	return &mgr.Service{Name: serviceName, Handle: h}, nil
 }
 
 // Start serviceName via SCM
@@ -56,7 +56,7 @@ func StartService(serviceName string, serviceArgs ...string) error {
 
 	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not open SCM: %v", err)
 	}
 	defer manager.Disconnect()
 
@@ -79,7 +79,7 @@ func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAc
 
 	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not open SCM: %v", err)
 	}
 	defer manager.Disconnect()
 
@@ -153,7 +153,7 @@ func ListDependentServices(serviceName string, state enumServiceState) ([]EnumSe
 
 	deps, err := enumDependentServices(service.Handle, state)
 	if err != nil {
-		return nil, fmt.Errorf("could not enumerate dependent services: %v", err)
+		return nil, fmt.Errorf("could not enumerate dependent services for %s: %v", serviceName, err)
 	}
 	return deps, nil
 }

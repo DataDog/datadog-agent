@@ -65,11 +65,13 @@ func TestOpenSCManager(t *testing.T) {
 func TestOpenService(t *testing.T) {
 
 	// open the SC manager with CONNECT and CREATE_SERVICE
-	m, _ := OpenSCManager(windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_CREATE_SERVICE)
+	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_CREATE_SERVICE)
+	assert.Nilf(t, err, "Unexpected error: %v", err)
+	assert.NotNil(t, m, "Expected OpenSCManager to return a valid manager handle")
 	defer m.Disconnect()
 
 	// test that OpenService returns an error with non-existent service
-	_, err := OpenService(m, "nottestingservice", windows.SERVICE_START)
+	_, err = OpenService(m, "nottestingservice", windows.SERVICE_START)
 	assert.NotNil(t, err, "Expected OpenService to return an error with invalid service name")
 
 	c := mgr.Config{
@@ -96,7 +98,9 @@ func TestListDependentServices(t *testing.T) {
 	assert.NotNil(t, err, "Expected ListDependentServices to return an error with invalid service name")
 
 	// open the SC manager so we can create some test services
-	m, _ := OpenSCManager(windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_CREATE_SERVICE)
+	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_CREATE_SERVICE)
+	assert.Nilf(t, err, "Unexpected error: %v", err)
+	assert.NotNil(t, m, "Expected OpenSCManager to return a valid manager handle")
 	defer m.Disconnect()
 
 	// install the base service, it will have no dependents, but several dependents
