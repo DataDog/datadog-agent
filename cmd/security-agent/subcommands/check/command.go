@@ -49,16 +49,11 @@ type CliParams struct {
 
 // Commands returns a cobra command to run security agent checks
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	bundleParams := core.BundleParams{
-		ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-		LogParams:    log.LogForOneShot(command.LoggerName, "info", true),
-	}
-
-	return CommandsWrapped(bundleParams)
+	return CommandsWrapped(globalParams, core.BundleParams{})
 }
 
 // CommandsWrapped exists to allow for an entry point from the Cluster-Agent. We should remove this and refactor once Check becomes a component that both the Cluster Agent and the Security Agent can use.
-func CommandsWrapped(bundleParams core.BundleParams) []*cobra.Command {
+func CommandsWrapped(globalParams *command.GlobalParams, bundleParams core.BundleParams) []*cobra.Command {
 	checkArgs := &CliParams{}
 
 	cmd := &cobra.Command{
@@ -67,6 +62,14 @@ func CommandsWrapped(bundleParams core.BundleParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkArgs.args = args
+
+			// This is used as a proxy to see if we're entering from the Security Agent.
+			// This handling is necessary here in order to process the globalParams.ConfigFilePaths after the cfgpath flag has been read by the root command.
+			if globalParams != nil {
+				bundleParams.ConfigParams = config.NewSecurityAgentParams(globalParams.ConfigFilePaths)
+				bundleParams.LogParams = log.LogForOneShot(command.LoggerName, "info", true)
+			}
+
 			if checkArgs.verbose {
 				bundleParams.LogParams = log.LogForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
