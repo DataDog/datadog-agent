@@ -63,8 +63,10 @@ type Client struct {
 	state *state.Repository
 
 	// Listeners
-	apmListeners []func(update map[string]state.APMSamplingConfig)
-	cwsListeners []func(update map[string]state.ConfigCWSDD)
+	apmListeners        []func(update map[string]state.APMSamplingConfig)
+	cwsListeners        []func(update map[string]state.ConfigCWSDD)
+	cwsCustomListeners  []func(update map[string]state.ConfigCWSCustom)
+	apmTracingListeners []func(update map[string]state.APMTracingConfig)
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -153,19 +155,21 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	ctx, close := context.WithCancel(context.Background())
 
 	return &Client{
-		ID:            generateID(),
-		startupSync:   sync.Once{},
-		ctx:           ctx,
-		close:         close,
-		agentName:     agentName,
-		agentVersion:  agentVersion,
-		products:      data.ProductListToString(products),
-		state:         repository,
-		pollInterval:  pollInterval,
-		backoffPolicy: backoffPolicy,
-		apmListeners:  make([]func(update map[string]state.APMSamplingConfig), 0),
-		cwsListeners:  make([]func(update map[string]state.ConfigCWSDD), 0),
-		updater:       updater,
+		ID:                  generateID(),
+		startupSync:         sync.Once{},
+		ctx:                 ctx,
+		close:               close,
+		agentName:           agentName,
+		agentVersion:        agentVersion,
+		products:            data.ProductListToString(products),
+		state:               repository,
+		pollInterval:        pollInterval,
+		backoffPolicy:       backoffPolicy,
+		apmListeners:        make([]func(update map[string]state.APMSamplingConfig), 0),
+		cwsListeners:        make([]func(update map[string]state.ConfigCWSDD), 0),
+		cwsCustomListeners:  make([]func(update map[string]state.ConfigCWSCustom), 0),
+		apmTracingListeners: make([]func(update map[string]state.APMTracingConfig), 0),
+		updater:             updater,
 	}, nil
 }
 
@@ -251,6 +255,16 @@ func (c *Client) update() error {
 			listener(c.state.CWSDDConfigs())
 		}
 	}
+	if containsProduct(changedProducts, state.ProductCWSCustom) {
+		for _, listener := range c.cwsCustomListeners {
+			listener(c.state.CWSCustomConfigs())
+		}
+	}
+	if containsProduct(changedProducts, state.ProductAPMTracing) {
+		for _, listener := range c.apmTracingListeners {
+			listener(c.state.APMTracingConfigs())
+		}
+	}
 
 	return nil
 }
@@ -281,6 +295,31 @@ func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]state.ConfigCWSDD
 	defer c.m.Unlock()
 	c.cwsListeners = append(c.cwsListeners, fn)
 	fn(c.state.CWSDDConfigs())
+}
+
+// RegisterCWSCustomUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the CWS_CUSTOM product.
+func (c *Client) RegisterCWSCustomUpdate(fn func(update map[string]state.ConfigCWSCustom)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsCustomListeners = append(c.cwsCustomListeners, fn)
+	fn(c.state.CWSCustomConfigs())
+}
+
+// RegisterAPMTracing registers a callback function to be called after a successful client update that will
+// contain the current state of the APMTracing product.
+func (c *Client) RegisterAPMTracing(fn func(update map[string]state.APMTracingConfig)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.apmTracingListeners = append(c.apmTracingListeners, fn)
+	fn(c.state.APMTracingConfigs())
+}
+
+// APMTracingConfigs returns the current set of valid APM Tracing configs
+func (c *Client) APMTracingConfigs() map[string]state.APMTracingConfig {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.state.APMTracingConfigs()
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {

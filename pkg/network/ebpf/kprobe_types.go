@@ -12,7 +12,6 @@ package ebpf
 #include "./c/tracer.h"
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
-#include "./c/protocols/http2-defs.h"
 */
 import "C"
 
@@ -30,34 +29,9 @@ type BindSyscallArgs C.bind_syscall_args_t
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
+type _Ctype_struct_sockaddr uint64
 
 type TCPState uint8
-
-type StaticTableEnumKey = C.static_table_key_t
-
-const (
-	MethodKey StaticTableEnumKey = C.kMethod
-	PathKey   StaticTableEnumKey = C.kPath
-	StatusKey StaticTableEnumKey = C.kStatus
-)
-
-type StaticTableEnumValue = C.static_table_key_t
-
-const (
-	GetValue       StaticTableEnumValue = C.kGET
-	PostValue      StaticTableEnumValue = C.kPOST
-	EmptyPathValue StaticTableEnumValue = C.kEmptyPath
-	IndexPathValue StaticTableEnumValue = C.kIndexPath
-	K200Value      StaticTableEnumValue = C.k200
-	K204Value      StaticTableEnumValue = C.k204
-	K206Value      StaticTableEnumValue = C.k206
-	K304Value      StaticTableEnumValue = C.k304
-	K400Value      StaticTableEnumValue = C.k400
-	K404Value      StaticTableEnumValue = C.k404
-	K500Value      StaticTableEnumValue = C.k500
-)
-
-type StaticTableValue = C.static_table_entry_t
 
 const (
 	Established TCPState = C.TCP_ESTABLISHED

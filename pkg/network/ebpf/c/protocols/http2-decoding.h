@@ -7,7 +7,7 @@
 #include "bpf_builtins.h"
 #include "bpf_helpers.h"
 #include "map-defs.h"
-#include "http2-defs.h"
+#include "http2-decoding-defs.h"
 #include "http2-maps-defs.h"
 #include "http2-maps-defs-classify.h"
 #include "http-types.h"
@@ -150,7 +150,7 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
             http->tcp_seq = trans->tcp_seq;
             http->tags = trans->tags;
 
-            http_enqueue(http);
+            http_batch_enqueue(http);
 //            bpf_map_delete_elem(&http2_in_flight, &http2_stack->tup);
         }
     }

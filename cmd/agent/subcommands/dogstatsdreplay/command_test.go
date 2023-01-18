@@ -22,6 +22,6 @@ func TestCommand(t *testing.T) {
 		dogstatsdReplay,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.True(t, cliParams.dsdVerboseReplay)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }

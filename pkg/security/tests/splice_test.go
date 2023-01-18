@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -39,15 +39,13 @@ func TestSpliceEvent(t *testing.T) {
 	t.Run("test_splice", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(t, syscallTester, "splice")
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "splice", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(0), event.Splice.PipeEntryFlag, "wrong pipe entry flag")
 			assert.Equal(t, uint32(0), event.Splice.PipeExitFlag, "wrong pipe exit flag")
 			assert.Equal(t, event.Async, false)
 
-			if !validateSpliceSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSpliceSchema(t, event)
 		})
 	})
 }

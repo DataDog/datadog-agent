@@ -20,6 +20,11 @@ Process Agent
   Enabled Checks: {{ .expvars.enabled_checks }}
   Allocated Memory: {{ humanize .expvars.memstats.alloc }} bytes
   Hostname: {{ .core.metadata.meta.hostname }}
+  {{- if .expvars.system_probe_process_module_enabled }}
+  System Probe Process Module Status: Running
+  {{- else}}
+  System Probe Process Module Status: Not running
+  {{- end}}
 
   =================
   Process Endpoints

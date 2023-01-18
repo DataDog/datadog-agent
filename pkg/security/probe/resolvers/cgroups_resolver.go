@@ -54,8 +54,8 @@ func (cr *CgroupsResolver) GetPID1(id string) (uint32, bool) {
 	return entry.pid, true
 }
 
-// DelByPID1 force removes the entry
-func (cr *CgroupsResolver) DelByPID1(pid uint32) {
+// DelByPID force removes the entry
+func (cr *CgroupsResolver) DelByPID(pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 

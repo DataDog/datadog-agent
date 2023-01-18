@@ -43,7 +43,8 @@ var (
 )
 
 const (
-	deleteDelayTime = 5 * time.Second
+	deleteDelayTime       = 5 * time.Second
+	fallbackLimiterPeriod = 5 * time.Second
 )
 
 func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
@@ -102,6 +103,7 @@ type MountResolver struct {
 	deleteQueue     []deleteRequest
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *model.Mount]
+	fallbackLimiter *simplelru.LRU[uint32, time.Time]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -128,11 +130,9 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	if err := mr.syncCache(pid); err != nil {
-		return err
-	}
+	err := mr.syncCache(pid)
 
-	// store the minimal mount ID found to use it a reference
+	// store the minimal mount ID found to use it as a reference
 	if pid == 1 {
 		for mountID := range mr.mounts {
 			if mr.minMountID == 0 || mr.minMountID > mountID {
@@ -141,26 +141,34 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 		}
 	}
 
-	return nil
+	return err
 }
 
-func (mr *MountResolver) syncCache(pid uint32) error {
-	mnts, err := kernel.ParseMountInfoFile(int32(pid))
-	if err != nil {
-		mr.cgroupsResolver.DelByPID1(pid)
-		return err
-	}
+// syncCache update cache with the first working pid
+func (mr *MountResolver) syncCache(pids ...uint32) error {
+	var err error
+	var mnts []*mountinfo.Info
 
-	for _, mnt := range mnts {
-		if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
+	for _, pid := range pids {
+		mnts, err = kernel.ParseMountInfoFile(int32(pid))
+		if err != nil {
+			mr.cgroupsResolver.DelByPID(pid)
 			continue
 		}
 
-		m := newMountFromMountInfo(mnt)
-		mr.insert(m)
+		for _, mnt := range mnts {
+			if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
+				continue
+			}
+
+			m := newMountFromMountInfo(mnt)
+			mr.insert(m)
+		}
+
+		return nil
 	}
 
-	return nil
+	return err
 }
 
 func (mr *MountResolver) finalizeChildren(parent *model.Mount) {
@@ -392,13 +400,28 @@ func (mr *MountResolver) ResolveMountPath(mountID, pid uint32, containerID strin
 	return mr.resolveMountPath(mountID, pid, containerID)
 }
 
+func (mr *MountResolver) isSyncCacheAllowed(mountID uint32) bool {
+	now := time.Now()
+	if ts, ok := mr.fallbackLimiter.Get(mountID); ok {
+		if now.After(ts) {
+			mr.fallbackLimiter.Remove(mountID)
+		} else {
+			return false
+		}
+	}
+	return true
+}
+
+func (mr *MountResolver) syncCacheMiss(mountID uint32) {
+	mr.procMissStats.Inc()
+
+	// add to fallback limiter to avoid storm of file access
+	mr.fallbackLimiter.Add(mountID, time.Now().Add(fallbackLimiterPeriod))
+}
+
 func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID string) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
-	}
-	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
-	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
-		pid = pid1
 	}
 
 	path, err := mr.getMountPath(mountID)
@@ -416,10 +439,22 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 		return "", ErrMountNotFound
 	}
 
-	if err := mr.syncCache(pid); err != nil {
-		mr.procMissStats.Inc()
+	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
+	pid1, _ := mr.cgroupsResolver.GetPID1(containerID)
+	if pid1 == 0 {
+		// use the pid1 of the host
+		pid1 = 1
+	}
+
+	if !mr.isSyncCacheAllowed(mountID) {
+		return "", ErrMountNotFound
+	}
+
+	if err := mr.syncCache(pid, pid1); err != nil {
+		mr.syncCacheMiss(mountID)
 		return "", err
 	}
+
 	path, err = mr.getMountPath(mountID)
 	if err == nil {
 		mr.procHitsStats.Inc()
@@ -443,11 +478,6 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 		return nil, err
 	}
 
-	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
-	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
-		pid = pid1
-	}
-
 	mount, exists := mr.mounts[mountID]
 	if exists {
 		mr.cacheHitsStats.Inc()
@@ -463,10 +493,18 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 		return nil, ErrMountNotFound
 	}
 
-	if err := mr.syncCache(pid); err != nil {
-		mr.procMissStats.Inc()
+	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
+	pid1, _ := mr.cgroupsResolver.GetPID1(containerID)
+	if pid1 == 0 {
+		// use the pid1 of the host
+		pid1 = 1
+	}
+
+	if err := mr.syncCache(mountID, pid, pid1); err != nil {
+		mr.syncCacheMiss(mountID)
 		return nil, err
 	}
+
 	mount, exists = mr.mounts[mountID]
 	if exists {
 		mr.procMissStats.Inc()
@@ -597,6 +635,12 @@ func NewMountResolver(statsdClient statsd.ClientInterface, cgroupsResolver *Cgro
 		return nil, err
 	}
 	mr.redemption = redemption
+
+	fallbackLimiter, err := simplelru.NewLRU[uint32, time.Time](64, nil)
+	if err != nil {
+		return nil, err
+	}
+	mr.fallbackLimiter = fallbackLimiter
 
 	return mr, nil
 }

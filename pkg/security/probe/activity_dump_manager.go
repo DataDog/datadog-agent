@@ -18,7 +18,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -38,12 +38,11 @@ func areCGroupADsEnabled(c *config.Config) bool {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	probe         *Probe
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
+	fieldHandlers *FieldHandlers
 	resolvers     *Resolvers
 	kernelVersion *kernel.Version
-	scrubber      *pconfig.DataScrubber
 	manager       *manager.Manager
 
 	tracedPIDsMap          *ebpf.Map
@@ -169,7 +168,7 @@ func (adm *ActivityDumpManager) resolveTags() {
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
 func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd.ClientInterface, resolvers *Resolvers,
-	kernelVersion *kernel.Version, scrubber *pconfig.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
+	kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -203,9 +202,9 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 	adm := &ActivityDumpManager{
 		config:                 config,
 		statsdClient:           statsdClient,
+		fieldHandlers:          p.fieldHandlers,
 		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
-		scrubber:               scrubber,
 		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
 		tracedCommsMap:         tracedComms,
@@ -240,7 +239,7 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
 
 	// merge tags from config
-	for _, tag := range coreconfig.GetConfiguredTags(true) {
+	for _, tag := range coreconfig.GetGlobalConfiguredTags(true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
@@ -424,7 +423,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 }
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
-func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
+func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample {
 		return
