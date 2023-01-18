@@ -209,6 +209,11 @@ func (e *ebpfProgram) Init() error {
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
 			},
+			"connection_states": {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
 		},
 		TailCallRouter: tailCalls,
 		ActivatedProbes: []manager.ProbesSelector{
