@@ -109,7 +109,13 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.maxBatchSize = getMaxBatchSize()
 	p.maxBatchBytes = getMaxBatchBytes()
 
-	p.skipAmount = uint32(ddconfig.Datadog.GetInt32("process_config.checks_between_hints"))
+	p.skipAmount = uint32(ddconfig.Datadog.GetInt32("process_config.process_discovery.hint_frequency"))
+	if p.skipAmount == 0 {
+		log.Warnf("process_config.process_discovery.hint_frequency must be greater than 0. using default value %d",
+			ddconfig.DefaultProcessDiscoveryHintFrequency)
+		ddconfig.Datadog.Set("process_config.process_discovery.hint_frequency", ddconfig.DefaultProcessDiscoveryHintFrequency)
+		p.skipAmount = ddconfig.DefaultProcessDiscoveryHintFrequency
+	}
 
 	initScrubber(p.scrubber)
 
@@ -283,6 +289,7 @@ func (p *ProcessCheck) generateHints() int32 {
 	var hints int32
 
 	if p.checkCount%p.skipAmount == 0 {
+		log.Tracef("generated a process discovery hint on check #%d", p.checkCount)
 		hints |= ProcessDiscoveryHint
 	}
 	return hints
