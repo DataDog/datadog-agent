@@ -85,7 +85,7 @@ func start(log log.Component, config config.Component, params *cliParams) error 
 	defer StopAgent(cancel, log)
 
 	err := RunAgent(ctx, log, config, params.pidfilePath)
-	if errors.Is(err, errAllComponentsDisabled) {
+	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
 	if err != nil {
@@ -134,6 +134,7 @@ var (
 )
 
 var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
+var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
 func RunAgent(ctx context.Context, log log.Component, config config.Component, pidfilePath string) (err error) {
@@ -162,13 +163,13 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, p
 	}
 
 	if !config.IsSet("api_key") {
-		log.Critical("no API key configured, exiting")
+		log.Critical("No API key configured, exiting")
 
 		// A sleep is necessary so that sysV doesn't think the agent has failed
 		// to startup because of an error. Only applies on Debian 7.
 		time.Sleep(5 * time.Second)
 
-		return errAllComponentsDisabled
+		return errNoAPIKeyConfigured
 	}
 
 	err = manager.ConfigureAutoExit(ctx)
