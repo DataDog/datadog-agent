@@ -35,7 +35,7 @@ This will instantiate the necessary eBPF maps along with two functions:
 * `<protocol>_batch_enqueue`;
 * `<protocol>_flush_batch`;
 
-Please note that `<protocol>_batch_flush` requires access to the
+Please note that `<protocol>_flush_batch` requires access to the
 `bpf_perf_event_output` helper, which is typically not available to socket
 filter programs. Because of that we recommend to call it from
 `netif_receive_skb` which is associated to the execution of socket filter programs:
