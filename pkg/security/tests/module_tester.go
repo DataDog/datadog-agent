@@ -720,6 +720,11 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		return nil, err
 	}
 
+	err = sysconfig.SetupOptionalDatadogConfig()
+	if err != nil {
+		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
+	}
+
 	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)

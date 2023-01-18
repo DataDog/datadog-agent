@@ -19,15 +19,6 @@ type Params struct {
 	// "datadog".
 	configName string
 
-	// sysProbeConfFilePath is the path at which to look for system-probe
-	// configuration, usually given by --sysprobecfgpath.  This is not used
-	// unless ConfigLoadSysProbe is true.
-	sysProbeConfFilePath string
-
-	// ConfigLoadSysProbe determines whether to read the system-probe.yaml into
-	// the component's config data.
-	configLoadSysProbe bool
-
 	// securityAgentConfigFilePaths are the paths at which to look for security-aegnt
 	// configuration, usually given by the --cfgpath command-line flag.
 	securityAgentConfigFilePaths []string
@@ -111,12 +102,6 @@ func WithConfigMissingOK(v bool) func(*Params) {
 	}
 }
 
-func WithConfigLoadSysProbe(v bool) func(*Params) {
-	return func(b *Params) {
-		b.configLoadSysProbe = v
-	}
-}
-
 func WithSecurityAgentConfigFilePaths(securityAgentConfigFilePaths []string) func(*Params) {
 	return func(b *Params) {
 		b.securityAgentConfigFilePaths = securityAgentConfigFilePaths
@@ -141,12 +126,6 @@ func WithConfigLoadSecrets(configLoadSecrets bool) func(*Params) {
 	}
 }
 
-func WithSysProbeConfFilePath(sysProbeConfFilePath string) func(*Params) {
-	return func(b *Params) {
-		b.sysProbeConfFilePath = sysProbeConfFilePath
-	}
-}
-
 // These functions are used in unit tests.
 
 // ConfigLoadSecrets determines whether secrets in the configuration file
@@ -159,10 +138,4 @@ func (p Params) ConfigLoadSecrets() bool {
 // file does not exist.
 func (p Params) ConfigMissingOK() bool {
 	return p.configMissingOK
-}
-
-// ConfigLoadSysProbe determines whether to read the system-probe.yaml into
-// the component's config data.
-func (p Params) ConfigLoadSysProbe() bool {
-	return p.configLoadSysProbe
 }

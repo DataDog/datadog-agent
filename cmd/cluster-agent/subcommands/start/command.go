@@ -100,7 +100,7 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	// Starting Cluster Agent sequence
 	// Initialization order is important for multiple reasons, see comments
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(config); err != nil {
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 

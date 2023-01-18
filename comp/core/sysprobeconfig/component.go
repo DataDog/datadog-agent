@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package config implements a component to handle agent configuration.  This
+// Package sysprobeconfig implements a component to handle system-probe configuration.  This
 // component temporarily wraps pkg/config.
 //
 // This component initializes pkg/config based on the bundle params, and
@@ -12,8 +12,8 @@
 // package will be removed.
 //
 // The mock component does nothing at startup, beginning with an empty config.
-// It also overwrites the pkg/config.Datadog for the duration of the test.
-package config
+// It also overwrites the pkg/config.SystemProbe for the duration of the test.
+package sysprobeconfig
 
 import (
 	"go.uber.org/fx"
@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-shared-components
+// team: ebpf-platform
 
 // Component is the component type.
 type Component interface {
@@ -35,7 +35,6 @@ type Component interface {
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
-	config.ConfigWriter
 }
 
 // Module defines the fx options for this component.

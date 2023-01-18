@@ -8,15 +8,13 @@ package app
 import (
 	"context"
 	"errors"
+	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"path"
 	"time"
-
-	_ "expvar" // Blank import used because this isn't directly used in this file
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -140,7 +138,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		return nil
 	}
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -174,7 +172,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		return errAllComponentsDisabled
 	}
 
-	err = manager.ConfigureAutoExit(ctx)
+	err = manager.ConfigureAutoExit(ctx, coreconfig.Datadog)
 	if err != nil {
 		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		return nil

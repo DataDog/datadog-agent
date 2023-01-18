@@ -38,11 +38,11 @@ func NoProcessExit(r []*regexp.Regexp) ExitDetector {
 }
 
 // DefaultNoProcessExit creates the default NoProcess shutdown detector
-func DefaultNoProcessExit() (ExitDetector, error) {
+func DefaultNoProcessExit(cfg config.Config) (ExitDetector, error) {
 	mergedRegexps := make([]*regexp.Regexp, len(defaultRegexps))
 	copy(mergedRegexps, defaultRegexps)
 
-	extraRegexps := config.Datadog.GetStringSlice("auto_exit.noprocess.excluded_processes")
+	extraRegexps := cfg.GetStringSlice("auto_exit.noprocess.excluded_processes")
 	for _, strRegexp := range extraRegexps {
 		r, err := regexp.Compile(strRegexp)
 		if err != nil {
