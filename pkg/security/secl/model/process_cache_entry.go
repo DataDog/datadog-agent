@@ -40,23 +40,18 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	parent.Retain()
 }
 
-// GetNextAncestorNoFork returns the first ancestor that is not a fork entry
-func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
-	if pc.Ancestor == nil {
-		return nil
-	}
-
+// GetNextAncestorBinary returns the first ancestor with a different binary
+func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
+	current := pc
 	ancestor := pc.Ancestor
-	for ancestor.Ancestor != nil {
-		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime.IsZero()) && ancestor.Tid == ancestor.Ancestor.Tid {
-			// this is a fork entry, move on to the next ancestor
-			ancestor = ancestor.Ancestor
-		} else {
-			break
+	for ancestor != nil {
+		if current.Inode != ancestor.Inode {
+			return ancestor
 		}
+		current = ancestor
+		ancestor = ancestor.Ancestor
 	}
-
-	return ancestor
+	return nil
 }
 
 // Exit a process
