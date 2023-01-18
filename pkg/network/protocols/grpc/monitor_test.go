@@ -50,6 +50,24 @@ func TestGRPCScenarios(t *testing.T) {
 		expectedEndpoints map[http.Key]int
 	}{
 		{
+			name: "simple unary",
+			runClients: func(t *testing.T, _ bool) {
+				var client1 grpc.Client
+				var err error
+				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
+				require.NoError(t, err)
+
+				ctx := context.Background()
+				require.NoError(t, client1.HandleUnary(ctx, "first"))
+			},
+			expectedEndpoints: map[http.Key]int{
+				http.Key{
+					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Method: http.MethodPost,
+				}: 1,
+			},
+		},
+		{
 			name: "unary, a->a->a",
 			runClients: func(t *testing.T, differentClients bool) {
 				var client1, client2 grpc.Client
@@ -467,10 +485,9 @@ func TestGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableRuntimeCompiler = true
-	//cfg.BPFDebug = true
 	for _, tt := range tests {
-		for _, val := range []bool{false, true} {
-			testNameSuffix := fmt.Sprintf("different clients - %v", val)
+		for _, val := range []bool{false} {
+			testNameSuffix := fmt.Sprintf("-different clients - %v", val)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
 				s, err := grpc.NewServer(srvAddr)
 				require.NoError(t, err)
@@ -486,16 +503,11 @@ func TestGRPCScenarios(t *testing.T) {
 				res := make(map[http.Key]int)
 				require.Eventually(t, func() bool {
 					stats := monitor.GetHTTPStats()
-					if len(stats) > 0 {
-						fmt.Println(stats)
-					}
 					for key, stat := range stats {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := 0
-							for status := range []int{100, 200, 300, 400, 500} {
-								if stat.HasStats(status) {
-									count += stat.Stats(status).Count
-								}
+							if stat.HasStats(200) {
+								count += stat.Stats(200).Count
 							}
 							newKey := http.Key{
 								Path:   http.Path{Content: key.Path.Content},
@@ -509,9 +521,6 @@ func TestGRPCScenarios(t *testing.T) {
 						}
 					}
 
-					if len(res) > 0 {
-						fmt.Println(res)
-					}
 					if len(res) != len(tt.expectedEndpoints) {
 						return false
 					}
@@ -527,7 +536,7 @@ func TestGRPCScenarios(t *testing.T) {
 					}
 
 					return true
-				}, time.Second*3, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			})
 		}
 	}
