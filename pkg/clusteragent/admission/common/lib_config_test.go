@@ -28,17 +28,15 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 		TracingRateLimit    *int
 		TracingTags         []string
 
-		/*
-			TracingServiceMapping          []TracingServiceMapEntry
-			TracingAgentTimeout            *int
-			TracingHeaderTags              []TracingHeaderTagEntry
-			TracingPartialFlushMinSpans    *int
-			TracingDebug                   *bool
-			TracingLogLevel                *string
-			TracingMethods                 []string
-			TracingPropagationStyleInject  []string
-			TracingPropagationStyleExtract []string
-		*/
+		TracingServiceMapping          []TracingServiceMapEntry
+		TracingAgentTimeout            *int
+		TracingHeaderTags              []TracingHeaderTagEntry
+		TracingPartialFlushMinSpans    *int
+		TracingDebug                   *bool
+		TracingLogLevel                *string
+		TracingMethods                 []string
+		TracingPropagationStyleInject  []string
+		TracingPropagationStyleExtract []string
 	}
 	tests := []struct {
 		name   string
@@ -57,6 +55,31 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 				TracingSamplingRate: pointer.Ptr(0.5),
 				TracingRateLimit:    pointer.Ptr(50),
 				TracingTags:         []string{"k1:v1", "k2:v2"},
+				TracingServiceMapping: []TracingServiceMapEntry{{
+					FromKey: "svc1",
+					ToName:  "svc2",
+				}, {
+					FromKey: "svc3",
+					ToName:  "svc4",
+				},
+				},
+				TracingAgentTimeout: pointer.Ptr(2),
+				TracingHeaderTags: []TracingHeaderTagEntry{
+					{
+						Header:  "X-Test-Header",
+						TagName: "x.test.header",
+					},
+					{
+						Header:  "X-Test-Other-Header",
+						TagName: "x.test.other.header",
+					},
+				},
+				TracingPartialFlushMinSpans:    pointer.Ptr(100),
+				TracingDebug:                   pointer.Ptr(true),
+				TracingLogLevel:                pointer.Ptr("DEBUG"),
+				TracingMethods:                 []string{"modA.method", "modB.method"},
+				TracingPropagationStyleInject:  []string{"Datadog", "B3", "W3C"},
+				TracingPropagationStyleExtract: []string{"W3C", "B3", "Datadog"},
 			},
 			want: []corev1.EnvVar{
 				{
@@ -94,6 +117,42 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 				{
 					Name:  "DD_TAGS",
 					Value: "k1:v1,k2:v2",
+				},
+				{
+					Name:  "DD_TRACE_SERVICE_MAPPING",
+					Value: "svc1:svc2, svc3:svc4",
+				},
+				{
+					Name:  "DD_TRACE_AGENT_TIMEOUT",
+					Value: "2",
+				},
+				{
+					Name:  "DD_TRACE_HEADER_TAGS",
+					Value: "X-Test-Header:x.test.header, X-Test-Other-Header:x.test.other.header",
+				},
+				{
+					Name:  "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS",
+					Value: "100",
+				},
+				{
+					Name:  "DD_TRACE_DEBUG",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_LOG_LEVEL",
+					Value: "DEBUG",
+				},
+				{
+					Name:  "DD_TRACE_METHODS",
+					Value: "modA.method;modB.method",
+				},
+				{
+					Name:  "DD_PROPAGATION_STYLE_INJECT",
+					Value: "Datadog,B3,W3C",
+				},
+				{
+					Name:  "DD_PROPAGATION_STYLE_EXTRACT",
+					Value: "W3C,B3,Datadog",
 				},
 			},
 		},
@@ -133,17 +192,15 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 				TracingRateLimit:    tt.fields.TracingRateLimit,
 				TracingTags:         tt.fields.TracingTags,
 
-				/*
-					TracingServiceMapping:          tt.fields.TracingServiceMapping,
-					TracingAgentTimeout:            tt.fields.TracingAgentTimeout,
-					TracingHeaderTags:              tt.fields.TracingHeaderTags,
-					TracingPartialFlushMinSpans:    tt.fields.TracingPartialFlushMinSpans,
-					TracingDebug:                   tt.fields.TracingDebug,
-					TracingLogLevel:                tt.fields.TracingLogLevel,
-					TracingMethods:                 tt.fields.TracingMethods,
-					TracingPropagationStyleInject:  tt.fields.TracingPropagationStyleInject,
-					TracingPropagationStyleExtract: tt.fields.TracingPropagationStyleExtract,
-				*/
+				TracingServiceMapping:          tt.fields.TracingServiceMapping,
+				TracingAgentTimeout:            tt.fields.TracingAgentTimeout,
+				TracingHeaderTags:              tt.fields.TracingHeaderTags,
+				TracingPartialFlushMinSpans:    tt.fields.TracingPartialFlushMinSpans,
+				TracingDebug:                   tt.fields.TracingDebug,
+				TracingLogLevel:                tt.fields.TracingLogLevel,
+				TracingMethods:                 tt.fields.TracingMethods,
+				TracingPropagationStyleInject:  tt.fields.TracingPropagationStyleInject,
+				TracingPropagationStyleExtract: tt.fields.TracingPropagationStyleExtract,
 			}
 			require.EqualValues(t, tt.want, lc.ToEnvs())
 		})

@@ -109,28 +109,28 @@ func (p *ProcessCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	return nil
 }
 
-func (c *ProcessCheck) initConnRates() {
-	c.lastConnRates = atomic.NewPointer[ProcessConnRates](nil)
-	c.connRatesReceiver = subscriptions.NewReceiver[ProcessConnRates]()
+func (p *ProcessCheck) initConnRates() {
+	p.lastConnRates = atomic.NewPointer[ProcessConnRates](nil)
+	p.connRatesReceiver = subscriptions.NewReceiver[ProcessConnRates]()
 
-	go c.updateConnRates()
+	go p.updateConnRates()
 }
 
-func (c *ProcessCheck) updateConnRates() {
+func (p *ProcessCheck) updateConnRates() {
 	for {
-		connRates, ok := <-c.connRatesReceiver.Ch
+		connRates, ok := <-p.connRatesReceiver.Ch
 		if !ok {
 			return
 		}
-		c.lastConnRates.Store(&connRates)
+		p.lastConnRates.Store(&connRates)
 	}
 }
 
-func (c *ProcessCheck) getLastConnRates() ProcessConnRates {
-	if c.lastConnRates == nil {
+func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
+	if p.lastConnRates == nil {
 		return nil
 	}
-	if result := c.lastConnRates.Load(); result != nil {
+	if result := p.lastConnRates.Load(); result != nil {
 		return *result
 	}
 	return nil

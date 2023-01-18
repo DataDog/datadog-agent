@@ -20,7 +20,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -559,7 +558,7 @@ func (p *ProcessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
 
 	parent := p.entryCache[entry.PPid]
 	if parent == nil && entry.PPid >= 1 {
-		parent = p.resolve(entry.PPid, entry.PPid)
+		parent = p.resolve(entry.PPid, entry.PPid, entry.Inode)
 	}
 
 	if parent != nil {
@@ -608,15 +607,15 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) Resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.resolve(pid, tid)
+	return p.resolve(pid, tid, inode)
 }
 
-func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
-	if entry := p.resolveFromCache(pid, tid); entry != nil {
+func (p *ProcessResolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+	if entry := p.resolveFromCache(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
 	}
@@ -710,15 +709,22 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 }
 
 // ResolveFromCache resolves cache entry from the cache
-func (p *ProcessResolver) ResolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) ResolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-	return p.resolveFromCache(pid, tid)
+	return p.resolveFromCache(pid, tid, inode)
 }
 
-func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	entry, exists := p.entryCache[pid]
 	if !exists {
+		return nil
+	}
+
+	// Compare inode to ensure that the cache is up-to-date.
+	// Be sure to compare with the file inode and not the pidcontext which can be empty
+	// if the entry originates from procfs.
+	if inode != 0 && inode != entry.Process.FileEvent.Inode {
 		return nil
 	}
 
@@ -1276,10 +1282,10 @@ func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // NewProcessVariables returns a provider for variables attached to a process cache entry
-func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) unsafe.Pointer) rules.VariableProvider {
-	var variables *eval.ScopedVariables
-	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
-		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
+func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *model.ProcessCacheEntry) rules.VariableProvider {
+	var variables *eval.ScopedVariables[*model.ProcessCacheEntry]
+	variables = eval.NewScopedVariables(scoper, func(key *model.ProcessCacheEntry) {
+		key.SetReleaseCallback(func() {
 			variables.ReleaseVariable(key)
 		})
 	})

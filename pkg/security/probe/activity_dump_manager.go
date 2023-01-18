@@ -445,10 +445,10 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 
 		// compute the list of ancestors, we need to start inserting them from the root
 		ancestors := []*model.ProcessCacheEntry{entry}
-		parent := entry.GetNextAncestorNoFork()
+		parent := entry.GetNextAncestorBinary()
 		for parent != nil {
 			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
-			parent = parent.GetNextAncestorNoFork()
+			parent = parent.GetNextAncestorBinary()
 		}
 
 		for _, parent = range ancestors {

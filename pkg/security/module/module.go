@@ -19,7 +19,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
@@ -348,8 +347,8 @@ func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*ru
 	opts := m.newRuleOpts()
 	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 		"process": func() rules.VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-				return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
+			return eval.NewScopedVariables(func(ctx *eval.Context) *model.ProcessContext {
+				return ctx.Event.(*model.Event).ProcessContext
 			}, nil)
 		},
 	})
@@ -393,8 +392,8 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	opts.
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
-				scoper := func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer(ctx.Event.(*model.Event).ProcessCacheEntry)
+				scoper := func(ctx *eval.Context) *model.ProcessCacheEntry {
+					return ctx.Event.(*model.Event).ProcessCacheEntry
 				}
 				return m.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
 			},

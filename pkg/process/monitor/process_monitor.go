@@ -60,7 +60,6 @@ type ProcessMonitor struct {
 	procEventCallbacks map[ProcessEventType][]*ProcessCallback
 	runningPids        map[uint32]interface{}
 	callbackRunner     chan func()
-	callbackRunnerDone chan struct{}
 }
 
 type ProcessEventType int
@@ -204,26 +203,19 @@ func (pm *ProcessMonitor) Initialize() error {
 
 	pm.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
 	pm.done = make(chan struct{})
-	pm.errors = make(chan error)
+	pm.errors = make(chan error, 10)
 
 	if err := netlink.ProcEventMonitor(pm.events, pm.done, pm.errors); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
 	}
 
-	pm.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
 	pm.callbackRunner = make(chan func(), runtime.NumCPU())
 	for i := 0; i < runtime.NumCPU(); i++ {
 		pm.wg.Add(1)
 		go func() {
 			defer pm.wg.Done()
-			for {
-				select {
-				case <-pm.callbackRunnerDone:
-					return
-				case call, ok := <-pm.callbackRunner:
-					if !ok {
-						continue
-					}
+			for call := range pm.callbackRunner {
+				if call != nil {
 					call()
 				}
 			}
@@ -237,12 +229,12 @@ func (pm *ProcessMonitor) Initialize() error {
 		defer func() {
 			log.Info("netlink process monitor ended")
 			pm.wg.Done()
+			close(pm.callbackRunner)
 		}()
 		for {
 			select {
 			case <-pm.done:
 				return
-
 			case event, ok := <-pm.events:
 				if !ok {
 					return
@@ -270,7 +262,7 @@ func (pm *ProcessMonitor) Initialize() error {
 				if !ok {
 					return
 				}
-				log.Errorf("process montior error: %s", err)
+				log.Errorf("process monitor error: %s", err)
 				pm.Stop()
 				return
 			}
@@ -346,15 +338,19 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 
 func (pm *ProcessMonitor) Stop() {
 	pm.m.Lock()
-	defer pm.m.Unlock()
-	pm.refcount--
-	if pm.refcount > 0 {
+	if pm.refcount == 0 {
+		pm.m.Unlock()
 		return
 	}
 
-	close(pm.callbackRunnerDone)
-	close(pm.done)
-	pm.wg.Wait()
+	pm.refcount--
+	if pm.refcount > 0 {
+		pm.m.Unlock()
+		return
+	}
 
 	pm.isInitialized = false
+	pm.m.Unlock()
+	close(pm.done)
+	pm.wg.Wait()
 }

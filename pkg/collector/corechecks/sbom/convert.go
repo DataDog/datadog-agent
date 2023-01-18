@@ -55,7 +55,8 @@ type inArrayElement interface {
 		cyclonedx.Tool |
 		cyclonedx.Vulnerability |
 		cyclonedx.VulnerabilityRating |
-		cyclonedx.VulnerabilityReference
+		cyclonedx.VulnerabilityReference |
+		string
 }
 
 type outArrayElement interface {
@@ -125,7 +126,7 @@ func convertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
 	}
 
 	return &cyclonedx_v1_4.Bom{
-		SpecVersion:        in.SpecVersion,
+		SpecVersion:        in.SpecVersion.String(),
 		Version:            pointer.Ptr(int32(in.Version)),
 		SerialNumber:       stringPtr(in.SerialNumber),
 		Metadata:           convertMetadata(in.Metadata),
@@ -295,7 +296,17 @@ func convertDependency(in *cyclonedx.Dependency) *cyclonedx_v1_4.Dependency {
 
 	return &cyclonedx_v1_4.Dependency{
 		Ref:          in.Ref,
-		Dependencies: convertArray(in.Dependencies, convertDependency),
+		Dependencies: convertArray(in.Dependencies, convertDependencyString),
+	}
+}
+
+func convertDependencyString(in *string) *cyclonedx_v1_4.Dependency {
+	if in == nil {
+		return nil
+	}
+
+	return &cyclonedx_v1_4.Dependency{
+		Ref: *in,
 	}
 }
 

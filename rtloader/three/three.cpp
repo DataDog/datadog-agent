@@ -38,6 +38,9 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
+    , _pymallocPrev{ 0 }
+    , _pymemInuse(0)
+    , _pymemAlloc(0)
 {
     initPythonHome(python_home);
 
