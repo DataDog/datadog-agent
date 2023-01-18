@@ -17,10 +17,11 @@ const (
 // ulpDistance is the absolute difference in units of least precision.
 //
 // Special cases are (order of arguments doesn't matter):
-//  ulpDistance(NaN, b) = max
-//  ulpDistance(+Inf, -Inf) = max
-//  ulpDistance(+Inf, +Inf) = 0
-//  ulpDistance(-Inf, -Inf) = 0
+//
+//	ulpDistance(NaN, b) = max
+//	ulpDistance(+Inf, -Inf) = max
+//	ulpDistance(+Inf, +Inf) = 0
+//	ulpDistance(-Inf, -Inf) = 0
 func ulpDistance(a, b float64) uint64 {
 	switch {
 	case a == b:

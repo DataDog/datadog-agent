@@ -475,7 +475,9 @@ const (
 
 // backoffDuration returns the backoff duration necessary for the given attempt.
 // The formula is "Full Jitter":
-//   random_between(0, min(cap, base * 2 ** attempt))
+//
+//	random_between(0, min(cap, base * 2 ** attempt))
+//
 // https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
 var backoffDuration = func(attempt int) time.Duration {
 	if attempt == 0 {

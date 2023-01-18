@@ -31,8 +31,9 @@ func (s *Sketch) String() string {
 }
 
 // MemSize returns memory use in bytes:
-//   used: uses len(bins)
-//   allocated: uses cap(bins)
+//
+//	used: uses len(bins)
+//	allocated: uses cap(bins)
 func (s *Sketch) MemSize() (used, allocated int) {
 	const (
 		basicSize = int(unsafe.Sizeof(summary.Summary{}))
@@ -85,8 +86,9 @@ func (s *Sketch) Merge(c *Config, o *Sketch) {
 // Quantile returns v such that s.count*q items are <= v.
 //
 // Special cases are:
-//	Quantile(c, q <= 0)  = min
-//  Quantile(c, q >= 1)  = max
+//
+//		Quantile(c, q <= 0)  = min
+//	 Quantile(c, q >= 1)  = max
 func (s *Sketch) Quantile(c *Config, q float64) float64 {
 	switch {
 	case s.count == 0:

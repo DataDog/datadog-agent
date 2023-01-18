@@ -60,16 +60,16 @@ func splitTagsAndOptions(all []string) (tags, opts []string) {
 // insertNestedValueFor("dns.errors.nxdomain", 5, metrics)
 // Results in:
 //
-// {
-//   "http": {
-//     "request_count": 1
-//   },
-//   "dns": {
-//     "errors": {
-//       "nxdomain": 5
-//     }
-//   }
-// }
+//	{
+//	  "http": {
+//	    "request_count": 1
+//	  },
+//	  "dns": {
+//	    "errors": {
+//	      "nxdomain": 5
+//	    }
+//	  }
+//	}
 func insertNestedValueFor(name string, value int64, root map[string]interface{}) error {
 	parts := strings.Split(name, ".")
 	if len(parts) == 1 {
