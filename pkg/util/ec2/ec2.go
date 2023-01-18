@@ -108,23 +108,6 @@ func GetInstanceID(ctx context.Context) (string, error) {
 	return instanceIDFetcher.FetchString(ctx)
 }
 
-var localIPv4Fetcher = cachedfetch.Fetcher{
-	Name: "EC2 Local IPv4 Address",
-	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItem(ctx, "/local-ipv4")
-	},
-}
-
-// GetLocalIPv4 gets the local IPv4 for the currently running host using the EC2 metadata API.
-// Returns a []string to implement the HostIPProvider interface expected in pkg/process/util
-func GetLocalIPv4() ([]string, error) {
-	v, err := localIPv4Fetcher.Fetch(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-	return []string{v.(string)}, nil
-}
-
 var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Name: "EC2 Public IPv4 Address",
 	Attempt: func(ctx context.Context) (interface{}, error) {
