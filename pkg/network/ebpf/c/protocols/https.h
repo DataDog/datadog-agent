@@ -3,8 +3,10 @@
 
 #ifdef COMPILE_CORE
 #include "ktypes.h"
-#define MAJOR(dev) ((dev)>>8)
-#define MINOR(dev) ((dev) & 0xff)
+#define MINORBITS	20
+#define MINORMASK	((1U << MINORBITS) - 1)
+#define MAJOR(dev)	((unsigned int) ((dev) >> MINORBITS))
+#define MINOR(dev)	((unsigned int) ((dev) & MINORMASK))
 #else
 #include <linux/dcache.h>
 #include <linux/fs.h>
@@ -158,15 +160,32 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
  */
 static __always_inline tls_offsets_data_t* get_offsets_data() {
     struct task_struct *t = (struct task_struct *) bpf_get_current_task();
+    go_tls_offsets_data_key_t key;
+    dev_t dev_id;
+
+#if COMPILE_CORE
+    int err;
+    err = BPF_CORE_READ_INTO(&key.ino, t, mm, exe_file, f_inode, i_ino);
+    if (err) {
+        log_debug("get_offsets_data: could not read i_ino field\n");
+        return NULL;
+    }
+
+    err = BPF_CORE_READ_INTO(&dev_id, t, mm, exe_file, f_inode, i_sb, s_dev);
+    if (err) {
+        log_debug("get_offsets_data: could not read s_dev field\n");
+        return NULL;
+    }
+#else
     struct mm_struct *mm;
     struct file *exe_file;
     struct inode *inode;
     struct super_block *sb;
-    dev_t dev_id;
 
     bpf_probe_read(&mm, sizeof(mm), &t->mm);
     bpf_probe_read(&exe_file, sizeof(exe_file), &mm->exe_file);
     bpf_probe_read(&inode, sizeof(inode), &exe_file->f_inode);
+
     if (!inode) {
         log_debug("get_offsets_data: could not read inode struct pointer\n");
         return NULL;
@@ -178,11 +197,9 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
         return NULL;
     }
 
-    go_tls_offsets_data_key_t key;
-
     bpf_probe_read(&key.ino, sizeof(key.ino), &inode->i_ino);
     bpf_probe_read(&dev_id, sizeof(dev_id), &sb->s_dev);
-
+#endif
     key.device_id_major = MAJOR(dev_id);
     key.device_id_minor = MINOR(dev_id);
 

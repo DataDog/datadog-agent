@@ -171,8 +171,8 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		return nil
 	}
 
-	if !c.EnableRuntimeCompiler {
-		log.Errorf("goTLS support requires runtime-compilation to be enabled")
+	if !c.EnableRuntimeCompiler && !c.EnableCORE {
+		log.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
 		return nil
 	}
 
