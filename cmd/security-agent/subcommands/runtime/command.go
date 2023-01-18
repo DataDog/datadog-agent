@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -703,21 +702,20 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(agent)
 
-	endpoints, context, err := command.NewLogContextRuntime()
+	endpoints, ctx, err := command.NewLogContextRuntime()
 	if err != nil {
-		log.Error(err)
+		_ = log.Error(err)
 	}
-	stopper.Add(context)
+	stopper.Add(ctx)
 
-	reporter, err := newRuntimeReporter(log, config, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
+	reporter, err := newRuntimeReporter(log, config, stopper, "runtime-security-agent", "runtime-security", endpoints, ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	agent.Start(reporter, endpoints)
 
-	// TODO: Use log component instead
-	pkglog.Info("Datadog runtime security agent is now running")
+	log.Info("Datadog runtime security agent is now running")
 
 	return agent, nil
 }

@@ -13,9 +13,9 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -28,7 +28,7 @@ type RunCheckReporter struct {
 }
 
 // NewCheckReporter creates a new RunCheckReporter
-func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
+func NewCheckReporter(config config.Component, stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
 	if report {
@@ -37,7 +37,7 @@ func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath st
 			return nil, err
 		}
 
-		runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
+		runPath := config.GetString("compliance_config.run_path")
 		reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, dstContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set up compliance log reporter: %w", err)
