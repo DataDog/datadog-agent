@@ -59,6 +59,34 @@ static int (*baloum_sleep)(__u64 ns) = (void *)0xfffb;
         return -1;                                                   \
     }
 
+#define assert_greater_than(v1, v2, msg)                             \
+    if (v1 > v2)                                                     \
+    {                                                                \
+        bpf_printk("assert line %d : v1 == v2 : %s", __LINE__, msg); \
+        return -1;                                                   \
+    }
+
+#define assert_lesser_than(v1, v2, msg)                              \
+    if (v1 < v2)                                                     \
+    {                                                                \
+        bpf_printk("assert line %d : v1 == v2 : %s", __LINE__, msg); \
+        return -1;                                                   \
+    }
+
+#define assert_greater_or_equal_than(v1, v2, msg)                       \
+    if (v1 >= v2)                                                       \
+    {                                                                   \
+        bpf_printk("assert line %d : v1 == v2 : %s", __LINE__, msg);    \
+        return -1;                                                      \
+    }
+
+#define assert_lesser_or_equal_than(v1, v2, msg)                        \
+    if (v1 <= v2)                                                       \
+    {                                                                   \
+        bpf_printk("assert line %d : v1 == v2 : %s", __LINE__, msg);    \
+        return -1;                                                      \
+    }
+
 #define assert_not_null(v1, msg)                                       \
     if (v1 == NULL)                                                    \
     {                                                                  \

@@ -17,17 +17,18 @@ import (
 
 // ControllerContext holds necessary context for the patch controller
 type ControllerContext struct {
-	IsLeaderFunc func() bool
-	K8sClient    kubernetes.Interface
-	RcClient     *remote.Client
-	ClusterName  string
-	StopCh       chan struct{}
+	IsLeaderFunc        func() bool
+	LeaderSubscribeFunc func() <-chan struct{}
+	K8sClient           kubernetes.Interface
+	RcClient            *remote.Client
+	ClusterName         string
+	StopCh              chan struct{}
 }
 
 // StartControllers starts the patch controllers
 func StartControllers(ctx ControllerContext) error {
 	log.Info("Starting patch controllers")
-	provider, err := newPatchProvider(ctx.RcClient, ctx.ClusterName)
+	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), ctx.ClusterName)
 	if err != nil {
 		return err
 	}

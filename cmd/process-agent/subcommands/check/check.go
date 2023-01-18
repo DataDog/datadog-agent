@@ -206,7 +206,10 @@ func runCheck(cliParams *cliParams, ch checks.Check) error {
 
 	options := &checks.RunOptions{
 		RunStandard: true,
-		RunRealtime: true,
+	}
+
+	if cliParams.checkName == checks.RTName(ch.Name()) {
+		options.RunRealtime = true
 	}
 
 	// We need to run the check twice in order to initialize the stats

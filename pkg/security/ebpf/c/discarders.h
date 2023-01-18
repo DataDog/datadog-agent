@@ -1,13 +1,12 @@
 #ifndef _DISCARDERS_H
 #define _DISCARDERS_H
 
+#include "utils.h"
+
 #define REVISION_ARRAY_SIZE 4096
 
 #define INODE_DISCARDER_TYPE 0
 #define PID_DISCARDER_TYPE   1
-
-#define NS_TO_SEC(x) x / 1000000000
-#define SEC_TO_NS(x) x * 1000000000
 
 struct discarder_stats_t {
     u64 discarders_added;

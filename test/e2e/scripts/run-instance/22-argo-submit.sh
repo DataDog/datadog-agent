@@ -29,12 +29,16 @@ argo_submit_cws_cspm() {
 
     oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
 
-    if [[ -z ${DATADOG_AGENT_API_KEY:+x} ]] || [[ -z ${DATADOG_AGENT_APP_KEY:+x} ]]; then
-        echo "DATADOG_AGENT_API_KEY and DATADOG_AGENT_APP_KEY environment variables need to be set" >&2
+    if [[ -z ${DATADOG_AGENT_API_KEY:+x} ]] || [[ -z ${DATADOG_AGENT_APP_KEY:+x} ]] || [[ -z ${DATADOG_AGENT_RC_KEY:+x} ]]; then
+        echo "DATADOG_AGENT_API_KEY, DATADOG_AGENT_APP_KEY and DATADOG_AGENT_RC_KEY environment variables need to be set" >&2
         exit 2
     fi
 
-    kubectl create secret generic dd-keys --from-literal=DD_API_KEY="${DATADOG_AGENT_API_KEY}" --from-literal=DD_APP_KEY="${DATADOG_AGENT_APP_KEY}" --from-literal=DD_DDDEV_API_KEY="${DD_API_KEY}"
+    kubectl create secret generic dd-keys \
+        --from-literal=DD_API_KEY="${DATADOG_AGENT_API_KEY}" \
+        --from-literal=DD_APP_KEY="${DATADOG_AGENT_APP_KEY}" \
+        --from-literal=DD_RC_KEY="${DATADOG_AGENT_RC_KEY}" \
+        --from-literal=DD_DDDEV_API_KEY="${DD_API_KEY}"
 
     eval "$oldstate"
 
@@ -58,7 +62,11 @@ case "$ARGO_WORKFLOW" in
         argo_submit_cws_cspm cspm-workflow.yaml
         ;;
     *)
-        kubectl create secret generic dd-keys --from-literal=DD_API_KEY=123er --from-literal=DD_APP_KEY=123er1 --from-literal=DD_DDDEV_API_KEY="${DD_API_KEY}"
+        kubectl create secret generic dd-keys  \
+            --from-literal=DD_API_KEY=123er \
+            --from-literal=DD_APP_KEY=123er1 \
+            --from-literal=DD_RC_KEY=123er2 \
+            --from-literal=DD_DDDEV_API_KEY="${DD_API_KEY}"
 
         ./argo template create ../../argo-workflows/templates/*.yaml
         ./argo submit "../../argo-workflows/${ARGO_WORKFLOW}-workflow.yaml" --wait \

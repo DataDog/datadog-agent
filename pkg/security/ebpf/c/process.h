@@ -138,7 +138,12 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
         data->is_kworker = 1;
     }
 
-    return get_proc_cache(tgid);
+    struct proc_cache_t *pc = get_proc_cache(tgid);
+    if (pc) {
+        data->inode = pc->entry.executable.path_key.ino;
+    }
+
+    return pc;
 }
 
 static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {

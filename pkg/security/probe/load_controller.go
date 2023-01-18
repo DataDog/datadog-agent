@@ -152,7 +152,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 	lc.pidDiscardersCount.Inc()
 
 	if lc.NoisyProcessCustomEventRate.Allow() {
-		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
+		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid, 0)
 		if process == nil {
 			seclog.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
 			return

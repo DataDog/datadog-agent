@@ -125,6 +125,12 @@ func (l *Collector) runCheck(c checks.Check) {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
+
+	if result == nil {
+		// Check returned nothing
+		return
+	}
+
 	if c.ShouldSaveLastRun() {
 		checks.StoreCheckOutput(c.Name(), result.Payloads())
 	} else {
@@ -143,23 +149,29 @@ func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOpti
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	run, err := c.Run(l.nextGroupID, options)
+	result, err := c.Run(l.nextGroupID, options)
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	l.submitter.Submit(start, c.Name(), run.Payloads())
+
+	if result == nil {
+		// Check returned nothing
+		return
+	}
+
+	l.submitter.Submit(start, c.Name(), result.Payloads())
 	if options.RunStandard {
 		// We are only updating the run counter for the standard check
 		// since RT checks are too frequent and we only log standard check
 		// durations
 		runCounter := l.nextRunCounter(c.Name())
-		checks.StoreCheckOutput(c.Name(), run.Payloads())
+		checks.StoreCheckOutput(c.Name(), result.Payloads())
 		logCheckDuration(c.Name(), start, runCounter)
 	}
 
 	rtName := checks.RTName(c.Name())
-	rtPayloads := run.RealtimePayloads()
+	rtPayloads := result.RealtimePayloads()
 
 	l.submitter.Submit(start, rtName, rtPayloads)
 	if options.RunRealtime {

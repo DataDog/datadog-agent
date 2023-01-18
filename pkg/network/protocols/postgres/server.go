@@ -23,5 +23,5 @@ func RunPostgresServer(t *testing.T, serverAddr string, serverPort string) {
 
 	dir, _ := testutil.CurDir()
 
-	protocolsUtils.RunDockerServer(t, "postgres", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*database system is ready to accept connections"))
+	protocolsUtils.RunDockerServer(t, "postgres", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*\\[1].*database system is ready to accept connections"))
 }
