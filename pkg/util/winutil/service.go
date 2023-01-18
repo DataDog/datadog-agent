@@ -108,6 +108,10 @@ func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAc
 	return nil
 }
 
+func doStopService(serviceName string) error {
+	return ControlService(serviceName, svc.Stop, svc.Stopped, windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS, defaultServiceCommandTimeout)
+}
+
 func StopService(serviceName string) error {
 
 	deps, err := ListDependentServices(serviceName, windows.SERVICE_ACTIVE)
@@ -116,13 +120,12 @@ func StopService(serviceName string) error {
 	}
 
 	for _, dep := range deps {
-		err = StopService(dep.serviceName)
+		err = doStopService(dep.serviceName)
 		if err != nil {
-			return fmt.Errorf("could not stop service")
+			return fmt.Errorf("could not stop service %s: %v", dep.serviceName, err)
 		}
 	}
-
-	return ControlService(serviceName, svc.Stop, svc.Stopped, windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS, defaultServiceCommandTimeout)
+	return doStopService(serviceName)
 }
 
 func RestartService(serviceName string) error {
