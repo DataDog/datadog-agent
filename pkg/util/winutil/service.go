@@ -85,24 +85,24 @@ func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAc
 
 	s, err := OpenService(m, serviceName, desiredAccess)
 	if err != nil {
-		return fmt.Errorf("could not open service: %v", err)
+		return fmt.Errorf("could not open service %s: %v", serviceName, err)
 	}
 	defer s.Close()
 
 	status, err := s.Control(command)
 	if err != nil {
-		return fmt.Errorf("could not send control=%d: %v", svc.Stop, err)
+		return fmt.Errorf("could not send control %d: %v", command, err)
 	}
 
 	timesup := time.Now().Add(time.Duration(timeout) * time.Second)
 	for status.State != to {
 		if time.Now().After(timesup) {
-			return fmt.Errorf("timeout waiting for service to go to state=%d", to)
+			return fmt.Errorf("timeout waiting for service %s to go to state %d; current state: %d", serviceName, to, status.State)
 		}
 		time.Sleep(300 * time.Millisecond)
 		status, err = s.Query()
 		if err != nil {
-			return fmt.Errorf("could not retrieve service status: %v", err)
+			return fmt.Errorf("could not retrieve status for %s: %v", serviceName, err)
 		}
 	}
 	return nil
@@ -116,7 +116,7 @@ func StopService(serviceName string) error {
 
 	deps, err := ListDependentServices(serviceName, windows.SERVICE_ACTIVE)
 	if err != nil {
-		return fmt.Errorf("could not list dependent services: %v", err)
+		return fmt.Errorf("could not list dependent services for %s: %v", serviceName, err)
 	}
 
 	for _, dep := range deps {
@@ -147,7 +147,7 @@ func ListDependentServices(serviceName string, state enumServiceState) ([]EnumSe
 
 	s, err := OpenService(m, serviceName, windows.SERVICE_ENUMERATE_DEPENDENTS)
 	if err != nil {
-		return nil, fmt.Errorf("could not open service: %v", err)
+		return nil, fmt.Errorf("could not open service %s: %v", serviceName, err)
 	}
 	defer s.Close()
 
@@ -201,11 +201,13 @@ func enumDependentServices(h windows.Handle, state enumServiceState) (services [
 	if err == error(windows.ERROR_SUCCESS) {
 		err = nil
 		return
-	} else {
-		if err != error(windows.ERROR_MORE_DATA) {
-			log.Warnf("Error getting buffer %v", err)
-			return
-		}
+	}
+
+	// since the initial buffer sent is 0 bytes, we expect the return code to
+	// always be ERROR_MORE_DATA, unless something went wrong
+	if err != error(windows.ERROR_MORE_DATA) {
+		log.Warnf("Error getting buffer %v", err)
+		return
 	}
 
 	servicearray := make([]uint8, bufsz)
