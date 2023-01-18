@@ -338,14 +338,19 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 
 func (pm *ProcessMonitor) Stop() {
 	pm.m.Lock()
-	pm.refcount--
-	if pm.refcount != 0 {
+	if pm.refcount == 0 {
 		pm.m.Unlock()
 		return
 	}
+
+	pm.refcount--
+	if pm.refcount > 0 {
+		pm.m.Unlock()
+		return
+	}
+
 	pm.isInitialized = false
 	pm.m.Unlock()
-
 	close(pm.done)
 	pm.wg.Wait()
 }
