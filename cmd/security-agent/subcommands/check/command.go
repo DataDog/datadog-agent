@@ -47,13 +47,22 @@ type CliParams struct {
 	skipRegoEval      bool
 }
 
-// Commands returns a cobra command to run security agent checks
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	return CommandsWrapped(globalParams, core.BundleParams{}, false)
+func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	return commandsWrapped(func() core.BundleParams {
+		return core.BundleParams{
+			ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+			LogParams:    log.LogForOneShot(command.LoggerName, "info", true),
+		}
+	})
 }
 
-// CommandsWrapped exists to allow for an entry point from the Cluster-Agent. We should remove this and refactor once Check becomes a component that both the Cluster Agent and the Security Agent can use.
-func CommandsWrapped(globalParams *command.GlobalParams, bundleParams core.BundleParams, fromClusterAgent bool) []*cobra.Command {
+func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
+	return commandsWrapped(func() core.BundleParams {
+		return bundleParams
+	})
+}
+
+func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Command {
 	checkArgs := &CliParams{}
 
 	cmd := &cobra.Command{
@@ -63,12 +72,7 @@ func CommandsWrapped(globalParams *command.GlobalParams, bundleParams core.Bundl
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkArgs.args = args
 
-			// This handling is necessary here in order to process the globalParams.ConfigFilePaths after the cfgpath flag has been read by the root command.
-			if !fromClusterAgent {
-				bundleParams.ConfigParams = config.NewSecurityAgentParams(globalParams.ConfigFilePaths)
-				bundleParams.LogParams = log.LogForOneShot(command.LoggerName, "info", true)
-			}
-
+			bundleParams := bundleParamsFactory()
 			if checkArgs.verbose {
 				bundleParams.LogParams = log.LogForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}

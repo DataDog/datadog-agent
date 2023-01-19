@@ -24,7 +24,7 @@ import (
 // and linux (runtime).
 func SecurityAgentSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
-		cmdcheck.Commands,
+		cmdcheck.SecurityAgentCommands,
 		cmdcompliance.Commands,
 		cmdconfig.Commands,
 		cmdflare.Commands,

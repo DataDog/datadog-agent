@@ -29,7 +29,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	complianceCmd.AddCommand(complianceEventCommand(globalParams))
-	complianceCmd.AddCommand(check.Commands(globalParams)...)
+	complianceCmd.AddCommand(check.SecurityAgentCommands(globalParams)...)
 
 	return []*cobra.Command{complianceCmd}
 }
