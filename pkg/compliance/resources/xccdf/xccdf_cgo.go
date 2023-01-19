@@ -22,6 +22,7 @@ import "C"
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"unsafe"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,6 +63,16 @@ func (s *xccdfSession) SetProfile(profile string) error {
 }
 
 func (s *xccdfSession) EvaluateRule(rule string) ([]resources.ResolvedInstance, error) {
+	if config.IsContainerized() {
+		hostRoot := os.Getenv("HOST_ROOT")
+		if hostRoot == "" {
+			hostRoot = "/host"
+		}
+
+		os.Setenv("OSCAP_PROBE_ROOT", hostRoot)
+		defer os.Unsetenv("OSCAP_PROBE_ROOT")
+	}
+
 	if rule != "" {
 		ruleCString := C.CString(rule)
 		defer C.free(unsafe.Pointer(ruleCString))
