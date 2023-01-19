@@ -79,6 +79,11 @@ find ${CONFIG_DIR}/conf.d -type d -exec chmod 3770 {} \;
 find ${CONFIG_DIR}/conf.d -type f -exec chmod 660 {} \;
 chown -R dd-agent:dd-agent ${SITE_PACKAGES_DIR} || true
 
+# This is done to allow integrations to install their binaries
+chown -R root:dd-agent ${INSTALL_DIR}/embedded/bin
+chmod g+w ${INSTALL_DIR}/embedded/bin
+chmod +t ${INSTALL_DIR}/embedded/bin
+
 chown -R dd-agent:dd-agent ${LOG_DIR}
 chown -R dd-agent:dd-agent ${RUN_DIR}
 
