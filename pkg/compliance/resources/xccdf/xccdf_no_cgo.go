@@ -33,10 +33,10 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 	}
 
 	if xccdf.Cpe != "" {
-		args = append(args, "--cpe", xccdf.Cpe+".xml")
+		args = append(args, "--cpe", xccdf.Cpe)
 	}
 
-	args = append(args, res.Xccdf.Name+".xml")
+	args = append(args, res.Xccdf.Name)
 
 	cmd := exec.Command("oscap", args...)
 	cmd.Dir = e.ConfigDir()
