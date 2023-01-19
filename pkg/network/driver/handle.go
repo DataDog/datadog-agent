@@ -96,15 +96,15 @@ func (rdh *RealDriverHandle) CancelIoEx(ol *windows.Overlapped) error {
 func NewHandle(flags uint32, handleType HandleType) (Handle, error) {
 	pathext, ok := handleTypeToPathName[handleType]
 	if !ok {
-		return nil, fmt.Errorf("Unknown Handle type %v", handleType)
+		return nil, fmt.Errorf("unknown Handle type %v", handleType)
 	}
 	fullpath := deviceName + `\` + pathext
-	p, err := windows.UTF16PtrFromString(fullpath)
+	pFullPath, err := windows.UTF16PtrFromString(fullpath)
 	if err != nil {
 		return nil, err
 	}
 	log.Debugf("Creating driver handle of type %s", handleType)
-	h, err := windows.CreateFile(p,
+	h, err := windows.CreateFile(pFullPath,
 		windows.GENERIC_READ|windows.GENERIC_WRITE,
 		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
 		nil,
