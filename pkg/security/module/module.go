@@ -325,18 +325,6 @@ func (m *Module) ReloadPolicies() error {
 	return m.LoadPolicies(m.policyProviders, true)
 }
 
-func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*rules.RuleSet, *multierror.Error) {
-	ruleOpts, evalOpts := rules.NewEvalOpts(getEventTypeEnabled(m.config))
-
-	// approver ruleset
-	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-
-	// load policies
-	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
-
-	return approverRuleSet, loadApproversErrs
-}
-
 // LoadPolicies loads the policies
 func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
@@ -352,22 +340,11 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
 
-	approverRuleSet, loadApproversErrs := m.getApproverRuleset(policyProviders)
-	// non fatal error, just log
-	if loadApproversErrs != nil {
-		logLoadingErrors("error while loading policies for approvers: %+v", loadApproversErrs)
-	}
-
-	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
-	if err != nil {
-		return err
-	}
-
 	// standard ruleset
 	ruleSet := m.probe.NewRuleSet()
 
 	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
-	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {
+	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
 
@@ -378,14 +355,14 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	// notify listeners
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet, loadApproversErrs)
+		m.rulesLoaded(ruleSet, loadErrs)
 	}
 
 	// add module as listener for ruleset events
 	ruleSet.AddListener(m)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(ruleSet, approvers)
+	report, err := rsa.Apply(ruleSet)
 	if err != nil {
 		return err
 	}
@@ -403,8 +380,8 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	m.displayReport(report)
 
 	if sendLoadedReport {
-		ReportRuleSetLoaded(m.eventSender, m.statsdClient, ruleSet, loadApproversErrs)
-		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
+		ReportRuleSetLoaded(m.eventSender, m.statsdClient, ruleSet, loadErrs)
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
 	}
 
 	return nil
