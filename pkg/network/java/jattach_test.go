@@ -55,7 +55,7 @@ func testInject(t *testing.T, prefix string) {
 		}
 		t.Log(o)
 	}()
-	time.Sleep(time.Second) // give a chance to spawn java
+	time.Sleep(100 * time.Millisecond) // give a chance to spawn java
 
 	pid := findJustWait(t)
 	require.NotEqual(t, pid, 0, "Can't find java JustWait process")
@@ -77,8 +77,6 @@ func testInject(t *testing.T, prefix string) {
 	err = InjectAgent(pid, "testdata/TestAgentLoaded.jar", tfile.Name())
 	require.NoError(t, err)
 
-	time.Sleep((MINIMUM_JAVA_AGE_TO_ATTACH_MS + 200) * time.Millisecond) // wait java process to be old enough to be injected
-
 	// check if agent was loaded
 	_, err = os.Stat(tfile.Name())
 	require.NoError(t, err)
@@ -87,9 +85,8 @@ func testInject(t *testing.T, prefix string) {
 }
 
 // We test injection on a java hotspot running
-//
-//	o on the host
-//	o in the container, _simulated_ by running java in his own PID namespace
+//  o on the host
+//  o in the container, _simulated_ by running java in his own PID namespace
 func TestInject(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -106,13 +103,15 @@ func TestInject(t *testing.T) {
 	}
 	t.Log(javaVersion)
 
-	// flush the caches to slow start java
-	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
-	t.Run("host", func(t *testing.T) {
-		testInject(t, "")
-	})
-	if t.Failed() {
-		t.Fatal("host failed")
+	for i := 0; i < 24; i++ {
+		testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
+
+		t.Run("host", func(t *testing.T) {
+			testInject(t, "")
+		})
+		if t.Failed() {
+			t.Fatal("host failed")
+		}
 	}
 
 	p := "unshare -p --fork "
@@ -121,11 +120,13 @@ func TestInject(t *testing.T) {
 		t.Skipf("unshare not supported on this platform %s", err)
 	}
 
-	// flush the caches to slow start java
-	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
-	t.Run("PIDnamespace", func(t *testing.T) {
-		// running the tagert process in a new PID namespace
-		// and testing if the test/plaform give enough permission to do that
-		testInject(t, p)
-	})
+	for i := 0; i < 24; i++ {
+		testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
+
+		t.Run("PIDnamespace", func(t *testing.T) {
+			// running the tagert process in a new PID namespace
+			// and testing if the test/plaform give enough permission to do that
+			testInject(t, p)
+		})
+	}
 }
