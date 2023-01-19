@@ -12,11 +12,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	containerdUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/aquasecurity/trivy-db/pkg/db"
@@ -39,8 +39,18 @@ import (
 )
 
 const (
-	cleanupTimeout = 30 * time.Second
+	cleanupTimeout      = 30 * time.Second
+	OSAnalyzers         = "os"
+	LanguagesAnalyzers  = "languages"
+	SecretAnalyzers     = "secret"
+	ConfigFileAnalyzers = "config"
+	LicenseAnalyzers    = "license"
 )
+
+// Collector interface
+type Collector interface {
+	ScanContainerdImage(ctx context.Context, imageMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error)
+}
 
 // CollectorConfig allows to pass configuration
 type CollectorConfig struct {
@@ -63,7 +73,7 @@ type collector struct {
 
 // DefaultCollectorConfig returns a default collector configuration
 // However, accessors still need to be filled in externally
-func DefaultCollectorConfig() (CollectorConfig, error) {
+func DefaultCollectorConfig(enabledAnalyzers []string) (CollectorConfig, error) {
 	cache, err := operation.NewCache(flag.CacheOptions{CacheBackend: "fs"})
 	if err != nil {
 		return CollectorConfig{}, err
@@ -75,7 +85,7 @@ func DefaultCollectorConfig() (CollectorConfig, error) {
 		ArtifactOption: artifact.Option{
 			Offline:           true,
 			NoProgress:        true,
-			DisabledAnalyzers: DefaultDisabledCollectors(),
+			DisabledAnalyzers: DefaultDisabledCollectors(enabledAnalyzers),
 			Slow:              true,
 			SBOMSources:       []string{},
 			DisabledHandlers:  DefaultDisabledHandlers(),
@@ -83,12 +93,30 @@ func DefaultCollectorConfig() (CollectorConfig, error) {
 	}, nil
 }
 
-func DefaultDisabledCollectors() []analyzer.Type {
-	disabledAnalyzers := make([]analyzer.Type, 2+len(analyzer.TypeLanguages)+len(analyzer.TypeConfigFiles))
-	disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
-	disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
-	disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeConfigFiles...)
-	disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLicenseFile)
+func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
+	sort.Strings(enabledAnalyzers)
+	analyzersDisabled := func(analyzers string) bool {
+		index := sort.SearchStrings(enabledAnalyzers, analyzers)
+		return index >= len(enabledAnalyzers) || enabledAnalyzers[index] != analyzers
+	}
+
+	var disabledAnalyzers []analyzer.Type
+	if analyzersDisabled(OSAnalyzers) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeOSes...)
+	}
+	if analyzersDisabled(LanguagesAnalyzers) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
+	}
+	if analyzersDisabled(SecretAnalyzers) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
+	}
+	if analyzersDisabled(ConfigFileAnalyzers) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeConfigFiles...)
+	}
+	if analyzersDisabled(LicenseAnalyzers) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLicenseFile)
+	}
+
 	return disabledAnalyzers
 }
 
