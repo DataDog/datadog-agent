@@ -6,7 +6,7 @@
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant classification procedures on the same
 // connection. Assumption: each connection has a single protocol.
-BPF_LRU_MAP(dispatcher_connection_protocol, conn_tuple_t, protocol_t, 1024)
+BPF_LRU_MAP(dispatcher_connection_protocol, conn_tuple_t, protocol_t, 0)
 
 // Map used to store the sub program actually used by the socket filter.
 // This is done to avoid memory limitation when attaching a filter to
