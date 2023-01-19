@@ -31,6 +31,8 @@ data:
       conntrack_init_timeout: 10s
     service_monitoring_config:
       enabled: false
+    data_streams_config:
+      enabled: false
     runtime_security_config:
       enabled: true
       fim_enabled: false

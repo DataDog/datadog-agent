@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	spNS  = "system_probe_config"
-	netNS = "network_config"
-	smNS  = "service_monitoring_config"
+	spNS          = "system_probe_config"
+	netNS         = "network_config"
+	smNS          = "service_monitoring_config"
+	dataStreamsNS = "data_streams_config"
 
 	defaultConnsMessageBatchSize = 600
 
@@ -174,6 +175,9 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
+
+	// data streams monitoring
+	cfg.BindEnvAndSetDefault(join(dataStreamsNS, "enabled"), false, "DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED")
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)

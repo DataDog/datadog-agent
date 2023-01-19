@@ -185,6 +185,10 @@ func load(configPath string) (*Config, error) {
 	// this check must come first so we can accurately tell if system_probe was explicitly enabled
 	npmEnabled := cfg.GetBool("network_config.enabled")
 	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
+	dataStreamsEnabled := cfg.GetBool("data_streams_config.enabled")
+
+	// We enable USM if Data Streams feature is enabled for backend compatability
+	usmEnabled = usmEnabled || dataStreamsEnabled
 
 	if npmEnabled {
 		log.Info("network_config.enabled detected: enabling system-probe with network module running.")

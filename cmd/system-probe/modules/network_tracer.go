@@ -42,7 +42,7 @@ const inactivityRestartDuration = 20 * time.Minute
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = module.Factory{
 	Name:             config.NetworkTracerModule,
-	ConfigNamespaces: []string{"network_config", "service_monitoring_config"},
+	ConfigNamespaces: []string{"network_config", "service_monitoring_config", "data_streams_config"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 
