@@ -121,7 +121,7 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 			if len(clusterName) > 0 {
 				if !IsRFC1123CompliantClusterName(clusterName) {
-					log.Infof("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted, ", clusterName)
+					log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted, ", clusterName)
 				}
 				data.clusterName = MakeClusterNameRFC1123Compliant(clusterName)
 				log.Infof("Using cluster name %s from the node label", data.clusterName)
