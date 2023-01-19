@@ -358,7 +358,7 @@ func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 			// Pod check manifest data
 			case checks.PodCheckManifestName:
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
-			case checks.ProcessDiscovery.Name():
+			case checks.DiscoveryCheckName:
 				// A Process Discovery check does not change the RT mode
 				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
 			case checks.ProcessEventsCheckName:
@@ -464,10 +464,10 @@ func (s *checkSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		}
 
 		switch name {
-		case checks.ProcessEvents.Name():
+		case checks.ProcessEventsCheckName:
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-		case checks.Connections.Name(), checks.Process.Name():
+		case checks.ConnectionsCheckName, checks.ProcessCheckName:
 			requestID := s.getRequestID(start, messageIndex)
 			log.Debugf("the request id of the current message: %s", requestID)
 			extraHeaders.Set(headers.RequestIDHeader, requestID)

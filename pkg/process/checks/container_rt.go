@@ -19,8 +19,10 @@ const (
 	cacheValidityRT = 500 * time.Millisecond
 )
 
-// RTContainer is a singleton RTContainerCheck.
-var RTContainer = &RTContainerCheck{}
+// NewRTContainerCheck returns an instance of the RTContainerCheck.
+func NewRTContainerCheck() Check {
+	return &RTContainerCheck{}
+}
 
 // RTContainerCheck collects numeric statistics about live ctrList.
 type RTContainerCheck struct {

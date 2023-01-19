@@ -22,8 +22,10 @@ const (
 	cacheValidityNoRT = 2 * time.Second
 )
 
-// Container is a singleton ContainerCheck.
-var Container = &ContainerCheck{}
+// NewContainerCheck returns an instance of the ContainerCheck.
+func NewContainerCheck() Check {
+	return &ContainerCheck{}
+}
 
 // ContainerCheck is a check that returns container metadata and stats.
 type ContainerCheck struct {

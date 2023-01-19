@@ -35,12 +35,12 @@ const (
 	configDisallowList         = configPrefix + "blacklist_patterns"
 )
 
-// Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{
-	scrubber: procutil.NewDefaultDataScrubber(),
+// NewProcessCehck returns an instance of the ProcessCheck.
+func NewProcessCheck() Check {
+	return &ProcessCheck{
+		scrubber: procutil.NewDefaultDataScrubber(),
+	}
 }
-
-var _ Check = (*ProcessCheck)(nil)
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
@@ -85,9 +85,10 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.hostInfo = info
-	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
+	p.SysprobeProcessModuleEnabled = syscfg.ProcessModuleEnabled
+	p.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
