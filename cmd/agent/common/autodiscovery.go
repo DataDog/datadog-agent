@@ -7,6 +7,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -285,12 +286,12 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
 	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
-		var errors []error
+		var errorList []error
 		for _, cfg := range configs {
 			if instanceFilter != "" {
 				instances, filterErrors := filterInstances(cfg.Instances, instanceFilter)
 				if len(filterErrors) > 0 {
-					errors = append(errors, filterErrors...)
+					errorList = append(errorList, filterErrors...)
 					continue
 				}
 				if len(instances) == 0 {
@@ -303,8 +304,8 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 				configChan <- cfg
 			}
 		}
-		if len(errors) > 0 {
-			returnErr = utilserror.NewAggregate(errors)
+		if len(errorList) > 0 {
+			returnErr = errors.New(utilserror.NewAggregate(errorList).Error())
 			stopChan <- struct{}{}
 		}
 	}), true)
