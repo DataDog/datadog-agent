@@ -127,7 +127,7 @@ func (s *xccdfSession) EvaluateRule(rule string) ([]resources.ResolvedInstance, 
 	return instances, nil
 }
 
-func newXCCDFSession(xccdf, cpe string) (*xccdfSession, error) {
+func newXCCDFSession(xccdf string) (*xccdfSession, error) {
 	xccdfCString := C.CString(xccdf)
 	defer C.free(unsafe.Pointer(xccdfCString))
 
@@ -137,13 +137,6 @@ func newXCCDFSession(xccdf, cpe string) (*xccdfSession, error) {
 	}
 
 	log.Debugf("Created XCCDF session for %s", xccdf)
-
-	if cpe != "" {
-		cpeCString := C.CString(cpe)
-		defer C.free(unsafe.Pointer(cpeCString))
-		C.xccdf_session_set_user_cpe(session, cpeCString)
-	}
-
 	productCpeCString := C.CString("cpe:/a:open-scap:oscap")
 	defer C.free(unsafe.Pointer(productCpeCString))
 
@@ -163,14 +156,14 @@ func getFullError(errMsg string) error {
 	return fmt.Errorf("%s: %s", errMsg, C.GoString(C.oscap_err_get_full_error()))
 }
 
-func evalXCCDFRule(xccdf, cpe, profile, rule string) ([]resources.ResolvedInstance, error) {
+func evalXCCDFRule(xccdf, profile, rule string) ([]resources.ResolvedInstance, error) {
 	var err error
-	xccdfSession := sessionCache[xccdf+":"+cpe]
+	xccdfSession := sessionCache[xccdf]
 	if xccdfSession == nil {
-		if xccdfSession, err = newXCCDFSession(xccdf, cpe); err != nil {
+		if xccdfSession, err = newXCCDFSession(xccdf); err != nil {
 			return nil, err
 		}
-		sessionCache[xccdf+":"+cpe] = xccdfSession
+		sessionCache[xccdf] = xccdfSession
 	}
 
 	if err := xccdfSession.SetProfile(profile); err != nil {
@@ -182,7 +175,7 @@ func evalXCCDFRule(xccdf, cpe, profile, rule string) ([]resources.ResolvedInstan
 
 func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	configDir := e.ConfigDir()
-	instances, err := evalXCCDFRule(filepath.Join(configDir, res.Xccdf.Name), filepath.Join(configDir, res.Xccdf.Cpe), res.Xccdf.Profile, res.Xccdf.Rule)
+	instances, err := evalXCCDFRule(filepath.Join(configDir, res.Xccdf.Name), res.Xccdf.Profile, res.Xccdf.Rule)
 	if err != nil {
 		return nil, err
 	}

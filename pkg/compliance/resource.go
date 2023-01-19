@@ -302,5 +302,4 @@ type Xccdf struct {
 	Name    string `yaml:"name"`
 	Profile string `yaml:"profile"`
 	Rule    string `yaml:"rule"`
-	Cpe     string `yaml:"cpe"`
 }
