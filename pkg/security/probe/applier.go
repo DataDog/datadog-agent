@@ -22,7 +22,7 @@ import (
 // RuleSetApplier defines a rule set applier. It applies rules using an Applier
 type RuleSetApplier struct {
 	config   *config.Config
-	reporter *Reporter
+	reporter *ApplyRuleSetReporter
 	probe    *Probe
 }
 
@@ -92,7 +92,7 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 }
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
-func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet) (*Report, error) {
+func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 	// apply deny filter by default
 	rsa.applyDefaultFilterPolicies()
 
@@ -128,6 +128,6 @@ func NewRuleSetApplier(cfg *config.Config, probe *Probe) *RuleSetApplier {
 	return &RuleSetApplier{
 		config:   cfg,
 		probe:    probe,
-		reporter: NewReporter(),
+		reporter: NewApplyRuleSetReporter(),
 	}
 }

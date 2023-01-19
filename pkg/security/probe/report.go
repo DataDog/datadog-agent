@@ -20,24 +20,24 @@ type PolicyReport struct {
 	Approvers rules.Approvers
 }
 
-// Report describes the event types and their associated policy reports
-type Report struct {
+// ApplyRuleSetReport describes the event types and their associated policy reports
+type ApplyRuleSetReport struct {
 	Policies map[string]*PolicyReport
 }
 
-// NewReport returns a new report
-func NewReport() *Report {
-	return &Report{
+// NewApplyRuleSetReport returns a new report
+func NewApplyRuleSetReport() *ApplyRuleSetReport {
+	return &ApplyRuleSetReport{
 		Policies: make(map[string]*PolicyReport),
 	}
 }
 
-// Reporter describes a reporter of policy application
-type Reporter struct {
-	report *Report
+// ApplyRuleSetReporter describes a reporter of policy application
+type ApplyRuleSetReporter struct {
+	report *ApplyRuleSetReport
 }
 
-func (r *Reporter) getPolicyReport(eventType eval.EventType) *PolicyReport {
+func (r *ApplyRuleSetReporter) getPolicyReport(eventType eval.EventType) *PolicyReport {
 	if r.report.Policies[eventType] == nil {
 		r.report.Policies[eventType] = &PolicyReport{Approvers: rules.Approvers{}}
 	}
@@ -45,7 +45,7 @@ func (r *Reporter) getPolicyReport(eventType eval.EventType) *PolicyReport {
 }
 
 // SetFilterPolicy is called when a passing policy for an event type is applied
-func (r *Reporter) SetFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
+func (r *ApplyRuleSetReporter) SetFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
 	policyReport := r.getPolicyReport(eventType)
 	policyReport.Mode = mode
 	policyReport.Flags = flags
@@ -53,18 +53,18 @@ func (r *Reporter) SetFilterPolicy(eventType eval.EventType, mode PolicyMode, fl
 }
 
 // SetApprovers is called when approvers are applied for an event type
-func (r *Reporter) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+func (r *ApplyRuleSetReporter) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	policyReport := r.getPolicyReport(eventType)
 	policyReport.Approvers = approvers
 	return nil
 }
 
 // GetReport returns the report
-func (r *Reporter) GetReport() *Report {
+func (r *ApplyRuleSetReporter) GetReport() *ApplyRuleSetReport {
 	return r.report
 }
 
 // NewReporter instantiates a new reporter
-func NewReporter() *Reporter {
-	return &Reporter{report: NewReport()}
+func NewApplyRuleSetReporter() *ApplyRuleSetReporter {
+	return &ApplyRuleSetReporter{report: NewApplyRuleSetReport()}
 }
