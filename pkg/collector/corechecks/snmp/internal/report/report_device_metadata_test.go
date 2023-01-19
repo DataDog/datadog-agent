@@ -332,8 +332,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "interface:22"
             ],
             "index": 2,
-            "name": "22",
-			"alias": ""
+            "name": "22"
         }
     ],
     "collect_timestamp":1415792726
