@@ -373,7 +373,6 @@ func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	ddcfg.Set("orchestrator_explorer.enabled", true)
 	ddcfg.Set("orchestrator_explorer.manifest_collection.enabled", false)
 
-
 	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *Collector, ep *mockEndpoint) {
 
 		testPodMessageMetadata(t, clusterID, c, ep)
