@@ -13,9 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,42 +33,56 @@ var (
 	CloudProviderName = "AWS"
 	// DMIBoardVendor contains the DMI board vendor for EC2
 	DMIBoardVendor = "Amazon EC2"
+
+	currentMetadataSource = metadataSourceNone
 )
 
 func init() {
 	token = httputils.NewAPIToken(getToken)
 }
 
-func isBoardVendorEc2() bool {
-	if !config.Datadog.GetBool("ec2_use_dmi") {
-		return false
-	}
+const (
+	metadataSourceNone = iota
+	metadataSourceUUID
+	metadataSourceDMI
+	metadataSourceIMDSv1
+	metadataSourceIMDSv2
+)
 
-	vendor := dmi.GetBoardVendor()
-	if vendor == DMIBoardVendor {
-		return true
-	}
-	return false
-}
-
-// getInstanceIDFromDMI fetches the instance id for current host from DMI
+// setCloudProviderSource set the best source available for EC2 metadata to the inventories payload.
 //
-// On AWS Nitro instances dmi information contains the instanceID for the host. We check that the board vendor is
-// EC2 and that the board_asset_tag match an instanceID format before using it
-func getInstanceIDFromDMI() (string, error) {
-	if !config.Datadog.GetBool("ec2_use_dmi") {
-		return "", fmt.Errorf("'ec2_use_dmi' is disabled")
+// The different sources that can be used to know if we are running on EC2. This data is registered in the
+// inventories metadata payload.
+//
+// We current have 3 ways to know we're on EC2 (if one fails we fallback to the next):
+// - we succeed in reaching IMDS v1 or v2 metadata API.
+// - the DMI information match EC2 and we can get the instanceID from it.
+// - the product UUID or hypervisor UUID match EC2 (we know we're on EC2 but can't fetch the instance ID).
+//
+// Since some ways can temporary fail, we always register the "best" that worked at some point. This is mainly aimed at
+// IMDS which is sometimes unavailable at startup.
+func setCloudProviderSource(source int) {
+	if source <= currentMetadataSource {
+		return
 	}
 
-	if !isBoardVendorEc2() {
-		return "", fmt.Errorf("board vendor is not AWS")
+	sourceName := ""
+	currentMetadataSource = source
+
+	switch source {
+	case metadataSourceUUID:
+		sourceName = "UUID"
+	case metadataSourceDMI:
+		sourceName = "DMI"
+	case metadataSourceIMDSv1:
+		sourceName = "IMDSv1"
+	case metadataSourceIMDSv2:
+		sourceName = "IMDSv2"
+	default: // unknown source or metadataSourceNone
+		return
 	}
 
-	boardAssetTag := dmi.GetBoardAssetTag()
-	if boardAssetTag == "" || !strings.HasPrefix(boardAssetTag, "i-") {
-		return "", fmt.Errorf("invalid board_asset_tag: '%s'", boardAssetTag)
-	}
-	return boardAssetTag, nil
+	inventories.SetHostMetadata(inventories.HostCloudProviderSource, sourceName)
 }
 
 var instanceIDFetcher = cachedfetch.Fetcher{
@@ -89,14 +102,14 @@ func GetInstanceID(ctx context.Context) (string, error) {
 
 // IsRunningOn returns true if the agent is running on AWS
 func IsRunningOn(ctx context.Context) bool {
-	if config.IsFeaturePresent(config.ECSEC2) || config.IsFeaturePresent(config.ECSFargate) {
-		return true
-	}
-
 	if _, err := GetHostname(ctx); err == nil {
 		return true
 	}
-	return isBoardVendorEc2()
+	if isBoardVendorEC2() || isEC2UUID() {
+		return true
+	}
+
+	return config.IsFeaturePresent(config.ECSEC2) || config.IsFeaturePresent(config.ECSFargate)
 }
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.

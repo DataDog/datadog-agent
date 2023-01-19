@@ -34,6 +34,7 @@ func resetPackageVars() {
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
 	token = httputils.NewAPIToken(getToken)
+	currentMetadataSource = metadataSourceNone
 
 	instanceIDFetcher.Reset()
 	publicIPv4Fetcher.Reset()
@@ -120,18 +121,6 @@ func TestGetInstanceID(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
-}
-
-func TestGetInstanceIDFromDMI(t *testing.T) {
-	setupDMIForNotEC2(t)
-	instanceID, err := getInstanceIDFromDMI()
-	assert.Error(t, err)
-	assert.Equal(t, "", instanceID)
-
-	setupDMIForEC2(t)
-	instanceID, err = getInstanceIDFromDMI()
-	assert.NoError(t, err)
-	assert.Equal(t, "i-myinstance", instanceID)
 }
 
 func TestGetHostAliases(t *testing.T) {
@@ -372,7 +361,6 @@ func TestMetedataRequestWithToken(t *testing.T) {
 				w.WriteHeader(http.StatusNotFound)
 			}
 		default:
-			fmt.Println("q")
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
@@ -456,10 +444,7 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
 }
 
-func TestGetNTPHosts(t *testing.T) {
-	ctx := context.Background()
-	expectedHosts := []string{"169.254.169.123"}
-
+func TestGetNTPHostsFromIMDS(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
@@ -468,37 +453,130 @@ func TestGetNTPHosts(t *testing.T) {
 	defer resetPackageVars()
 
 	metadataURL = ts.URL
-	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
-	actualHosts := GetNTPHosts(ctx)
-
-	assert.Equal(t, expectedHosts, actualHosts)
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
 }
 
 func TestGetNTPHostsDMI(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
-
-	ctx := context.Background()
-	expectedHosts := []string{"169.254.169.123"}
-
-	setupDMIForEC2(t)
-	defer resetPackageVars()
-	metadataURL = ""
-
-	actualHosts := GetNTPHosts(ctx)
-
-	assert.Equal(t, expectedHosts, actualHosts)
-}
-
-func TestGetNTPHostsDisabledDMI(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", false)
-	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
-
 	setupDMIForEC2(t)
 	defer resetPackageVars()
 	metadataURL = ""
 
 	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
+}
+
+func TestGetNTPHostsEC2UUID(t *testing.T) {
+	dmi.SetupMock(t, "ec2something", "", "", "")
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
+}
+
+func TestGetNTPHostsDisabledDMI(t *testing.T) {
+	config.Mock(t)
+	config.Datadog.Set("ec2_use_dmi", false)
+
+	// DMI without EC2 UUID
+	dmi.SetupMock(t, "something", "something", "i-myinstance", DMIBoardVendor)
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(context.Background())
 	assert.Equal(t, []string(nil), actualHosts)
+}
+
+func TestGetNTPHostsNotEC2(t *testing.T) {
+	setupDMIForNotEC2(t)
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string(nil), actualHosts)
+}
+
+func TestMetadataSourceIMDS(t *testing.T) {
+	ctx := context.Background()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.Method {
+		case http.MethodPut: // token request
+			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+		case http.MethodGet: // metadata request
+			switch r.RequestURI {
+			case "/hostname":
+				io.WriteString(w, "ip-10-10-10-10.ec2.internal")
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	tokenURL = ts.URL
+	defer resetPackageVars()
+	config.Mock(t)
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.Set("ec2_prefer_imdsv2", true)
+
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceIMDSv2, currentMetadataSource)
+
+	// trying IMDSv1
+	hostnameFetcher.Reset()
+	currentMetadataSource = metadataSourceNone
+	config.Datadog.Set("ec2_prefer_imdsv2", false)
+
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceIMDSv1, currentMetadataSource)
+}
+
+func TestMetadataSourceUUID(t *testing.T) {
+	ctx := context.Background()
+
+	metadataURL = ""
+	defer resetPackageVars()
+
+	dmi.SetupMock(t, "ec2something", "", "", "")
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+
+	dmi.SetupMock(t, "", "ec2something", "", "")
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+
+	dmi.SetupMock(t, "", "45E12AEC-DCD1-B213-94ED-012345ABCDEF", "", "")
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+}
+
+func TestMetadataSourceDMI(t *testing.T) {
+	ctx := context.Background()
+
+	metadataURL = ""
+	defer resetPackageVars()
+
+	setupDMIForEC2(t)
+	GetHostAliases(ctx)
+	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
+}
+
+func TestMetadataSourceDMIPreventFallback(t *testing.T) {
+	ctx := context.Background()
+
+	metadataURL = ""
+	defer resetPackageVars()
+
+	setupDMIForEC2(t)
+	GetHostAliases(ctx)
+	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
+
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
 }

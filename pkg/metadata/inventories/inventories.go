@@ -68,7 +68,6 @@ type AgentMetadataName string
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
-	AgentCloudProvider                 AgentMetadataName = "cloud_provider"
 	AgentHostnameSource                AgentMetadataName = "hostname_source"
 	AgentVersion                       AgentMetadataName = "agent_version"
 	AgentFlavor                        AgentMetadataName = "flavor"
@@ -103,7 +102,9 @@ const (
 	agentFullConf     AgentMetadataName = "full_configuration"
 
 	// key for the host metadata cache. See host_metadata.go
-	HostOSVersion AgentMetadataName = "os_version"
+	HostOSVersion           AgentMetadataName = "os_version"
+	HostCloudProvider       AgentMetadataName = "cloud_provider"
+	HostCloudProviderSource AgentMetadataName = "cloud_provider_source"
 )
 
 // Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed
