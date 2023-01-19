@@ -39,7 +39,7 @@ const (
 // ConfigUpdater defines the interface that an agent client uses to get config updates
 // from the core remote-config service
 type ConfigUpdater interface {
-	ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest, ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error)
+	ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
 }
 
 // Client is a remote-configuration client to obtain configurations from the local API
@@ -93,7 +93,7 @@ func NewAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
 }
 
 // ClientGetConfigs implements the ConfigUpdater interface for agentGRPCConfigFetcher
-func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest, opts ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error) {
+func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	// When communicating with the core service via grpc, the auth token is handled
 	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
 	// or that if it restarts that the auth token remains the same. Thus we need to do this every request.
@@ -107,7 +107,7 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	return g.client.ClientGetConfigs(ctx, request, opts...)
+	return g.client.ClientGetConfigs(ctx, request)
 }
 
 // NewClient creates a new client
