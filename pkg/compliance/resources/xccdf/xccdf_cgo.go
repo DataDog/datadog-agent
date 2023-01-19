@@ -138,9 +138,11 @@ func newXCCDFSession(xccdf, cpe string) (*xccdfSession, error) {
 
 	log.Debugf("Created XCCDF session for %s", xccdf)
 
-	cpeCString := C.CString(cpe)
-	defer C.free(unsafe.Pointer(cpeCString))
-	C.xccdf_session_set_user_cpe(session, cpeCString)
+	if cpe != "" {
+		cpeCString := C.CString(cpe)
+		defer C.free(unsafe.Pointer(cpeCString))
+		C.xccdf_session_set_user_cpe(session, cpeCString)
+	}
 
 	productCpeCString := C.CString("cpe:/a:open-scap:oscap")
 	defer C.free(unsafe.Pointer(productCpeCString))
