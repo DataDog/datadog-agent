@@ -117,8 +117,8 @@ func workloadURL(verbose bool) (string, error) {
 	}
 
 	if verbose {
-		return prefix + "/verbose", nil
+		return prefix + "?verbose=true", nil
 	}
 
-	return prefix + "/short", nil
+	return prefix, nil
 }
