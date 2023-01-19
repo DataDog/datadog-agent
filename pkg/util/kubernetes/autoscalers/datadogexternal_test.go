@@ -17,6 +17,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // TestDatadogExternalQuery tests that the outputs gotten from Datadog are appropriately dealt with.
@@ -67,9 +68,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePoints(400000, 911),
 						},
-						Scope:      makePtr("foo:bar,baz:ar"),
-						Metric:     makePtr("mymetric"),
-						QueryIndex: makePtrInt(0),
+						Scope:      pointer.Ptr("foo:bar,baz:ar"),
+						Metric:     pointer.Ptr("mymetric"),
+						QueryIndex: pointer.Ptr(0),
 					}, {
 						Points: []datadog.DataPoint{
 							makePartialPoints(10000),
@@ -78,9 +79,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePartialPoints(40000),
 						},
-						Scope:      makePtr("foo:baz"),
-						Metric:     makePtr("mymetric2"),
-						QueryIndex: makePtrInt(1),
+						Scope:      pointer.Ptr("foo:baz"),
+						Metric:     pointer.Ptr("mymetric2"),
+						QueryIndex: pointer.Ptr(1),
 					}, {
 						Points: []datadog.DataPoint{
 							makePartialPoints(10000),
@@ -89,9 +90,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePartialPoints(30000),
 							makePartialPoints(40000),
 						},
-						Scope:      makePtr("ba:bar"),
-						Metric:     makePtr("my.aws.metric"),
-						QueryIndex: makePtrInt(2),
+						Scope:      pointer.Ptr("ba:bar"),
+						Metric:     pointer.Ptr("my.aws.metric"),
+						QueryIndex: pointer.Ptr(2),
 					},
 				}, nil
 			},
@@ -128,9 +129,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePoints(400000, 911),
 						},
-						Metric:     makePtr("(system.io.rkb_s + system.io.rkb_s)"),
-						Scope:      makePtr("device:sda,device:sdb,host:a"),
-						QueryIndex: makePtrInt(0),
+						Metric:     pointer.Ptr("(system.io.rkb_s + system.io.rkb_s)"),
+						Scope:      pointer.Ptr("device:sda,device:sdb,host:a"),
+						QueryIndex: pointer.Ptr(0),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -140,9 +141,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePoints(400000, 912),
 						},
-						Metric:     makePtr("(system.io.rkb_s + system.io.rkb_s)"),
-						Scope:      makePtr("device:sda,device:sdb,host:b"),
-						QueryIndex: makePtrInt(0),
+						Metric:     pointer.Ptr("(system.io.rkb_s + system.io.rkb_s)"),
+						Scope:      pointer.Ptr("device:sda,device:sdb,host:b"),
+						QueryIndex: pointer.Ptr(0),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -152,9 +153,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePartialPoints(40000),
 						},
-						Metric:     makePtr("mymetric2"),
-						Scope:      makePtr("foo:baz"),
-						QueryIndex: makePtrInt(1),
+						Metric:     pointer.Ptr("mymetric2"),
+						Scope:      pointer.Ptr("foo:baz"),
+						QueryIndex: pointer.Ptr(1),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -164,9 +165,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePartialPoints(30000),
 							makePartialPoints(40000),
 						},
-						Metric:     makePtr("my.aws.metric"),
-						Scope:      makePtr("ba:bar"),
-						QueryIndex: makePtrInt(2),
+						Metric:     pointer.Ptr("my.aws.metric"),
+						Scope:      pointer.Ptr("ba:bar"),
+						QueryIndex: pointer.Ptr(2),
 					},
 				}, nil
 			},
@@ -203,9 +204,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePoints(400000, 911),
 						},
-						Metric:     makePtr("(system.io.rkb_s + system.io.rkb_s)"),
-						Scope:      makePtr("device:sda,device:sdb,host:a"),
-						QueryIndex: makePtrInt(0),
+						Metric:     pointer.Ptr("(system.io.rkb_s + system.io.rkb_s)"),
+						Scope:      pointer.Ptr("device:sda,device:sdb,host:a"),
+						QueryIndex: pointer.Ptr(0),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -215,8 +216,8 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePartialPoints(40000),
 						},
-						Metric: makePtr("mymetric2"),
-						Scope:  makePtr("foo:baz"),
+						Metric: pointer.Ptr("mymetric2"),
+						Scope:  pointer.Ptr("foo:baz"),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -226,9 +227,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePartialPoints(30000),
 							makePartialPoints(40000),
 						},
-						Metric:     makePtr("my.aws.metric"),
-						Scope:      makePtr("ba:bar"),
-						QueryIndex: makePtrInt(2),
+						Metric:     pointer.Ptr("my.aws.metric"),
+						Scope:      pointer.Ptr("ba:bar"),
+						QueryIndex: pointer.Ptr(2),
 					},
 				}, nil
 			},
