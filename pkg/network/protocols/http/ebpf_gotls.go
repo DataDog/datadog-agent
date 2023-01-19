@@ -123,6 +123,7 @@ type runningBinary struct {
 }
 
 type GoTLSProgram struct {
+	cfg     *config.Config
 	manager *errtelemetry.Manager
 
 	// Path to the process/container's procfs
@@ -175,6 +176,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	}
 
 	p := &GoTLSProgram{
+		cfg:       c,
 		procRoot:  c.ProcRoot,
 		binaries:  make(map[binaryID]*runningBinary),
 		processes: make(map[pid]binaryID),
@@ -195,7 +197,13 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	// Hooks will be added in runtime for each binary
 }
 
-func (p *GoTLSProgram) ConfigureOptions(_ *manager.Options) {}
+func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
+	options.MapSpecEditors["conn_tup_by_go_tls_conn"] = manager.MapSpecEditor{
+		Type:       ebpf.Hash,
+		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		EditorFlag: manager.EditMaxEntries,
+	}
+}
 
 func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	probeList := make([]manager.ProbeIdentificationPair, 0)
