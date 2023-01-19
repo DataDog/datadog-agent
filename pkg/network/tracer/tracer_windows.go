@@ -10,11 +10,14 @@ package tracer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
-	"syscall"
 	"time"
+
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -24,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -52,15 +56,184 @@ type Tracer struct {
 	destExcludes   []*network.ConnectionFilter
 }
 
+func isClosedSourceAllowed() bool {
+	ddRegKey := `SOFTWARE\DataDog\Datadog Agent`
+	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
+	if err != nil {
+		log.Warnf("unable to open registry key %s: %v", ddRegKey, err)
+		return false
+	}
+	defer regKey.Close()
+
+	ddRegName := "AllowClosedSource"
+	val, _, err := regKey.GetIntegerValue("AllowClosedSource")
+	if err != nil {
+		log.Warnf("unable to get value for %s: %v", ddRegName, err)
+		return false
+	}
+
+	if val == 1 {
+		log.Infof("%s is set to 1; closed-source software allowed", ddRegName)
+		return true
+	} else if val == 0 {
+		log.Infof("%s is set to 0; closed-source software not allowed", ddRegName)
+		return false
+	} else {
+		log.Infof("Unexpected value set for %s: %d", ddRegName, ddRegName)
+		return false
+	}
+}
+
+func ddnpmIsEnabled() (enabled bool, err error) {
+	enabled = false
+
+	// connect to SCM
+	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	// get a handle to the ddnpm service
+	ddnpmServiceAccess := windows.SERVICE_QUERY_CONFIG
+	ddnpmServiceHandle, err := winutil.OpenService(manager, "ddnpm", uint32(ddnpmServiceAccess))
+	if err != nil {
+		return
+	}
+	defer ddnpmServiceHandle.Close()
+
+	ddnpmConfig, err := ddnpmServiceHandle.Config()
+	if err != nil {
+		return
+	}
+
+	return (ddnpmConfig.StartType != windows.SERVICE_DISABLED), nil
+
+}
+
+func ddnpmIsRunning() (running bool, err error) {
+	running = false
+
+	// connect to SCM
+	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	// get a handle to the ddnpm service
+	ddnpmServiceAccess := windows.SERVICE_CHANGE_CONFIG | windows.SERVICE_START | windows.SERVICE_QUERY_STATUS
+	ddnpmServiceHandle, err := winutil.OpenService(manager, "ddnpm", uint32(ddnpmServiceAccess))
+	if err != nil {
+		return
+	}
+	defer ddnpmServiceHandle.Close()
+
+	ddnpmStatus, err := ddnpmServiceHandle.Query()
+	if err != nil {
+		return
+	}
+
+	running = (ddnpmStatus.State == svc.Running)
+	return
+}
+
+func enableDdnpmService() (enabled bool, err error) {
+	enabled = false
+
+	// connect to SCM
+	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	// get a handle to the ddnpm service
+	ddnpmServiceAccess := windows.SERVICE_CHANGE_CONFIG | windows.SERVICE_START | windows.SERVICE_QUERY_STATUS
+	ddnpmServiceHandle, err := winutil.OpenService(manager, "ddnpm", uint32(ddnpmServiceAccess))
+	if err != nil {
+		return
+	}
+	defer ddnpmServiceHandle.Close()
+
+	config := mgr.Config{
+		StartType: mgr.StartManual,
+	}
+
+	// set it to manual start
+	err = ddnpmServiceHandle.UpdateConfig(config)
+	if err != nil {
+		log.Warnf("could not enable %s: %v", err)
+	}
+	enabled = true
+	return
+}
+
+func startDdnpm() (running bool, err error) {
+	running = false
+
+	// connect to SCM
+	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	// get a handle to the ddnpm service
+	ddnpmServiceAccess := windows.SERVICE_START | windows.SERVICE_QUERY_STATUS
+	ddnpmServiceHandle, err := winutil.OpenService(manager, "ddnpm", uint32(ddnpmServiceAccess))
+	if err != nil {
+		return
+	}
+	defer ddnpmServiceHandle.Close()
+	err = ddnpmServiceHandle.Start()
+	return
+}
+
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config, driver.NewHandle)
 
-	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
-		log.Debugf("could not create driver interface: %v", err)
-		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
-	} else if err != nil {
-		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
+	var di *network.DriverInterface
+	var err error
+
+	// check driver service is enabled
+	enabled, _ := ddnpmIsEnabled()
+	if enabled {
+		log.Info("Driver is enabled, checking if running")
+		// check driver is running
+		running, _ := ddnpmIsRunning()
+		if running {
+			log.Info("Driver is running, check if can connect")
+			// try to connect to the NPM driver
+			di, err = network.NewDriverInterface(config, driver.NewHandle)
+			if err != nil {
+				log.Warnf("Driver running but could not connect: %v", err)
+				return nil, err
+			}
+			log.Info("Driver connection success")
+		}
+	} else {
+		log.Info("Driver service not enabled, if closed source is allowed will enable")
+		if isClosedSourceAllowed() {
+			enabled, err := enableDdnpmService()
+			if enabled == false {
+				log.Warnf("Could not enable ddnpm: %v", err)
+				return nil, err
+			}
+			running, err := startDdnpm()
+			if running == false {
+				log.Warnf("Could not run ddnpm: %v", err)
+				return nil, err
+			}
+		} else {
+			return nil, fmt.Errorf("The Windows driver is not enabled, ensure closed source is allowed")
+		}
+	}
+
+	di, err = network.NewDriverInterface(config, driver.NewHandle)
+	if err != nil {
+		log.Warnf("Driver running but could not connect: %v", err)
+		return nil, err
 	}
 
 	state := network.NewState(
