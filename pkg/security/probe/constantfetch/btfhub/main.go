@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -39,18 +40,43 @@ import (
 func main() {
 	var archiveRootPath string
 	var constantOutputPath string
+	var forceRefresh bool
 
 	flag.StringVar(&archiveRootPath, "archive-root", "", "Root path of BTFHub archive")
 	flag.StringVar(&constantOutputPath, "output", "", "Output path for JSON constants")
+	flag.BoolVar(&forceRefresh, "force-refresh", false, "Force refresh of the constants")
 	flag.Parse()
 
-	twCollector := newTreeWalkCollector()
+	archiveCommit, err := getCommitSha(archiveRootPath)
+	if err != nil {
+		fmt.Printf("error fetching btfhub-archive commit: %v\n", err)
+	}
+	fmt.Printf("btfhub-archive: commit %s\n", archiveCommit)
+
+	preAllocHint := 0
+
+	if !forceRefresh {
+		// skip if commit is already the most recent
+		currentConstants, err := getCurrentConstants(constantOutputPath)
+		if err == nil && currentConstants.Commit != "" {
+			if currentConstants.Commit == archiveCommit {
+				fmt.Printf("already at most archive commit")
+				return
+			}
+			preAllocHint = len(currentConstants.Kernels)
+		}
+	}
+
+	twCollector := newTreeWalkCollector(preAllocHint)
 
 	if err := filepath.WalkDir(archiveRootPath, twCollector.treeWalkerBuilder(archiveRootPath)); err != nil {
 		panic(err)
 	}
 
 	export := twCollector.finish()
+
+	export.Commit = archiveCommit
+
 	fmt.Printf("%d kernels\n", len(export.Kernels))
 	fmt.Printf("%d unique constants\n", len(export.Constants))
 
@@ -64,18 +90,46 @@ func main() {
 	}
 }
 
+func getCurrentConstants(path string) (*constantfetch.BTFHubConstants, error) {
+	cjson, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var currentConstants constantfetch.BTFHubConstants
+	if err := json.Unmarshal(cjson, &currentConstants); err != nil {
+		return nil, err
+	}
+
+	return &currentConstants, nil
+}
+
+func getCommitSha(cwd string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = cwd
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
 type treeWalkCollector struct {
-	counter   int
-	wg        sync.WaitGroup
+	counter int
+	// wg is used so that the finish waits on all kernels
+	wg sync.WaitGroup
+	// sem is used to limit the amount of parallel extractions
 	sem       *semaphore.Weighted
 	resultsMu sync.Mutex
 	results   []extractionResult
 }
 
-func newTreeWalkCollector() *treeWalkCollector {
+func newTreeWalkCollector(preAllocHint int) *treeWalkCollector {
 	return &treeWalkCollector{
 		counter: 0,
 		sem:     semaphore.NewWeighted(int64(runtime.NumCPU() * 2)),
+		results: make([]extractionResult, 0, preAllocHint),
 	}
 }
 
@@ -228,11 +282,13 @@ func createBTFReaderFromTarball(archivePath string) (io.ReaderAt, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer archiveFile.Close()
 
 	xzReader, err := xz.NewReader(archiveFile)
 	if err != nil {
 		return nil, err
 	}
+	defer xzReader.Close()
 
 	tarReader := tar.NewReader(xzReader)
 

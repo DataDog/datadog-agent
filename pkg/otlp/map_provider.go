@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/service"
+	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
@@ -122,12 +122,10 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		err = retMap.Merge(metricsMap)
 		errs = append(errs, err)
 	}
-	if cfg.DebugLogEnabled() {
+	if cfg.shouldSetLoggingSection() {
 		m := map[string]interface{}{
 			"exporters": map[string]interface{}{
-				"logging": map[string]interface{}{
-					"loglevel": cfg.Debug["loglevel"],
-				},
+				"logging": cfg.Debug,
 			},
 		}
 		if cfg.MetricsEnabled {
@@ -156,7 +154,7 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 }
 
 // newMapProvider creates a service.ConfigProvider with the fixed configuration.
-func newMapProvider(cfg PipelineConfig) (service.ConfigProvider, error) {
+func newMapProvider(cfg PipelineConfig) (otelcol.ConfigProvider, error) {
 	cfgMap, err := buildMap(cfg)
 	if err != nil {
 		return nil, err

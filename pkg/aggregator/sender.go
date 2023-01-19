@@ -21,6 +21,7 @@ import (
 type Sender interface {
 	Commit()
 	Gauge(metric string, value float64, hostname string, tags []string)
+	GaugeNoIndex(metric string, value float64, hostname string, tags []string)
 	Rate(metric string, value float64, hostname string, tags []string)
 	Count(metric string, value float64, hostname string, tags []string)
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
@@ -40,6 +41,8 @@ type Sender interface {
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
 	OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string)
 	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
+	ContainerImage(msgs []serializer.ContainerImageMessage)
+	SBOM(msgs []serializer.SBOMMessage)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -57,16 +60,22 @@ type checkSender struct {
 	metricStats             check.SenderStats
 	priormetricStats        check.SenderStats
 	statsLock               sync.RWMutex
-	smsOut                  chan<- senderMetricSample
+	itemsOut                chan<- senderItem
 	serviceCheckOut         chan<- metrics.ServiceCheck
 	eventOut                chan<- metrics.Event
-	histogramBucketOut      chan<- senderHistogramBucket
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	contlcycleOut           chan<- senderContainerLifecycleEvent
+	contimageOut            chan<- senderContainerImage
+	sbomOut                 chan<- senderSBOM
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
+}
+
+// senderItem knows how the aggregator should handle it
+type senderItem interface {
+	handle(agg *BufferedAggregator)
 }
 
 type senderMetricSample struct {
@@ -75,9 +84,17 @@ type senderMetricSample struct {
 	commit       bool
 }
 
+func (s *senderMetricSample) handle(agg *BufferedAggregator) {
+	agg.handleSenderSample(*s)
+}
+
 type senderHistogramBucket struct {
 	id     check.ID
 	bucket *metrics.HistogramBucket
+}
+
+func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
+	agg.handleSenderBucket(*s)
 }
 
 type senderEventPlatformEvent struct {
@@ -96,6 +113,14 @@ type senderContainerLifecycleEvent struct {
 	msgs []serializer.ContainerLifecycleMessage
 }
 
+type senderContainerImage struct {
+	msgs []serializer.ContainerImageMessage
+}
+
+type senderSBOM struct {
+	msgs []serializer.SBOMMessage
+}
+
 type senderOrchestratorManifest struct {
 	msgs      []serializer.ProcessMessageBody
 	clusterID string
@@ -110,28 +135,30 @@ type checkSenderPool struct {
 func newCheckSender(
 	id check.ID,
 	defaultHostname string,
-	smsOut chan<- senderMetricSample,
+	itemsOut chan<- senderItem,
 	serviceCheckOut chan<- metrics.ServiceCheck,
 	eventOut chan<- metrics.Event,
-	bucketOut chan<- senderHistogramBucket,
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata,
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
 	contlcycleOut chan<- senderContainerLifecycleEvent,
+	contimageOut chan<- senderContainerImage,
+	sbomOut chan<- senderSBOM,
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
 		defaultHostname:         defaultHostname,
-		smsOut:                  smsOut,
+		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
 		eventOut:                eventOut,
 		metricStats:             check.NewSenderStats(),
 		priormetricStats:        check.NewSenderStats(),
-		histogramBucketOut:      bucketOut,
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
 		contlcycleOut:           contlcycleOut,
+		contimageOut:            contimageOut,
+		sbomOut:                 sbomOut,
 	}
 }
 
@@ -172,16 +199,6 @@ func GetDefaultSender() (Sender, error) {
 	return demultiplexerInstance.GetDefaultSender()
 }
 
-// changeAllSendersDefaultHostname is to be called by the aggregator
-// when its hostname changes. All existing senders will have their
-// default hostname updated.
-func changeAllSendersDefaultHostname(hostname string) {
-	if demultiplexerInstance == nil {
-		return
-	}
-	demultiplexerInstance.ChangeAllSendersDefaultHostname(hostname)
-}
-
 // DisableDefaultHostname allows check to override the default hostname that will be injected
 // when no hostname is specified at submission (for metrics, events and service checks).
 func (s *checkSender) DisableDefaultHostname(disable bool) {
@@ -211,7 +228,7 @@ func (s *checkSender) FinalizeCheckServiceTag() {
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	// we use a metric sample to commit both for metrics & sketches
-	s.smsOut <- senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
 	s.cyclemetricStats()
 }
 
@@ -231,10 +248,17 @@ func (s *checkSender) cyclemetricStats() {
 // SendRawMetricSample sends the raw sample
 // Useful for testing - submitting precomputed samples.
 func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
-	s.smsOut <- senderMetricSample{s.id, sample, false}
+	s.itemsOut <- &senderMetricSample{s.id, sample, false}
 }
 
-func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType, flushFirstValue bool) {
+func (s *checkSender) sendMetricSample(
+	metric string,
+	value float64,
+	hostname string,
+	tags []string,
+	mType metrics.MetricType,
+	flushFirstValue bool,
+	noIndex bool) {
 	tags = append(tags, s.checkTags...)
 
 	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
@@ -248,13 +272,14 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		SampleRate:      1,
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
+		NoIndex:         noIndex,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
 		metricSample.Host = s.defaultHostname
 	}
 
-	s.smsOut <- senderMetricSample{s.id, metricSample, false}
+	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
 
 	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
@@ -263,41 +288,47 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
 func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, false)
+}
+
+// GaugeNoIndex should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
+// This value is not indexed by the backend.
+func (s *checkSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, true)
 }
 
 // Rate should be used to track the rate of a metric over each check run
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.RateType, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.RateType, false, false)
 }
 
 // Count should be used to count a number of events that occurred during the check run
 func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, false)
 }
 
 // MonotonicCount should be used to track the increase of a monotonic raw counter
 func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, false, false)
 }
 
 // MonotonicCountWithFlushFirstValue should be used to track the increase of a monotonic raw counter,
 // and allows specifying whether the aggregator should flush the first sampled value as-is.
 func (s *checkSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, flushFirstValue)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, flushFirstValue, false)
 }
 
 // Counter is DEPRECATED and only implemented to preserve backward compatibility with python checks. Prefer using either:
 // * `Gauge` if you're counting states
 // * `Count` if you're counting events
 func (s *checkSender) Counter(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.CounterType, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CounterType, false, false)
 }
 
 // Histogram should be used to track the statistical distribution of a set of values during a check run
 // Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, false)
 }
 
 // HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics
@@ -331,7 +362,7 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 		histogramBucket.Host = s.defaultHostname
 	}
 
-	s.histogramBucketOut <- senderHistogramBucket{s.id, histogramBucket}
+	s.itemsOut <- &senderHistogramBucket{s.id, histogramBucket}
 
 	s.statsLock.Lock()
 	s.metricStats.HistogramBuckets++
@@ -341,7 +372,7 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 // Historate should be used to create a histogram metric for "rate" like metrics.
 // Warning this doesn't use the harmonic mean, beware of what it means when using it.
 func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType, false, false)
 }
 
 // SendRawServiceCheck sends the raw service check
@@ -419,21 +450,17 @@ func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody,
 	}
 	s.orchestratorManifestOut <- om
 }
+
 func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
 	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
 }
 
-// changeAllSendersDefaultHostname u
-func (sp *checkSenderPool) changeAllSendersDefaultHostname(hostname string) {
-	sp.m.Lock()
-	defer sp.m.Unlock()
-	for _, sender := range sp.senders {
-		cs, ok := sender.(*checkSender)
-		if !ok {
-			continue
-		}
-		cs.defaultHostname = hostname
-	}
+func (s *checkSender) ContainerImage(msgs []serializer.ContainerImageMessage) {
+	s.contimageOut <- senderContainerImage{msgs: msgs}
+}
+
+func (s *checkSender) SBOM(msgs []serializer.SBOMMessage) {
+	s.sbomOut <- senderSBOM{msgs: msgs}
 }
 
 func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
@@ -454,14 +481,15 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	sender := newCheckSender(
 		id,
 		sp.agg.hostname,
-		sp.agg.checkMetricIn,
+		sp.agg.checkItems,
 		sp.agg.serviceCheckIn,
 		sp.agg.eventIn,
-		sp.agg.checkHistogramBucketIn,
 		sp.agg.orchestratorMetadataIn,
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
 		sp.agg.contLcycleIn,
+		sp.agg.contImageIn,
+		sp.agg.sbomIn,
 	)
 	sp.senders[id] = sender
 	return sender, err

@@ -6,12 +6,10 @@
 package api
 
 import (
-	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -21,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -39,18 +37,14 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-const (
-	// otlpProtocolHTTP specifies that the incoming connection was made over plain HTTP.
-	otlpProtocolHTTP = "http"
-	// otlpProtocolGRPC specifies that the incoming connection was made over gRPC.
-	otlpProtocolGRPC = "grpc"
-)
+// keyStatsComputed specifies the resource attribute key which indicates if stats have been
+// computed for the resource spans.
+const keyStatsComputed = "_dd.stats_computed"
 
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	wg          sync.WaitGroup      // waits for a graceful shutdown
-	httpsrv     *http.Server        // the running HTTP server on a started receiver, if enabled
 	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out         chan<- *Payload     // the outgoing payload channel
 	conf        *config.AgentConfig // receiver config
@@ -65,30 +59,13 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
 func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
-	if cfg.HTTPPort != 0 {
-		o.httpsrv = &http.Server{
-			Addr:        net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.HTTPPort)),
-			Handler:     o,
-			ConnContext: connContext,
-		}
-		o.wg.Add(1)
-		go func() {
-			defer o.wg.Done()
-			if err := o.httpsrv.ListenAndServe(); err != nil {
-				if err != http.ErrServerClosed {
-					log.Criticalf("Error starting OpenTelemetry HTTP server: %v", err)
-				}
-			}
-		}()
-		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.HTTPPort)
-	}
 	if cfg.GRPCPort != 0 {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer()
-			ptraceotlp.RegisterServer(o.grpcsrv, o)
+			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
 				defer o.wg.Done()
@@ -103,15 +80,6 @@ func (o *OTLPReceiver) Start() {
 
 // Stop stops any running server.
 func (o *OTLPReceiver) Stop() {
-	if o.httpsrv != nil {
-		timeout, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		go func() {
-			if err := o.httpsrv.Shutdown(timeout); err != nil {
-				log.Errorf("Error shutting down OTLP HTTP server: %v", err)
-			}
-			cancel()
-		}()
-	}
 	if o.grpcsrv != nil {
 		go o.grpcsrv.Stop()
 	}
@@ -119,70 +87,26 @@ func (o *OTLPReceiver) Stop() {
 }
 
 // Export implements ptraceotlp.Server
-func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.Request) (ptraceotlp.Response, error) {
+func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
-	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
-	o.processRequest(ctx, otlpProtocolGRPC, http.Header(md), in)
-	return ptraceotlp.NewResponse(), nil
+	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
+	o.processRequest(ctx, http.Header(md), in)
+	return ptraceotlp.NewExportResponse(), nil
 }
 
-// ServeHTTP implements http.Handler
-func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	defer timing.Since("datadog.trace_agent.otlp.process_http_request_ms", time.Now())
-	mtags := tagsFromHeaders(req.Header, otlpProtocolHTTP)
-	metrics.Count("datadog.trace_agent.otlp.payload", 1, mtags, 1)
-
-	r := req.Body
-	if req.Header.Get("Content-Encoding") == "gzip" {
-		gzipr, err := gzip.NewReader(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:corrupt_gzip"), 1)
-			return
-		}
-		r = gzipr
-	}
-	rd := apiutil.NewLimitedReader(r, o.conf.OTLPReceiver.MaxRequestBytes)
-	slurp, err := ioutil.ReadAll(rd)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:read_body"), 1)
-		return
-	}
-	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
-	in := ptraceotlp.NewRequest()
-	switch getMediaType(req) {
-	case "application/x-protobuf":
-		if err := in.UnmarshalProto(slurp); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_proto"), 1)
-			return
-		}
-	case "application/json":
-		fallthrough
-	default:
-		if err := in.UnmarshalJSON(slurp); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_json"), 1)
-			return
-		}
-	}
-	o.processRequest(req.Context(), otlpProtocolHTTP, req.Header, in)
-}
-
-func tagsFromHeaders(h http.Header, protocol string) []string {
-	tags := []string{"endpoint_version:opentelemetry_" + protocol + "_v1"}
-	if v := fastHeaderGet(h, headerLang); v != "" {
+func tagsFromHeaders(h http.Header) []string {
+	tags := []string{"endpoint_version:opentelemetry_grpc_v1"}
+	if v := fastHeaderGet(h, header.Lang); v != "" {
 		tags = append(tags, "lang:"+v)
 	}
-	if v := fastHeaderGet(h, headerLangVersion); v != "" {
+	if v := fastHeaderGet(h, header.LangVersion); v != "" {
 		tags = append(tags, "lang_version:"+v)
 	}
-	if v := fastHeaderGet(h, headerLangInterpreter); v != "" {
+	if v := fastHeaderGet(h, header.LangInterpreter); v != "" {
 		tags = append(tags, "interpreter:"+v)
 	}
-	if v := fastHeaderGet(h, headerLangInterpreterVendor); v != "" {
+	if v := fastHeaderGet(h, header.LangInterpreterVendor); v != "" {
 		tags = append(tags, "lang_vendor:"+v)
 	}
 	return tags
@@ -201,17 +125,16 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 	return v[0]
 }
 
-// processRequest processes the incoming request in. It marks it as received by the given protocol
-// using the given headers.
-func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.Request) {
+// processRequest processes the incoming request in.
+func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
+		o.ReceiveResourceSpans(ctx, rspans, header)
 	}
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -234,23 +157,23 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
 	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
 	if lang == "" {
-		lang = fastHeaderGet(header, headerLang)
+		lang = fastHeaderGet(httpHeader, header.Lang)
 	}
 	containerID := rattr[string(semconv.AttributeContainerID)]
 	if containerID == "" {
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = o.cidProvider.GetContainerID(ctx, header)
+		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
 			Lang:            lang,
-			LangVersion:     fastHeaderGet(header, headerLangVersion),
-			Interpreter:     fastHeaderGet(header, headerLangInterpreter),
-			LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
+			LangVersion:     fastHeaderGet(httpHeader, header.LangVersion),
+			Interpreter:     fastHeaderGet(httpHeader, header.LangInterpreter),
+			LangVendor:      fastHeaderGet(httpHeader, header.LangInterpreterVendor),
 			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
-			EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
+			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
 	}
@@ -299,7 +222,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
-		Source: tagstats,
+		Source:              tagstats,
+		ClientComputedStats: rattr[keyStatsComputed] != "",
 	}
 	for k, spans := range tracesByID {
 		prio := int32(sampler.PriorityAutoKeep)
@@ -354,7 +278,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	select {
 	case o.out <- &p:
-		// 👍
+		// success
 	default:
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}
@@ -479,6 +403,11 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if in.Events().Len() > 0 {
 		setMetaOTLP(span, "events", marshalEvents(in.Events()))
 	}
+	if svc, ok := in.Attributes().Get(semconv.AttributePeerService); ok {
+		// the span attribute "peer.service" takes precedence over any resource attributes,
+		// in the same way that "service.name" does as part of setMetaOTLP
+		span.Service = svc.Str()
+	}
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
@@ -490,8 +419,11 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 		return true
 	})
-	if ctags := attributes.ContainerTagFromAttributes(span.Meta); ctags != "" {
-		setMetaOTLP(span, tagContainersTags, ctags)
+	for k, v := range attributes.ContainerTagFromAttributes(span.Meta) {
+		if _, ok := span.Meta[k]; !ok {
+			// overwrite only if it does not exist
+			setMetaOTLP(span, k, v)
+		}
 	}
 	if _, ok := span.Meta["env"]; !ok {
 		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
@@ -528,11 +460,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		span.Name = name
 	}
 	if span.Service == "" {
-		if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
-			span.Service = svc
-		} else {
-			span.Service = "OTLPResourceNoServiceName"
-		}
+		span.Service = "OTLPResourceNoServiceName"
 	}
 	if span.Resource == "" {
 		if r := resourceFromTags(span.Meta); r != "" {
@@ -577,7 +505,7 @@ func resourceFromTags(meta map[string]string) string {
 
 // status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func status2Error(status ptrace.SpanStatus, events ptrace.SpanEventSlice, span *pb.Span) {
+func status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.Span) {
 	if status.Code() != ptrace.StatusCodeError {
 		return
 	}

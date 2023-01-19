@@ -12,7 +12,7 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TrapListener opens an UDP socket and put all received traps in a channel
@@ -21,7 +21,6 @@ type TrapListener struct {
 	packets       PacketsChannel
 	listener      *gosnmp.TrapListener
 	errorsChannel chan error
-	errorLogger   *log.ThrottledLogger
 }
 
 // NewTrapListener creates a simple TrapListener instance but does not start it
@@ -38,7 +37,6 @@ func NewTrapListener(config Config, packets PacketsChannel) (*TrapListener, erro
 		packets:       packets,
 		listener:      gosnmpListener,
 		errorsChannel: errorsChan,
-		errorLogger:   log.NewThrottled(5, 10*time.Second),
 	}
 
 	gosnmpListener.OnNewTrap = trapListener.receiveTrap
@@ -80,7 +78,7 @@ func (t *TrapListener) Stop() {
 
 func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	if err := validatePacket(p, t.config); err != nil {
-		t.errorLogger.Warn("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
+		log.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
 		trapsPacketsAuthErrors.Add(1)
 		return
 	}

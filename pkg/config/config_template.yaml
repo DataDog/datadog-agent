@@ -67,19 +67,11 @@ api_key:
 ## @env DD_MIN_TLS_VERSION - string - optional - default: "tlsv1.0"
 ## This option defines the minimum TLS version that will be used when
 ## submitting data to the Datadog intake specified in "site" or "dd_url".
-## This parameter defaults to "tlsv1.0" (but see `force_tls_12`, below).
+## This parameter defaults to "tlsv1.2".
 ## Possible values are: tlsv1.0, tlsv1.1, tlsv1.2, tlsv1.3; values are case-
 ## insensitive.
 #
-# min_tls_version: "tlsv1.0"
-
-## @param force_tls_12 - boolean - optional - default: false
-## @env DD_FORCE_TLS_12 - boolean - optional - default: false
-## Setting this option to "true" is equivalent to setting the default for
-## `min_tls_version` to `tlsv1.2`.  This parameter is deprecated in favor of
-## `min_tls_version`.
-#
-# force_tls_12: false
+# min_tls_version: "tlsv1.2"
 
 ## @param hostname - string - optional - default: auto-detected
 ## @env DD_HOSTNAME - string - optional - default: auto-detected
@@ -103,6 +95,16 @@ api_key:
 ## More information at https://dtdg.co/flag-hostname-fqdn
 #
 # hostname_fqdn: false
+
+## @param hostname_trust_uts_namespace - boolean - optional - default: false
+## @env DD_HOSTNAME_TRUST_UTS_NAMESPACE - boolean - optional - default: false
+## By default the Agent does not trust the hostname value retrieved from non-root UTS namespace,
+## as it's usually a generated name, unrelated to the host (e.g. when running in a container).
+## When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
+## hostname resolution.
+## (Linux only)
+#
+# hostname_trust_uts_namespace: false
 
 ## @param host_aliases - list of strings - optional
 ## @env DD_HOST_ALIASES - space separated list of strings - optional
@@ -373,6 +375,12 @@ api_key:
 #
 # collect_ec2_tags: false
 
+## @param exclude_ec2_tags - list of strings - optional - default: []
+## @env DD_EXCLUDE_EC2_TAGS - space separated list of strings - optional - default: []
+## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true.
+#
+# exclude_ec2_tags: []
+
 ## @param collect_ec2_tags_use_imds - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
 ## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
@@ -474,6 +482,15 @@ api_key:
 ## Use this parameter to remove them from the `no_proxy` list.
 #
 # use_proxy_for_cloud_metadata: false
+
+## @param inventories_configuration_enabled - boolean - optional - default: false
+## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: false
+## The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
+## detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information.
+##
+## The Agent configuration is scrubbed of any sensitive information.
+#
+# inventories_configuration_enabled: false
 
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
@@ -878,17 +895,6 @@ api_key:
     #
     # oid_batch_size: 5
 
-{{- if (eq .OS "windows")}}
-  ## @param windows_counter_refresh_interval - number - optional - default: 60
-  ## This controls the interval in seconds for which windows performance counters are refreshed by the agent.
-  ## Refreshes are necessary for the discovery of new counters/countersets and instances for integrations that
-  ## rely on performance counters. Checks include active_directory, aspdotnet, dotnetclr, exchange_server, hyperv,
-  ## iis and windows_performance_counters.
-  ## Refresh can be disabled by setting the interval to 0.
-  #
-  # windows_counter_refresh_interval: 60
-{{ end }}
-
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1007,8 +1013,8 @@ api_key:
   ## @param open_files_limit - integer - optional - default: 500
   ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
   ## The maximum number of files that can be tailed in parallel.
-  # Note: the default for windows and Mac OS is 200. The default for
-  # all other systems is 500.
+  ## Note: the default for windows and Mac OS is 200. The default for
+  ## all other systems is 500.
   #
   # open_files_limit: 500
 
@@ -1166,7 +1172,7 @@ api_key:
   #     repl: "<PATTERN_TO_INLINE>"
 
   ## @param ignore_resources - list of strings - optional
-  ## @env DD_APM_IGNORE_RESOURCES - space separated list of strings - optional
+  ## @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
   ## An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
   #
@@ -1214,34 +1220,7 @@ api_key:
     #
     # enabled: false
 
-  {{ end }}
-
-####################################
-## AppSec Configuration           ##
-####################################
-
-## @param appsec_config - custom object - optional
-## Enter specific configurations for your AppSec collection.
-## Uncomment the parameters `appsec_config` and `enabled` to enable AppSec.
-#
-# appsec_config:
-
-  ## @param enabled - boolean - optional - default: true
-  ## Enable the AppSec proxy in the APM Agent.
-  #
-  # enabled: true
-
-  ## @param appsec_dd_url - string - optional
-  ## Define the endpoint and port to hit when using a proxy for AppSec. Logs are forwarded by TCP;
-  ## therefore, the proxy must be able to handle TCP connections.
-  #
-  # appsec_dd_url: <ENDPOINT>:<PORT>
-
-  ## @param max_payload_size - integer - optional - default: 5242880 (5MB)
-  ## Define the maximum HTTP payload size (the body) in bytes the AppSec proxy allows.
-  #
-  # max_payload_size: 5242880
-
+  {{ end -}}
 {{ end -}}
 {{- if .ProcessAgent }}
 
@@ -1549,6 +1528,20 @@ api_key:
 
 {{ end -}}
 
+{{- if .UniversalServiceMonitoringModule }}
+
+#############################################################
+## System Probe Universal Service monitoring Configuration ##
+#############################################################
+
+# service_monitoring_config:
+## @param enabled - boolean - optional - default: false
+## Set to true to enable the Universal Service Monitoring Module of the System Probe
+#
+# enabled: false
+
+{{ end -}}
+
 {{- if .SecurityModule }}
 
 ##########################################
@@ -1621,6 +1614,40 @@ api_key:
   #   - PATH
   #   - HISTSIZE
   #   - HISTFILESIZE
+
+  ## @param activity_dump - custom object - optional
+  ## Activity dump section configures if/how the Agent sends activity dumps to Datadog
+  #
+  # activity_dump:
+
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_ENABLED - boolean - optional - default: false
+    ## Set to true to activate the security profiles feature.
+    #
+    #  enabled: false
+
+    ## @param traced_cgroups_count - integer - optional - default: 5
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_TRACED_CGROUPS_COUNT - integer - optional - default: 5
+    ## Defines the number of concurrent cgroups to be traced.
+    #
+    #  traced_cgroups_count: 5
+
+    ## @param cgroup_dump_timeout - integer - optional - default: 30
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_CGROUP_DUMP_TIMEOUT - integer - optional - default: 30
+    ## Defines the duration of cgroups learning phase in minutes. Minimum value is 10.
+    #
+    #  cgroup_dump_timeout: 30
+
+  ## @param network - custom object - optional
+  ## Network section is used to configure Cloud Workload Security (CWS) network features.
+  #
+  # network:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED - boolean - optional - default: true
+    ## Set to true to activate the CWS network detections.
+    #
+    #  enabled: true
 
 {{ end -}}
 {{ end -}}
@@ -2066,9 +2093,25 @@ api_key:
 ##############################
 
 ## @param autoconf_template_dir - string - optional - default: /datadog/check_configs
+## @env DD_AUTOCONF_TEMPLATE_DIR - string - optional - default: /datadog/check_configs
 ## Directory containing configuration templates for Autoconfig.
 #
 # autoconf_template_dir: /datadog/check_configs
+
+## @param autoconf_config_files_poll - boolean - optional - default: false
+## @env DD_AUTOCONF_CONFIG_FILES_POLL - boolean - optional - default: false
+## Should the we check for new/updated integration configuration files on disk.
+## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
+#
+# autoconf_config_files_poll: false
+
+## @param autoconf_config_files_poll_interval - integer - optional - default: 60
+## @env DD_AUTOCONF_CONFIG_FILES_POLL_INTERVAL - integer - optional - default: 60
+## How frequently should the Agent check for new/updated integration configuration files (in seconds).
+## This value must be >= 1 (i.e. 1 second).
+## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
+#
+# autoconf_config_files_poll_interval: 60
 
 ## @param config_providers - List of custom object - optional
 ## @env DD_CONFIG_PROVIDERS - List of custom object - optional
@@ -2124,6 +2167,7 @@ api_key:
 #   - clusterchecks
 
 ## @param autoconfig_exclude_features - list of comma separated strings - optional
+## @env DD_AUTOCONFIG_EXCLUDE_FEATURES - list of space separated strings - optional
 ## Exclude features automatically detected and enabled by environment autodiscovery.
 ## Supported syntax is a list of `(<attribute>:)<regexp>`. Currently only the `name` attribute is supported.
 ## When no attribute is present, it defaults to `name:` attribute.
@@ -2139,6 +2183,7 @@ api_key:
 #  - orchestratorexplorer
 
 ## @param autoconfig_include_features - list of comma separated strings - optional
+## @env DD_AUTOCONFIG_INCLUDE_FEATURES - list of space separated strings - optional
 ## Force activation of features (as if they were discovered by environment autodiscovery).
 #
 # autoconfig_include_features:
@@ -2234,11 +2279,13 @@ api_key:
 # cloud_foundry_garden:
 
   ## @param listen_network - string - optional - default: unix
+  ## @env DD_CLOUD_FOUNDRY_GARDEN_LISTEN_NETWORK - string - optional - default: unix
   ## The network on which the garden API is listening. Possible values are `unix` or `tcp`
   #
   # listen_network: unix
 
   ## @param listen_address - string - optional - default: /var/vcap/data/garden/garden.sock
+  ## @env DD_CLOUD_FOUNDRY_GARDEN_LISTEN_ADDRESS - string - optional - default: /var/vcap/data/garden/garden.sock
   ## The address on which the garden API is listening.
   #
   # listen_address: /var/vcap/data/garden/garden.sock
@@ -2617,12 +2664,15 @@ api_key:
 # DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS='{"ANNOTATION_NAME":"tag_key"}'
 
 ## @param kubernetes_namespace_labels_as_tags - map - optional
+## @env DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS - json - optional
 ## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
 # kubernetes_namespace_labels_as_tags:
 #   <NAMESPACE_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
+#
+# DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS='{"<NAMESPACE_LABEL>": "<TAG_KEY>"}'
 
 ## @param container_env_as_tags - map - optional
 ## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
@@ -2672,11 +2722,13 @@ api_key:
 # ecs_collect_resource_tags_ec2: false
 
 ## @param ecs_resource_tags_replace_colon - boolean - optional - default: false
+## @env DD_ECS_RESOURCE_TAGS_REPLACE_COLON - boolean - optional - default: false
 ## The Agent replaces colon `:` characters in the ECS resource tag keys by underscores `_`.
 #
 # ecs_resource_tags_replace_colon: false
 
 ## @param ecs_metadata_timeout - integer - optional - default: 500
+## @env DD_ECS_METADATA_TIMEOUT - integer - optional - default: 500
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
 #
 # ecs_metadata_timeout: 500
@@ -2867,6 +2919,7 @@ api_key:
 # kubernetes_kubeconfig_path: ""
 
 ## @param kubernetes_apiserver_ca_path - string - optional - default: ""
+## @env DD_KUBERNETES_APISERVER_CA_PATH - string - optional - default: ""
 ## When running in a pod, the Agent automatically uses the pod's service account CA.
 ## Use this option to keep using the InCluster config but overriding the default CA Path.
 ## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
@@ -2874,6 +2927,7 @@ api_key:
 # kubernetes_apiserver_ca_path: ""
 
 ## @param kubernetes_apiserver_tls_verify - boolean - optional - default: true
+## @env DD_KUBERNETES_APISERVER_TLS_VERIFY - boolean - optional - default: true
 ## When running in a pod, the Agent automatically uses the pod's service account CA.
 ## Use this option to keep using the InCluster config but deactivating TLS verification (in case APIServer CA is not ServiceAccount CA)
 ## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
@@ -2979,6 +3033,7 @@ api_key:
 # cluster_name: <CLUSTER_IDENTIFIER>
 
 ## @param disable_cluster_name_tag_key - boolean - optional - default: false
+## @env DD_DISABLE_CLUSTER_NAME_TAG_KEY - boolean - optional - default: false
 ## Disable using the 'cluster_name' tag key to submit orchestrator cluster name tag.
 ## The Agent will continue sending the cluster name tag with 'kube|ecs_cluster_name' key
 ## regardless of the value of this parameter.
@@ -3055,11 +3110,13 @@ api_key:
   #
   # key_file: ""
 
-  ## @param env_include - List of strings - optional - default: []
+  ## @param env_include - list of strings - optional - default: []
+  ## @env DD_CLOUD_FOUNDRY_BBS_ENV_INCLUDE - list of strings - optional
   ## List of regular expressions to allow a set of environment variables to be included as container tags
   #
   # env_include: []
-  ## @param env_exclude - List of strings - optional - default: []
+  ## @param env_exclude - list of strings - optional - default: []
+  ## @env DD_CLOUD_FOUNDRY_BBS_ENV_EXCLUDE - list of strings - optional
   ## List of regular expressions to forbid a set of environment variables to be included as container tags
   #
   # env_exclude: []
@@ -3077,32 +3134,38 @@ api_key:
 # cloud_foundry_cc:
 
   ## @param url - string - optional - default: https://cloud-controller-ng.service.cf.internal:9024
+  ## @env DD_CLOUD_FOUNDRY_CC_URL - string - optional - default: https://cloud-controller-ng.service.cf.internal:9024
   ## URL of the CC API.
   #
   # url: https://cloud-controller-ng.service.cf.internal:9024
 
   ## @param client_id - string - optional
+  ## @env DD_CLOUD_FOUNDRY_CC_CLIENT_ID
   ## Client ID for oauth with UAA to get a token to access the CC API.
   #
   # client_id: <UAA_CLIENT_ID>
 
   ## @param client_secret - string - optional
-  ## Client ID for oauth with UAA to get a token to access the CC API.
+  ## @env DD_CLOUD_FOUNDRY_CC_CLIENT_SECRET
+  ## Client secrect for oauth with UAA to get a token to access the CC API.
   #
   # client_secret: <UAA_CLIENT_SECRET>
 
-  ## @param skip_ssl_validation - bool - optional - default: false
+  ## @param skip_ssl_validation - boolean - optional - default: false
+  ## @env DD_CLOUD_FOUNDRY_CC_SKIP_SSL_VALIDATION
   ## Whether or not to skip SSL validation when interacting with CC API.
   #
   # skip_ssl_validation: false
 
   ## @param poll_interval - integer - optional - default: 60
+  ## @env DD_CLOUD_FOUNDRY_CC_POLL_INTERVAL
   ## Refresh rate of CC API, in seconds. Values lower than 10 might influence
   ## performance of other operations in the cluster.
   #
   # poll_interval: 60
 
   ## @param apps_batch_size - integer - optional - default: 5000
+  ## @env DD_CLOUD_FOUNDRY_CC_APPS_BATCH_SIZE
   ## Number of apps per page to collect when calling the list apps endpoint of the CC API. Max 5000.
   #
   # apps_batch_size: 5000
@@ -3140,8 +3203,11 @@ api_key:
     # enabled: false
 
     ## @param port - integer - optional - default: 9162
+    ## @env DD_SNMP_TRAPS_CONFIG_PORT - integer - optional - default: 9162
     ## The UDP port to use when listening for incoming trap packets.
     ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
+    ## However, if you run `sudo setcap 'cap_net_bind_service=+ep' /opt/datadog-agent/bin/agent/agent`,
+    ## the Datadog Agent can listen on ports below 1024.
     #
     # port: 9162
 
@@ -3419,13 +3485,39 @@ api_key:
 
   ## @param debug - custom object - optional
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
+  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
+  ## for a full list of available settings:
+  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/loggingexporter#getting-started
   #
   # debug:
 
-    ## @param loglevel - string - optional - default: info
-    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: info
-    ## Loglevel for logs when Datadog Agent receives otlp traces/metrics.
-    ## Options are disabled, debug, info, error, warn.
+    ## Deprecated (v[6/7].41.0) - use `verbosity` instead
+    ## @param loglevel - string - optional - default: none
+    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: none
+    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
+    ## Valid values are disabled, debug, info, error, warn.
     #
     # loglevel: info
+
+    ## @param verbosity - string - optional - default: normal
+    ## @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: normal
+    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
+    ## Valid values are basic, normal, detailed.
+    #
+    # verbosity: normal
+{{end -}}
+{{- if (eq .OS "windows")}}
+#####################################################
+## Datadog Agent Manager System Tray Configuration ##
+#####################################################
+
+## @param system_tray - custom object - optional
+## This section configures the Datadog Agent Manager System Tray
+#
+# system_tray:
+  ## @param log_file - string - optional - default: %ProgramData%\Datadog\logs\ddtray.log
+  ## @env DD_TRAY_LOG_FILE - string - optional
+  ## The full path to the file where Datadog Agent Manager System Tray logs are written.
+  #
+  # log_file: <TRAY_LOG_FILE_PATH>
 {{end -}}

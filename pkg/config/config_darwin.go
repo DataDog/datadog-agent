@@ -26,6 +26,3 @@ const (
 // in time
 func osinit() {
 }
-
-// NewAssetFs  Should never be called on non-android
-func setAssetFs(config Config) {}

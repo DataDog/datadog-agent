@@ -9,6 +9,7 @@
 package system
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -39,9 +41,10 @@ func init() {
 }
 
 type systemCollector struct {
-	reader         *cgroups.Reader
-	procPath       string
-	baseController string
+	reader              *cgroups.Reader
+	procPath            string
+	baseController      string
+	hostCgroupNamespace bool
 }
 
 func newSystemCollector() (*systemCollector, error) {
@@ -78,6 +81,16 @@ func newSystemCollector() (*systemCollector, error) {
 	// Set base controller for cgroupV1 (remains empty for cgroupV2)
 	if reader.CgroupVersion() == 1 {
 		systemCollector.baseController = cgroupV1BaseController
+	}
+
+	// Check if we are in host cgroup namespace or not. Will be useful to determine the best way to retrieve self container ID.
+	cgroupInode, err := systemutils.GetProcessNamespaceInode("/proc", "self", "cgroup")
+	if err != nil {
+		log.Warn("Unable to determine cgroup namespace id in system collector")
+	} else {
+		if isCgroupHost := cgroups.IsProcessHostCgroupNamespace(procPath, cgroupInode); isCgroupHost != nil {
+			systemCollector.hostCgroupNamespace = *isCgroupHost
+		}
 	}
 
 	return systemCollector, nil
@@ -136,8 +149,7 @@ func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Durat
 }
 
 func (c *systemCollector) GetSelfContainerID() (string, error) {
-	containerID, err := cgroups.IdentiferFromCgroupReferences("/proc", "self", c.baseController, cgroups.ContainerFilter)
-	return containerID, err
+	return getSelfContainerID(c.hostCgroupNamespace, c.reader.CgroupVersion(), c.baseController)
 }
 
 func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Duration) (cgroups.Cgroup, error) {
@@ -163,10 +175,22 @@ func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity
 		return nil, fmt.Errorf("cgroup parsing failed, incomplete data for containerID: %s, err: %w", cg.Identifier(), err)
 	}
 
+	parentCPUStatRetriever := func(parentCPUStats *cgroups.CPUStats) error {
+		parentCg, err := cg.GetParent()
+		if err != nil {
+			return err
+		}
+		if parentCg == nil {
+			return errors.New("no parent cgroup")
+		}
+
+		return parentCg.GetCPUStats(parentCPUStats)
+	}
+
 	cs := &provider.ContainerStats{
 		Timestamp: time.Now(),
 		Memory:    buildMemoryStats(stats.Memory),
-		CPU:       buildCPUStats(stats.CPU),
+		CPU:       buildCPUStats(stats.CPU, parentCPUStatRetriever),
 		IO:        buildIOStats(c.procPath, stats.IO),
 		PID:       buildPIDStats(stats.PID),
 	}
@@ -204,7 +228,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	return cs
 }
 
-func buildCPUStats(cgs *cgroups.CPUStats) *provider.ContainerCPUStats {
+func buildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) *provider.ContainerCPUStats {
 	if cgs == nil {
 		return nil
 	}
@@ -220,29 +244,47 @@ func buildCPUStats(cgs *cgroups.CPUStats) *provider.ContainerCPUStats {
 	convertField(cgs.ThrottledTime, &cs.ThrottledTime)
 
 	// Compute complex fields
-	cs.Limit = computeCPULimitPct(cgs)
+	cs.Limit = computeCPULimitPct(cgs, parentCPUStatsRetriever)
 
 	return cs
 }
 
-func computeCPULimitPct(cgs *cgroups.CPUStats) *float64 {
-	// Limit is computed using min(CPUSet, CFS CPU Quota)
-	var limitPct float64
-	if cgs.CPUCount != nil {
-		limitPct = float64(*cgs.CPUCount) * 100
-	}
-	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {
-		quotaLimitPct := 100 * (float64(*cgs.SchedulerQuota) / float64(*cgs.SchedulerPeriod))
-		if quotaLimitPct < limitPct {
-			limitPct = quotaLimitPct
+func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) *float64 {
+	limitPct := computeCgroupCPULimitPct(cgs)
+
+	// Check parent cgroup as it's used on ECS
+	if limitPct == nil {
+		parentCPUStats := &cgroups.CPUStats{}
+		if err := parentCPUStatsRetriever(parentCPUStats); err == nil {
+			limitPct = computeCgroupCPULimitPct(parentCPUStats)
 		}
 	}
+
 	// If no limit is available, setting the limit to number of CPUs.
 	// Always reporting a limit allows to compute CPU % accurately.
-	if limitPct == 0 {
-		limitPct = float64(systemutils.HostCPUCount()) * 100
+	if limitPct == nil {
+		limitPct = pointer.Float64Ptr(float64(systemutils.HostCPUCount() * 100))
 	}
-	return &limitPct
+
+	return limitPct
+}
+
+func computeCgroupCPULimitPct(cgs *cgroups.CPUStats) *float64 {
+	// Limit is computed using min(CPUSet, CFS CPU Quota)
+	var limitPct *float64
+
+	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(systemutils.HostCPUCount()) {
+		limitPct = pointer.UIntToFloatPtr(*cgs.CPUCount * 100)
+	}
+
+	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {
+		quotaLimitPct := 100 * (float64(*cgs.SchedulerQuota) / float64(*cgs.SchedulerPeriod))
+		if limitPct == nil || quotaLimitPct < *limitPct {
+			limitPct = &quotaLimitPct
+		}
+	}
+
+	return limitPct
 }
 
 func buildPIDStats(cgs *cgroups.PIDStats) *provider.ContainerPIDStats {

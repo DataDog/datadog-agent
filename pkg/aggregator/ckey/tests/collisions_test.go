@@ -7,7 +7,7 @@ package ckey_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
@@ -20,7 +20,7 @@ import (
 func TestCollisions(t *testing.T) {
 	assert := assert.New(t)
 
-	data, err := ioutil.ReadFile("./random_sorted_uniq_contexts.csv")
+	data, err := os.ReadFile("./random_sorted_uniq_contexts.csv")
 	assert.NoError(err)
 
 	generator := ckey.NewKeyGenerator()

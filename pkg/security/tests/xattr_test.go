@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -27,7 +27,7 @@ func TestSetXAttr(t *testing.T) {
 		Expression: `((setxattr.file.path == "{{.Root}}/test-setxattr" && setxattr.file.uid == 98 && setxattr.file.gid == 99) || setxattr.file.path == "{{.Root}}/test-setxattr-link") && setxattr.file.destination.namespace == "user" && setxattr.file.destination.name == "user.test_xattr"`,
 	}
 
-	testDrive, err := newTestDrive(t, "ext4", []string{"user_xattr"})
+	testDrive, err := newTestDrive(t, "ext4", []string{"user_xattr"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestSetXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
 			assert.Equal(t, "user", event.SetXAttr.Namespace)
@@ -100,7 +100,7 @@ func TestSetXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
 			assert.Equal(t, "user", event.SetXAttr.Namespace)
@@ -131,7 +131,7 @@ func TestSetXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
 			assert.Equal(t, "user", event.SetXAttr.Namespace)
@@ -152,7 +152,7 @@ func TestRemoveXAttr(t *testing.T) {
 		},
 	}
 
-	testDrive, err := newTestDrive(t, "ext4", []string{"user_xattr"})
+	testDrive, err := newTestDrive(t, "ext4", []string{"user_xattr"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestRemoveXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "removexattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.RemoveXAttr.Name)
 			assert.Equal(t, getInode(t, testFile), event.RemoveXAttr.File.Inode, "wrong inode")
@@ -242,7 +242,7 @@ func TestRemoveXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "removexattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.RemoveXAttr.Name)
 			assert.Equal(t, getInode(t, testFile), event.RemoveXAttr.File.Inode, "wrong inode")
@@ -278,7 +278,7 @@ func TestRemoveXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			if event.GetType() != "removexattr" {
 				t.Errorf("expected removexattr event, got %s", event.GetType())
 			}

@@ -30,6 +30,17 @@ var (
 	tagsCacheKey        = cache.BuildAgentKey("ec2", "GetTags")
 )
 
+func isTagExcluded(tag string) bool {
+	if excludedTags := config.Datadog.GetStringSlice("exclude_ec2_tags"); excludedTags != nil {
+		for _, excludedTag := range excludedTags {
+			if tag == excludedTag {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func fetchEc2Tags(ctx context.Context) ([]string, error) {
 	if config.Datadog.GetBool("collect_ec2_tags_use_imds") {
 		// prefer to fetch tags from IMDS, falling back to the API
@@ -66,6 +77,10 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		if isTagExcluded(key) {
+			continue
+		}
+
 		tags = append(tags, fmt.Sprintf("%s:%s", key, val))
 	}
 
@@ -129,6 +144,9 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCre
 
 	tags := []string{}
 	for _, tag := range ec2Tags.Tags {
+		if isTagExcluded(*tag.Key) {
+			continue
+		}
 		tags = append(tags, fmt.Sprintf("%s:%s", *tag.Key, *tag.Value))
 	}
 	return tags, nil

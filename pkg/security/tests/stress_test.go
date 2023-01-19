@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -82,7 +82,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	events := 0
-	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+	test.RegisterRuleEventHandler(func(_ *model.Event, _ *rules.Rule) {
 		events++
 	})
 	defer test.RegisterRuleEventHandler(nil)
@@ -214,16 +214,16 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	}
 
 	events := 0
-	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+	test.RegisterRuleEventHandler(func(_ *model.Event, _ *rules.Rule) {
 		events++
 	})
 	defer test.RegisterRuleEventHandler(nil)
 
 	kevents := 0
-	test.RegisterEventHandler(func(_ *sprobe.Event) {
+	test.RegisterProbeEventHandler(func(_ *model.Event) {
 		kevents++
 	})
-	defer test.RegisterRuleEventHandler(nil)
+	defer test.RegisterProbeEventHandler(nil)
 
 	report, err := StressIt(t, nil, nil, fnc, opts)
 	if err != nil {

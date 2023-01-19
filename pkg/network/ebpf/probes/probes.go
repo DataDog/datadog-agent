@@ -27,6 +27,13 @@ const (
 	// TCPv6ConnectReturn traces the return value for the v6 connect() system call
 	TCPv6ConnectReturn ProbeName = "kretprobe/tcp_v6_connect"
 
+	// ProtocolClassifierSocketFilter runs a classifier algorithm as a socket filer
+	ProtocolClassifierSocketFilter ProbeName = "socket/classifier"
+
+	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
+	// belongs (but hidden) for it.
+	NetDevQueue ProbeName = "tracepoint/net/net_dev_queue"
+
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeName = "kprobe/tcp_sendmsg"
 
@@ -50,8 +57,18 @@ const (
 	// TCPSetState traces the tcp_set_state() kernel function
 	TCPSetState ProbeName = "kprobe/tcp_set_state"
 
-	// TCPCleanupRBuf traces the tcp_cleanup_rbuf() system call
-	TCPCleanupRBuf ProbeName = "kprobe/tcp_cleanup_rbuf"
+	// TCPRecvMsg traces the tcp_recvmsg() kernel function
+	TCPRecvMsg ProbeName = "kprobe/tcp_recvmsg"
+	// TCPRecvMsgPre410 traces the tcp_recvmsg() system call on kernels prior to 4.1.0. This is created because
+	// we need to load a different kprobe implementation
+	TCPRecvMsgPre410 ProbeName = "kprobe/tcp_recvmsg/pre_4_1_0"
+	// TCPRecvMsgreturn traces the return for the tcp_recvmsg() kernel function
+	TCPRecvMsgReturn ProbeName = "kretprobe/tcp_recvmsg"
+	// TCPReadSock traces the tcp_read_sock() kernel function
+	TCPReadSock ProbeName = "kprobe/tcp_read_sock"
+	// TCPReadSockReturn traces the return for the tcp_read_sock() kernel function
+	TCPReadSockReturn ProbeName = "kretprobe/tcp_read_sock"
+
 	// TCPClose traces the tcp_close() system call
 	TCPClose ProbeName = "kprobe/tcp_close"
 	// TCPCloseReturn traces the return of tcp_close() system call
@@ -141,26 +158,28 @@ type BPFMapName string
 
 // constants for the map names
 const (
-	ConnMap               BPFMapName = "conn_stats"
-	TCPStatsMap           BPFMapName = "tcp_stats"
-	TCPConnectSockPidMap  BPFMapName = "tcp_ongoing_connect_pid"
-	ConnCloseEventMap     BPFMapName = "conn_close_event"
-	TracerStatusMap       BPFMapName = "tracer_status"
-	PortBindingsMap       BPFMapName = "port_bindings"
-	UDPPortBindingsMap    BPFMapName = "udp_port_bindings"
-	TelemetryMap          BPFMapName = "telemetry"
-	ConnCloseBatchMap     BPFMapName = "conn_close_batch"
-	ConntrackMap          BPFMapName = "conntrack"
-	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
-	SockFDLookupArgsMap   BPFMapName = "sockfd_lookup_args"
-	DoSendfileArgsMap     BPFMapName = "do_sendfile_args"
-	SockByPidFDMap        BPFMapName = "sock_by_pid_fd"
-	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
-	TagsMap               BPFMapName = "conn_tags"
-	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
-	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
-	MapErrTelemetryMap    BPFMapName = "map_err_telemetry_map"
-	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
+	ConnMap                      BPFMapName = "conn_stats"
+	TCPStatsMap                  BPFMapName = "tcp_stats"
+	TCPConnectSockPidMap         BPFMapName = "tcp_ongoing_connect_pid"
+	ConnCloseEventMap            BPFMapName = "conn_close_event"
+	TracerStatusMap              BPFMapName = "tracer_status"
+	PortBindingsMap              BPFMapName = "port_bindings"
+	UDPPortBindingsMap           BPFMapName = "udp_port_bindings"
+	TelemetryMap                 BPFMapName = "telemetry"
+	ConnCloseBatchMap            BPFMapName = "conn_close_batch"
+	ConntrackMap                 BPFMapName = "conntrack"
+	ConntrackTelemetryMap        BPFMapName = "conntrack_telemetry"
+	SockFDLookupArgsMap          BPFMapName = "sockfd_lookup_args"
+	DoSendfileArgsMap            BPFMapName = "do_sendfile_args"
+	SockByPidFDMap               BPFMapName = "sock_by_pid_fd"
+	PidFDBySockMap               BPFMapName = "pid_fd_by_sock"
+	TagsMap                      BPFMapName = "conn_tags"
+	TcpSendMsgArgsMap            BPFMapName = "tcp_sendmsg_args"
+	IpMakeSkbArgsMap             BPFMapName = "ip_make_skb_args"
+	MapErrTelemetryMap           BPFMapName = "map_err_telemetry_map"
+	HelperErrTelemetryMap        BPFMapName = "helper_err_telemetry_map"
+	TcpRecvMsgArgsMap            BPFMapName = "tcp_recvmsg_args"
+	ProtocolClassificationBufMap BPFMapName = "classification_buf"
 )
 
 // SectionName returns the SectionName for the given BPF map

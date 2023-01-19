@@ -9,7 +9,6 @@
 package docker
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -188,7 +187,7 @@ func Test_convertIOStats(t *testing.T) {
 			"   1       3 bar2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
 	)
 
-	err := ioutil.WriteFile(dir+"/diskstats", diskstats, 0o644)
+	err := os.WriteFile(dir+"/diskstats", diskstats, 0o644)
 	assert.Nil(t, err)
 	defer os.Remove(dir + "/diskstats")
 

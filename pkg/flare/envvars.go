@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -59,7 +58,8 @@ var allowedEnvvarNames = []string{
 	"DD_APM_TPS", //deprecated
 	"DD_APM_MAX_TPS",
 	"DD_APM_ERROR_TPS",
-	"DD_APM_DISABLE_RARE_SAMPLER",
+	"DD_APM_ENABLE_RARE_SAMPLER",
+	"DD_APM_DISABLE_RARE_SAMPLER", // deprecated
 	"DD_APM_MAX_REMOTE_TPS",
 	"DD_APM_MAX_MEMORY",
 	"DD_APM_MAX_CPU_PERCENT",
@@ -76,8 +76,6 @@ var allowedEnvvarNames = []string{
 	"DD_CUSTOM_SENSITIVE_WORDS",
 	"DD_STRIP_PROCESS_ARGS",
 	"DD_LOGS_STDOUT",
-	"DD_AGENT_PY",
-	"DD_AGENT_PY_ENV",
 	"LOG_LEVEL",
 	"LOG_TO_CONSOLE",
 	"DD_COLLECT_DOCKER_NETWORK",
@@ -115,9 +113,9 @@ func getAllowedEnvvars() []string {
 	return found
 }
 
-// zipEnvvars collects allowed envvars that can affect the agent's
+// getEnvVars collects allowed envvars that can affect the agent's
 // behaviour while not being handled by viper, in addition to the envvars handled by viper
-func zipEnvvars(tempDir, hostname string) error {
+func getEnvVars() ([]byte, error) {
 	envvars := getAllowedEnvvars()
 
 	var b bytes.Buffer
@@ -130,6 +128,5 @@ func zipEnvvars(tempDir, hostname string) error {
 		fmt.Fprintln(&b, "Found no allowed envvar")
 	}
 
-	f := filepath.Join(tempDir, hostname, "envvars.log")
-	return writeScrubbedFile(f, b.Bytes())
+	return b.Bytes(), nil
 }

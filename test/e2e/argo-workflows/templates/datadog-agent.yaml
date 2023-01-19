@@ -17,14 +17,24 @@ spec:
           - name: ci_commit_short_sha
           - name: ci_pipeline_id
           - name: ci_job_id
+          - name: remote_configuration_enabled
       script:
-        image: alpine/helm:3.9.0
+        image: alpine/k8s:1.25.4
         envFrom:
           - secretRef:
               name: dd-keys
         command: [sh]
         source: |
           set -euo pipefail
+
+          # for CWS tests we need to have a test policy before the container start
+          mkdir -p /tmp/runtime-security.d
+          cat > /tmp/runtime-security.d/test.policy <<EOF
+          rules:
+            - id: TEST
+              expression: open.file.path == "/tmp/test123"
+          EOF
+          kubectl create configmap cws-test-policy --from-file=/tmp/runtime-security.d/test.policy
 
           cat > /tmp/values.yaml <<EOF
           datadog:
@@ -106,17 +116,37 @@ spec:
               pullSecrets:
                 - name: docker-registry
             containers:
+              agent:
+                env:
+                  - name:  DD_USE_V2_API_SERIES
+                    value: "false"
+                  - name: DD_REMOTE_CONFIGURATION_ENABLED
+                    value: "{{inputs.parameters.remote_configuration_enabled}}"
+                  - name: DD_REMOTE_CONFIGURATION_KEY
+                    value: $DD_RC_KEY
+                  - name: DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL
+                    value: "5s"
               systemProbe:
                 logLevel: TRACE
                 env:
                   - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
-                    value: "module.*"
+                    value: "module.APIServer.*"
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
                     value: "/tmp/runtime-security.d"
+                  - name: DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_ENABLED
+                    value: "{{inputs.parameters.remote_configuration_enabled}}"
                 securityContext:
                   capabilities:
                     drop:
                       - all
+            volumes:
+              - configMap:
+                  name: cws-test-policy
+                name: cws-test-policy
+            volumeMounts:
+              - name: cws-test-policy
+                mountPath: /tmp/runtime-security.d/test.policy
+                subPath: test.policy
             useConfigMap: true
             customAgentConfig:
               additional_endpoints:
@@ -142,6 +172,8 @@ spec:
             admissionController:
               enabled: true
             env:
+              - name:  DD_USE_V2_API_SERIES
+                value: "false"
               - name: DATADOG_HOST
                 value: {{inputs.parameters.dd-url}}
           EOF
@@ -156,9 +188,11 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      container:
-        image: alpine/helm:3.9.0
-        args: ["--namespace", "{{inputs.parameters.namespace}}", "uninstall", "datadog-agent"]
+      script:
+        image: alpine/k8s:1.25.4
+        command: [sh]
+        source: |
+          helm --namespace {{inputs.parameters.namespace}} uninstall datadog-agent
 
     - name: health
       inputs:
@@ -166,7 +200,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -192,7 +226,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -213,7 +247,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -408,7 +442,7 @@ spec:
           - name: site
       activeDeadlineSeconds: 900
       script:
-        image: python
+        image: public.ecr.aws/docker/library/python:latest
         envFrom:
           - secretRef:
               name: dd-keys
@@ -434,7 +468,7 @@ spec:
           - name: site
       activeDeadlineSeconds: 500
       script:
-        image: python
+        image: public.ecr.aws/docker/library/python:latest
         envFrom:
           - secretRef:
               name: dd-keys
@@ -459,7 +493,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -475,7 +509,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -491,7 +525,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -507,7 +541,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -523,7 +557,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -539,7 +573,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -555,7 +589,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -571,7 +605,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -587,7 +621,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -603,7 +637,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -619,7 +653,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -635,7 +669,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail

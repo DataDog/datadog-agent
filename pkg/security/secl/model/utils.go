@@ -10,7 +10,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"regexp"
-	"unsafe"
 )
 
 // containerIDPattern is the pattern of a container ID
@@ -22,10 +21,12 @@ func FindContainerID(s string) string {
 }
 
 // SliceToArray copy src bytes to dst. Destination should have enough space
-func SliceToArray(src []byte, dst unsafe.Pointer) {
-	for i := range src {
-		*(*byte)(unsafe.Pointer(uintptr(dst) + uintptr(i))) = src[i]
+func SliceToArray(src []byte, dst []byte) {
+	if len(src) != len(dst) {
+		panic("different len in SliceToArray")
 	}
+
+	copy(dst, src)
 }
 
 // UnmarshalStringArray extract array of string for array of byte
@@ -46,11 +47,11 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 
 		if i+n > len {
 			// truncated
-			arg := nullTerminatedString(data[i:len])
+			arg := NullTerminatedString(data[i:len])
 			return append(result, arg), ErrStringArrayOverflow
 		}
 
-		arg := nullTerminatedString(data[i : i+n])
+		arg := NullTerminatedString(data[i : i+n])
 		i += n
 
 		result = append(result, arg)
@@ -65,10 +66,10 @@ func UnmarshalString(data []byte, size int) (string, error) {
 		return "", ErrNotEnoughData
 	}
 
-	return nullTerminatedString(data[:size]), nil
+	return NullTerminatedString(data[:size]), nil
 }
 
-func nullTerminatedString(d []byte) string {
+func NullTerminatedString(d []byte) string {
 	idx := bytes.IndexByte(d, 0)
 	if idx == -1 {
 		return string(d)

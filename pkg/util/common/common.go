@@ -22,7 +22,7 @@ func NewStringSet(initItems ...string) StringSet {
 	return newSet
 }
 
-// Add adds a item to the set
+// Add adds an item to the set
 func (s StringSet) Add(item string) {
 	s[item] = struct{}{}
 }

@@ -18,7 +18,7 @@ for _, provider := range configProviders {
 
 ### `FileConfigProvider`
 
-The `FileConfigProvider` is a static config provider, it scans the check configs directory once at startup.
+The `FileConfigProvider` is a file-based config provider. By default it only scans files once at startup but can configured to poll regularly.
 
 ### `KubeletConfigProvider`
 

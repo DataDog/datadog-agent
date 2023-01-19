@@ -15,63 +15,69 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
-)
-
-var (
-	dsdReplayFilePath   string
-	dsdVerboseReplay    bool
-	dsdMmapReplay       bool
-	dsdReplayIterations int
 )
 
 const (
 	defaultIterations = 1
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+
+	// subcommand-specific flags
+
+	dsdReplayFilePath   string
+	dsdVerboseReplay    bool
+	dsdMmapReplay       bool
+	dsdReplayIterations int
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
+
 	dogstatsdReplayCmd := &cobra.Command{
 		Use:   "dogstatsd-replay",
 		Short: "Replay dogstatsd traffic",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
-			if err != nil {
-				return fmt.Errorf("unable to set up global agent configuration: %v", err)
-			}
-
-			err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			return dogstatsdReplay()
+			return fxutil.OneShot(dogstatsdReplay,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+				core.Bundle,
+			)
 		},
 	}
-	dogstatsdReplayCmd.Flags().StringVarP(&dsdReplayFilePath, "file", "f", "", "Input file with traffic captured with dogstatsd-capture.")
-	dogstatsdReplayCmd.Flags().BoolVarP(&dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
-	dogstatsdReplayCmd.Flags().BoolVarP(&dsdMmapReplay, "mmap", "m", true, "Mmap file for replay. Set to false to load the entire file into memory instead")
-	dogstatsdReplayCmd.Flags().IntVarP(&dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterations to replay.")
+	dogstatsdReplayCmd.Flags().StringVarP(&cliParams.dsdReplayFilePath, "file", "f", "", "Input file with traffic captured with dogstatsd-capture.")
+	dogstatsdReplayCmd.Flags().BoolVarP(&cliParams.dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
+	dogstatsdReplayCmd.Flags().BoolVarP(&cliParams.dsdMmapReplay, "mmap", "m", true, "Mmap file for replay. Set to false to load the entire file into memory instead")
+	dogstatsdReplayCmd.Flags().IntVarP(&cliParams.dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterations to replay.")
 
 	return []*cobra.Command{dogstatsdReplayCmd}
 }
 
-func dogstatsdReplay() error {
-
+func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -108,7 +114,7 @@ func dogstatsdReplay() error {
 
 	apiconn, err := grpc.DialContext(
 		ctx,
-		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfig.Datadog.GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
@@ -118,17 +124,17 @@ func dogstatsdReplay() error {
 	cli := pb.NewAgentSecureClient(apiconn)
 
 	depth := 10
-	reader, err := replay.NewTrafficCaptureReader(dsdReplayFilePath, depth, dsdMmapReplay)
+	reader, err := replay.NewTrafficCaptureReader(cliParams.dsdReplayFilePath, depth, cliParams.dsdMmapReplay)
 	if reader != nil {
 		defer reader.Close()
 	}
 
 	if err != nil {
-		fmt.Printf("could not open: %s\n", dsdReplayFilePath)
+		fmt.Printf("could not open: %s\n", cliParams.dsdReplayFilePath)
 		return err
 	}
 
-	s := config.Datadog.GetString("dogstatsd_socket")
+	s := pkgconfig.Datadog.GetString("dogstatsd_socket")
 	if s == "" {
 		return fmt.Errorf("Dogstatsd UNIX socket disabled")
 	}
@@ -145,7 +151,7 @@ func dogstatsdReplay() error {
 	defer syscall.Close(sk)
 
 	err = syscall.SetsockoptInt(sk, syscall.SOL_SOCKET, syscall.SO_SNDBUF,
-		config.Datadog.GetInt("dogstatsd_buffer_size"))
+		pkgconfig.Datadog.GetInt("dogstatsd_buffer_size"))
 	if err != nil {
 		return err
 	}
@@ -171,7 +177,7 @@ func dogstatsdReplay() error {
 	}
 
 	breaker := false
-	for i := 0; (i < dsdReplayIterations || dsdReplayIterations == 0) && !breaker; i++ {
+	for i := 0; (i < cliParams.dsdReplayIterations || cliParams.dsdReplayIterations == 0) && !breaker; i++ {
 
 		// enable reading at natural rate
 		ready := make(chan struct{})
@@ -192,7 +198,7 @@ func dogstatsdReplay() error {
 					return err
 				}
 
-				if dsdVerboseReplay {
+				if cliParams.dsdVerboseReplay {
 					fmt.Printf("Sent Payload: %d bytes, and OOB: %d bytes\n", n, oobn)
 				}
 			case <-reader.Done:

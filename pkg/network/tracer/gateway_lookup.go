@@ -123,7 +123,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 		var s network.Subnet
 		var err error
-		err = util.WithNS(g.procRoot, g.rootNetNs, func() error {
+		err = util.WithNS(g.rootNetNs, func() error {
 			var ifi *net.Interface
 			ifi, err = net.InterfaceByIndex(r.IfIndex)
 			if err != nil {
@@ -190,6 +190,12 @@ func (g *gatewayLookup) GetStats() map[string]interface{} {
 	report := atomicstats.Report(g)
 	report["route_cache"] = g.routeCache.GetStats()
 	return report
+}
+
+func (g *gatewayLookup) Close() {
+	g.rootNetNs.Close()
+	g.routeCache.Close()
+	g.purge()
 }
 
 func (g *gatewayLookup) purge() {

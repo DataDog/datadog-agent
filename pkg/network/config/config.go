@@ -75,6 +75,14 @@ type Config struct {
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
+	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS
+	// traffic done through Go's standard library's TLS implementation
+	EnableGoTLSSupport bool
+
+	// EnableJavaTLSSupport specifies whether the tracer should monitor HTTPS
+	// traffic done through Java's TLS implementation
+	EnableJavaTLSSupport bool
+
 	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
 	// value is currently Windows only
 	MaxTrackedHTTPConnections int64
@@ -186,6 +194,10 @@ type Config struct {
 
 	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
 	HTTPIdleConnectionTTL time.Duration
+
+	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
+	// classifying the L7 protocols being used.
+	ProtocolClassificationEnabled bool
 }
 
 func join(pieces ...string) string {
@@ -230,8 +242,11 @@ func New() *Config {
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
+		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
+
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableGoTLSSupport:    cfg.GetBool(join(spNS, "enable_go_tls_support")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
@@ -256,6 +271,9 @@ func New() *Config {
 
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(spNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+
+		// Service Monitoring
+		EnableJavaTLSSupport: cfg.GetBool(join(smNS, "enable_java_tls_support")),
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {

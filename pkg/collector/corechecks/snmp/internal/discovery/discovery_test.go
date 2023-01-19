@@ -61,7 +61,7 @@ func TestDiscovery(t *testing.T) {
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory)
 	discovery.Start()
-	assert.NoError(t, waitForDiscoveredDevices(&discovery, 7, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery, 7, 2*time.Second))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -111,7 +111,7 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory)
 	discovery.Start()
-	assert.NoError(t, waitForDiscoveredDevices(&discovery, 4, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery, 4, 2*time.Second))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -143,7 +143,7 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 	discovery2 := NewDiscovery(checkConfig, sessionFactory)
 	discovery2.Start()
-	assert.NoError(t, waitForDiscoveredDevices(&discovery2, 4, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery2, 4, 2*time.Second))
 	discovery2.Stop()
 
 	deviceConfigsFromCache := discovery2.GetDiscoveredDeviceConfigs()

@@ -77,6 +77,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
+			setConfig: func(t *testing.T) {
+				config.SetDetectedFeatures(config.FeatureMap{})
+				t.Cleanup(func() {
+					defer config.SetDetectedFeatures(nil)
+				})
+			},
 			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
 			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
 		},
@@ -88,23 +94,23 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				h.SetCount(100)
 				h.SetSum(0)
 				hAttrs := h.Attributes()
-				hAttrs.PutString("histogram_1_id", "value1")
-				hAttrs.PutString("histogram_2_id", "value2")
-				hAttrs.PutString("histogram_3_id", "value3")
+				hAttrs.PutStr("histogram_1_id", "value1")
+				hAttrs.PutStr("histogram_2_id", "value2")
+				hAttrs.PutStr("histogram_3_id", "value3")
 
 				n := pmetric.NewNumberDataPoint()
 				n.SetIntValue(777)
 				nAttrs := n.Attributes()
-				nAttrs.PutString("gauge_1_id", "value1")
-				nAttrs.PutString("gauge_2_id", "value2")
-				nAttrs.PutString("gauge_3_id", "value3")
+				nAttrs.PutStr("gauge_1_id", "value1")
+				nAttrs.PutStr("gauge_2_id", "value2")
+				nAttrs.PutStr("gauge_3_id", "value3")
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			setConfig: func(t *testing.T) {
-				config.Datadog.SetDefault("eks_fargate", true)
+				config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
 				config.Datadog.SetDefault("tags", []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"})
 				t.Cleanup(func() {
-					config.Datadog.SetDefault("eks_fargate", false)
+					defer config.SetDetectedFeatures(nil)
 					config.Datadog.SetDefault("tags", []string{})
 				})
 			},
@@ -184,7 +190,7 @@ func newMetrics(
 	met := metricsArray.AppendEmpty()
 	met.SetName(histogramMetricName)
 	met.SetEmptyHistogram()
-	met.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	hdps := met.Histogram().DataPoints()
 	hdp := hdps.AppendEmpty()
 	hdp.SetCount(histogramDataPoint.Count())

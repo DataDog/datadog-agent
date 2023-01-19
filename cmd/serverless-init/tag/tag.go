@@ -11,7 +11,8 @@ import (
 	"strings"
 )
 
-type tagPair struct {
+// TagPair contains a pair of tag key and value
+type TagPair struct {
 	name    string
 	envName string
 }
@@ -24,18 +25,10 @@ func getTag(envName string) (string, bool) {
 	return strings.ToLower(value), true
 }
 
-// GetBaseTagsMapWithMetadata returns a map of Datadog's base tags + Cloud Run specific if present
+// GetBaseTagsMapWithMetadata returns a map of Datadog's base tags
 func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 	tags := map[string]string{}
-	listTags := []tagPair{
-		{
-			name:    "revision_name",
-			envName: "K_REVISION",
-		},
-		{
-			name:    "service_name",
-			envName: "K_SERVICE",
-		},
+	listTags := []TagPair{
 		{
 			name:    "env",
 			envName: "DD_ENV",
@@ -58,8 +51,6 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 	for key, value := range metadata {
 		tags[key] = value
 	}
-
-	tags["origin"] = "cloudrun"
 
 	return tags
 }

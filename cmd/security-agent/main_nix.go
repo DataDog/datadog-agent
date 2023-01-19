@@ -23,7 +23,7 @@ func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.SecurityAgent)
 
-	if err := app.SecurityAgentCmd.Execute(); err != nil {
+	if err := app.CreateSecurityAgentCmd().Execute(); err != nil {
 		os.Exit(-1)
 	}
 }

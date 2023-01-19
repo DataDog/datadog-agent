@@ -72,11 +72,14 @@ func (cv *CollectorVersions) CollectorForVersion(version string) (Collector, boo
 
 // CollectorMetadata contains information about a collector.
 type CollectorMetadata struct {
-	IsDefaultVersion bool
-	IsStable         bool
-	Name             string
-	NodeType         orchestrator.NodeType
-	Version          string
+	IsDefaultVersion          bool
+	IsMetadataProducer        bool
+	IsManifestProducer        bool
+	IsStable                  bool
+	SupportsManifestBuffering bool
+	Name                      string
+	NodeType                  orchestrator.NodeType
+	Version                   string
 }
 
 // FullName returns a string that contains the collector name and version.
@@ -104,4 +107,15 @@ type CollectorRunResult struct {
 	Result             processors.ProcessResult
 	ResourcesListed    int
 	ResourcesProcessed int
+}
+
+func NewProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.ProcessorContext {
+	return &processors.ProcessorContext{
+		APIClient:          rcfg.APIClient,
+		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", metadata.Version),
+		Cfg:                rcfg.Config,
+		ClusterID:          rcfg.ClusterID,
+		MsgGroupID:         rcfg.MsgGroupRef.Inc(),
+		NodeType:           metadata.NodeType,
+	}
 }

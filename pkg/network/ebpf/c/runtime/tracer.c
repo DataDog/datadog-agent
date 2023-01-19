@@ -1,7 +1,10 @@
 #include "kconfig.h"
 #include "bpf_telemetry.h"
+#include "bpf_builtins.h"
+#include "bpf_tracing.h"
 #include "tracer.h"
 
+#include "protocols/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -10,9 +13,9 @@
 #include "ip.h"
 #include "netns.h"
 #include "sockfd.h"
-#include "conn-tuple.h"
 #include "skb.h"
 #include "port.h"
+#include "tcp-recv.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -33,22 +36,14 @@
 #error "kernel version not included?"
 #endif
 
-static __always_inline void handle_tcp_stats(conn_tuple_t *t, struct sock *skp, u8 state) {
-    __u32 rtt = 0;
-    __u32 rtt_var = 0;
-    bpf_probe_read_kernel_with_telemetry(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
-    bpf_probe_read_kernel_with_telemetry(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
+#include "conn-tuple.h"
+#include "sock.h"
 
-    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
-    if (state > 0) {
-        stats.state_transitions = (1 << state);
-    }
-    update_tcp_stats(t, stats);
-}
-
-static __always_inline void get_tcp_segment_counts(struct sock *skp, __u32 *packets_in, __u32 *packets_out) {
-    bpf_probe_read_kernel_with_telemetry(packets_out, sizeof(*packets_out), &tcp_sk(skp)->segs_out);
-    bpf_probe_read_kernel_with_telemetry(packets_in, sizeof(*packets_in), &tcp_sk(skp)->segs_in);
+// The entrypoint for all packets.
+SEC("socket/classifier")
+int socket__classifier(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint(skb);
+    return 0;
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -101,29 +96,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
-SEC("kprobe/tcp_cleanup_rbuf")
-int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx) {
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    int copied = (int)PT_REGS_PARM2(ctx);
-    if (copied < 0) {
-        return 0;
-    }
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
-
-    bpf_probe_read_kernel_with_telemetry(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out);
-    bpf_probe_read_kernel_with_telemetry(&packets_in, sizeof(packets_in), &tcp_sk(sk)->segs_in);
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    handle_tcp_stats(&t, sk, 0);
-    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
-}
-
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs *ctx) {
     struct sock *sk;
@@ -143,7 +115,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    cleanup_conn(&t);
+    cleanup_conn(&t, sk);
     return 0;
 }
 
@@ -315,7 +287,7 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
         return;
     }
     conn_tuple_t t;
-    __builtin_memset(&t, 0, sizeof(conn_tuple_t));
+    bpf_memset(&t, 0, sizeof(conn_tuple_t));
     int data_len = sk_buff_to_tuple(skb, &t);
     if (data_len <= 0) {
         log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);
@@ -548,7 +520,7 @@ int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(&tup);
+        cleanup_conn(&tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
@@ -591,27 +563,13 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
         return 0;
     }
 
-    u16 sin_port = 0;
-    sa_family_t family = 0;
-    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
-    if (family == AF_INET) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
-    } else if (family == AF_INET6) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
-    }
-
-    sin_port = bpf_ntohs(sin_port);
-    if (sin_port == 0) {
-        log_debug("ERR(sys_enter_bind): sin_port is 0\n");
-        return 0;
-    }
-
     // write to pending_binds so the retprobe knows we can mark this as binding.
     bind_syscall_args_t args = {};
-    args.port = sin_port;
+    bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sock->sk);
+    args.addr = addr;
 
     bpf_map_update_with_telemetry(pending_bind, &tid, &args, BPF_ANY);
-    log_debug("sys_enter_bind: started a bind on UDP port=%d sock=%llx tid=%u\n", sin_port, sock, tid);
+    log_debug("sys_enter_bind: started a bind on UDP sock=%llx tid=%u\n", sock, tid);
 
     return 0;
 }
@@ -640,8 +598,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     __u64 tid = bpf_get_current_pid_tgid();
 
     // bail if this bind() is not the one we're instrumenting
-    bind_syscall_args_t *args;
-    args = bpf_map_lookup_elem(&pending_bind, &tid);
+    bind_syscall_args_t *args = bpf_map_lookup_elem(&pending_bind, &tid);
 
     log_debug("sys_exit_bind: tid=%u, ret=%d\n", tid, ret);
 
@@ -649,10 +606,31 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         log_debug("sys_exit_bind: was not a UDP bind, will not process\n");
         return 0;
     }
-    __u16 sin_port = args->port;
+
+    struct sock * sk = args->sk;
+    struct sockaddr *addr = args->addr;
     bpf_map_delete_elem(&pending_bind, &tid);
 
     if (ret != 0) {
+        return 0;
+    }
+
+    u16 sin_port = 0;
+    sa_family_t family = 0;
+    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
+    if (family == AF_INET) {
+        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
+    } else if (family == AF_INET6) {
+        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
+    }
+
+    sin_port = bpf_ntohs(sin_port);
+    if (sin_port == 0) {
+        sin_port = read_sport(sk);
+    }
+
+    if (sin_port == 0) {
+        log_debug("ERR(sys_exit_bind): sin_port is 0\n");
         return 0;
     }
 
@@ -787,6 +765,49 @@ int kretprobe__do_sendfile(struct pt_regs *ctx) {
     }
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
+    return 0;
+}
+
+// Represents the parameters being passed to the tracepoint net/net_dev_queue
+struct net_dev_queue_ctx {
+    u64 unused;
+    struct sk_buff* skb;
+};
+
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    struct sk_buff* skb = ctx->skb;
+    if (!skb) {
+        return 0;
+    }
+    struct sock* sk;
+    bpf_probe_read(&sk, sizeof(struct sock*), &skb->sk);
+    if (!sk) {
+        return 0;
+    }
+
+    conn_tuple_t skb_tup;
+    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
+    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+        return 0;
+    }
+
+    if (!(skb_tup.metadata&CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    conn_tuple_t sock_tup;
+    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
+    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    sock_tup.netns = 0;
+    sock_tup.pid = 0;
+
+    if (!is_equal(&skb_tup, &sock_tup)) {
+        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST);
+    }
+
     return 0;
 }
 

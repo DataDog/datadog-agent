@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metadata"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -23,18 +22,16 @@ import (
 
 const (
 	defaultFlushTimeout = 5 * time.Second
-	defaultSource       = "cloudrun"
-	loggerName          = "DD_CLOUDRUN_LOG_AGENT"
+	loggerName          = "DD_LOG_AGENT"
 	logLevelEnvVar      = "DD_LOG_LEVEL"
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
 	sourceEnvVar        = "DD_SOURCE"
-	sourceName          = "Google Cloud Run"
+	sourceName          = "Datadog Agent"
 )
 
 // Config holds the log configuration
 type Config struct {
 	FlushTimeout time.Duration
-	Metadata     *metadata.Metadata
 	channel      chan *logConfig.ChannelMessage
 	source       string
 	loggerName   config.LoggerName
@@ -49,14 +46,13 @@ type CustomWriter struct {
 }
 
 // CreateConfig builds and returns a log config
-func CreateConfig(metadata *metadata.Metadata) *Config {
+func CreateConfig(origin string) *Config {
 	var source string
 	if source = strings.ToLower(os.Getenv(sourceEnvVar)); source == "" {
-		source = defaultSource
+		source = origin
 	}
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,
-		Metadata:     metadata,
 		channel:      make(chan *logConfig.ChannelMessage),
 		source:       source,
 		loggerName:   loggerName,
@@ -76,7 +72,7 @@ func Write(conf *Config, msgToSend []byte, isError bool) {
 }
 
 // SetupLog creates the log agent and sets the base tags
-func SetupLog(conf *Config) {
+func SetupLog(conf *Config, tags map[string]string) {
 	if err := config.SetupLogger(
 		conf.loggerName,
 		"error", // will be re-set later with the value from the env var
@@ -95,7 +91,7 @@ func SetupLog(conf *Config) {
 		}
 	}
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.source)
-	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
+	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(tags))
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {

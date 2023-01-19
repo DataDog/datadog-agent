@@ -139,36 +139,32 @@ func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integ
 	var configs []integration.Config
 	for _, svc := range services {
 		for _, check := range p.checks {
-			serviceConfigs := utils.ConfigsForService(check, svc)
-
-			if len(serviceConfigs) == 0 {
-				continue
-			}
-
-			configs = append(configs, serviceConfigs...)
-
 			if !p.collectEndpoints {
-				continue
+				// Only generates Service checks is Endpoints checks are not active
+				serviceConfigs := utils.ConfigsForService(check, svc)
+
+				if len(serviceConfigs) != 0 {
+					configs = append(configs, serviceConfigs...)
+				}
+			} else {
+				ep, err := p.api.GetEndpoints(svc.GetNamespace(), svc.GetName())
+				if err != nil {
+					return nil, err
+				}
+
+				endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
+
+				if len(endpointConfigs) == 0 {
+					continue
+				}
+
+				configs = append(configs, endpointConfigs...)
+
+				endpointsID := apiserver.EntityForEndpoints(ep.GetNamespace(), ep.GetName(), "")
+				p.Lock()
+				p.monitoredEndpoints[endpointsID] = true
+				p.Unlock()
 			}
-
-			ep, err := p.api.GetEndpoints(svc.GetNamespace(), svc.GetName())
-			if err != nil {
-				return nil, err
-			}
-
-			endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
-
-			if len(endpointConfigs) == 0 {
-				continue
-			}
-
-			configs = append(configs, endpointConfigs...)
-
-			endpointsID := apiserver.EntityForEndpoints(ep.GetNamespace(), ep.GetName(), "")
-			p.Lock()
-			p.monitoredEndpoints[endpointsID] = true
-			p.Unlock()
-
 		}
 	}
 

@@ -173,6 +173,7 @@ func TestPull(t *testing.T) {
 				Image: workloadmeta.ContainerImage{
 					RawName:   "docker.io/datadog/agent:latest",
 					Name:      "docker.io/datadog/agent",
+					Registry:  "docker.io",
 					ShortName: "agent",
 					Tag:       "latest",
 				},
@@ -222,6 +223,7 @@ func TestPull(t *testing.T) {
 				Image: workloadmeta.ContainerImage{
 					RawName:   "docker.io/datadog/agent-dev:latest",
 					Name:      "docker.io/datadog/agent-dev",
+					Registry:  "docker.io",
 					ShortName: "agent-dev",
 					Tag:       "latest",
 				},

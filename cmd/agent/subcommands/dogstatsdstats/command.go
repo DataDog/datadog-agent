@@ -10,65 +10,72 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 
 	"github.com/spf13/cobra"
 )
 
-var (
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+
+	// subcommand-specific flags
+
 	dsdStatsFilePath string
 	jsonStatus       bool
 	prettyPrintJSON  bool
-)
+}
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
+
 	dogstatsdStatsCmd := &cobra.Command{
 		Use:   "dogstatsd-stats",
 		Short: "Print basic statistics on the metrics processed by dogstatsd",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
-			if err != nil {
-				return fmt.Errorf("unable to set up global agent configuration: %v", err)
-			}
-
-			err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			return requestDogstatsdStats()
+			return fxutil.OneShot(requestDogstatsdStats,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+				core.Bundle,
+			)
 		},
 	}
 
-	dogstatsdStatsCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
-	dogstatsdStatsCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	dogstatsdStatsCmd.Flags().StringVarP(&dsdStatsFilePath, "file", "o", "", "Output the dogstatsd-stats command to a file")
+	dogstatsdStatsCmd.Flags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
+	dogstatsdStatsCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	dogstatsdStatsCmd.Flags().StringVarP(&cliParams.dsdStatsFilePath, "file", "o", "", "Output the dogstatsd-stats command to a file")
 
 	return []*cobra.Command{dogstatsdStatsCmd}
 }
 
-func requestDogstatsdStats() error {
+func requestDogstatsdStats(log log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()
@@ -96,11 +103,11 @@ func requestDogstatsdStats() error {
 	}
 
 	// The rendering is done in the client so that the agent has less work to do
-	if prettyPrintJSON {
+	if cliParams.prettyPrintJSON {
 		var prettyJSON bytes.Buffer
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
-	} else if jsonStatus {
+	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
 		s, e = dogstatsd.FormatDebugStats(r)
@@ -110,23 +117,23 @@ func requestDogstatsdStats() error {
 		}
 	}
 
-	if dsdStatsFilePath == "" {
+	if cliParams.dsdStatsFilePath == "" {
 		fmt.Println(s)
 		return nil
 	}
 
 	// if the file is already existing, ask for a confirmation.
-	if _, err := os.Stat(dsdStatsFilePath); err == nil {
-		if !input.AskForConfirmation(fmt.Sprintf("'%s' already exists, do you want to overwrite it? [y/N]", dsdStatsFilePath)) {
+	if _, err := os.Stat(cliParams.dsdStatsFilePath); err == nil {
+		if !input.AskForConfirmation(fmt.Sprintf("'%s' already exists, do you want to overwrite it? [y/N]", cliParams.dsdStatsFilePath)) {
 			fmt.Println("Canceling.")
 			return nil
 		}
 	}
 
-	if err := ioutil.WriteFile(dsdStatsFilePath, []byte(s), 0644); err != nil {
+	if err := os.WriteFile(cliParams.dsdStatsFilePath, []byte(s), 0644); err != nil {
 		fmt.Println("Error while writing the file (is the location writable by the dd-agent user?):", err)
 	} else {
-		fmt.Println("Dogstatsd stats written in:", dsdStatsFilePath)
+		fmt.Println("Dogstatsd stats written in:", cliParams.dsdStatsFilePath)
 	}
 
 	return nil

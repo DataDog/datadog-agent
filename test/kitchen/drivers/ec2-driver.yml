@@ -9,6 +9,10 @@ provisioner:
   # There is no arm64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
   download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.aarch64.rpm
   product_version: 14.15.6
+  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "x86_64" %>
+  # There is no x86_64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.x86_64.rpm
+  product_version: 14.15.6
   <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
   <% end %>
@@ -57,7 +61,7 @@ platforms:
       idx += 1
 
       host = "ec2"
-      platform_name = platform[0] + "-#{host}"
+      platform_name = platform[0] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
 
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
@@ -84,6 +88,9 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    <% if ENV["KITCHEN_CWS_PLATFORM"] %>
+    cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
   driver:
     <% if windows %>
     connection_timeout: 20
@@ -95,13 +102,13 @@ platforms:
     image_id: <%= platform[1] %>
     block_device_mappings:
       <% if ENV['KITCHEN_ARCH'] == "arm64" %>
-      - device_name: /dev/sda1
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/sda1" %>
       <% else %>
-      - device_name: /dev/xvda
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/xvda" %>
       <% end %>
         ebs:
           volume_type: gp2
-          volume_size: 40
+          volume_size: 45
           delete_on_termination: true
     <% if allow_rsa_key || al2022 %>
     user_data: |
@@ -136,6 +143,19 @@ platforms:
           let i+=${wait};
         done;
   <% end %>
+    # HACK: this is needed to install rexml for system-probe tests without using bundler, which cannot be used for now
+    # (see the explanation in tasks/run-test-kitchen.sh).
+    pre_verify:
+      - local: echo 'Installing rexml gem for the system-probe-test suite'
+      <% if windows %>
+      - remote: C:/opscode/chef/embedded/bin/gem.bat install rexml --install-dir C:/Users/ec2-user/AppData/Local/Temp/verifier/gems
+      <% else %>
+      - remote: /opt/chef/embedded/bin/gem install rexml --install-dir /tmp/verifier/gems
+      <% end %>
+  verifier:
+    downloads:
+      "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
 
   transport:
     <% if windows %>

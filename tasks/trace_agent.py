@@ -63,7 +63,7 @@ def build(
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
-    agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent", android=False))
+    agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
@@ -123,3 +123,15 @@ def cross_compile(ctx, tag=""):
     ctx.run("git checkout -")
 
     print(f"Done! Binaries are located in ./bin/trace-agent/{tag}")
+
+
+@task
+def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
+    """
+    Runs the benchmarks. Use "--bench=X" to specify benchmarks to run. Use the "--output=X" argument to specify where to output results.
+    """
+    if not bench:
+        print("Argument --bench=<bench_regex> is required.")
+        return
+    with ctx.cd("./pkg/trace"):
+        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 10 -benchtime 2s ./... | tee {output}")

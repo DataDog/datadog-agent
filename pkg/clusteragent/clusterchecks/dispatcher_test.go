@@ -212,7 +212,7 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.False(t, upToDate)
 
 	// Give changes
-	node1.lastConfigChange = timestampNow()
+	node1.lastConfigChange = timestampNowNano()
 	node1.heartbeat = node1.heartbeat - 50
 	status2 := types.NodeStatus{LastChange: node1.lastConfigChange - 2}
 	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status2)
@@ -300,7 +300,8 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	// Register a node with a correct status & schedule a Check
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	dispatcher.Schedule([]integration.Config{
-		generateIntegration("A")})
+		generateIntegration("A"),
+	})
 
 	// Ensure it's dispatch correctly
 	allConfigs, err := dispatcher.getAllConfigs()

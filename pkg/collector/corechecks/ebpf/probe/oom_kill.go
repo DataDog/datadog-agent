@@ -22,14 +22,17 @@ import (
 	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
 #include <string.h>
 #include "../c/runtime/oom-kill-kern-user.h"
+#cgo CFLAGS: -I "${SRCDIR}/../../../../ebpf/c"
 */
 import "C"
 
@@ -41,35 +44,77 @@ type OOMKillProbe struct {
 }
 
 func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
-	compiledOutput, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
+	if cfg.EnableCORE {
+		probe, err := loadOOMKillCOREProbe(cfg)
+		if err == nil {
+			return probe, nil
+		}
+
+		if !cfg.AllowRuntimeCompiledFallback {
+			return nil, fmt.Errorf("error loading CO-RE oom-kill probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
+		}
+		log.Warnf("error loading CO-RE oom-kill probe: %s. falling back to runtime compiled probe", err)
+	}
+
+	return loadOOMKillRuntimeCompiledProbe(cfg)
+}
+
+func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("error detecting kernel version: %s", err)
+	}
+	if kv < kernel.VersionCode(4, 9, 0) {
+		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0", kv)
+	}
+
+	var probe *OOMKillProbe
+	err = ebpf.LoadCOREAsset(cfg, "oom-kill.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		probe, err = startOOMKillProbe(buf, opts)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer compiledOutput.Close()
 
-	probes := []*manager.Probe{
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/oom_kill_process", EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"},
-		},
+	log.Debugf("successfully loaded CO-RE version of oom-kill probe")
+	return probe, nil
+}
+
+func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
+	if err != nil {
+		return nil, err
 	}
+	defer buf.Close()
 
-	maps := []*manager.Map{
-		{Name: "oom_stats"},
+	return startOOMKillProbe(buf, manager.Options{})
+}
+
+func getCFlags(config *ebpf.Config) []string {
+	cflags := []string{"-g"}
+	if config.BPFDebug {
+		cflags = append(cflags, "-DDEBUG=1")
 	}
+	return cflags
+}
 
+func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*OOMKillProbe, error) {
 	m := &manager.Manager{
-		Probes: probes,
-		Maps:   maps,
-	}
-
-	managerOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
+		Probes: []*manager.Probe{
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/oom_kill_process", EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"}},
+		},
+		Maps: []*manager.Map{
+			{Name: "oom_stats"},
 		},
 	}
 
-	if err := m.InitWithOptions(compiledOutput, managerOptions); err != nil {
+	managerOptions.RLimit = &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
+	}
+
+	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
 	}
 

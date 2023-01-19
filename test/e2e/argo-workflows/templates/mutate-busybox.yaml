@@ -190,7 +190,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -210,7 +210,7 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
 
-    - name: test-env-fieldPath
+    - name: test-env-fieldpath
       inputs:
         parameters:
           - name: namespace
@@ -219,7 +219,7 @@ spec:
           - name: target
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -238,7 +238,7 @@ spec:
           - name: target
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -257,7 +257,7 @@ spec:
           - name: target
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -281,7 +281,7 @@ spec:
           - name: target
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -299,7 +299,7 @@ spec:
           - name: target
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -315,7 +315,7 @@ spec:
           - name: namespace
       steps:
         - - name: agent-host-hostip
-            template: test-env-fieldPath
+            template: test-env-fieldpath
             arguments:
               parameters:
                 - name: namespace
@@ -327,7 +327,7 @@ spec:
                 - name: target
                   value: busybox-hostip
           - name: entity-id-hostip
-            template: test-env-fieldPath
+            template: test-env-fieldpath
             arguments:
               parameters:
                 - name: namespace
@@ -351,7 +351,7 @@ spec:
                 - name: target
                   value: busybox-service
           - name: entity-id-service
-            template: test-env-fieldPath
+            template: test-env-fieldpath
             arguments:
               parameters:
                 - name: namespace
@@ -401,7 +401,7 @@ spec:
                 - name: target
                   value: busybox-socket
           - name: entity-id-socket
-            template: test-env-fieldPath
+            template: test-env-fieldpath
             arguments:
               parameters:
                 - name: namespace
@@ -569,7 +569,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail

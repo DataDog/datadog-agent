@@ -31,14 +31,16 @@ func savePolicy(filename string, testPolicy *PolicyDef) error {
 
 func TestMacroMerge(t *testing.T) {
 	var evalOpts eval.Opts
-	evalOpts.WithConstants(testConstants)
+	evalOpts.
+		WithConstants(testConstants).
+		WithMacroStore(&eval.MacroStore{})
 
 	var opts Opts
 	opts.
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts)
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
@@ -87,9 +89,9 @@ func TestMacroMerge(t *testing.T) {
 		t.Error(err)
 	}
 
-	macro := rs.macroStore.Macros["test_macro"]
+	macro := rs.evalOpts.MacroStore.Get("test_macro")
 	if macro == nil {
-		t.Fatalf("failed to find test_macro in ruleset: %+v", rs.macroStore.Macros)
+		t.Fatalf("failed to find test_macro in ruleset: %+v", rs.evalOpts.MacroStore.List())
 	}
 
 	testPolicy2.Macros[0].Combine = ""
@@ -105,13 +107,15 @@ func TestMacroMerge(t *testing.T) {
 
 func TestRuleMerge(t *testing.T) {
 	var evalOpts eval.Opts
-	evalOpts.WithConstants(testConstants)
+	evalOpts.
+		WithConstants(testConstants).
+		WithMacroStore(&eval.MacroStore{})
 
 	var opts Opts
 	opts.
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts)
 
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
@@ -172,7 +176,7 @@ func (t *testVariableProvider) GetVariable(name string, value interface{}) (eval
 	switch value.(type) {
 	case []int:
 		intVar := eval.NewIntArrayVariable(func(ctx *eval.Context) []int {
-			processName := (*testEvent)(ctx.Object).process.name
+			processName := ctx.Event.(*testEvent).process.name
 			processVars, found := t.vars[processName]
 			if !found {
 				return nil
@@ -186,7 +190,7 @@ func (t *testVariableProvider) GetVariable(name string, value interface{}) (eval
 			i, _ := v.([]int)
 			return i
 		}, func(ctx *eval.Context, value interface{}) error {
-			processName := (*testEvent)(ctx.Object).process.name
+			processName := ctx.Event.(*testEvent).process.name
 			if _, found := t.vars[processName]; !found {
 				t.vars[processName] = map[string]interface{}{}
 			}
@@ -213,7 +217,8 @@ func TestActionSetVariable(t *testing.T) {
 	var evalOpts eval.Opts
 	evalOpts.
 		WithConstants(testConstants).
-		WithVariables(make(map[string]eval.VariableValue))
+		WithVariables(make(map[string]eval.VariableValue)).
+		WithMacroStore(&eval.MacroStore{})
 
 	var opts Opts
 	opts.
@@ -221,7 +226,7 @@ func TestActionSetVariable(t *testing.T) {
 		WithEventTypeEnabled(enabled).
 		WithStateScopes(stateScopes)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts)
 
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
@@ -364,14 +369,15 @@ func TestActionSetVariableConflict(t *testing.T) {
 	var evalOpts eval.Opts
 	evalOpts.
 		WithConstants(testConstants).
-		WithVariables(make(map[string]eval.VariableValue))
+		WithVariables(make(map[string]eval.VariableValue)).
+		WithMacroStore(&eval.MacroStore{})
 
 	var opts Opts
 	opts.
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts)
 
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
@@ -418,14 +424,15 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts
 	var evalOpts eval.Opts
 	evalOpts.
 		WithConstants(testConstants).
-		WithVariables(make(map[string]eval.VariableValue))
+		WithVariables(make(map[string]eval.VariableValue)).
+		WithMacroStore(&eval.MacroStore{})
 
 	var opts Opts
 	opts.
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts)
 
 	tmpDir := t.TempDir()
 
@@ -464,8 +471,8 @@ func TestRuleErrorLoading(t *testing.T) {
 	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
 	assert.Len(t, err.Errors, 2)
-	assert.ErrorContains(t, err.Errors[0], "rule `testA` definition error: multiple definition with the same ID")
-	assert.ErrorContains(t, err.Errors[1], "rule `testB` definition error: syntax error: 1:16: unexpected token")
+	assert.ErrorContains(t, err.Errors[0], "rule `testA` error: multiple definition with the same ID")
+	assert.ErrorContains(t, err.Errors[1], "rule `testB` error: syntax error `1:16: unexpected token \"-\" (expected \"~\")`")
 
 	assert.Contains(t, rs.rules, "testA")
 	assert.NotContains(t, rs.rules, "testB")
@@ -600,7 +607,13 @@ func TestRuleAgentConstraint(t *testing.T) {
 	}
 
 	rs, err := loadPolicy(t, testPolicy, policyOpts)
-	assert.Nil(t, err)
+	for _, err := range err.(*multierror.Error).Errors {
+		if rerr, ok := err.(*ErrRuleLoad); ok {
+			if rerr.Definition.ID != "basic" && rerr.Definition.ID != "range_not" {
+				t.Errorf("unexpected error: %v", rerr)
+			}
+		}
+	}
 
 	for _, exp := range expected {
 		t.Run(exp.ruleID, func(t *testing.T) {
@@ -608,14 +621,6 @@ func TestRuleAgentConstraint(t *testing.T) {
 				assert.Contains(t, rs.rules, exp.ruleID)
 			} else {
 				assert.NotContains(t, rs.rules, exp.ruleID)
-
-				var present bool
-				for _, skipped := range rs.policies[0].RuleSkipped {
-					if skipped.ID == exp.ruleID {
-						present = true
-					}
-				}
-				assert.True(t, present)
 			}
 		})
 	}

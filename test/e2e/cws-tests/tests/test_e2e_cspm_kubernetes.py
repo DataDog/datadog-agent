@@ -6,7 +6,7 @@ import warnings
 
 import emoji
 from lib.const import CSPM_START_LOG
-from lib.cspm.api import App, wait_for_compliance_event, wait_for_findings
+from lib.cspm.api import App
 from lib.kubernetes import KubernetesHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
@@ -75,32 +75,32 @@ class TestE2EKubernetes(unittest.TestCase):
         ],
         "cis-kubernetes-1.5.1-1.3.2": [
             {
-                "result": "error",
+                "result": "failed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.3": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.4": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.5": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.6": [
             {
-                "result": "error",
+                "result": "failed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.7": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.4.1": [
@@ -115,14 +115,6 @@ class TestE2EKubernetes(unittest.TestCase):
         ],
     }
     expectedFindingsWorkerNode = {
-        "cis-kubernetes-1.5.1-4.2.6": [
-            {
-                "agent_rule_id": "cis-kubernetes-1.5.1-4.2.6",
-                "agent_framework_id": "cis-kubernetes",
-                "result": "failed",
-                "resource_type": "kubernetes_worker_node",
-            }
-        ],
         "cis-kubernetes-1.5.1-4.1.1": [
             {
                 "result": "error",
@@ -158,16 +150,6 @@ class TestE2EKubernetes(unittest.TestCase):
                 "result": "failed",
             }
         ],
-        "cis-kubernetes-1.5.1-4.2.10": [
-            {
-                "result": "failed",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.2.12": [
-            {
-                "result": "failed",
-            }
-        ],
         "cis-kubernetes-1.5.1-4.2.3": [
             {
                 "result": "failed",
@@ -179,6 +161,21 @@ class TestE2EKubernetes(unittest.TestCase):
             }
         ],
         "cis-kubernetes-1.5.1-4.2.5": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.6": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.10": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.12": [
             {
                 "result": "failed",
             }
@@ -224,8 +221,9 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="wait for datadog.security_agent.compliance.running metric", emoji="\N{beer mug}"):
             self.app.wait_for_metric("datadog.security_agent.compliance.running", host=TestE2EKubernetes.hostname)
 
-        with Step(msg="check app compliance event", emoji=":SOON_arrow:"):
-            wait_for_compliance_event(f"resource_id:{self.resource_id}")
+        ## Disabled while no CSPM API is available
+        # with Step(msg="check app compliance event", emoji=":SOON_arrow:"):
+        #     wait_for_compliance_event(f"resource_id:{self.resource_id}")
 
         with Step(msg="wait for finding generation (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)
@@ -235,8 +233,9 @@ class TestE2EKubernetes(unittest.TestCase):
                 "datadog.security_agent.compliance.containers_running", host=TestE2EKubernetes.hostname
             )
 
-        with Step(msg="check app findings", emoji=":chart_increasing_with_yen:"):
-            wait_for_findings(f"@resource_type:kubernetes_*_node @resource:{self.resource_id}")
+        ## Disabled while no CSPM API is available
+        # with Step(msg="check app findings", emoji=":chart_increasing_with_yen:"):
+        #     wait_for_findings(f"@resource_type:kubernetes_*_node @resource:{self.resource_id}")
 
         print(emoji.emojize(":heart_on_fire:"), flush=True)
 

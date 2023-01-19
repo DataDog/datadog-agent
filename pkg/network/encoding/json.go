@@ -66,6 +66,10 @@ func handleZeroValues(conns *model.Connections) {
 		conns.ConnTelemetryMap = nil
 	}
 
+	if len(conns.CORETelemetryByAsset) == 0 {
+		conns.CORETelemetryByAsset = nil
+	}
+
 	for _, c := range conns.Conns {
 		if len(c.DnsCountByRcode) == 0 {
 			c.DnsCountByRcode = nil

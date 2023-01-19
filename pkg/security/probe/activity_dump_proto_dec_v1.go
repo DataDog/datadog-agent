@@ -12,7 +12,7 @@ import (
 	"time"
 
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -26,9 +26,10 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
 	dest.Source = ad.Source
 	dest.DumpMetadata = protoMetadataToDumpMetadata(ad.Metadata)
 
-	dest.Tags = ad.Tags
+	dest.Tags = make([]string, len(ad.Tags))
+	copy(dest.Tags, ad.Tags)
 	dest.ProcessActivityTree = make([]*ProcessActivityNode, 0, len(ad.Tree))
-	dest.StorageRequests = make(map[dump.StorageFormat][]dump.StorageRequest)
+	dest.StorageRequests = make(map[config.StorageFormat][]config.StorageRequest)
 
 	for _, tree := range ad.Tree {
 		dest.ProcessActivityTree = append(dest.ProcessActivityTree, protoDecodeProcessActivityNode(tree))
@@ -107,7 +108,7 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		return model.Process{}
 	}
 
-	return model.Process{
+	mp := model.Process{
 		PIDContext: model.PIDContext{
 			Pid: p.Pid,
 			Tid: p.Tid,
@@ -128,13 +129,17 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 
 		Credentials: protoDecodeCredentials(p.Credentials),
 
-		ScrubbedArgv:  p.Args,
+		Argv:          make([]string, len(p.Args)),
 		Argv0:         p.Argv0,
 		ArgsTruncated: p.ArgsTruncated,
 
-		Envs:          p.Envs,
+		Envs:          make([]string, len(p.Envs)),
 		EnvsTruncated: p.EnvsTruncated,
 	}
+
+	copy(mp.Argv, p.Args)
+	copy(mp.Envs, p.Envs)
+	return mp
 }
 
 func protoDecodeCredentials(creds *adproto.Credentials) model.Credentials {

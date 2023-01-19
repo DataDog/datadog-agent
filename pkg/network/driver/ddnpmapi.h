@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x13
+#define DD_NPMDRIVER_VERSION       0x14
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -103,6 +103,11 @@ typedef unsigned char       uint8_t;
                                               FILE_ANY_ACCESS)
 
 
+#define DDNPMDRIVER_IOCTL_SET_CLASSIFY  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x810, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
 #pragma pack(1)
 
 /*!
@@ -135,6 +140,12 @@ typedef struct _flow_handle_stats {
     volatile LONG64         num_flows_missed_max_no_handle_exceeded;
 
     volatile LONG64         num_packets_after_flow_closed;
+
+    // classification stats
+    volatile LONG64         classify_with_no_direction;
+    volatile LONG64         classify_multiple_request;
+    volatile LONG64         classify_multiple_response;
+    volatile LONG64         classify_response_no_request;
 
 } FLOW_STATS;
 
@@ -252,12 +263,55 @@ typedef struct _perFlowData {
 
     uint16_t        localPort;      // host byte order
     uint16_t        remotePort;     // host byte order
+
+    // classification status
+    uint16_t        classificationStatus;
+    uint16_t        classifyRequest;
+    uint16_t        classifyResponse;
+
+    uint8_t         httpUpgradeToH2Requested;
+    uint8_t         httpUpgradeToH2Accepted;
+    
+    uint16_t        tls_versions_offered;
+    uint16_t        tls_version_chosen;
+    uint64_t        tls_alpn_requested;
+    uint64_t        tls_alpn_chosen;
     // stats unique to a particular transport
     union {
         TCP_FLOW_DATA     tcp;
         UDP_FLOW_DATA     udp;
     } protocol_u;
 } PER_FLOW_DATA;
+
+#define CLASSIFICATION_UNCLASSIFIED                 (0)
+#define CLASSIFICATION_CLASSIFIED                   (CLASSIFICATION_UNCLASSIFIED + 1)
+#define CLASSIFICATION_UNABLE_INSUFFICIENT_DATA     (CLASSIFICATION_CLASSIFIED + 1)
+#define CLASSIFICATION_UNKNOWN                      (CLASSIFICATION_UNABLE_INSUFFICIENT_DATA + 1)
+
+#define CLASSIFICATION_REQUEST_UNCLASSIFIED         (0)
+#define CLASSIFICATION_REQUEST_HTTP_UNKNOWN         (CLASSIFICATION_REQUEST_UNCLASSIFIED + 1)
+#define CLASSIFICATION_REQUEST_HTTP_POST            (CLASSIFICATION_REQUEST_HTTP_UNKNOWN + 1)
+#define CLASSIFICATION_REQUEST_HTTP_PUT             (CLASSIFICATION_REQUEST_HTTP_POST + 1)
+#define CLASSIFICATION_REQUEST_HTTP_PATCH           (CLASSIFICATION_REQUEST_HTTP_PUT + 1)
+#define CLASSIFICATION_REQUEST_HTTP_GET             (CLASSIFICATION_REQUEST_HTTP_PATCH + 1)
+#define CLASSIFICATION_REQUEST_HTTP_HEAD            (CLASSIFICATION_REQUEST_HTTP_GET + 1)
+#define CLASSIFICATION_REQUEST_HTTP_OPTIONS         (CLASSIFICATION_REQUEST_HTTP_HEAD + 1)
+#define CLASSIFICATION_REQUEST_HTTP_DELETE          (CLASSIFICATION_REQUEST_HTTP_OPTIONS + 1)
+#define CLASSIFICATION_REQUEST_HTTP_LAST            (CLASSIFICATION_REQUEST_HTTP_DELETE)
+
+#define CLASSIFICATION_REQUEST_HTTP2                (CLASSIFICATION_REQUEST_HTTP_DELETE + 1)
+
+#define CLASSIFICATION_REQUEST_TLS                  (CLASSIFICATION_REQUEST_HTTP2 + 1)
+
+#define CLASSIFICATION_RESPONSE_UNCLASSIFIED         (0)
+#define CLASSIFICATION_RESPONSE_HTTP                (CLASSIFICATION_RESPONSE_UNCLASSIFIED + 1)
+#define CLASSIFICATION_RESPONSE_TLS                 (CLASSIFICATION_RESPONSE_HTTP + 1)
+
+#define ALPN_PROTOCOL_HTTP2                         0x1
+#define ALPN_PROTOCOL_HTTP11                        0x2
+
+#define TLS_VERSION_1_2                             0x01
+#define TLS_VERSION_1_3                             0x02
 
 #define FLOW_DIRECTION_UNKNOWN  0x00
 #define FLOW_DIRECTION_INBOUND  0x01
@@ -355,4 +409,8 @@ typedef struct _HttpConfigurationSettings {
     uint16_t    maxRequestFragment;     // max length of request fragment
     uint16_t    enableAutoETWExclusion; // turns on automatic ETW exclusion if enabled.
 } HTTP_CONFIGURATION_SETTINGS;
+
+typedef struct _ClassificationConfigurationSettings {
+    uint64_t    enabled;                // whether classification is enabled or not
+} CLASSIFICATION_CONFIGURATION_SETTINGS;
 #pragma pack()

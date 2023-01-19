@@ -6,8 +6,6 @@ struct bpf_map_def SEC("maps/mmap_flags_approvers") mmap_flags_approvers = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t *syscall) {
@@ -24,8 +22,6 @@ struct bpf_map_def SEC("maps/mmap_protection_approvers") mmap_protection_approve
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cache_t *syscall) {
@@ -151,11 +147,6 @@ SYSCALL_KRETPROBE(mmap) {
     return sys_mmap_ret(ctx, (int)PT_REGS_RC(ctx), (u64)PT_REGS_RC(ctx));
 }
 
-SEC("tracepoint/syscalls/sys_exit_mmap")
-int tracepoint_syscalls_sys_exit_mmap(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
-}
-
 SEC("kretprobe/fget")
 int kretprobe_fget(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
@@ -176,6 +167,11 @@ int kretprobe_fget(struct pt_regs *ctx) {
 
     resolve_dentry(ctx, DR_KPROBE);
     return 0;
+}
+
+SEC("tracepoint/handle_sys_mmap_exit")
+int tracepoint_handle_sys_mmap_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
 }
 
 #endif

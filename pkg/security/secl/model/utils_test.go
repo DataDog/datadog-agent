@@ -26,7 +26,7 @@ func BenchmarkNullTerminatedString(b *testing.B) {
 	array := []byte{65, 66, 67, 0, 0, 0, 65, 66}
 	var s string
 	for i := 0; i < b.N; i++ {
-		s = nullTerminatedString(array)
+		s = NullTerminatedString(array)
 	}
 	runtime.KeepAlive(s)
 }

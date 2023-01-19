@@ -30,6 +30,7 @@ const (
 	SetMaxClosedFlowsIOCTL    = C.DDNPMDRIVER_IOCTL_SET_MAX_CLOSED_FLOWS
 	FlushPendingHttpTxnsIOCTL = C.DDNPMDRIVER_IOCTL_FLUSH_PENDING_HTTP_TRANSACTIONS
 	EnableHttpIOCTL           = C.DDNPMDRIVER_IOCTL_ENABLE_HTTP
+	EnableClassifyIOCTL       = C.DDNPMDRIVER_IOCTL_SET_CLASSIFY
 )
 
 type FilterAddress C.struct__filterAddress
@@ -78,8 +79,39 @@ type HttpTransactionType C.struct__HttpTransactionType
 type HttpConfigurationSettings C.struct__HttpConfigurationSettings
 type ConnTupleType C.struct__ConnTupleType
 type HttpMethodType C.enum__HttpMethodType
+type ClassificationSettings C.struct__ClassificationConfigurationSettings
 
 const (
-	HttpTransactionTypeSize = C.sizeof_struct__HttpTransactionType
-	HttpSettingsTypeSize    = C.sizeof_struct__HttpConfigurationSettings
+	HttpTransactionTypeSize        = C.sizeof_struct__HttpTransactionType
+	HttpSettingsTypeSize           = C.sizeof_struct__HttpConfigurationSettings
+	ClassificationSettingsTypeSize = C.sizeof_struct__ClassificationConfigurationSettings
+)
+
+const (
+	ClassificationUnclassified           = C.CLASSIFICATION_UNCLASSIFIED
+	ClassificationClassified             = C.CLASSIFICATION_CLASSIFIED
+	ClassificationUnableInsufficientData = C.CLASSIFICATION_UNABLE_INSUFFICIENT_DATA
+	ClassificationUnknown                = C.CLASSIFICATION_UNKNOWN
+
+	ClassificationRequestUnclassified = C.CLASSIFICATION_REQUEST_UNCLASSIFIED
+	ClassificationRequestHTTPUnknown  = C.CLASSIFICATION_REQUEST_HTTP_UNKNOWN
+	ClassificationRequestHTTPPost     = C.CLASSIFICATION_REQUEST_HTTP_POST
+	ClassificationRequestHTTPPut      = C.CLASSIFICATION_REQUEST_HTTP_PUT
+	ClassificationRequestHTTPPatch    = C.CLASSIFICATION_REQUEST_HTTP_PATCH
+	ClassificationRequestHTTPGet      = C.CLASSIFICATION_REQUEST_HTTP_GET
+	ClassificationRequestHTTPHead     = C.CLASSIFICATION_REQUEST_HTTP_HEAD
+	ClassificationRequestHTTPOptions  = C.CLASSIFICATION_REQUEST_HTTP_OPTIONS
+	ClassificationRequestHTTPDelete   = C.CLASSIFICATION_REQUEST_HTTP_DELETE
+	ClassificationRequestHTTPLast     = C.CLASSIFICATION_REQUEST_HTTP_LAST
+
+	ClassificationRequestHTTP2 = C.CLASSIFICATION_REQUEST_HTTP2
+
+	ClassificationRequestTLS  = C.CLASSIFICATION_REQUEST_TLS
+	ClassificationResponseTLS = C.CLASSIFICATION_RESPONSE_TLS
+
+	ALPNProtocolHTTP2  = C.ALPN_PROTOCOL_HTTP2
+	ALPNProtocolHTTP11 = C.ALPN_PROTOCOL_HTTP11
+
+	ClassificationResponseUnclassified = C.CLASSIFICATION_RESPONSE_UNCLASSIFIED
+	ClassificationResponseHTTP         = C.CLASSIFICATION_RESPONSE_HTTP
 )

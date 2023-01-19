@@ -20,22 +20,14 @@ import (
 )
 
 // CronJobV1Beta1Handlers implements the Handlers interface for Kubernetes CronJobs.
-type CronJobV1Beta1Handlers struct{}
+type CronJobV1Beta1Handlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *CronJobV1Beta1Handlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.CronJob)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *CronJobV1Beta1Handlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *CronJobV1Beta1Handlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -54,7 +46,7 @@ func (h *CronJobV1Beta1Handlers) BuildMessageBody(ctx *processors.ProcessorConte
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		CronJobs:    models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 
@@ -78,7 +70,7 @@ func (h *CronJobV1Beta1Handlers) ResourceList(ctx *processors.ProcessorContext, 
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *CronJobV1Beta1Handlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *CronJobV1Beta1Handlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*batchv1beta1.CronJob).UID
 }
 

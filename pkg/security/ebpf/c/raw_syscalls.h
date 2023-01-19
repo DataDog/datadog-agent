@@ -32,8 +32,6 @@ struct bpf_map_def SEC("maps/syscall_monitor") syscall_monitor = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct syscall_monitor_entry_t),
     .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
 };
 
 #define EXIT_SYSCALL_KEY 1
@@ -49,8 +47,6 @@ struct bpf_map_def SEC("maps/syscall_table") syscall_table = {
     .key_size = sizeof(struct syscall_table_key_t),
     .value_size = sizeof(u8),
     .max_entries = 50,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) u8 is_syscall(struct syscall_table_key_t *key) {

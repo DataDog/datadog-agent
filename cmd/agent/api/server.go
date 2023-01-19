@@ -17,9 +17,10 @@ import (
 	stdLog "log"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"github.com/cihub/seelog"
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -29,42 +30,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 var listener net.Listener
 
-// grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
-// connections or otherHandler otherwise. Copied from cockroachdb.
-func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// This is a partial recreation of gRPC's internal checks https://github.com/grpc/grpc-go/pull/514/files#diff-95e9a25b738459a2d3030e1e6fa2a718R61
-		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
-			grpcServer.ServeHTTP(w, r)
-		} else {
-			otherHandler.ServeHTTP(w, r)
-		}
-	})
-}
-
-// timeoutHandler limits requests to the enclosed handler to the value
-// configured in `server_timeout`.
-func timeoutHandlerFunc(otherHandler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		deadline := time.Now().Add(time.Duration(config.Datadog.GetInt64("server_timeout")) * time.Second)
-
-		conn := agent.GetConnection(r)
-		_ = conn.SetWriteDeadline(deadline)
-
-		otherHandler.ServeHTTP(w, r)
-	})
-}
-
 // StartServer creates the router and starts the HTTP server
-func StartServer(configService *remoteconfig.Service) error {
+func StartServer(configService *remoteconfig.Service, flare flare.Component) error {
 	initializeTLS()
 
 	// get the transport we're going to use under HTTP
@@ -82,16 +61,20 @@ func StartServer(configService *remoteconfig.Service) error {
 	}
 
 	// gRPC server
-	mux := http.NewServeMux()
+	authInterceptor := grpcutil.AuthInterceptor(parseToken)
 	opts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, tlsAddr)),
-		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(grpcAuth)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcAuth)),
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 	}
 
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
-	pb.RegisterAgentSecureServer(s, &serverSecure{configService: configService})
+	pb.RegisterAgentSecureServer(s, &serverSecure{
+		configService:      configService,
+		taggerServer:       taggerserver.NewServer(tagger.GetDefaultTagger()),
+		workloadmetaServer: workloadmetaServer.NewServer(workloadmeta.GetGlobalStore()),
+	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
 		ServerName: tlsAddr,
@@ -122,31 +105,26 @@ func StartServer(configService *remoteconfig.Service) error {
 	agentMux.Use(validateToken)
 	checkMux.Use(validateToken)
 
-	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux)))
+	mux := http.NewServeMux()
+	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux, flare)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)
-
-	// apply server_timeout to all handlers in the mux (with a few exceptions
-	// such as streaming logs, which reset the deadlines back to zero)
-	handler := timeoutHandlerFunc(mux)
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := config.NewLogWriter(5, seelog.ErrorLvl)
 
-	srv := &http.Server{
-		Addr: tlsAddr,
-		// handle grpc calls directly, falling back to `handler` for non-grpc reqs
-		Handler: grpcHandlerFunc(s, handler),
-		TLSConfig: &tls.Config{
+	srv := grpcutil.NewMuxedGRPCServer(
+		tlsAddr,
+		&tls.Config{
 			Certificates: []tls.Certificate{*tlsKeyPair},
 			NextProtos:   []string{"h2"},
+			MinVersion:   tls.VersionTLS12,
 		},
-		ErrorLog: stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
-		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-			// Store the connection in the context so requests can reference it if needed
-			return context.WithValue(ctx, agent.ConnContextKey, c)
-		},
-	}
+		s,
+		grpcutil.TimeoutHandlerFunc(mux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
+	)
+
+	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 

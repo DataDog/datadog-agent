@@ -3,7 +3,7 @@
 
 package driver
 
-const Signature = 0xddfd00000013
+const Signature = 0xddfd00000014
 
 const (
 	GetStatsIOCTL             = 0x122004
@@ -14,6 +14,7 @@ const (
 	SetMaxClosedFlowsIOCTL    = 0x122028
 	FlushPendingHttpTxnsIOCTL = 0x122020
 	EnableHttpIOCTL           = 0x122030
+	EnableClassifyIOCTL       = 0x122040
 )
 
 type FilterAddress struct {
@@ -70,6 +71,10 @@ type FlowStats struct {
 	Peak_num_flows_no_handle                 int64
 	Num_flows_missed_max_no_handle_exceeded  int64
 	Num_packets_after_flow_closed            int64
+	Classify_with_no_direction               int64
+	Classify_multiple_request                int64
+	Classify_multiple_response               int64
+	Classify_response_no_request             int64
 }
 type TransportStats struct {
 	Packets_skipped int64
@@ -89,26 +94,35 @@ type Stats struct {
 	Http_stats      HttpStats
 }
 
-const StatsSize = 0xb8
+const StatsSize = 0xd8
 
 type PerFlowData struct {
-	FlowHandle         uint64
-	ProcessId          uint64
-	AddressFamily      uint16
-	Protocol           uint16
-	Flags              uint32
-	LocalAddress       [16]uint8
-	RemoteAddress      [16]uint8
-	PacketsOut         uint64
-	MonotonicSentBytes uint64
-	TransportBytesOut  uint64
-	PacketsIn          uint64
-	MonotonicRecvBytes uint64
-	TransportBytesIn   uint64
-	Timestamp          uint64
-	LocalPort          uint16
-	RemotePort         uint16
-	U                  [32]byte
+	FlowHandle               uint64
+	ProcessId                uint64
+	AddressFamily            uint16
+	Protocol                 uint16
+	Flags                    uint32
+	LocalAddress             [16]uint8
+	RemoteAddress            [16]uint8
+	PacketsOut               uint64
+	MonotonicSentBytes       uint64
+	TransportBytesOut        uint64
+	PacketsIn                uint64
+	MonotonicRecvBytes       uint64
+	TransportBytesIn         uint64
+	Timestamp                uint64
+	LocalPort                uint16
+	RemotePort               uint16
+	ClassificationStatus     uint16
+	ClassifyRequest          uint16
+	ClassifyResponse         uint16
+	HttpUpgradeToH2Requested uint8
+	HttpUpgradeToH2Accepted  uint8
+	Tls_versions_offered     uint16
+	Tls_version_chosen       uint16
+	Tls_alpn_requested       uint64
+	Tls_alpn_chosen          uint64
+	Protocol_u               [32]byte
 }
 type TCPFlowData struct {
 	IRTT            uint64
@@ -120,7 +134,7 @@ type UDPFlowData struct {
 	Reserved uint64
 }
 
-const PerFlowDataSize = 0x94
+const PerFlowDataSize = 0xb0
 
 const (
 	FlowDirectionMask     = 0x300
@@ -167,8 +181,41 @@ type ConnTupleType struct {
 	Pad     uint16
 }
 type HttpMethodType uint32
+type ClassificationSettings struct {
+	Enabled uint64
+}
 
 const (
-	HttpTransactionTypeSize = 0x50
-	HttpSettingsTypeSize    = 0x14
+	HttpTransactionTypeSize        = 0x50
+	HttpSettingsTypeSize           = 0x14
+	ClassificationSettingsTypeSize = 0x8
+)
+
+const (
+	ClassificationUnclassified           = 0x0
+	ClassificationClassified             = 0x1
+	ClassificationUnableInsufficientData = 0x2
+	ClassificationUnknown                = 0x3
+
+	ClassificationRequestUnclassified = 0x0
+	ClassificationRequestHTTPUnknown  = 0x1
+	ClassificationRequestHTTPPost     = 0x2
+	ClassificationRequestHTTPPut      = 0x3
+	ClassificationRequestHTTPPatch    = 0x4
+	ClassificationRequestHTTPGet      = 0x5
+	ClassificationRequestHTTPHead     = 0x6
+	ClassificationRequestHTTPOptions  = 0x7
+	ClassificationRequestHTTPDelete   = 0x8
+	ClassificationRequestHTTPLast     = 0x8
+
+	ClassificationRequestHTTP2 = 0x9
+
+	ClassificationRequestTLS  = 0xa
+	ClassificationResponseTLS = 0x2
+
+	ALPNProtocolHTTP2  = 0x1
+	ALPNProtocolHTTP11 = 0x2
+
+	ClassificationResponseUnclassified = 0x0
+	ClassificationResponseHTTP         = 0x1
 )

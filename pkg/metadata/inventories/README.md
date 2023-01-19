@@ -93,6 +93,8 @@ The payload is a JSON dict with the following fields
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-proble.yaml`).
   - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-proble.yaml`).
+  - `feature_networks_gotls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Network Performance Monitoring (see: `system_probe_config.enable_go_tls_support` config option in `system-proble.yaml`).
+  - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_java_tls_support` config option in `system-proble.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
@@ -120,9 +122,6 @@ The payload is a JSON dict with the following fields
   - `kernel_version` - **string**:  the kernel version (Unix only, empty string on Windows).
   - `os` - **string**: the OS name description (ex: "GNU/Linux", "Windows Server 2022 Datacenter", ...).
   - `os_version` - **string**: the OS version (ex: "debian bookworm/sid", ...).
-  - `python_version` - **string**: The Python version from the agent environment. `python -V` is used in `Gohai` for
-    this. Unless the Agent environment has been modified this is the Python version from the OS not from the Agent. This
-    is a relica from Agent V5 and is not useful for Agent V6 and V7 who ship their own Python.
   - `memory_total_kb` - **int**: the total memory size for the host in KiB.
   - `memory_swap_total_kb` - **int**: the `swap` memory size in KiB (Unix only).
   - `ip_address` - **string**: the IP address for the host.
@@ -130,6 +129,14 @@ The payload is a JSON dict with the following fields
   - `mac_address` - **string**: the MAC address for the host.
   - `agent_version` - **string**: the version of the Agent that sent this payload.
   - `cloud_provider` - **string**: the name of the cloud provider detected by the Agent.
+  - `hypervisor_guest_uuid` - **string**: the hypervisor guest UUID (Unix only, empty string on Windows or if we can't
+    read the data). On `ec2` instance this might start by "ec2". This was introduce in `7.41.0`/`6.41.0`.
+  - `dmi_product_uuid` - **string**: the DMI product UUID (Unix only, empty string on Windows or if we can't read the
+    data). On `ec2` instances this might start by "ec2". This was introduce in `7.41.0`/`6.41.0`.
+  - `dmi_board_asset_tag` - **string**: the DMI board tag (Unix only, empty string on Windows or if we can't read the
+    data). On `ec2` Nitro instance this contains the EC2 instance ID. This was introduce in `7.41.0`/`6.41.0`.
+  - `dmi_board_vendor` - **string**: the DMI board vendor (Unix only, empty string on Windows or if we can't read the
+    data). On `ec2` Nitro instance this might equal to "Amazon EC2". This was introduce in `7.41.0`/`6.41.0`.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -250,14 +257,17 @@ Here an example of an inventory payload:
         "kernel_version": "#1 SMP PREEMPT Debian 5.16.18-1 (2022-03-29)",
         "os": "GNU/Linux",
         "os_version": "debian bookworm/sid",
-        "python_version": "3.10.4",
         "memory_swap_total_kb": 10237948,
         "memory_total_kb": 12227556,
         "ip_address": "192.168.24.138",
         "ipv6_address": "fe80::1ff:fe23:4567:890a",
         "mac_address": "01:23:45:67:89:AB",
         "agent_version": "7.37.0-devel+git.198.68a5b69",
-        "cloud_provider": "AWS"
+        "cloud_provider": "AWS",
+        "hypervisor_guest_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
+        "dmi_product_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
+        "dmi_board_asset_tag": "i-abcedf",
+        "dmi_board_vendor": "Amazon EC2"
     },
     "hostname": "my-host",
     "timestamp": 1631281754507358895

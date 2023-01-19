@@ -129,6 +129,21 @@ func defaultLabelsMapper() map[string]string {
 	}
 }
 
+// defaultLabelsMapperByResourceKind returns a map that contains the default labels to tag names by resource kind mapping
+func defaultLabelsMapperByResourceKind() map[string]map[string]string {
+	return map[string]map[string]string{
+		"pod": {
+			"phase": "pod_phase",
+		},
+		"ingress": {
+			"host":         "kube_ingress_host",
+			"path":         "kube_ingress_path",
+			"service_name": "kube_service",
+			"service_port": "kube_service_port",
+		},
+	}
+}
+
 // defaultLabelJoins returns a map that contains the default label joins configuration
 func defaultLabelJoins() map[string]*JoinsConfig {
 	defaultStandardLabels := []string{

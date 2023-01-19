@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 
-ssm_command = "aws ssm get-parameter --name {} --with-decryption --region us-east-1"
+ssm_command = "aws.cmd ssm get-parameter --name {} --with-decryption --region us-east-1"
 ssm_param_password = "keygen.dd_win_agent_codesign.password"
 ssm_param_pfx_part1 = "keygen.dd_win_agent_codesign.pfx_b64_0"
 ssm_param_pfx_part2 = "keygen.dd_win_agent_codesign.pfx_b64_1"

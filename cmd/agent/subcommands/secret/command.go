@@ -12,56 +12,66 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
 	secretInfoCommand := &cobra.Command{
 		Use:   "secret",
 		Short: "Print information about decrypted secrets in configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
-			if err != nil {
-				fmt.Printf("unable to set up global agent configuration: %v\n", err)
-				return nil
-			}
-
-			err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			if err := util.SetAuthToken(); err != nil {
-				fmt.Println(err)
-				return nil
-			}
-
-			if err := showSecretInfo(); err != nil {
-				fmt.Println(err)
-				return nil
-			}
-			return nil
+			return fxutil.OneShot(secret,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+				core.Bundle,
+			)
 		},
 	}
 
 	return []*cobra.Command{secretInfoCommand}
 }
 
-func showSecretInfo() error {
+func secret(log log.Component, config config.Component, cliParams *cliParams) error {
+	if err := util.SetAuthToken(); err != nil {
+		fmt.Println(err)
+		return nil
+	}
+
+	if err := showSecretInfo(config); err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	return nil
+}
+
+func showSecretInfo(config config.Component) error {
 	c := util.GetClient(false)
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/secrets", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/secrets", ipcAddress, config.GetInt("cmd_port"))
 
 	r, err := util.DoGet(c, apiConfigURL, util.LeaveConnectionOpen)
 	if err != nil {

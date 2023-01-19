@@ -181,6 +181,10 @@ func (ac *AutoConfig) Stop() {
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
 func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+	if shouldPoll && pollInterval <= 0 {
+		log.Warnf("Polling interval <= 0 for AD provider: %s, deactivating polling", provider.String())
+		shouldPoll = false
+	}
 	cp := newConfigPoller(provider, shouldPoll, pollInterval)
 
 	ac.m.Lock()

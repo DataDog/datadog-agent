@@ -11,26 +11,7 @@ package integrations
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 )
-
-const (
-	pythonBin = "python"
-)
-
-func getRelPyPath() string {
-	return filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", pythonBin, pythonMajorVersion))
-}
-
-func getRelChecksPath() (string, error) {
-	err := detectPythonMinorVersion()
-	if err != nil {
-		return "", err
-	}
-
-	pythonDir := fmt.Sprintf("%s%s.%s", pythonBin, pythonMajorVersion, pythonMinorVersion)
-	return filepath.Join("embedded", "lib", pythonDir, "site-packages", "datadog_checks"), nil
-}
 
 func validateUser(allowRoot bool) error {
 	if os.Geteuid() == 0 && !allowRoot {

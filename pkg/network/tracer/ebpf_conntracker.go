@@ -93,7 +93,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		helperErr = bpfTelemetry.HelperErrMap
 	}
 
-	m, err := getManager(buf, cfg.ConntrackMaxStateSize, mapErr, helperErr)
+	m, err := getManager(cfg, buf, cfg.ConntrackMaxStateSize, mapErr, helperErr)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +378,7 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	return entries, nil
 }
 
-func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
+func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConntrackMap)},
@@ -413,6 +413,12 @@ func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErr
 	}
 
 	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(mgr)
+
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
+
 	opts := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -425,9 +431,10 @@ func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErr
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(maxStateSize), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
-		ConstantEditors: telemetryMapKeys,
+		ConstantEditors:           telemetryMapKeys,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}
 	if (mapErrTelemetryMap != nil) || (helperErrTelemetryMap != nil) {
 		opts.MapEditors = make(map[string]*ebpf.Map)

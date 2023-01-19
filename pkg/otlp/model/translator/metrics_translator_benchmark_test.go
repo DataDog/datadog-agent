@@ -51,9 +51,9 @@ func createBenchmarkGaugeMetrics(n int, additionalAttributes map[string]string) 
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.PutString(attr, val)
+		attrs.PutStr(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -83,9 +83,9 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 	rm := rms.AppendEmpty()
 
 	resourceAttrs := rm.Resource().Attributes()
-	resourceAttrs.PutString(attributes.AttributeDatadogHostname, testHostname)
+	resourceAttrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		resourceAttrs.PutString(attr, val)
+		resourceAttrs.PutStr(attr, val)
 	}
 
 	ilms := rm.ScopeMetrics()
@@ -96,7 +96,7 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 		met := metricsArray.AppendEmpty()
 		met.SetName("expHist.test")
 		met.SetEmptyExponentialHistogram()
-		met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+		met.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 		points := met.ExponentialHistogram().DataPoints()
 		point := points.AppendEmpty()
 
@@ -130,9 +130,9 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.PutString(attr, val)
+		attrs.PutStr(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -144,7 +144,7 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 		met := metricsArray.AppendEmpty()
 		met.SetName("double.delta.monotonic.sum")
 		met.SetEmptySum()
-		met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+		met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 		dpsDouble := met.Sum().DataPoints()
 		dpDouble := dpsDouble.AppendEmpty()
 		dpDouble.SetTimestamp(seconds(0))

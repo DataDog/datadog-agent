@@ -23,13 +23,13 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringRuleMaxSignalDuration,
     SecurityMonitoringRuleOptions,
     SecurityMonitoringRuleQueryAggregation,
-    SecurityMonitoringRuleQueryCreate,
     SecurityMonitoringRuleSeverity,
     SecurityMonitoringRuleTypeCreate,
     SecurityMonitoringSignalListRequest,
     SecurityMonitoringSignalListRequestFilter,
     SecurityMonitoringSignalListRequestPage,
     SecurityMonitoringSignalsSort,
+    SecurityMonitoringStandardRuleQuery,
 )
 from retry.api import retry_call
 
@@ -112,7 +112,11 @@ class App(common.App):
                 max_signal_duration=SecurityMonitoringRuleMaxSignalDuration(0),
             ),
             queries=[
-                SecurityMonitoringRuleQueryCreate(
+                # TODO(paulcacheux): maybe change back to SecurityMonitoringRuleQuery
+                # once the api client is fixed.
+                # 2.4.0 and 2.5.0 are broken because they send `is_enabled` instead
+                # of `isEnabled`, resulting in the signal rule being disabled.
+                SecurityMonitoringStandardRuleQuery(
                     aggregation=SecurityMonitoringRuleQueryAggregation("count"),
                     query="@agent.rule_id:" + agent_rule_id,
                     name="a",

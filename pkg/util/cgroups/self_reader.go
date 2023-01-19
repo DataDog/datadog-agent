@@ -16,7 +16,10 @@ import (
 )
 
 // SelfCgroupIdentifier is the identifier to be used to get self cgroup
-const SelfCgroupIdentifier = "self"
+const (
+	selfSysPath          = "/sys"
+	SelfCgroupIdentifier = "self"
+)
 
 type selfReaderFilter struct {
 	readerFilter ReaderFilter
@@ -35,7 +38,7 @@ func (f *selfReaderFilter) init(inContainer bool, baseController string) error {
 
 	// If we don't run in a container, we expect to be in host cgroup namespace, otherwise this will not work
 	// as the path retrieved from `/proc/self/cgroup` may not be the expected one
-	relativePath, err := IdentiferFromCgroupReferences(f.procPath, "self", baseController, func(path, name string) (string, error) {
+	relativePath, err := IdentiferFromCgroupReferences(f.procPath, SelfCgroupIdentifier, baseController, func(path, name string) (string, error) {
 		return path, nil
 	})
 	if err != nil {
@@ -63,7 +66,10 @@ func NewSelfReader(selfProcPath string, inContainer bool, opts ...ReaderOption) 
 		procPath: selfProcPath,
 	}
 
-	opts = append(opts, WithReaderFilter(selfFilter.filter))
+	// The self requires to always read `/proc` and `/sys`, even if `/host/sys` is present, for instance.
+	// We use HostPrefix = `/sys` to filter out any other mount path.
+	// If we're on host with cgroup not mounted at `/sys`, it will not work.
+	opts = append(opts, WithReaderFilter(selfFilter.filter), WithProcPath(selfProcPath), WithHostPrefix(selfSysPath))
 	selfReader, err := NewReader(opts...)
 	if err != nil {
 		return nil, err

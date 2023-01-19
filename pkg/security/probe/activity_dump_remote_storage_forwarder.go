@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -30,12 +30,12 @@ func NewActivityDumpRemoteStorageForwarder(p *Probe) (ActivityDumpStorage, error
 }
 
 // GetStorageType returns the storage type of the ActivityDumpRemoteStorage
-func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() dump.StorageType {
-	return dump.RemoteStorage
+func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() config.StorageType {
+	return config.RemoteStorage
 }
 
 // Persist saves the provided buffer to the persistent storage
-func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
 	// set activity dump size for current encoding
 	ad.DumpMetadata.Size = uint64(raw.Len())
 

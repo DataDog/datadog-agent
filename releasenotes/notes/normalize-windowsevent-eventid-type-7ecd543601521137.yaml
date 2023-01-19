@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Normalize the EventID field in the output from the windowsevent log tailer.
+    The type will now always be a string containing the event ID, the sometimes
+    present qualifier value is retained in a new EventIDQualifier field.

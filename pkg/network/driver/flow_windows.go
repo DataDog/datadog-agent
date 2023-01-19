@@ -13,7 +13,7 @@ import (
 // TCPFlow returns the TCP-specific flow data
 func (f PerFlowData) TCPFlow() *TCPFlowData {
 	if f.Protocol == syscall.IPPROTO_TCP {
-		return (*TCPFlowData)(unsafe.Pointer(&f.U[0]))
+		return (*TCPFlowData)(unsafe.Pointer(&f.Protocol_u[0]))
 	}
 	return nil
 }
@@ -21,7 +21,7 @@ func (f PerFlowData) TCPFlow() *TCPFlowData {
 // UDPFlow returns the UDP-specific flow data
 func (f PerFlowData) UDPFlow() *UDPFlowData {
 	if f.Protocol == syscall.IPPROTO_UDP {
-		return (*UDPFlowData)(unsafe.Pointer(&f.U[0]))
+		return (*UDPFlowData)(unsafe.Pointer(&f.Protocol_u[0]))
 	}
 	return nil
 }

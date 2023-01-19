@@ -10,18 +10,20 @@ package probe
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -33,12 +35,11 @@ while True:
 `
 
 const oomKilledBashScript = `
-sysctl -w vm.overcommit_memory=1 # always overcommit
-exec python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
+exec systemd-run --scope -p MemoryLimit=1M python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
 `
 
 func writeTempFile(pattern string, content string) (*os.File, error) {
-	f, err := ioutil.TempFile("", pattern)
+	f, err := os.CreateTemp("", pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +61,7 @@ func TestOOMKillCompile(t *testing.T) {
 		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
 	}
 
-	cfg := ebpf.NewConfig()
+	cfg := testConfig()
 	cfg.BPFDebug = true
 	_, err = runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
 	require.NoError(t, err)
@@ -75,7 +76,13 @@ func TestOOMKillProbe(t *testing.T) {
 		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
 	}
 
-	cfg := ebpf.NewConfig()
+	cfg := testConfig()
+
+	fullKV := host.GetStatusInformation().KernelVersion
+	if cfg.EnableCORE && isMissingBTF(fullKV) {
+		t.Skipf("Skipping CO-RE tests for kernel version %v due to missing BTFs", fullKV)
+	}
+
 	oomKillProbe, err := NewOOMKillProbe(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -119,6 +126,13 @@ func TestOOMKillProbe(t *testing.T) {
 	for _, result := range results {
 		if result.TPid == uint32(cmd.Process.Pid) {
 			found = true
+
+			assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
+			assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
+			assert.Equal(t, "python3", result.FComm, "fcomm")
+			assert.Equal(t, "python3", result.TComm, "tcomm")
+			assert.NotZero(t, result.Pages, "pages")
+			assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
 			break
 		}
 	}
@@ -126,4 +140,9 @@ func TestOOMKillProbe(t *testing.T) {
 	if !found {
 		t.Errorf("failed to find an OOM killed process with pid %d in %+v", cmd.Process.Pid, results)
 	}
+}
+
+func testConfig() *ebpf.Config {
+	cfg := ebpf.NewConfig()
+	return cfg
 }

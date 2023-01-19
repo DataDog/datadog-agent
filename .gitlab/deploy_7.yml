@@ -5,7 +5,6 @@
 include:
   - /.gitlab/deploy_7/cluster_agent_cloudfoundry.yml
   - /.gitlab/deploy_7/container.yml
-  - /.gitlab/deploy_7/install_script.yml
   - /.gitlab/deploy_7/nix.yml
   - /.gitlab/deploy_7/windows.yml
   - /.gitlab/deploy_7/winget.yml

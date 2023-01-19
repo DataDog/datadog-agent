@@ -84,7 +84,7 @@ build do
 
         if linux?
             # Fix pip after building on extended toolchain in CentOS builder
-            if redhat?
+            if redhat? && ohai["platform_version"].to_i == 6
               unless arm?
                 rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
                 # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
@@ -196,6 +196,8 @@ build do
             strip_exclude("*http*")
             strip_exclude("*runtime-security*")
             strip_exclude("*dns*")
+            strip_exclude("*oom-kill*")
+            strip_exclude("*tcp-queue-length*")
         end
 
         if osx?

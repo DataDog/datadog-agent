@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -172,7 +171,7 @@ func (or *MultiFilesOIDResolver) updateFromFile(filePath string) error {
 }
 
 func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMethod unmarshaller) error {
-	fileContent, err := ioutil.ReadAll(reader)
+	fileContent, err := io.ReadAll(reader)
 	if err != nil {
 		return err
 	}

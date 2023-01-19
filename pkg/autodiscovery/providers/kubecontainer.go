@@ -105,7 +105,7 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 
 			if err != nil {
 				k.configErrors[entityName] = err
-			} else if _, ok := k.configErrors[entityName]; ok {
+			} else {
 				delete(k.configErrors, entityName)
 			}
 
@@ -143,7 +143,7 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 			}
 
 			for _, oldConfig := range oldConfigs {
-				changes.Unschedule = append(changes.Unschedule, oldConfig)
+				changes.UnscheduleConfig(oldConfig)
 			}
 
 			delete(k.configCache, entityName)
@@ -288,11 +288,16 @@ func (k *KubeContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 	return errors
 }
 
+// buildEntityName is also used as display key in `agent status` "Configuration Errors" display.
+// (for instance, incorrect annotation syntax or unknown container name).
+// That's why it does not simply use Kind + ID.
+// It needs to be unique over time.
+// (for instance, namespace+name is not unique for a POD as it can be deleted/created with a different UID, see STS rollout)
 func buildEntityName(e workloadmeta.Entity) string {
 	entityID := e.GetID()
 	switch entity := e.(type) {
 	case *workloadmeta.KubernetesPod:
-		return fmt.Sprintf("%s/%s", entity.Namespace, entity.Name)
+		return fmt.Sprintf("%s/%s (%s)", entity.Namespace, entity.Name, entity.ID)
 	case *workloadmeta.Container:
 		return containers.BuildEntityName(string(entity.Runtime), entityID.ID)
 	default:

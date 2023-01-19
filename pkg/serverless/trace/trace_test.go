@@ -10,19 +10,20 @@ package trace
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestStartEnabledFalse(t *testing.T) {
+	lambdaSpanChan := make(chan *pb.Span)
 	var agent = &ServerlessTraceAgent{}
-	agent.Start(false, nil)
+	agent.Start(false, nil, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
@@ -39,7 +40,8 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	agent.Start(true, &LoadConfigMocked{})
+	lambdaSpanChan := make(chan *pb.Span)
+	agent.Start(true, &LoadConfigMocked{}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
@@ -48,10 +50,10 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 
 func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
+	lambdaSpanChan := make(chan *pb.Span)
 
-	os.Setenv("DD_API_KEY", "x")
-	defer os.Unsetenv("DD_API_KEY")
-	agent.Start(true, &LoadConfig{Path: "invalid.yml"})
+	t.Setenv("DD_API_KEY", "x")
+	agent.Start(true, &LoadConfig{Path: "invalid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
@@ -60,8 +62,9 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
+	lambdaSpanChan := make(chan *pb.Span)
 
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
@@ -70,8 +73,10 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
 	startTime := time.Now()
+	lambdaSpanChan := make(chan *pb.Span)
+
 	agent := &ServerlessTraceAgent{}
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.True(t, time.Since(startTime) < time.Second)
 }

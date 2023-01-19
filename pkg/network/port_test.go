@@ -9,20 +9,22 @@
 package network
 
 import (
-	"log"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var testRootNs uint32
@@ -30,14 +32,22 @@ var testRootNs uint32
 func TestMain(m *testing.M) {
 	rootNs, err := util.GetRootNetNamespace("/proc")
 	if err != nil {
-		log.Fatal(err)
+		log.Critical(err)
+		os.Exit(1)
 	}
 	testRootNs, err = util.GetInoForNs(rootNs)
 	if err != nil {
-		log.Fatal(err)
+		log.Critical(err)
+		os.Exit(1)
 	}
 
-	m.Run()
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+
+	os.Exit(m.Run())
 }
 
 func TestReadInitialTCPState(t *testing.T) {

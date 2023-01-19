@@ -23,7 +23,6 @@ var tcProbes = []*manager.Probe{
 		},
 		NetworkDirection: manager.Ingress,
 		TCFilterProtocol: unix.ETH_P_ALL,
-		TCFilterPrio:     1,
 		KeepProgramSpec:  true,
 	},
 	{
@@ -34,7 +33,6 @@ var tcProbes = []*manager.Probe{
 		},
 		NetworkDirection: manager.Egress,
 		TCFilterProtocol: unix.ETH_P_ALL,
-		TCFilterPrio:     1,
 		KeepProgramSpec:  true,
 	},
 }

@@ -12,61 +12,67 @@ import (
 	"fmt"
 	"io"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
 )
 
-var (
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+
 	filters diagnostic.Filters
-)
+}
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
-	troubleshootLogsCmd := &cobra.Command{
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
+	cmd := &cobra.Command{
 		Use:   "stream-logs",
 		Short: "Stream the logs being processed by a running agent",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
-			if err != nil {
-				return fmt.Errorf("unable to set up global agent configuration: %v", err)
-			}
-
-			err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			return connectAndStream()
+			return fxutil.OneShot(streamLogs,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+				core.Bundle,
+			)
 		},
 	}
-	troubleshootLogsCmd.Flags().StringVar(&filters.Name, "name", "", "Filter by name")
-	troubleshootLogsCmd.Flags().StringVar(&filters.Type, "type", "", "Filter by type")
-	troubleshootLogsCmd.Flags().StringVar(&filters.Source, "source", "", "Filter by source")
-	troubleshootLogsCmd.Flags().StringVar(&filters.Service, "service", "", "Filter by service")
+	cmd.Flags().StringVar(&cliParams.filters.Name, "name", "", "Filter by name")
+	cmd.Flags().StringVar(&cliParams.filters.Type, "type", "", "Filter by type")
+	cmd.Flags().StringVar(&cliParams.filters.Source, "source", "", "Filter by source")
+	cmd.Flags().StringVar(&cliParams.filters.Service, "service", "", "Filter by service")
 
-	return []*cobra.Command{troubleshootLogsCmd}
+	return []*cobra.Command{cmd}
 }
 
-func connectAndStream() error {
-	ipcAddress, err := config.GetIPCAddress()
+func streamLogs(log log.Component, config config.Component, cliParams *cliParams) error {
+	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
 	}
 
-	body, err := json.Marshal(&filters)
+	body, err := json.Marshal(&cliParams.filters)
 
 	if err != nil {
 		return err
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.GetInt("cmd_port"))
 	return streamRequest(urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
 	})

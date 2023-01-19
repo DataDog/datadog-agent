@@ -13,13 +13,14 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -27,7 +28,7 @@ import (
 func TestRulesetLoaded(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
-		Expression: `open.file.path =~ "*a/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
 	}
 
 	probeMonitorOpts := testOpts{}
@@ -37,25 +38,33 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.probe.SendStats()
+	test.module.SendStats()
 
 	key := metrics.MetricRuleSetLoaded
-	assert.NotEmpty(t, test.statsdClient.Counts[key])
-	assert.NotZero(t, test.statsdClient.Counts[key])
+	assert.NotEmpty(t, test.statsdClient.Get(key))
+	assert.NotZero(t, test.statsdClient.Get(key))
 
 	test.statsdClient.Flush()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		count := test.statsdClient.Counts[key]
+		count := test.statsdClient.Get(key)
 		assert.Zero(t, count)
 
-		if err := test.reloadConfiguration(); err != nil {
-			t.Errorf("failed to reload configuration: %v", err)
+		err = test.GetCustomEventSent(t, func() error {
+			// force a reload
+			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+			assert.Equal(t, events.RulesetLoadedRuleID, rule.ID, "wrong rule")
+
+			test.module.SendStats()
+
+			assert.Equal(t, count+1, test.statsdClient.Get(key))
+
+			return validateRuleSetLoadedSchema(t, customEvent)
+		}, 20*time.Second, model.CustomRulesetLoadedEventType)
+		if err != nil {
+			t.Fatal(err)
 		}
-
-		test.probe.SendStats()
-
-		assert.Equal(t, count+1, test.statsdClient.Counts[key])
 	})
 }
 
@@ -91,16 +100,16 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		// let's help it by cleaning up most of the directories
 		defer cleanupABottomUp(truncatedParentsFile)
 
-		err = test.GetProbeCustomEvent(t, func() error {
+		err = test.GetCustomEventSent(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
 				return err
 			}
 			return f.Close()
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.AbnormalPathRuleID, rule.ID, "wrong rule")
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+			assert.Equal(t, events.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
-		}, model.CustomTruncatedParentsEventType)
+		}, getEventTimeout, model.CustomTruncatedParentsEventType)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,7 +120,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 				return err
 			}
 			return f.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			// check the length of the filepath that triggered the custom event
 			filepath, err := event.GetFieldValue("open.file.path")
 			if err == nil {
@@ -137,11 +146,11 @@ func cleanupABottomUp(path string) {
 }
 
 func TestTruncatedParentsMap(t *testing.T) {
-	truncatedParents(t, testOpts{disableERPCDentryResolution: true})
+	truncatedParents(t, testOpts{disableERPCDentryResolution: true, disableAbnormalPathCheck: true})
 }
 
 func TestTruncatedParentsERPC(t *testing.T) {
-	truncatedParents(t, testOpts{disableMapDentryResolution: true})
+	truncatedParents(t, testOpts{disableMapDentryResolution: true, disableAbnormalPathCheck: true})
 }
 
 func TestNoisyProcess(t *testing.T) {
@@ -163,7 +172,7 @@ func TestNoisyProcess(t *testing.T) {
 	}
 
 	t.Run("noisy_process", func(t *testing.T) {
-		err = test.GetProbeCustomEvent(t, func() error {
+		err = test.GetCustomEventSent(t, func() error {
 			// generate load
 			for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
 				f, err := os.OpenFile(file, os.O_CREATE, 0755)
@@ -178,10 +187,10 @@ func TestNoisyProcess(t *testing.T) {
 				}
 			}
 			return nil
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.NoisyProcessRuleID, rule.ID, "wrong rule")
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+			assert.Equal(t, events.NoisyProcessRuleID, rule.ID, "wrong rule")
 			return true
-		}, model.CustomNoisyProcessEventType)
+		}, getEventTimeout, model.CustomNoisyProcessEventType)
 		if err != nil {
 			t.Fatal(err)
 		}

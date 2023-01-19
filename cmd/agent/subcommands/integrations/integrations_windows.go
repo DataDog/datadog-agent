@@ -19,12 +19,12 @@ const (
 	pythonBin = "python.exe"
 )
 
-func getRelPyPath() string {
+func getRelPyPath(pythonMajorVersion string) string {
 	return filepath.Join(fmt.Sprintf("embedded%s", pythonMajorVersion), pythonBin)
 }
 
-func getRelChecksPath() (string, error) {
-	return filepath.Join(fmt.Sprintf("embedded%s", pythonMajorVersion), "Lib", "site-packages", "datadog_checks"), nil
+func getRelChecksPath(cliParams *cliParams) (string, error) {
+	return filepath.Join(fmt.Sprintf("embedded%s", cliParams.pythonMajorVersion), "Lib", "site-packages", "datadog_checks"), nil
 }
 
 func validateUser(allowRoot bool) error {

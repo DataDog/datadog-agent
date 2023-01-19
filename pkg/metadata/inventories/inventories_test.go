@@ -199,8 +199,7 @@ func TestGetPayload(t *testing.T) {
 	startNow = startNow.Add(1000 * time.Second)
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 456)
 
-	resetFunc := setupHostMetadataMock()
-	defer resetFunc()
+	setupHostMetadataMock(t)
 
 	p = GetPayload(ctx, "testHostname", coll, true)
 
@@ -288,7 +287,6 @@ func TestGetPayload(t *testing.T) {
 			"kernel_release": "5.17.0-1-amd64",
 			"kernel_version": "Debian_5.17.3-1",
 			"os": "GNU/Linux",
-			"python_version": "3.10.4",
 			"cpu_architecture": "unknown",
 			"memory_total_kb": 1205632,
 			"memory_swap_total_kb": 1205632,
@@ -297,7 +295,11 @@ func TestGetPayload(t *testing.T) {
 			"mac_address": "00:0c:29:b6:d2:32",
 			"agent_version": "%v",
 			"cloud_provider": "some_cloud_provider",
-			"os_version": "testOS"
+			"os_version": "testOS",
+			"hypervisor_guest_uuid": "hypervisorUUID",
+			"dmi_product_uuid": "dmiUUID",
+			"dmi_board_asset_tag": "boardTag",
+			"dmi_board_vendor": "boardVendor"
 		}
 	}`
 	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), version.AgentVersion)

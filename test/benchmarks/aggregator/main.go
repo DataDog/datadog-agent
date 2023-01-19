@@ -10,7 +10,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -114,7 +114,7 @@ func getExpvarJSON() (*aggregatorStats, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 
 	res := stats{}
 	err = json.Unmarshal(body, &res)
@@ -205,7 +205,7 @@ func main() {
 	f := &forwarderBenchStub{}
 	s := serializer.NewSerializer(f, nil)
 
-	agg = aggregator.InitAggregatorWithFlushInterval(s, nil, "hostname", time.Duration(*flushIval)*time.Second)
+	agg = aggregator.NewBufferedAggregator(s, nil, "hostname", time.Duration(*flushIval)*time.Second)
 
 	aggregator.SetDefaultAggregator(agg)
 	sender, err := aggregator.GetSender(check.ID("benchmark check"))

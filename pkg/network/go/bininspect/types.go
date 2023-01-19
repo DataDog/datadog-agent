@@ -16,6 +16,37 @@ import (
 	"github.com/go-delve/delve/pkg/goversion"
 )
 
+const (
+	WriteGoTLSFunc = "crypto/tls.(*Conn).Write"
+	ReadGoTLSFunc  = "crypto/tls.(*Conn).Read"
+	CloseGoTLSFunc = "crypto/tls.(*Conn).Close"
+)
+
+var StructOffsetTLSConn = FieldIdentifier{
+	StructName: "crypto/tls.Conn",
+	FieldName:  "conn",
+}
+
+var StructOffsetTCPConn = FieldIdentifier{
+	StructName: "net.TCPConn",
+	FieldName:  "conn",
+}
+
+var StructOffsetNetConnFd = FieldIdentifier{
+	StructName: "net.conn",
+	FieldName:  "fd",
+}
+
+var StructOffsetNetFdPfd = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "pfd",
+}
+
+var StructOffsetPollFdSysfd = FieldIdentifier{
+	StructName: "internal/poll.FD",
+	FieldName:  "Sysfd",
+}
+
 type elfMetadata struct {
 	file *elf.File
 	arch GoArch
@@ -23,13 +54,12 @@ type elfMetadata struct {
 
 // Result is the result of the binary inspection process.
 type Result struct {
-	Arch                 GoArch
-	ABI                  GoABI
-	GoVersion            goversion.GoVersion
-	IncludesDebugSymbols bool
-	Functions            map[string]FunctionMetadata
-	StructOffsets        map[FieldIdentifier]uint64
-	GoroutineIDMetadata  GoroutineIDMetadata
+	Arch                GoArch
+	ABI                 GoABI
+	GoVersion           goversion.GoVersion
+	Functions           map[string]FunctionMetadata
+	StructOffsets       map[FieldIdentifier]uint64
+	GoroutineIDMetadata GoroutineIDMetadata
 }
 
 // GoArch only includes supported architectures,
@@ -64,16 +94,6 @@ const (
 	// GoABIRegister is the same as abi internal (as of 2021-11-12)
 	GoABIRegister GoABI = "register"
 )
-
-// FunctionConfig controls the extraction of information about a single function
-// that can be used to attach an eBPF uprobe to.
-type FunctionConfig struct {
-	// The full name of the function to gather metadata for.
-	// ex: crypto/tls.(*Conn).Write
-	Name string
-	// Whether to gather the locations of the return instructions in the function.
-	IncludeReturnLocations bool
-}
 
 // FunctionMetadata contains the results of the inspection process that
 // that can be used to attach an eBPF uprobe to a single function.
@@ -152,9 +172,10 @@ type FunctionMetadata struct {
 // has been successful in getting the expected values from eBPF.
 //
 // TODO: look into cases where a middle piece of a parameter has been eliminated
-//       (such as the length of a slice),
-//       and make sure result is expected/handled well.
-//       Then, document such cases.
+//
+//	(such as the length of a slice),
+//	and make sure result is expected/handled well.
+//	Then, document such cases.
 type ParameterMetadata struct {
 	// Total size in bytes.
 	TotalSize int64
@@ -218,8 +239,8 @@ type StructLookupFunction func(goversion.GoVersion, string) (uint64, error)
 
 // FunctionConfiguration contains info for the function analyzing process when scanning a binary.
 type FunctionConfiguration struct {
-	includeReturnLocations bool
-	paramLookupFunction    ParameterLookupFunction
+	IncludeReturnLocations bool
+	ParamLookupFunction    ParameterLookupFunction
 }
 
 // ErrNilElf is returned when getting a nil pointer to an elf file.

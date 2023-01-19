@@ -10,6 +10,7 @@ import (
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/check"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config"
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/configcheck"
+	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
 	cmddiagnose "github.com/DataDog/datadog-agent/cmd/agent/subcommands/diagnose"
 	cmddogstatsdcapture "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture"
 	cmddogstatsdreplay "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdreplay"
@@ -18,15 +19,18 @@ import (
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/agent/subcommands/health"
 	cmdhostname "github.com/DataDog/datadog-agent/cmd/agent/subcommands/hostname"
 	cmdimport "github.com/DataDog/datadog-agent/cmd/agent/subcommands/import"
+	cmdintegrations "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations"
+	cmdjmx "github.com/DataDog/datadog-agent/cmd/agent/subcommands/jmx"
 	cmdlaunchgui "github.com/DataDog/datadog-agent/cmd/agent/subcommands/launchgui"
 	cmdremoteconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remoteconfig"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	cmdsecret "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secret"
+	cmdsecrethelper "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secrethelper"
 	cmdsnmp "github.com/DataDog/datadog-agent/cmd/agent/subcommands/snmp"
 	cmdstatus "github.com/DataDog/datadog-agent/cmd/agent/subcommands/status"
+	cmdstop "github.com/DataDog/datadog-agent/cmd/agent/subcommands/stop"
 	cmdstreamlogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/taggerlist"
-	cmdtroubleshooting "github.com/DataDog/datadog-agent/cmd/agent/subcommands/troubleshooting"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/agent/subcommands/version"
 	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadlist"
 )
@@ -34,8 +38,7 @@ import (
 // AgentSubcommands returns SubcommandFactories for the subcommands supported
 // with the current build flags.
 func AgentSubcommands() []command.SubcommandFactory {
-	factories := []command.SubcommandFactory{
-		// universal subcommands, present for all build flag combinations
+	return []command.SubcommandFactory{
 		cmdcheck.Commands,
 		cmdconfigcheck.Commands,
 		cmdconfig.Commands,
@@ -55,14 +58,12 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdstatus.Commands,
 		cmdstreamlogs.Commands,
 		cmdtaggerlist.Commands,
-		cmdtroubleshooting.Commands,
 		cmdversion.Commands,
 		cmdworkloadlist.Commands,
+		cmdjmx.Commands,
+		cmdsecrethelper.Commands,
+		cmdintegrations.Commands,
+		cmdstop.Commands,
+		cmdcontrolsvc.Commands,
 	}
-	factories = append(factories, secretsSubcommands()...)
-	factories = append(factories, pythonSubcommands()...)
-	factories = append(factories, jmxSubcommands()...)
-	factories = append(factories, windowsSubcommands()...)
-
-	return factories
 }

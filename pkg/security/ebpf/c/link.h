@@ -164,18 +164,8 @@ int __attribute__((always_inline)) kprobe_sys_link_ret(struct pt_regs *ctx) {
     return sys_link_ret(ctx, retval, DR_KPROBE);
 }
 
-SEC("tracepoint/syscalls/sys_exit_link")
-int tracepoint_syscalls_sys_exit_link(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
-}
-
 SYSCALL_KRETPROBE(link) {
     return kprobe_sys_link_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_linkat")
-int tracepoint_syscalls_sys_exit_linkat(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_KRETPROBE(linkat) {

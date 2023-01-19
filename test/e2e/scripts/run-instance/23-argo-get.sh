@@ -18,41 +18,24 @@ if [[ "$(./argo list -o name)" == "No workflows found" ]]; then
     exit 1
 fi
 
-set +x
-
 if ! locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
     no_utf8_opt='--no-utf8'
 fi
 
 for workflow in $(./argo list --status Succeeded -o name | grep -v 'No workflows found'); do
-    ./argo get ${no_utf8_opt:-} "$workflow"
+    # CWS and CSPM always get logs
+    if [ "$ARGO_WORKFLOW" = "cws" ] || [ "$ARGO_WORKFLOW" = "cspm" ]; then
+        ./argo logs "$workflow"
+    fi
+
+     ./argo get ${no_utf8_opt:-} "$workflow"
 done
 
 EXIT_CODE=0
 for workflow in $(./argo list --status Failed -o name | grep -v 'No workflows found'); do
-    ./argo get "$workflow" -o json | jq -r '.status.nodes | to_entries | map(.value) | sort_by(.phase) | .[] | select(.phase == "Failed" or (.name | contains("onExit[0].diagnose[0]."))) | .displayName + " " + .id' | while read -r displayName podName; do
-        printf '\033[1m===> Logs of %s\t%s <===\033[0m\n' "$displayName" "$podName"
-        ./argo logs "$workflow" "$podName"
-    done
+    ./argo logs "$workflow"
     ./argo get ${no_utf8_opt:-} "$workflow"
     EXIT_CODE=2
-done
-
-# CWS & CSPM e2e output
-for workflow in $(./argo list -o name); do
-    if [ "$ARGO_WORKFLOW" = "cws" ]; then
-        pod=$(./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.displayName=="test-cws-e2e").id')
-        if [ -n "$pod" ]; then
-            kubectl logs "$pod" -c main
-        fi
-    fi
-
-    if [ "$ARGO_WORKFLOW" = "cspm" ]; then
-        pod=$(./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.displayName=="test-cspm-e2e").id')
-        if [ -n "$pod" ]; then
-            kubectl logs "$pod" -c main
-        fi
-    fi
 done
 
 # Make the Argo UI available from the user

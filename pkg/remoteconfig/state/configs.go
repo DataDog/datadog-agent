@@ -10,9 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/theupdateframework/go-tuf/data"
-
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
+	"github.com/DataDog/go-tuf/data"
 )
 
 /*
@@ -24,17 +22,23 @@ import (
 	4. Add a method on the `Repository` to retrieved typed configs for the product.
 */
 
-var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductASMFeatures, ProductASMDD}
+var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASMFeatures, ProductASMDD, ProductASMData, ProductAPMTracing}
 
 const (
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
 	// ProductCWSDD is the cloud workload security product managed by datadog employees
 	ProductCWSDD = "CWS_DD"
+	// ProductCWSCustom is the cloud workload security product managed by datadog customers
+	ProductCWSCustom = "CWS_CUSTOM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
 	ProductASMFeatures = "ASM_FEATURES"
 	// ProductASMDD is the application security monitoring product managed by datadog employees
 	ProductASMDD = "ASM_DD"
+	// ProductASMData is the ASM product used to configure WAF rules data
+	ProductASMData = "ASM_DATA"
+	// ProductAPMTracing is the apm tracing product
+	ProductAPMTracing = "APM_TRACING"
 )
 
 // ErrNoConfigVersion occurs when a target file's custom meta is missing the config version
@@ -50,8 +54,14 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		c, err = parseASMFeaturesConfig(raw, metadata)
 	case ProductCWSDD:
 		c, err = parseConfigCWSDD(raw, metadata)
+	case ProductCWSCustom:
+		c, err = parseConfigCWSCustom(raw, metadata)
 	case ProductASMDD:
 		c, err = parseConfigASMDD(raw, metadata)
+	case ProductASMData:
+		c, err = parseConfigASMData(raw, metadata)
+	case ProductAPMTracing:
+		c, err = parseConfigAPMTracing(raw, metadata)
 	default:
 		return nil, fmt.Errorf("unknown product - %s", product)
 	}
@@ -62,18 +72,14 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 // APMSamplingConfig is a deserialized APM Sampling configuration file
 // along with its associated remote config metadata.
 type APMSamplingConfig struct {
-	Config   apmsampling.APMSampling
+	Config   []byte
 	Metadata Metadata
 }
 
 func parseConfigAPMSampling(data []byte, metadata Metadata) (APMSamplingConfig, error) {
-	var apmConfig apmsampling.APMSampling
-	_, err := apmConfig.UnmarshalMsg(data)
-	if err != nil {
-		return APMSamplingConfig{}, fmt.Errorf("could not parse apm sampling config: %v", err)
-	}
+	// We actually don't parse the payload here, we delegate this responsibility to the trace agent
 	return APMSamplingConfig{
-		Config:   apmConfig,
+		Config:   data,
 		Metadata: metadata,
 	}, nil
 }
@@ -120,6 +126,39 @@ func (r *Repository) CWSDDConfigs() map[string]ConfigCWSDD {
 	for path, conf := range configs {
 		// We control this, so if this has gone wrong something has gone horribly wrong
 		typed, ok := conf.(ConfigCWSDD)
+		if !ok {
+			panic("unexpected config stored as CWSDD Config")
+		}
+
+		typedConfigs[path] = typed
+	}
+
+	return typedConfigs
+}
+
+// ConfigCWSCustom is a deserialized CWS Custom configuration file along with its
+// associated remote config metadata
+type ConfigCWSCustom struct {
+	Config   []byte
+	Metadata Metadata
+}
+
+func parseConfigCWSCustom(data []byte, metadata Metadata) (ConfigCWSCustom, error) {
+	return ConfigCWSCustom{
+		Config:   data,
+		Metadata: metadata,
+	}, nil
+}
+
+// CWSCustomConfigs returns the currently active CWSCustom config files
+func (r *Repository) CWSCustomConfigs() map[string]ConfigCWSCustom {
+	typedConfigs := make(map[string]ConfigCWSCustom)
+
+	configs := r.getConfigs(ProductCWSCustom)
+
+	for path, conf := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := conf.(ConfigCWSCustom)
 		if !ok {
 			panic("unexpected config stored as CWSDD Config")
 		}
@@ -210,14 +249,112 @@ func (r *Repository) ASMFeaturesConfigs() map[string]ASMFeaturesConfig {
 	return typedConfigs
 }
 
+// ApplyState represents the status of a configuration application by a remote configuration client
+// Clients need to either ack the correct application of received configurations, or communicate that
+// they haven't applied it yet, or communicate any error that may have happened while doing so
+type ApplyState uint64
+
+const (
+	ApplyStateUnknown ApplyState = iota
+	ApplyStateUnacknowledged
+	ApplyStateAcknowledged
+	ApplyStateError
+)
+
+// ApplyStatus is the processing status for a given configuration.
+// It basically represents whether a config was successfully processed and apply, or if an error occurred
+type ApplyStatus struct {
+	State ApplyState
+	Error string
+}
+
+// ASMDataConfig is a deserialized configuration file that holds rules data that can be used
+// by the ASM WAF for specific features (example: ip blocking).
+type ASMDataConfig struct {
+	Config   ASMDataRulesData
+	Metadata Metadata
+}
+
+// ASMDataRulesData is a serializable array of rules data entries
+type ASMDataRulesData struct {
+	RulesData []ASMDataRuleData `json:"rules_data"`
+}
+
+// ASMDataRuleData is an entry in the rules data list held by an ASMData configuration
+type ASMDataRuleData struct {
+	ID   string                 `json:"id"`
+	Type string                 `json:"type"`
+	Data []ASMDataRuleDataEntry `json:"data"`
+}
+
+// ASMDataRuleDataEntry represents a data entry in a rule data file
+type ASMDataRuleDataEntry struct {
+	Expiration int64  `json:"expiration,omitempty"`
+	Value      string `json:"value"`
+}
+
+func parseConfigASMData(data []byte, metadata Metadata) (ASMDataConfig, error) {
+	cfg := ASMDataConfig{
+		Metadata: metadata,
+	}
+	err := json.Unmarshal(data, &cfg.Config)
+	return cfg, err
+}
+
+// ASMDataConfigs returns the currently active ASMData configs
+func (r *Repository) ASMDataConfigs() map[string]ASMDataConfig {
+	typedConfigs := make(map[string]ASMDataConfig)
+	configs := r.getConfigs(ProductASMData)
+
+	for path, cfg := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := cfg.(ASMDataConfig)
+		if !ok {
+			panic("unexpected config stored as ASMDataConfig")
+		}
+		typedConfigs[path] = typed
+	}
+
+	return typedConfigs
+}
+
+type APMTracingConfig struct {
+	Config   []byte
+	Metadata Metadata
+}
+
+func parseConfigAPMTracing(data []byte, metadata Metadata) (APMTracingConfig, error) {
+	// Delegate the parsing responsibility to the cluster agent
+	return APMTracingConfig{
+		Config:   data,
+		Metadata: metadata,
+	}, nil
+}
+
+// APMTracingConfigs returns the currently active APMTracing configs
+func (r *Repository) APMTracingConfigs() map[string]APMTracingConfig {
+	typedConfigs := make(map[string]APMTracingConfig)
+	configs := r.getConfigs(ProductAPMTracing)
+	for path, conf := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := conf.(APMTracingConfig)
+		if !ok {
+			panic("unexpected config stored as APMTracingConfig")
+		}
+		typedConfigs[path] = typed
+	}
+	return typedConfigs
+}
+
 // Metadata stores remote config metadata for a given configuration
 type Metadata struct {
-	Product   string
-	ID        string
-	Name      string
-	Version   uint64
-	RawLength uint64
-	Hashes    map[string][]byte
+	Product     string
+	ID          string
+	Name        string
+	Version     uint64
+	RawLength   uint64
+	Hashes      map[string][]byte
+	ApplyStatus ApplyStatus
 }
 
 func newConfigMetadata(parsedPath configPath, tfm data.TargetFileMeta) (Metadata, error) {

@@ -11,22 +11,38 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
 	launchCmd := &cobra.Command{
 		Use:   "launch-gui",
 		Short: "starts the Datadog Agent GUI",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return launchGui(globalArgs, cmd, args)
+			return fxutil.OneShot(launchGui,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath)}),
+				core.Bundle,
+			)
 		},
 		SilenceUsage: true,
 	}
@@ -34,13 +50,8 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	return []*cobra.Command{launchCmd}
 }
 
-func launchGui(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-
-	guiPort := config.Datadog.GetString("GUI_port")
+func launchGui(config config.Component, cliParams *cliParams) error {
+	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
@@ -53,11 +64,11 @@ func launchGui(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string
 
 	// Get the CSRF token from the agent
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 	err = util.SetAuthToken()
 	if err != nil {
 		return err

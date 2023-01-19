@@ -7,7 +7,7 @@ package api
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,7 +21,7 @@ import (
 
 func TestPipelineStatsProxy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		slurp, err := ioutil.ReadAll(req.Body)
+		slurp, err := io.ReadAll(req.Body)
 		req.Body.Close()
 		if err != nil {
 			t.Fatal(err)
@@ -52,7 +52,7 @@ func TestPipelineStatsProxy(t *testing.T) {
 	c := &config.AgentConfig{}
 	newPipelineStatsProxy(c, u, "123", "key:val").ServeHTTP(rec, req)
 	result := rec.Result()
-	slurp, err := ioutil.ReadAll(result.Body)
+	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
 		res.Body.Close()
-		slurp, err := ioutil.ReadAll(res.Body)
+		slurp, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}

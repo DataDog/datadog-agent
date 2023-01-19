@@ -58,11 +58,6 @@ int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
     return 0;
 }
 
-SEC("tracepoint/syscalls/sys_exit_umount")
-int tracepoint_syscalls_sys_exit_umount(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_umount_ret(args, args->ret);
-}
-
 SYSCALL_KRETPROBE(umount) {
     int retval = PT_REGS_RC(ctx);
     return sys_umount_ret(ctx, retval);

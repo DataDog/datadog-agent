@@ -127,10 +127,22 @@ docker_build_agent7:
     TEST_IMG: "true"
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
+single_machine_performance-amd64-a7:
+  extends: .docker_publish_job_definition
+  stage: container_build
+  rules:
+    !reference [.on_a7]
+  needs:
+    - docker_build_agent7
+  variables:
+    IMG_REGISTRIES: internal-aws-smp
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-amd64
+
 docker_build_agent7_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
-    !reference [.on_all_builds_a7]
+    !reference [.on_a7]
   needs:
     - job: agent_deb-arm64-a7
       artifacts: false
@@ -159,7 +171,7 @@ docker_build_agent7_jmx:
 docker_build_agent7_jmx_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
-    !reference [.on_all_builds_a7]
+    !reference [.on_a7]
   needs:
     - job: agent_deb-arm64-a7
       artifacts: false

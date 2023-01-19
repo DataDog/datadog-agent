@@ -8,35 +8,38 @@ package configutils
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.opentelemetry.io/collector/service"
 )
 
 const testPath = "./testdata/pipeline.yaml"
 
-func buildTestFactories(t *testing.T) component.Factories {
-	extensions, err := component.MakeExtensionFactoryMap()
+func buildTestFactories(t *testing.T) otelcol.Factories {
+	extensions, err := extension.MakeFactoryMap()
 	require.NoError(t, err)
-	processors, err := component.MakeProcessorFactoryMap()
+	processors, err := processor.MakeFactoryMap()
 	require.NoError(t, err)
-	exporters, err := component.MakeExporterFactoryMap(otlpexporter.NewFactory())
+	exporters, err := exporter.MakeFactoryMap(otlpexporter.NewFactory())
 	require.NoError(t, err)
-	receivers, err := component.MakeReceiverFactoryMap(otlpreceiver.NewFactory())
+	receivers, err := receiver.MakeFactoryMap(otlpreceiver.NewFactory())
 	require.NoError(t, err)
 
-	return component.Factories{
+	return otelcol.Factories{
 		Extensions: extensions,
 		Receivers:  receivers,
 		Processors: processors,
@@ -46,21 +49,21 @@ func buildTestFactories(t *testing.T) component.Factories {
 
 func TestNewConfigProviderFromMap(t *testing.T) {
 	// build constant provider
-	content, err := ioutil.ReadFile(testPath)
+	content, err := os.ReadFile(testPath)
 	require.NoError(t, err)
 	cfgMap, err := NewMapFromYAMLString(string(content))
 	require.NoError(t, err)
 	mapProvider := NewConfigProviderFromMap(cfgMap)
 
 	// build default provider from same data
-	settings := service.ConfigProviderSettings{
+	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
 			URIs:       []string{fmt.Sprintf("file:%s", testPath)},
 			Providers:  makeConfigMapProviderMap(fileprovider.New(), envprovider.New(), yamlprovider.New()),
 			Converters: []confmap.Converter{expandconverter.New()},
 		},
 	}
-	defaultProvider, err := service.NewConfigProvider(settings)
+	defaultProvider, err := otelcol.NewConfigProvider(settings)
 	require.NoError(t, err)
 
 	// Get config.Config from both

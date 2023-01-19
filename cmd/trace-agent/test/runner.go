@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"testing"
@@ -184,7 +184,7 @@ func (s *Runner) doRequest(req *http.Request) error {
 		defer resp.Body.Close()
 	}
 	if resp.StatusCode != 200 {
-		slurp, err := ioutil.ReadAll(resp.Body)
+		slurp, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("%s (error reading response body: %v)", resp.Status, err)
 		}

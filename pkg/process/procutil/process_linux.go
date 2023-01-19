@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -346,7 +345,7 @@ func (p *probe) getActivePIDs() ([]int32, error) {
 
 // getCmdline retrieves the command line text from "cmdline" file for a process in procfs
 func (p *probe) getCmdline(pidPath string) []string {
-	cmdline, err := ioutil.ReadFile(filepath.Join(pidPath, "cmdline"))
+	cmdline, err := os.ReadFile(filepath.Join(pidPath, "cmdline"))
 	if err != nil {
 		log.Debugf("Unable to read process command line from %s: %s", pidPath, err)
 		return nil
@@ -440,7 +439,7 @@ func (p *probe) parseStatus(pidPath string) *statusInfo {
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
 
-	content, err := ioutil.ReadFile(path)
+	content, err := os.ReadFile(path)
 
 	if err != nil {
 		return sInfo
@@ -549,7 +548,7 @@ func (p *probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 		cpuStat: &CPUTimesStat{},
 	}
 
-	contents, err := ioutil.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return sInfo
 	}
@@ -639,7 +638,7 @@ func (p *probe) parseStatm(pidPath string) *MemoryInfoExStat {
 
 	memInfoEx := &MemoryInfoExStat{}
 
-	contents, err := ioutil.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return memInfoEx
 	}
@@ -802,7 +801,7 @@ func trimAndSplitBytes(bs []byte) []string {
 // the value is extracted from "/proc/stat"
 func bootTime(hostProc string) (uint64, error) {
 	filePath := filepath.Join(hostProc, "stat")
-	content, err := ioutil.ReadFile(filePath)
+	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return 0, fmt.Errorf("unable to read stat file from %s: %s", filePath, err)
 	}

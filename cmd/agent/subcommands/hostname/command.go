@@ -11,41 +11,50 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
 	getHostnameCommand := &cobra.Command{
 		Use:   "hostname",
 		Short: "Print the hostname used by the Agent",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
-			if err != nil {
-				return fmt.Errorf("unable to set up global agent configuration: %v", err)
-			}
-
-			// log level is always off since this might be use by other agent to get the hostname
-			err = config.SetupLogger(config.CoreLoggerName, "off", "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			hname, err := hostname.Get(context.TODO())
-			if err != nil {
-				return fmt.Errorf("Error getting the hostname: %v", err)
-			}
-
-			fmt.Println(hname)
-			return nil
+			return fxutil.OneShot(getHostname,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", false)}), // never output anything but hostname
+				core.Bundle,
+			)
 		},
 	}
 
 	return []*cobra.Command{getHostnameCommand}
+}
+
+func getHostname(log log.Component, config config.Component, cliParams *cliParams) error {
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		return fmt.Errorf("Error getting the hostname: %v", err)
+	}
+
+	fmt.Println(hname)
+	return nil
 }

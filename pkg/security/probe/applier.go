@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -53,8 +54,8 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 
 // applyDefaultPolicy this will apply the deny policy if kernel filters are enabled
 func (rsa *RuleSetApplier) applyDefaultFilterPolicies() {
-	var model Model
-	for _, eventType := range model.GetEventTypes() {
+	var m model.Model
+	for _, eventType := range m.GetEventTypes() {
 		if !rsa.config.EnableKernelFilters {
 			_ = rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8)
 		} else {
@@ -95,7 +96,9 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 	// apply deny filter by default
 	rsa.applyDefaultFilterPolicies()
 
-	for _, eventType := range rs.GetEventTypes() {
+	eventTypes := rs.GetEventTypes()
+
+	for _, eventType := range eventTypes {
 		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {
 			return nil, err
 		}
@@ -103,7 +106,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 
 	if rsa.probe != nil {
 		// based on the ruleset and the requested rules, select the probes that need to be activated
-		if err := rsa.probe.SelectProbes(rs); err != nil {
+		if err := rsa.probe.SelectProbes(eventTypes); err != nil {
 			return nil, fmt.Errorf("failed to select probes: %w", err)
 		}
 

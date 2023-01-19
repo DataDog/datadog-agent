@@ -22,6 +22,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/logs"
@@ -32,9 +33,9 @@ import (
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
-func Run(logConfig *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) {
+func Run(cloudService cloudservice.CloudService, logConfig *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) {
 	serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)), false)
-	err := execute(logConfig, metricAgent, traceAgent, args)
+	err := execute(cloudService, logConfig, metricAgent, traceAgent, args)
 	if err != nil {
 		serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
 	} else {
@@ -42,7 +43,7 @@ func Run(logConfig *serverlessLog.Config, metricAgent *metrics.ServerlessMetricA
 	}
 }
 
-func execute(config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
+func execute(cloudService cloudservice.CloudService, config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
 	commandName, commandArgs := buildCommandParam(args)
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{
@@ -54,7 +55,7 @@ func execute(config *serverlessLog.Config, metricAgent *metrics.ServerlessMetric
 		LineBuffer: bytes.Buffer{},
 		IsError:    true,
 	}
-	handleSignals(cmd.Process, config, metricAgent, traceAgent)
+	handleSignals(cloudService, cmd.Process, config, metricAgent, traceAgent)
 	err := cmd.Start()
 	if err != nil {
 		return err
@@ -76,7 +77,7 @@ func buildCommandParam(cmdArg []string) (string, []string) {
 	return commandName, []string{}
 }
 
-func handleSignals(process *os.Process, config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent) {
+func handleSignals(cloudService cloudservice.CloudService, process *os.Process, config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent) {
 	go func() {
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs)
@@ -90,7 +91,7 @@ func handleSignals(process *os.Process, config *serverlessLog.Config, metricAgen
 				}
 			}
 			if sig == syscall.SIGTERM {
-				metric.AddShutdownMetric(metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+				metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 				flush(config.FlushTimeout, metricAgent, traceAgent)
 				os.Exit(0)
 			}

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package checks
 
@@ -17,15 +17,16 @@ import (
 
 	payload "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ProcessEvents is a ProcessEventsCheck singleton
-var ProcessEvents = &ProcessEventsCheck{}
+// NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
+func NewProcessEventsCheck() Check {
+	return &ProcessEventsCheck{}
+}
 
 // ProcessEventsCheck collects process lifecycle events such as exec and exit signals
 type ProcessEventsCheck struct {
@@ -33,29 +34,28 @@ type ProcessEventsCheck struct {
 
 	store    events.Store
 	listener *events.SysProbeListener
-	sysInfo  *payload.SystemInfo
+	hostInfo *HostInfo
 
 	maxBatchSize int
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInfo) {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	e.initMutex.Lock()
 	defer e.initMutex.Unlock()
 
 	if e.store != nil || e.listener != nil {
-		log.Error("process_events check has already been initialized")
-		return
+		return log.Error("process_events check has already been initialized")
 	}
 
 	log.Info("Initializing process_events check")
-	e.sysInfo = info
+	e.hostInfo = info
 	e.maxBatchSize = getMaxBatchSize()
 
 	store, err := events.NewRingStore(statsd.Client)
 	if err != nil {
 		log.Errorf("RingStore can't be created: %v", err)
-		return
+		return err
 	}
 	e.store = store
 
@@ -65,12 +65,13 @@ func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInf
 	})
 	if err != nil {
 		log.Errorf("Event Listener can't be created: %v", err)
-		return
+		return err
 	}
 	e.listener = listener
 
 	e.start()
 	log.Info("process_events check correctly set up")
+	return nil
 }
 
 // start kicks off process lifecycle events collection and keep them in memory until they're fetched in the next check run
@@ -79,17 +80,28 @@ func (e *ProcessEventsCheck) start() {
 	e.listener.Run()
 }
 
-// Name returns the name of the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Name() string { return config.ProcessEventsCheckName }
+// IsEnabled returns true if the check is enabled by configuration
+func (e *ProcessEventsCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
 
-// RealTime returns a value that says whether this check should be run in real time.
-func (e *ProcessEventsCheck) RealTime() bool { return false }
+// SupportsRunOptions returns true if the check supports RunOptions
+func (e *ProcessEventsCheck) SupportsRunOptions() bool {
+	return false
+}
+
+// Name returns the name of the ProcessEventsCheck.
+func (e *ProcessEventsCheck) Name() string { return ProcessEventsCheckName }
+
+// Realtime returns a value that says whether this check should be run in real time.
+func (e *ProcessEventsCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
 
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
-func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]payload.MessageBody, error) {
+func (e *ProcessEventsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	if !e.isCheckCorrectlySetup() {
 		return nil, errors.New("the process_events check hasn't been correctly initialized")
 	}
@@ -104,17 +116,18 @@ func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]payl
 	chunks := chunkProcessEvents(payloadEvents, e.maxBatchSize)
 
 	messages := make([]payload.MessageBody, len(chunks))
+	groupID := nextGroupID()
 	for c, chunk := range chunks {
 		messages[c] = &payload.CollectorProcEvent{
-			Hostname:  cfg.HostName,
-			Info:      e.sysInfo,
+			Hostname:  e.hostInfo.HostName,
+			Info:      e.hostInfo.SystemInfo,
 			Events:    chunk,
 			GroupId:   groupID,
 			GroupSize: int32(len(chunks)),
 		}
 	}
 
-	return messages, nil
+	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ProcessEventsCheck before the agent exits

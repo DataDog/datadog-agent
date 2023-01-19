@@ -9,14 +9,14 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
 	"github.com/Masterminds/semver"
-	"github.com/theupdateframework/go-tuf/data"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
-// DirectorTargetsCustomMetadata TODO (<remote-config>): RCM-228
+// ConfigFileMetaCustom is the custom metadata of a config
 type ConfigFileMetaCustom struct {
 	Predicates *pbgo.TracerPredicates `json:"tracer-predicates,omitempty"`
 	Expires    int64                  `json:"expires"`
@@ -86,6 +86,10 @@ func parseFileMetaCustom(customJSON *json.RawMessage) (ConfigFileMetaCustom, err
 }
 
 func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicateV1) (bool, error) {
+	// No tracer predicates match everything
+	if len(predicates) == 0 {
+		return true, nil
+	}
 	for _, predicate := range predicates {
 		if predicate.ClientID != "" && client.Id != predicate.ClientID {
 			continue

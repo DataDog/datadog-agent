@@ -57,6 +57,15 @@ func ExtractPod(p *corev1.Pod) *model.Pod {
 
 	podModel.ResourceRequirements = extractPodResourceRequirements(p.Spec.Containers, p.Spec.InitContainers)
 
+	if p.Status.StartTime != nil {
+		podModel.StartTime = p.Status.StartTime.Unix()
+	}
+	for _, c := range p.Status.Conditions {
+		if c.Type == corev1.PodScheduled && c.Status == corev1.ConditionTrue {
+			podModel.ScheduledTime = c.LastTransitionTime.Unix()
+		}
+	}
+
 	return &podModel
 }
 

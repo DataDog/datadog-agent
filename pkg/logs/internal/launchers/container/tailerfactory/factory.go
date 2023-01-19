@@ -87,6 +87,7 @@ func (tf *factory) makeTailer(
 		if err == nil {
 			return t, nil
 		}
+		source.Messages.AddMessage("fileTailerError", "The log file tailer could not be made, falling back to socket")
 		log.Warnf("Could not make file tailer for source %s (falling back to socket): %v", source.Name, err)
 		return makeSocketTailer(source)
 
@@ -95,6 +96,7 @@ func (tf *factory) makeTailer(
 		if err == nil {
 			return t, nil
 		}
+		source.Messages.AddMessage("socketTailerError", "The socket tailer could not be made, falling back to file")
 		log.Warnf("Could not make socket tailer for source %s (falling back to file): %v", source.Name, err)
 		return makeFileTailer(source)
 	}

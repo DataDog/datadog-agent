@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"mime"
@@ -31,7 +30,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/appsec"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -75,7 +74,6 @@ type HTTPReceiver struct {
 	dynConf             *sampler.DynamicConfig
 	server              *http.Server
 	statsProcessor      StatsProcessor
-	appsecHandler       http.Handler
 	containerIDProvider IDProvider
 
 	rateLimiterResponse int // HTTP status code when refusing
@@ -93,10 +91,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	appsecHandler, err := appsec.NewIntakeReverseProxy(conf)
-	if err != nil {
-		log.Errorf("Could not instantiate AppSec: %v", err)
-	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
@@ -105,7 +99,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		appsecHandler:       appsecHandler,
 		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
 
 		rateLimiterResponse: rateLimiterResponse,
@@ -319,6 +312,11 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
+		if req.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			http.Error(w, "cross-site request rejected", http.StatusForbidden)
+			return
+		}
+
 		// TODO(x): replace with http.MaxBytesReader?
 		req.Body = apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
@@ -326,12 +324,12 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 	}
 }
 
-var errInvalidHeaderTraceCountValue = fmt.Errorf("%q header value is not a number", headerTraceCount)
+var errInvalidHeaderTraceCountValue = fmt.Errorf("%q header value is not a number", header.TraceCount)
 
 func traceCount(req *http.Request) (int64, error) {
-	str := req.Header.Get(headerTraceCount)
+	str := req.Header.Get(header.TraceCount)
 	if str == "" {
-		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
+		return 0, fmt.Errorf("HTTP header %q not found", header.TraceCount)
 	}
 	n, err := strconv.Atoi(str)
 	if err != nil {
@@ -341,54 +339,6 @@ func traceCount(req *http.Request) (int64, error) {
 }
 
 const (
-	// headerTraceCount is the header client implementation should fill
-	// with the number of traces contained in the payload.
-	headerTraceCount = "X-Datadog-Trace-Count"
-
-	// headerContainerID specifies the name of the header which contains the ID of the
-	// container where the request originated.
-	headerContainerID = "Datadog-Container-ID"
-
-	// headerLang specifies the name of the header which contains the language from
-	// which the traces originate.
-	headerLang = "Datadog-Meta-Lang"
-
-	// headerLangVersion specifies the name of the header which contains the origin
-	// language's version.
-	headerLangVersion = "Datadog-Meta-Lang-Version"
-
-	// headerLangInterpreter specifies the name of the HTTP header containing information
-	// about the language interpreter, where applicable.
-	headerLangInterpreter = "Datadog-Meta-Lang-Interpreter"
-
-	// headerLangInterpreterVendor specifies the name of the HTTP header containing information
-	// about the language interpreter vendor, where applicable.
-	headerLangInterpreterVendor = "Datadog-Meta-Lang-Interpreter-Vendor"
-
-	// headerTracerVersion specifies the name of the header which contains the version
-	// of the tracer sending the payload.
-	headerTracerVersion = "Datadog-Meta-Tracer-Version"
-
-	// headerComputedTopLevel specifies that the client has marked top-level spans, when set.
-	// Any non-empty value will mean 'yes'.
-	headerComputedTopLevel = "Datadog-Client-Computed-Top-Level"
-
-	// headerComputedStats specifies whether the client has computed stats so that the agent
-	// doesn't have to.
-	headerComputedStats = "Datadog-Client-Computed-Stats"
-
-	// headderDroppedP0Traces contains the number of P0 trace chunks dropped by the client.
-	// This value is used to adjust priority rates computed by the agent.
-	headerDroppedP0Traces = "Datadog-Client-Dropped-P0-Traces"
-
-	// headderDroppedP0Spans contains the number of P0 spans dropped by the client.
-	// This value is used for metrics and could be used in the future to adjust priority rates.
-	headerDroppedP0Spans = "Datadog-Client-Dropped-P0-Spans"
-
-	// headerRatesPayloadVersion contains the version of sampling rates.
-	// If both agent and client have the same version, the agent won't return rates in API response.
-	headerRatesPayloadVersion = "Datadog-Rates-Payload-Version"
-
 	// tagContainersTags specifies the name of the tag which holds key/value
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
@@ -400,13 +350,13 @@ func (r *HTTPReceiver) TagStats(v Version, header http.Header) *info.TagStats {
 	return r.tagStats(v, header)
 }
 
-func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
+func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header) *info.TagStats {
 	return r.Stats.GetTagStats(info.Tags{
-		Lang:            header.Get(headerLang),
-		LangVersion:     header.Get(headerLangVersion),
-		Interpreter:     header.Get(headerLangInterpreter),
-		LangVendor:      header.Get(headerLangInterpreterVendor),
-		TracerVersion:   header.Get(headerTracerVersion),
+		Lang:            httpHeader.Get(header.Lang),
+		LangVersion:     httpHeader.Get(header.LangVersion),
+		Interpreter:     httpHeader.Get(header.LangInterpreter),
+		LangVendor:      httpHeader.Get(header.LangInterpreterVendor),
+		TracerVersion:   httpHeader.Get(header.TracerVersion),
 		EndpointVersion: string(v),
 	})
 }
@@ -476,7 +426,7 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 	case v01, v02, v03:
 		return httpOK(w)
 	default:
-		ratesVersion := req.Header.Get(headerRatesPayloadVersion)
+		ratesVersion := req.Header.Get(header.RatesPayloadVersion)
 		return httpRateByService(ratesVersion, w, r.dynConf)
 	}
 }
@@ -509,6 +459,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
 	if err := msgp.Decode(rd, &in); err != nil {
+		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w)
 		return
 	}
@@ -517,7 +468,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	metrics.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
-	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang), req.Header.Get(headerTracerVersion))
+	r.statsProcessor.ProcessStats(in, req.Header.Get(header.Lang), req.Header.Get(header.TracerVersion))
 }
 
 // handleTraces knows how to handle a bunch of traces
@@ -526,7 +477,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	tracen, err := traceCount(req)
 	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
-		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
+		io.Copy(io.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
 		ts.PayloadRefused.Inc()
@@ -588,8 +539,8 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
-		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
-		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
+		ClientComputedTopLevel: req.Header.Get(header.ComputedTopLevel) != "",
+		ClientComputedStats:    req.Header.Get(header.ComputedStats) != "",
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 	}
 
@@ -634,14 +585,14 @@ func runMetaHook(chunks []*pb.TraceChunk) {
 
 func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 	var dropped int64
-	if v := h.Get(headerDroppedP0Traces); v != "" {
+	if v := h.Get(header.DroppedP0Traces); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			dropped = count
 			ts.ClientDroppedP0Traces.Add(count)
 		}
 	}
-	if v := h.Get(headerDroppedP0Spans); v != "" {
+	if v := h.Get(header.DroppedP0Spans); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			ts.ClientDroppedP0Spans.Add(count)
@@ -713,9 +664,10 @@ var killProcess = func(format string, a ...interface{}) {
 // the configuration MaxMemory and MaxCPU. If these values are 0, all limits are disabled and the rate
 // limiter will accept everything.
 func (r *HTTPReceiver) watchdog(now time.Time) {
+	cpu, cpuErr := watchdog.CPU(now)
 	wi := watchdog.Info{
 		Mem: watchdog.Mem(),
-		CPU: watchdog.CPU(now),
+		CPU: cpu,
 	}
 	rateMem := 1.0
 	if r.conf.MaxMemory > 0 {
@@ -734,6 +686,9 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	}
 	rateCPU := 1.0
 	if r.conf.MaxCPU > 0 {
+		if cpuErr != nil {
+			log.Errorf("Error retrieving current CPU usage: %v. Reusing previous value", cpuErr)
+		}
 		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
 		if rateCPU < 1 {
 			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg*100)

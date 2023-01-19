@@ -27,7 +27,7 @@ var (
 	}
 )
 
-func parseAndEnrichSingleMetricMessage(message []byte, namespace string, namespaceBlacklist []string, metricBlocklist []string, defaultHostname string) (metrics.MetricSample, error) {
+func parseAndEnrichSingleMetricMessage(message []byte, conf enrichConfig) (metrics.MetricSample, error) {
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
@@ -35,14 +35,14 @@ func parseAndEnrichSingleMetricMessage(message []byte, namespace string, namespa
 	}
 
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, namespace, namespaceBlacklist, metricBlocklist, defaultHostname, "", true, false)
+	samples = enrichMetricSample(samples, parsed, "", conf)
 	if len(samples) != 1 {
 		return metrics.MetricSample{}, fmt.Errorf("wrong number of metrics parsed")
 	}
 	return samples[0], nil
 }
 
-func parseAndEnrichMultipleMetricMessage(message []byte, namespace string, namespaceBlacklist []string, metricBlocklist []string, defaultHostname string) ([]metrics.MetricSample, error) {
+func parseAndEnrichMultipleMetricMessage(message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
@@ -50,32 +50,35 @@ func parseAndEnrichMultipleMetricMessage(message []byte, namespace string, names
 	}
 
 	samples := []metrics.MetricSample{}
-	return enrichMetricSample(samples, parsed, namespace, namespaceBlacklist, metricBlocklist, defaultHostname, "", true, false), nil
+	return enrichMetricSample(samples, parsed, "", conf), nil
 }
 
-func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
+func parseAndEnrichServiceCheckMessage(message []byte, conf enrichConfig) (*metrics.ServiceCheck, error) {
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseServiceCheck(message)
 	if err != nil {
 		return nil, err
 	}
-	return enrichServiceCheck(parsed, defaultHostname, "", true), nil
+	return enrichServiceCheck(parsed, "", conf), nil
 }
 
-func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
+func parseAndEnrichEventMessage(message []byte, conf enrichConfig) (*metrics.Event, error) {
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseEvent(message)
 	if err != nil {
 		return nil, err
 	}
-	return enrichEvent(parsed, defaultHostname, "", true), nil
+	return enrichEvent(parsed, "", conf), nil
 }
 
 func TestConvertParseMultiple(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666:777.5|"+metricSymbol), "", nil, nil, "default-hostname")
-
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666:777.5|"+metricSymbol), conf)
 		assert.NoError(t, err)
 		require.Len(t, parsed, 2)
 
@@ -100,9 +103,13 @@ func TestConvertParseMultiple(t *testing.T) {
 }
 
 func TestConvertParseSingle(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol), "", nil, nil, "default-hostname")
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -119,9 +126,13 @@ func TestConvertParseSingle(t *testing.T) {
 }
 
 func TestConvertParseSingleWithTags(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,bench"), "", nil, nil, "default-hostname")
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,bench"), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -140,9 +151,13 @@ func TestConvertParseSingleWithTags(t *testing.T) {
 }
 
 func TestConvertParseSingleWithHostTags(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,host:custom-host,bench"), "", nil, nil, "default-hostname")
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,host:custom-host,bench"), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -161,9 +176,13 @@ func TestConvertParseSingleWithHostTags(t *testing.T) {
 }
 
 func TestConvertParseSingleWithEmptyHostTags(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,host:,bench"), "", nil, nil, "default-hostname")
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,host:,bench"), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -182,9 +201,13 @@ func TestConvertParseSingleWithEmptyHostTags(t *testing.T) {
 }
 
 func TestConvertParseSingleWithSampleRate(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|@0.21"), "", nil, nil, "default-hostname")
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|@0.21"), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -201,7 +224,11 @@ func TestConvertParseSingleWithSampleRate(t *testing.T) {
 }
 
 func TestConvertParseSet(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:abc:def|s"), "", nil, nil, "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:abc:def|s"), conf)
 
 	assert.NoError(t, err)
 
@@ -216,7 +243,11 @@ func TestConvertParseSet(t *testing.T) {
 }
 
 func TestConvertParseSetUnicode(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "", nil, nil, "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), conf)
 
 	assert.NoError(t, err)
 
@@ -231,7 +262,11 @@ func TestConvertParseSetUnicode(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#"), "", nil, nil, "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#"), conf)
 
 	assert.NoError(t, err)
 
@@ -246,7 +281,11 @@ func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithUnicode(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "", nil, nil, "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), conf)
 
 	assert.NoError(t, err)
 
@@ -262,33 +301,37 @@ func TestConvertParseGaugeWithUnicode(t *testing.T) {
 }
 
 func TestConvertParseMetricError(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
 	// not enough information
-	_, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666"), "", nil, nil, "default-hostname")
+	_, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|"), "", nil, nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:|g"), "", nil, nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:|g"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichSingleMetricMessage([]byte(":666|g"), "", nil, nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte(":666|g"), conf)
 	assert.Error(t, err)
 
 	// unknown metadata prefix
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|m:test"), "", nil, nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|m:test"), conf)
 	assert.NoError(t, err)
 
 	// invalid value
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:abc|g"), "", nil, nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:abc|g"), conf)
 	assert.Error(t, err)
 
 	// invalid metric type
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|unknown"), "", nil, nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|unknown"), conf)
 	assert.Error(t, err)
 
 	// invalid sample rate
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|@abc"), "", nil, nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|@abc"), conf)
 	assert.Error(t, err)
 }
 
@@ -314,7 +357,11 @@ func TestConvertPacketStringEndings(t *testing.T) {
 }
 
 func TestConvertServiceCheckMinimal(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0"), conf)
 
 	assert.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -328,32 +375,39 @@ func TestConvertServiceCheckMinimal(t *testing.T) {
 }
 
 func TestConvertServiceCheckError(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
 	// not enough information
-	_, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up"), "default-hostname")
+	_, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|"), "default-hostname")
+	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|"), conf)
 	assert.Error(t, err)
 
 	// not invalid status
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|OK"), "default-hostname")
+	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|OK"), conf)
 	assert.Error(t, err)
 
 	// not unknown status
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|21"), "default-hostname")
+	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|21"), conf)
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:some_time"), "default-hostname")
+	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:some_time"), conf)
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|u:unknown"), "default-hostname")
+	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|u:unknown"), conf)
 	assert.NoError(t, err)
 }
 
 func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -367,7 +421,10 @@ func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataHostname(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|h:localhost"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|h:localhost"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -381,7 +438,10 @@ func TestConvertServiceCheckMetadataHostname(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#host:localhost"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#host:localhost"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -395,7 +455,10 @@ func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#host:,other:tag"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#host:,other:tag"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -409,7 +472,10 @@ func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataTags(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -423,7 +489,10 @@ func TestConvertServiceCheckMetadataTags(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataMessage(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|m:this is fine"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|m:this is fine"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -437,8 +506,11 @@ func TestConvertServiceCheckMetadataMessage(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
 	// all type
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"), "default-hostname")
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"), conf)
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
@@ -450,7 +522,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
 
 	// multiple time the same tag
-	sc, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"), "default-hostname")
+	sc, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"), conf)
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost2", sc.Host)
@@ -463,7 +535,10 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 }
 
 func TestServiceCheckOriginTag(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2,dd.internal.entity_id:testID|m:this is fine"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2,dd.internal.entity_id:testID|m:this is fine"), conf)
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
@@ -476,7 +551,10 @@ func TestServiceCheckOriginTag(t *testing.T) {
 }
 
 func TestConvertEventMinimal(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -494,7 +572,10 @@ func TestConvertEventMinimal(t *testing.T) {
 }
 
 func TestConvertEventMultilinesText(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -512,7 +593,10 @@ func TestConvertEventMultilinesText(t *testing.T) {
 }
 
 func TestConvertEventPipeInTitle(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test|title", e.Title)
@@ -530,72 +614,78 @@ func TestConvertEventPipeInTitle(t *testing.T) {
 }
 
 func TestConvertEventError(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
 	// missing length header
-	_, err := parseAndEnrichEventMessage([]byte("_e:title|text"), "default-hostname")
+	_, err := parseAndEnrichEventMessage([]byte("_e:title|text"), conf)
 	assert.Error(t, err)
 
 	// greater length than packet
-	_, err = parseAndEnrichEventMessage([]byte("_e{10,10}:title|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{10,10}:title|text"), conf)
 	assert.Error(t, err)
 
 	// zero length
-	_, err = parseAndEnrichEventMessage([]byte("_e{0,0}:a|a"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{0,0}:a|a"), conf)
 	assert.Error(t, err)
 
 	// missing title or text length
-	_, err = parseAndEnrichEventMessage([]byte("_e{5555:title|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{5555:title|text"), conf)
 	assert.Error(t, err)
 
 	// missing wrong len format
-	_, err = parseAndEnrichEventMessage([]byte("_e{a,1}:title|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{a,1}:title|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e{1,a}:title|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{1,a}:title|text"), conf)
 	assert.Error(t, err)
 
 	// missing title or text length
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,}:title|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{5,}:title|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e{,4}:title|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{,4}:title|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e{}:title|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{}:title|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e{,}:title|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{,}:title|text"), conf)
 	assert.Error(t, err)
 
 	// not enough information
-	_, err = parseAndEnrichEventMessage([]byte("_e|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e:|text"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e:|text"), conf)
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|d:abc"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|d:abc"), conf)
 	assert.NoError(t, err)
 
 	// invalid priority
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|p:urgent"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|p:urgent"), conf)
 	assert.NoError(t, err)
 
 	// invalid priority
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|p:urgent"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|p:urgent"), conf)
 	assert.NoError(t, err)
 
 	// invalid alert type
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|t:test"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|t:test"), conf)
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|x:1234"), "default-hostname")
+	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|x:1234"), conf)
 	assert.NoError(t, err)
 }
 
 func TestConvertEventMetadataTimestamp(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|d:21"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|d:21"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -613,7 +703,10 @@ func TestConvertEventMetadataTimestamp(t *testing.T) {
 }
 
 func TestConvertEventMetadataPriority(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|p:low"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|p:low"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -631,7 +724,10 @@ func TestConvertEventMetadataPriority(t *testing.T) {
 }
 
 func TestConvertEventMetadataHostname(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|h:localhost"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|h:localhost"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -649,7 +745,10 @@ func TestConvertEventMetadataHostname(t *testing.T) {
 }
 
 func TestConvertEventMetadataHostnameInTag(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#host:localhost"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#host:localhost"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -667,7 +766,10 @@ func TestConvertEventMetadataHostnameInTag(t *testing.T) {
 }
 
 func TestConvertEventMetadataEmptyHostTag(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#host:,other:tag"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#host:,other:tag"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -685,7 +787,10 @@ func TestConvertEventMetadataEmptyHostTag(t *testing.T) {
 }
 
 func TestConvertEventMetadataAlertType(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -703,7 +808,10 @@ func TestConvertEventMetadataAlertType(t *testing.T) {
 }
 
 func TestConvertEventMetadataAggregatioKey(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|k:some aggregation key"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|k:some aggregation key"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -721,7 +829,10 @@ func TestConvertEventMetadataAggregatioKey(t *testing.T) {
 }
 
 func TestConvertEventMetadataSourceType(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|s:this is the source"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|s:this is the source"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -739,7 +850,10 @@ func TestConvertEventMetadataSourceType(t *testing.T) {
 }
 
 func TestConvertEventMetadataTags(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -757,7 +871,10 @@ func TestConvertEventMetadataTags(t *testing.T) {
 }
 
 func TestConvertEventMetadataMultiple(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -775,7 +892,10 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 }
 
 func TestEventOriginTag(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test,dd.internal.entity_id:testID"), "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test,dd.internal.entity_id:testID"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -792,7 +912,11 @@ func TestEventOriginTag(t *testing.T) {
 	assert.Equal(t, "kubernetes_pod_uid://testID", e.OriginFromClient)
 }
 func TestConvertNamespace(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, nil, "default-hostname")
+	conf := enrichConfig{
+		metricPrefix:    "testNamespace.",
+		defaultHostname: "default-hostname",
+	}
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:21|ms"), conf)
 
 	assert.NoError(t, err)
 
@@ -801,7 +925,13 @@ func TestConvertNamespace(t *testing.T) {
 }
 
 func TestConvertNamespaceBlacklist(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, nil, "default-hostname")
+	conf := enrichConfig{
+		metricPrefix:          "testNamespace.",
+		metricPrefixBlacklist: []string{"datadog.agent"},
+		defaultHostname:       "default-hostname",
+	}
+
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("datadog.agent.daemon:21|ms"), conf)
 
 	assert.NoError(t, err)
 
@@ -810,28 +940,38 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 }
 
 func TestMetricBlocklistShouldBlock(t *testing.T) {
+
 	message := []byte("custom.metric.a:21|ms")
-	metricBlocklist := []string{
-		"custom.metric.a",
-		"custom.metric.b",
+	conf := enrichConfig{
+		metricBlocklist: []string{
+			"custom.metric.a",
+			"custom.metric.b",
+		},
+		defaultHostname: "default",
 	}
+
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", nil, metricBlocklist, "default", "", true, false)
+	samples = enrichMetricSample(samples, parsed, "", conf)
 
 	assert.Equal(t, 0, len(samples))
 }
 
 func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
+	conf := enrichConfig{
+		metricBlocklist: []string{},
+		serverlessMode:  true,
+		defaultHostname: "default",
+	}
+
 	message := []byte("custom.metric.a:21|ms")
-	metricBlocklist := []string{}
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", nil, metricBlocklist, "default", "", true, true)
+	samples = enrichMetricSample(samples, parsed, "", conf)
 
 	assert.Equal(t, 1, len(samples))
 	assert.Equal(t, "", samples[0].Host)
@@ -839,21 +979,27 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	metricBlocklist := []string{
-		"custom.metric.b",
-		"custom.metric.c",
+	conf := enrichConfig{
+		metricBlocklist: []string{
+			"custom.metric.b",
+			"custom.metric.c",
+		},
+		defaultHostname: "default",
 	}
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", nil, metricBlocklist, "default", "", true, false)
+	samples = enrichMetricSample(samples, parsed, "", conf)
 
 	assert.Equal(t, 1, len(samples))
 }
 
 func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, nil, "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -869,7 +1015,10 @@ func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
 }
 
 func TestConvertEntityOriginDetectionTags(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, nil, "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -884,7 +1033,10 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 }
 
 func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, nil, "default-hostname")
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -901,11 +1053,10 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 
 func TestEnrichTags(t *testing.T) {
 	type args struct {
-		tags                       []string
-		defaultHostname            string
-		originFromUDS              string
-		originFromMsg              []byte
-		entityIDPrecendenceEnabled bool
+		tags          []string
+		originFromUDS string
+		originFromMsg []byte
+		conf          enrichConfig
 	}
 	tests := []struct {
 		name              string
@@ -919,9 +1070,11 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "empty tags, host=foo",
 			args: args{
-				defaultHostname:            "foo",
-				originFromUDS:              "",
-				entityIDPrecendenceEnabled: true,
+				originFromUDS: "",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: true,
+				},
 			},
 			wantedTags:        nil,
 			wantedHost:        "foo",
@@ -932,10 +1085,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId not present, host=foo, should return origin tags",
 			args: args{
-				tags:                       []string{"env:prod"},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: true,
+				tags:          []string{"env:prod"},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: true,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -946,10 +1101,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId not present, host=foo, empty tags list, should return origin tags",
 			args: args{
-				tags:                       nil,
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: true,
+				tags:          nil,
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: true,
+				},
 			},
 			wantedTags:        nil,
 			wantedHost:        "foo",
@@ -960,10 +1117,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId present, host=foo, should not return origin tags",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: true,
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: true,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -974,10 +1133,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=none present, host=foo, should not call the originFromUDSFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "none")},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: true,
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "none")},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: true,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -988,10 +1149,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42")},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: false,
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42")},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: false,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -1002,10 +1165,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=high present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.HighCardinalityString},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: false,
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.HighCardinalityString},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: false,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -1016,10 +1181,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=orchestrator present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.OrchestratorCardinalityString},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: false,
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.OrchestratorCardinalityString},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: false,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -1030,10 +1197,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=low present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.LowCardinalityString},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: false,
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.LowCardinalityString},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: false,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -1044,10 +1213,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=unknown present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.UnknownCardinalityString},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: false,
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.UnknownCardinalityString},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: false,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -1058,10 +1229,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality='' present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
-				defaultHostname:            "foo",
-				originFromUDS:              "originID",
-				entityIDPrecendenceEnabled: false,
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
+				originFromUDS: "originID",
+				conf: enrichConfig{
+					defaultHostname:           "foo",
+					entityIDPrecedenceEnabled: false,
+				},
 			},
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
@@ -1072,10 +1245,12 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entity_id=pod-uid, originFromMsg=container-id, should consider entity_id",
 			args: args{
-				tags:            []string{"env:prod", "dd.internal.entity_id:pod-uid"},
-				defaultHostname: "foo",
-				originFromUDS:   "originID",
-				originFromMsg:   []byte("container-id"),
+				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid"},
+				originFromUDS: "originID",
+				originFromMsg: []byte("container-id"),
+				conf: enrichConfig{
+					defaultHostname: "foo",
+				},
 			},
 			wantedTags:      []string{"env:prod"},
 			wantedHost:      "foo",
@@ -1085,25 +1260,74 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "no entity_id, originFromMsg=container-id, should consider originFromMsg",
 			args: args{
-				tags:            []string{"env:prod"},
-				defaultHostname: "foo",
-				originFromUDS:   "originID",
-				originFromMsg:   []byte("container-id"),
+				tags:          []string{"env:prod"},
+				originFromUDS: "originID",
+				originFromMsg: []byte("container-id"),
+				conf: enrichConfig{
+					defaultHostname: "foo",
+				},
 			},
 			wantedTags:      []string{"env:prod"},
 			wantedHost:      "foo",
 			wantedOrigin:    "originID",
 			wantedK8sOrigin: "container_id://container-id",
 		},
+
+		{
+			name: "opt-out, no entity id, uds origin present",
+			args: args{
+				tags:          []string{"env:prod", "dd.internal.card:none"},
+				originFromUDS: "originID",
+				originFromMsg: []byte("none"),
+				conf: enrichConfig{
+					defaultHostname:     "foo",
+					originOptOutEnabled: true,
+				},
+			},
+			wantedTags:      []string{"env:prod"},
+			wantedHost:      "foo",
+			wantedOrigin:    "",
+			wantedK8sOrigin: "",
+		},
+		{
+			name: "opt-out, entity id present, uds origin present",
+			args: args{
+				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid", "dd.internal.card:none", "host:"},
+				originFromUDS: "originID",
+				originFromMsg: []byte("none"),
+				conf: enrichConfig{
+					defaultHostname:     "foo",
+					originOptOutEnabled: true,
+				},
+			},
+			wantedTags:      []string{"env:prod"},
+			wantedHost:      "",
+			wantedOrigin:    "",
+			wantedK8sOrigin: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.defaultHostname, tt.args.originFromUDS, tt.args.originFromMsg, tt.args.entityIDPrecendenceEnabled)
+			tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, tt.args.conf)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
 			assert.Equal(t, tt.wantedK8sOrigin, k8sOrigin)
 			assert.Equal(t, tt.wantedCardinality, cardinality)
 		})
+
+		if !tt.args.conf.originOptOutEnabled {
+			// All cases that work without the optout should still work with
+			conf := tt.args.conf
+			conf.originOptOutEnabled = true
+			t.Run(tt.name, func(t *testing.T) {
+				tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, conf)
+				assert.Equal(t, tt.wantedTags, tags)
+				assert.Equal(t, tt.wantedHost, host)
+				assert.Equal(t, tt.wantedOrigin, origin)
+				assert.Equal(t, tt.wantedK8sOrigin, k8sOrigin)
+				assert.Equal(t, tt.wantedCardinality, cardinality)
+			})
+		}
 	}
 }

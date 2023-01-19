@@ -39,6 +39,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 	offset := t.lastReadOffset.Load()
 
 	if sz < offset {
+		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", offset, sz)
 		return true, nil
 	}
 

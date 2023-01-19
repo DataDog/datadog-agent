@@ -30,7 +30,7 @@ func (c *StubCheck) Stop() {}
 func (c *StubCheck) Cancel() {}
 
 // Configure is a noop
-func (c *StubCheck) Configure(integration.Data, integration.Data, string) error { return nil }
+func (c *StubCheck) Configure(uint64, integration.Data, integration.Data, string) error { return nil }
 
 // Interval returns a duration of one second
 func (c *StubCheck) Interval() time.Duration { return 1 * time.Second }

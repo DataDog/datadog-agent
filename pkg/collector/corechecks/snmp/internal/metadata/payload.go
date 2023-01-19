@@ -5,6 +5,8 @@
 
 package metadata
 
+import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+
 // PayloadMetadataBatchSize is the number of resources per event payload
 // Resources are devices, interfaces, etc
 const PayloadMetadataBatchSize = 100
@@ -19,13 +21,27 @@ const (
 	DeviceStatusUnreachable = DeviceStatus(2)
 )
 
+type IDType string
+
+const (
+	// IDTypeNDM is used as IDType value for topology data
+	// to indicate the ID uses NDM internal type
+	// e.g. interfaceID of `ndm` type is in this format: `<NAMESPACE>:<DEVICE_IP>:<INTERFACE_INDEX>`
+	IDTypeNDM = "ndm"
+
+	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
+	IDTypeMacAddress = "mac_address"
+)
+
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string              `json:"subnet"`
-	Namespace        string              `json:"namespace"`
-	Devices          []DeviceMetadata    `json:"devices,omitempty"`
-	Interfaces       []InterfaceMetadata `json:"interfaces,omitempty"`
-	CollectTimestamp int64               `json:"collect_timestamp"`
+	Subnet           string                 `json:"subnet"`
+	Namespace        string                 `json:"namespace"`
+	Devices          []DeviceMetadata       `json:"devices,omitempty"`
+	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
+	IPAddresses      []IPAddressMetadata    `json:"ip_addresses,omitempty"`
+	Links            []TopologyLinkMetadata `json:"links,omitempty"`
+	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
 // DeviceMetadata contains device metadata
@@ -53,13 +69,48 @@ type DeviceMetadata struct {
 
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
-	DeviceID    string   `json:"device_id"`
-	IDTags      []string `json:"id_tags"` // used to correlate with interface metrics
-	Index       int32    `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
-	Name        string   `json:"name,omitempty"`
-	Alias       string   `json:"alias,omitempty"`
-	Description string   `json:"description,omitempty"`
-	MacAddress  string   `json:"mac_address,omitempty"`
-	AdminStatus int32    `json:"admin_status,omitempty"` // IF-MIB ifAdminStatus type is INTEGER
-	OperStatus  int32    `json:"oper_status,omitempty"`  // IF-MIB ifOperStatus type is INTEGER
+	DeviceID    string               `json:"device_id"`
+	IDTags      []string             `json:"id_tags"` // used to correlate with interface metrics
+	Index       int32                `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	Name        string               `json:"name,omitempty"`
+	Alias       string               `json:"alias,omitempty"`
+	Description string               `json:"description,omitempty"`
+	MacAddress  string               `json:"mac_address,omitempty"`
+	AdminStatus common.IfAdminStatus `json:"admin_status,omitempty"` // IF-MIB ifAdminStatus type is INTEGER
+	OperStatus  common.IfOperStatus  `json:"oper_status,omitempty"`  // IF-MIB ifOperStatus type is INTEGER
+}
+
+// IPAddressMetadata contains ip address metadata
+type IPAddressMetadata struct {
+	InterfaceID string `json:"interface_id"`
+	IPAddress   string `json:"ip_address"`
+	Prefixlen   int32  `json:"prefixlen,omitempty"`
+}
+
+// TopologyLinkDevice contain device link data
+type TopologyLinkDevice struct {
+	ID          string `json:"id,omitempty"`
+	IDType      string `json:"id_type,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	IPAddress   string `json:"ip_address,omitempty"`
+}
+
+// TopologyLinkInterface contain interface link data
+type TopologyLinkInterface struct {
+	ID          string `json:"id"`
+	IDType      string `json:"id_type,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// TopologyLinkSide contain data for remote or local side of the link
+type TopologyLinkSide struct {
+	Device    *TopologyLinkDevice    `json:"device,omitempty"`
+	Interface *TopologyLinkInterface `json:"interface,omitempty"`
+}
+
+// TopologyLinkMetadata contains topology interface to interface links metadata
+type TopologyLinkMetadata struct {
+	Local  *TopologyLinkSide `json:"local,omitempty"`
+	Remote *TopologyLinkSide `json:"remote,omitempty"`
 }

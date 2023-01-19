@@ -102,6 +102,12 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getBinPrmFileFieldOffset(f.kernelVersion)
 	case OffsetNameIoKiocbStructCtx:
 		value = getIoKcbCtxOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmP:
+		value = getLinuxBinPrmPOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmArgc:
+		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmEnvc:
+		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -156,6 +162,8 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 584
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 584
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
+		sizeOf = 616
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
 		if ubuntuAbiVersionCheck(kv, increaseSizeAbiMinVersion) {
 			sizeOf = 608
@@ -645,6 +653,8 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 		offset = 20
 	case kv.IsRH8Kernel():
 		offset = 56
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		offset = 56
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		offset = 32
@@ -706,5 +716,75 @@ func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
 }
 
 func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
-	return 80
+	switch {
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 96
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 96
+	default:
+		return 80
+	}
+}
+
+func getLinuxBinPrmPOffset(kv *kernel.Version) uint64 {
+	offset := uint64(152)
+
+	switch {
+	case kv.Code >= kernel.Kernel5_2:
+		offset = 24
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 280
+	}
+
+	return offset
+}
+
+func getLinuxBinPrmArgcOffset(kv *kernel.Version) uint64 {
+	offset := uint64(192)
+
+	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		offset = 192
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_2):
+		offset = 200
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_2, kernel.Kernel5_8):
+		offset = 72
+	case kv.Code >= kernel.Kernel5_8:
+		offset = 88
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 320
+	}
+
+	return offset
+}
+
+func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
+	offset := uint64(196)
+
+	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		offset = 196
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_2):
+		offset = 204
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_2, kernel.Kernel5_8):
+		offset = 76
+	case kv.Code >= kernel.Kernel5_8:
+		offset = 92
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 324
+	}
+
+	return offset
 }

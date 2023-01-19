@@ -98,6 +98,40 @@ func TestGetValue(t *testing.T) {
 			dotSeparatedKey: "agents.image.abc",
 			expectsError:    true,
 		},
+		{
+			name: "nil value for final part of the key",
+			inputMap: map[string]interface{}{
+				"agents": map[string]interface{}{
+					"image": map[string]interface{}{
+						"tag": nil,
+					},
+				},
+			},
+			dotSeparatedKey: "agents.image.tag",
+			expectsError:    true,
+		},
+		{
+			name: "nil value for middle part of the key",
+			inputMap: map[string]interface{}{
+				"agents": map[string]interface{}{
+					"image": nil,
+				},
+			},
+			dotSeparatedKey: "agents.image.tag",
+			expectsError:    true,
+		},
+		{
+			name: "empty key",
+			inputMap: map[string]interface{}{
+				"agents": map[string]interface{}{
+					"image": map[string]string{
+						"tag": "7.39.0",
+					},
+				},
+			},
+			dotSeparatedKey: "",
+			expectsError:    true,
+		},
 	}
 
 	for _, test := range tests {

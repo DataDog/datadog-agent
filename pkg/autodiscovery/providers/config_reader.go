@@ -6,10 +6,8 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,11 +65,25 @@ var doOnce sync.Once
 // It reads all configs and caches them in memory for 5 minutes.
 // InitConfigFilesReader should be called at agent startup.
 func InitConfigFilesReader(paths []string) {
+	fileCacheExpiration := 5 * time.Minute
+	if config.Datadog.GetBool("autoconf_config_files_poll") {
+		// Removing some time (1s) to avoid races with polling interval.
+		// If cache expiration is set to be == ticker interval the cache may be used if t1B (cache read time) - t0B (ticker time) < t1A (cache store time) - t0A (ticker time).
+		// Which is likely to be the case because the code path on a cache write is slower.
+		configExpSeconds := config.Datadog.GetInt("autoconf_config_files_poll_interval") - 1
+		// If we are below < 1, cache is basically disabled, we cannot put 0 as it's considered no expiration by cache.Cache
+		if configExpSeconds < 1 {
+			fileCacheExpiration = time.Nanosecond
+		} else {
+			fileCacheExpiration = time.Duration(configExpSeconds) * time.Second
+		}
+	}
+
 	doOnce.Do(func() {
 		if reader == nil {
 			reader = &configFilesReader{
 				paths: paths,
-				cache: cache.New(5*time.Minute, 30*time.Second),
+				cache: cache.New(fileCacheExpiration, 30*time.Second),
 			}
 		}
 
@@ -103,21 +115,26 @@ func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, 
 	reader.Lock()
 	defer reader.Unlock()
 
+	var configs []integration.Config
+	var errs map[string]string
+
 	cachedConfigs, foundConfigs := reader.cache.Get("configs")
 	cachedErrors, foundErrors := reader.cache.Get("errors")
-	if !foundConfigs || !foundErrors {
-		// Cache expired
-		reader.readAndCacheAll()
-	}
+	if foundConfigs && foundErrors {
+		// Cache hit
+		var ok bool
+		configs, ok = cachedConfigs.([]integration.Config)
+		if !ok {
+			return nil, nil, errors.New("couldn't cast cached configs from cache")
+		}
 
-	configs, ok := cachedConfigs.([]integration.Config)
-	if !ok {
-		return nil, nil, errors.New("couldn't cast cached configs from cache")
-	}
-
-	errs, ok := cachedErrors.(map[string]string)
-	if !ok {
-		return nil, nil, errors.New("couldn't cast cached config errors from cache")
+		errs, ok = cachedErrors.(map[string]string)
+		if !ok {
+			return nil, nil, errors.New("couldn't cast cached config errors from cache")
+		}
+	} else {
+		// Cache miss, read again
+		configs, errs = reader.readAndCacheAll()
 	}
 
 	return filterConfigs(configs, keep), errs, nil
@@ -134,10 +151,11 @@ func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.
 	return filteredConfigs
 }
 
-func (r *configFilesReader) readAndCacheAll() {
+func (r *configFilesReader) readAndCacheAll() ([]integration.Config, map[string]string) {
 	configs, errors := r.read(GetAll)
 	reader.cache.SetDefault("configs", configs)
 	reader.cache.SetDefault("errors", errors)
+	return configs, errors
 }
 
 // read scans paths searching for configuration files. When found,
@@ -151,7 +169,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 	for _, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
 
-		entries, err := readDirPtr(path)
+		entries, err := os.ReadDir(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -216,7 +234,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
-func collectEntry(file os.FileInfo, path string, integrationName string, integrationErrors map[string]string) (configEntry, map[string]string) {
+func collectEntry(file os.DirEntry, path string, integrationName string, integrationErrors map[string]string) (configEntry, map[string]string) {
 	const defaultExt string = ".default"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
@@ -277,7 +295,7 @@ func collectEntry(file os.FileInfo, path string, integrationName string, integra
 	return entry, integrationErrors
 }
 
-func collectDir(parentPath string, folder os.FileInfo, integrationErrors map[string]string) (configPkg, map[string]string) {
+func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[string]string) (configPkg, map[string]string) {
 	configs := []integration.Config{}
 	defaultConfigs := []integration.Config{}
 	otherConfigs := []integration.Config{}
@@ -291,7 +309,7 @@ func collectDir(parentPath string, folder os.FileInfo, integrationErrors map[str
 	}
 
 	// search for yaml files within this directory
-	subEntries, err := ioutil.ReadDir(dirPath)
+	subEntries, err := os.ReadDir(dirPath)
 	if err != nil {
 		log.Warnf("Skipping config directory %s: %s", dirPath, err)
 		return configPkg{configs, defaultConfigs, otherConfigs}, integrationErrors
@@ -331,7 +349,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := readFilePtr(fpath)
+	yamlFile, err := os.ReadFile(fpath)
 	if err != nil {
 		return conf, err
 	}
@@ -362,10 +380,10 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		// at this point the Yaml was already parsed, no need to check the error
 		rawConf, _ := yaml.Marshal(instance)
 		dataConf := (integration.Data)(rawConf)
-		if fargate.IsFargateInstance(context.TODO()) {
+		if fargate.IsFargateInstance() {
 			// In Fargate, since no host tags are applied in the backend,
 			// add the configured DD_TAGS/DD_EXTRA_TAGS to the instance tags.
-			tags := config.GetConfiguredTags(false)
+			tags := config.GetGlobalConfiguredTags(false)
 			err := dataConf.MergeAdditionalTags(tags)
 			if err != nil {
 				log.Debugf("Could not add agent-level tags to instance of %v: %v", fpath, err)
@@ -427,10 +445,8 @@ func containsString(slice []string, str string) bool {
 
 // ResetReader is only for unit tests
 func ResetReader(paths []string) {
-	reader = &configFilesReader{
-		paths: paths,
-		cache: cache.New(5*time.Minute, 30*time.Second),
-	}
+	reader = nil
+	doOnce = sync.Once{}
 
-	reader.readAndCacheAll()
+	InitConfigFilesReader(paths)
 }

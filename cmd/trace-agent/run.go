@@ -19,8 +19,8 @@ import (
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -155,17 +154,23 @@ func Run(ctx context.Context) {
 
 	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
 	if remoteTagger {
-		tagger.SetDefaultTagger(remote.NewTagger())
-		if err := tagger.Init(ctx); err != nil {
-			log.Infof("starting remote tagger failed. falling back to local tagger: %s", err)
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("Unable to configure the remote tagger: %s", err)
 			remoteTagger = false
+		} else {
+			tagger.SetDefaultTagger(remote.NewTagger(options))
+			if err := tagger.Init(ctx); err != nil {
+				log.Infof("Starting remote tagger failed. Falling back to local tagger: %s", err)
+				remoteTagger = false
+			}
 		}
 	}
 
 	// starts the local tagger if apm_config says so, or if starting the
 	// remote tagger has failed.
 	if !remoteTagger {
-		store := workloadmeta.GetGlobalStore()
+		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 		store.Start(ctx)
 
 		tagger.SetDefaultTagger(local.NewTagger(store))
@@ -182,17 +187,14 @@ func Run(ctx context.Context) {
 	}()
 
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
-		client, err := grpc.GetDDAgentSecureClient(context.Background())
+		// Auth tokens are handled by the rcClient
+		rcClient, err := rc.NewAgentGRPCConfigFetcher()
 		if err != nil {
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)
 		}
-		token, err := security.FetchAuthToken()
-		if err != nil {
-			osutil.Exitf("could obtain the auth token for the tracer remote config client: %v", err)
-		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, client, token, cfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, rcClient, cfg) },
 		})
 	}
 

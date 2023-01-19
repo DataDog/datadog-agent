@@ -102,6 +102,17 @@
     </span>
   </div>
 
+  {{- if eq .config.fips_enabled "true" }}
+
+    <div class="stat">
+      <span class="stat_title">FIPS proxy</span>
+      <span class="stat_data">
+        FIPS proxy is enabled. All communication will be routed to a local FIPS proxy:<br>
+          - Local address: {{ .config.fips_local_address }}<br>
+          - Starting port range: {{ .config.fips_port_range_start }}<br>
+      </span>
+  {{- end }}
+
   {{- if .TransportWarnings }}
     <div class="stat">
       <span class="stat_title">Transport Proxy Warnings</span>
@@ -279,6 +290,14 @@
               {{$key}}: {{$value}}<br>
             {{- end -}}
           </span>
+        {{- end}}        
+        {{- if .APIKeyFailure}}
+          <span class="stat_subtitle">API Keys Errors</span>
+          <span class="stat_subdata">
+            {{ range $key, $value := .APIKeyFailure}}
+              <span class="warning"> {{$key}}: {{$value}} <span> <br>
+            {{- end -}}
+          </span>
         {{- end}}
       {{- end -}}
     </span>
@@ -368,7 +387,6 @@
               {{- end }}
             </ul>
             {{- end }}
-            BytesRead: {{ .bytes_read }}</br>
             Average Latency (ms): {{ .all_time_avg_latency }}</br>
             24h Average Latency (ms): {{ .recent_avg_latency }}</br>
             Peak Latency (ms): {{ .all_time_peak_latency }}</br>

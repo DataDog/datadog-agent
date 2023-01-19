@@ -8,7 +8,7 @@ package proc
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
@@ -16,7 +16,7 @@ import (
 )
 
 func getPidList(procPath string) []int {
-	files, err := ioutil.ReadDir(procPath)
+	files, err := os.ReadDir(procPath)
 	pids := []int{}
 	if err != nil {
 		log.Debug("could not list /proc files")
@@ -35,7 +35,7 @@ func getPidList(procPath string) []int {
 func getEnvVariablesFromPid(procPath string, pid int) map[string]string {
 	envVars := map[string]string{}
 
-	bytesRead, err := ioutil.ReadFile(fmt.Sprintf("%s/%d/environ", procPath, pid))
+	bytesRead, err := os.ReadFile(fmt.Sprintf("%s/%d/environ", procPath, pid))
 	if err != nil {
 		log.Debug("could not list environment variable for proc id %d", pid)
 		return envVars

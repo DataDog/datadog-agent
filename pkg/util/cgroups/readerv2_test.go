@@ -9,7 +9,6 @@
 package cgroups
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,7 +33,7 @@ func TestReaderV2(t *testing.T) {
 		assert.NoErrorf(t, os.MkdirAll(finalPath, 0o750), "impossible to create temp directory '%s'", finalPath)
 	}
 
-	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "cgroup.controllers"), []byte("cpu io memory"), 0o640))
+	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "cgroup.controllers"), []byte("cpu io memory"), 0o640))
 
 	controllers := map[string]struct{}{
 		"cpu":    {},

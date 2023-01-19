@@ -19,6 +19,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -132,11 +133,11 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -182,13 +183,13 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	defer os.Remove(testFile)
 
 	outputDir := t.TempDir()
-	_, err = test.StartActivityDumpComm(t, "testsuite", outputDir, []string{"protobuf"})
+	_, err = test.StartActivityDumpComm("testsuite", outputDir, []string{"protobuf"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
-		if err := test.StopActivityDumpComm(t, "testsuite"); err != nil {
+		if err := test.StopActivityDump("", "", "testsuite"); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -204,8 +205,8 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		e := event.(*model.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}
@@ -225,7 +226,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *probe.Event) bool {
+	}, func(event *model.Event) bool {
 		return event.GetType() == "open" &&
 			event.SavedByActivityDumps &&
 			event.Open.File.Inode == getInode(t, testFile)
@@ -268,11 +269,11 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -339,7 +340,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 
 			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
 			return err
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 
@@ -372,7 +373,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 	}))
@@ -412,11 +413,11 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -496,11 +497,11 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -603,7 +604,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	testDrive, err := newTestDrive(t, "xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -635,8 +636,8 @@ func TestFilterDiscarderRetention(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		e := event.(*model.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}

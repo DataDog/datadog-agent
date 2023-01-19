@@ -13,14 +13,17 @@ const (
 	DefaultAggregatorFlushInterval = 300 // 5min
 
 	// DefaultAggregatorBufferSize is the default aggregator buffer size interval
-	DefaultAggregatorBufferSize = 100
+	DefaultAggregatorBufferSize = 10000
 
 	// DefaultAggregatorPortRollupThreshold is the default aggregator port rollup threshold
 	DefaultAggregatorPortRollupThreshold = 10
 
 	// DefaultAggregatorRollupTrackerRefreshInterval is the default aggregator rollup tracker refresh interval
-	DefaultAggregatorRollupTrackerRefreshInterval = 3600 // 1h
+	DefaultAggregatorRollupTrackerRefreshInterval = 300 // 5min
 
 	// DefaultBindHost is the default bind host used for flow listeners
 	DefaultBindHost = "0.0.0.0"
+
+	// DefaultPrometheusListenerAddress is the default goflow prometheus listener address
+	DefaultPrometheusListenerAddress = "localhost:9090"
 )

@@ -16,17 +16,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/fatih/color"
@@ -39,7 +42,6 @@ const (
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
-	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
 	integrationVersionScript = `
 import pkg_resources
 try:
@@ -56,33 +58,56 @@ var (
 	versionSpecifiersRe   = regexp.MustCompile("([><=!]{1,2})([0-9.]*)")                                                                         // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 	pep440VersionStringRe = regexp.MustCompile("^(?P<release>\\d+\\.\\d+\\.\\d+)(?:(?P<preReleaseType>[a-zA-Z]+)(?P<preReleaseNumber>\\d+)?)?$") // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
 
-	allowRoot           bool
-	verbose             int
-	useSysPython        bool
-	versionOnly         bool
-	localWheel          bool
-	thirdParty          bool
 	rootDir             string
-	pythonMajorVersion  string
-	pythonMinorVersion  string
 	reqAgentReleasePath string
 	constraintsPath     string
 )
 
+// cliParams are the command-line arguments for the sub-subcommands.
+//
+// Note that not all params are present for all sub-subcommands.
+type cliParams struct {
+	*command.GlobalParams
+
+	// args are the positional command-line arguments
+	args []string
+
+	allowRoot          bool
+	verbose            int
+	useSysPython       bool
+	versionOnly        bool
+	localWheel         bool
+	thirdParty         bool
+	pythonMajorVersion string
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{}
+
 	integrationCmd := &cobra.Command{
 		Use:   "integration [command]",
 		Short: "Datadog integration manager",
 		Long:  ``,
 	}
-	integrationCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "enable verbose logging")
-	integrationCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
-	integrationCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
-	integrationCmd.PersistentFlags().StringVarP(&pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
+
+	integrationCmd.PersistentFlags().CountVarP(&cliParams.verbose, "verbose", "v", "enable verbose logging")
+	integrationCmd.PersistentFlags().BoolVarP(&cliParams.allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
+	integrationCmd.PersistentFlags().BoolVarP(&cliParams.useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
+	integrationCmd.PersistentFlags().StringVarP(&cliParams.pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
 
 	// Power user flags - mark as hidden
 	integrationCmd.PersistentFlags().MarkHidden("use-sys-python") //nolint:errcheck
+
+	// all subcommands use the same provided components, with a different oneShot callback
+	runOneShot := func(callback interface{}) error {
+		return fxutil.OneShot(callback,
+			fx.Supply(cliParams),
+			fx.Supply(core.BundleParams{
+				ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath, config.WithConfigMissingOK(true))}),
+			core.Bundle,
+		)
+	}
 
 	installCmd := &cobra.Command{
 		Use:   "install [package==version]",
@@ -92,14 +117,15 @@ You must specify a version of the package to install using the syntax: <package>
  - <package> of the form datadog-<integration-name>
  - <version> of the form x.y.z`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return install(globalArgs, cmd, args)
+			cliParams.args = args
+			return runOneShot(install)
 		},
 	}
 	installCmd.Flags().BoolVarP(
-		&localWheel, "local-wheel", "w", false, fmt.Sprintf("install an agent check from a locally available wheel file. %s", disclaimer),
+		&cliParams.localWheel, "local-wheel", "w", false, fmt.Sprintf("install an agent check from a locally available wheel file. %s", disclaimer),
 	)
 	installCmd.Flags().BoolVarP(
-		&thirdParty, "third-party", "t", false, "install a community or vendor-contributed integration",
+		&cliParams.thirdParty, "third-party", "t", false, "install a community or vendor-contributed integration",
 	)
 	integrationCmd.AddCommand(installCmd)
 
@@ -108,7 +134,8 @@ You must specify a version of the package to install using the syntax: <package>
 		Short: "Remove Datadog integration core/extra packages",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return remove(globalArgs, cmd, args)
+			cliParams.args = args
+			return runOneShot(remove)
 		},
 	}
 	integrationCmd.AddCommand(removeCmd)
@@ -118,7 +145,8 @@ You must specify a version of the package to install using the syntax: <package>
 		Short: "Print the list of installed packages in the agent's python environment",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return list(globalArgs, cmd, args)
+			cliParams.args = args
+			return runOneShot(list)
 		},
 	}
 	integrationCmd.AddCommand(freezeCmd)
@@ -129,16 +157,17 @@ You must specify a version of the package to install using the syntax: <package>
 		Args:  cobra.ExactArgs(1),
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return show(globalArgs, cmd, args)
+			cliParams.args = args
+			return runOneShot(show)
 		},
 	}
-	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
+	showCmd.Flags().BoolVarP(&cliParams.versionOnly, "show-version-only", "q", false, "only display version information")
 	integrationCmd.AddCommand(showCmd)
 
 	return []*cobra.Command{integrationCmd}
 }
 
-func loadPythonInfo(globalArgs *command.GlobalArgs) error {
+func loadPythonInfo(config config.Component, cliParams *cliParams) error {
 	rootDir, _ = executable.Folder()
 	for {
 		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
@@ -155,37 +184,13 @@ func loadPythonInfo(globalArgs *command.GlobalArgs) error {
 		rootDir = parentDir
 	}
 
-	if err := common.SetupConfigIfExist(globalArgs.ConfFilePath); err != nil {
-		fmt.Printf("Cannot setup config, exiting: %v\n", err)
-		return err
+	if cliParams.pythonMajorVersion == "" {
+		cliParams.pythonMajorVersion = config.GetString("python_version")
 	}
 
-	if pythonMajorVersion == "" {
-		pythonMajorVersion = config.Datadog.GetString("python_version")
-	}
-
-	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", pythonMajorVersion))
+	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", cliParams.pythonMajorVersion))
 	if _, err := os.Lstat(constraintsPath); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func detectPythonMinorVersion() error {
-	if pythonMinorVersion == "" {
-		pythonPath, err := getCommandPython()
-		if err != nil {
-			return err
-		}
-
-		versionCmd := exec.Command(pythonPath, "-c", pythonMinorVersionScript)
-		minorVersion, err := versionCmd.Output()
-		if err != nil {
-			return err
-		}
-
-		pythonMinorVersion = strings.TrimSpace(string(minorVersion))
 	}
 
 	return nil
@@ -256,12 +261,12 @@ func PEP440ToSemver(pep440 string) (*semver.Version, error) {
 	return semver.NewVersion(versionString)
 }
 
-func getCommandPython() (string, error) {
+func getCommandPython(pythonMajorVersion string, useSysPython bool) (string, error) {
 	if useSysPython {
 		return pythonBin, nil
 	}
 
-	pyPath := filepath.Join(rootDir, getRelPyPath())
+	pyPath := filepath.Join(rootDir, getRelPyPath(pythonMajorVersion))
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -297,8 +302,8 @@ func validateArgs(args []string, local bool) error {
 	return nil
 }
 
-func pip(globalArgs *command.GlobalArgs, args []string, stdout io.Writer, stderr io.Writer) error {
-	pythonPath, err := getCommandPython()
+func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer) error {
+	pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
 	if err != nil {
 		return err
 	}
@@ -308,8 +313,8 @@ func pip(globalArgs *command.GlobalArgs, args []string, stdout io.Writer, stderr
 	implicitFlags = append(implicitFlags, "--disable-pip-version-check")
 	args = append([]string{"-mpip"}, cmd)
 
-	if verbose > 0 {
-		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
+	if cliParams.verbose > 0 {
+		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", cliParams.verbose)))
 	}
 
 	// Append implicit flags to the *pip* command
@@ -349,17 +354,17 @@ func pip(globalArgs *command.GlobalArgs, args []string, stdout io.Writer, stderr
 	return nil
 }
 
-func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	if err := loadPythonInfo(globalArgs); err != nil {
+func install(config config.Component, cliParams *cliParams) error {
+	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
 
-	err := validateUser(allowRoot)
+	err := validateUser(cliParams.allowRoot)
 	if err != nil {
 		return err
 	}
 
-	if err := validateArgs(args, localWheel); err != nil {
+	if err := validateArgs(cliParams.args, cliParams.localWheel); err != nil {
 		return err
 	}
 
@@ -375,11 +380,11 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 		"--no-deps",
 	}
 
-	if localWheel {
+	if cliParams.localWheel {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
 		// Verify that the wheel depends on `datadog-checks-base` to decide if it's an agent check or not
-		wheelPath := args[0]
+		wheelPath := cliParams.args[0]
 
 		fmt.Println(disclaimer)
 		if ok, err := validateBaseDependency(wheelPath, nil); err != nil {
@@ -396,12 +401,12 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 		integration = normalizePackageName(strings.TrimSpace(integration))
 
 		// Install the wheel
-		if err := pip(globalArgs, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
+		if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
 			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 		}
 
 		// Move configuration files
-		if err := moveConfigurationFilesOf(integration); err != nil {
+		if err := moveConfigurationFilesOf(cliParams, integration); err != nil {
 			fmt.Printf("Installed %s from %s\n", integration, wheelPath)
 			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
 		}
@@ -414,11 +419,11 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 	}
 
 	// Additional verification for installation
-	if len(strings.Split(args[0], "==")) != 2 {
+	if len(strings.Split(cliParams.args[0], "==")) != 2 {
 		return fmt.Errorf("you must specify a version to install with <package>==<version>")
 	}
 
-	intVer := strings.Split(args[0], "==")
+	intVer := strings.Split(cliParams.args[0], "==")
 	integration := normalizePackageName(strings.TrimSpace(intVer[0]))
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
@@ -427,7 +432,7 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
-	currentVersion, found, err := installedVersion(integration)
+	currentVersion, found, err := installedVersion(cliParams, integration)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
@@ -448,18 +453,18 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 	}
 
 	rootLayoutType := "core"
-	if thirdParty {
+	if cliParams.thirdParty {
 		rootLayoutType = "extras"
 	}
 
 	// Download the wheel
-	wheelPath, err := downloadWheel(integration, semverToPEP440(versionToInstall), rootLayoutType)
+	wheelPath, err := downloadWheel(cliParams, integration, semverToPEP440(versionToInstall), rootLayoutType)
 	if err != nil {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 	}
 
 	// Verify datadog-checks-base is compatible with the requirements
-	shippedBaseVersion, found, err := installedVersion("datadog-checks-base")
+	shippedBaseVersion, found, err := installedVersion(cliParams, "datadog-checks-base")
 	if err != nil {
 		return fmt.Errorf("unable to get the version of datadog-checks-base: %v", err)
 	}
@@ -473,12 +478,12 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 	}
 
 	// Install the wheel
-	if err := pip(globalArgs, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
+	if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
 	// Move configuration files
-	if err := moveConfigurationFilesOf(integration); err != nil {
+	if err := moveConfigurationFilesOf(cliParams, integration); err != nil {
 		fmt.Printf("Installed %s %s", integration, versionToInstall)
 		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
 	}
@@ -489,8 +494,9 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 	return nil
 }
 
-func downloadWheel(integration, version, rootLayoutType string) (string, error) {
-	pyPath, err := getCommandPython()
+func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
+	// We use python 3 to invoke the downloader regardless of config
+	pyPath, err := getCommandPython("3", cliParams.useSysPython)
 	if err != nil {
 		return "", err
 	}
@@ -501,8 +507,8 @@ func downloadWheel(integration, version, rootLayoutType string) (string, error) 
 		"--version", version,
 		"--type", rootLayoutType,
 	}
-	if verbose > 0 {
-		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
+	if cliParams.verbose > 0 {
+		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", cliParams.verbose)))
 	}
 
 	downloaderCmd := exec.Command(pyPath, args...)
@@ -532,7 +538,7 @@ func downloadWheel(integration, version, rootLayoutType string) (string, error) 
 	downloaderCmd.Env = environ
 
 	// Proxy support
-	proxies := config.GetProxies()
+	proxies := pkgconfig.GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
@@ -690,7 +696,7 @@ func validateRequirement(version *semver.Version, comp string, versionReq *semve
 }
 
 func minAllowedVersion(integration string) (*semver.Version, bool, error) {
-	lines, err := ioutil.ReadFile(reqAgentReleasePath)
+	lines, err := os.ReadFile(reqAgentReleasePath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -703,8 +709,8 @@ func minAllowedVersion(integration string) (*semver.Version, bool, error) {
 }
 
 // Return the version of an installed integration and whether or not it was found
-func installedVersion(integration string) (*semver.Version, bool, error) {
-	pythonPath, err := getCommandPython()
+func installedVersion(cliParams *cliParams, integration string) (*semver.Version, bool, error) {
+	pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
 	if err != nil {
 		return nil, false, err
 	}
@@ -768,15 +774,15 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, b
 	return version, true, nil
 }
 
-func moveConfigurationFilesOf(integration string) error {
-	confFolder := config.Datadog.GetString("confd_path")
+func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
+	confFolder := pkgconfig.Datadog.GetString("confd_path")
 	check := getIntegrationName(integration)
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
 	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {
 		return err
 	}
 
-	relChecksPath, err := getRelChecksPath()
+	relChecksPath, err := getRelChecksPath(cliParams)
 	if err != nil {
 		return err
 	}
@@ -786,7 +792,7 @@ func moveConfigurationFilesOf(integration string) error {
 }
 
 func moveConfigurationFiles(srcFolder string, dstFolder string) error {
-	files, err := ioutil.ReadDir(srcFolder)
+	files, err := os.ReadDir(srcFolder)
 	if err != nil {
 		return err
 	}
@@ -816,12 +822,12 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		}
 		src := filepath.Join(srcFolder, filename)
 		dst := filepath.Join(dstFolder, filename)
-		srcContent, err := ioutil.ReadFile(src)
+		srcContent, err := os.ReadFile(src)
 		if err != nil {
 			errorMsg = fmt.Sprintf("%s\nError reading configuration file %s: %v", errorMsg, src, err)
 			continue
 		}
-		err = ioutil.WriteFile(dst, srcContent, 0644)
+		err = os.WriteFile(dst, srcContent, 0644)
 		if err != nil {
 			errorMsg = fmt.Sprintf("%s\nError writing configuration file %s: %v", errorMsg, dst, err)
 			continue
@@ -836,17 +842,17 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	return nil
 }
 
-func remove(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	if err := loadPythonInfo(globalArgs); err != nil {
+func remove(config config.Component, cliParams *cliParams) error {
+	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
 
-	err := validateUser(allowRoot)
+	err := validateUser(cliParams.allowRoot)
 	if err != nil {
 		return err
 	}
 
-	if err := validateArgs(args, false); err != nil {
+	if err := validateArgs(cliParams.args, false); err != nil {
 		return err
 	}
 
@@ -854,14 +860,14 @@ func remove(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) e
 		"uninstall",
 		"--no-cache-dir",
 	}
-	pipArgs = append(pipArgs, args...)
+	pipArgs = append(pipArgs, cliParams.args...)
 	pipArgs = append(pipArgs, "-y")
 
-	return pip(globalArgs, pipArgs, os.Stdout, os.Stderr)
+	return pip(cliParams, pipArgs, os.Stdout, os.Stderr)
 }
 
-func list(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	if err := loadPythonInfo(globalArgs); err != nil {
+func list(config config.Component, cliParams *cliParams) error {
+	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
 
@@ -871,7 +877,7 @@ func list(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) err
 	}
 
 	pipStdo := bytes.NewBuffer(nil)
-	err := pip(globalArgs, pipArgs, io.Writer(pipStdo), os.Stderr)
+	err := pip(cliParams, pipArgs, io.Writer(pipStdo), os.Stderr)
 	if err != nil {
 		return err
 	}
@@ -887,17 +893,17 @@ func list(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) err
 	return nil
 }
 
-func show(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	if err := loadPythonInfo(globalArgs); err != nil {
+func show(config config.Component, cliParams *cliParams) error {
+	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
 
-	if err := validateArgs(args, false); err != nil {
+	if err := validateArgs(cliParams.args, false); err != nil {
 		return err
 	}
-	packageName := normalizePackageName(args[0])
+	packageName := normalizePackageName(cliParams.args[0])
 
-	version, found, err := installedVersion(packageName)
+	version, found, err := installedVersion(cliParams, packageName)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
 	} else if !found {
@@ -909,7 +915,7 @@ func show(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) err
 		return nil
 	}
 
-	if versionOnly {
+	if cliParams.versionOnly {
 		// Print only the version for easier parsing
 		fmt.Println(version)
 	} else {

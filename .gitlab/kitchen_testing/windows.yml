@@ -46,7 +46,7 @@
     - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2012r2,win2016,win2019,win2019cn,win1903,win1909,win2004,win20h2,win2022"
+    KITCHEN_OSVERS: "win2012r2,win2016,win2019,win2019cn,win2022"
     DEFAULT_KITCHEN_OSVERS: "win2022"
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi

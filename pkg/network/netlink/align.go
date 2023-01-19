@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package netlink
 
@@ -28,12 +28,14 @@ func nlmsgAlign(len int) int {
 }
 
 // #define NLMSG_LENGTH(len) ((len) + NLMSG_HDRLEN)
+//
 //nolint:unused,deadcode
 func nlmsgLength(len int) int {
 	return len + nlmsgHeaderLen
 }
 
 // #define NLMSG_HDRLEN ((int) NLMSG_ALIGN(sizeof(struct nlmsghdr)))
+//
 //nolint:unused
 var nlmsgHeaderLen = nlmsgAlign(int(unsafe.Sizeof(netlink.Header{})))
 

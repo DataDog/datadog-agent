@@ -28,6 +28,7 @@ var containerSourceTypes = map[string]struct{}{
 	"docker":     {},
 	"containerd": {},
 	"podman":     {},
+	"cri-o":      {},
 }
 
 // A Launcher starts and stops new tailers for every new containers discovered

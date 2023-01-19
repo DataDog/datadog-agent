@@ -9,10 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
+
+// create a new config to access default config values
+var defaultAgentConfig = config.New()
 
 func TestTraces(t *testing.T) {
 	var r test.Runner
@@ -58,8 +64,10 @@ func TestTraces(t *testing.T) {
 		}, nil)
 		for i := 0; i < 2; i++ {
 			// user reject two traces
+			// unset any error so they aren't grabbed by error sampler
 			for _, span := range p[i] {
 				span.Metrics["_sampling_priority_v1"] = -1
+				span.Error = 0
 			}
 		}
 		if err := r.Post(p); err != nil {
@@ -155,6 +163,10 @@ func payloadsEqual(t *testing.T, from pb.Traces, to pb.AgentPayload) {
 	if found != len(from) {
 		t.Fatalf("Failed to match traces")
 	}
+	// validate the reported sampling configuration
+	assert.Equal(t, to.TargetTPS, defaultAgentConfig.TargetTPS)
+	assert.Equal(t, to.ErrorTPS, defaultAgentConfig.ErrorTPS)
+	assert.Equal(t, to.RareSamplerEnabled, defaultAgentConfig.RareSamplerEnabled)
 }
 
 // tracesEqual reports whether from and to are equal traces. The latter is allowed

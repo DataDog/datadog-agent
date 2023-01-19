@@ -28,6 +28,10 @@ var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
 }
 
+var BTFHubVsFallbackPossiblyMissingConstants = []string{
+	constantfetch.OffsetNameNFConnStructCTNet,
+}
+
 func TestOctogonConstants(t *testing.T) {
 	if err := initLogger(); err != nil {
 		t.Fatal(err)
@@ -50,8 +54,8 @@ func TestOctogonConstants(t *testing.T) {
 	}
 
 	t.Run("rc-vs-fallback", func(t *testing.T) {
-		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
+			return kv.IsSLESKernel()
 		})
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
@@ -61,8 +65,8 @@ func TestOctogonConstants(t *testing.T) {
 	})
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
-		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
+			return kv.IsSLESKernel()
 		})
 
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
@@ -78,6 +82,20 @@ func TestOctogonConstants(t *testing.T) {
 		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv, BTFHubVsRcPossiblyMissingConstants)
 	})
 
+	t.Run("btfhub-vs-fallback", func(t *testing.T) {
+		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
+		if err != nil {
+			t.Skipf("btfhub constant fetcher is not available: %v", err)
+		}
+		if !btfhubFetcher.HasConstantsInStore() {
+			t.Skip("btfhub has no constant for this OS")
+		}
+
+		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
+
+		assertConstantsEqual(t, btfhubFetcher, fallbackFetcher, kv, BTFHubVsFallbackPossiblyMissingConstants)
+	})
+
 	t.Run("btf-vs-fallback", func(t *testing.T) {
 		btfFetcher, err := constantfetch.NewBTFConstantFetcherFromCurrentKernel()
 		if err != nil {
@@ -90,8 +108,8 @@ func TestOctogonConstants(t *testing.T) {
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
-		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
+			return kv.IsSLESKernel()
 		})
 
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)

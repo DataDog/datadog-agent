@@ -28,11 +28,13 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewClusterCollectorVersions(),
 			k8sCollectors.NewClusterRoleCollectorVersions(),
 			k8sCollectors.NewClusterRoleBindingCollectorVersions(),
+			k8sCollectors.NewCRDCollectorVersions(),
 			k8sCollectors.NewCronJobCollectorVersions(),
 			k8sCollectors.NewDaemonSetCollectorVersions(),
 			k8sCollectors.NewDeploymentCollectorVersions(),
 			k8sCollectors.NewIngressCollectorVersions(),
 			k8sCollectors.NewJobCollectorVersions(),
+			k8sCollectors.NewNamespaceCollectorVersions(),
 			k8sCollectors.NewNodeCollectorVersions(),
 			k8sCollectors.NewPersistentVolumeCollectorVersions(),
 			k8sCollectors.NewPersistentVolumeClaimCollectorVersions(),
@@ -43,6 +45,7 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewServiceAccountCollectorVersions(),
 			k8sCollectors.NewStatefulSetCollectorVersions(),
 			k8sCollectors.NewUnassignedPodCollectorVersions(),
+			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(),
 		},
 	}
 }

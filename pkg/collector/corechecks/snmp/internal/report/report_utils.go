@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -146,4 +147,10 @@ func transformIndex(indexes []string, transformRules []checkconfig.MetricIndexTr
 		newIndex = append(newIndex, indexes[start:end]...)
 	}
 	return newIndex
+}
+
+func netmaskToPrefixlen(netmask string) int {
+	stringMask := net.IPMask(net.ParseIP(netmask).To4())
+	length, _ := stringMask.Size()
+	return length
 }

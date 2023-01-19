@@ -14,33 +14,47 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
 	stopCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "Stops a running Agent",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return stop(globalArgs, cmd, args)
+			return fxutil.OneShot(stop,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+				core.Bundle,
+			)
 		},
 	}
 
 	return []*cobra.Command{stopCmd}
 }
 
-func stop(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
+func stop(config config.Component, cliParams *cliParams) error {
 	// Global Agent configuration
-	err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
@@ -48,11 +62,11 @@ func stop(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) err
 	if e != nil {
 		return e
 	}
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, config.GetInt("cmd_port"))
 
 	_, e = util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {

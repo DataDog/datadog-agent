@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package metrics
 
@@ -12,7 +12,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 
@@ -161,7 +161,7 @@ func decompressPayload(payload []byte) ([]byte, error) {
 	}
 	defer r.Close()
 
-	dst, err := ioutil.ReadAll(r)
+	dst, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

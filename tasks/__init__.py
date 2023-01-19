@@ -7,7 +7,6 @@ from invoke import Collection
 
 from . import (
     agent,
-    android,
     bench,
     cluster_agent,
     cluster_agent_cloudfoundry,
@@ -29,8 +28,10 @@ from . import (
     vscode,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
+from .components import lint_components
 from .fuzz import fuzz
 from .go import (
+    check_go_version,
     check_mod_tidy,
     deps,
     deps_vendored,
@@ -42,11 +43,13 @@ from .go import (
     tidy_all,
 )
 from .test import (
+    codecov,
     download_tools,
     e2e_tests,
     install_shellcheck,
     install_tools,
     integration_tests,
+    junit_macos_repack,
     junit_upload,
     lint_copyrights,
     lint_filenames,
@@ -64,11 +67,13 @@ ns = Collection()
 # add single tasks to the root
 ns.add_task(golangci_lint)
 ns.add_task(test)
+ns.add_task(codecov)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
+ns.add_task(lint_components)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
 ns.add_task(lint_copyrights),
@@ -85,13 +90,14 @@ ns.add_task(download_tools)
 ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
+ns.add_task(check_go_version)
 ns.add_task(generate_config)
 ns.add_task(junit_upload)
+ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
-ns.add_collection(android)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(customaction)

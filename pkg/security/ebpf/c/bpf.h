@@ -105,8 +105,6 @@ struct bpf_map_def SEC("maps/bpf_maps") bpf_maps = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct bpf_map_t),
     .max_entries = 4096,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/bpf_progs") bpf_progs = {
@@ -114,8 +112,6 @@ struct bpf_map_def SEC("maps/bpf_progs") bpf_progs = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct bpf_prog_t),
     .max_entries = 4096,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/tgid_fd_map_id") tgid_fd_map_id = {
@@ -123,8 +119,6 @@ struct bpf_map_def SEC("maps/tgid_fd_map_id") tgid_fd_map_id = {
     .key_size = sizeof(struct bpf_tgid_fd_t),
     .value_size = sizeof(u32),
     .max_entries = 4096,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/tgid_fd_prog_id") tgid_fd_prog_id = {
@@ -132,8 +126,6 @@ struct bpf_map_def SEC("maps/tgid_fd_prog_id") tgid_fd_prog_id = {
     .key_size = sizeof(struct bpf_tgid_fd_t),
     .value_size = sizeof(u32),
     .max_entries = 4096,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) void save_obj_fd(struct syscall_cache_t *syscall) {
@@ -359,11 +351,6 @@ SYSCALL_KRETPROBE(bpf) {
     return sys_bpf_ret(ctx, (int)PT_REGS_RC(ctx));
 }
 
-SEC("tracepoint/syscalls/sys_exit_bpf")
-int tracepoint_syscalls_sys_exit_bpf(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_bpf_ret(args, args->ret);
-}
-
 SEC("kprobe/security_bpf_map")
 int kprobe_security_bpf_map(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
@@ -445,6 +432,11 @@ int kprobe_check_helper_call(struct pt_regs *ctx) {
         syscall->bpf.helpers[0] |= (u64) 1 << (func_id);
     }
     return 0;
+}
+
+SEC("tracepoint/handle_sys_bpf_exit")
+int tracepoint_handle_sys_bpf_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_bpf_ret(args, args->ret);
 }
 
 #endif

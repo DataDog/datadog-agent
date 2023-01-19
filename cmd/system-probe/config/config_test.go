@@ -7,7 +7,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -40,13 +39,9 @@ func TestRuntimeSecurityLoad(t *testing.T) {
 		{cws: true, fim: true, events: true, enabled: true},
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			os.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(tc.cws))
-			os.Setenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED", strconv.FormatBool(tc.fim))
-			os.Setenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_ENABLED", strconv.FormatBool(tc.events))
-
-			defer os.Unsetenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED")
-			defer os.Unsetenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED")
-			defer os.Unsetenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_ENABLED")
+			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(tc.cws))
+			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED", strconv.FormatBool(tc.fim))
+			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_ENABLED", strconv.FormatBool(tc.events))
 
 			cfg, err := New("")
 			require.NoError(t, err)

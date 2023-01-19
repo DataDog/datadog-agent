@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -27,6 +28,7 @@ const (
 	processNS       = "process_config"
 	defaultEndpoint = "https://orchestrator.datadoghq.com"
 	maxMessageBatch = 100
+	maxMessageSize  = 50 * 1e6 // 50 MB
 )
 
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
@@ -43,6 +45,8 @@ type OrchestratorConfig struct {
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
 	IsManifestCollectionEnabled    bool
+	BufferedManifestEnabled        bool
+	ManifestBufferFlushInterval    time.Duration
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -89,16 +93,10 @@ func (oc *OrchestratorConfig) Load() error {
 		oc.Scrubber.AddCustomSensitiveWords(config.Datadog.GetStringSlice(k))
 	}
 
-	// The maximum number of pods, nodes, replicaSets, deployments and services per message. Note: Only change if the defaults are causing issues.
-	if k := key(orchestratorNS, "max_per_message"); config.Datadog.IsSet(k) {
-		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
-			log.Warn("Invalid item count per message (<= 0), ignoring...")
-		} else if maxPerMessage <= maxMessageBatch {
-			oc.MaxPerMessage = maxPerMessage
-		} else if maxPerMessage > 0 {
-			log.Warn("Overriding the configured item count per message limit because it exceeds maximum")
-		}
-	}
+	// The maximum number of resources per message and the maximum message size.
+	// Note: Only change if the defaults are causing issues.
+	setBoundedConfigIntValue(key(orchestratorNS, "max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
+	setBoundedConfigIntValue(key(orchestratorNS, "max_message_bytes"), maxMessageSize, func(v int) { oc.MaxWeightPerMessageBytes = v })
 
 	if k := key(processNS, "pod_queue_bytes"); config.Datadog.IsSet(k) {
 		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
@@ -107,19 +105,14 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// Orchestrator Explorer
-	if config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
-		oc.OrchestrationCollectionEnabled = true
-		// Set clustername
-		hname, _ := hostname.Get(context.TODO())
-		if clusterName := clustername.GetClusterName(context.TODO(), hname); clusterName != "" {
-			oc.KubeClusterName = clusterName
-		}
-	}
+	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
 
 	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(key(orchestratorNS, "collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
 	oc.ExtraTags = config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags"))
 	oc.IsManifestCollectionEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.enabled"))
+	oc.BufferedManifestEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.buffer_manifest"))
+	oc.ManifestBufferFlushInterval = config.Datadog.GetDuration(key(orchestratorNS, "manifest_collection.buffer_flush_interval"))
 
 	return nil
 }
@@ -182,4 +175,35 @@ func NewOrchestratorForwarder() forwarder.Forwarder {
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
 	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
+}
+
+func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
+	if !config.Datadog.IsSet(configKey) {
+		return
+	}
+
+	val := config.Datadog.GetInt(configKey)
+
+	if val <= 0 {
+		log.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
+		return
+	}
+	if val > upperBound {
+		log.Warnf("Ignoring invalid value for setting %s (exceeds maximum allowed value %d)", configKey, upperBound)
+		return
+	}
+
+	setter(val)
+}
+
+// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
+func IsOrchestratorEnabled() (bool, string) {
+	enabled := config.Datadog.GetBool(key(orchestratorNS, "enabled"))
+	var clusterName string
+	if enabled {
+		// Set clustername
+		hname, _ := hostname.Get(context.TODO())
+		clusterName = clustername.GetClusterName(context.TODO(), hname)
+	}
+	return enabled, clusterName
 }

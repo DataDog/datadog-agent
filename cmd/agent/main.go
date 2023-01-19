@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !android
-// +build !windows,!android
+//go:build !windows
+// +build !windows
 
 package main
 
@@ -13,10 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 )
 
 func main() {
-	if err := command.MakeCommand(subcommands.AgentSubcommands()).Execute(); err != nil {
-		os.Exit(-1)
-	}
+	os.Exit(runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands())))
 }

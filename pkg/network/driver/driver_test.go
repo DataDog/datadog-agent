@@ -17,14 +17,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func dnsSupported(t *testing.T) bool {
-	return true
-}
-
-func httpSupported(t *testing.T) bool {
-	return false
-}
-
 func TestDriverRequiresPath(t *testing.T) {
 	p, err := windows.UTF16PtrFromString(deviceName)
 	assert.Nil(t, err)

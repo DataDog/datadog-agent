@@ -1,0 +1,5 @@
+features:
+  - |
+    The Agent now leverages DMI information on Unix to get the instance ID on AWS EC2 when the metadata endpoint fails or
+    is not accessible. The instance ID is exposed throught DMI only on AWS Nitro instances.
+    This will not change the hostname of the Agent upon upgrading, but will add to the list of host aliases.

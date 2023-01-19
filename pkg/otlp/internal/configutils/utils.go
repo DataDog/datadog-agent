@@ -8,11 +8,11 @@ package configutils
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/service"
+	"go.opentelemetry.io/collector/otelcol"
 	"gopkg.in/yaml.v2"
 )
 
@@ -20,7 +20,7 @@ import (
 // Adapted from: https://github.com/open-telemetry/opentelemetry-collector/blob/v0.41.0/config/configmapprovider/inmemory.go
 func NewMapFromYAMLString(cfg string) (*confmap.Conf, error) {
 	inp := strings.NewReader(cfg)
-	content, err := ioutil.ReadAll(inp)
+	content, err := io.ReadAll(inp)
 	if err != nil {
 		return nil, err
 	}
@@ -62,9 +62,9 @@ func (m *mapProvider) Shutdown(context.Context) error {
 }
 
 // NewConfigProviderFromMap creates a service.ConfigProvider with a single constant provider `map`, built from a given *confmap.Conf.
-func NewConfigProviderFromMap(cfg *confmap.Conf) service.ConfigProvider {
+func NewConfigProviderFromMap(cfg *confmap.Conf) otelcol.ConfigProvider {
 	provider := &mapProvider{cfg}
-	settings := service.ConfigProviderSettings{
+	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
 			URIs: []string{mapLocation},
 			Providers: map[string]confmap.Provider{
@@ -72,7 +72,7 @@ func NewConfigProviderFromMap(cfg *confmap.Conf) service.ConfigProvider {
 			},
 			Converters: []confmap.Converter{},
 		}}
-	cp, err := service.NewConfigProvider(settings)
+	cp, err := otelcol.NewConfigProvider(settings)
 	if err != nil {
 		panic(err)
 	}

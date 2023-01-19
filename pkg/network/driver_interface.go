@@ -27,9 +27,9 @@ type DriverExpvar string
 
 const (
 	totalFlowStats  DriverExpvar = "driver_total_flow_stats"
-	flowHandleStats              = "driver_flow_handle_stats"
-	flowStats                    = "flows"
-	driverStats                  = "driver"
+	flowHandleStats DriverExpvar = "driver_flow_handle_stats"
+	flowStats       DriverExpvar = "flows"
+	driverStats     DriverExpvar = "driver"
 )
 
 const (
@@ -102,7 +102,10 @@ func NewDriverInterface(cfg *config.Config, handleFunc HandleCreateFn) (*DriverI
 	if err != nil {
 		return nil, fmt.Errorf("error creating driver flow handle: %w", err)
 	}
-
+	err = dc.setupClassification()
+	if err != nil {
+		return nil, fmt.Errorf("error configuring classification settings: %w", err)
+	}
 	return dc, nil
 }
 
@@ -139,6 +142,27 @@ func (di *DriverInterface) setupFlowHandle() error {
 		return err
 	}
 	return nil
+}
+
+func (di *DriverInterface) setupClassification() error {
+	if di.cfg.ProtocolClassificationEnabled == false {
+		log.Infof("Traffic classification not enabled")
+		return nil
+	}
+	// else
+	log.Infof("Enabling traffic classification")
+	var settings driver.ClassificationSettings
+	settings.Enabled = 1
+	err := di.driverFlowHandle.DeviceIoControl(
+		driver.EnableClassifyIOCTL,
+		(*byte)(unsafe.Pointer(&settings)),
+		uint32(driver.ClassificationSettingsTypeSize),
+		nil,
+		uint32(0), nil, nil)
+	if err != nil {
+		log.Warnf("Error enabling classification %v", err)
+	}
+	return err
 }
 
 // SetFlowFilters installs the provided filters for flows
@@ -189,6 +213,21 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	}, nil
 }
 
+//nolint:deadcode,unused // debugging helper normally commented out
+func printClassification(fd *driver.PerFlowData) {
+	if fd.ClassificationStatus != driver.ClassificationUnclassified {
+		if fd.ClassifyRequest == driver.ClassificationRequestTLS || fd.ClassifyResponse == driver.ClassificationResponseTLS {
+			log.Infof("Flow classified %v", fd.ClassificationStatus)
+			log.Infof("Flow classify request %v", fd.ClassifyRequest)
+			log.Infof("Flow classify response %v", fd.ClassifyResponse)
+			log.Infof("Flow classify ALPN Requested Protocols %x", fd.Tls_alpn_requested)
+			log.Infof("Flow classify ALPN chosen    Protocols %x", fd.Tls_alpn_chosen)
+			log.Infof("tls versions offered:  %x", fd.Tls_versions_offered)
+			log.Infof("tls version  chosen:   %x", fd.Tls_version_chosen)
+		}
+	}
+}
+
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats.
 // It returns the count of connections added to the active and closed buffers, respectively.
 func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, closedBuf *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, int, error) {
@@ -226,6 +265,7 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 			buf = di.readBuffer[bytesUsed:]
 			pfd := (*driver.PerFlowData)(unsafe.Pointer(&(buf[0])))
 
+			//printClassification(pfd)
 			if isFlowClosed(pfd.Flags) {
 				c := closedBuf.Next()
 				FlowToConnStat(c, pfd, di.enableMonotonicCounts)

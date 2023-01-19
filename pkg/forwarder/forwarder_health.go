@@ -34,7 +34,12 @@ var (
 
 	validateAPIKeyTimeout = 10 * time.Second
 
-	apiKeyStatus = expvar.Map{}
+	apiKeyStatus  = expvar.Map{}
+	apiKeyFailure = expvar.Map{}
+
+	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
+	// with 'api.' (see computeDomainsURL).
+	domainURLRegexp = regexp.MustCompile(`([a-z]{2}\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
 )
 
 func init() {
@@ -47,7 +52,9 @@ func init() {
 
 func initForwarderHealthExpvars() {
 	apiKeyStatus.Init()
+	apiKeyFailure.Init()
 	transaction.ForwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
+	transaction.ForwarderExpvars.Set("APIKeyFailure", &apiKeyFailure)
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
@@ -135,23 +142,25 @@ func (fh *forwarderHealth) healthCheckLoop() {
 // computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
 func (fh *forwarderHealth) computeDomainsURL() {
 	for domain, dr := range fh.domainResolvers {
-		apiDomain := ""
-		re := regexp.MustCompile(`((us|eu)\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
-		if re.MatchString(domain) {
-			apiDomain = "https://api." + re.FindString(domain)
-		} else {
-			apiDomain = domain
+		if domainURLRegexp.MatchString(domain) {
+			domain = "https://api." + domainURLRegexp.FindString(domain)
 		}
-		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], dr.GetAPIKeys()...)
+		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], dr.GetAPIKeys()...)
 	}
 }
 
-func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
+func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status *expvar.String) {
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
 	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
-	apiKeyStatus.Set(obfuscatedKey, status)
+	if status == &apiKeyInvalid {
+		apiKeyFailure.Set(obfuscatedKey, status)
+		apiKeyStatus.Delete(obfuscatedKey)
+	} else {
+		apiKeyStatus.Set(obfuscatedKey, status)
+		apiKeyFailure.Delete(obfuscatedKey)
+	}
 }
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {

@@ -11,7 +11,7 @@ package compression
 import (
 	"bytes"
 	"compress/zlib"
-	"io/ioutil"
+	"io"
 )
 
 // ContentEncoding describes the HTTP header value associated with the compression method
@@ -42,14 +42,14 @@ func Decompress(src []byte) ([]byte, error) {
 	}
 	defer r.Close()
 
-	dst, err := ioutil.ReadAll(r)
+	dst, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
 	return dst, nil
 }
 
-//  CompressBound returns the worst case size needed for a destination buffer
+// CompressBound returns the worst case size needed for a destination buffer
 func CompressBound(sourceLen int) int {
 	// From https://code.woboq.org/gcc/zlib/compress.c.html#compressBound
 	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13

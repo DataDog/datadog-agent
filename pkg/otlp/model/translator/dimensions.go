@@ -30,6 +30,7 @@ const (
 
 // Dimensions of a metric that identify a timeseries uniquely.
 // This is similar to the concept of 'context' in DogStatsD/check metrics.
+// NOTE: Keep this in sync with the TestDimensions struct.
 type Dimensions struct {
 	name     string
 	tags     []string

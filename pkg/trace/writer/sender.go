@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -345,7 +344,7 @@ func (s *sender) do(req *http.Request) error {
 	// From https://golang.org/pkg/net/http/#Response:
 	// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
 	// TCP connections if the Body is not read to completion and closed.
-	if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
 		log.Debugf("Error discarding request body: %v", err)
 	}
 	resp.Body.Close()
@@ -476,7 +475,9 @@ const (
 
 // backoffDuration returns the backoff duration necessary for the given attempt.
 // The formula is "Full Jitter":
-//   random_between(0, min(cap, base * 2 ** attempt))
+//
+//	random_between(0, min(cap, base * 2 ** attempt))
+//
 // https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
 var backoffDuration = func(attempt int) time.Duration {
 	if attempt == 0 {

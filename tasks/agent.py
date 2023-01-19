@@ -174,7 +174,7 @@ def build(
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android=False)),
+        "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
@@ -365,6 +365,7 @@ def get_omnibus_env(
     nikos_path=None,
     go_mod_cache=None,
     flavor=AgentFlavor.base,
+    pip_config_file="pip.conf",
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -401,6 +402,11 @@ def get_omnibus_env(
     )
     env['MAJOR_VERSION'] = major_version
     env['PY_RUNTIMES'] = python_runtimes
+
+    # Since omnibus and the invoke task won't run in the same folder
+    # we need to input the absolute path of the pip config file
+    env['PIP_CONFIG_FILE'] = os.path.abspath(pip_config_file)
+
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     if nikos_path:
@@ -480,6 +486,8 @@ def omnibus_build(
     system_probe_bin=None,
     nikos_path=None,
     go_mod_cache=None,
+    python_mirror=None,
+    pip_config_file="pip.conf",
 ):
     """
     Build the Agent packages with Omnibus Installer.
@@ -513,6 +521,7 @@ def omnibus_build(
         nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
+        pip_config_file=pip_config_file,
     )
 
     target_project = "agent"
@@ -520,6 +529,16 @@ def omnibus_build(
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"
+
+    # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
+    python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
+
+    # If a python_mirror is set then use it for pip by adding it in the pip.conf file
+    pip_index_url = f"[global]\nindex-url = {python_mirror}" if python_mirror else ""
+
+    # We're passing the --index-url arg through a pip.conf file so that omnibus doesn't leak the token
+    with open(pip_config_file, 'w') as f:
+        f.write(pip_index_url)
 
     bundle_start = datetime.datetime.now()
     bundle_install_omnibus(ctx, gem_path, env)
@@ -538,6 +557,9 @@ def omnibus_build(
     )
     omnibus_done = datetime.datetime.now()
     omnibus_elapsed = omnibus_done - omnibus_start
+
+    # Delete the temporary pip.conf file once the build is done
+    os.remove(pip_config_file)
 
     print("Build component timing:")
     if not skip_deps:

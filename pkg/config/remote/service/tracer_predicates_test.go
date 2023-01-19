@@ -88,8 +88,8 @@ func TestTracerPredicates(t *testing.T) {
 	// test match everything
 	tester(true, []*pbgo.TracerPredicateV1{{}})
 
-	// test match nothing
-	tester(false, []*pbgo.TracerPredicateV1{})
+	// test match everything
+	tester(true, []*pbgo.TracerPredicateV1{})
 
 	// multiple fields
 	tester(

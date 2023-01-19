@@ -13,10 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func testCacheSize(t *testing.T, resolver *ProcessResolver) {
@@ -33,7 +34,7 @@ func testCacheSize(t *testing.T, resolver *ProcessResolver) {
 }
 
 func TestFork1st(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
+	resolver, err := NewProcessResolver(nil, nil, &statsd.NoOpClient{}, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +73,7 @@ func TestFork1st(t *testing.T) {
 }
 
 func TestFork2nd(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
+	resolver, err := NewProcessResolver(nil, nil, &statsd.NoOpClient{}, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +114,7 @@ func TestFork2nd(t *testing.T) {
 }
 
 func TestForkExec(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
+	resolver, err := NewProcessResolver(nil, nil, &statsd.NoOpClient{}, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +169,7 @@ func TestForkExec(t *testing.T) {
 }
 
 func TestOrphanExec(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
+	resolver, err := NewProcessResolver(nil, nil, &statsd.NoOpClient{}, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +224,7 @@ func TestOrphanExec(t *testing.T) {
 }
 
 func TestForkExecExec(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
+	resolver, err := NewProcessResolver(nil, nil, &statsd.NoOpClient{}, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +293,7 @@ func TestForkExecExec(t *testing.T) {
 }
 
 func TestForkReuse(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
+	resolver, err := NewProcessResolver(nil, nil, &statsd.NoOpClient{}, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +387,7 @@ func TestForkReuse(t *testing.T) {
 }
 
 func TestForkForkExec(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
+	resolver, err := NewProcessResolver(nil, nil, &statsd.NoOpClient{}, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}

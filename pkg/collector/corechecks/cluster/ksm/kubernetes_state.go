@@ -89,11 +89,30 @@ type KSMConfig struct {
 	//     - "team_*"
 	LabelsAsTags map[string]map[string]string `yaml:"labels_as_tags"`
 
+	// AnnotationsAsTags
+	// Example:
+	// annotations_as_tags:
+	//   pod:
+	//     - "app_*"
+	//   node:
+	//     - "zone"
+	//     - "team_*"
+	AnnotationsAsTags map[string]map[string]string `yaml:"annotations_as_tags"`
+
 	// LabelsMapper can be used to translate kube-state-metrics labels to other tags.
 	// Example: Adding kube_namespace tag instead of namespace.
 	// labels_mapper:
 	//   namespace: kube_namespace
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
+
+	// LabelsMapperByResourceKind can be used to translate kube-state-metrics labels to other tags, depending on the resource kind.
+	// Example: Adding kube_pod_namespace tag instead of namespace for pods and kube_deployment_namespace for deployments.
+	// labels_mapper:
+	//   pod:
+	//     namespace: kube_pod_namespace
+	//   deployment:
+	//     namespace: kube_deployment_namespace
+	labelsMapperByResourceKind map[string]map[string]string
 
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
 	// Example:
@@ -127,6 +146,7 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
+	agentConfig          config.Config
 	instance             *KSMConfig
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
@@ -176,10 +196,11 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
-	k.BuildID(config, initConfig)
+func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	k.BuildID(integrationConfigDigest, config, initConfig)
+	k.agentConfig = ddconfig.Datadog
 
-	err := k.CommonConfigure(initConfig, config, source)
+	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -197,7 +218,10 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	labelJoins := defaultLabelJoins()
 	k.mergeLabelJoins(labelJoins)
 
+	k.instance.labelsMapperByResourceKind = defaultLabelsMapperByResourceKind()
+
 	k.processLabelsAsTags()
+	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
 	labelsMapper := defaultLabelsMapper()
@@ -227,6 +251,16 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	}
 
 	builder.WithAllowLabels(allowedLabels)
+
+	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
+	// Equivalent to configuring --metric-annotations-allowlist.
+	allowedAnnotations := map[string][]string{}
+	for _, collector := range collectors {
+		// Any annotation can be used for label joins.
+		allowedAnnotations[collector] = []string{"*"}
+	}
+
+	builder.WithAllowAnnotations(allowedAnnotations)
 
 	// Prepare watched namespaces
 	namespaces := k.instance.Namespaces
@@ -455,7 +489,6 @@ func (k *KSMCheck) Run() error {
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
 	k.cancel()
-	k.CommonCancel()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
@@ -471,7 +504,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				// So, let’s continue the processing.
 			}
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
-				lMapperOverride := labelsMapperOverride(metricFamily.Name)
+				lMapperOverride := k.labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
 					transform(sender, metricFamily.Name, m, hostname, tags, now)
@@ -479,7 +512,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				continue
 			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
-				lMapperOverride := labelsMapperOverride(metricFamily.Name)
+				lMapperOverride := k.labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
 					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tags)
@@ -627,24 +660,36 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
 }
 
 func (k *KSMCheck) processLabelsAsTags() {
-	for resourceKind, labelsMapper := range k.instance.LabelsAsTags {
+	k.processLabelsOrAnnotationsAsTags("label", k.instance.LabelsAsTags)
+}
+
+func (k *KSMCheck) processAnnotationsAsTags() {
+	k.processLabelsOrAnnotationsAsTags("annotation", k.instance.AnnotationsAsTags)
+}
+
+func (k *KSMCheck) processLabelsOrAnnotationsAsTags(what string, configStuffAsTags map[string]map[string]string) {
+	for resourceKind, labelsMapper := range configStuffAsTags {
 		labels := make([]string, 0, len(labelsMapper))
 		for label, tag := range labelsMapper {
-			label = "label_" + labelRegexp.ReplaceAllString(label, "_")
-			if _, ok := k.instance.LabelsMapper[label]; !ok {
-				k.instance.LabelsMapper[label] = tag
+			label = what + "_" + labelRegexp.ReplaceAllString(label, "_")
+			if _, ok := k.instance.labelsMapperByResourceKind[resourceKind]; !ok {
+				k.instance.labelsMapperByResourceKind[resourceKind] = map[string]string{
+					label: tag,
+				}
+			} else {
+				k.instance.labelsMapperByResourceKind[resourceKind][label] = tag
 			}
 			labels = append(labels, label)
 		}
 
-		if joinsConfig, ok := k.instance.LabelJoins["kube_"+resourceKind+"_labels"]; ok {
+		if joinsConfig, ok := k.instance.LabelJoins["kube_"+resourceKind+"_"+what+"s"]; ok {
 			joinsConfig.LabelsToGet = append(joinsConfig.LabelsToGet, labels...)
 		} else {
 			joinsConfig := &JoinsConfig{
 				LabelsToMatch: getLabelToMatchForKind(resourceKind),
 				LabelsToGet:   labels,
 			}
-			k.instance.LabelJoins["kube_"+resourceKind+"_labels"] = joinsConfig
+			k.instance.LabelJoins["kube_"+resourceKind+"_"+what+"s"] = joinsConfig
 		}
 	}
 }
@@ -670,7 +715,7 @@ func (k *KSMCheck) initTags() {
 	}
 
 	if !k.instance.DisableGlobalTags {
-		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(false)...)
+		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(k.agentConfig, false)...)
 	}
 }
 
@@ -770,9 +815,9 @@ func resourceNameFromMetric(name string) string {
 
 // isKnownMetric returns whether the KSM metric name is known by the check
 // A known metric should satisfy one of the conditions:
-//  - has a datadog metric name
-//  - has a metric transformer
-//  - has a metric aggregator
+//   - has a datadog metric name
+//   - has a metric transformer
+//   - has a metric aggregator
 func (k *KSMCheck) isKnownMetric(name string) bool {
 	if _, found := k.metricNamesMapper[name]; found {
 		return true
@@ -859,19 +904,15 @@ func ownerTags(kind, name string) []string {
 //   - `phase` tag should be mapped to `pod_phase` on pod metrics only.
 //   - Ingress metrics have generic tag names (host/path/service_name/service_port).
 //     It's important to have them in a dedicated mapper override for ingresses.
-func labelsMapperOverride(metricName string) map[string]string {
-	if strings.HasPrefix(metricName, "kube_pod") {
-		return map[string]string{"phase": "pod_phase"}
+func (k *KSMCheck) labelsMapperOverride(metricName string) map[string]string {
+	// KSM metrics are named, `kube_<RESOURCE_KIND>_<METRIC_NAME>` like for ex.:
+	// kube_pod_info, kube_pod_status_ready, or kube_pod_container_resource_requests_memory_bytes
+	// Splitting by underscores and getting the second token returns the resource kind.
+	tok := strings.SplitN(metricName, "_", 3)
+	if len(tok) < 2 {
+		return nil
 	}
+	resourceKind := tok[1]
 
-	if strings.HasPrefix(metricName, "kube_ingress") {
-		return map[string]string{
-			"host":         "kube_ingress_host",
-			"path":         "kube_ingress_path",
-			"service_name": "kube_service",
-			"service_port": "kube_service_port",
-		}
-	}
-
-	return nil
+	return k.instance.labelsMapperByResourceKind[resourceKind]
 }

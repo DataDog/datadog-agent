@@ -25,7 +25,7 @@ shared_examples_for 'Agent installed by the install script' do
     it 'adds an install_info' do
       expect(install_info['install_method']).to match(
         'tool' => 'install_script',
-        'tool_version' => 'install_script',
+        'tool_version' => /^install_script_agent\d+$/,
         'installer_version' => /^install_script-\d+\.\d+\.\d+(.post)?$/
       )
     end
@@ -55,7 +55,7 @@ shared_examples_for 'Dogstatsd installed by the install script' do
     it 'adds an install_info' do
       expect(install_info['install_method']).to match(
         'tool' => 'install_script',
-        'tool_version' => 'install_script',
+        'tool_version' => /^install_script_agent\d+$/,
         'installer_version' => /^install_script-\d+\.\d+\.\d+(.post)?$/
       )
     end

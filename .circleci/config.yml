@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1186
+      - image: datadog/datadog-agent-runner-circle:go1194
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -65,6 +65,10 @@ jobs:
             python3 -m pip install -r requirements.txt
             python3 -m pip install -r .circleci/requirements.txt
       - run:
+          name: check go version
+          command: |
+            inv -e check-go-version
+      - run:
           name: grab go deps
           command: |
             inv -e deps
@@ -102,11 +106,12 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
+          no_output_timeout: 20m
           command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: codecov -f profile.cov -F linux || true
+          command: inv -e codecov || true
 
   integration_tests:
     <<: *job_template
@@ -204,6 +209,15 @@ jobs:
           name: lint python files
           command: inv -e lint-python
 
+  component_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run component linting
+          command: inv -e lint-components
+
   docker_tests:
     <<: *job_template
     steps:
@@ -298,6 +312,9 @@ workflows:
           requires:
             - dependencies
       - python_linting:
+          requires:
+            - dependencies
+      - component_linting:
           requires:
             - dependencies
       - docker_tests:

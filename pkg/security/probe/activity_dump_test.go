@@ -116,11 +116,16 @@ func TestInsertFileEvent(t *testing.T) {
 	ad := NewEmptyActivityDump()
 
 	for _, path := range pathToInserts {
-		fileEvent := &model.FileEvent{
-			IsPathnameStrResolved: true,
-			PathnameStr:           path,
+		event := &model.Event{
+			Open: model.OpenEvent{
+				File: model.FileEvent{
+					IsPathnameStrResolved: true,
+					PathnameStr:           path,
+				},
+			},
+			FieldHandlers: &model.DefaultFieldHandlers{},
 		}
-		ad.InsertFileEventInProcess(&pan, fileEvent, nil, Unknown)
+		ad.InsertFileEventInProcess(&pan, &event.Open.File, event, Unknown)
 	}
 
 	var builder strings.Builder
