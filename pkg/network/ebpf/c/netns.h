@@ -41,7 +41,7 @@ static __maybe_unused __always_inline u32 get_netns_from_sock(struct sock *sk) {
 static __always_inline u32 get_netns(void *p_net) {
     struct net *ct_net = NULL;
 #ifdef CONFIG_NET_NS
-    bpf_probe_read_with_telemetry(&ct_net, sizeof(ct_net), p_net);
+    bpf_probe_read_kernel_with_telemetry(&ct_net, sizeof(ct_net), p_net);
 #endif
     return get_netns_from_ct_net(ct_net);
 }

@@ -67,12 +67,12 @@ const (
 )
 
 var programs = map[string]string{
-	doSendfileRet:        "do_sendfile_exit", // no
+	doSendfileRet:        "do_sendfile_exit", // TODO: available but sockfd_lookup_light not available on some kernels
 	inet6BindRet:         "inet6_bind_exit",
 	inetBindRet:          "inet_bind_exit",
 	inetCskAcceptReturn:  "inet_csk_accept_exit",
 	inetCskListenStop:    "inet_csk_listen_stop_enter",
-	sockFDLookupRet:      "sockfd_lookup_light_exit", // no
+	sockFDLookupRet:      "sockfd_lookup_light_exit", // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects do_sendfile and HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
 	tcpRecvMsgReturn:     "tcp_recvmsg_exit",
 	tcpClose:             "tcp_close",
 	tcpCloseReturn:       "tcp_close_exit",
@@ -112,6 +112,8 @@ func enabledPrograms(c *config.Config) (map[string]string, error) {
 		enableProgram(enabled, tcpSetState)
 		enableProgram(enabled, tcpRetransmitReturn)
 
+		// TODO: see comments above on availability for these
+		//       hooks
 		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
 		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
 		// if err == nil && len(missing) == 0 {

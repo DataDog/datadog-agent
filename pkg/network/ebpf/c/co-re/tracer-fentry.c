@@ -167,28 +167,18 @@ int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
 
 static __always_inline int handle_udp_send(struct sock *sk, int sent) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (sent <= 0) {
-        goto cleanup;
-    }
-
     conn_tuple_t * t = bpf_map_lookup_elem(&udp_send_skb_args, &pid_tgid);
     if (!t) {
-        goto miss;
+        return 0;
     }
 
-    log_debug("udp_sendmsg: sent: %d\n", sent);
-    handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
-    increment_telemetry_count(udp_send_processed);
-    goto cleanup;
+    if (sent > 0) {
+        log_debug("udp_sendmsg: sent: %d\n", sent);
+        handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
+    }
 
- miss:
-    increment_telemetry_count(udp_send_missed);
-
- cleanup:
     bpf_map_delete_elem(&udp_send_skb_args, &pid_tgid);
-
     return 0;
-
 }
 
 SEC("kprobe/udp_v6_send_skb")
@@ -437,8 +427,7 @@ static __always_inline int sys_exit_bind(struct socket *sock, struct sockaddr *a
         return 0;
     }
 
-    __u16 type = 0;
-    bpf_probe_read_with_telemetry(&type, sizeof(type), &sock->type);
+    __u16 type = BPF_CORE_READ(sock, type);
     if ((type & SOCK_DGRAM) == 0) {
         return 0;
     }
@@ -507,16 +496,13 @@ int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struc
     }
 
     // For now let's only store information for TCP sockets
-    enum sock_type sock_type = 0;
-    bpf_probe_read_kernel_with_telemetry(&sock_type, sizeof(short), &socket->type);
-
     const struct proto_ops *proto_ops = BPF_CORE_READ(socket, ops);
     if (!proto_ops) {
         return 0;
     }
 
-    int family = 0;
-    bpf_probe_read_kernel_with_telemetry(&family, sizeof(family), &proto_ops->family);
+    enum sock_type sock_type = BPF_CORE_READ(socket, type);
+    int family = BPF_CORE_READ(proto_ops, family);
     if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
         return 0;
     }

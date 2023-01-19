@@ -12,7 +12,7 @@ static __always_inline u32 get_sk_cookie(struct sock *sk) {
 #else
     __u64 t = bpf_ktime_get_ns();
     __u64 _sk = 0;
-    bpf_probe_read_with_telemetry(&_sk, sizeof(_sk), &sk);
+    bpf_probe_read_kernel_with_telemetry(&_sk, sizeof(_sk), &sk);
     return (u32)(_sk ^ t);
 #endif
 }
