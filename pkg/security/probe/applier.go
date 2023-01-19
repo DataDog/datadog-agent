@@ -92,11 +92,16 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 }
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
-func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType]rules.Approvers) (*Report, error) {
+func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet) (*Report, error) {
 	// apply deny filter by default
 	rsa.applyDefaultFilterPolicies()
 
 	eventTypes := rs.GetEventTypes()
+
+	approvers, err := rs.GetApprovers(GetCapababilities())
+	if err != nil {
+		return nil, err
+	}
 
 	for _, eventType := range eventTypes {
 		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {
