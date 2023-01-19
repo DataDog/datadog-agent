@@ -27,7 +27,7 @@ var (
 type Series []*metrics.Serie
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
-//FIXME(maxime): to be removed when v2 endpoints are available
+// FIXME(maxime): to be removed when v2 endpoints are available
 func (series Series) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing a Series
 	type SeriesAlias Series

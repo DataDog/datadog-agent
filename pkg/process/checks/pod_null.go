@@ -10,12 +10,12 @@ package checks
 
 import (
 	"fmt"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 )
 
-// Pod is a singleton PodCheck.
-var Pod = &PodCheck{}
+// NewPodCheck returns an instance of the Pod check
+func NewPodCheck() Check {
+	return &PodCheck{}
+}
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
@@ -26,17 +26,27 @@ func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
+func (c *PodCheck) IsEnabled() bool {
+	return false
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (c *PodCheck) SupportsRunOptions() bool {
+	return false
+}
+
 // Name returns the name of the ProcessCheck.
 func (c *PodCheck) Name() string { return "pod" }
 
-// RealTime indicates if this check only runs in real-time mode.
-func (c *PodCheck) RealTime() bool { return false }
+// Realtime indicates if this check only runs in real-time mode.
+func (c *PodCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *PodCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the PodCheck to collect a list of running pods
-func (c *PodCheck) Run(groupID int32) ([]model.MessageBody, error) {
+func (c *PodCheck) Run(_ func() int32, _ *RunOptions) (RunResult, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

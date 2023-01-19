@@ -9,6 +9,7 @@
 package patch
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"k8s.io/client-go/kubernetes"
@@ -16,16 +17,23 @@ import (
 
 // ControllerContext holds necessary context for the patch controller
 type ControllerContext struct {
-	IsLeaderFunc func() bool
-	Client       kubernetes.Interface
-	StopCh       chan struct{}
+	IsLeaderFunc        func() bool
+	LeaderSubscribeFunc func() <-chan struct{}
+	K8sClient           kubernetes.Interface
+	RcClient            *remote.Client
+	ClusterName         string
+	StopCh              chan struct{}
 }
 
 // StartControllers starts the patch controllers
-func StartControllers(ctx ControllerContext, clusterName string) {
+func StartControllers(ctx ControllerContext) error {
 	log.Info("Starting patch controllers")
-	provider := newPatchProvider(ctx.IsLeaderFunc, clusterName)
-	patcher := newPatcher(ctx.Client, ctx.IsLeaderFunc, provider)
+	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), ctx.ClusterName)
+	if err != nil {
+		return err
+	}
+	patcher := newPatcher(ctx.K8sClient, ctx.IsLeaderFunc, provider)
 	go provider.start(ctx.StopCh)
 	go patcher.start(ctx.StopCh)
+	return nil
 }

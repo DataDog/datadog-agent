@@ -1615,6 +1615,40 @@ api_key:
   #   - HISTSIZE
   #   - HISTFILESIZE
 
+  ## @param activity_dump - custom object - optional
+  ## Activity dump section configures if/how the Agent sends activity dumps to Datadog
+  #
+  # activity_dump:
+
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_ENABLED - boolean - optional - default: false
+    ## Set to true to activate the security profiles feature.
+    #
+    #  enabled: false
+
+    ## @param traced_cgroups_count - integer - optional - default: 5
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_TRACED_CGROUPS_COUNT - integer - optional - default: 5
+    ## Defines the number of concurrent cgroups to be traced.
+    #
+    #  traced_cgroups_count: 5
+
+    ## @param cgroup_dump_timeout - integer - optional - default: 30
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_CGROUP_DUMP_TIMEOUT - integer - optional - default: 30
+    ## Defines the duration of cgroups learning phase in minutes. Minimum value is 10.
+    #
+    #  cgroup_dump_timeout: 30
+
+  ## @param network - custom object - optional
+  ## Network section is used to configure Cloud Workload Security (CWS) network features.
+  #
+  # network:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED - boolean - optional - default: true
+    ## Set to true to activate the CWS network detections.
+    #
+    #  enabled: true
+
 {{ end -}}
 {{ end -}}
 
@@ -2059,6 +2093,7 @@ api_key:
 ##############################
 
 ## @param autoconf_template_dir - string - optional - default: /datadog/check_configs
+## @env DD_AUTOCONF_TEMPLATE_DIR - string - optional - default: /datadog/check_configs
 ## Directory containing configuration templates for Autoconfig.
 #
 # autoconf_template_dir: /datadog/check_configs
@@ -2132,6 +2167,7 @@ api_key:
 #   - clusterchecks
 
 ## @param autoconfig_exclude_features - list of comma separated strings - optional
+## @env DD_AUTOCONFIG_EXCLUDE_FEATURES - list of space separated strings - optional
 ## Exclude features automatically detected and enabled by environment autodiscovery.
 ## Supported syntax is a list of `(<attribute>:)<regexp>`. Currently only the `name` attribute is supported.
 ## When no attribute is present, it defaults to `name:` attribute.
@@ -2147,6 +2183,7 @@ api_key:
 #  - orchestratorexplorer
 
 ## @param autoconfig_include_features - list of comma separated strings - optional
+## @env DD_AUTOCONFIG_INCLUDE_FEATURES - list of space separated strings - optional
 ## Force activation of features (as if they were discovered by environment autodiscovery).
 #
 # autoconfig_include_features:
@@ -2242,11 +2279,13 @@ api_key:
 # cloud_foundry_garden:
 
   ## @param listen_network - string - optional - default: unix
+  ## @env DD_CLOUD_FOUNDRY_GARDEN_LISTEN_NETWORK - string - optional - default: unix
   ## The network on which the garden API is listening. Possible values are `unix` or `tcp`
   #
   # listen_network: unix
 
   ## @param listen_address - string - optional - default: /var/vcap/data/garden/garden.sock
+  ## @env DD_CLOUD_FOUNDRY_GARDEN_LISTEN_ADDRESS - string - optional - default: /var/vcap/data/garden/garden.sock
   ## The address on which the garden API is listening.
   #
   # listen_address: /var/vcap/data/garden/garden.sock
@@ -2625,12 +2664,15 @@ api_key:
 # DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS='{"ANNOTATION_NAME":"tag_key"}'
 
 ## @param kubernetes_namespace_labels_as_tags - map - optional
+## @env DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS - json - optional
 ## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
 # kubernetes_namespace_labels_as_tags:
 #   <NAMESPACE_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
+#
+# DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS='{"<NAMESPACE_LABEL>": "<TAG_KEY>"}'
 
 ## @param container_env_as_tags - map - optional
 ## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
@@ -2680,11 +2722,13 @@ api_key:
 # ecs_collect_resource_tags_ec2: false
 
 ## @param ecs_resource_tags_replace_colon - boolean - optional - default: false
+## @env DD_ECS_RESOURCE_TAGS_REPLACE_COLON - boolean - optional - default: false
 ## The Agent replaces colon `:` characters in the ECS resource tag keys by underscores `_`.
 #
 # ecs_resource_tags_replace_colon: false
 
 ## @param ecs_metadata_timeout - integer - optional - default: 500
+## @env DD_ECS_METADATA_TIMEOUT - integer - optional - default: 500
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
 #
 # ecs_metadata_timeout: 500
@@ -2875,6 +2919,7 @@ api_key:
 # kubernetes_kubeconfig_path: ""
 
 ## @param kubernetes_apiserver_ca_path - string - optional - default: ""
+## @env DD_KUBERNETES_APISERVER_CA_PATH - string - optional - default: ""
 ## When running in a pod, the Agent automatically uses the pod's service account CA.
 ## Use this option to keep using the InCluster config but overriding the default CA Path.
 ## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
@@ -2882,6 +2927,7 @@ api_key:
 # kubernetes_apiserver_ca_path: ""
 
 ## @param kubernetes_apiserver_tls_verify - boolean - optional - default: true
+## @env DD_KUBERNETES_APISERVER_TLS_VERIFY - boolean - optional - default: true
 ## When running in a pod, the Agent automatically uses the pod's service account CA.
 ## Use this option to keep using the InCluster config but deactivating TLS verification (in case APIServer CA is not ServiceAccount CA)
 ## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
@@ -2987,6 +3033,7 @@ api_key:
 # cluster_name: <CLUSTER_IDENTIFIER>
 
 ## @param disable_cluster_name_tag_key - boolean - optional - default: false
+## @env DD_DISABLE_CLUSTER_NAME_TAG_KEY - boolean - optional - default: false
 ## Disable using the 'cluster_name' tag key to submit orchestrator cluster name tag.
 ## The Agent will continue sending the cluster name tag with 'kube|ecs_cluster_name' key
 ## regardless of the value of this parameter.
@@ -3063,11 +3110,13 @@ api_key:
   #
   # key_file: ""
 
-  ## @param env_include - List of strings - optional - default: []
+  ## @param env_include - list of strings - optional - default: []
+  ## @env DD_CLOUD_FOUNDRY_BBS_ENV_INCLUDE - list of strings - optional
   ## List of regular expressions to allow a set of environment variables to be included as container tags
   #
   # env_include: []
-  ## @param env_exclude - List of strings - optional - default: []
+  ## @param env_exclude - list of strings - optional - default: []
+  ## @env DD_CLOUD_FOUNDRY_BBS_ENV_EXCLUDE - list of strings - optional
   ## List of regular expressions to forbid a set of environment variables to be included as container tags
   #
   # env_exclude: []
@@ -3085,32 +3134,38 @@ api_key:
 # cloud_foundry_cc:
 
   ## @param url - string - optional - default: https://cloud-controller-ng.service.cf.internal:9024
+  ## @env DD_CLOUD_FOUNDRY_CC_URL - string - optional - default: https://cloud-controller-ng.service.cf.internal:9024
   ## URL of the CC API.
   #
   # url: https://cloud-controller-ng.service.cf.internal:9024
 
   ## @param client_id - string - optional
+  ## @env DD_CLOUD_FOUNDRY_CC_CLIENT_ID
   ## Client ID for oauth with UAA to get a token to access the CC API.
   #
   # client_id: <UAA_CLIENT_ID>
 
   ## @param client_secret - string - optional
-  ## Client ID for oauth with UAA to get a token to access the CC API.
+  ## @env DD_CLOUD_FOUNDRY_CC_CLIENT_SECRET
+  ## Client secrect for oauth with UAA to get a token to access the CC API.
   #
   # client_secret: <UAA_CLIENT_SECRET>
 
-  ## @param skip_ssl_validation - bool - optional - default: false
+  ## @param skip_ssl_validation - boolean - optional - default: false
+  ## @env DD_CLOUD_FOUNDRY_CC_SKIP_SSL_VALIDATION
   ## Whether or not to skip SSL validation when interacting with CC API.
   #
   # skip_ssl_validation: false
 
   ## @param poll_interval - integer - optional - default: 60
+  ## @env DD_CLOUD_FOUNDRY_CC_POLL_INTERVAL
   ## Refresh rate of CC API, in seconds. Values lower than 10 might influence
   ## performance of other operations in the cluster.
   #
   # poll_interval: 60
 
   ## @param apps_batch_size - integer - optional - default: 5000
+  ## @env DD_CLOUD_FOUNDRY_CC_APPS_BATCH_SIZE
   ## Number of apps per page to collect when calling the list apps endpoint of the CC API. Max 5000.
   #
   # apps_batch_size: 5000
@@ -3148,6 +3203,7 @@ api_key:
     # enabled: false
 
     ## @param port - integer - optional - default: 9162
+    ## @env DD_SNMP_TRAPS_CONFIG_PORT - integer - optional - default: 9162
     ## The UDP port to use when listening for incoming trap packets.
     ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
     ## However, if you run `sudo setcap 'cap_net_bind_service=+ep' /opt/datadog-agent/bin/agent/agent`,
@@ -3449,4 +3505,19 @@ api_key:
     ## Valid values are basic, normal, detailed.
     #
     # verbosity: normal
+{{end -}}
+{{- if (eq .OS "windows")}}
+#####################################################
+## Datadog Agent Manager System Tray Configuration ##
+#####################################################
+
+## @param system_tray - custom object - optional
+## This section configures the Datadog Agent Manager System Tray
+#
+# system_tray:
+  ## @param log_file - string - optional - default: %ProgramData%\Datadog\logs\ddtray.log
+  ## @env DD_TRAY_LOG_FILE - string - optional
+  ## The full path to the file where Datadog Agent Manager System Tray logs are written.
+  #
+  # log_file: <TRAY_LOG_FILE_PATH>
 {{end -}}

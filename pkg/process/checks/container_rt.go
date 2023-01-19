@@ -19,8 +19,10 @@ const (
 	cacheValidityRT = 500 * time.Millisecond
 )
 
-// RTContainer is a singleton RTContainerCheck.
-var RTContainer = &RTContainerCheck{}
+// NewRTContainerCheck returns an instance of the RTContainerCheck.
+func NewRTContainerCheck() Check {
+	return &RTContainerCheck{}
+}
 
 // RTContainerCheck collects numeric statistics about live ctrList.
 type RTContainerCheck struct {
@@ -38,17 +40,28 @@ func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
+func (r *RTContainerCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (r *RTContainerCheck) SupportsRunOptions() bool {
+	return false
+}
+
 // Name returns the name of the RTContainerCheck.
 func (r *RTContainerCheck) Name() string { return RTContainerCheckName }
 
-// RealTime indicates if this check only runs in real-time mode.
-func (r *RTContainerCheck) RealTime() bool { return true }
+// Realtime indicates if this check only runs in real-time mode.
+func (r *RTContainerCheck) Realtime() bool { return true }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (r *RTContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the real-time container check getting container-level stats from the Cgroups and Docker APIs.
-func (r *RTContainerCheck) Run(groupID int32) ([]model.MessageBody, error) {
+func (r *RTContainerCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	var err error
 	var containers []*model.Container
 	var lastRates map[string]*util.ContainerRateMetrics
@@ -70,6 +83,7 @@ func (r *RTContainerCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	}
 	chunked := convertAndChunkContainers(containers, groupSize)
 	messages := make([]model.MessageBody, 0, groupSize)
+	groupID := nextGroupID()
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorContainerRealTime{
 			HostName:          r.hostInfo.HostName,
@@ -82,7 +96,7 @@ func (r *RTContainerCheck) Run(groupID int32) ([]model.MessageBody, error) {
 		})
 	}
 
-	return messages, nil
+	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the RTContainerCheck before the agent exits

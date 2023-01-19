@@ -125,6 +125,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     }
     *params = (struct is_discarded_by_inode_t){
         .discarder_type = input->discarder_type,
+        // TODO(safchain) do we need the pid ?????
         .tgid = bpf_get_current_pid_tgid() >> 32,
         .now = bpf_ktime_get_ns(),
         .ad_state = input->ad_state,

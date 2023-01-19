@@ -6,27 +6,25 @@
 package main
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	processmocks "github.com/DataDog/datadog-agent/cmd/process-agent/mocks"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process})
+	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -37,7 +35,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
+	c.UpdateRTStatus(statuses)
 	assert.True(c.realTimeEnabled.Load())
 
 	// Validate that we stay that way
@@ -46,7 +44,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
+	c.UpdateRTStatus(statuses)
 	assert.True(c.realTimeEnabled.Load())
 
 	// And that it can turn back off
@@ -55,13 +53,13 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
+	c.UpdateRTStatus(statuses)
 	assert.False(c.realTimeEnabled.Load())
 }
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process})
+	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -72,7 +70,7 @@ func TestUpdateRTInterval(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 10},
 	}
-	c.updateRTStatus(statuses)
+	c.UpdateRTStatus(statuses)
 	assert.True(c.realTimeEnabled.Load())
 	assert.Equal(10*time.Second, c.realTimeInterval)
 }
@@ -110,17 +108,17 @@ func TestDisableRealTime(t *testing.T) {
 	tests := []struct {
 		name            string
 		disableRealtime bool
-		expectedChecks  []checks.Check
+		expectedChecks  []string
 	}{
 		{
 			name:            "true",
 			disableRealtime: true,
-			expectedChecks:  []checks.Check{checks.Container},
+			expectedChecks:  []string{checks.ContainerCheckName},
 		},
 		{
 			name:            "false",
 			disableRealtime: false,
-			expectedChecks:  []checks.Check{checks.Container, checks.RTContainer},
+			expectedChecks:  []string{checks.ContainerCheckName, checks.RTContainerCheckName},
 		},
 	}
 
@@ -133,12 +131,12 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 
 			enabledChecks := getChecks(&sysconfig.Config{}, true)
-			assert.EqualValues(tc.expectedChecks, enabledChecks)
+			assert.EqualValues(tc.expectedChecks, getCheckNames(enabledChecks))
 
 			c, err := NewCollector(nil, &checks.HostInfo{}, enabledChecks)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
-			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
+			assert.ElementsMatch(tc.expectedChecks, getCheckNames(c.enabledChecks))
 		})
 	}
 }
@@ -159,7 +157,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	expectedChecks := []checks.Check{checks.Process}
+	expectedChecks := []checks.Check{checks.NewProcessCheck()}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -174,170 +172,20 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 	}
 }
 
-func TestNewCollectorQueueSize(t *testing.T) {
-	tests := []struct {
-		name              string
-		override          bool
-		queueSize         int
-		expectedQueueSize int
-	}{
-		{
-			name:              "default queue size",
-			override:          false,
-			queueSize:         42,
-			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
-		},
-		{
-			name:              "valid queue size override",
-			override:          true,
-			queueSize:         42,
-			expectedQueueSize: 42,
-		},
-		{
-			name:              "invalid negative queue size override",
-			override:          true,
-			queueSize:         -10,
-			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
-		},
-		{
-			name:              "invalid 0 queue size override",
-			override:          true,
-			queueSize:         0,
-			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
-		},
-	}
-
-	assert := assert.New(t)
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
-			if tc.override {
-				mockConfig.Set("process_config.queue_size", tc.queueSize)
-			}
-
-			c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process, checks.Pod})
-			assert.NoError(err)
-			assert.Equal(tc.expectedQueueSize, c.processResults.MaxSize())
-			assert.Equal(tc.expectedQueueSize, c.podResults.MaxSize())
-		})
-	}
-}
-
-func TestNewCollectorRTQueueSize(t *testing.T) {
-	tests := []struct {
-		name              string
-		override          bool
-		queueSize         int
-		expectedQueueSize int
-	}{
-		{
-			name:              "default queue size",
-			override:          false,
-			queueSize:         2,
-			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
-		},
-		{
-			name:              "valid queue size override",
-			override:          true,
-			queueSize:         2,
-			expectedQueueSize: 2,
-		},
-		{
-			name:              "invalid negative size override",
-			override:          true,
-			queueSize:         -2,
-			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
-		},
-		{
-			name:              "invalid 0 queue size override",
-			override:          true,
-			queueSize:         0,
-			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
-		},
-	}
-
-	assert := assert.New(t)
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
-			if tc.override {
-				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
-			}
-
-			c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process})
-			assert.NoError(err)
-			assert.Equal(tc.expectedQueueSize, c.rtProcessResults.MaxSize())
-		})
-	}
-}
-
-func TestNewCollectorProcessQueueBytes(t *testing.T) {
-	tests := []struct {
-		name              string
-		override          bool
-		queueBytes        int
-		expectedQueueSize int
-	}{
-		{
-			name:              "default queue size",
-			override:          false,
-			queueBytes:        42000,
-			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
-		},
-		{
-			name:              "valid queue size override",
-			override:          true,
-			queueBytes:        42000,
-			expectedQueueSize: 42000,
-		},
-		{
-			name:              "invalid negative queue size override",
-			override:          true,
-			queueBytes:        -2,
-			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
-		},
-		{
-			name:              "invalid 0 queue size override",
-			override:          true,
-			queueBytes:        0,
-			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
-		},
-	}
-
-	assert := assert.New(t)
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
-			if tc.override {
-				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
-			}
-
-			c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process})
-			assert.NoError(err)
-			assert.Equal(int64(tc.expectedQueueSize), c.processResults.MaxWeight())
-			assert.Equal(int64(tc.expectedQueueSize), c.rtProcessResults.MaxWeight())
-			assert.Equal(tc.expectedQueueSize, c.forwarderRetryQueueMaxBytes)
-		})
-	}
-}
-
 func TestIgnoreResponseBody(t *testing.T) {
 	for _, tc := range []struct {
 		checkName string
 		ignore    bool
 	}{
-		{checkName: checks.Process.Name(), ignore: false},
-		{checkName: checks.Process.RealTimeName(), ignore: false},
-		{checkName: checks.ProcessDiscovery.Name(), ignore: false},
-		{checkName: checks.Container.Name(), ignore: false},
-		{checkName: checks.RTContainer.Name(), ignore: false},
-		{checkName: checks.Pod.Name(), ignore: true},
+		{checkName: checks.ProcessCheckName, ignore: false},
+		{checkName: checks.RTProcessCheckName, ignore: false},
+		{checkName: checks.DiscoveryCheckName, ignore: false},
+		{checkName: checks.ContainerCheckName, ignore: false},
+		{checkName: checks.RTContainerCheckName, ignore: false},
+		{checkName: checks.PodCheckName, ignore: true},
 		{checkName: checks.PodCheckManifestName, ignore: true},
-		{checkName: checks.Connections.Name(), ignore: false},
-		{checkName: checks.ProcessEvents.Name(), ignore: true},
+		{checkName: checks.ConnectionsCheckName, ignore: false},
+		{checkName: checks.ProcessEventsCheckName, ignore: true},
 	} {
 		t.Run(tc.checkName, func(t *testing.T) {
 			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))
@@ -346,247 +194,65 @@ func TestIgnoreResponseBody(t *testing.T) {
 }
 
 func TestCollectorRunCheckWithRealTime(t *testing.T) {
-	check := mocks.NewCheckWithRealTime(t)
+	check := checkmocks.NewCheck(t)
 
 	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
 	assert.NoError(t, err)
+	submitter := processmocks.NewSubmitter(t)
+	c.submitter = submitter
 
-	results := api.NewWeightedQueue(1, 1024)
-	rtResults := api.NewWeightedQueue(1, 1024)
-
-	standardOption := checks.RunOptions{
+	standardOption := &checks.RunOptions{
 		RunStandard: true,
 	}
 
-	result := &checks.RunResult{
-		Standard: []model.MessageBody{
+	result := checks.StandardRunResult(
+		[]model.MessageBody{
 			&model.CollectorProc{},
 		},
-	}
+	)
 
-	check.On("RunWithOptions", mock.Anything, standardOption).Once().Return(result, nil)
+	check.On("Run", mock.Anything, standardOption).Once().Return(result, nil)
 	check.On("Name").Return("foo")
-	check.On("RealTimeName").Return("bar")
 
-	c.runCheckWithRealTime(
-		check,
-		results,
-		rtResults,
-		standardOption,
-	)
+	submitStandard := submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
+	submitter.On("Submit", mock.Anything, checks.RTName(check.Name()), mock.Anything).Return(nil).NotBefore(submitStandard)
 
-	assert.Equal(t, results.Len(), 1)
-	item, ok := results.Poll()
-	assert.True(t, ok)
-	assert.Equal(t, item.Type(), "foo")
+	c.runCheckWithRealTime(check, standardOption)
 
-	assert.Equal(t, rtResults.Len(), 0)
-
-	rtResult := &checks.RunResult{
-		RealTime: []model.MessageBody{
+	rtResult := checks.CombinedRunResult{
+		Realtime: []model.MessageBody{
 			&model.CollectorProc{},
 		},
 	}
 
-	rtOption := checks.RunOptions{
-		RunRealTime: true,
+	rtOption := &checks.RunOptions{
+		RunRealtime: true,
 	}
 
-	check.On("RunWithOptions", mock.Anything, rtOption).Once().Return(rtResult, nil)
+	check.On("Run", mock.Anything, rtOption).Once().Return(rtResult, nil)
 
-	c.runCheckWithRealTime(
-		check,
-		results,
-		rtResults,
-		rtOption,
-	)
-
-	assert.Equal(t, results.Len(), 0)
-	assert.Equal(t, rtResults.Len(), 1)
-	item, ok = rtResults.Poll()
-	assert.True(t, ok)
-	assert.Equal(t, item.Type(), "bar")
+	c.runCheckWithRealTime(check, rtOption)
 }
 
 func TestCollectorRunCheck(t *testing.T) {
-	check := mocks.NewCheck(t)
+	check := checkmocks.NewCheck(t)
 
-	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
-	assert.NoError(t, err)
+	hostInfo := &checks.HostInfo{HostName: testHostName}
 
-	results := api.NewWeightedQueue(1, 1024)
+	c, err := NewCollector(nil, hostInfo, []checks.Check{})
+	require.NoError(t, err)
+	submitter := processmocks.NewSubmitter(t)
+	require.NoError(t, err)
+	c.submitter = submitter
 
-	result := []model.MessageBody{
+	result := checks.StandardRunResult([]model.MessageBody{
 		&model.CollectorProc{},
-	}
-
+	})
 	check.On("Run", mock.Anything, mock.Anything).Return(result, nil)
 	check.On("Name").Return("foo")
-	check.On("RealTime").Return(false)
+	check.On("Realtime").Return(false)
 	check.On("ShouldSaveLastRun").Return(true)
+	submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
 
-	c.runCheck(
-		check,
-		results,
-	)
-
-	assert.Equal(t, results.Len(), 1)
-	item, ok := results.Poll()
-	assert.True(t, ok)
-	assert.Equal(t, item.Type(), "foo")
-}
-
-func TestCollectorMessagesToCheckResult(t *testing.T) {
-	hostInfo := &checks.HostInfo{
-		HostName: "host",
-	}
-
-	c, err := NewCollector(nil, hostInfo, []checks.Check{})
-	assert.NoError(t, err)
-
-	now := time.Now()
-	agentVersion, _ := version.Agent()
-
-	requestID := c.getRequestID(now, 0)
-
-	tests := []struct {
-		name          string
-		message       model.MessageBody
-		expectHeaders map[string]string
-	}{
-		{
-			name: "process",
-			message: &model.CollectorProc{
-				Containers: []*model.Container{
-					{}, {}, {},
-				},
-			},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "3",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.RequestIDHeader:      requestID,
-			},
-		},
-		{
-			name: "rt_process",
-			message: &model.CollectorRealTime{
-				ContainerStats: []*model.ContainerStat{
-					{}, {}, {},
-				},
-			},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "3",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-			},
-		},
-		{
-			name: "container",
-			message: &model.CollectorContainer{
-				Containers: []*model.Container{
-					{}, {},
-				},
-			},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "2",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-			},
-		},
-		{
-			name: "rt_container",
-			message: &model.CollectorContainerRealTime{
-				Stats: []*model.ContainerStat{
-					{}, {}, {}, {}, {},
-				},
-			},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "5",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-			},
-		},
-		{
-			name:    "process_discovery",
-			message: &model.CollectorProcDiscovery{},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "0",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-			},
-		},
-		{
-			name:    "process_events",
-			message: &model.CollectorProcEvent{},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:        strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:             "host",
-				headers.ProcessVersionHeader:   agentVersion.GetNumber(),
-				headers.ContainerCountHeader:   "0",
-				headers.ContentTypeHeader:      headers.ProtobufContentType,
-				headers.EVPOriginHeader:        "process-agent",
-				headers.EVPOriginVersionHeader: version.AgentVersion,
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			messages := []model.MessageBody{
-				test.message,
-			}
-			result := c.messagesToCheckResult(now, test.name, messages)
-			assert.Equal(t, test.name, result.name)
-			assert.Len(t, result.payloads, 1)
-			payload := result.payloads[0]
-			assert.Len(t, payload.headers, len(test.expectHeaders))
-			for k, v := range test.expectHeaders {
-				assert.Equal(t, v, payload.headers.Get(k))
-			}
-		})
-	}
-}
-
-func Test_getRequestID(t *testing.T) {
-	hostInfo := &checks.HostInfo{
-		HostName: "host",
-	}
-
-	c, err := NewCollector(nil, hostInfo, []checks.Check{})
-	assert.NoError(t, err)
-
-	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
-	id1 := c.getRequestID(fixedDate1, 1)
-	id2 := c.getRequestID(fixedDate1, 1)
-	// The calculation should be deterministic, so making sure the parameters generates the same id.
-	assert.Equal(t, id1, id2)
-	fixedDate2 := time.Date(2022, 9, 1, 0, 0, 2, 0, time.Local)
-	id3 := c.getRequestID(fixedDate2, 1)
-
-	// The request id is based on time, so if the difference it only the time, then the new ID should be greater.
-	id1Num, _ := strconv.ParseUint(id1, 10, 64)
-	id3Num, _ := strconv.ParseUint(id3, 10, 64)
-	assert.Greater(t, id3Num, id1Num)
-
-	// Increasing the chunk index should increase the id.
-	id4 := c.getRequestID(fixedDate2, 3)
-	id4Num, _ := strconv.ParseUint(id4, 10, 64)
-	assert.Equal(t, id3Num+2, id4Num)
-
-	// Changing the host -> changing the hash.
-	hostInfo.HostName = "host2"
-	c.requestIDCachedHash = nil
-	id5 := c.getRequestID(fixedDate1, 1)
-	assert.NotEqual(t, id1, id5)
+	c.runCheck(check)
 }

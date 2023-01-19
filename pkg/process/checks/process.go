@@ -14,6 +14,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
+	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
 const (
@@ -33,12 +35,12 @@ const (
 	configDisallowList         = configPrefix + "blacklist_patterns"
 )
 
-// Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{
-	scrubber: procutil.NewDefaultDataScrubber(),
+// NewProcessCehck returns an instance of the ProcessCheck.
+func NewProcessCheck() Check {
+	return &ProcessCheck{
+		scrubber: procutil.NewDefaultDataScrubber(),
+	}
 }
-
-var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
@@ -77,12 +79,16 @@ type ProcessCheck struct {
 
 	maxBatchSize  int
 	maxBatchBytes int
+
+	lastConnRates     *atomic.Pointer[ProcessConnRates]
+	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.hostInfo = info
-	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
+	p.SysprobeProcessModuleEnabled = syscfg.ProcessModuleEnabled
+	p.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
@@ -99,41 +105,62 @@ func (p *ProcessCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	initScrubber(p.scrubber)
 
 	p.disallowList = initDisallowList()
+
+	p.initConnRates()
 	return nil
+}
+
+func (p *ProcessCheck) initConnRates() {
+	p.lastConnRates = atomic.NewPointer[ProcessConnRates](nil)
+	p.connRatesReceiver = subscriptions.NewReceiver[ProcessConnRates]()
+
+	go p.updateConnRates()
+}
+
+func (p *ProcessCheck) updateConnRates() {
+	for {
+		connRates, ok := <-p.connRatesReceiver.Ch
+		if !ok {
+			return
+		}
+		p.lastConnRates.Store(&connRates)
+	}
+}
+
+func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
+	if p.lastConnRates == nil {
+		return nil
+	}
+	if result := p.lastConnRates.Load(); result != nil {
+		return *result
+	}
+	return nil
+}
+
+// IsEnabled returns true if the check is enabled by configuration
+func (p *ProcessCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (p *ProcessCheck) SupportsRunOptions() bool {
+	return true
 }
 
 // Name returns the name of the ProcessCheck.
 func (p *ProcessCheck) Name() string { return ProcessCheckName }
 
-// RealTimeName returns the name of the RTProcessCheck
-func (p *ProcessCheck) RealTimeName() string { return RTProcessCheckName }
-
-// RealTime indicates if this check only runs in real-time mode.
-func (p *ProcessCheck) RealTime() bool { return false }
+// Realtime indicates if this check only runs in real-time mode.
+func (p *ProcessCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 
-// Run runs the ProcessCheck to collect a list of running processes and relevant
-// stats for each. On most POSIX systems this will use a mix of procfs and other
-// OS-specific APIs to collect this information. The bulk of this collection is
-// abstracted into the `gopsutil` library.
-// Processes are split up into a chunks of at most 100 processes per message to
-// limit the message size on intake.
-// See agent.proto for the schema of the message and models used.
-func (p *ProcessCheck) Run(groupID int32) ([]model.MessageBody, error) {
-	result, err := p.run(groupID, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return result.Standard, nil
-}
-
 // Cleanup frees any resource held by the ProcessCheck before the agent exits
 func (p *ProcessCheck) Cleanup() {}
 
-func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (*RunResult, error) {
+func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
 	start := time.Now()
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
@@ -187,11 +214,11 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (*RunResult, err
 			p.realtimeLastProcs = procsToStats(p.lastProcs)
 			p.realtimeLastRun = p.lastRun
 		}
-		return &RunResult{}, nil
+		return CombinedRunResult{}, nil
 	}
 
-	connsByPID := Connections.getLastConnectionsByPID()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
+	connsRates := p.getLastConnRates()
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
@@ -200,7 +227,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (*RunResult, err
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
 
-	result := &RunResult{
+	result := &CombinedRunResult{
 		Standard: messages,
 	}
 	if collectRealTime {
@@ -208,7 +235,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (*RunResult, err
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsRates)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -225,7 +252,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (*RunResult, err
 					ContainerHostType: p.hostInfo.ContainerHostType,
 				})
 			}
-			result.RealTime = messages
+			result.Realtime = messages
 		}
 
 		p.realtimeLastCPUTime = p.lastCPUTime
@@ -248,15 +275,18 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 	return stats
 }
 
-// RunWithOptions collects process data (regular metadata + stats) and/or realtime process data (stats only)
-// Messages are grouped as RunResult instances with CheckName identifying the type
-func (p *ProcessCheck) RunWithOptions(nextGroupID func() int32, options RunOptions) (*RunResult, error) {
-	if options.RunStandard {
-		log.Tracef("Running process check")
-		return p.run(nextGroupID(), options.RunRealTime)
+// Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
+func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
+	if options == nil {
+		return p.run(nextGroupID(), false)
 	}
 
-	if options.RunRealTime {
+	if options.RunStandard {
+		log.Tracef("Running process check")
+		return p.run(nextGroupID(), options.RunRealtime)
+	}
+
+	if options.RunRealtime {
 		log.Tracef("Running rtprocess check")
 		return p.runRealtime(nextGroupID())
 	}
@@ -323,10 +353,9 @@ func fmtProcesses(
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	connsByPID map[int32][]*model.Connection,
+	connRates ProcessConnRates,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
-	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
 
 	for _, fp := range procs {
 		if skipProcess(disallowList, fp, lastProcs) {
@@ -350,7 +379,10 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
-			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
+		}
+
+		if connRates != nil {
+			proc.Networks = connRates[fp.Pid]
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {

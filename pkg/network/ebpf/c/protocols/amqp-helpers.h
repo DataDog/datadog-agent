@@ -2,14 +2,13 @@
 #define __AMQP_HELPERS_H
 
 #include "amqp-defs.h"
+#include "bpf_endian.h"
 #include "protocol-classification-common.h"
 
 // The method checks if the given buffer includes the protocol header which must be sent in the start of a new connection.
 // Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
 static __always_inline bool is_amqp_protocol_header(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH)
-
-#define AMQP_PREFACE "AMQP"
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH);
 
     bool match = !bpf_memcmp(buf, AMQP_PREFACE, sizeof(AMQP_PREFACE)-1);
 
@@ -30,28 +29,47 @@ static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
        return false;
     }
 
-    uint8_t frame_type = buf[0];
+    __u8 frame_type = buf[0];
     // Check only for method frame type.
     if (frame_type != AMQP_FRAME_METHOD_TYPE) {
         return false;
     }
 
-    // We extract the class id and method id by big indian from the buffer.
+    // We extract the class id and method id by big endian from the buffer.
     // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
-    __u16 class_id = buf[7] << 8 | buf[8];
-    __u16 method_id = buf[9] << 8 | buf[10];
+    amqp_header *hdr = (amqp_header *)(buf+7);
+    __u16 class_id = bpf_ntohs(hdr->class_id);
+    __u16 method_id = bpf_ntohs(hdr->method_id);
 
-    // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver, BasicConsume are the most likely methods to
-    // consider for the classification.
-    if (class_id == AMQP_CONNECTION_CLASS) {
-        return  method_id == AMQP_METHOD_CONNECTION_START || method_id == AMQP_METHOD_CONNECTION_START_OK;
+    switch (class_id) {
+    case AMQP_CONNECTION_CLASS:
+        switch (method_id) {
+        case AMQP_METHOD_CONNECTION_START:
+        case AMQP_METHOD_CONNECTION_START_OK:
+            return true;
+        default:
+            return false;
+        }
+    case AMQP_BASIC_CLASS:
+        switch (method_id) {
+        case AMQP_METHOD_PUBLISH:
+        case AMQP_METHOD_DELIVER:
+        case AMQP_METHOD_CONSUME:
+            return true;
+        default:
+            return false;
+        }
+    case AMQP_CHANNEL_CLASS:
+        switch (method_id) {
+        case AMQP_METHOD_CLOSE_OK:
+        case AMQP_METHOD_CLOSE:
+            return true;
+        default:
+            return false;
+        }
+    default:
+        return false;
     }
-
-    if (class_id == AMQP_BASIC_CLASS) {
-        return method_id == AMQP_METHOD_PUBLISH || method_id == AMQP_METHOD_DELIVER || method_id == AMQP_METHOD_CONSUME;
-    }
-
-    return false;
 }
 
 #endif
