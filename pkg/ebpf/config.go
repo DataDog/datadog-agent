@@ -24,6 +24,9 @@ type Config struct {
 	// BPFDir is the directory to load the eBPF program from
 	BPFDir string
 
+	// JavaDir is the directory to load the java agent program from
+	JavaDir string
+
 	// ExcludedBPFLinuxVersions lists Linux kernel versions that should not use BPF features
 	ExcludedBPFLinuxVersions []string
 
@@ -85,6 +88,7 @@ func NewConfig() *Config {
 	return &Config{
 		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
 		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
+		JavaDir:                  cfg.GetString(key(spNS, "java_dir")),
 		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
 		ProcRoot:                 util.GetProcRoot(),

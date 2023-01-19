@@ -79,6 +79,10 @@ type Config struct {
 	// traffic done through Go's standard library's TLS implementation
 	EnableGoTLSSupport bool
 
+	// EnableJavaTLSSupport specifies whether the tracer should monitor HTTPS
+	// traffic done through Java's TLS implementation
+	EnableJavaTLSSupport bool
+
 	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
 	// value is currently Windows only
 	MaxTrackedHTTPConnections int64
@@ -267,6 +271,9 @@ func New() *Config {
 
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(spNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+
+		// Service Monitoring
+		EnableJavaTLSSupport: cfg.GetBool(join(smNS, "enable_java_tls_support")),
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {

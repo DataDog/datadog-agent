@@ -25,6 +25,9 @@ const (
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
 	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 
+	// defaultSystemProbeJavaDir is the default path for java agent program
+	defaultSystemProbeJavaDir = "/opt/datadog-agent/embedded/share/system-probe/java"
+
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 
@@ -92,6 +95,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "java_dir"), defaultSystemProbeJavaDir, "DD_SYSTEM_PROBE_JAVA_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "excluded_linux_versions"), []string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tracepoints"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_co_re"), true, "DD_ENABLE_CO_RE")
@@ -146,6 +150,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_go_tls_support"), false)
+
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_java_tls_support"), false)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
