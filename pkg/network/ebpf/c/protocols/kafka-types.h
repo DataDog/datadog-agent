@@ -13,10 +13,14 @@ typedef struct {
     int16_t api_version;
     int32_t correlation_id;
     int16_t client_id_size;
-} kafka_header;
+} kafka_header_t;
 
 typedef struct {
+    const char* buffer;
+    uint32_t buffer_size;
     uint32_t offset;
-} kafka_context;
+    char* offset_as_pointer;
+    kafka_header_t header;
+} kafka_context_t;
 
 #endif

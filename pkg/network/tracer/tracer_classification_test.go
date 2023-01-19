@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/twmb/franz-go/pkg/kversion"
 	"io"
 	"net"
 	nethttp "net/http"
@@ -883,6 +884,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				client, err := kgo.NewClient(
 					kgo.SeedBrokers(seeds...),
 					kgo.DefaultProduceTopic(topicName),
+					kgo.MaxVersions(kversion.V0_10_1()),
 				)
 				require.NoError(t, err)
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
