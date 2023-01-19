@@ -26,15 +26,15 @@ import (
 )
 
 // Hotspot java has a specific protocol, described here:
-//   o touch .attach_pid<pid-of-java>
-//   o kill -SIGQUIT <pid-of-java>
-//   o java process check if .attach_pid<his-pid> exit
-//   o then create an unix socket .java_pid<his-pid>
-//   o we can write command through the unix socket
-//   <pid-of-java> refers to the namespaced pid of the process.
+//
+//	o touch .attach_pid<pid-of-java>
+//	o kill -SIGQUIT <pid-of-java>
+//	o java process check if .attach_pid<his-pid> exit
+//	o then create an unix socket .java_pid<his-pid>
+//	o we can write command through the unix socket
+//	<pid-of-java> refers to the namespaced pid of the process.
 //
 // Public documentation https://openjdk.org/groups/hotspot/docs/Serviceability.html#battach
-//
 type Hotspot struct {
 	pid   int
 	nsPid int
@@ -96,8 +96,9 @@ func getPathOwner(path string) (uint32, uint32, error) {
 // copyAgent copy the agent-usm.jar to a directory where the running java process can load it.
 // the agent-usm.jar file must be readable from java process point of view
 // copyAgent return :
-//  o dstPath is path to the copy of agent-usm.jar (from container perspective), this would be pass to the hotspot command
-//  o cleanup must be called to remove the created file
+//
+//	o dstPath is path to the copy of agent-usm.jar (from container perspective), this would be pass to the hotspot command
+//	o cleanup must be called to remove the created file
 func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cleanup func(), err error) {
 	dstPath = h.cwd + "/" + filepath.Base(agent)
 	// path from the host point of view pointing to the process root namespace (/proc/pid/root/usr/...)
@@ -192,6 +193,7 @@ func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, 
 }
 
 // command: tailingNull is necessary here to flush command
+//
 //	otherwise the JVM is blocked and waiting for more bytes
 //	This applies only for some command like : 'load agent.so true'
 func (h *Hotspot) command(cmd string, tailingNull bool) error {
@@ -227,9 +229,10 @@ func (h *Hotspot) command(cmd string, tailingNull bool) error {
 }
 
 // attachJVMProtocol use this (short) protocol :
-//  o create a file .attach_pid%d
-//  o send a SIGQUIT signal
-//  o wait for socket file to be created by the java process
+//
+//	o create a file .attach_pid%d
+//	o send a SIGQUIT signal
+//	o wait for socket file to be created by the java process
 func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 	attachPIDPath := func(root string) string {
 		return fmt.Sprintf("%s/.attach_pid%d", root, h.nsPid)
