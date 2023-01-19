@@ -42,15 +42,18 @@ type enrichConfig struct {
 // originFromMsg is the origin sent by the client via the container field (non-prefixed container ID).
 // entityIDPrecedenceEnabled refers to the dogstatsd_entity_id_precedence parameter.
 //
-//  ---------------------------------------------------------------------------------
+//	---------------------------------------------------------------------------------
+//
 // | originFromUDS | originFromTag | entityIDPrecedenceEnabled || Result: udsOrigin  |
 // |---------------|---------------|---------------------------||--------------------|
 // | any           | any           | false                     || originFromUDS      |
 // | any           | any           | true                      || empty              |
 // | any           | empty         | any                       || originFromUDS      |
-//  ---------------------------------------------------------------------------------
 //
-//  ---------------------------------------------------------------------------------
+//	---------------------------------------------------------------------------------
+//
+//	---------------------------------------------------------------------------------
+//
 // | originFromTag          | originFromMsg   || Result: originFromClient            |
 // |------------------------|-----------------||-------------------------------------|
 // | not empty && not none  | any             || pod prefix + originFromTag          |
@@ -58,7 +61,8 @@ type enrichConfig struct {
 // | none                   | empty           || empty                               |
 // | empty                  | not empty       || container prefix + originFromMsg    |
 // | none                   | not empty       || container prefix + originFromMsg    |
-//  ---------------------------------------------------------------------------------
+//
+//	---------------------------------------------------------------------------------
 func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, conf enrichConfig) ([]string, string, string, string, string) {
 	host := conf.defaultHostname
 

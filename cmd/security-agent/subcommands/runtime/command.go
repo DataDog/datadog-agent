@@ -18,7 +18,6 @@ import (
 	"path"
 	"strings"
 	"time"
-	"unsafe"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -39,7 +38,6 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -450,27 +448,11 @@ func checkPoliciesInner(dir string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	var evalOpts eval.Opts
-	evalOpts.
-		WithConstants(model.SECLConstants).
-		WithVariables(model.SECLVariables).
-		WithLegacyFields(model.SECLLegacyFields)
+	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
 
-	var opts rules.Opts
-	opts.
-		WithSupportedDiscarders(sprobe.SupportedDiscarders).
-		WithEventTypeEnabled(enabled).
-		WithReservedRuleIDs(events.AllCustomRuleIDs()).
-		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-			"process": func() rules.VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
-				}, nil)
-			},
-		}).
-		WithLogger(seclog.DefaultLogger)
+	ruleOpts.WithLogger(seclog.DefaultLogger)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
@@ -589,21 +571,10 @@ func evalRule(log complog.Component, config compconfig.Component, evalArgs *eval
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	var evalOpts eval.Opts
-	evalOpts.
-		WithConstants(model.SECLConstants).
-		WithVariables(model.SECLVariables).
-		WithLegacyFields(model.SECLLegacyFields)
+	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts.WithLogger(seclog.DefaultLogger)
 
-	var opts rules.Opts
-	opts.
-		WithSupportedDiscarders(sprobe.SupportedDiscarders).
-		WithEventTypeEnabled(enabled).
-		WithReservedRuleIDs(events.AllCustomRuleIDs()).
-		WithLogger(seclog.DefaultLogger)
-
-	m := &model.Model{}
-	ruleSet := rules.NewRuleSet(m, model.NewDefaultEvent, &opts, &evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {

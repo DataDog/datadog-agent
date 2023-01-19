@@ -75,6 +75,7 @@ type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, fi
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
 	// Constants and configuration
+	Opts           Opts
 	Manager        *manager.Manager
 	managerOptions manager.Options
 	Config         *config.Config
@@ -853,8 +854,6 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 			}
 		}
 	}
-
-	return
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
@@ -1109,8 +1108,12 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet {
-	opts.WithLogger(seclog.DefaultLogger)
+func (p *Probe) NewRuleSet() *rules.RuleSet {
+	ruleOpts, evalOpts := rules.NewEvalOpts(p.Opts.EventTypeEnabled)
+
+	ruleOpts.WithLogger(seclog.DefaultLogger)
+	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+	ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
 
 	eventCtor := func() eval.Event {
 		return &model.Event{
@@ -1118,7 +1121,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet
 		}
 	}
 
-	return rules.NewRuleSet(NewModel(p), eventCtor, opts, evalOpts)
+	return rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts, evalOpts)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -1187,7 +1190,9 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+	opts.normalize()
+
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -1196,6 +1201,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
+		Opts:                 opts,
 		Config:               config,
 		approvers:            make(map[eval.EventType]activeApprovers),
 		managerOptions:       ebpf.NewDefaultOptions(),
@@ -1203,9 +1209,9 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		cancelFnc:            cancel,
 		Erpc:                 nerpc,
 		erpcRequest:          &erpc.ERPCRequest{},
-		StatsdClient:         statsdClient,
+		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
+		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
 		event:                &model.Event{},
 	}
 

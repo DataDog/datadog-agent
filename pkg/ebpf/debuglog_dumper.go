@@ -23,7 +23,8 @@ const (
 
 // DumpDebugLog is a utility to write the debug log of the running application to a given writer.
 // To enable it, you need to enabled BPF DEBUG log in the configuration, and add the following code snippet:
-// 	ctx, cancel := context.WithCancel(context.Background())
+//
+//	ctx, cancel := context.WithCancel(context.Background())
 //	defer cancel()
 //	ebpf.DumpDebugLog(ctx, os.Stdout)
 func DumpDebugLog(ctx context.Context, writer io.Writer) error {

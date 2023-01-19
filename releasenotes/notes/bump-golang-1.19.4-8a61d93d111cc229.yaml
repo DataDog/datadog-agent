@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+enhancements:
   - |
-    The ``logs_config.cca_in_ad`` has been removed.
+    Agents are now built with Go ``1.19.4``.

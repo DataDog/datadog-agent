@@ -17,10 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -64,6 +67,8 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
+	cop := containersorpods.NewChooser()
+
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
@@ -75,7 +80,22 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher())
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(sources))
+	if !util.CcaInAD() {
+		lnchrs.AddLauncher(docker.NewLauncher(
+			time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
+			sources,
+			services,
+			cop,
+			coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
+			coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file")))
+		lnchrs.AddLauncher(kubernetes.NewLauncher(
+			sources,
+			services,
+			cop,
+			coreConfig.Datadog.GetBool("logs_config.container_collect_all")))
+	} else {
+		lnchrs.AddLauncher(container.NewLauncher(sources))
+	}
 
 	return &Agent{
 		sources:                   sources,

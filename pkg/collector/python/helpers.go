@@ -50,14 +50,14 @@ type stickyLock struct {
 	locked *atomic.Bool
 }
 
-//PythonStatsEntry are entries for specific object type memory usage
+// PythonStatsEntry are entries for specific object type memory usage
 type PythonStatsEntry struct {
 	Reference string
 	NObjects  int
 	Size      int
 }
 
-//PythonStats contains python memory statistics
+// PythonStats contains python memory statistics
 type PythonStats struct {
 	Type     string
 	NObjects int

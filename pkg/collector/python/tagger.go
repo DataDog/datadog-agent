@@ -31,6 +31,7 @@ var (
 )
 
 // Tags bridges towards tagger.Tag to retrieve container tags
+//
 //export Tags
 func Tags(id *C.char, cardinality C.int) **C.char {
 	goID := C.GoString(id)

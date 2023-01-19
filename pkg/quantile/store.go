@@ -36,8 +36,9 @@ func (s *sparseStore) Cols() (k []int32, n []uint32) {
 }
 
 // MemSize returns memory use in bytes:
-//   used: uses len(bins)
-//   allocated: uses cap(bins)
+//
+//	used: uses len(bins)
+//	allocated: uses cap(bins)
 func (s *sparseStore) MemSize() (used, allocated int) {
 	const (
 		binSize   = int(unsafe.Sizeof(bin{}))
@@ -248,8 +249,9 @@ func (s *sparseStore) insert(c *Config, keys []Key) {
 
 // bufCountLeadingEqual returns the number of consecutive keys in a[i:] that equal a[i].
 // given:
-//   i = 0 1 2 3 4 5 6
-//   a = 4 5 6 8 8 8 9
+//
+//	i = 0 1 2 3 4 5 6
+//	a = 4 5 6 8 8 8 9
 //
 // bufCountLeadingEqual(a, 3) = 3, a[3] = 8
 // bufCountLeadingEqual(a, 4) = 2, a[4] = 8
