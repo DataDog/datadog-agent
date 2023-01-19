@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,6 +32,8 @@ const (
 	maximalMaxBackoffTime = 90 * time.Second
 	minBackoffFactor      = 2.0
 	recoveryInterval      = 2
+
+	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
 )
 
 // ConfigUpdater defines the interface that an agent client uses to get config updates
@@ -75,8 +78,11 @@ type agentGRPCConfigFetcher struct {
 	client pbgo.AgentSecureClient
 }
 
-func newAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
-	c, err := grpc.GetDDAgentSecureClient(context.Background())
+// NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
+func NewAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
+	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), grpc.WithDefaultCallOptions(
+		grpc.MaxCallRecvMsgSize(maxMessageSize),
+	))
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +117,7 @@ func NewClient(agentName string, updater ConfigUpdater, agentVersion string, pro
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
 func NewGRPCClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	grpcClient, err := newAgentGRPCConfigFetcher()
+	grpcClient, err := NewAgentGRPCConfigFetcher()
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +127,7 @@ func NewGRPCClient(agentName string, agentVersion string, products []data.Produc
 
 // NewUnverifiedClient creates a new client that does not perform any TUF verification
 func NewUnverifiedClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	grpcClient, err := newAgentGRPCConfigFetcher()
+	grpcClient, err := NewAgentGRPCConfigFetcher()
 	if err != nil {
 		return nil, err
 	}

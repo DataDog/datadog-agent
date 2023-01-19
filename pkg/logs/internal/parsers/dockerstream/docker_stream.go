@@ -123,9 +123,12 @@ func getDockerSeverity(msg []byte) string {
 // For example, a message that is 35kb will be of the form: `H M1H M2H M3` where "H" is what pre-pends each 16 Kb section.
 // This function removes the "H " between two partial messages sections while leaving the very first "H ".
 // Input:
-//   H M1H M2H M3
+//
+//	H M1H M2H M3
+//
 // Output:
-//   H M1M2M3
+//
+//	H M1M2M3
 func removePartialDockerMetadata(msgToClean []byte) []byte {
 	msg := []byte{}
 	metadataLen := getDockerMetadataLength(msgToClean)

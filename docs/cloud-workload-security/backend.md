@@ -543,10 +543,10 @@ CWS logs have the following JSON schema:
         },
         "MountEvent": {
             "properties": {
-                "mountpoint": {
+                "mp": {
                     "$ref": "#/$defs/File"
                 },
-                "source": {
+                "root": {
                     "$ref": "#/$defs/File"
                 },
                 "mount_id": {
@@ -567,16 +567,16 @@ CWS logs have the following JSON schema:
                 "fs_type": {
                     "type": "string"
                 },
-                "mountpoint_path": {
+                "mountpoint.path": {
                     "type": "string"
                 },
-                "mountsource_path": {
+                "source.path": {
                     "type": "string"
                 },
-                "mountpoint_path_error": {
+                "mountpoint.path_error": {
                     "type": "string"
                 },
-                "mountsource_path_error": {
+                "source.path_error": {
                     "type": "string"
                 }
             },
@@ -2021,10 +2021,10 @@ CWS logs have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
-        "mountpoint": {
+        "mp": {
             "$ref": "#/$defs/File"
         },
-        "source": {
+        "root": {
             "$ref": "#/$defs/File"
         },
         "mount_id": {
@@ -2045,16 +2045,16 @@ CWS logs have the following JSON schema:
         "fs_type": {
             "type": "string"
         },
-        "mountpoint_path": {
+        "mountpoint.path": {
             "type": "string"
         },
-        "mountsource_path": {
+        "source.path": {
             "type": "string"
         },
-        "mountpoint_path_error": {
+        "mountpoint.path_error": {
             "type": "string"
         },
-        "mountsource_path_error": {
+        "source.path_error": {
             "type": "string"
         }
     },

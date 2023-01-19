@@ -599,7 +599,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
-	parentNode := ad.findOrCreateProcessActivityNode(entry.GetNextAncestorNoFork(), Snapshot)
+	parentNode := ad.findOrCreateProcessActivityNode(entry.GetNextAncestorBinary(), Snapshot)
 
 	// if parentNode is nil, the parent of the current node is out of tree (either because the parent is null, or it
 	// doesn't match the dump tags).

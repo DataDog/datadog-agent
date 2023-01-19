@@ -38,7 +38,7 @@ RUN set -ex \
         xz-utils
 
 # Golang
-ENV GIMME_GO_VERSION 1.18.9
+ENV GIMME_GO_VERSION 1.19.4
 ENV GOROOT /root/.gimme/versions/go$GIMME_GO_VERSION.linux.amd64
 ENV GOPATH /go
 ENV PATH $GOROOT/bin:$GOPATH/bin:$PATH

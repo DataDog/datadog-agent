@@ -936,6 +936,9 @@ func InitConfig(config Config) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
+	// temporary feature flag until this becomes the only option
+	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
+
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
 	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
@@ -1187,7 +1190,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
-	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
+	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
 	config.BindEnv("runtime_security_config.event_stream.buffer_size")
 	config.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 

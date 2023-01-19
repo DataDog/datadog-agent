@@ -53,7 +53,13 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	// Telemetry
 	for _, interfaceStatus := range interfaces {
 		status := string(computeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus))
-		interfaceTags := []string{"status:" + status, "interface:" + interfaceStatus.Name, "interface_alias:" + interfaceStatus.Alias, "interface_index:" + strconv.Itoa(int(interfaceStatus.Index))}
+		interfaceTags := []string{"status:" + status, "interface_index:" + strconv.Itoa(int(interfaceStatus.Index))}
+		if interfaceStatus.Name != "" {
+			interfaceTags = append(interfaceTags, "interface:"+interfaceStatus.Name)
+		}
+		if interfaceStatus.Alias != "" {
+			interfaceTags = append(interfaceTags, "interface_alias:"+interfaceStatus.Alias)
+		}
 		interfaceTags = append(interfaceTags, tags...)
 		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
 	}

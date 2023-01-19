@@ -24,7 +24,7 @@ import (
 
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process})
+	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -59,7 +59,7 @@ func TestUpdateRTStatus(t *testing.T) {
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.Process})
+	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -108,17 +108,17 @@ func TestDisableRealTime(t *testing.T) {
 	tests := []struct {
 		name            string
 		disableRealtime bool
-		expectedChecks  []checks.Check
+		expectedChecks  []string
 	}{
 		{
 			name:            "true",
 			disableRealtime: true,
-			expectedChecks:  []checks.Check{checks.Container},
+			expectedChecks:  []string{checks.ContainerCheckName},
 		},
 		{
 			name:            "false",
 			disableRealtime: false,
-			expectedChecks:  []checks.Check{checks.Container, checks.RTContainer},
+			expectedChecks:  []string{checks.ContainerCheckName, checks.RTContainerCheckName},
 		},
 	}
 
@@ -131,12 +131,12 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 
 			enabledChecks := getChecks(&sysconfig.Config{}, true)
-			assert.EqualValues(tc.expectedChecks, enabledChecks)
+			assert.EqualValues(tc.expectedChecks, getCheckNames(enabledChecks))
 
 			c, err := NewCollector(nil, &checks.HostInfo{}, enabledChecks)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
-			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
+			assert.ElementsMatch(tc.expectedChecks, getCheckNames(c.enabledChecks))
 		})
 	}
 }
@@ -157,7 +157,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	expectedChecks := []checks.Check{checks.Process}
+	expectedChecks := []checks.Check{checks.NewProcessCheck()}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -179,7 +179,7 @@ func TestIgnoreResponseBody(t *testing.T) {
 	}{
 		{checkName: checks.ProcessCheckName, ignore: false},
 		{checkName: checks.RTProcessCheckName, ignore: false},
-		{checkName: checks.ProcessDiscovery.Name(), ignore: false},
+		{checkName: checks.DiscoveryCheckName, ignore: false},
 		{checkName: checks.ContainerCheckName, ignore: false},
 		{checkName: checks.RTContainerCheckName, ignore: false},
 		{checkName: checks.PodCheckName, ignore: true},

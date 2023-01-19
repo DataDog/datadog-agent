@@ -9,17 +9,11 @@
 package http
 
 type httpTX interface {
-	ReqFragment() []byte
 	StatusClass() int
 	RequestLatency() float64
-	isIPV4() bool
-	SrcIPLow() uint64
-	SrcIPHigh() uint64
-	SrcPort() uint16
-	DstIPLow() uint64
-	DstIPHigh() uint64
-	DstPort() uint16
+	ConnTuple() KeyTuple
 	Method() Method
+	SetRequestMethod(Method)
 	StatusCode() uint16
 	SetStatusCode(uint16)
 	StaticTags() uint64
@@ -30,6 +24,4 @@ type httpTX interface {
 	ResponseLastSeen() uint64
 	SetResponseLastSeen(ls uint64)
 	RequestStarted() uint64
-	SetRequestMethod(uint32)
-	RequestMethod() uint32
 }

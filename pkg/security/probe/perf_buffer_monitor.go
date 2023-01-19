@@ -51,6 +51,7 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 }
 
 // PerfBufferMonitor holds statistics about the number of lost and received events
+//
 //nolint:structcheck,unused
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe

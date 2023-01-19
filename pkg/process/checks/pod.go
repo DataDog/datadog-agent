@@ -22,9 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// Pod is a singleton PodCheck.
-var Pod = &PodCheck{
-	config: oconfig.NewDefaultOrchestratorConfig(),
+// NewPodCheck returns an instance of the Pod check
+func NewPodCheck() Check {
+	return &PodCheck{
+		config: oconfig.NewDefaultOrchestratorConfig(),
+	}
 }
 
 // PodCheck is a check that returns container metadata and stats.
