@@ -8,6 +8,7 @@ package rules
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // VariableProvider is the interface implemented by SECL variable providers
@@ -55,4 +56,26 @@ func (o *Opts) WithLogger(logger log.Logger) *Opts {
 func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *Opts {
 	o.StateScopes = stateScopes
 	return o
+}
+
+// NetEvalOpts returns eval options
+func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
+	var ruleOpts Opts
+	ruleOpts.
+		WithEventTypeEnabled(eventTypeEnabled).
+		WithStateScopes(map[Scope]VariableProviderFactory{
+			"process": func() VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) *model.ProcessContext {
+					return ctx.Event.(*model.Event).ProcessContext
+				}, nil)
+			},
+		})
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithVariables(model.SECLVariables)
+
+	return &ruleOpts, &evalOpts
 }
