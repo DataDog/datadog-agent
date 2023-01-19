@@ -91,7 +91,12 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {}
 
 func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
-	return
+
+	probeList = append(probeList, manager.ProbeIdentificationPair{
+		EBPFSection:  "kprobe/do_vfs_ioctl",
+		EBPFFuncName: "kprobe__do_vfs_ioctl"})
+
+	return probeList
 }
 
 func newJavaProcess(pid uint32) {
