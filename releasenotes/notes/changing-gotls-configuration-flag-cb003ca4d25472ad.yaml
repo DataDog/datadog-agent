@@ -8,4 +8,4 @@
 ---
 deprecations:
   - |
-    system_probe_config.enable_go_tls_support is deprecated and replaced by service_monitoring_config.enable_go_tls_support
+    system_probe_config.enable_go_tls_support is deprecated and replaced by service_monitoring_config.enable_go_tls_support.
