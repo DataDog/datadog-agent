@@ -239,7 +239,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 			},
 			"1.3.6.1.2.1.31.1.1.1.18": {
 				"1": valuestore.ResultValue{Value: "ifAlias1"},
-				"2": valuestore.ResultValue{Value: "ifAlias2"},
+				"2": valuestore.ResultValue{Value: ""},
 			},
 		},
 	}
@@ -292,7 +292,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1"}
-	ifTags2 := []string{"tag1", "tag2", "status:down", "interface:22", "interface_alias:ifAlias2", "interface_index:2"}
+	ifTags2 := []string{"tag1", "tag2", "status:down", "interface:22", "interface_index:2"}
 
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
@@ -332,8 +332,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "interface:22"
             ],
             "index": 2,
-            "name": "22",
-			"alias": "ifAlias2"
+            "name": "22"
         }
     ],
     "collect_timestamp":1415792726
