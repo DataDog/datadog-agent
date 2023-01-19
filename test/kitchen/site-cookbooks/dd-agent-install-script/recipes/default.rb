@@ -67,6 +67,15 @@ directory wrk_dir do
   mode '0755'
 end
 
+if platform?('centos') && node['dd-agent-rspec'] && node['dd-agent-rspec']['enable_cws']
+  # TODO(lebauce): enable repositories to install package
+  # package 'policycoreutils-python'
+
+  execute 'disable SElinux to be able to start system-probe' do
+    command "setenforce 0"
+  end
+end
+
 execute 'run agent install script' do
   user 'installuser'
   cwd wrk_dir
