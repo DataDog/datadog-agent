@@ -82,9 +82,9 @@ func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCh
 	if syscfg != nil && syscfg.Enabled {
 		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
 		_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
+		cfg.ProcessModuleEnabled = processModuleEnabled
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
-		cfg.ProcessModuleEnabled = processModuleEnabled
 	}
 
 	for _, c := range enabledChecks {
