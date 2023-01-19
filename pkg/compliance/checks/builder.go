@@ -501,13 +501,20 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 		notify = b.status.updateCheck
 	}
 
+	checkInterval := b.checkInterval
+	if rule.Period != "" {
+		if checkInterval, err = time.ParseDuration(rule.Period); err != nil {
+			return nil, fmt.Errorf("invalid period: %w", err)
+		}
+	}
+
 	// We capture err as configuration error but do not prevent check creation
 	return &complianceCheck{
 		Env: b,
 
 		ruleID:      rule.ID,
 		description: rule.Description,
-		interval:    b.checkInterval,
+		interval:    checkInterval,
 
 		suiteMeta: meta,
 

@@ -21,6 +21,7 @@ type RuleCommon struct {
 	Scope       RuleScopeList `yaml:"scope,omitempty"`
 	SkipOnK8s   bool          `yaml:"skipOnKubernetes,omitempty"`
 	Filters     []string      `yaml:"filters"`
+	Period      string        `yaml:"period,omitempty"`
 }
 
 // RegoRule defines a rule in a compliance config
