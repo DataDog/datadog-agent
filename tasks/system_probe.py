@@ -1463,3 +1463,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+
+@task
+def test_microvms(ctx):
+    ctx.run("cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test")

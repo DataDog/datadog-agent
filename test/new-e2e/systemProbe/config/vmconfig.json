@@ -1,0 +1,25 @@
+{
+    "vmsets": [
+        {
+            "name": "custom-kernels-x86_64",
+            "recipe": "custom-amd64",
+            "arch": "x86_64",
+            "kernels": [
+                {
+                    "dir": "/tmp/kernel-packages/kernel-v4.14.x86.pkg",
+                    "tag": "4.14",
+                    "extra_params": {
+                        "systemd.unified_cgroup_hierarchy":"0",
+                        "console":"ttyS0"
+                    }
+                }
+            ],
+            "vcpu": [4],
+            "memory": [4096],
+            "image": {
+                "image_path": "buster.qcow2.amd64-0.1-DEV",
+                "image_uri": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/buster.qcow2.amd64-0.1-DEV.tar.gz"
+            }
+        }
+    ]
+}
