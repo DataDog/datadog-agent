@@ -31,7 +31,6 @@ int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void
     }
     //register the connection in our map
     bpf_map_update_elem(&java_tls_connections, connection, &val, BPF_ANY);
-    log_debug("[java-tls-handle_request] got request to handle, size: %d\n", bytes_read);
     https_process(connection, data, bytes_read, JAVA_TLS);
     return 0;
 }
@@ -47,12 +46,10 @@ void __attribute__((always_inline)) handle_close_connection(conn_tuple_t* connec
 }
 
 int __attribute__((always_inline)) is_usm_erpc_request(struct pt_regs *ctx) {
-    u32 cmd = PT_REGS_PARM2(ctx);
+    u32 cmd = PT_REGS_PARM3(ctx);
     if (cmd != USM_IOCTL_ID) {
-        log_debug("[is_usm_erpc_request] bad request %d\n", cmd);
         return 0;
     }
-
     return 1;
 }
 
@@ -63,7 +60,7 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
     #else
         __maybe_unused u64 pid=0;
     #endif
-    void *req = (void *)PT_REGS_PARM3(ctx);
+    void *req = (void *)PT_REGS_PARM4(ctx);
 
     u8 op = 0;
     if (0 != bpf_probe_read_user(&op, sizeof(op), req)){

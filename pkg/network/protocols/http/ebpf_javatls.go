@@ -88,7 +88,16 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 	authID = rand.Int63()
 }
 
-func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {}
+func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
+	options.ActivatedProbes = append(options.ActivatedProbes,
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/do_vfs_ioctl",
+				EBPFFuncName: "kprobe__do_vfs_ioctl",
+				UID:          probeUID,
+			},
+		})
+}
 
 func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
 
