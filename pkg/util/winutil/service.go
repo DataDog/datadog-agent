@@ -158,6 +158,106 @@ func ListDependentServices(serviceName string, state enumServiceState) ([]EnumSe
 	return deps, nil
 }
 
+func IsServiceEnabled(serviceName string) (enabled bool, err error) {
+	enabled = false
+
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_CONFIG)
+	if err != nil {
+		return enabled, fmt.Errorf("could not open service %s: %v", serviceName, err)
+	}
+	defer service.Close()
+
+	serviceConfig, err := service.Config()
+	if err != nil {
+		return enabled, fmt.Errorf("could not retrieve config for %s: %v", serviceName, err)
+	}
+	return (serviceConfig.StartType != windows.SERVICE_DISABLED), nil
+}
+
+func IsServiceRunning(serviceName string) (running bool, err error) {
+	running = false
+
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_CONFIG)
+	if err != nil {
+		return running, fmt.Errorf("could not open service %s: %v", serviceName, err)
+	}
+	defer service.Close()
+
+	serviceStatus, err := service.Query()
+	if err != nil {
+		return running, fmt.Errorf("could not retrieve status for %s: %v", serviceName, err)
+	}
+	return (serviceStatus.State == windows.SERVICE_RUNNING), nil
+}
+
+func UpdateServicConfig(serviceName string, newConfig mgr.Config) (err error) {
+
+	// connect to SCM
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	// get a handle to the service
+	serviceAccess := windows.SERVICE_CHANGE_CONFIG | windows.SERVICE_QUERY_CONFIG
+	serviceHandle, err := OpenService(manager, serviceName, uint32(serviceAccess))
+	if err != nil {
+		return
+	}
+	defer serviceHandle.Close()
+
+	// set it to manual start
+	err = serviceHandle.UpdateConfig(newConfig)
+	if err != nil {
+		log.Warnf("could not enable %s: %v", err)
+	}
+	return
+}
+
+func AddServiceDependency(serviceName string, dependencyName string) (err error) {
+	// connect to SCM
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	// get a handle to the service
+	serviceAccess := windows.SERVICE_CHANGE_CONFIG | windows.SERVICE_QUERY_CONFIG
+	serviceHandle, err := OpenService(manager, serviceName, uint32(serviceAccess))
+	if err != nil {
+		return
+	}
+	defer serviceHandle.Close()
+
+	currentConfig, err := serviceHandle.Config()
+	if err != nil {
+		return
+	}
+	newConfig := mgr.Config{
+		Dependencies: append(currentConfig.Dependencies, dependencyName),
+	}
+
+	err = serviceHandle.UpdateConfig(newConfig)
+	if err != nil {
+		return fmt.Errorf("unable to add dependency %s to %s", dependencyName, serviceName)
+	}
+	return
+}
+
 // ServiceStatus reports information pertaining to enumerated services
 // only exported so binary.Read works
 type ServiceStatus struct {
