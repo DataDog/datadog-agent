@@ -71,16 +71,9 @@ BPF_HASH_MAP(udp_port_bindings, port_binding_t, __u32, 0)
 /* Similar to pending_sockets this is used for capturing state between the call and return of the bind() system call.
  *
  * Keys: the PID returned by bpf_get_current_pid_tgid()
- * Values: the args of the bind call being instrumented.
+ * Values: the args of the bind call  being instrumented.
  */
 BPF_HASH_MAP(pending_bind, __u64, bind_syscall_args_t, 8192)
-
-/* Similar to pending_sockets this is used for capturing state between the call and return of the tcp_retransmit_skb() system call.
- *
- * Keys: the PID returned by bpf_get_current_pid_tgid()
- * Values: the args of the tcp_retransmit_skb call being instrumented.
- */
-BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
 
 /* This map is used for telemetry in kernelspace
  * only key 0 is used
