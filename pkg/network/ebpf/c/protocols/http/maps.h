@@ -46,6 +46,10 @@ BPF_HASH_MAP(go_tls_write_args, go_tls_function_args_key_t, go_tls_write_args_da
    if goTLS is enabled. */
 BPF_HASH_MAP(conn_tup_by_go_tls_conn, __u32, conn_tuple_t, 1)
 
+// A set (map from a key to a const bool value, we care only if the key exists in the map, and not its value) to
+// mark if we've seen a specific java tls connection.
+BPF_HASH_MAP(java_tls_connections, conn_tuple_t, bool, 1024)
+
 /* This map used for notifying userspace of a shared library being loaded */
 BPF_PERF_EVENT_ARRAY_MAP(shared_libraries, __u32, 0)
 
