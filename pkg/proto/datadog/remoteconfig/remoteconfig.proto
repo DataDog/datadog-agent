@@ -94,6 +94,7 @@ message ClientTracer {
 message ClientAgent {
   string name = 1;
   string version = 2;
+  string cluster_name = 3;
 }
 
 message ConfigState {
