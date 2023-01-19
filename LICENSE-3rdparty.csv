@@ -1356,6 +1356,7 @@ core,k8s.io/api/policy/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/rbac/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/rbac/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/rbac/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/api/resource/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/scheduling/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/scheduling/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/scheduling/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1627,6 +1628,7 @@ core,k8s.io/client-go/applyconfigurations/policy/v1beta1,Apache-2.0,Copyright 20
 core,k8s.io/client-go/applyconfigurations/rbac/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/rbac/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/rbac/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/applyconfigurations/resource/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/scheduling/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/scheduling/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/scheduling/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1694,6 +1696,8 @@ core,k8s.io/client-go/informers/rbac,Apache-2.0,Copyright 2014 The Kubernetes Au
 core,k8s.io/client-go/informers/rbac/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/rbac/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/rbac/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/informers/resource,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/informers/resource/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/scheduling,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/scheduling/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/scheduling/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1791,6 +1795,8 @@ core,k8s.io/client-go/kubernetes/typed/rbac/v1alpha1,Apache-2.0,Copyright 2014 T
 core,k8s.io/client-go/kubernetes/typed/rbac/v1alpha1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/rbac/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/rbac/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/resource/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/resource/v1alpha1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/scheduling/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/scheduling/v1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/scheduling/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1841,6 +1847,7 @@ core,k8s.io/client-go/listers/policy/v1beta1,Apache-2.0,Copyright 2014 The Kuber
 core,k8s.io/client-go/listers/rbac/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/rbac/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/rbac/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/listers/resource/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/scheduling/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/scheduling/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/scheduling/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1974,6 +1981,8 @@ core,k8s.io/utils/strings/slices,Apache-2.0,Copyright 2014 The Kubernetes Author
 core,k8s.io/utils/trace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,mellium.im/sasl,BSD-2-Clause,Copyright © 2014 The Mellium Contributors
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/common/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/builder,Apache-2.0,Copyright 2017 The Kubernetes Authors.
