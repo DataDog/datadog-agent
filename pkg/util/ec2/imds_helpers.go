@@ -69,7 +69,7 @@ func doHTTPRequest(ctx context.Context, url string) (string, error) {
 	}
 
 	res, err := httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond)
-	if err != nil {
+	if err == nil {
 		setCloudProviderSource(source)
 	}
 	return res, err
