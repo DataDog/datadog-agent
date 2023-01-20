@@ -4,6 +4,7 @@
 #include "bpf_tracing.h"
 
 #include "tracer.h"
+#include "protocols/protocol-classification-tracer-maps.h"
 #include "protocols/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"

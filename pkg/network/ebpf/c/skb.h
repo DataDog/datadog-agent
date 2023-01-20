@@ -21,13 +21,13 @@
 // returns the data length of the skb or a negative value in case of an error
 static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
     unsigned char *head = NULL;
-    int ret = BPF_CORE_READ_INTO(&head, skb, head);
+    int ret = bpf_probe_read_kernel_with_telemetry(&head, sizeof(head), &skb->head);
     if (ret || !head) {
         log_debug("ERR reading head\n");
         return ret;
     }
     u16 net_head = 0;
-    ret = BPF_CORE_READ_INTO(&net_head, skb, network_header);
+    ret = bpf_probe_read_kernel_with_telemetry(&net_head, sizeof(net_head), &skb->network_header);
     if (ret) {
         log_debug("ERR reading network_header\n");
         return ret;
@@ -56,8 +56,8 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
                 return 0;
         }
         trans_len = iph.tot_len - (iph.ihl * 4);
-        BPF_CORE_READ_INTO((__be32*)(&tup->saddr_l), &iph, saddr);
-        BPF_CORE_READ_INTO((__be32*)(&tup->daddr_l), &iph, daddr);
+        bpf_probe_read_kernel_with_telemetry(&tup->saddr_l, sizeof(__be32), &iph.saddr);
+        bpf_probe_read_kernel_with_telemetry(&tup->daddr_l, sizeof(__be32), &iph.daddr);
     } else if (iph.version == 6 && is_ipv6_enabled()) {
         struct ipv6hdr ip6h;
         bpf_memset(&ip6h, 0, sizeof(struct ipv6hdr));
@@ -88,7 +88,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
     }
 
     u16 trans_head = 0;
-    ret = BPF_CORE_READ_INTO(&trans_head, skb, transport_header);
+    ret = bpf_probe_read_kernel_with_telemetry(&trans_head, sizeof(trans_head), &skb->transport_header);
     if (ret) {
         log_debug("ERR reading trans_head\n");
         return ret;

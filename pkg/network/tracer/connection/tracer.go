@@ -120,14 +120,14 @@ func NewTracer(c *config.Config, constants []manager.ConstantEditor, bpfTelemetr
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConnMap):                           {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.TCPStatsMap):                       {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PortBindingsMap):                   {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.UDPPortBindingsMap):                {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.SockByPidFDMap):                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PidFDBySockMap):                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.ConnectionProtocolMap):             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.ConnectionTupleToSocketSKBConnMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}},
+			string(probes.ConnMap):                           {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.TCPStatsMap):                       {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PortBindingsMap):                   {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.UDPPortBindingsMap):                {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.SockByPidFDMap):                    {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PidFDBySockMap):                    {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConnectionProtocolMap):             {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConnectionTupleToSocketSKBConnMap): {Type: ebpf.Hash, MaxEntries: uint32(c.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}},
 		ConstantEditors: constants,
 	}
 
