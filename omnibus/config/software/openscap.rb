@@ -13,7 +13,6 @@ version("1.2.17") { source sha256: "8a8cea880193b092895e1094dcc1368f8f44d986cf07
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
-dependency 'pcre'
 dependency 'xmlsec'
 dependency 'popt'
 dependency 'curl'
