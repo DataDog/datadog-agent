@@ -205,7 +205,6 @@ core,github.com/aws/aws-sdk-go/service/sts,Apache-2.0,"Copyright 2014-2015 Strip
 core,github.com/aws/aws-sdk-go/service/sts/stsiface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright 2015-2017 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
-core,github.com/benesch/cgosymbolizer,BSD-3-Clause,Copyright 2018 Cockroach Labs. All rights reserved
 core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,Copyright (c) 2018 bhmj
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Copyright (c) 2014-2020 by Tobias Rehbein <tobias.rehbein@web.de>
