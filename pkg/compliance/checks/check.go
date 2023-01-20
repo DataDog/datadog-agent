@@ -127,7 +127,7 @@ func (c *complianceCheck) Run() error {
 	var err error
 
 	reports := c.checkable.Check(c)
-	sort.Sort(reports)
+	sort.Stable(reports)
 
 	resourceQuadIDs := make(map[resourceQuadID]bool)
 
