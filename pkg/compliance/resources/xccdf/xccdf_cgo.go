@@ -72,7 +72,7 @@ func (s *xccdfSession) SetProfile(profile string) error {
 	return nil
 }
 
-func (s *xccdfSession) EvaluateRule(rule string) ([]resources.ResolvedInstance, error) {
+func (s *xccdfSession) EvaluateRule(e env.Env, rule string) ([]resources.ResolvedInstance, error) {
 	if config.IsContainerized() {
 		hostRoot := os.Getenv("HOST_ROOT")
 		if hostRoot == "" {
@@ -101,6 +101,7 @@ func (s *xccdfSession) EvaluateRule(rule string) ([]resources.ResolvedInstance, 
 		res := C.xccdf_rule_result_iterator_next(resIt)
 		ruleResult := C.xccdf_rule_result_get_result(res)
 		ruleRef := C.xccdf_rule_result_get_idref(res)
+		result := ""
 		switch ruleResult {
 		case XCCDF_RESULT_PASS:
 			result = "passed"
@@ -159,7 +160,7 @@ func getFullError(errMsg string) error {
 	return fmt.Errorf("%s: %s", errMsg, C.GoString(C.oscap_err_get_full_error()))
 }
 
-func evalXCCDFRule(xccdf, profile, rule string) ([]resources.ResolvedInstance, error) {
+func evalXCCDFRule(e env.Env, xccdf, profile, rule string) ([]resources.ResolvedInstance, error) {
 	var err error
 	xccdfSession := sessionCache[xccdf]
 	if xccdfSession == nil {
@@ -173,12 +174,12 @@ func evalXCCDFRule(xccdf, profile, rule string) ([]resources.ResolvedInstance, e
 		return nil, err
 	}
 
-	return xccdfSession.EvaluateRule(rule)
+	return xccdfSession.EvaluateRule(e, rule)
 }
 
 func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	configDir := e.ConfigDir()
-	instances, err := evalXCCDFRule(filepath.Join(configDir, res.Xccdf.Name), res.Xccdf.Profile, res.Xccdf.Rule)
+	instances, err := evalXCCDFRule(e, filepath.Join(configDir, res.Xccdf.Name), res.Xccdf.Profile, res.Xccdf.Rule)
 	if err != nil {
 		return nil, err
 	}
