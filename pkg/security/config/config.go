@@ -149,6 +149,9 @@ type Config struct {
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
+	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
+	ActivityDumpMaxDumpCountPerWorkload int
+
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
 	ActivityDumpMaxDumpSize func() int
@@ -266,6 +269,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpLocalStorageCompression:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
 		ActivityDumpRemoteStorageCompression:  coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
+		ActivityDumpMaxDumpCountPerWorkload:   coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size")
