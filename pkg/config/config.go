@@ -1571,6 +1571,8 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 9:  network devices snmp traps (unused)
 	// port_range_start + 10: instrumentation telemetry
 	// port_range_start + 11: appsec events (unused)
+	// port_range_start + 12: orchestrator explorer
+	// port_range_start + 13: runtime security
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
