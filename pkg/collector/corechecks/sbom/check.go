@@ -30,7 +30,7 @@ func init() {
 // Config holds the container_image check configuration
 type Config struct {
 	chunkSize                int `yaml:"chunk_size"`
-	newSBOMMaxLatencySeconds int `yaml:"new_images_max_latency_seconds"`
+	newSBOMMaxLatencySeconds int `yaml:"new_sbom_max_latency_seconds"`
 	periodicRefreshSeconds   int `yaml:"periodic_refresh_seconds"`
 }
 
