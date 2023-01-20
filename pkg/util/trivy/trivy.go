@@ -11,9 +11,14 @@ package trivy
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
+
+	containerdUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/commands/operation"
 	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
@@ -21,6 +26,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	image2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
+	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
@@ -32,10 +38,9 @@ import (
 	"github.com/containerd/containerd"
 )
 
-// Collector interface
-type Collector interface {
-	ScanContainerdImage(ctx context.Context, imageMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error)
-}
+const (
+	cleanupTimeout = 30 * time.Second
+)
 
 // CollectorConfig allows to pass configuration
 type CollectorConfig struct {
@@ -43,7 +48,7 @@ type CollectorConfig struct {
 	LocalArtifactCache cache.LocalArtifactCache
 	ArtifactOption     artifact.Option
 
-	ContainerdAccessor func() (*containerd.Client, error)
+	ContainerdAccessor func() (containerdUtil.ContainerdItf, error)
 }
 
 // Collector uses trivy to generate a SBOM
@@ -110,7 +115,7 @@ func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to access containerd client, err: %w", err)
 	}
 
-	fanalImage, cleanup, err := convertContainerdImage(ctx, client, imgMeta, img)
+	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
 	if cleanup != nil {
 		defer cleanup()
 	}
@@ -118,23 +123,68 @@ func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, fanalImage)
+	imageArtifact, err := image2.NewArtifact(fanalImage, c.config.ArtifactCache, c.config.ArtifactOption)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
+	}
+
+	bom, err := c.scan(ctx, imageArtifact)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	// We don't need the dependencies attribute. Remove to save memory.
-	bom.Dependencies = nil
+	return bom, nil
+}
+
+func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error) {
+	client, err := c.config.ContainerdAccessor()
+	if err != nil {
+		return nil, fmt.Errorf("unable to access containerd client, err: %w", err)
+	}
+
+	imagePath, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("containerd-image-*"))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create temp dir, err: %w", err)
+	}
+	defer func() {
+		err := os.RemoveAll(imagePath)
+		if err != nil {
+			log.Errorf("Unable to remove temp dir: %s, err: %v", imagePath, err)
+		}
+	}()
+
+	// Computing duration of containerd lease
+	deadline, _ := ctx.Deadline()
+	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
+
+	cleanUp, err := client.MountImage(ctx, expiration, imgMeta.Namespace, img, imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to mount containerd image, err: %w", err)
+	}
+
+	defer func() {
+		cleanUpContext, cleanUpContextCancel := context.WithTimeout(context.Background(), cleanupTimeout)
+		err := cleanUp(cleanUpContext)
+		cleanUpContextCancel()
+		if err != nil {
+			log.Errorf("Unable to clean up mounted image, err: %v", err)
+		}
+	}()
+
+	fsArtifact, err := local2.NewArtifact(imagePath, c.config.ArtifactCache, c.config.ArtifactOption)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
+	}
+
+	bom, err := c.scan(ctx, fsArtifact)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
+	}
 
 	return bom, nil
 }
 
-func (c *collector) scan(ctx context.Context, image ftypes.Image) (*cyclonedxgo.BOM, error) {
-	artifact, err := image2.NewArtifact(image, c.config.ArtifactCache, c.config.ArtifactOption)
-	if err != nil {
-		return nil, err
-	}
-
+func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (*cyclonedxgo.BOM, error) {
 	s := scanner.NewScanner(local.NewScanner(c.applier, c.detector, c.vulnClient), artifact)
 	report, err := s.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
@@ -146,5 +196,12 @@ func (c *collector) scan(ctx context.Context, image ftypes.Image) (*cyclonedxgo.
 		return nil, err
 	}
 
-	return c.marshaler.Marshal(report)
+	bom, err := c.marshaler.Marshal(report)
+	if err != nil {
+		return nil, err
+	}
+
+	// We don't need the dependencies attribute. Remove to save memory.
+	bom.Dependencies = nil
+	return bom, nil
 }
