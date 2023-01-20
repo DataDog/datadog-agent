@@ -76,6 +76,7 @@ stages:
   - trigger_release
   - e2e
   - kitchen_cleanup
+  - kernel_version_testing
   - functional_test
   - functional_test_cleanup
   - functional_test_junit_upload

@@ -15,10 +15,14 @@ import (
 func main() {
 	envNamePtr := flag.String("name", "system-probe", "environment name")
 	destroyPtr := flag.Bool("destroy", false, "[optional] should destroy the environment")
+	securityGroupsPtr := flag.String("sgs", "", "security groups")
+	subnetPtr := flag.String("subnet", "", "aws subnet")
+	x86InstanceTypePtr := flag.String("instance-type-x86", "", "x86_64 instance type")
+	armInstanceTypePtr := flag.String("instance-type-arm", "", "arm64 instance type")
 
 	flag.Parse()
 
-	systemProbeEnv, err := systemProbe.NewTestEnv(*envNamePtr)
+	systemProbeEnv, err := systemProbe.NewTestEnv(*envNamePtr, *securityGroupsPtr, *subnetPtr, *x86InstanceTypePtr, *armInstanceTypePtr)
 	if err != nil {
 		panic(err)
 	}

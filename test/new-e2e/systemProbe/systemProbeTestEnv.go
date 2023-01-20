@@ -37,7 +37,7 @@ const (
 var SSHKeyFile = filepath.Join("/", "tmp", "aws-ssh-key")
 var VMConfig = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
 
-func NewTestEnv(name string) (*TestEnv, error) {
+func NewTestEnv(name, securityGroups, subnet, armInstanceType, x86InstanceType string) (*TestEnv, error) {
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
 		envName: "aws/sandbox",
@@ -61,11 +61,13 @@ func NewTestEnv(name string) (*TestEnv, error) {
 	stackManager := infra.GetStackManager()
 
 	config := auto.ConfigMap{
-		"ddinfra:aws/defaultARMInstanceType": auto.ConfigValue{Value: "m6g.metal"},
-		"ddinfra:aws/defaultInstanceType":    auto.ConfigValue{Value: "z1d.metal"},
+		"ddinfra:aws/defaultARMInstanceType": auto.ConfigValue{Value: armInstanceType},
+		"ddinfra:aws/defaultInstanceType":    auto.ConfigValue{Value: x86InstanceType},
 		"microvm:microVMConfigFile":          auto.ConfigValue{Value: VMConfig},
 		"ddinfra:aws/defaultKeyPairName":     auto.ConfigValue{Value: "aws-ssh-key"},
 		"ddinfra:aws/defaultPrivateKeyPath":  auto.ConfigValue{Value: SSHKeyFile},
+		"ddinfra:aws/defaultSecurityGroups":  auto.ConfigValue{Value: securityGroups},
+		"ddinfra:aws/defaultSubnets":         auto.ConfigValue{Value: subnet},
 	}
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
@@ -79,6 +81,13 @@ func NewTestEnv(name string) (*TestEnv, error) {
 
 	if err != nil {
 		return nil, err
+	}
+
+	systemProbeTestEnv.StackOutput = upResult
+
+	outputX86, found := upResult.Outputs["x86_64-instance-ip"]
+	if found {
+		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
 	}
 
 	return systemProbeTestEnv, nil
