@@ -76,8 +76,8 @@ stages:
   - trigger_release
   - e2e
   - kitchen_cleanup
-  - kernel_version_testing
   - functional_test
+  - kernel_version_testing
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
