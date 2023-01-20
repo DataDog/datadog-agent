@@ -25,6 +25,7 @@ import (
 )
 
 const interfaceStatusMetric = "snmp.interface.status"
+const topologyLinkSourceTypeLLDP = "lldp"
 
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
@@ -311,7 +312,8 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		remEntryUniqueID := localPortNum + "." + lldpRemIndex
 
 		newLink := metadata.TopologyLinkMetadata{
-			ID: deviceID + ":" + remEntryUniqueID,
+			ID:         deviceID + ":" + remEntryUniqueID,
+			SourceType: topologyLinkSourceTypeLLDP,
 			Remote: &metadata.TopologyLinkSide{
 				Device: &metadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),

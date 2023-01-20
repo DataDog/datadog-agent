@@ -565,6 +565,7 @@ profiles:
   "links": [
         {
             "id": "profile-metadata:1.2.3.4:101.1",
+            "source_type": "lldp",
             "local": {
                 "device": {
                     "id": "profile-metadata:1.2.3.4",
@@ -592,6 +593,7 @@ profiles:
         },
         {
             "id": "profile-metadata:1.2.3.4:102.2",
+            "source_type": "lldp",
             "local": {
                 "device": {
                     "id": "profile-metadata:1.2.3.4",
