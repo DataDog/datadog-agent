@@ -70,10 +70,10 @@ func (c *collector) Pull(ctx context.Context) error {
 		},
 		Runtime: workloadmeta.ContainerRuntimeGarden,
 	}
-	
+
 	// init tags collection
 	containerTags := common.NewStringSet()
-	
+
 	// add basic container tags
 	containerTags.Add(fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, c.nodeName))
 	containerTags.Add(fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, c.nodeName))
@@ -89,10 +89,10 @@ func (c *collector) Pull(ctx context.Context) error {
 			containerTags.Add(s)
 		}
 	}
-	
+
 	// assign tags
 	containerEntity.CollectorTags = containerTags.GetAll()
-	
+
 	events = append(events, workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
 		Source: workloadmeta.SourceClusterOrchestrator,
