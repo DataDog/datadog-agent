@@ -1466,5 +1466,4 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 @task
 def test_microvms(ctx, security_groups, subnet, instance_type_x86="", instance_type_arm=""):
-    ctx.run("ls -la site-cookbooks/dd-system-probe-check/files")
     ctx.run(f"cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test --sg {securityGroups} --subnet {subnet} --instance-type-x86 {instance_type_x86} --instance-type-arm {instance_type_arm}")
