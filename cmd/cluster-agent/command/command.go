@@ -18,6 +18,7 @@ import (
 )
 
 const (
+	ConfigName      = "datadog-cluster"
 	LoggerName      = "CLUSTER"
 	DefaultLogLevel = "off"
 )

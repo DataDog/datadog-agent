@@ -8,16 +8,22 @@ package taggerlist
 import (
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCommand(t *testing.T) {
+	commands := []*cobra.Command{
+		MakeCommand(func() GlobalParams {
+			return GlobalParams{}
+		}),
+	}
+
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		commands,
 		[]string{"tagger-list"},
 		taggerList,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
