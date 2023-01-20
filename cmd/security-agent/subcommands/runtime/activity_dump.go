@@ -263,9 +263,6 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 }
 
 func generateActivityDump(log log.Component, config config.Component, activityDumpArgs *activityDumpCliParams) error {
-	// TODO: Remove once the log component has self-flushing capabilities
-	defer log.Flush()
-
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -295,9 +292,6 @@ func generateActivityDump(log log.Component, config config.Component, activityDu
 }
 
 func generateEncodingFromActivityDump(log log.Component, config config.Component, activityDumpArgs *activityDumpCliParams) error {
-	// TODO: Remove once the log component has self-flushing capabilities
-	defer log.Flush()
-
 	var output *api.TranscodingRequestMessage
 
 	if activityDumpArgs.remoteRequest {
@@ -371,9 +365,6 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 }
 
 func listActivityDumps(log log.Component, config config.Component) error {
-	// TODO: Remove once the log component has self-flushing capabilities
-	defer log.Flush()
-
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -422,9 +413,6 @@ func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageR
 }
 
 func stopActivityDump(log log.Component, config config.Component, activityDumpArgs *activityDumpCliParams) error {
-	// TODO: Remove once the log component has self-flushing capabilities
-	defer log.Flush()
-
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)

@@ -323,7 +323,6 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 	}
 
 	log.Info("See ya!")
-	log.Flush()
 }
 
 func setupInternalProfiling(config config.Component) error {
