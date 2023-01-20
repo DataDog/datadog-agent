@@ -70,6 +70,13 @@ func (c *collector) Pull(ctx context.Context) error {
 		},
 		Runtime: workloadmeta.ContainerRuntimeGarden,
 	}
+	
+	// init tags collection
+	containerTags := common.NewStringSet()
+	
+	// add basic container tags
+	containerTags.Add(fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, c.nodeName))
+	containerTags.Add(fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, c.nodeName))
 
 	// read shared node tags file if it exists
 	sharedNodeTagsBytes, err := os.ReadFile(sharedNodeAgentTagsFile)
@@ -78,12 +85,14 @@ func (c *collector) Pull(ctx context.Context) error {
 	} else {
 		// TODO: handle json tags
 		sharedNodeTags := strings.Split(string(sharedNodeTagsBytes), ",")
-		containerTags := common.NewStringSet(sharedNodeTags...)
-		containerTags.Add(fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, c.nodeName))
-		containerTags.Add(fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, c.nodeName))
-		containerEntity.CollectorTags = containerTags.GetAll()
+		for _, s := range sharedNodeTags {
+			containerTags.Add(s)
+		}
 	}
-
+	
+	// assign tags
+	containerEntity.CollectorTags = containerTags.GetAll()
+	
 	events = append(events, workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
 		Source: workloadmeta.SourceClusterOrchestrator,
