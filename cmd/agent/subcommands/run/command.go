@@ -264,7 +264,7 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling()
+	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()

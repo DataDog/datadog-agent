@@ -89,20 +89,20 @@ func SelectedCheckMatcherBuilder(checkNames []string, minInstances uint) func(co
 }
 
 // SetupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func SetupInternalProfiling() {
-	if v := config.Datadog.GetInt("internal_profiling.block_profile_rate"); v > 0 {
+func SetupInternalProfiling(cfg config.ConfigReader, configPrefix string) {
+	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
 		}
 	}
 
-	if v := config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"); v > 0 {
+	if v := cfg.GetInt(configPrefix + "internal_profiling.mutex_profile_fraction"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v); err != nil {
 			log.Errorf("Error mutex profile fraction: %v", err)
 		}
 	}
 
-	if config.Datadog.GetBool("internal_profiling.enabled") {
+	if cfg.GetBool(configPrefix + "internal_profiling.enabled") {
 		err := settings.SetRuntimeSetting("internal_profiling", true)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)

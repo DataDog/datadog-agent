@@ -110,7 +110,7 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling()
+	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
 	if !pkgconfig.Datadog.IsSet("api_key") {
 		return fmt.Errorf("no API key configured, exiting")
