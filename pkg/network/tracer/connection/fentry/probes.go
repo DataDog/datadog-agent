@@ -48,8 +48,8 @@ const (
 	// udpDestroySockReturn traces the return of the udp_destroy_sock() system call
 	udpDestroySockReturn = "fexit/udp_destroy_sock"
 
-	// tcpRetransmit traces the return value for the tcp_retransmit_skb() system call
-	tcpRetransmitReturn = "fexit/tcp_retransmit_skb"
+	// tcpRetransmit traces the the tcp_retransmit_skb() kernel function
+	tcpRetransmit = "fentry/tcp_retransmit_skb"
 
 	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	inetCskAcceptReturn = "fexit/inet_csk_accept"
@@ -78,7 +78,7 @@ var programs = map[string]string{
 	tcpCloseReturn:       "tcp_close_exit",
 	tcpConnect:           "tcp_connect",
 	tcpFinishConnect:     "tcp_finish_connect",
-	tcpRetransmitReturn:  "tcp_retransmit_skb_exit",
+	tcpRetransmit:        "tcp_retransmit_skb",
 	tcpSendMsgReturn:     "tcp_sendmsg_exit",
 	tcpSetState:          "tcp_set_state",
 	udpDestroySock:       "udp_destroy_sock",
@@ -110,7 +110,7 @@ func enabledPrograms(c *config.Config) (map[string]string, error) {
 		enableProgram(enabled, inetCskAcceptReturn)
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpSetState)
-		enableProgram(enabled, tcpRetransmitReturn)
+		enableProgram(enabled, tcpRetransmit)
 
 		// TODO: see comments above on availability for these
 		//       hooks
