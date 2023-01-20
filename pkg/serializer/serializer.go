@@ -510,7 +510,7 @@ func (s *Serializer) SendContainerImage(msgs []ContainerImageMessage, hostname s
 
 	for i := range msgs {
 		msgs[i].Host = hostname
-		encoded, err := proto.Marshal(&msgs[i])
+		encoded, err := googleproto.Marshal(&msgs[i])
 		if err != nil {
 			return log.Errorf("Unable to encode message: %+v", err)
 		}
