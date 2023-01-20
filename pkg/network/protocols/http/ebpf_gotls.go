@@ -23,6 +23,8 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
@@ -31,7 +33,6 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -461,7 +462,6 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 		if functionsConfig[function].IncludeReturnLocations && uprobes.returnInfo != nil {
 			for i, offset := range result.Functions[function].ReturnLocations {
 				returnProbeID := manager.ProbeIdentificationPair{
-					EBPFSection:  uprobes.returnInfo.ebpfSection,
 					EBPFFuncName: uprobes.returnInfo.ebpfFunctionName,
 					UID:          makeReturnUID(uid, i),
 				}
@@ -482,7 +482,6 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 
 		if uprobes.functionInfo != nil {
 			probeID := manager.ProbeIdentificationPair{
-				EBPFSection:  uprobes.functionInfo.ebpfSection,
 				EBPFFuncName: uprobes.functionInfo.ebpfFunctionName,
 				UID:          uid,
 			}
@@ -525,7 +524,6 @@ func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 
 func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
 	return manager.ProbeIdentificationPair{
-		EBPFSection:  i.ebpfSection,
 		EBPFFuncName: i.ebpfFunctionName,
 	}
 }

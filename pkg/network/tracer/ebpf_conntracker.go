@@ -167,8 +167,8 @@ func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Con
 			return err
 		}
 	}
-	if err := e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: probes.ConntrackFillInfo, EBPFFuncName: "kprobe_ctnetlink_fill_info"}); err != nil {
-		log.Debugf("detachHook %s/kprobe_ctnetlink_fill_info : %s", probes.ConntrackFillInfo, err)
+	if err := e.m.DetachHook(manager.ProbeIdentificationPair{EBPFFuncName: probes.ConntrackFillInfo}); err != nil {
+		log.Debugf("detachHook %s : %s", probes.ConntrackFillInfo, err)
 	}
 	return nil
 }
@@ -388,15 +388,13 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  probes.ConntrackHashInsert,
-					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
+					EBPFFuncName: probes.ConntrackHashInsert,
 					UID:          "conntracker",
 				},
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  probes.ConntrackFillInfo,
-					EBPFFuncName: "kprobe_ctnetlink_fill_info",
+					EBPFFuncName: probes.ConntrackFillInfo,
 					UID:          "conntracker",
 				},
 			},
