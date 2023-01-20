@@ -156,13 +156,13 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 		},
 	}
 
-	assert := assert.New(t)
-	expectedChecks := []checks.Check{checks.NewProcessCheck()}
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
+
+			assert := assert.New(t)
+			expectedChecks := []checks.Check{checks.NewProcessCheck()}
 
 			c, err := NewCollector(nil, &checks.HostInfo{}, expectedChecks)
 			assert.NoError(err)
