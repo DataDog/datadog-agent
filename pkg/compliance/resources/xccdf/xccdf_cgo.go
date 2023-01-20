@@ -123,7 +123,7 @@ func (s *xccdfSession) EvaluateRule(e env.Env, rule string) ([]resources.Resolve
 	C.xccdf_rule_result_iterator_free(resIt)
 
 	if C.xccdf_session_contains_fail_result(s.session) {
-		log.Debugf("OVAL evaluation of rule %s returned errors", rule)
+		log.Debugf("OVAL evaluation of rule %s returned failures or errors", rule)
 	} else {
 		log.Debugf("Successfully evaluated OVAL rule %s", rule)
 	}
