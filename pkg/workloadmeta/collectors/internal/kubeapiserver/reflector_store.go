@@ -31,7 +31,7 @@ type reflectorStore struct {
 }
 
 func newReflectorStore(wlmetaStore workloadmeta.Store) cache.Store {
-	annotationsExclude := config.Datadog.GetStringSlice("cluster_agent.workloadmeta.pod_annotations_exclude")
+	annotationsExclude := config.Datadog.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	parseOptions, err := newParseOptions(annotationsExclude)
 	if err != nil {
 		_ = log.Errorf("unable to parse all pod_annotations_exclude: %v, err:", err)

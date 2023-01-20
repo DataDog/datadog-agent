@@ -28,7 +28,7 @@ func Test_filterMapStringKey(t *testing.T) {
 		"ad.datadoghq.com/tags":             `["bar","foo"]`,
 	}
 
-	defaultExclude := config.Datadog.GetStringSlice("cluster_agent.workloadmeta.pod_annotations_exclude")
+	defaultExclude := config.Datadog.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	extraExclude := append(defaultExclude, "foo")
 
 	tests := []struct {
