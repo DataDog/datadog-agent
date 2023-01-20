@@ -25,11 +25,7 @@ Upgrade Notes
 - Downloading and installing official checks with `agent integration install`
   is no longer supported for Agent installations that do not include an embedded
   python3.
-
-- Starting with Agent 7.40, the Agent will fail to start when it is unable to determine the hostname, instead of silently using an irrelevant hostname (usually, a container ID).
-  Hostname resolution is key to many features and failure to determine hostname means that the Agent is not configured properly.
-  This change mostly affects Agents running in containerized environments as we cannot rely on the OS hostname.
-
+  
 
 .. _Release Notes_7.42.0_New Features:
 
@@ -51,8 +47,6 @@ New Features
 - Adds detection for a process being executed directly from memory without the binary present on disk.
 
 - Introducing agent sampling rates remote configuration.
-
-- Expose process parent in SECL
 
 - Adds support for ``secret_backend_command_sha256`` SHA for the ``secret_backend_command`` executable. If ``secret_backend_command_sha256`` is used,
   the following restrictions are in place:
