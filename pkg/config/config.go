@@ -365,6 +365,7 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
+	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
@@ -716,6 +717,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
+	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude", []string{
+		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
+		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
+	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -1100,6 +1105,10 @@ func InitConfig(config Config) {
 
 	// workloadmeta
 	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.enabled", false)
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms", false)
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms_use_mount", false)
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms_scan_interval", 0)    // Integer seconds
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms_scan_timeout", 10*60) // Integer seconds
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)

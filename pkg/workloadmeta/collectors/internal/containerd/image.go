@@ -13,6 +13,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
+
+	"github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
@@ -22,9 +28,6 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/gogo/protobuf/proto"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const imageTopicPrefix = "/images/"
@@ -34,6 +37,9 @@ const imageTopicPrefix = "/images/"
 // because the image is already gone, that's why we need to keep the IDs =>
 // names relationships.
 type knownImages struct {
+	// Needed because this is accessed by the goroutine handling events and also the one that extracts SBOMs
+	mut sync.Mutex
+
 	// Store IDs and names in both directions for efficient access
 	idsByName map[string]string              // map name => ID
 	namesByID map[string]map[string]struct{} // map ID => set of names
@@ -47,6 +53,9 @@ func newKnownImages() *knownImages {
 }
 
 func (images *knownImages) addAssociation(imageName string, imageID string) {
+	images.mut.Lock()
+	defer images.mut.Unlock()
+
 	images.idsByName[imageName] = imageID
 
 	if images.namesByID[imageID] == nil {
@@ -56,6 +65,9 @@ func (images *knownImages) addAssociation(imageName string, imageID string) {
 }
 
 func (images *knownImages) deleteAssociation(imageName string, imageID string) {
+	images.mut.Lock()
+	defer images.mut.Unlock()
+
 	delete(images.idsByName, imageName)
 
 	if images.namesByID[imageID] == nil {
@@ -69,11 +81,17 @@ func (images *knownImages) deleteAssociation(imageName string, imageID string) {
 }
 
 func (images *knownImages) getImageID(imageName string) (string, bool) {
+	images.mut.Lock()
+	defer images.mut.Unlock()
+
 	id, found := images.idsByName[imageName]
 	return id, found
 }
 
 func (images *knownImages) isReferenced(imageID string) bool {
+	images.mut.Lock()
+	defer images.mut.Unlock()
+
 	return len(images.namesByID[imageID]) > 0
 }
 
@@ -89,7 +107,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
-		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name)
+		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name, nil)
 
 	case imageUpdateTopic:
 		event := &events.ImageUpdate{}
@@ -97,7 +115,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
-		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name)
+		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name, nil)
 
 	case imageDeletionTopic:
 		event := &events.ImageDelete{}
@@ -137,16 +155,16 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 	}
 }
 
-func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace string, imageName string) error {
+func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace string, imageName string, bom *cyclonedx.BOM) error {
 	img, err := c.containerdClient.Image(namespace, imageName)
 	if err != nil {
 		return fmt.Errorf("error getting image: %w", err)
 	}
 
-	return c.notifyEventForImage(ctx, namespace, img)
+	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image) error {
+func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, bom *cyclonedx.BOM) error {
 	ctxWithNamespace := namespaces.WithNamespace(ctx, namespace)
 
 	manifest, err := images.Manifest(ctxWithNamespace, img.ContentStore(), img.Target(), img.Platform())
@@ -181,6 +199,8 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 
 	imageID := manifest.Config.Digest.String()
 
+	existingBOM := bom
+
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
 	// datadog/agent:latest and datadog/agent:7 might refer to the same image.
@@ -198,6 +218,10 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		if strings.Contains(imageName, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
 			imageName = existingImg.Name
 			shortName = existingImg.ShortName
+		}
+
+		if existingBOM == nil && existingImg.CycloneDXBOM != nil {
+			existingBOM = existingImg.CycloneDXBOM
 		}
 	}
 
@@ -255,6 +279,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		Architecture: architecture,
 		Variant:      variant,
 		Layers:       layers,
+		CycloneDXBOM: existingBOM,
 	}
 
 	c.store.Notify([]workloadmeta.CollectorEvent{
@@ -264,6 +289,15 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			Entity: &workloadmetaImg,
 		},
 	})
+
+	if existingBOM == nil && sbomCollectionIsEnabled() {
+		// Notify image scanner
+		c.imagesToScan <- namespacedImage{
+			namespace: namespace,
+			image:     img,
+			imageID:   imageID,
+		}
+	}
 
 	return c.updateKnownImages(ctx, namespace, imageName, imageID)
 }
@@ -298,7 +332,7 @@ func (c *collector) deleteRepoTagOfImage(ctx context.Context, namespace string, 
 		// We need to notify to workloadmeta that the image has changed.
 		// Updating workloadmeta entities directly is not thread-safe, that's
 		// why we generate an update event here instead.
-		if err := c.handleImageCreateOrUpdate(ctx, namespace, c.repoTags[imageID][len(c.repoTags[imageID])-1]); err != nil {
+		if err := c.handleImageCreateOrUpdate(ctx, namespace, c.repoTags[imageID][len(c.repoTags[imageID])-1], nil); err != nil {
 			return err
 		}
 	}
@@ -358,4 +392,8 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 	}
 
 	return layers, nil
+}
+
+func sbomCollectionIsEnabled() bool {
+	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("workloadmeta.image_metadata_collection.collect_sboms")
 }

@@ -21,7 +21,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := health.MakeCommand(func() health.GlobalParams {
 		return health.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
-			ConfigName:   "datadog-cluster",
+			ConfigName:   command.ConfigName,
 			LoggerName:   command.LoggerName,
 		}
 	})

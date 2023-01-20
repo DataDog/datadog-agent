@@ -14,6 +14,7 @@ from . import (
     docker,
     dogstatsd,
     github,
+    msi,
     package,
     pipeline,
     process_agent,
@@ -105,6 +106,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
+ns.add_collection(msi)
 ns.add_collection(github)
 ns.add_collection(package)
 ns.add_collection(pipeline)
