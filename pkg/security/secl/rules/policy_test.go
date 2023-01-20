@@ -293,7 +293,6 @@ func TestActionSetVariable(t *testing.T) {
 	event.(*model.Event).Type = uint32(model.FileOpenEventType)
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
-	//event.SetFieldValue("process.comm", "myprocess")
 
 	if rs.Evaluate(event) {
 		t.Errorf("Expected event to match no rule")

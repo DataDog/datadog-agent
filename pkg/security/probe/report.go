@@ -9,6 +9,9 @@
 package probe
 
 import (
+	"math"
+
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -20,51 +23,45 @@ type PolicyReport struct {
 	Approvers rules.Approvers
 }
 
-// ApplyRuleSetReport describes the event types and their associated policy reports
+// ApplyRuleSetReport describes the event types and their associated policy policies
 type ApplyRuleSetReport struct {
 	Policies map[string]*PolicyReport
 }
 
-// NewApplyRuleSetReport returns a new report
-func NewApplyRuleSetReport() *ApplyRuleSetReport {
-	return &ApplyRuleSetReport{
-		Policies: make(map[string]*PolicyReport),
+// GetFilterReport returns filtering policy applied per event type
+func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
+	policies := make(map[eval.EventType]*PolicyReport)
+
+	approvers, err := rs.GetApprovers(GetCapababilities())
+	if err != nil {
+		return nil, err
 	}
-}
 
-// ApplyRuleSetReporter describes a reporter of policy application
-type ApplyRuleSetReporter struct {
-	report *ApplyRuleSetReport
-}
+	for _, eventType := range rs.GetEventTypes() {
+		report := &PolicyReport{Mode: PolicyModeDeny, Flags: math.MaxUint8}
+		policies[eventType] = report
 
-func (r *ApplyRuleSetReporter) getPolicyReport(eventType eval.EventType) *PolicyReport {
-	if r.report.Policies[eventType] == nil {
-		r.report.Policies[eventType] = &PolicyReport{Approvers: rules.Approvers{}}
+		if !config.EnableKernelFilters {
+			report.Mode = PolicyModeNoFilter
+			continue
+		}
+
+		if !config.EnableApprovers {
+			report.Mode = PolicyModeAccept
+			continue
+		}
+
+		if _, exists := allCapabilities[eventType]; !exists {
+			report.Mode = PolicyModeAccept
+			continue
+		}
+
+		if values, exists := approvers[eventType]; exists {
+			report.Approvers = values
+		} else {
+			report.Mode = PolicyModeAccept
+		}
 	}
-	return r.report.Policies[eventType]
-}
 
-// SetFilterPolicy is called when a passing policy for an event type is applied
-func (r *ApplyRuleSetReporter) SetFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
-	policyReport := r.getPolicyReport(eventType)
-	policyReport.Mode = mode
-	policyReport.Flags = flags
-	return nil
-}
-
-// SetApprovers is called when approvers are applied for an event type
-func (r *ApplyRuleSetReporter) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	policyReport := r.getPolicyReport(eventType)
-	policyReport.Approvers = approvers
-	return nil
-}
-
-// GetReport returns the report
-func (r *ApplyRuleSetReporter) GetReport() *ApplyRuleSetReport {
-	return r.report
-}
-
-// NewReporter instantiates a new reporter
-func NewApplyRuleSetReporter() *ApplyRuleSetReporter {
-	return &ApplyRuleSetReporter{report: NewApplyRuleSetReport()}
+	return &ApplyRuleSetReport{Policies: policies}, nil
 }

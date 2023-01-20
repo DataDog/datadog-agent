@@ -255,7 +255,7 @@ func (m *Module) Start() error {
 	return nil
 }
 
-func (m *Module) displayReport(report *sprobe.Report) {
+func (m *Module) displayApplyRuleSetReport(report *sprobe.ApplyRuleSetReport) {
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 }
@@ -333,8 +333,6 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	m.reloading.Store(true)
 	defer m.reloading.Store(false)
 
-	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
-
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
 
@@ -360,10 +358,11 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	ruleSet.AddListener(m)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(ruleSet)
+	report, err := m.probe.ApplyRuleSet(ruleSet)
 	if err != nil {
 		return err
 	}
+	m.displayApplyRuleSetReport(report)
 
 	// set the rate limiters
 	m.rateLimiter.Apply(ruleSet, events.AllCustomRuleIDs())
@@ -374,8 +373,6 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	m.apiServer.Apply(ruleIDs)
-
-	m.displayReport(report)
 
 	if sendLoadedReport {
 		ReportRuleSetLoaded(m.eventSender, m.statsdClient, ruleSet, loadErrs)
