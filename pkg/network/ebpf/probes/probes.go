@@ -180,6 +180,7 @@ const (
 	HelperErrTelemetryMap             BPFMapName = "helper_err_telemetry_map"
 	TcpRecvMsgArgsMap                 BPFMapName = "tcp_recvmsg_args"
 	ProtocolClassificationBufMap      BPFMapName = "classification_buf"
+	ConnectionStatesMap               BPFMapName = "connection_states"
 	ConnectionProtocolMap             BPFMapName = "connection_protocol"
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 )

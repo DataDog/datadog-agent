@@ -35,6 +35,7 @@ const (
 	protocolDispatcherSocketFilterSection  = "socket/protocol_dispatcher"
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
+	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
 
 	httpSocketFilter = "socket/http_filter"
 
@@ -54,6 +55,11 @@ type ebpfProgram struct {
 	subprograms     []subprogram
 	probesResolvers []probeResolver
 	mapCleaner      *ddebpf.MapCleaner
+
+	// shared map between NPM and USM
+	connStatesMap         *ebpf.Map
+	connProtoMap          *ebpf.Map
+	connTupleSocketSKBMap *ebpf.Map
 }
 
 type probeResolver interface {
@@ -100,7 +106,7 @@ var tailCalls = []manager.TailCallRoute{
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, connStatesMap *ebpf.Map, connProtoMap *ebpf.Map, connTupleSocketSKBMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	bc, err := getBytecode(c)
 	if err != nil {
 		return nil, err
@@ -167,6 +173,10 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		offsets:         offsets,
 		subprograms:     subprograms,
 		probesResolvers: subprogramProbesResolvers,
+
+		connStatesMap:         connStatesMap,
+		connProtoMap:          connProtoMap,
+		connTupleSocketSKBMap: connTupleSocketSKBMap,
 	}
 
 	return program, nil
@@ -198,10 +208,17 @@ func (e *ebpfProgram) Init() error {
 		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	}
 
+	fmt.Println("=============", e.connStatesMap, e.connProtoMap, e.connTupleSocketSKBMap)
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
 			Max: math.MaxUint64,
+		},
+
+		MapEditors: map[string]*ebpf.Map{
+			string(probes.ConnectionStatesMap): e.connStatesMap,
+			//			string(probes.ConnectionProtocolMap): e.connProtoMap,
+			//			string(probes.ConnectionTupleToSocketSKBConnMap): e.connTupleSocketSKBMap,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			httpInFlightMap: {
@@ -209,7 +226,12 @@ func (e *ebpfProgram) Init() error {
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
 			},
-			"connection_states": {
+			dispatcherConnectionProtocolMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			"conn_tup_by_go_tls_conn": {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,

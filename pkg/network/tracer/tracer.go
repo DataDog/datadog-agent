@@ -809,8 +809,11 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
+	connStatesMap := tracer.GetMap(string(probes.ConnectionStatesMap))
+	connProtoMap := tracer.GetMap(string(probes.ConnectionProtocolMap))
+	connTupleSocketSKBMap := tracer.GetMap(string(probes.ConnectionTupleToSocketSKBConnMap))
 
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
+	monitor, err := http.NewMonitor(c, offsets, sockFDMap, connStatesMap, connProtoMap, connTupleSocketSKBMap, bpfTelemetry)
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
 		return nil

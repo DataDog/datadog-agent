@@ -117,12 +117,14 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConnMap):                           {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.TCPStatsMap):                       {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PortBindingsMap):                   {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.UDPPortBindingsMap):                {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.SockByPidFDMap):                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PidFDBySockMap):                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+
+			string(probes.ConnectionStatesMap):               {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.ConnectionProtocolMap):             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.ConnectionTupleToSocketSKBConnMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
@@ -170,16 +172,16 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 
 	var closeProtocolClassifierSocketFilterFn func()
 	if ClassificationSupported(config) {
-		socketFilerProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
+		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
 			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
 			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
 			UID:          probeUID,
 		})
-		if socketFilerProbe == nil {
+		if socketFilterProbe == nil {
 			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
 		}
 
-		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilerProbe)
+		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilterProbe)
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
@@ -305,18 +307,15 @@ func (t *kprobeTracer) Stop() {
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	switch name {
+	case string(probes.ConnectionStatesMap):
 	case string(probes.SockByPidFDMap):
-		m, _, _ := t.m.GetMap(name)
-		return m
 	case string(probes.MapErrTelemetryMap):
-		m, _, _ := t.m.GetMap(name)
-		return m
 	case string(probes.HelperErrTelemetryMap):
-		m, _, _ := t.m.GetMap(name)
-		return m
 	default:
 		return nil
 	}
+	m, _, _ := t.m.GetMap(name)
+	return m
 }
 
 func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {

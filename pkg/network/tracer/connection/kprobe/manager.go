@@ -96,6 +96,11 @@ func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeT
 			{Name: string(probes.MapErrTelemetryMap)},
 			{Name: string(probes.HelperErrTelemetryMap)},
 			{Name: string(probes.TcpRecvMsgArgsMap)},
+			{Name: string(probes.ConnectionStatesMap)},
+			/*
+				{Name: string(probes.ConnectionProtocolMap)},
+				{Name: string(probes.ConnectionTupleToSocketSKBConnMap)},
+			*/
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
