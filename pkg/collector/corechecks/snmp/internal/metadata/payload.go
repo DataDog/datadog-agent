@@ -111,6 +111,7 @@ type TopologyLinkSide struct {
 
 // TopologyLinkMetadata contains topology interface to interface links metadata
 type TopologyLinkMetadata struct {
-	Local  *TopologyLinkSide `json:"local,omitempty"`
-	Remote *TopologyLinkSide `json:"remote,omitempty"`
+	ID     string            `json:"id"`
+	Local  *TopologyLinkSide `json:"local"`
+	Remote *TopologyLinkSide `json:"remote"`
 }
