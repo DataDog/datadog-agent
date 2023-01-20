@@ -145,7 +145,8 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	// Initialize remote configuration
 	var rcClient *remote.Client
 	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
-		rcClient, err := initializeRemoteConfig(mainCtx)
+		var err error
+		rcClient, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
