@@ -74,7 +74,7 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespa
 	}
 
 	scanFunc := c.trivyClient.ScanContainerdImage
-	if config.Datadog.GetBool("workloadmeta.image_metadata_collection.collect_sboms_use_mount") {
+	if config.Datadog.GetBool("container_image_collection.sbom.use_mount") {
 		scanFunc = c.trivyClient.ScanContainerdImageFromFilesystem
 	}
 
@@ -91,9 +91,9 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespa
 }
 
 func scanningTimeout() time.Duration {
-	return time.Duration(config.Datadog.GetInt("workloadmeta.image_metadata_collection.collect_sboms_scan_timeout")) * time.Second
+	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_timeout")) * time.Second
 }
 
 func timeBetweenScans() time.Duration {
-	return time.Duration(config.Datadog.GetInt("workloadmeta.image_metadata_collection.collect_sboms_scan_interval")) * time.Second
+	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_interval")) * time.Second
 }
