@@ -31,6 +31,9 @@ const (
 	FlushPendingHttpTxnsIOCTL = C.DDNPMDRIVER_IOCTL_FLUSH_PENDING_HTTP_TRANSACTIONS
 	EnableHttpIOCTL           = C.DDNPMDRIVER_IOCTL_ENABLE_HTTP
 	EnableClassifyIOCTL       = C.DDNPMDRIVER_IOCTL_SET_CLASSIFY
+	SetClosedFlowsLimitIOCTL  = C.DDNPMDRIVER_IOCTL_SET_CLOSED_FLOWS_NOTIFY
+	GetOpenFlowsIOCTL         = C.DDNPMDRIVER_IOCTL_GET_OPEN_FLOWS
+	GetClosedFlowsIOCTL       = C.DDNPMDRIVER_IOCTL_GET_CLOSED_FLOWS
 )
 
 type FilterAddress C.struct__filterAddress
@@ -50,11 +53,11 @@ type Stats C.struct__stats
 
 const StatsSize = C.sizeof_struct__stats
 
-type PerFlowData C.struct__perFlowData
+type PerFlowData C.struct__userFlowData
 type TCPFlowData C.struct__tcpFlowData
 type UDPFlowData C.struct__udpFlowData
 
-const PerFlowDataSize = C.sizeof_struct__perFlowData
+const PerFlowDataSize = C.sizeof_struct__userFlowData
 
 const (
 	FlowDirectionMask     = C.FLOW_DIRECTION_MASK
