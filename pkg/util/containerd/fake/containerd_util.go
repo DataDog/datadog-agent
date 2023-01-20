@@ -10,6 +10,7 @@ package fake
 
 import (
 	"context"
+	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
@@ -47,6 +48,7 @@ type MockedContainerdClient struct {
 	MockCallWithClientContext func(namespace string, f func(context.Context) error) error
 	MockAnnotations           func(namespace string, ctn containerd.Container) (map[string]string, error)
 	MockIsSandbox             func(namespace string, ctn containerd.Container) (bool, error)
+	MockMountImage            func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
 }
 
 // Close is a mock method
@@ -172,4 +174,8 @@ func (client *MockedContainerdClient) Annotations(namespace string, ctn containe
 // IsSandbox is a mock method
 func (client *MockedContainerdClient) IsSandbox(namespace string, ctn containerd.Container) (bool, error) {
 	return client.MockIsSandbox(namespace, ctn)
+}
+
+func (client *MockedContainerdClient) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
+	return client.MockMountImage(ctx, expiration, namespace, img, targetDir)
 }

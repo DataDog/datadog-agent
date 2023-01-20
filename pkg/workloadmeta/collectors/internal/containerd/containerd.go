@@ -31,9 +31,6 @@ const (
 	collectorID   = "containerd"
 	componentName = "workloadmeta-containerd"
 
-	// scan buffer needs to be very large as we cannot block containerd collector
-	imagesToScanBufferSize = 5000
-
 	containerCreationTopic = "/containers/create"
 	containerUpdateTopic   = "/containers/update"
 	containerDeletionTopic = "/containers/delete"
@@ -96,7 +93,7 @@ type collector struct {
 	// Map of image ID => array of repo tags
 	repoTags map[string][]string
 
-	trivyClient  trivy.Collector
+	trivyClient  trivy.Collector // nolint: unused
 	imagesToScan chan namespacedImage
 }
 
@@ -129,32 +126,8 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	if sbomCollectionIsEnabled() {
-		var err error
-		trivyConfiguration, err := trivy.DefaultCollectorConfig()
-		if err != nil {
-			return fmt.Errorf("error initializing trivy client: %w", err)
-		}
-
-		trivyConfiguration.ContainerdAccessor = func() (*containerd.Client, error) {
-			return c.containerdClient.RawClient(), nil
-		}
-		c.trivyClient, err = trivy.NewCollector(trivyConfiguration)
-		if err != nil {
-			return fmt.Errorf("error initializing trivy client: %w", err)
-		}
-
-		c.imagesToScan = make(chan namespacedImage, imagesToScanBufferSize)
-
-		go func() {
-			for imageToScan := range c.imagesToScan {
-				scanContext, cancel := context.WithTimeout(context.Background(), scanningTimeout())
-				if err := c.extractBOMWithTrivy(scanContext, imageToScan); err != nil {
-					log.Warnf("error extracting SBOM for image: namespace=%s name=%s, err: %s", imageToScan.namespace, imageToScan.image.Name(), err)
-				}
-				cancel()
-			}
-		}()
+	if err = c.startSBOMCollection(); err != nil {
+		return err
 	}
 
 	c.filterPausedContainers, err = containers.GetPauseContainerFilter()
@@ -427,12 +400,4 @@ func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time)
 
 func imageMetadataCollectionIsEnabled() bool {
 	return config.Datadog.GetBool("workloadmeta.image_metadata_collection.enabled")
-}
-
-func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("workloadmeta.image_metadata_collection.collect_sboms")
-}
-
-func scanningTimeout() time.Duration {
-	return time.Duration(config.Datadog.GetInt("workloadmeta.image_metadata_collection.collect_sboms_scan_timeout")) * time.Second
 }

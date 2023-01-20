@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -395,32 +394,6 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 	return layers, nil
 }
 
-func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespacedImage) error {
-	storedImage, err := c.store.GetImage(imageToScan.imageID)
-	if err != nil {
-		log.Infof("Image: %s/%s (id %s) not found in Workloadmeta, skipping scan", imageToScan.namespace, imageToScan.image.Name(), imageToScan.imageID)
-		return nil
-	}
-
-	if storedImage.CycloneDXBOM != nil {
-		// BOM already stored. Can happen when the same image ID is referenced
-		// with different names.
-		log.Debugf("Image: %s/%s (id %s) SBOM already available", imageToScan.namespace, imageToScan.image.Name(), imageToScan.imageID)
-		return nil
-	}
-
-	bom, err := c.trivyClient.ScanContainerdImage(ctx, storedImage, imageToScan.image)
-	if err != nil {
-		return err
-	}
-
-	time.Sleep(timeBetweenScans())
-
-	// Updating workloadmeta entities directly is not thread-safe, that's why we
-	// generate an update event here instead.
-	return c.handleImageCreateOrUpdate(ctx, imageToScan.namespace, storedImage.Name, bom)
-}
-
-func timeBetweenScans() time.Duration {
-	return time.Duration(config.Datadog.GetInt("workloadmeta.image_metadata_collection.collect_sboms_scan_interval")) * time.Second
+func sbomCollectionIsEnabled() bool {
+	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("workloadmeta.image_metadata_collection.collect_sboms")
 }
