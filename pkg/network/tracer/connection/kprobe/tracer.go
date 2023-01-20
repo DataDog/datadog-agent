@@ -124,7 +124,6 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 
-			string(probes.ConnectionStatesMap):               {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.ConnectionProtocolMap):             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.ConnectionTupleToSocketSKBConnMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
@@ -307,7 +306,6 @@ func (t *kprobeTracer) Stop() {
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	switch name {
-	case string(probes.ConnectionStatesMap):
 	case string(probes.SockByPidFDMap):
 	case string(probes.MapErrTelemetryMap):
 	case string(probes.HelperErrTelemetryMap):

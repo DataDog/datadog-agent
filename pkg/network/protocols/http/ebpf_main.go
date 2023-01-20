@@ -36,6 +36,7 @@ const (
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
 	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
+	connectionStatesMap                    = "connection_states"
 
 	httpSocketFilter = "socket/http_filter"
 
@@ -55,9 +56,6 @@ type ebpfProgram struct {
 	subprograms     []subprogram
 	probesResolvers []probeResolver
 	mapCleaner      *ddebpf.MapCleaner
-
-	// shared map between NPM and USM
-	connStatesMap *ebpf.Map
 }
 
 type probeResolver interface {
@@ -104,7 +102,7 @@ var tailCalls = []manager.TailCallRoute{
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, connStatesMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	bc, err := getBytecode(c)
 	if err != nil {
 		return nil, err
@@ -119,6 +117,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
+			{Name: connectionStatesMap},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -171,8 +170,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		offsets:         offsets,
 		subprograms:     subprograms,
 		probesResolvers: subprogramProbesResolvers,
-
-		connStatesMap: connStatesMap,
 	}
 
 	return program, nil
@@ -209,11 +206,13 @@ func (e *ebpfProgram) Init() error {
 			Cur: math.MaxUint64,
 			Max: math.MaxUint64,
 		},
-		MapEditors: map[string]*ebpf.Map{
-			string(probes.ConnectionStatesMap): e.connStatesMap,
-		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			httpInFlightMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			connectionStatesMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,

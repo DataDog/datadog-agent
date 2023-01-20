@@ -54,7 +54,7 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
@@ -97,7 +97,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
@@ -182,7 +182,7 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 				EnableKeepAlives: true,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
+			monitor, err := NewMonitor(config.New(), nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
@@ -246,7 +246,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 				SlowResponse: slowResponseTimeout,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
+			monitor, err := NewMonitor(config.New(), nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
@@ -320,7 +320,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 	})
 	defer srvDoneFn()
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
@@ -344,7 +344,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 func TestRSTPacketRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
@@ -383,7 +383,7 @@ func TestRSTPacketRegression(t *testing.T) {
 func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
@@ -468,7 +468,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)

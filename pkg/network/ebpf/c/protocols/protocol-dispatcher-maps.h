@@ -1,9 +1,12 @@
 #ifndef __PROTOCOL_DISPATCHER_MAPS_H
 #define __PROTOCOL_DISPATCHER_MAPS_H
 
-#include "tracer-shared-maps.h"
 #include "protocol-classification-defs.h"
 #include "map-defs.h"
+
+// Maps a connection tuple to latest tcp segment we've processed. Helps to detect same packets that travels multiple
+// interfaces or retransmissions.
+BPF_HASH_MAP(connection_states, conn_tuple_t, u32, 0)
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant classification procedures on the same
 // connection. Assumption: each connection has a single protocol.

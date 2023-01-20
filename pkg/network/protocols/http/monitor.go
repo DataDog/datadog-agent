@@ -39,8 +39,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, connStatesMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
-	mgr, err := newEBPFProgram(c, offsets, sockFD, connStatesMap, bpfTelemetry)
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
 	}
