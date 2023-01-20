@@ -475,9 +475,7 @@ func checkPoliciesInner(dir string) error {
 		return err
 	}
 
-	rsa := sprobe.NewRuleSetApplier(cfg, nil)
-
-	report, err := rsa.Apply(ruleSet)
+	report, err := sprobe.NewApplyRuleSetReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}
