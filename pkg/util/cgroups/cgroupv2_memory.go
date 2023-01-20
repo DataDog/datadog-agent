@@ -8,7 +8,11 @@
 
 package cgroups
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+)
 
 func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	if stats == nil {
@@ -64,7 +68,7 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 
 	if kernelStack != nil && slab != nil {
-		stats.KernelMemory = uint64Ptr(*kernelStack + *slab)
+		stats.KernelMemory = pointer.Ptr(*kernelStack + *slab)
 	}
 
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory.current"), &stats.UsageTotal); err != nil {

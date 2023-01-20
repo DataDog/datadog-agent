@@ -219,17 +219,17 @@ func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.Con
 	}
 
 	if spec.HostConfig.Memory > 0 {
-		containerStats.Memory.Limit = pointer.IntToFloatPtr(spec.HostConfig.Memory)
+		containerStats.Memory.Limit = pointer.Ptr(float64(spec.HostConfig.Memory))
 	}
 }
 
 func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
 		Timestamp:   stats.Read,
-		BytesSent:   pointer.Float64Ptr(0),
-		BytesRcvd:   pointer.Float64Ptr(0),
-		PacketsSent: pointer.Float64Ptr(0),
-		PacketsRcvd: pointer.Float64Ptr(0),
+		BytesSent:   pointer.Ptr(0.0),
+		BytesRcvd:   pointer.Ptr(0.0),
+		PacketsSent: pointer.Ptr(0.0),
+		PacketsRcvd: pointer.Ptr(0.0),
 		Interfaces:  make(map[string]provider.InterfaceNetStats),
 	}
 
@@ -240,10 +240,10 @@ func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats
 		*containerNetworkStats.PacketsRcvd += float64(netStats.RxPackets)
 
 		ifNetStats := provider.InterfaceNetStats{
-			BytesSent:   pointer.UIntToFloatPtr(netStats.TxBytes),
-			BytesRcvd:   pointer.UIntToFloatPtr(netStats.RxBytes),
-			PacketsSent: pointer.UIntToFloatPtr(netStats.TxPackets),
-			PacketsRcvd: pointer.UIntToFloatPtr(netStats.RxPackets),
+			BytesSent:   pointer.Ptr(float64(netStats.TxBytes)),
+			BytesRcvd:   pointer.Ptr(float64(netStats.RxBytes)),
+			PacketsSent: pointer.Ptr(float64(netStats.TxPackets)),
+			PacketsRcvd: pointer.Ptr(float64(netStats.RxPackets)),
 		}
 		containerNetworkStats.Interfaces[ifname] = ifNetStats
 	}

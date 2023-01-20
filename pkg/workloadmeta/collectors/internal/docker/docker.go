@@ -248,7 +248,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			if err != nil {
 				log.Debugf("Cannot convert exit code %q: %v", exitCodeString, err)
 			} else {
-				exitCode = pointer.UInt32Ptr(exitCodeInt)
+				exitCode = pointer.Ptr(uint32(exitCodeInt))
 			}
 		}
 

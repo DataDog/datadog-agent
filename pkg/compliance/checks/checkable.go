@@ -12,5 +12,5 @@ import (
 
 // Checkable abstracts a resource check
 type Checkable interface {
-	Check(env env.Env) []*compliance.Report
+	Check(env env.Env) compliance.Reports
 }

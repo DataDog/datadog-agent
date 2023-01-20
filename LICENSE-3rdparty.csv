@@ -107,6 +107,7 @@ core,github.com/Masterminds/semver/v3,MIT,"Copyright (C) 2014-2019, Matt Butcher
 core,github.com/Masterminds/sprig/v3,MIT,Copyright (C) 2013-2020 Masterminds
 core,github.com/Microsoft/go-winio,MIT,Copyright (c) 2015 Microsoft
 core,github.com/Microsoft/go-winio/backuptar,MIT,Copyright (c) 2015 Microsoft
+core,github.com/Microsoft/go-winio/internal/socket,MIT,Copyright (c) 2015 Microsoft
 core,github.com/Microsoft/go-winio/pkg/guid,MIT,Copyright (c) 2015 Microsoft
 core,github.com/Microsoft/go-winio/pkg/security,MIT,Copyright (c) 2015 Microsoft
 core,github.com/Microsoft/go-winio/vhd,MIT,Copyright (c) 2015 Microsoft

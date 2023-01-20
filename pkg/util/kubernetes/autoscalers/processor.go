@@ -33,6 +33,8 @@ const (
 	maxCharactersPerChunk = 7000
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
 	extraQueryCharacters = 16
+	// maxTimeWindow is a safeguard to prevent the Cluster Agent from making queries on a large time window
+	maxTimeWindow = 24 * time.Hour
 )
 
 // DatadogClient abstracts the dependency on the Datadog api
@@ -44,7 +46,7 @@ type DatadogClient interface {
 // ProcessorInterface is used to easily mock the interface for testing
 type ProcessorInterface interface {
 	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
-	QueryExternalMetric(queries []string) (map[string]Point, error)
+	QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]Point, error)
 	ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
 }
 
@@ -132,7 +134,8 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 		}
 	}
 
-	metrics, err := p.QueryExternalMetric(batch)
+	// In non-DatadogMetric path, we don't have any custom maxAge possible, passing 0 as custom time window to QueryExternalMetric
+	metrics, err := p.QueryExternalMetric(batch, 0)
 	if len(metrics) == 0 && err != nil {
 		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
 		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them
@@ -164,13 +167,28 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 
 // QueryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
 // Also updates the rate limits statistics as a result of the query.
-func (p *Processor) QueryExternalMetric(queries []string) (processed map[string]Point, err error) {
+func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Duration) (processed map[string]Point, err error) {
 	processed = make(map[string]Point)
 	if len(queries) == 0 {
 		return processed, nil
 	}
 
-	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
+	configMaxAge := time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_age")) * time.Second
+	if configMaxAge > timeWindow {
+		timeWindow = configMaxAge
+	}
+
+	configTimeWindow := time.Duration(config.Datadog.GetInt64("external_metrics_provider.bucket_size")) * time.Second
+	if configTimeWindow > timeWindow {
+		timeWindow = configTimeWindow
+	}
+
+	// Safeguard against large time window
+	if timeWindow > maxTimeWindow {
+		log.Warnf("Querying external metrics with a time window larger than: %v is not allowed, ceiling value", maxTimeWindow)
+		timeWindow = maxTimeWindow
+	}
+
 	chunks := makeChunks(queries)
 	log.Tracef("List of batches %v", chunks)
 
@@ -182,7 +200,7 @@ func (p *Processor) QueryExternalMetric(queries []string) (processed map[string]
 	for _, c := range chunks {
 		go func(chunk []string) {
 			defer waitResp.Done()
-			resp, err := p.queryDatadogExternal(chunk, bucketSize)
+			resp, err := p.queryDatadogExternal(chunk, timeWindow)
 			responses <- queryResponse{resp, err}
 		}(c)
 	}

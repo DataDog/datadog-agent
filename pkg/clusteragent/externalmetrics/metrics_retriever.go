@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	invalidMetricBackendErrorMessage  string = "Invalid metric (from backend), query: %s"
-	invalidMetricOutdatedErrorMessage string = "Outdated result from backend, query: %s"
-	invalidMetricNoDataErrorMessage   string = "No data from backend, query: %s"
-	invalidMetricGlobalErrorMessage   string = "Global error (all queries) from backend"
+	invalidMetricErrorMessage         string = "%v, query was: %s"
+	invalidMetricOutdatedErrorMessage string = "Query returned outdated result, check MaxAge setting, query: %s"
+	invalidMetricNotFoundErrorMessage string = "Unexpected error, query data not found in result, query: %s"
+	invalidMetricGlobalErrorMessage   string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details"
 	metricRetrieverStoreID            string = "mr"
 )
 
@@ -70,10 +70,10 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		return
 	}
 
-	queries := getUniqueQueries(datadogMetrics)
+	queries, queriesMaxAge := getUniqueQueries(datadogMetrics)
 	log.Debugf("Starting refreshing external metrics with: %d queries", len(queries))
 
-	results, err := mr.processor.QueryExternalMetric(queries)
+	results, err := mr.processor.QueryExternalMetric(queries, queriesMaxAge)
 	globalError := false
 	// Check for global failure
 	if len(results) == 0 && err != nil {
@@ -87,7 +87,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		datadogMetricFromStore := mr.store.LockRead(datadogMetric.ID, false)
 		if datadogMetricFromStore == nil {
 			// This metric is not in the store anymore, discard it
-			log.Infof("Discarding results for DatadogMetric: %s as not present in store anymore", datadogMetric.ID)
+			log.Debugf("Discarding results for DatadogMetric: %s as not present in store anymore", datadogMetric.ID)
 			continue
 		}
 
@@ -115,7 +115,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 				}
 			} else {
 				datadogMetricFromStore.Valid = false
-				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricBackendErrorMessage, query)
+				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorMessage, queryResult.Error, query)
 				datadogMetricFromStore.UpdateTime = currentTime
 			}
 		} else {
@@ -123,7 +123,9 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 			if globalError {
 				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage)
 			} else {
-				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricNoDataErrorMessage, query)
+				// This should never happen as `QueryExternalMetric` is filling all missing series
+				// if no global error.
+				datadogMetricFromStore.Error = log.Errorf(invalidMetricNotFoundErrorMessage, query)
 			}
 			datadogMetricFromStore.UpdateTime = currentTime
 		}
@@ -132,10 +134,15 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 	}
 }
 
-func getUniqueQueries(datadogMetrics []model.DatadogMetricInternal) []string {
+func getUniqueQueries(datadogMetrics []model.DatadogMetricInternal) ([]string, time.Duration) {
+	var maxAge time.Duration
 	queries := make([]string, 0, len(datadogMetrics))
 	unique := make(map[string]struct{}, len(queries))
 	for _, datadogMetric := range datadogMetrics {
+		if datadogMetric.MaxAge > maxAge {
+			maxAge = datadogMetric.MaxAge
+		}
+
 		query := datadogMetric.Query()
 		if _, found := unique[query]; !found {
 			unique[query] = struct{}{}
@@ -143,5 +150,5 @@ func getUniqueQueries(datadogMetrics []model.DatadogMetricInternal) []string {
 		}
 	}
 
-	return queries
+	return queries, maxAge
 }

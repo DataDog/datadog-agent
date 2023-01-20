@@ -127,7 +127,7 @@ func convertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
 
 	return &cyclonedx_v1_4.Bom{
 		SpecVersion:        in.SpecVersion.String(),
-		Version:            pointer.Int32Ptr(int32(in.Version)),
+		Version:            pointer.Ptr(int32(in.Version)),
 		SerialNumber:       stringPtr(in.SerialNumber),
 		Metadata:           convertMetadata(in.Metadata),
 		Components:         convertArray(in.Components, convertComponent),
@@ -441,31 +441,27 @@ func convertImpactAnalysisJustification(in cyclonedx.ImpactAnalysisJustification
 		return nil
 	}
 
-	ptr := func(v cyclonedx_v1_4.ImpactAnalysisJustification) *cyclonedx_v1_4.ImpactAnalysisJustification {
-		return &v
-	}
-
 	switch in {
 	case cyclonedx.IAJCodeNotPresent:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_CODE_NOT_PRESENT)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_CODE_NOT_PRESENT)
 	case cyclonedx.IAJCodeNotReachable:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_CODE_NOT_REACHABLE)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_CODE_NOT_REACHABLE)
 	case cyclonedx.IAJRequiresConfiguration:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_REQUIRES_CONFIGURATION)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_REQUIRES_CONFIGURATION)
 	case cyclonedx.IAJRequiresDependency:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_REQUIRES_DEPENDENCY)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_REQUIRES_DEPENDENCY)
 	case cyclonedx.IAJRequiresEnvironment:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_REQUIRES_ENVIRONMENT)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_REQUIRES_ENVIRONMENT)
 	case cyclonedx.IAJProtectedByCompiler:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_PROTECTED_BY_COMPILER)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_PROTECTED_BY_COMPILER)
 	case cyclonedx.IAJProtectedAtRuntime:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_PROTECTED_AT_RUNTIME)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_PROTECTED_AT_RUNTIME)
 	case cyclonedx.IAJProtectedAtPerimeter:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_PROTECTED_AT_PERIMETER)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_PROTECTED_AT_PERIMETER)
 	case cyclonedx.IAJProtectedByMitigatingControl:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_PROTECTED_BY_MITIGATING_CONTROL)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_PROTECTED_BY_MITIGATING_CONTROL)
 	default:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_NULL)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisJustification_IMPACT_ANALYSIS_JUSTIFICATION_NULL)
 	}
 }
 
@@ -491,25 +487,21 @@ func convertImpactAnalysisState(in cyclonedx.ImpactAnalysisState) *cyclonedx_v1_
 		return nil
 	}
 
-	ptr := func(v cyclonedx_v1_4.ImpactAnalysisState) *cyclonedx_v1_4.ImpactAnalysisState {
-		return &v
-	}
-
 	switch in {
 	case cyclonedx.IASResolved:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_RESOLVED)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_RESOLVED)
 	case cyclonedx.IASResolvedWithPedigree:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_RESOLVED_WITH_PEDIGREE)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_RESOLVED_WITH_PEDIGREE)
 	case cyclonedx.IASExploitable:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_EXPLOITABLE)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_EXPLOITABLE)
 	case cyclonedx.IASInTriage:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_IN_TRIAGE)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_IN_TRIAGE)
 	case cyclonedx.IASFalsePositive:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_FALSE_POSITIVE)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_FALSE_POSITIVE)
 	case cyclonedx.IASNotAffected:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_NOT_AFFECTED)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_NOT_AFFECTED)
 	default:
-		return ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_NULL)
+		return pointer.Ptr(cyclonedx_v1_4.ImpactAnalysisState_IMPACT_ANALYSIS_STATE_NULL)
 	}
 }
 
@@ -734,19 +726,15 @@ func convertScope(in cyclonedx.Scope) *cyclonedx_v1_4.Scope {
 		return nil
 	}
 
-	ptr := func(v cyclonedx_v1_4.Scope) *cyclonedx_v1_4.Scope {
-		return &v
-	}
-
 	switch in {
 	case cyclonedx.ScopeExcluded:
-		return ptr(cyclonedx_v1_4.Scope_SCOPE_EXCLUDED)
+		return pointer.Ptr(cyclonedx_v1_4.Scope_SCOPE_EXCLUDED)
 	case cyclonedx.ScopeOptional:
-		return ptr(cyclonedx_v1_4.Scope_SCOPE_OPTIONAL)
+		return pointer.Ptr(cyclonedx_v1_4.Scope_SCOPE_OPTIONAL)
 	case cyclonedx.ScopeRequired:
-		return ptr(cyclonedx_v1_4.Scope_SCOPE_REQUIRED)
+		return pointer.Ptr(cyclonedx_v1_4.Scope_SCOPE_REQUIRED)
 	default:
-		return ptr(cyclonedx_v1_4.Scope_SCOPE_UNSPECIFIED)
+		return pointer.Ptr(cyclonedx_v1_4.Scope_SCOPE_UNSPECIFIED)
 	}
 }
 
@@ -755,23 +743,19 @@ func convertScoringMethod(in cyclonedx.ScoringMethod) *cyclonedx_v1_4.ScoreMetho
 		return nil
 	}
 
-	ptr := func(v cyclonedx_v1_4.ScoreMethod) *cyclonedx_v1_4.ScoreMethod {
-		return &v
-	}
-
 	switch in {
 	case cyclonedx.ScoringMethodOther:
-		return ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_OTHER)
+		return pointer.Ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_OTHER)
 	case cyclonedx.ScoringMethodCVSSv2:
-		return ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_CVSSV2)
+		return pointer.Ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_CVSSV2)
 	case cyclonedx.ScoringMethodCVSSv3:
-		return ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_CVSSV3)
+		return pointer.Ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_CVSSV3)
 	case cyclonedx.ScoringMethodCVSSv31:
-		return ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_CVSSV31)
+		return pointer.Ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_CVSSV31)
 	case cyclonedx.ScoringMethodOWASP:
-		return ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_OWASP)
+		return pointer.Ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_OWASP)
 	default:
-		return ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_NULL)
+		return pointer.Ptr(cyclonedx_v1_4.ScoreMethod_SCORE_METHOD_NULL)
 	}
 }
 
@@ -804,27 +788,23 @@ func convertSeverity(in cyclonedx.Severity) *cyclonedx_v1_4.Severity {
 		return nil
 	}
 
-	ptr := func(v cyclonedx_v1_4.Severity) *cyclonedx_v1_4.Severity {
-		return &v
-	}
-
 	switch in {
 	case cyclonedx.SeverityUnknown:
-		return ptr(cyclonedx_v1_4.Severity_SEVERITY_UNKNOWN)
+		return pointer.Ptr(cyclonedx_v1_4.Severity_SEVERITY_UNKNOWN)
 	case cyclonedx.SeverityNone:
-		return ptr(cyclonedx_v1_4.Severity_SEVERITY_NONE)
+		return pointer.Ptr(cyclonedx_v1_4.Severity_SEVERITY_NONE)
 	case cyclonedx.SeverityInfo:
-		return ptr(cyclonedx_v1_4.Severity_SEVERITY_INFO)
+		return pointer.Ptr(cyclonedx_v1_4.Severity_SEVERITY_INFO)
 	case cyclonedx.SeverityLow:
-		return ptr(cyclonedx_v1_4.Severity_SEVERITY_LOW)
+		return pointer.Ptr(cyclonedx_v1_4.Severity_SEVERITY_LOW)
 	case cyclonedx.SeverityMedium:
-		return ptr(cyclonedx_v1_4.Severity_SEVERITY_MEDIUM)
+		return pointer.Ptr(cyclonedx_v1_4.Severity_SEVERITY_MEDIUM)
 	case cyclonedx.SeverityHigh:
-		return ptr(cyclonedx_v1_4.Severity_SEVERITY_HIGH)
+		return pointer.Ptr(cyclonedx_v1_4.Severity_SEVERITY_HIGH)
 	case cyclonedx.SeverityCritical:
-		return ptr(cyclonedx_v1_4.Severity_SEVERITY_CRITICAL)
+		return pointer.Ptr(cyclonedx_v1_4.Severity_SEVERITY_CRITICAL)
 	default:
-		return ptr(cyclonedx_v1_4.Severity_SEVERITY_UNKNOWN)
+		return pointer.Ptr(cyclonedx_v1_4.Severity_SEVERITY_UNKNOWN)
 	}
 }
 
@@ -846,7 +826,7 @@ func convertSwid(in *cyclonedx.SWID) *cyclonedx_v1_4.Swid {
 
 	var tagVersion *int32 = nil
 	if in.TagVersion != nil {
-		tagVersion = pointer.Int32Ptr(int32(*in.TagVersion))
+		tagVersion = pointer.Ptr(int32(*in.TagVersion))
 	}
 
 	return &cyclonedx_v1_4.Swid{
@@ -923,19 +903,15 @@ func convertVulnerabilityAffectedStatus(in cyclonedx.VulnerabilityStatus) *cyclo
 		return nil
 	}
 
-	ptr := func(v cyclonedx_v1_4.VulnerabilityAffectedStatus) *cyclonedx_v1_4.VulnerabilityAffectedStatus {
-		return &v
-	}
-
 	switch in {
 	case cyclonedx.VulnerabilityStatusUnknown:
-		return ptr(cyclonedx_v1_4.VulnerabilityAffectedStatus_VULNERABILITY_AFFECTED_STATUS_UNKNOWN)
+		return pointer.Ptr(cyclonedx_v1_4.VulnerabilityAffectedStatus_VULNERABILITY_AFFECTED_STATUS_UNKNOWN)
 	case cyclonedx.VulnerabilityStatusAffected:
-		return ptr(cyclonedx_v1_4.VulnerabilityAffectedStatus_VULNERABILITY_AFFECTED_STATUS_AFFECTED)
+		return pointer.Ptr(cyclonedx_v1_4.VulnerabilityAffectedStatus_VULNERABILITY_AFFECTED_STATUS_AFFECTED)
 	case cyclonedx.VulnerabilityStatusNotAffected:
-		return ptr(cyclonedx_v1_4.VulnerabilityAffectedStatus_VULNERABILITY_AFFECTED_STATUS_NOT_AFFECTED)
+		return pointer.Ptr(cyclonedx_v1_4.VulnerabilityAffectedStatus_VULNERABILITY_AFFECTED_STATUS_NOT_AFFECTED)
 	default:
-		return ptr(cyclonedx_v1_4.VulnerabilityAffectedStatus_VULNERABILITY_AFFECTED_STATUS_UNKNOWN)
+		return pointer.Ptr(cyclonedx_v1_4.VulnerabilityAffectedStatus_VULNERABILITY_AFFECTED_STATUS_UNKNOWN)
 	}
 }
 
