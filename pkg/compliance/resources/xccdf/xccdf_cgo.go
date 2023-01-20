@@ -36,6 +36,16 @@ import (
 
 var sessionCache = map[string]*xccdfSession{}
 
+const (
+	XCCDF_RESULT_PASS           = 1
+	XCCDF_RESULT_FAIL           = 2
+	XCCDF_RESULT_ERROR          = 3
+	XCCDF_RESULT_UNKNOWN        = 4
+	XCCDF_RESULT_NOT_APPLICABLE = 5
+	XCCDF_RESULT_NOT_CHECKED    = 6
+	XCCDF_RESULT_NOT_SELECTED   = 7
+)
+
 type xccdfSession struct {
 	session *C.struct_xccdf_session
 }
@@ -91,27 +101,20 @@ func (s *xccdfSession) EvaluateRule(rule string) ([]resources.ResolvedInstance, 
 		res := C.xccdf_rule_result_iterator_next(resIt)
 		ruleResult := C.xccdf_rule_result_get_result(res)
 		ruleRef := C.xccdf_rule_result_get_idref(res)
-		if ruleResult == 2 { // XCCDF_RESULT_FAIL
+		switch ruleResult {
+		case XCCDF_RESULT_PASS:
+			result = "passed"
+		case XCCDF_RESULT_FAIL:
+			result = "failing"
+		case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
+			result = "error"
+		case XCCDF_RESULT_NOT_APPLICABLE, XCCDF_RESULT_NOT_CHECKED, XCCDF_RESULT_NOT_SELECTED:
+		}
+		if result != "" {
 			instances = append(instances, resources.NewResolvedInstance(
 				eval.NewInstance(eval.VarMap{}, eval.FunctionMap{}, eval.RegoInputMap{
 					"name":   C.GoString(ruleRef),
-					"result": "failing",
-				}), C.GoString(ruleRef), ""))
-		} else if ruleResult == 4 || // XCCDF_RESULT_UNKNOWN
-			ruleResult == 3 { // XCCDF_RESULT_ERROR
-			instances = append(instances, resources.NewResolvedInstance(
-				eval.NewInstance(eval.VarMap{}, eval.FunctionMap{}, eval.RegoInputMap{
-					"name":   C.GoString(ruleRef),
-					"result": "error",
-				}), C.GoString(ruleRef), ""))
-		} else if ruleResult == 5 || // XCCDF_RESULT_NOT_APPLICABLE
-			ruleResult == 6 || // XCCDF_RESULT_NOT_CHECKED
-			ruleResult == 7 { // XCCDF_RESULT_NOT_SELECTED
-		} else if ruleResult == 1 { // XCCDF_RESULT_PASS
-			instances = append(instances, resources.NewResolvedInstance(
-				eval.NewInstance(eval.VarMap{}, eval.FunctionMap{}, eval.RegoInputMap{
-					"name":   C.GoString(ruleRef),
-					"result": "passed",
+					"result": result,
 				}), C.GoString(ruleRef), ""))
 		}
 	}

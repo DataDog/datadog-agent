@@ -20,10 +20,20 @@ import (
 	"github.com/gocomply/scap/pkg/scap/scap_document"
 )
 
+const (
+	XCCDF_RESULT_PASS           = "pass"
+	XCCDF_RESULT_FAIL           = "fail"
+	XCCDF_RESULT_ERROR          = "error"
+	XCCDF_RESULT_UNKNOWN        = "unknown"
+	XCCDF_RESULT_NOT_APPLICABLE = "notapplicable"
+	XCCDF_RESULT_NOT_CHECKED    = "notchecked"
+	XCCDF_RESULT_NOT_SELECTED   = "notselected"
+)
+
 func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	xccdf := res.Xccdf
 
-	args := []string{"xccdf", "eval", "--results", "-"}
+	args := []string{"xccdf", "eval", "--skip-valid", "--results", "-"}
 	if xccdf.Profile != "" {
 		args = append(args, "--profile", xccdf.Profile)
 	}
@@ -33,7 +43,7 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 	}
 
 	args = append(args, res.Xccdf.Name)
-	cmd := exec.Command("oscap", args...)
+	cmd := exec.Command("/opt/datadog-agent/embedded/bin/oscap", args...)
 	cmd.Dir = e.ConfigDir()
 
 	log.Debugf("Executing %s in %s\n", cmd.String(), cmd.Dir)
@@ -58,11 +68,23 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 			if xccdf.Rule != "" && ruleResult.Idref != xccdf.Rule {
 				continue
 			}
-			instances = append(instances, resources.NewResolvedInstance(
-				eval.NewInstance(eval.VarMap{}, eval.FunctionMap{}, eval.RegoInputMap{
-					"name":   ruleResult.Idref,
-					"result": ruleResult.Result,
-				}), "", ""))
+			var result string
+			switch ruleResult {
+			case XCCDF_RESULT_PASS:
+				result = "passed"
+			case XCCDF_RESULT_FAIL:
+				result = "failing"
+			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
+				result = "error"
+			case XCCDF_RESULT_NOT_APPLICABLE, XCCDF_RESULT_NOT_CHECKED, XCCDF_RESULT_NOT_SELECTED:
+			}
+			if result != "" {
+				instances = append(instances, resources.NewResolvedInstance(
+					eval.NewInstance(eval.VarMap{}, eval.FunctionMap{}, eval.RegoInputMap{
+						"name":   e.Hostname(),
+						"result": result,
+					}), ruleResult.Idref, ""))
+			}
 		}
 	}
 
