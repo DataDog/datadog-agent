@@ -113,7 +113,7 @@ func (s *xccdfSession) EvaluateRule(rule string) ([]resources.ResolvedInstance, 
 		if result != "" {
 			instances = append(instances, resources.NewResolvedInstance(
 				eval.NewInstance(eval.VarMap{}, eval.FunctionMap{}, eval.RegoInputMap{
-					"name":   C.GoString(ruleRef),
+					"name":   e.Hostname(),
 					"result": result,
 				}), C.GoString(ruleRef), ""))
 		}
