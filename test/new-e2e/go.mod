@@ -70,7 +70,6 @@ require (
 	github.com/pulumi/pulumi-command/sdk v0.7.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.22.2 // indirect
-	github.com/pulumi/pulumi-libvirt/sdk v0.3.0 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
