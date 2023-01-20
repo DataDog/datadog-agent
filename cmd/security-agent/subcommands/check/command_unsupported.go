@@ -12,6 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	return nil
+}
+
+func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
 	return nil
 }
