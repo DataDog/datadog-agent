@@ -18,6 +18,7 @@ package sysprobeconfig
 import (
 	"go.uber.org/fx"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -30,6 +31,8 @@ type Component interface {
 
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
+
+	Object() *sysconfig.Config
 }
 
 // Mock implements mock-specific methods.

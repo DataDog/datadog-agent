@@ -7,11 +7,9 @@ package sysprobeconfig
 
 import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func setupConfig(deps dependencies) (*config.Warnings, error) {
+func setupConfig(deps dependencies) (*sysconfig.Config, error) {
 	confFilePath := deps.Params.sysProbeConfFilePath
-	_, err := sysconfig.New(confFilePath)
-	return nil, err
+	return sysconfig.New(confFilePath)
 }

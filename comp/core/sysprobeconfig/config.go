@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -20,6 +21,8 @@ type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
 	// and uses globals in that package.
 	config.Config
+
+	syscfg *sysconfig.Config
 
 	// warnings are the warnings generated during setup
 	warnings *config.Warnings
@@ -32,16 +35,20 @@ type dependencies struct {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	warnings, err := setupConfig(deps)
+	syscfg, err := setupConfig(deps)
 	if err != nil {
 		return nil, err
 	}
 
-	return &cfg{Config: config.SystemProbe, warnings: warnings}, nil
+	return &cfg{Config: config.SystemProbe, syscfg: syscfg}, nil
 }
 
 func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
+}
+
+func (c *cfg) Object() *sysconfig.Config {
+	return c.syscfg
 }
 
 func newMock(deps dependencies, t testing.TB) Component {
