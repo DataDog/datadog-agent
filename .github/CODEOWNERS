@@ -266,6 +266,7 @@
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/orchestrator/                 @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
+/pkg/util/trivy/                        @DataDog/container-integrations
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/ebpf-platform

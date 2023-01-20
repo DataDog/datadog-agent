@@ -1104,6 +1104,9 @@ func InitConfig(config Config) {
 
 	// workloadmeta
 	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.enabled", false)
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms", false)
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms_scan_interval", 0)    // Integer seconds
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms_scan_timeout", 10*60) // Integer seconds
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
