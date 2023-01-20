@@ -13,6 +13,7 @@ struct signal_event_t {
 };
 
 SYSCALL_KPROBE2(kill, int, pid, int, type) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     struct policy_t policy = fetch_policy(EVENT_SIGNAL);
     if (is_discarded_by_process(policy.mode, EVENT_SIGNAL)) {
         return 0;

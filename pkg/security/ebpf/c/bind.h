@@ -14,6 +14,7 @@ struct bind_event_t {
 };
 
 SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     if (!addr) {
         return 0;
     }

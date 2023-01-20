@@ -31,14 +31,17 @@ int __attribute__((always_inline)) trace__sys_rename(u8 async) {
 }
 
 SYSCALL_KPROBE0(rename) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
 SYSCALL_KPROBE0(renameat) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
 SYSCALL_KPROBE0(renameat2) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_rename(SYNC_SYSCALL);
 }
 

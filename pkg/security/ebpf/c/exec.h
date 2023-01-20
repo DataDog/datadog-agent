@@ -183,10 +183,12 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
 }
 
 SYSCALL_KPROBE3(execve, const char *, filename, const char **, argv, const char **, env) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_execveat(ctx, argv, env);
 }
 
 SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, const char **, env) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_execveat(ctx, argv, env);
 }
 
@@ -307,18 +309,22 @@ int __attribute__((always_inline)) handle_sys_fork(struct pt_regs *ctx) {
 }
 
 SYSCALL_KPROBE0(fork) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return handle_sys_fork(ctx);
 }
 
 SYSCALL_KPROBE0(clone) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return handle_sys_fork(ctx);
 }
 
 SYSCALL_KPROBE0(clone3) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return handle_sys_fork(ctx);
 }
 
 SYSCALL_KPROBE0(vfork) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return handle_sys_fork(ctx);
 }
 
@@ -510,6 +516,12 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     if (ignored) {
         bpf_map_delete_elem(&pid_ignored, &pid);
         return 0;
+    }
+
+    // revoke map pid if it was blocked
+    void *blocked = bpf_map_lookup_elem(&blocked_pids, &pid);
+    if (blocked) {
+        bpf_map_delete_elem(&pid_ignored, &pid);
     }
 
     // delete netns entry

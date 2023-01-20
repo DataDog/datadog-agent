@@ -54,26 +54,31 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
 }
 
 SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 SYSCALL_COMPAT_KPROBE3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 SYSCALL_COMPAT_KPROBE0(truncate) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 SYSCALL_COMPAT_KPROBE3(open, const char*, filename, int, flags, umode_t, mode) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
@@ -84,6 +89,7 @@ struct openat2_open_how {
 };
 
 SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
     return trace__sys_openat(SYNC_SYSCALL, how.flags, how.mode);

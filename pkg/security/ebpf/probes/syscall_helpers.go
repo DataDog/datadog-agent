@@ -167,8 +167,33 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 
 	for _, section := range expandSyscallSections(syscallName, flag, compat...) {
 		probeCopy := probe.Copy()
+		probeCopy.EBPFSection = section
 		probeCopy.EBPFFuncName = getFunctionNameFromSection(section)
 		probes = append(probes, probeCopy)
+	}
+
+	return probes
+}
+
+// ExpandSyscallProbePair returns the list of a ProbeIdentificationPair required to query all the probes available for a syscall
+func ExpandSyscallProbePair(UID string, section string, flag int, compat ...bool) []manager.ProbeIdentificationPair {
+	var probes []manager.ProbeIdentificationPair
+
+	if len(RuntimeArch) == 0 {
+		resolveRuntimeArch()
+	}
+
+	if flag&ExpandTime32 == ExpandTime32 {
+		// check if _time32 should be expanded
+		if getSyscallPrefix() == "sys_" {
+			return probes
+		}
+		section += "_time32"
+	}
+
+	for _, esection := range expandSyscallSections(section, flag, compat...) {
+		probe := manager.ProbeIdentificationPair{UID: UID, EBPFFuncName: getFunctionNameFromSection(esection)}
+		probes = append(probes, probe)
 	}
 
 	return probes
@@ -178,22 +203,8 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 func ExpandSyscallProbesSelector(UID string, section string, flag int, compat ...bool) []manager.ProbesSelector {
 	var selectors []manager.ProbesSelector
 
-	if len(RuntimeArch) == 0 {
-		resolveRuntimeArch()
+	for _, section := range ExpandSyscallProbePair(UID, section, flag, compat...) {
+		selectors = append(selectors, &manager.ProbeSelector{ProbeIdentificationPair: section})
 	}
-
-	if flag&ExpandTime32 == ExpandTime32 {
-		// check if _time32 should be expanded
-		if getSyscallPrefix() == "sys_" {
-			return selectors
-		}
-		section += "_time32"
-	}
-
-	for _, esection := range expandSyscallSections(section, flag, compat...) {
-		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: UID, EBPFFuncName: getFunctionNameFromSection(esection)}}
-		selectors = append(selectors, selector)
-	}
-
 	return selectors
 }

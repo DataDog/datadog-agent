@@ -38,14 +38,17 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
 }
 
 SYSCALL_KPROBE2(chmod, const char*, filename, umode_t, mode) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chmod(mode);
 }
 
 SYSCALL_KPROBE2(fchmod, int, fd, umode_t, mode) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chmod(mode);
 }
 
 SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chmod(mode);
 }
 

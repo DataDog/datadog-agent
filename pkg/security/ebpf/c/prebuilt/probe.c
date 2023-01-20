@@ -77,6 +77,7 @@
 #include "bind.h"
 #include "procfs.h"
 #include "offset.h"
+#include "other_blocked_syscalls.h"
 
 #pragma clang diagnostic pop
 

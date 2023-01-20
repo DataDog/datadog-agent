@@ -32,10 +32,12 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
 }
 
 SYSCALL_KPROBE0(init_module) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace_init_module(1);
 }
 
 SYSCALL_KPROBE0(finit_module) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace_init_module(0);
 }
 
@@ -174,6 +176,7 @@ struct delete_module_event_t {
 };
 
 SYSCALL_KPROBE1(delete_module, const char *, name_user) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     struct policy_t policy = fetch_policy(EVENT_DELETE_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_DELETE_MODULE)) {
         return 0;

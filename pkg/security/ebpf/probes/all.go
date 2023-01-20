@@ -89,6 +89,9 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getPipeProbes()...)
 
+	// adding the probes for the other syscalls which are not yet provided
+	allProbes = append(allProbes, getOtherBlockingProbes(allProbes)...)
+
 	allProbes = append(allProbes,
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -134,6 +137,7 @@ func AllMaps() []*manager.Map {
 		{Name: "selinux_enforce_status"},
 		// Enabled event mask
 		{Name: "enabled_events"},
+		{Name: "blocked_pids"},
 	}
 }
 

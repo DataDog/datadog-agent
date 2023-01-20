@@ -18,6 +18,10 @@ import (
 	"sync"
 	"time"
 
+	cebpf "github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
@@ -44,8 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
@@ -114,6 +116,10 @@ type Probe struct {
 	runtimeCompiled bool
 
 	isRuntimeDiscarded bool
+
+	// block syscalls map
+	blockedPidsMap     *cebpf.Map
+	blockedPidsMapLock sync.Mutex
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -285,6 +291,12 @@ func (p *Probe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
+
+	blockedPIDs, err := managerhelper.Map(p.Manager, "blocked_pids")
+	if err != nil {
+		return fmt.Errorf("unable to find the blocked pid map: %w", err)
+	}
+	p.blockedPidsMap = blockedPIDs
 
 	return p.monitor.Start(p.ctx, &p.wg)
 }
@@ -931,7 +943,7 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
+func (p *Probe) SelectProbes(eventTypes []eval.EventType, blockedSyscalls []string) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
@@ -965,6 +977,11 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 				break
 			}
 		}
+	}
+
+	// Append the needed probes to be able to block the ones defined on action rules
+	if len(blockedSyscalls) > 0 {
+		activatedProbes = append(activatedProbes, probes.GetYetUnregisteredButNeedProbes(activatedProbes, blockedSyscalls)...)
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1217,7 +1234,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
-	if err := p.SelectProbes(rs.GetEventTypes()); err != nil {
+	if err := p.SelectProbes(rs.GetEventTypes(), rs.BlockedSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1396,6 +1413,9 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		)
 	}
 
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		probes.GetSyscallsIdConstants()...)
+
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.ERPCDentryResolutionEnabled, p.Config.NetworkEnabled, useMmapableMaps)
 	if !p.Config.ERPCDentryResolutionEnabled || useMmapableMaps {
@@ -1526,4 +1546,35 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
+}
+
+// pushBlockPidSyscalls pushes the given list of syscalls for specified pid in kernel
+func (p *Probe) pushBlockPidSyscalls(pid uint32, syscalls [64]uint8) error {
+	p.blockedPidsMapLock.Lock()
+	defer p.blockedPidsMapLock.Unlock()
+	return p.blockedPidsMap.Update(pid, syscalls, cebpf.UpdateNoExist)
+}
+
+// Block all syscalls for specified pid
+func (p *Probe) BlockPidAllSyscalls(pid uint32) error {
+	fmt.Printf("BlockPidSyscall for %d\n", pid)
+	var val [64]uint8
+	for i := 0; i < 64; i++ { // block'em all
+		val[i] = 0xff
+	}
+	return p.pushBlockPidSyscalls(pid, val)
+}
+
+// Block a list of syscalls for the specified pid
+func (p *Probe) BlockPidSyscalls(pid uint32, syslist []string) error {
+	var val [64]uint8
+
+	syscallsIDs := probes.GetSyscallsIDs(syslist)
+	for _, id := range syscallsIDs {
+		fmt.Printf("BlockPidSyscalls adding syscall %d to the list\n", id)
+		index := id / 8
+		bit := id % 8
+		val[index] = 1 << bit
+	}
+	return p.pushBlockPidSyscalls(pid, val)
 }

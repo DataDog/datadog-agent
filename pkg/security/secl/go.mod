@@ -19,6 +19,7 @@ require (
 	golang.org/x/tools v0.5.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
+	k8s.io/utils v0.0.0-20230202215443-34013725500c
 )
 
 require (

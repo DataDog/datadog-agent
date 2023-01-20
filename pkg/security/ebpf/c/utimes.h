@@ -42,22 +42,27 @@ int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *sysca
 // On old kernels, we have sys_utime and compat_sys_utime.
 // On new kernels, we have _x64_sys_utime32, __ia32_sys_utime32, __x64_sys_utime, __ia32_sys_utime
 SYSCALL_COMPAT_KPROBE0(utime) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_utimes();
 }
 
 SYSCALL_KPROBE0(utime32) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_utimes();
 }
 
 SYSCALL_COMPAT_TIME_KPROBE0(utimes) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_utimes();
 }
 
 SYSCALL_COMPAT_TIME_KPROBE0(utimensat) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_utimes();
 }
 
 SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_utimes();
 }
 

@@ -36,10 +36,12 @@ int __attribute__((always_inline)) trace__sys_link(u8 async) {
 }
 
 SYSCALL_KPROBE0(link) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_link(SYNC_SYSCALL);
 }
 
 SYSCALL_KPROBE0(linkat) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_link(SYNC_SYSCALL);
 }
 

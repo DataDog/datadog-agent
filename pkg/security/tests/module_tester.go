@@ -165,6 +165,10 @@ rules:
           scope: {{$Action.Set.Scope}}
           append: {{$Action.Set.Append}}
 {{- end}}
+{{- if $Action.Block}}
+      - block:
+          syscalls: {{$Action.Block.Syscalls}}
+{{- end}}
 {{- end}}
 {{end}}
 `

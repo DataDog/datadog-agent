@@ -10,8 +10,6 @@ struct bpf_map_def SEC("maps/sys_exit_progs") sys_exit_progs = {
     .max_entries = 64,
 };
 
-#define SYSCALL_ENCODING_TABLE_SIZE 64 // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-
 struct syscall_monitor_entry_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
     u64 last_sent;

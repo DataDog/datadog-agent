@@ -32,6 +32,7 @@ struct unshare_mntns_event_t {
 };
 
 SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     struct syscall_cache_t syscall = {
         .type = EVENT_MOUNT,
     };
@@ -42,6 +43,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 }
 
 SYSCALL_KPROBE1(unshare, unsigned long, flags) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     struct syscall_cache_t syscall = {
         .type = EVENT_UNSHARE_MNTNS,
         .unshare_mntns = {

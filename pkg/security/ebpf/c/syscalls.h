@@ -360,4 +360,50 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
     return !pass_to_userspace;
 }
 
+#define SYSCALL_ENCODING_TABLE_SIZE 64 // 64 * 8 = 512 > 408, bytes should be enough to hold all 408 syscalls
+
+struct syscalls_bitfield {
+    char bitfield[SYSCALL_ENCODING_TABLE_SIZE];
+};
+
+struct bpf_map_def SEC("maps/blocked_pids") blocked_pids = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct syscalls_bitfield),
+    .max_entries = 256,
+};
+
+int __attribute__((always_inline)) should_block_syscall(const char* syscall_name) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    struct syscalls_bitfield* sysbits = bpf_map_lookup_elem(&blocked_pids, &pid);
+    if (sysbits == NULL) {
+        return 0;
+    }
+
+    u64 sys_id;
+    LOAD_CONSTANT("syscall_id", sys_id);
+    bpf_printk("should_block_syscall: get id %lu for syscall %s\n", sys_id, syscall_name);
+    if (unlikely(sys_id >= 512)) return 0;
+
+    u16 sys_index = sys_id / 8;
+    u16 sys_bit = 1 << sys_id % 8;
+
+    sys_index = sys_index % SYSCALL_ENCODING_TABLE_SIZE; // needed for eBPF to validate :/
+    if ((sysbits->bitfield[sys_index] & sys_bit) != 0) {
+        bpf_printk("BLOCKING SYSCALL FOR PID %d (%s)\n", pid, syscall_name);
+        return 1;
+    }
+    return 0;
+}
+
+#define BLOCK_SYSCALL_IF_NEEDED_AND_RETURN(retval)                      \
+    if (should_block_syscall(__FUNCTION__+12)) {                        \
+        bpf_override_return(ctx, retval);                               \
+    }
+
+#define BLOCK_SYSCALL_RETURN_DEFAULT_VAL (-1)
+#define BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL() \
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN(BLOCK_SYSCALL_RETURN_DEFAULT_VAL)
+
 #endif

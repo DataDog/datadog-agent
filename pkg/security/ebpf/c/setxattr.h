@@ -33,14 +33,17 @@ int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
 }
 
 SYSCALL_KPROBE2(setxattr, const char *, filename, const char *, name) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_setxattr(name);
 }
 
 SYSCALL_KPROBE2(lsetxattr, const char *, filename, const char *, name) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_setxattr(name);
 }
 
 SYSCALL_KPROBE2(fsetxattr, int, fd, const char *, name) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_setxattr(name);
 }
 
@@ -64,14 +67,17 @@ int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name
 }
 
 SYSCALL_KPROBE2(removexattr, const char *, filename, const char *, name) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_removexattr(name);
 }
 
 SYSCALL_KPROBE2(lremovexattr, const char *, filename, const char *, name) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_removexattr(name);
 }
 
 SYSCALL_KPROBE2(fremovexattr, int, fd, const char *, name) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_removexattr(name);
 }
 

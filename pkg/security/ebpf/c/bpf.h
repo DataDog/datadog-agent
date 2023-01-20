@@ -308,6 +308,7 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
 }
 
 SYSCALL_KPROBE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     struct policy_t policy = fetch_policy(EVENT_BPF);
     if (is_discarded_by_process(policy.mode, EVENT_BPF)) {
         return 0;

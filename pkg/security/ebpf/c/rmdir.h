@@ -30,6 +30,7 @@ int __attribute__((always_inline)) trace__sys_rmdir(u8 async, int flags) {
 }
 
 SYSCALL_KPROBE0(rmdir) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_rmdir(SYNC_SYSCALL, 0);
 }
 

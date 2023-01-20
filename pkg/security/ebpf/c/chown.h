@@ -39,30 +39,37 @@ int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
 }
 
 SYSCALL_KPROBE3(lchown, const char*, filename, uid_t, user, gid_t, group) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chown(user, group);
 }
 
 SYSCALL_KPROBE3(fchown, int, fd, uid_t, user, gid_t, group) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chown(user, group);
 }
 
 SYSCALL_KPROBE3(chown, const char*, filename, uid_t, user, gid_t, group) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chown(user, group);
 }
 
 SYSCALL_KPROBE3(lchown16, const char*, filename, uid_t, user, gid_t, group) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chown(user, group);
 }
 
 SYSCALL_KPROBE3(fchown16, int, fd, uid_t, user, gid_t, group) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chown(user, group);
 }
 
 SYSCALL_KPROBE3(chown16, const char*, filename, uid_t, user, gid_t, group) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chown(user, group);
 }
 
 SYSCALL_KPROBE4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t, group) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_chown(user, group);
 }
 

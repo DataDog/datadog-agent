@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cast"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -113,24 +114,43 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Set *SetDefinition `yaml:"set"`
+	Set   *SetDefinition   `yaml:"set"`
+	Block *BlockDefinition `yaml:"block"`
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
-	if a.Set == nil {
-		return errors.New("missing 'set' section in action")
+	if a.Set == nil && a.Block == nil {
+		return errors.New("either 'set' or 'block' section of an action must be specified")
+	} else if a.Set != nil && a.Block != nil {
+		return errors.New("only one of 'set' or 'block' section of an action can be specified")
 	}
 
-	if a.Set.Name == "" {
-		return errors.New("action name is empty")
-	}
+	if a.Set != nil {
+		if a.Set.Name == "" {
+			return errors.New("action name is empty")
+		}
 
-	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-		return errors.New("either 'value' or 'field' must be specified")
+		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+			return errors.New("either 'value' or 'field' must be specified")
+		}
+	} else {
+		if !a.Block.AllSyscalls && len(a.Block.Syscalls) == 0 {
+			return errors.New("syscall list to block have to be provided with subsequent_syscalls, or set all_subsequent_syscalls to true")
+		}
+		if a.Block.AllSyscalls && len(a.Block.Syscalls) != 0 {
+			return errors.New("syscall list to block provided with all_subsequent_syscalls equal to true")
+		}
+		return nil
 	}
 
 	return nil
+}
+
+// BlockDefinition describes the 'block' section of a rule action
+type BlockDefinition struct {
+	Syscalls    []string `yaml:"subsequent_syscalls"`
+	AllSyscalls bool     `yaml:"all_subsequent_syscalls"`
 }
 
 // Scope describes the scope variables
@@ -173,6 +193,7 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 	globalVariables  eval.GlobalVariables
 	scopedVariables  map[Scope]VariableProvider
+	BlockedSyscalls  []string
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
 	logger log.Logger
@@ -484,6 +505,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.Definition.Actions {
 		switch {
+		// case action.Block: action block handled by a ruleset listner in module/module.go
 		case action.Set != nil:
 			name := string(action.Set.Scope)
 			if name != "" {
@@ -665,6 +687,18 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 			if err := action.Check(); err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
 				continue
+			}
+
+			if action.Block != nil {
+				if action.Block.AllSyscalls {
+					rs.BlockedSyscalls = append(rs.BlockedSyscalls, "all")
+				} else {
+					for _, syscall := range action.Block.Syscalls {
+						if !slices.Contains(rs.BlockedSyscalls, syscall) {
+							rs.BlockedSyscalls = append(rs.BlockedSyscalls, syscall)
+						}
+					}
+				}
 			}
 
 			if action.Set != nil {

@@ -13,6 +13,7 @@ struct umount_event_t {
 };
 
 SYSCALL_KPROBE0(umount) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return 0;
 }
 

@@ -35,10 +35,12 @@ int __attribute__((always_inline)) trace__sys_unlink(u8 async, int flags) {
 }
 
 SYSCALL_KPROBE0(unlink) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_unlink(SYNC_SYSCALL, 0);
 }
 
 SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     return trace__sys_unlink(SYNC_SYSCALL, flags);
 }
 

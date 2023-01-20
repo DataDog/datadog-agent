@@ -59,6 +59,7 @@ struct mprotect_event_t {
 };
 
 SYSCALL_KPROBE0(mprotect) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     struct policy_t policy = fetch_policy(EVENT_MPROTECT);
     if (is_discarded_by_process(policy.mode, EVENT_MPROTECT)) {
         return 0;

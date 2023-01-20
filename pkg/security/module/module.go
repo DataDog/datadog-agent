@@ -159,7 +159,7 @@ func (m *Module) Start() error {
 				model.ForkEventType.String(),
 				model.ExecEventType.String(),
 				model.ExitEventType.String(),
-			})
+			}, nil)
 		}
 		return nil
 	}
@@ -451,6 +451,9 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
+	// Handle rule actions
+	m.HandleActions(rule, ev)
+
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := ev.FieldHandlers.GetProcessServiceTag(ev)
@@ -710,5 +713,18 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 		seclog.Errorf(msg, m.Error())
 	} else {
 		seclog.Warnf(msg, m.Error())
+	}
+}
+
+// HandleActions executes the rule actions
+func (m *Module) HandleActions(rule *rules.Rule, event *model.Event) {
+	for _, action := range rule.Definition.Actions {
+		if action.Block != nil {
+			if action.Block.AllSyscalls {
+				_ = m.probe.BlockPidAllSyscalls(event.PIDContext.Pid)
+			} else {
+				_ = m.probe.BlockPidSyscalls(event.PIDContext.Pid, action.Block.Syscalls)
+			}
+		}
 	}
 }

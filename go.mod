@@ -239,7 +239,7 @@ require (
 	k8s.io/kube-state-metrics/v2 v2.4.2
 	k8s.io/kubelet v0.25.5
 	k8s.io/metrics v0.25.5
-	k8s.io/utils v0.0.0-20221108210102-8e77b1f39fe2
+	k8s.io/utils v0.0.0-20230202215443-34013725500c
 	sigs.k8s.io/custom-metrics-apiserver v1.25.1
 )
 

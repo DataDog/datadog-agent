@@ -14,6 +14,7 @@ struct ptrace_event_t {
 };
 
 SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
+    BLOCK_SYSCALL_IF_NEEDED_AND_RETURN_DEFAULT_VAL();
     struct policy_t policy = fetch_policy(EVENT_PTRACE);
     if (is_discarded_by_process(policy.mode, EVENT_PTRACE)) {
         return 0;
