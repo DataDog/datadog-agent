@@ -841,7 +841,7 @@ func convertSwid(in *cyclonedx.SWID) *cyclonedx_v1_4.Swid {
 }
 
 func convertTimestamp(in string) *timestamppb.Timestamp {
-	ts, err := time.Parse("CHECK FORMAT", in)
+	ts, err := time.Parse(time.RFC3339, in)
 	if err != nil {
 		return nil
 	} else {
