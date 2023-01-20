@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -88,6 +89,15 @@ func NewFlareBuilder() (FlareBuilder, error) {
 	}
 	hostname = validate.CleanHostnameDir(hostname)
 
+	fperm, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
+	err = fperm.RemoveAccessToOtherUsers(tmpDir)
+	if err != nil {
+		return nil, err
+	}
+
 	return newBuilder(tmpDir, hostname)
 }
 
@@ -125,15 +135,30 @@ func (fb *builder) Save() (string, error) {
 	_ = fb.AddFileFromFunc("permissions.log", fb.permsInfos.commit)
 	_ = fb.logFile.Close()
 
-	archivePath := filepath.Join(os.TempDir(), getArchiveName())
+	archiveName := getArchiveName()
+	archiveTmpPath := filepath.Join(fb.tmpDir, archiveName)
+	archiveFinalPath := filepath.Join(os.TempDir(), archiveName)
+
+	// We first create the archive in our fb.tmpDir directory which is only readable by the current user (and
+	// SYSTEM/ADMIN on Windows). Then we retrict the archive permissions before moving it to the system temporary
+	// directory. This prevents other users from being able to read local flares.
 
 	// File format is determined based on archivePath extension, so zip
-	err := archiver.Archive([]string{fb.flareDir}, archivePath)
+	err := archiver.Archive([]string{fb.flareDir}, archiveTmpPath)
 	if err != nil {
 		return "", err
 	}
 
-	return archivePath, nil
+	fperm, err := filesystem.NewPermission()
+	if err != nil {
+		return "", err
+	}
+	err = fperm.RemoveAccessToOtherUsers(archiveTmpPath)
+	if err != nil {
+		return "", err
+	}
+
+	return archiveFinalPath, os.Rename(archiveTmpPath, archiveFinalPath)
 }
 
 func (fb *builder) clean() {

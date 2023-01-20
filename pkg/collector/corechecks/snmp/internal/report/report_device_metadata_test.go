@@ -239,7 +239,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 			},
 			"1.3.6.1.2.1.31.1.1.1.18": {
 				"1": valuestore.ResultValue{Value: "ifAlias1"},
-				"2": valuestore.ResultValue{Value: "ifAlias2"},
+				"2": valuestore.ResultValue{Value: ""},
 			},
 		},
 	}
@@ -292,7 +292,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1"}
-	ifTags2 := []string{"tag1", "tag2", "status:down", "interface:22", "interface_alias:ifAlias2", "interface_index:2"}
+	ifTags2 := []string{"tag1", "tag2", "status:down", "interface:22", "interface_index:2"}
 
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
@@ -332,8 +332,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "interface:22"
             ],
             "index": 2,
-            "name": "22",
-			"alias": "ifAlias2"
+            "name": "22"
         }
     ],
     "collect_timestamp":1415792726
@@ -531,4 +530,176 @@ func TestComputeInterfaceStatus(t *testing.T) {
 	for _, test := range allTests {
 		assert.Equal(t, test.status, computeInterfaceStatus(test.ifAdminStatus, test.ifOperStatus))
 	}
+}
+
+func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
+	indexes := []string{
+		// IPv4
+		"0.102.2.1.4.10.250.0.7",
+		"0.102.99.1.4.10.250.0.8",
+
+		// IPv6
+		"370.5.1.2.16.254.128.0.0.0.0.0.0.26.146.164.255.254.48.12.1",
+
+		// Invalid
+		"0.102.2.1.4.10.250", // too short, ignored
+	}
+	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(indexes)
+	expectedResult := map[string]string{
+		"2":  "10.250.0.7",
+		"99": "10.250.0.8",
+	}
+	assert.Equal(t, expectedResult, remManIPAddrByLLDPRemIndex)
+}
+
+func Test_resolveLocalInterface(t *testing.T) {
+	interfaceIndexByIDType := map[string]map[string]int32{
+		"mac_address": {
+			"00:00:00:00:00:01": 1,
+			"00:00:00:00:00:02": 2,
+		},
+		"interface_name": {
+			"eth1": 1,
+			"eth2": 2,
+		},
+		"interface_alias": {
+			"alias1": 1,
+			"alias2": 2,
+		},
+		"interface_index": {
+			"1": 1,
+			"2": 2,
+		},
+	}
+	deviceID := "default:1.2.3.4"
+
+	tests := []struct {
+		name           string
+		localIDType    string
+		localID        string
+		expectedIDType string
+		expectedID     string
+	}{
+		{
+			name:           "mac_address",
+			localIDType:    "mac_address",
+			localID:        "00:00:00:00:00:01",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:1",
+		},
+		{
+			name:           "interface_name",
+			localIDType:    "interface_name",
+			localID:        "eth2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "interface_alias",
+			localIDType:    "interface_alias",
+			localID:        "alias2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "mac_address by trying",
+			localIDType:    "",
+			localID:        "00:00:00:00:00:01",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:1",
+		},
+		{
+			name:           "interface_name by trying",
+			localIDType:    "",
+			localID:        "eth2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "interface_alias by trying",
+			localIDType:    "",
+			localID:        "alias2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "interface_alias by trying",
+			localIDType:    "",
+			localID:        "alias2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "interface_index by trying",
+			localIDType:    "",
+			localID:        "2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "mac_address not found",
+			localIDType:    "mac_address",
+			localID:        "00:00:00:00:00:99",
+			expectedIDType: "mac_address",
+			expectedID:     "00:00:00:00:00:99",
+		},
+		{
+			name:           "invalid",
+			localIDType:    "invalid_type",
+			localID:        "invalidID",
+			expectedIDType: "invalid_type",
+			expectedID:     "invalidID",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualIDType, actualID := resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID)
+			assert.Equal(t, tt.expectedIDType, actualIDType)
+			assert.Equal(t, tt.expectedID, actualID)
+		})
+	}
+}
+
+func Test_buildInterfaceIndexByIDType(t *testing.T) {
+	// Arrange
+	interfaces := []metadata.InterfaceMetadata{
+		{
+			DeviceID:   "default:1.2.3.4",
+			Index:      1,
+			MacAddress: "00:00:00:00:00:01",
+			Name:       "eth1",
+			Alias:      "alias1",
+		},
+		{
+			DeviceID:   "default:1.2.3.4",
+			Index:      2,
+			MacAddress: "00:00:00:00:00:02",
+			Name:       "eth2",
+			Alias:      "alias2",
+		},
+	}
+
+	// Act
+	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
+
+	// Assert
+	expectedInterfaceIndexByIDType := map[string]map[string]int32{
+		"mac_address": {
+			"00:00:00:00:00:01": 1,
+			"00:00:00:00:00:02": 2,
+		},
+		"interface_name": {
+			"eth1": 1,
+			"eth2": 2,
+		},
+		"interface_alias": {
+			"alias1": 1,
+			"alias2": 2,
+		},
+		"interface_index": {
+			"1": 1,
+			"2": 2,
+		},
+	}
+	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
 }

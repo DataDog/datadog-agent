@@ -96,6 +96,9 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+	_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
+
 	initRuntimeSettings()
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -221,7 +224,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		return
 	}
 
-	err = initInfo(hostInfo.HostName)
+	err = initInfo(hostInfo.HostName, processModuleEnabled)
 	if err != nil {
 		log.Criticalf("Error initializing info: %s", err)
 		cleanupAndExit(1)

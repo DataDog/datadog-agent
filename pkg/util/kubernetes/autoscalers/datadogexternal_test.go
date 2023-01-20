@@ -17,6 +17,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // TestDatadogExternalQuery tests that the outputs gotten from Datadog are appropriately dealt with.
@@ -37,22 +38,13 @@ func TestDatadogExternalQuery(t *testing.T) {
 			nil,
 		},
 		{
-			"metricName yields empty response from Datadog",
-			func(from, to int64, query string) ([]datadog.Series, error) {
-				return nil, nil
-			},
-			[]string{"mymetric{foo:bar}"},
-			map[string]Point{"mymetric{foo:bar}": {Value: 0, Valid: false}},
-			fmt.Errorf("none of the queries mymetric{foo:bar} returned any point, there might be an issue with them"),
-		},
-		{
 			"metricName yields rate limiting error response from Datadog",
 			func(int64, int64, string) ([]datadog.Series, error) {
 				return nil, fmt.Errorf("Rate limit of 300 requests in 3600 seconds")
 			},
 			[]string{"avg:mymetric{foo:bar}.rollup(30)"},
 			nil,
-			fmt.Errorf("Error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds"),
+			fmt.Errorf("error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds"),
 		},
 		{
 			"metrics with different granularities Datadog",
@@ -67,9 +59,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePoints(400000, 911),
 						},
-						Scope:      makePtr("foo:bar,baz:ar"),
-						Metric:     makePtr("mymetric"),
-						QueryIndex: makePtrInt(0),
+						Scope:      pointer.Ptr("foo:bar,baz:ar"),
+						Metric:     pointer.Ptr("mymetric"),
+						QueryIndex: pointer.Ptr(0),
 					}, {
 						Points: []datadog.DataPoint{
 							makePartialPoints(10000),
@@ -78,9 +70,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePartialPoints(40000),
 						},
-						Scope:      makePtr("foo:baz"),
-						Metric:     makePtr("mymetric2"),
-						QueryIndex: makePtrInt(1),
+						Scope:      pointer.Ptr("foo:baz"),
+						Metric:     pointer.Ptr("mymetric2"),
+						QueryIndex: pointer.Ptr(1),
 					}, {
 						Points: []datadog.DataPoint{
 							makePartialPoints(10000),
@@ -89,9 +81,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePartialPoints(30000),
 							makePartialPoints(40000),
 						},
-						Scope:      makePtr("ba:bar"),
-						Metric:     makePtr("my.aws.metric"),
-						QueryIndex: makePtrInt(2),
+						Scope:      pointer.Ptr("ba:bar"),
+						Metric:     pointer.Ptr("my.aws.metric"),
+						QueryIndex: pointer.Ptr(2),
 					},
 				}, nil
 			},
@@ -128,9 +120,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePoints(400000, 911),
 						},
-						Metric:     makePtr("(system.io.rkb_s + system.io.rkb_s)"),
-						Scope:      makePtr("device:sda,device:sdb,host:a"),
-						QueryIndex: makePtrInt(0),
+						Metric:     pointer.Ptr("(system.io.rkb_s + system.io.rkb_s)"),
+						Scope:      pointer.Ptr("device:sda,device:sdb,host:a"),
+						QueryIndex: pointer.Ptr(0),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -140,9 +132,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePoints(400000, 912),
 						},
-						Metric:     makePtr("(system.io.rkb_s + system.io.rkb_s)"),
-						Scope:      makePtr("device:sda,device:sdb,host:b"),
-						QueryIndex: makePtrInt(0),
+						Metric:     pointer.Ptr("(system.io.rkb_s + system.io.rkb_s)"),
+						Scope:      pointer.Ptr("device:sda,device:sdb,host:b"),
+						QueryIndex: pointer.Ptr(0),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -152,9 +144,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePartialPoints(40000),
 						},
-						Metric:     makePtr("mymetric2"),
-						Scope:      makePtr("foo:baz"),
-						QueryIndex: makePtrInt(1),
+						Metric:     pointer.Ptr("mymetric2"),
+						Scope:      pointer.Ptr("foo:baz"),
+						QueryIndex: pointer.Ptr(1),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -164,9 +156,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePartialPoints(30000),
 							makePartialPoints(40000),
 						},
-						Metric:     makePtr("my.aws.metric"),
-						Scope:      makePtr("ba:bar"),
-						QueryIndex: makePtrInt(2),
+						Metric:     pointer.Ptr("my.aws.metric"),
+						Scope:      pointer.Ptr("ba:bar"),
+						QueryIndex: pointer.Ptr(2),
 					},
 				}, nil
 			},
@@ -203,9 +195,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePoints(400000, 911),
 						},
-						Metric:     makePtr("(system.io.rkb_s + system.io.rkb_s)"),
-						Scope:      makePtr("device:sda,device:sdb,host:a"),
-						QueryIndex: makePtrInt(0),
+						Metric:     pointer.Ptr("(system.io.rkb_s + system.io.rkb_s)"),
+						Scope:      pointer.Ptr("device:sda,device:sdb,host:a"),
+						QueryIndex: pointer.Ptr(0),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -215,8 +207,8 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePoints(300000, 42),
 							makePartialPoints(40000),
 						},
-						Metric: makePtr("mymetric2"),
-						Scope:  makePtr("foo:baz"),
+						Metric: pointer.Ptr("mymetric2"),
+						Scope:  pointer.Ptr("foo:baz"),
 					},
 					{
 						Points: []datadog.DataPoint{
@@ -226,9 +218,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 							makePartialPoints(30000),
 							makePartialPoints(40000),
 						},
-						Metric:     makePtr("my.aws.metric"),
-						Scope:      makePtr("ba:bar"),
-						QueryIndex: makePtrInt(2),
+						Metric:     pointer.Ptr("my.aws.metric"),
+						Scope:      pointer.Ptr("ba:bar"),
+						QueryIndex: pointer.Ptr(2),
 					},
 				}, nil
 			},
@@ -259,7 +251,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 				queryMetricsFunc: test.queryfunc,
 			}
 			p := Processor{datadogClient: cl}
-			points, err := p.queryDatadogExternal(test.metricName, config.Datadog.GetInt64("external_metrics_provider.bucket_size"))
+			points, err := p.queryDatadogExternal(test.metricName, time.Duration(config.Datadog.GetInt64("external_metrics_provider.bucket_size"))*time.Second)
 			if test.err != nil {
 				require.EqualError(t, test.err, err.Error())
 			}

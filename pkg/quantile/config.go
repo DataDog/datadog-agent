@@ -80,7 +80,8 @@ func (c *Config) binLow(k Key) float64 {
 }
 
 // key returns a value k such that:
-//   γ^k <= v < γ^(k+1)
+//
+//	γ^k <= v < γ^(k+1)
 func (c *Config) key(v float64) Key {
 	switch {
 	case v < 0:

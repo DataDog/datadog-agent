@@ -39,6 +39,7 @@ func TestGetCloudRunTags(t *testing.T) {
 		"region":       "test_region",
 		"origin":       "cloudrun",
 		"project_id":   "test_project",
+		"_dd.origin":   "cloudrun",
 	}, tags)
 }
 
@@ -74,5 +75,6 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 		"project_id":    "test_project",
 		"service_name":  "test_service",
 		"revision_name": "test_revision",
+		"_dd.origin":    "cloudrun",
 	}, tags)
 }

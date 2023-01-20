@@ -49,8 +49,8 @@ const (
 	// udpDestroySockReturn traces the return of the udp_destroy_sock() system call
 	udpDestroySockReturn = "fexit/udp_destroy_sock"
 
-	// tcpRetransmit traces the return value for the tcp_retransmit_skb() system call
-	tcpRetransmitReturn = "fexit/tcp_retransmit_skb"
+	// tcpRetransmit traces the the tcp_retransmit_skb() kernel function
+	tcpRetransmit = "fentry/tcp_retransmit_skb"
 
 	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	inetCskAcceptReturn = "fexit/inet_csk_accept"
@@ -70,18 +70,18 @@ const (
 var programs = map[string]string{
 	string(probes.NetDevQueue):                    "tracepoint__net__net_dev_queue",
 	string(probes.ProtocolClassifierSocketFilter): "socket__classifier",
-	doSendfileRet:        "do_sendfile_exit", // no
+	doSendfileRet:        "do_sendfile_exit", // TODO: available but sockfd_lookup_light not available on some kernels
 	inet6BindRet:         "inet6_bind_exit",
 	inetBindRet:          "inet_bind_exit",
 	inetCskAcceptReturn:  "inet_csk_accept_exit",
 	inetCskListenStop:    "inet_csk_listen_stop_enter",
-	sockFDLookupRet:      "sockfd_lookup_light_exit", // no
+	sockFDLookupRet:      "sockfd_lookup_light_exit", // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects do_sendfile and HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
 	tcpRecvMsgReturn:     "tcp_recvmsg_exit",
 	tcpClose:             "tcp_close",
 	tcpCloseReturn:       "tcp_close_exit",
 	tcpConnect:           "tcp_connect",
 	tcpFinishConnect:     "tcp_finish_connect",
-	tcpRetransmitReturn:  "tcp_retransmit_skb_exit",
+	tcpRetransmit:        "tcp_retransmit_skb",
 	tcpSendMsgReturn:     "tcp_sendmsg_exit",
 	tcpSetState:          "tcp_set_state",
 	udpDestroySock:       "udp_destroy_sock",
@@ -118,8 +118,10 @@ func enabledPrograms(c *config.Config) (map[string]string, error) {
 		enableProgram(enabled, inetCskAcceptReturn)
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpSetState)
-		enableProgram(enabled, tcpRetransmitReturn)
+		enableProgram(enabled, tcpRetransmit)
 
+		// TODO: see comments above on availability for these
+		//       hooks
 		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
 		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
 		// if err == nil && len(missing) == 0 {

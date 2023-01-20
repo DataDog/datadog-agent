@@ -94,6 +94,7 @@ fi
 chown root:root ${INSTALL_DIR}/embedded/bin/system-probe
 chown root:root ${INSTALL_DIR}/embedded/bin/security-agent
 chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/ebpf
+chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/java
 
 # Enable and restart the agent service here on Debian platforms
 # On RHEL, this is done in the posttrans script

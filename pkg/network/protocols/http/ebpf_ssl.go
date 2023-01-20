@@ -291,7 +291,6 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 }
 
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
-
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: uint32(o.cfg.MaxTrackedConnections),

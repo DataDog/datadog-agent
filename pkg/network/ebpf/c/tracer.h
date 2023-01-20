@@ -23,13 +23,6 @@ typedef enum
     PACKET_COUNT_INCREMENT = 2,
 } packet_count_increment_t;
 
-typedef enum
-{
-    RETRANSMIT_COUNT_NONE = 0,
-    RETRANSMIT_COUNT_ABSOLUTE = 1,
-    RETRANSMIT_COUNT_INCREMENT = 2,
-} retransmit_count_increment_t;
-
 #define CONN_DIRECTION_MASK 0b11
 
 typedef struct {
@@ -155,11 +148,6 @@ typedef struct {
     struct sockaddr *addr;
     struct sock *sk;
 } bind_syscall_args_t;
-
-typedef struct {
-    struct sock *sk;
-    int segs;
-} tcp_retransmit_skb_args_t;
 
 typedef struct {
     __u32 netns;

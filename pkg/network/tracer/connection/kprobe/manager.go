@@ -47,7 +47,6 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.UDPv6RecvMsg:                   "kprobe__udpv6_recvmsg",
 	probes.UDPv6RecvMsgReturn:             "kretprobe__udpv6_recvmsg",
 	probes.TCPRetransmit:                  "kprobe__tcp_retransmit_skb",
-	probes.TCPRetransmitRet:               "kretprobe__tcp_retransmit_skb",
 	probes.InetCskAcceptReturn:            "kretprobe__inet_csk_accept",
 	probes.InetCskListenStop:              "kprobe__inet_csk_listen_stop",
 	probes.UDPDestroySock:                 "kprobe__udp_destroy_sock",

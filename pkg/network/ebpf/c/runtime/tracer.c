@@ -16,6 +16,7 @@
 #include <uapi/linux/udp.h>
 
 #include "tracer.h"
+#include "protocols/protocol-classification-tracer-maps.h"
 #include "protocols/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
@@ -397,36 +398,16 @@ int kprobe__skb_consume_udp(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
-    log_debug("kprobe/tcp_retransmit\n");
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    u64 tid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = {};
-    args.sk = sk;
-    args.segs = 0;
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
 
-    return 0;
-}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+    int segs = 1;
+#else
+    int segs = (int)PT_REGS_PARM3(ctx);
+#endif
+    log_debug("kprobe/tcp_retransmit\n");
 
-SEC("kretprobe/tcp_retransmit_skb")
-int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
-    log_debug("kretprobe/tcp_retransmit\n");
-    u64 tid = bpf_get_current_pid_tgid();
-    if (PT_REGS_RC(ctx) < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-        return 0;
-    }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
-    if (args == NULL) {
-        return 0;
-    }
-    struct sock* sk = args->sk;
-    u32 retrans_out = 0;
-    bpf_probe_read_kernel_with_telemetry(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
-
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-
-    return handle_retransmit(sk, retrans_out, RETRANSMIT_COUNT_ABSOLUTE);
+    return handle_retransmit(sk, segs);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -446,7 +427,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx) {
     }
 
     tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats, RETRANSMIT_COUNT_NONE);
+    update_tcp_stats(&t, stats);
 
     return 0;
 }
