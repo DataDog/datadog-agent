@@ -717,8 +717,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude", []string{
-		`^kubectl\.kubernetes\.io/last-applied-configuration$`,
-		`^ad\.datadoghq\.com/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
+		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
+		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
 	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
