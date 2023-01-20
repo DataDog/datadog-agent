@@ -146,7 +146,11 @@ func removeDuplicates(stats map[Key]*RequestStats) {
 
 func isLocalhost(k Key) bool {
 	var sAddr util.Address
-	if k.SrcIPHigh == 0 {
+	// this little hack is because ipv6 loopback (::1) has the property of having
+	// the top 64 bits be zero (just like an ipv4).  Could just skip the call to
+	// IsLoopback() below, but leaving it to allow the underlying library to do
+	// the check as originally desired.
+	if k.SrcIPHigh == 0 && k.SrcIPLow != uint64(0x0100000000000000) {
 		sAddr = util.V4Address(uint32(k.SrcIPLow))
 	} else {
 		sAddr = util.V6Address(k.SrcIPLow, k.SrcIPHigh)

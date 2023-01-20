@@ -40,6 +40,7 @@ import (
 )
 
 // GetVersion exposes the version of the agent to Python checks.
+//
 //export GetVersion
 func GetVersion(agentVersion **C.char) {
 	av, _ := version.Agent()
@@ -48,6 +49,7 @@ func GetVersion(agentVersion **C.char) {
 }
 
 // GetHostname exposes the current hostname of the agent to Python checks.
+//
 //export GetHostname
 func GetHostname(hostname **C.char) {
 	goHostname, err := hostnameUtil.Get(context.TODO())
@@ -60,21 +62,24 @@ func GetHostname(hostname **C.char) {
 }
 
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
+//
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
 	goHostname, _ := hostnameUtil.Get(context.TODO())
-	goClusterName := clustername.GetClusterName(context.TODO(), goHostname)
+	goClusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
 	*clusterName = TrackedCString(goClusterName)
 }
 
 // TracemallocEnabled exposes the tracemalloc configuration of the agent to Python checks.
+//
 //export TracemallocEnabled
 func TracemallocEnabled() C.bool {
 	return C.bool(config.Datadog.GetBool("tracemalloc_debug"))
 }
 
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
+//
 //export Headers
 func Headers(yamlPayload **C.char) {
 	h := util.HTTPHeaders()
@@ -91,6 +96,7 @@ func Headers(yamlPayload **C.char) {
 
 // GetConfig returns a value from the agent configuration.
 // Indirectly used by the C function `get_config` that's mapped to `datadog_agent.get_config`.
+//
 //export GetConfig
 func GetConfig(key *C.char, yamlPayload **C.char) {
 	goKey := C.GoString(key)
@@ -112,6 +118,7 @@ func GetConfig(key *C.char, yamlPayload **C.char) {
 
 // LogMessage logs a message from python through the agent logger (see
 // https://docs.python.org/2.7/library/logging.html#logging-levels)
+//
 //export LogMessage
 func LogMessage(message *C.char, logLevel C.int) {
 	goMsg := C.GoString(message)
@@ -140,6 +147,7 @@ func LogMessage(message *C.char, logLevel C.int) {
 
 // SetExternalTags adds a set of tags for a given hostname to the External Host
 // Tags metadata provider cache.
+//
 //export SetExternalTags
 func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 	hname := C.GoString(hostname)
@@ -162,6 +170,7 @@ func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
 // Indirectly used by the C function `set_check_metadata` that's mapped to `datadog_agent.set_check_metadata`.
+//
 //export SetCheckMetadata
 func SetCheckMetadata(checkID, name, value *C.char) {
 	cid := C.GoString(checkID)
@@ -173,6 +182,7 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 
 // WritePersistentCache stores a value for one check instance
 // Indirectly used by the C function `write_persistent_cache` that's mapped to `datadog_agent.write_persistent_cache`.
+//
 //export WritePersistentCache
 func WritePersistentCache(key, value *C.char) {
 	keyName := C.GoString(key)
@@ -182,6 +192,7 @@ func WritePersistentCache(key, value *C.char) {
 
 // ReadPersistentCache retrieves a value for one check instance
 // Indirectly used by the C function `read_persistent_cache` that's mapped to `datadog_agent.read_persistent_cache`.
+//
 //export ReadPersistentCache
 func ReadPersistentCache(key *C.char) *C.char {
 	keyName := C.GoString(key)
@@ -244,6 +255,7 @@ type sqlConfig struct {
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
 // fails. An optional configuration may be passed to change the behavior of the obfuscator.
+//
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	optStr := C.GoString(opts)
@@ -287,6 +299,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 
 // ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the
 // operation fails
+//
 //export ObfuscateSQLExecPlan
 func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char) *C.char {
 	obfuscatedJSONPlan, err := lazyInitObfuscator().ObfuscateSQLExecPlan(

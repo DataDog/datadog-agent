@@ -11,6 +11,8 @@ package cgroups
 import (
 	"strconv"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func (c *cgroupV1) GetCPUStats(stats *CPUStats) error {
@@ -65,7 +67,7 @@ func (c *cgroupV1) parseCPUController(stats *CPUStats) {
 
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("cpu", "cpu.cfs_period_us"), &stats.SchedulerPeriod); err == nil {
 		if stats.SchedulerPeriod != nil {
-			stats.SchedulerPeriod = uint64Ptr(*stats.SchedulerPeriod * uint64(time.Microsecond))
+			stats.SchedulerPeriod = pointer.Ptr(*stats.SchedulerPeriod * uint64(time.Microsecond))
 		}
 	} else {
 		reportError(err)
@@ -74,7 +76,7 @@ func (c *cgroupV1) parseCPUController(stats *CPUStats) {
 	var tempValue *int64
 	if err := parseSingleSignedStat(c.fr, c.pathFor("cpu", "cpu.cfs_quota_us"), &tempValue); err == nil {
 		if tempValue != nil && *tempValue != -1 {
-			stats.SchedulerQuota = uint64Ptr(uint64(*tempValue) * uint64(time.Microsecond))
+			stats.SchedulerQuota = pointer.Ptr(uint64(*tempValue) * uint64(time.Microsecond))
 		}
 	} else {
 		reportError(err)
@@ -116,9 +118,9 @@ func parseV1CPUAcctStatFn(stats *CPUStats) func(key, val string) error {
 
 		switch key {
 		case "user":
-			stats.User = uint64Ptr(intVal * UserHZToNano)
+			stats.User = pointer.Ptr(intVal * UserHZToNano)
 		case "system":
-			stats.System = uint64Ptr(intVal * UserHZToNano)
+			stats.System = pointer.Ptr(intVal * UserHZToNano)
 		}
 
 		return nil

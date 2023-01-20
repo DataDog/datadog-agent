@@ -276,50 +276,54 @@ type AgentSecureClient interface {
 	// subscribes to added, removed, or changed entities in the Tagger
 	// and streams them to clients as events.
 	// can be called through the HTTP gateway, and events will be streamed as JSON:
-	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
-	//   {
-	//    "result": {
-	//        "entity": {
-	//            "id": {
-	//                "prefix": "kubernetes_pod_uid",
-	//                "uid": "4025461f832caf3fceb7fc2a32f879c6"
-	//            },
-	//            "hash": "cad4fc8fc409fcc1",
-	//            "lowCardinalityTags": [
-	//                "kube_namespace:kube-system",
-	//                "pod_phase:running"
-	//            ]
-	//        }
-	//    }
-	//}
+	//
+	//	  $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	     -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
+	//	  {
+	//	   "result": {
+	//	       "entity": {
+	//	           "id": {
+	//	               "prefix": "kubernetes_pod_uid",
+	//	               "uid": "4025461f832caf3fceb7fc2a32f879c6"
+	//	           },
+	//	           "hash": "cad4fc8fc409fcc1",
+	//	           "lowCardinalityTags": [
+	//	               "kube_namespace:kube-system",
+	//	               "pod_phase:running"
+	//	           ]
+	//	       }
+	//	   }
+	//	}
 	TaggerStreamEntities(ctx context.Context, in *StreamTagsRequest, opts ...grpc.CallOption) (AgentSecure_TaggerStreamEntitiesClient, error)
 	// fetches an entity from the Tagger with the desired cardinality tags.
 	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//   $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k -H "Content-Type: application/json" \
-	//      --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-	//      https://localhost:5001/v1/grpc/tagger/fetch_entity
-	//   {
-	//    "id": {
-	//        "prefix": "kubernetes_pod_uid",
-	//        "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
-	//    },
-	//    "tags": [
-	//        "kube_namespace:kube-system",
-	//        "pod_phase:running",
-	//        "kube_deployment:coredns",
-	//        "kube_service:kube-dns"
-	//    ]
-	//}
+	//
+	//	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	     -XPOST -k -H "Content-Type: application/json" \
+	//	     --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
+	//	     https://localhost:5001/v1/grpc/tagger/fetch_entity
+	//	  {
+	//	   "id": {
+	//	       "prefix": "kubernetes_pod_uid",
+	//	       "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
+	//	   },
+	//	   "tags": [
+	//	       "kube_namespace:kube-system",
+	//	       "pod_phase:running",
+	//	       "kube_deployment:coredns",
+	//	       "kube_service:kube-dns"
+	//	   ]
+	//	}
 	TaggerFetchEntity(ctx context.Context, in *FetchEntityRequest, opts ...grpc.CallOption) (*FetchEntityResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
 	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//      TODO: add the curl code here
+	//
+	//	TODO: add the curl code here
 	DogstatsdCaptureTrigger(ctx context.Context, in *CaptureTriggerRequest, opts ...grpc.CallOption) (*CaptureTriggerResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
 	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//      TODO: add the curl code here
+	//
+	//	TODO: add the curl code here
 	DogstatsdSetTaggerState(ctx context.Context, in *TaggerState, opts ...grpc.CallOption) (*TaggerStateResponse, error)
 	ClientGetConfigs(ctx context.Context, in *ClientGetConfigsRequest, opts ...grpc.CallOption) (*ClientGetConfigsResponse, error)
 	GetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
@@ -327,18 +331,23 @@ type AgentSecureClient interface {
 	// streams them to clients as events.
 	// Can be called through the HTTP gateway, and events will be streamed as JSON.
 	// Example call that receives all the events:
-	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
+	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	   -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
 	// Example call that receives only unset events:
-	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k -H "Content-Type: application/json" \
-	//      --data '{"filter":{"eventType":2}}' \
-	//      https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
+	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	   -XPOST -k -H "Content-Type: application/json" \
+	//	   --data '{"filter":{"eventType":2}}' \
+	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
 	// Example call that receives only from the cluster orchestrator:
-	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k -H "Content-Type: application/json" \
-	//      --data '{"filter":{"source":3}}' \
-	//      https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
+	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	   -XPOST -k -H "Content-Type: application/json" \
+	//	   --data '{"filter":{"source":3}}' \
+	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
 	WorkloadmetaStreamEntities(ctx context.Context, in *WorkloadmetaStreamRequest, opts ...grpc.CallOption) (AgentSecure_WorkloadmetaStreamEntitiesClient, error)
 }
 
@@ -464,50 +473,54 @@ type AgentSecureServer interface {
 	// subscribes to added, removed, or changed entities in the Tagger
 	// and streams them to clients as events.
 	// can be called through the HTTP gateway, and events will be streamed as JSON:
-	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
-	//   {
-	//    "result": {
-	//        "entity": {
-	//            "id": {
-	//                "prefix": "kubernetes_pod_uid",
-	//                "uid": "4025461f832caf3fceb7fc2a32f879c6"
-	//            },
-	//            "hash": "cad4fc8fc409fcc1",
-	//            "lowCardinalityTags": [
-	//                "kube_namespace:kube-system",
-	//                "pod_phase:running"
-	//            ]
-	//        }
-	//    }
-	//}
+	//
+	//	  $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	     -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
+	//	  {
+	//	   "result": {
+	//	       "entity": {
+	//	           "id": {
+	//	               "prefix": "kubernetes_pod_uid",
+	//	               "uid": "4025461f832caf3fceb7fc2a32f879c6"
+	//	           },
+	//	           "hash": "cad4fc8fc409fcc1",
+	//	           "lowCardinalityTags": [
+	//	               "kube_namespace:kube-system",
+	//	               "pod_phase:running"
+	//	           ]
+	//	       }
+	//	   }
+	//	}
 	TaggerStreamEntities(*StreamTagsRequest, AgentSecure_TaggerStreamEntitiesServer) error
 	// fetches an entity from the Tagger with the desired cardinality tags.
 	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//   $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k -H "Content-Type: application/json" \
-	//      --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-	//      https://localhost:5001/v1/grpc/tagger/fetch_entity
-	//   {
-	//    "id": {
-	//        "prefix": "kubernetes_pod_uid",
-	//        "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
-	//    },
-	//    "tags": [
-	//        "kube_namespace:kube-system",
-	//        "pod_phase:running",
-	//        "kube_deployment:coredns",
-	//        "kube_service:kube-dns"
-	//    ]
-	//}
+	//
+	//	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	     -XPOST -k -H "Content-Type: application/json" \
+	//	     --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
+	//	     https://localhost:5001/v1/grpc/tagger/fetch_entity
+	//	  {
+	//	   "id": {
+	//	       "prefix": "kubernetes_pod_uid",
+	//	       "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
+	//	   },
+	//	   "tags": [
+	//	       "kube_namespace:kube-system",
+	//	       "pod_phase:running",
+	//	       "kube_deployment:coredns",
+	//	       "kube_service:kube-dns"
+	//	   ]
+	//	}
 	TaggerFetchEntity(context.Context, *FetchEntityRequest) (*FetchEntityResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
 	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//      TODO: add the curl code here
+	//
+	//	TODO: add the curl code here
 	DogstatsdCaptureTrigger(context.Context, *CaptureTriggerRequest) (*CaptureTriggerResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
 	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//      TODO: add the curl code here
+	//
+	//	TODO: add the curl code here
 	DogstatsdSetTaggerState(context.Context, *TaggerState) (*TaggerStateResponse, error)
 	ClientGetConfigs(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error)
 	GetConfigState(context.Context, *empty.Empty) (*GetStateConfigResponse, error)
@@ -515,18 +528,23 @@ type AgentSecureServer interface {
 	// streams them to clients as events.
 	// Can be called through the HTTP gateway, and events will be streamed as JSON.
 	// Example call that receives all the events:
-	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
+	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	   -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
 	// Example call that receives only unset events:
-	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k -H "Content-Type: application/json" \
-	//      --data '{"filter":{"eventType":2}}' \
-	//      https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
+	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	   -XPOST -k -H "Content-Type: application/json" \
+	//	   --data '{"filter":{"eventType":2}}' \
+	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
 	// Example call that receives only from the cluster orchestrator:
-	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//      -XPOST -k -H "Content-Type: application/json" \
-	//      --data '{"filter":{"source":3}}' \
-	//      https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//
+	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//	   -XPOST -k -H "Content-Type: application/json" \
+	//	   --data '{"filter":{"source":3}}' \
+	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
 	WorkloadmetaStreamEntities(*WorkloadmetaStreamRequest, AgentSecure_WorkloadmetaStreamEntitiesServer) error
 }
 

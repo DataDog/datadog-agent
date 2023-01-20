@@ -494,7 +494,7 @@ def test(
                 # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
                 # here, in system-probe.py, and in libs/pipeline_notifications.py
                 # We should have some common result.json parsing lib.
-                with open(module_test_result.result_json_path) as tf:
+                with open(module_test_result.result_json_path, encoding="utf-8") as tf:
                     for line in tf:
                         json_test = json.loads(line.strip())
                         # This logic assumes that the lines in result.json are "in order", i.e. that retries

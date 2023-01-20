@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/libnetwork/resolvconf"
+	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"

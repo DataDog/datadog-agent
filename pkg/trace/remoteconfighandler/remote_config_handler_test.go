@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,7 +52,7 @@ func TestPrioritySampler(t *testing.T) {
 
 	payload := apmsampling.SamplerConfig{
 		AllEnvs: apmsampling.SamplerEnvConfig{
-			PrioritySamplerTargetTPS: floatPointer(42),
+			PrioritySamplerTargetTPS: pointer.Ptr(42.0),
 		},
 	}
 
@@ -81,7 +82,7 @@ func TestErrorsSampler(t *testing.T) {
 
 	payload := apmsampling.SamplerConfig{
 		AllEnvs: apmsampling.SamplerEnvConfig{
-			ErrorsSamplerTargetTPS: floatPointer(42),
+			ErrorsSamplerTargetTPS: pointer.Ptr(42.0),
 		},
 	}
 
@@ -111,7 +112,7 @@ func TestRareSampler(t *testing.T) {
 
 	payload := apmsampling.SamplerConfig{
 		AllEnvs: apmsampling.SamplerEnvConfig{
-			RareSamplerEnabled: boolPointer(false),
+			RareSamplerEnabled: pointer.Ptr(false),
 		},
 	}
 
@@ -141,16 +142,16 @@ func TestEnvPrecedence(t *testing.T) {
 
 	payload := apmsampling.SamplerConfig{
 		AllEnvs: apmsampling.SamplerEnvConfig{
-			PrioritySamplerTargetTPS: floatPointer(42),
-			ErrorsSamplerTargetTPS:   floatPointer(42),
-			RareSamplerEnabled:       boolPointer(true),
+			PrioritySamplerTargetTPS: pointer.Ptr(42.0),
+			ErrorsSamplerTargetTPS:   pointer.Ptr(42.0),
+			RareSamplerEnabled:       pointer.Ptr(true),
 		},
 		ByEnv: []apmsampling.EnvAndConfig{{
 			Env: "agent-env",
 			Config: apmsampling.SamplerEnvConfig{
-				PrioritySamplerTargetTPS: floatPointer(43),
-				ErrorsSamplerTargetTPS:   floatPointer(43),
-				RareSamplerEnabled:       boolPointer(false),
+				PrioritySamplerTargetTPS: pointer.Ptr(43.0),
+				ErrorsSamplerTargetTPS:   pointer.Ptr(43.0),
+				RareSamplerEnabled:       pointer.Ptr(false),
 			},
 		}},
 	}
@@ -167,12 +168,4 @@ func TestEnvPrecedence(t *testing.T) {
 	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
 	ctrl.Finish()
-}
-
-func floatPointer(f float64) *float64 {
-	return &f
-}
-
-func boolPointer(b bool) *bool {
-	return &b
 }

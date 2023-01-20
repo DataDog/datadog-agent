@@ -133,7 +133,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		},
 		AgentConfiguration: &model.AgentConfiguration{
 			NpmEnabled: false,
-			TsmEnabled: false,
+			UsmEnabled: false,
 		},
 		Tags: network.GetStaticTags(1),
 	}
@@ -521,7 +521,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 		},
 		AgentConfiguration: &model.AgentConfiguration{
 			NpmEnabled: false,
-			TsmEnabled: false,
+			UsmEnabled: false,
 		},
 	}
 

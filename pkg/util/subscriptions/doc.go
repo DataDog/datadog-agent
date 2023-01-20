@@ -16,7 +16,7 @@
 // See the components documentation (doc/components) for more detailed usage
 // information.
 //
-// Warning
+// # Warning
 //
 // This package is not intended for high-bandwidth messaging such as metric
 // samples.  It use should be limited to events that occur on a per-second

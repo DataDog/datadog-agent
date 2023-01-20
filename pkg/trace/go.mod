@@ -15,6 +15,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.42.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
@@ -85,5 +86,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
 )

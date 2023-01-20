@@ -83,7 +83,7 @@ func (serie Serie) String() string {
 
 // PopulateDeviceField removes any `device:` tag in the series tags and uses the value to
 // populate the Serie.Device field
-//FIXME(olivier v): remove this as soon as the v1 API can handle `device` as a regular tag
+// FIXME(olivier v): remove this as soon as the v1 API can handle `device` as a regular tag
 func (serie *Serie) PopulateDeviceField() {
 	if !serie.hasDeviceTag() {
 		return

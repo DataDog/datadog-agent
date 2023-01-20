@@ -46,10 +46,6 @@ type OTLP struct {
 	// BindHost specifies the host to bind the receiver to.
 	BindHost string `mapstructure:"-"`
 
-	// HTTPPort specifies the port to use for the plain HTTP receiver.
-	// If unset (or 0), the receiver will be off.
-	HTTPPort int `mapstructure:"http_port"`
-
 	// GRPCPort specifies the port to use for the plain HTTP receiver.
 	// If unset (or 0), the receiver will be off.
 	GRPCPort int `mapstructure:"grpc_port"`

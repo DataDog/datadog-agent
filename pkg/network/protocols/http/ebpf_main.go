@@ -142,20 +142,24 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	subprogramProbesResolvers := make([]probeResolver, 0, 2)
-	subprograms := make([]subprogram, 0, 2)
+	subprogramProbesResolvers := make([]probeResolver, 0, 3)
+	subprograms := make([]subprogram, 0, 3)
 
 	goTLSProg := newGoTLSProgram(c)
 	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
 	if goTLSProg != nil {
 		subprograms = append(subprograms, goTLSProg)
 	}
+	javaTLSProg := newJavaTLSProgram(c)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, javaTLSProg)
+	if javaTLSProg != nil {
+		subprograms = append(subprograms, javaTLSProg)
+	}
 	openSSLProg := newSSLProgram(c, sockFD)
 	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
 	if openSSLProg != nil {
 		subprograms = append(subprograms, openSSLProg)
 	}
-
 	program := &ebpfProgram{
 		Manager:         errtelemetry.NewManager(mgr, bpfTelemetry),
 		bytecode:        bc,

@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    To reduce "cluster-agent" memory consomption when `cluster_agent.collect_kubernetes_tags`
+    option is enabled, we introduce `cluster_agent.kubernetes_resources_collection.pod_annotations_exclude` option
+    to exclude Pod annotation from the extracted Pod metadata.

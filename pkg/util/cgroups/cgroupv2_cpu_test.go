@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -65,21 +67,21 @@ func TestCgroupV2CPUStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Empty(t, cmp.Diff(CPUStats{
-		User:             uint64Ptr(3569637760 * uint64(time.Microsecond)),
-		System:           uint64Ptr(2047009667 * uint64(time.Microsecond)),
-		Total:            uint64Ptr(5616647428 * uint64(time.Microsecond)),
-		Shares:           uint64Ptr(16),
-		ElapsedPeriods:   uint64Ptr(0),
-		ThrottledPeriods: uint64Ptr(0),
-		ThrottledTime:    uint64Ptr(0),
-		SchedulerPeriod:  uint64Ptr(100000 * uint64(time.Microsecond)),
-		SchedulerQuota:   uint64Ptr(40000 * uint64(time.Microsecond)),
-		CPUCount:         uint64Ptr(4),
+		User:             pointer.Ptr(3569637760 * uint64(time.Microsecond)),
+		System:           pointer.Ptr(2047009667 * uint64(time.Microsecond)),
+		Total:            pointer.Ptr(5616647428 * uint64(time.Microsecond)),
+		Shares:           pointer.Ptr(uint64(16)),
+		ElapsedPeriods:   pointer.Ptr(uint64(0)),
+		ThrottledPeriods: pointer.Ptr(uint64(0)),
+		ThrottledTime:    pointer.Ptr(uint64(0)),
+		SchedulerPeriod:  pointer.Ptr(100000 * uint64(time.Microsecond)),
+		SchedulerQuota:   pointer.Ptr(40000 * uint64(time.Microsecond)),
+		CPUCount:         pointer.Ptr(uint64(4)),
 		PSISome: PSIStats{
-			Avg10:  float64Ptr(42.64),
-			Avg60:  float64Ptr(43.72),
-			Avg300: float64Ptr(25.76),
-			Total:  uint64Ptr(114289003),
+			Avg10:  pointer.Ptr(42.64),
+			Avg60:  pointer.Ptr(43.72),
+			Avg300: pointer.Ptr(25.76),
+			Total:  pointer.Ptr(uint64(114289003)),
 		},
 	}, *stats))
 
@@ -91,20 +93,20 @@ func TestCgroupV2CPUStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, len(tr.errors), 1)
 	assert.Empty(t, cmp.Diff(CPUStats{
-		User:             uint64Ptr(3569637760 * uint64(time.Microsecond)),
-		System:           uint64Ptr(2047009667 * uint64(time.Microsecond)),
-		Total:            uint64Ptr(5616647428 * uint64(time.Microsecond)),
-		Shares:           uint64Ptr(16),
-		ElapsedPeriods:   uint64Ptr(0),
-		ThrottledPeriods: uint64Ptr(0),
-		ThrottledTime:    uint64Ptr(0),
-		SchedulerPeriod:  uint64Ptr(100000 * uint64(time.Microsecond)),
-		SchedulerQuota:   uint64Ptr(40000 * uint64(time.Microsecond)),
+		User:             pointer.Ptr(3569637760 * uint64(time.Microsecond)),
+		System:           pointer.Ptr(2047009667 * uint64(time.Microsecond)),
+		Total:            pointer.Ptr(5616647428 * uint64(time.Microsecond)),
+		Shares:           pointer.Ptr(uint64(16)),
+		ElapsedPeriods:   pointer.Ptr(uint64(0)),
+		ThrottledPeriods: pointer.Ptr(uint64(0)),
+		ThrottledTime:    pointer.Ptr(uint64(0)),
+		SchedulerPeriod:  pointer.Ptr(100000 * uint64(time.Microsecond)),
+		SchedulerQuota:   pointer.Ptr(40000 * uint64(time.Microsecond)),
 		PSISome: PSIStats{
-			Avg10:  float64Ptr(42.64),
-			Avg60:  float64Ptr(43.72),
-			Avg300: float64Ptr(25.76),
-			Total:  uint64Ptr(114289003),
+			Avg10:  pointer.Ptr(42.64),
+			Avg60:  pointer.Ptr(43.72),
+			Avg300: pointer.Ptr(25.76),
+			Total:  pointer.Ptr(uint64(114289003)),
 		},
 	}, *stats))
 }
@@ -122,7 +124,7 @@ func TestParseV2CPUStat(t *testing.T) {
 			inputKey: "usage_usec",
 			inputVal: "100",
 			want: &CPUStats{
-				Total: uint64Ptr(100000),
+				Total: pointer.Ptr(uint64(100000)),
 			},
 			wantErr: nil,
 		},
@@ -165,7 +167,7 @@ func TestParseV2CPUMax(t *testing.T) {
 			inputKey: "max",
 			inputVal: "100",
 			want: &CPUStats{
-				SchedulerPeriod: uint64Ptr(100000),
+				SchedulerPeriod: pointer.Ptr(uint64(100000)),
 			},
 			wantErr: nil,
 		},
@@ -181,7 +183,7 @@ func TestParseV2CPUMax(t *testing.T) {
 			inputKey: "foo",
 			inputVal: "1000",
 			want: &CPUStats{
-				SchedulerPeriod: uint64Ptr(1000000),
+				SchedulerPeriod: pointer.Ptr(uint64(1000000)),
 			},
 			wantErr: strconv.ErrSyntax,
 		},
