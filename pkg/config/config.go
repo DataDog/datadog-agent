@@ -1581,6 +1581,8 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 9:  network devices snmp traps (unused)
 	// port_range_start + 10: instrumentation telemetry
 	// port_range_start + 11: appsec events (unused)
+	// port_range_start + 12: orchestrator explorer
+	// port_range_start + 13: runtime security
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
@@ -1600,6 +1602,8 @@ func setupFipsEndpoints(config Config) error {
 		networkDevicesSnmpTraps    = 9
 		instrumentationTelemetry   = 10
 		appsecEvents               = 11
+		orchestratorExplorer       = 12
+		runtimeSecurity            = 13
 	)
 
 	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
@@ -1629,6 +1633,9 @@ func setupFipsEndpoints(config Config) error {
 	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics))
 
+	// Logs
+	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
@@ -1638,14 +1645,6 @@ func setupFipsEndpoints(config Config) error {
 	// Processes
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
 
-	// Logs
-	config.Set("logs_config.use_http", true)
-	config.Set("logs_config.logs_no_ssl", true)
-	if config.GetBool("fips.https") {
-		config.Set("logs_config.logs_no_ssl", false)
-	}
-	config.Set("logs_config.logs_dd_url", urlFor(logs))
-
 	// Database monitoring
 	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
 	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics))
@@ -1654,7 +1653,19 @@ func setupFipsEndpoints(config Config) error {
 	// Network devices
 	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
 
+	// Orchestrator Explorer
+	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))
+
+	// CWS
+	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+
 	return nil
+}
+
+func setupFipsLogsConfig(config Config, configPrefix string, url string) {
+	config.Set(configPrefix+"use_http", true)
+	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
+	config.Set(configPrefix+"logs_dd_url", url)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
