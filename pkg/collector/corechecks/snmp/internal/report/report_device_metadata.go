@@ -308,7 +308,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		localInterfaceIDType, localInterfaceID = resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
 
 		// remEntryUniqueID: The combination of localPortNum and lldpRemIndex is expected to be unique for each entry in
-		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it's can change often.
+		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
 		remEntryUniqueID := localPortNum + "." + lldpRemIndex
 
 		newLink := metadata.TopologyLinkMetadata{
