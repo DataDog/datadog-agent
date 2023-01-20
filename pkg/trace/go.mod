@@ -32,7 +32,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.0.0-rc2
 	go.opentelemetry.io/collector/semconv v0.68.0
 	go.uber.org/atomic v1.10.0
-	golang.org/x/sys v0.3.0
+	golang.org/x/sys v0.4.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.51.0
 	k8s.io/apimachinery v0.23.8
