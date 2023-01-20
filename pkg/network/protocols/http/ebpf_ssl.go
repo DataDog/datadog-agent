@@ -219,9 +219,8 @@ var gnuTLSProbes = []manager.ProbesSelector{
 }
 
 const (
-	sslSockByCtxMap              = "ssl_sock_by_ctx"
-	dispatcherConnectionProtocol = "dispatcher_connection_protocol"
-	sharedLibrariesPerfMap       = "shared_libraries"
+	sslSockByCtxMap        = "ssl_sock_by_ctx"
+	sharedLibrariesPerfMap = "shared_libraries"
 )
 
 type ebpfSectionFunction struct {
@@ -293,11 +292,6 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
-		MaxEntries: uint32(o.cfg.MaxTrackedConnections),
-		EditorFlag: manager.EditMaxEntries,
-	}
-	options.MapSpecEditors[dispatcherConnectionProtocol] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: uint32(o.cfg.MaxTrackedConnections),
 		EditorFlag: manager.EditMaxEntries,

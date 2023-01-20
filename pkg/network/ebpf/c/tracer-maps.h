@@ -1,6 +1,7 @@
 #ifndef __TRACER_MAPS_H
 #define __TRACER_MAPS_H
 
+#include "tracer-shared-maps.h"
 #include "map-defs.h"
 #include "tracer.h"
 #include "bpf_helpers.h"

@@ -35,9 +35,10 @@ import (
 )
 
 const (
-	offsetsDataMap    = "offsets_data"
-	goTLSReadArgsMap  = "go_tls_read_args"
-	goTLSWriteArgsMap = "go_tls_write_args"
+	offsetsDataMap            = "offsets_data"
+	goTLSReadArgsMap          = "go_tls_read_args"
+	goTLSWriteArgsMap         = "go_tls_write_args"
+	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
 )
 
 type uprobeInfo struct {
@@ -198,7 +199,7 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 }
 
 func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
-	options.MapSpecEditors["conn_tup_by_go_tls_conn"] = manager.MapSpecEditor{
+	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
 		EditorFlag: manager.EditMaxEntries,
