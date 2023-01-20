@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && kubeapiserver
-// +build !windows,kubeapiserver
-
-package check
+package start
 
 import (
 	"testing"
@@ -18,44 +15,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestCommands(t *testing.T) {
+func TestCommand(t *testing.T) {
 	tests := []struct {
 		name     string
 		cliInput []string
-		check    func(cliParams *CliParams, params core.BundleParams)
+		check    func(cliParams *cliParams, params core.BundleParams)
 	}{
 		{
-			name:     "check",
-			cliInput: []string{"check"},
-			check: func(cliParams *CliParams, params core.BundleParams) {
+			name:     "start",
+			cliInput: []string{"start"},
+			check: func(cliParams *cliParams, params core.BundleParams) {
+				// Verify logger defaults
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
-				require.Equal(t, "info", params.LogLevelFn(nil), "params.LogLevelFn not matching")
+				require.Equal(t, "info", params.LogLevelFn(nil), "log level not matching")
 			},
 		},
 		{
-			name:     "verbose",
-			cliInput: []string{"check", "--verbose"},
-			check: func(cliParams *CliParams, params core.BundleParams) {
+			name:     "pidfile",
+			cliInput: []string{"start", "--pidfile", "/pid/file"},
+			check: func(cliParams *cliParams, params core.BundleParams) {
+				// Verify logger defaults
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
-				require.Equal(t, "trace", params.LogLevelFn(nil), "params.LogLevelFn not matching")
+				require.Equal(t, "info", params.LogLevelFn(nil), "log level not matching")
+				require.Equal(t, "/pid/file", cliParams.pidfilePath, "PID file path not matching")
 			},
 		},
 	}
 
 	for _, test := range tests {
 		fxutil.TestOneShotSubcommand(t,
-			SecurityAgentCommands(&command.GlobalParams{}),
+			Commands(&command.GlobalParams{}),
 			test.cliInput,
-			RunCheck,
+			start,
 			test.check,
 		)
-
-		// TODO:
-		//fxutil.TestOneShotSubcommand(t,
-		//	ClusterAgentCommands(&core.BundleParams{}),
-		//	test.cliInput,
-		//	RunCheck,
-		//	test.check,
-		//)
 	}
 }
