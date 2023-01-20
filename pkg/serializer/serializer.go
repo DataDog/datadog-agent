@@ -29,6 +29,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/gogo/protobuf/proto"
+	googleproto "google.golang.org/protobuf/proto"
 )
 
 const (
@@ -509,7 +510,7 @@ func (s *Serializer) SendContainerImage(msgs []ContainerImageMessage, hostname s
 
 	for i := range msgs {
 		msgs[i].Host = hostname
-		encoded, err := proto.Marshal(&msgs[i])
+		encoded, err := googleproto.Marshal(&msgs[i])
 		if err != nil {
 			return log.Errorf("Unable to encode message: %+v", err)
 		}
@@ -545,7 +546,7 @@ func (s *Serializer) SendSBOM(msgs []SBOMMessage, hostname string) error {
 
 	for i := range msgs {
 		msgs[i].Host = hostname
-		encoded, err := proto.Marshal(&msgs[i])
+		encoded, err := googleproto.Marshal(&msgs[i])
 		if err != nil {
 			return log.Errorf("Unable to encode message: %+v", err)
 		}

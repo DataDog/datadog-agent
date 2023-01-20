@@ -4,11 +4,13 @@ go 1.18
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.42.0-rc.3
 	github.com/containerd/cgroups v1.0.4
 	github.com/google/go-cmp v0.5.8
 	github.com/karrick/godirwalk v1.17.0

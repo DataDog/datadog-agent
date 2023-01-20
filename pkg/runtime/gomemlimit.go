@@ -3,23 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
-// +build orchestrator
+//go:build !linux || !go1.19
 
-package k8s
+package runtime
 
-func boolPtr(v bool) *bool {
-	return &v
-}
+import (
+	"errors"
+)
 
-func int32Ptr(v int32) *int32 {
-	return &v
-}
-
-func int64Ptr(v int64) *int64 {
-	return &v
-}
-
-func strPtr(v string) *string {
-	return &v
+// SetGoMemLimit configures Go memory limit based on cgroups. Only supported on Linux.
+func SetGoMemLimit(isContainerized bool) error {
+	return errors.New("unsupported")
 }
