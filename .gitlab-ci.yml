@@ -785,6 +785,8 @@ workflow:
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*
       - .gitlab/functional_test/system_probe.yml
+      - test/new-e2e/systemProbe/**/*
+      - test/new-e2e/scenarios/systemProbe/**/*
     when: on_success
   - when: manual
     allow_failure: true
