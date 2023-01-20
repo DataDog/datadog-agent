@@ -17,6 +17,7 @@ import (
 
 	containerdUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/aquasecurity/trivy-db/pkg/db"
@@ -46,11 +47,6 @@ const (
 	ConfigFileAnalyzers = "config"
 	LicenseAnalyzers    = "license"
 )
-
-// Collector interface
-type Collector interface {
-	ScanContainerdImage(ctx context.Context, imageMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error)
-}
 
 // CollectorConfig allows to pass configuration
 type CollectorConfig struct {
