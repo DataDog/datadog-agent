@@ -6,7 +6,7 @@
 # modify the wheel build.
 
 name "snowflake-connector-python-py3"
-default_version "2.8.1"
+default_version "2.8.3"
 
 dependency "pip3"
 
