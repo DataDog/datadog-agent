@@ -150,7 +150,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
-	cfg.BindEnvAndSetDefault(join(spNS, "enable_go_tls_support"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_java_tls_support"), false)
 
