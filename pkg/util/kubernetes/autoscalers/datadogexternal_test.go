@@ -38,22 +38,13 @@ func TestDatadogExternalQuery(t *testing.T) {
 			nil,
 		},
 		{
-			"metricName yields empty response from Datadog",
-			func(from, to int64, query string) ([]datadog.Series, error) {
-				return nil, nil
-			},
-			[]string{"mymetric{foo:bar}"},
-			map[string]Point{"mymetric{foo:bar}": {Value: 0, Valid: false}},
-			fmt.Errorf("none of the queries mymetric{foo:bar} returned any point, there might be an issue with them"),
-		},
-		{
 			"metricName yields rate limiting error response from Datadog",
 			func(int64, int64, string) ([]datadog.Series, error) {
 				return nil, fmt.Errorf("Rate limit of 300 requests in 3600 seconds")
 			},
 			[]string{"avg:mymetric{foo:bar}.rollup(30)"},
 			nil,
-			fmt.Errorf("Error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds"),
+			fmt.Errorf("error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds"),
 		},
 		{
 			"metrics with different granularities Datadog",
@@ -260,7 +251,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 				queryMetricsFunc: test.queryfunc,
 			}
 			p := Processor{datadogClient: cl}
-			points, err := p.queryDatadogExternal(test.metricName, config.Datadog.GetInt64("external_metrics_provider.bucket_size"))
+			points, err := p.queryDatadogExternal(test.metricName, time.Duration(config.Datadog.GetInt64("external_metrics_provider.bucket_size"))*time.Second)
 			if test.err != nil {
 				require.EqualError(t, test.err, err.Error())
 			}

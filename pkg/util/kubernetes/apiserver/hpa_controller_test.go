@@ -125,13 +125,15 @@ func (h *fakeProcessor) UpdateExternalMetrics(emList map[string]custommetrics.Ex
 	}
 	return nil
 }
+
 func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
 	if h.processFunc != nil {
 		return h.processFunc(metrics)
 	}
 	return nil
 }
-func (h *fakeProcessor) QueryExternalMetric(queries []string) (map[string]autoscalers.Point, error) {
+
+func (h *fakeProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	return nil, nil
 }
 
@@ -289,7 +291,6 @@ func TestUpdate(t *testing.T) {
 			require.True(t, reflect.DeepEqual(m.Labels, map[string]string{"foo": "baz"}))
 		}
 	}
-
 }
 
 // TestAutoscalerController is an integration test of the AutoscalerController
