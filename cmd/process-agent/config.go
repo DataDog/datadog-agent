@@ -20,12 +20,12 @@ import (
 func getChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []checks.Check) {
 	rtChecksEnabled := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
-		checkCfg = append(checkCfg, checks.Process)
+		checkCfg = append(checkCfg, checks.NewProcessCheck())
 	} else {
 		if ddconfig.Datadog.GetBool("process_config.container_collection.enabled") && canAccessContainers {
-			checkCfg = append(checkCfg, checks.Container)
+			checkCfg = append(checkCfg, checks.NewContainerCheck())
 			if rtChecksEnabled {
-				checkCfg = append(checkCfg, checks.RTContainer)
+				checkCfg = append(checkCfg, checks.NewRTContainerCheck())
 			}
 		} else if !canAccessContainers {
 			_ = log.Warn("Disabled container check because no container environment detected (see list of detected features in `agent status`)")
@@ -35,25 +35,22 @@ func getChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []c
 			if ddconfig.IsECSFargate() {
 				log.Debug("Process discovery is not supported on ECS Fargate")
 			} else {
-				checkCfg = append(checkCfg, checks.ProcessDiscovery)
+				checkCfg = append(checkCfg, checks.NewProcessDiscoveryCheck())
 			}
 		}
 	}
 
 	if ddconfig.Datadog.GetBool("process_config.event_collection.enabled") {
-		checkCfg = append(checkCfg, checks.ProcessEvents)
+		checkCfg = append(checkCfg, checks.NewProcessEventsCheck())
 	}
 
 	if isOrchestratorCheckEnabled() {
-		checkCfg = append(checkCfg, checks.Pod)
+		checkCfg = append(checkCfg, checks.NewPodCheck())
 	}
 
 	if sysCfg.Enabled {
-		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-		_, checks.Process.SysprobeProcessModuleEnabled = sysCfg.EnabledModules[sysconfig.ProcessModule]
-
 		if _, ok := sysCfg.EnabledModules[sysconfig.NetworkTracerModule]; ok {
-			checkCfg = append(checkCfg, checks.Connections)
+			checkCfg = append(checkCfg, checks.NewConnectionsCheck())
 		}
 	}
 

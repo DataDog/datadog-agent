@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -96,16 +97,16 @@ func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) 
 
 func tagsFromHeaders(h http.Header) []string {
 	tags := []string{"endpoint_version:opentelemetry_grpc_v1"}
-	if v := fastHeaderGet(h, headerLang); v != "" {
+	if v := fastHeaderGet(h, header.Lang); v != "" {
 		tags = append(tags, "lang:"+v)
 	}
-	if v := fastHeaderGet(h, headerLangVersion); v != "" {
+	if v := fastHeaderGet(h, header.LangVersion); v != "" {
 		tags = append(tags, "lang_version:"+v)
 	}
-	if v := fastHeaderGet(h, headerLangInterpreter); v != "" {
+	if v := fastHeaderGet(h, header.LangInterpreter); v != "" {
 		tags = append(tags, "interpreter:"+v)
 	}
-	if v := fastHeaderGet(h, headerLangInterpreterVendor); v != "" {
+	if v := fastHeaderGet(h, header.LangInterpreterVendor); v != "" {
 		tags = append(tags, "lang_vendor:"+v)
 	}
 	return tags
@@ -133,7 +134,7 @@ func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, i
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header) source.Source {
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -156,21 +157,21 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
 	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
 	if lang == "" {
-		lang = fastHeaderGet(header, headerLang)
+		lang = fastHeaderGet(httpHeader, header.Lang)
 	}
 	containerID := rattr[string(semconv.AttributeContainerID)]
 	if containerID == "" {
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = o.cidProvider.GetContainerID(ctx, header)
+		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
 			Lang:            lang,
-			LangVersion:     fastHeaderGet(header, headerLangVersion),
-			Interpreter:     fastHeaderGet(header, headerLangInterpreter),
-			LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
+			LangVersion:     fastHeaderGet(httpHeader, header.LangVersion),
+			Interpreter:     fastHeaderGet(httpHeader, header.LangInterpreter),
+			LangVendor:      fastHeaderGet(httpHeader, header.LangInterpreterVendor),
 			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},

@@ -80,6 +80,9 @@ func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCh
 
 	cfg := &checks.SysProbeConfig{}
 	if syscfg != nil && syscfg.Enabled {
+		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+		_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
+		cfg.ProcessModuleEnabled = processModuleEnabled
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
@@ -120,47 +123,62 @@ func (l *Collector) runCheck(c checks.Check) {
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	messages, err := c.Run(l.nextGroupID())
+	result, err := c.Run(l.nextGroupID, nil)
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
+
+	if result == nil {
+		// Check returned nothing
+		return
+	}
+
 	if c.ShouldSaveLastRun() {
-		checks.StoreCheckOutput(c.Name(), messages)
+		checks.StoreCheckOutput(c.Name(), result.Payloads())
 	} else {
 		checks.StoreCheckOutput(c.Name(), nil)
 	}
 
-	l.submitter.Submit(start, c.Name(), messages)
+	l.submitter.Submit(start, c.Name(), result.Payloads())
 
-	if !c.RealTime() {
+	if !c.Realtime() {
 		logCheckDuration(c.Name(), start, runCounter)
 	}
 }
 
-func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, options checks.RunOptions) {
+func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOptions) {
 	start := time.Now()
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	run, err := c.RunWithOptions(l.nextGroupID, options)
+	result, err := c.Run(l.nextGroupID, options)
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	l.submitter.Submit(start, c.Name(), run.Standard)
+
+	if result == nil {
+		// Check returned nothing
+		return
+	}
+
+	l.submitter.Submit(start, c.Name(), result.Payloads())
 	if options.RunStandard {
 		// We are only updating the run counter for the standard check
 		// since RT checks are too frequent and we only log standard check
 		// durations
 		runCounter := l.nextRunCounter(c.Name())
-		checks.StoreCheckOutput(c.Name(), run.Standard)
+		checks.StoreCheckOutput(c.Name(), result.Payloads())
 		logCheckDuration(c.Name(), start, runCounter)
 	}
 
-	l.submitter.Submit(start, c.RealTimeName(), run.RealTime)
-	if options.RunRealTime {
-		checks.StoreCheckOutput(c.RealTimeName(), run.RealTime)
+	rtName := checks.RTName(c.Name())
+	rtPayloads := result.RealtimePayloads()
+
+	l.submitter.Submit(start, rtName, rtPayloads)
+	if options.RunRealtime {
+		checks.StoreCheckOutput(rtName, rtPayloads)
 	}
 }
 
@@ -217,8 +235,8 @@ func (l *Collector) run(exit chan struct{}) error {
 
 		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
 		// process_rt doesn't show up in the enabled checks
-		if check.Name() == checks.Process.Name() && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
-			checkNames = append(checkNames, checks.Process.RealTimeName())
+		if check.Name() == checks.ProcessCheckName && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+			checkNames = append(checkNames, checks.RTProcessCheckName)
 		}
 	}
 	updateEnabledChecks(checkNames)
@@ -261,22 +279,22 @@ func (l *Collector) run(exit chan struct{}) error {
 }
 
 func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), error) {
-	withRealTime, ok := c.(checks.CheckWithRealTime)
-	if !l.runRealTime || !ok {
+	if !l.runRealTime || !c.SupportsRunOptions() {
 		return l.basicRunner(c, exit), nil
 	}
 
-	interval := checks.GetInterval(withRealTime.Name())
-	rtInterval := checks.GetInterval(withRealTime.RealTimeName())
+	rtName := checks.RTName(c.Name())
+	interval := checks.GetInterval(c.Name())
+	rtInterval := checks.GetInterval(rtName)
 
 	if interval < rtInterval || interval%rtInterval != 0 {
 		// Check interval must be greater or equal to realtime check interval and the intervals must be divisible
 		// in order to be run on the same goroutine
-		defaultInterval := checks.GetDefaultInterval(withRealTime.Name())
-		defaultRTInterval := checks.GetDefaultInterval(withRealTime.RealTimeName())
+		defaultInterval := checks.GetDefaultInterval(c.Name())
+		defaultRTInterval := checks.GetDefaultInterval(rtName)
 		log.Warnf(
 			"Invalid %s check interval overrides [%s,%s], resetting to defaults [%s,%s]",
-			withRealTime.Name(),
+			c.Name(),
 			interval,
 			rtInterval,
 			defaultInterval,
@@ -296,7 +314,7 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 				return l.realTimeEnabled.Load()
 			},
 			RunCheck: func(options checks.RunOptions) {
-				l.runCheckWithRealTime(withRealTime, options)
+				l.runCheckWithRealTime(c, &options)
 			},
 		},
 	)
@@ -305,7 +323,7 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 func (l *Collector) basicRunner(c checks.Check, exit chan struct{}) func() {
 	return func() {
 		// Run the check the first time to prime the caches.
-		if !c.RealTime() {
+		if !c.Realtime() {
 			l.runCheck(c)
 		}
 
@@ -314,13 +332,13 @@ func (l *Collector) basicRunner(c checks.Check, exit chan struct{}) func() {
 			select {
 			case <-ticker.C:
 				realTimeEnabled := l.runRealTime && l.realTimeEnabled.Load()
-				if !c.RealTime() || realTimeEnabled {
+				if !c.Realtime() || realTimeEnabled {
 					l.runCheck(c)
 				}
 			case d := <-l.rtIntervalCh:
 
 				// Live-update the ticker.
-				if c.RealTime() {
+				if c.Realtime() {
 					ticker.Stop()
 					ticker = time.NewTicker(d)
 				}
@@ -440,7 +458,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.Pod.Name(), checks.PodCheckManifestName, checks.ProcessEvents.Name():
+	case checks.PodCheckName, checks.PodCheckManifestName, checks.ProcessEventsCheckName:
 		return true
 	default:
 		return false

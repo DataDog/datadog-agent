@@ -10,8 +10,10 @@ package kprobe
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -56,6 +58,30 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	}
 
 	mgrOpts.DefaultKprobeAttachMethod = kprobeAttachMethod
+	mgrOptions := manager.Options{
+		// Extend RLIMIT_MEMLOCK (8) size
+		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
+		// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
+		// using bpf(2) with BPF_MAP_CREATE.
+		//
+		// We are setting the limit to infinity until we have a better handle on the true requirements.
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
+		},
+		MapSpecEditors: map[string]manager.MapSpecEditor{
+			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+
+			string(probes.ConnectionProtocolMap):             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConnectionTupleToSocketSKBConnMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+		},
+		ConstantEditors: constants,
+	}
 
 	runtimeTracer := false
 	var buf bytecode.AssetReader
@@ -92,16 +118,16 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	var closeProtocolClassifierSocketFilterFn func()
 	if ClassificationSupported(config) {
-		socketFilerProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
+		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
 			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
 			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
 			UID:          probeUID,
 		})
-		if socketFilerProbe == nil {
+		if socketFilterProbe == nil {
 			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
 		}
 
-		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilerProbe)
+		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilterProbe)
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}

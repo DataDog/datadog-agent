@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/gohai/platform"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -42,10 +43,10 @@ var (
 		AgentVersion:         version.AgentVersion,
 		CloudProvider:        "some_cloud_provider",
 		OsVersion:            "testOS",
-		HypervisorGuestUUID:  "",
-		DmiProductUUID:       "",
-		DmiBoardAssetTag:     "",
-		DmiBoardVendor:       "",
+		HypervisorGuestUUID:  "hypervisorUUID",
+		DmiProductUUID:       "dmiUUID",
+		DmiBoardAssetTag:     "boardTag",
+		DmiBoardVendor:       "boardVendor",
 	}
 )
 
@@ -100,35 +101,31 @@ func platformMock() (*platform.Platform, []string, error) {
 	}, nil, nil
 }
 
-func setupHostMetadataMock() func() {
-	reset := func() {
+func setupHostMetadataMock(t *testing.T) {
+	t.Cleanup(func() {
 		cpuGet = cpu.Get
 		memoryGet = memory.Get
 		networkGet = network.Get
 		platformGet = platform.Get
-		systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
 
 		inventoryMutex.Lock()
 		delete(agentMetadata, string(AgentCloudProvider))
 		delete(hostMetadata, string(HostOSVersion))
 		inventoryMutex.Unlock()
-	}
+	})
 
 	cpuGet = cpuMock
 	memoryGet = memoryMock
 	networkGet = networkMock
 	platformGet = platformMock
-	systemSpecificHosttMetadataGet = func(*HostMetadata) {}
+	dmi.SetupMock(t, "hypervisorUUID", "dmiUUID", "boardTag", "boardVendor")
 
 	SetAgentMetadata(AgentCloudProvider, "some_cloud_provider")
 	SetHostMetadata(HostOSVersion, "testOS")
-
-	return reset
 }
 
 func TestGetHostMetadata(t *testing.T) {
-	resetFunc := setupHostMetadataMock()
-	defer resetFunc()
+	setupHostMetadataMock(t)
 
 	m := getHostMetadata()
 	assert.Equal(t, expectedMetadata, m)
@@ -139,26 +136,23 @@ func memoryErrorMock() (*memory.Memory, []string, error)       { return nil, nil
 func networkErrorMock() (*network.Network, []string, error)    { return nil, nil, fmt.Errorf("err") }
 func platformErrorMock() (*platform.Platform, []string, error) { return nil, nil, fmt.Errorf("err") }
 
-func setupHostMetadataErrorMock() func() {
-	reset := func() {
+func setupHostMetadataErrorMock(t *testing.T) {
+	t.Cleanup(func() {
 		cpuGet = cpu.Get
 		memoryGet = memory.Get
 		networkGet = network.Get
 		platformGet = platform.Get
-		systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
-	}
+	})
 
 	cpuGet = cpuErrorMock
 	memoryGet = memoryErrorMock
 	networkGet = networkErrorMock
 	platformGet = platformErrorMock
-	systemSpecificHosttMetadataGet = func(*HostMetadata) {}
-	return reset
+	dmi.SetupMock(t, "", "", "", "")
 }
 
 func TestGetHostMetadataError(t *testing.T) {
-	resetFunc := setupHostMetadataErrorMock()
-	defer resetFunc()
+	setupHostMetadataErrorMock(t)
 
 	m := getHostMetadata()
 	expected := &HostMetadata{AgentVersion: version.AgentVersion}

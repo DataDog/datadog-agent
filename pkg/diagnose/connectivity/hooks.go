@@ -88,16 +88,17 @@ func (writer *connectivityHooks) connectDoneHook(network, addr string, err error
 
 // getConnHook is called before getting a new connection.
 // This is called before :
-// 		- Creating a new connection 		: getConnHook ---> connectStartHook
-//		- Retrieving an existing connection : getConnHook ---> gotConnHook
+//   - Creating a new connection 		: getConnHook ---> connectStartHook
+//   - Retrieving an existing connection : getConnHook ---> gotConnHook
 func (writer *connectivityHooks) getConnHook(hostPort string) {
 	fmt.Fprintf(writer.w, "=== Retrieving or creating a new connection ===\n")
 }
 
 // gotConnHook is called after a successful connection is obtained.
 // It can be called after :
-// 		- New connection created 		: connectDoneHook ---> gotDoneHook
-// 		- Previous connection retrieved : getConnHook     ---> gotConnHook
+//   - New connection created 		: connectDoneHook ---> gotDoneHook
+//   - Previous connection retrieved : getConnHook     ---> gotConnHook
+//
 // This function only displays when a connection is retrieved.
 // Information about new connection are reported by connectDoneHook
 func (writer *connectivityHooks) gotConnHook(gci httptrace.GotConnInfo) {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -59,7 +60,7 @@ func TestExtractPersistentVolumeClaim(t *testing.T) {
 						},
 					},
 					VolumeName:       "elasticsearch-volume",
-					StorageClassName: strPtr("gold"),
+					StorageClassName: pointer.Ptr("gold"),
 					VolumeMode:       &filesystem,
 					DataSource: &corev1.TypedLocalObjectReference{
 						Name: "srcpvc",

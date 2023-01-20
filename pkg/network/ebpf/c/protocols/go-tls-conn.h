@@ -37,7 +37,7 @@ static __always_inline int get_conn_fd(tls_conn_layout_t* cl, void* tls_conn_ptr
 }
 
 static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* pd, void* conn, uint64_t pid_tgid) {
-    conn_tuple_t* tup = bpf_map_lookup_elem(&conn_tup_by_tls_conn, &conn);
+    conn_tuple_t* tup = bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &conn);
     if (tup != NULL) {
         return tup;
     }
@@ -75,8 +75,8 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
         flip_tuple(&conn_tuple);
     }
 
-    bpf_map_update_elem(&conn_tup_by_tls_conn, &conn, &conn_tuple, BPF_ANY);
-    return bpf_map_lookup_elem(&conn_tup_by_tls_conn, &conn);
+    bpf_map_update_elem(&conn_tup_by_go_tls_conn, &conn, &conn_tuple, BPF_ANY);
+    return bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &conn);
 }
 
 #endif //__GO_TLS_CONN_H

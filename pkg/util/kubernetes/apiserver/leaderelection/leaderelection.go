@@ -9,6 +9,7 @@
 package leaderelection
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,11 +18,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
-
-	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -37,9 +37,7 @@ const (
 	getLeaderTimeout           = 10 * time.Second
 )
 
-var (
-	globalLeaderEngine *LeaderEngine
-)
+var globalLeaderEngine *LeaderEngine
 
 // LeaderEngine is a structure for the LeaderEngine client to run leader election
 // on Kubernetes clusters
@@ -56,6 +54,7 @@ type LeaderEngine struct {
 	LeaseName           string
 	LeaderNamespace     string
 	coreClient          corev1.CoreV1Interface
+	coordClient         coordinationv1.CoordinationV1Interface
 	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
@@ -138,7 +137,9 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	le.coreClient = apiClient.Cl.CoreV1().(*corev1.CoreV1Client)
+	le.coreClient = apiClient.Cl.CoreV1()
+	// Will be required once we migrate to Kubernetes deps >= 0.24
+	le.coordClient = nil
 
 	// check if we can get ConfigMap.
 	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})

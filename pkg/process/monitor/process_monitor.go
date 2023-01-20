@@ -60,7 +60,6 @@ type ProcessMonitor struct {
 	procEventCallbacks map[ProcessEventType][]*ProcessCallback
 	runningPids        map[uint32]interface{}
 	callbackRunner     chan func()
-	callbackRunnerDone chan struct{}
 }
 
 type ProcessEventType int
@@ -93,24 +92,27 @@ type ProcessCallback struct {
 // This monitor can monitor.Subscribe(callback, filter) callback on particular event
 // like process EXEC, EXIT. The callback will be called when the filter will match.
 // Filter can be applied on :
-//   process name (NAME)
-//   by default ANY is applied
+//
+//	process name (NAME)
+//	by default ANY is applied
 //
 // Typical initialization:
-//   mon := GetProcessMonitor()
-//   mon.Subscribe(callback)
-//   mon.Initialize()
+//
+//	mon := GetProcessMonitor()
+//	mon.Subscribe(callback)
+//	mon.Initialize()
 //
 // note: o GetProcessMonitor() will always return the same instance
-//         as we can only register once with netlink process event
-//       o mon.Subscribe() will subscribe callback before or after the Initialization
-//       o mon.Initialize() will scan current processes and call subscribed callback
 //
-//       o callback{Event: EXIT, Metadata: ANY}   callback is called for all exit events, system wide
-//       o callback{Event: EXIT, Metadata: NAME}  callback will be called if we seen the process Exec event,
-//                                                the metadata will be saved between Exec and Exit event per pid
-//                                                then the Exit callback will evaluate the same metadata on Exit.
-//                                                We need to save the metadata here as /proc/pid doesn't exist anymore.
+//	  as we can only register once with netlink process event
+//	o mon.Subscribe() will subscribe callback before or after the Initialization
+//	o mon.Initialize() will scan current processes and call subscribed callback
+//
+//	o callback{Event: EXIT, Metadata: ANY}   callback is called for all exit events, system wide
+//	o callback{Event: EXIT, Metadata: NAME}  callback will be called if we seen the process Exec event,
+//	                                         the metadata will be saved between Exec and Exit event per pid
+//	                                         then the Exit callback will evaluate the same metadata on Exit.
+//	                                         We need to save the metadata here as /proc/pid doesn't exist anymore.
 func GetProcessMonitor() *ProcessMonitor {
 	once.Do(func() {
 		processMonitor = &ProcessMonitor{
@@ -204,26 +206,19 @@ func (pm *ProcessMonitor) Initialize() error {
 
 	pm.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
 	pm.done = make(chan struct{})
-	pm.errors = make(chan error)
+	pm.errors = make(chan error, 10)
 
 	if err := netlink.ProcEventMonitor(pm.events, pm.done, pm.errors); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
 	}
 
-	pm.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
 	pm.callbackRunner = make(chan func(), runtime.NumCPU())
 	for i := 0; i < runtime.NumCPU(); i++ {
 		pm.wg.Add(1)
 		go func() {
 			defer pm.wg.Done()
-			for {
-				select {
-				case <-pm.callbackRunnerDone:
-					return
-				case call, ok := <-pm.callbackRunner:
-					if !ok {
-						continue
-					}
+			for call := range pm.callbackRunner {
+				if call != nil {
 					call()
 				}
 			}
@@ -237,12 +232,12 @@ func (pm *ProcessMonitor) Initialize() error {
 		defer func() {
 			log.Info("netlink process monitor ended")
 			pm.wg.Done()
+			close(pm.callbackRunner)
 		}()
 		for {
 			select {
 			case <-pm.done:
 				return
-
 			case event, ok := <-pm.events:
 				if !ok {
 					return
@@ -270,7 +265,7 @@ func (pm *ProcessMonitor) Initialize() error {
 				if !ok {
 					return
 				}
-				log.Errorf("process montior error: %s", err)
+				log.Errorf("process monitor error: %s", err)
 				pm.Stop()
 				return
 			}
@@ -297,9 +292,10 @@ func (pm *ProcessMonitor) Initialize() error {
 // will remove the previously registered callback from the list
 //
 // By design : 1/ a callback object can be registered only once
-//             2/ Exec callback with a Metadata (!=ANY) must be registred before the sibling Exit metadata,
-//                otherwise the Subscribe() will return an error as no metadata will be saved between Exec and Exit,
-//                please refer to GetProcessMonitor()
+//
+//	2/ Exec callback with a Metadata (!=ANY) must be registred before the sibling Exit metadata,
+//	   otherwise the Subscribe() will return an error as no metadata will be saved between Exec and Exit,
+//	   please refer to GetProcessMonitor()
 func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func(), err error) {
 	pm.m.Lock()
 	defer pm.m.Unlock()
@@ -346,15 +342,19 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 
 func (pm *ProcessMonitor) Stop() {
 	pm.m.Lock()
-	defer pm.m.Unlock()
-	pm.refcount--
-	if pm.refcount > 0 {
+	if pm.refcount == 0 {
+		pm.m.Unlock()
 		return
 	}
 
-	close(pm.callbackRunnerDone)
-	close(pm.done)
-	pm.wg.Wait()
+	pm.refcount--
+	if pm.refcount > 0 {
+		pm.m.Unlock()
+		return
+	}
 
 	pm.isInitialized = false
+	pm.m.Unlock()
+	close(pm.done)
+	pm.wg.Wait()
 }
