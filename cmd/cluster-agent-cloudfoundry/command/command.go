@@ -3,22 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && clusterchecks
-// +build !windows,clusterchecks
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
-// Package command implements the top-level `cluster-agent` binary, including its subcommands.
+// Package command implements the top-level `cluster-agent-cloudfoundry` binary, including its subcommands.
 package command
 
 import (
 	"fmt"
-	"os"
-
+	clustercheckscmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaconfigcheck"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 const (
-	LoggerName = "CLUSTER"
+	LoggerName      = "CLUSTER"
+	DefaultLogLevel = "off"
 )
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -50,6 +52,17 @@ once per cluster.`,
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog-agent.yaml")
 
+	agentCmd.AddCommand(clustercheckscmd.MakeCommand(func() clustercheckscmd.GlobalParams {
+		return clustercheckscmd.GlobalParams{
+			ConfFilePath: globalParams.ConfFilePath,
+		}
+	}))
+
+	agentCmd.AddCommand(dcaconfigcheck.MakeCommand(func() dcaconfigcheck.GlobalParams {
+		return dcaconfigcheck.GlobalParams{
+			ConfFilePath: globalParams.ConfFilePath,
+		}
+	}))
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.

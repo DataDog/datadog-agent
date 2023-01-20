@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && clusterchecks
-// +build !windows,clusterchecks
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
+
+// Package flare implements 'cluster-agent-cloudfoundry flare'.
 
 package flare
 

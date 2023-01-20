@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && clusterchecks
-// +build !windows,clusterchecks
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package run
 
@@ -12,8 +12,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -23,12 +27,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/gorilla/mux"
+	"github.com/spf13/cobra"
+
+	"go.uber.org/fx"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
+	"time"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent-cloudfoundry' command.
@@ -38,7 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the Cluster Agent for Cloud Foundry\"",
 		Long:  `Runs Datadog Cluster Agent for Cloud Foundry in the foreground`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(start,
+			return fxutil.OneShot(run,
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && clusterchecks
-// +build !windows,clusterchecks
+//go:build !windows && clusterchecks && kubeapiserver
+// +build !windows,clusterchecks,kubeapiserver
 
 //go:generate go run ../../pkg/config/render_config.go dcacf ../../pkg/config/config_template.yaml ../../cloudfoundry.yaml
 
