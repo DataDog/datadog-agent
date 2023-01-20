@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Agents are now built with Go ``1.19.4``.
+    Agents are now built with Go ``1.19.5``.
