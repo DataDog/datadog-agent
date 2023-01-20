@@ -13,23 +13,18 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
+	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/app/subcommands"
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/process-agent/commands/config"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -46,67 +41,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
-const loggerName ddconfig.LoggerName = "PROCESS"
-
-var opts struct {
-	configPath         string
-	sysProbeConfigPath string
-	pidfilePath        string
-	debug              bool
-	info               bool
-}
-
-var (
-	rootCmd = &cobra.Command{
-		Run:          rootCmdRun,
-		SilenceUsage: true,
-	}
-
-	configCommand = cmdconfig.Config(getSettingsClient)
-)
-
-func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
-	// Set up the config so we can get the port later
-	// We set this up differently from the main process-agent because this way is quieter
-	cfg := config.NewDefaultAgentConfig()
-	if opts.configPath != "" {
-		if err := config.LoadConfigIfExists(opts.configPath); err != nil {
-			return nil, err
-		}
-	}
-	err := cfg.LoadAgentConfig(opts.configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	httpClient := apiutil.GetClient(false)
-	ipcAddress, err := ddconfig.GetIPCAddress()
-
-	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
-	if port <= 0 {
-		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
-	}
-
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
-	if err != nil {
-		return nil, err
-	}
-	settingsClient := settingshttp.NewClient(httpClient, ipcAddressWithPort, "process-agent")
-	return settingsClient, nil
-}
-
-func init() {
-	rootCmd.AddCommand(configCommand, app.StatusCmd, app.CheckCmd, app.EventsCmd, app.TaggerCmd)
-
-	globalParams := command.GlobalParams{}
-
-	for _, factory := range subcommands.ProcessAgentSubcommands() {
-		for _, subcmd := range factory(&globalParams) {
-			rootCmd.AddCommand(subcmd)
-		}
-	}
-}
-
 const (
 	agent6DisabledMessage = `process-agent not enabled.
 Set env var DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true or add
@@ -117,22 +51,32 @@ to your datadog.yaml file.
 Exiting.`
 )
 
-func runAgent(exit chan struct{}) {
+// main is the main application entry point
+func main() {
+	os.Args = command.FixDeprecatedFlags(os.Args, os.Stdout)
+
+	rootCmd := command.MakeCommand(subcommands.ProcessAgentSubcommands(), useWinParams, rootCmdRun)
+	os.Exit(runcmd.Run(rootCmd))
+}
+
+func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	if err := ddutil.SetupCoreDump(); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if !opts.info && opts.pidfilePath != "" {
-		err := pidfile.WritePID(opts.pidfilePath)
+	cleanupAndExit := cleanupAndExitHandler(globalParams)
+
+	if !globalParams.Info && globalParams.PidFilePath != "" {
+		err := pidfile.WritePID(globalParams.PidFilePath)
 		if err != nil {
 			log.Errorf("Error while writing PID file, exiting: %v", err)
 			cleanupAndExit(1)
 		}
 
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), opts.pidfilePath)
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), globalParams.PidFilePath)
 		defer func() {
 			// remove pidfile if set
-			os.Remove(opts.pidfilePath)
+			os.Remove(globalParams.PidFilePath)
 		}()
 	}
 
@@ -140,25 +84,22 @@ func runAgent(exit chan struct{}) {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	if err := config.LoadConfigIfExists(opts.configPath); err != nil {
-		_ = log.Criticalf("Error parsing config: %s", err)
+	if err := command.BootstrapConfig(globalParams.ConfFilePath, false); err != nil {
+		_ = log.Critical(err)
 		cleanupAndExit(1)
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(opts.sysProbeConfigPath)
+	syscfg, err := sysconfig.Merge(globalParams.SysProbeConfFilePath)
 	if err != nil {
 		_ = log.Critical(err)
 		cleanupAndExit(1)
 	}
 
-	config.InitRuntimeSettings()
+	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+	_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
 
-	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, syscfg)
-	if err != nil {
-		log.Criticalf("Error parsing config: %s", err)
-		cleanupAndExit(1)
-	}
+	initRuntimeSettings()
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
@@ -169,8 +110,8 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// Now that the logger is configured log host info
-	hostInfo := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostInfo.Platform)
+	hostStatus := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostStatus.Platform)
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
@@ -207,18 +148,12 @@ func runAgent(exit chan struct{}) {
 	}
 	defer tagger.Stop() //nolint:errcheck
 
-	err = initInfo(cfg)
-	if err != nil {
-		log.Criticalf("Error initializing info: %s", err)
-		cleanupAndExit(1)
-	}
-
 	if err := statsd.Configure(ddconfig.GetBindHost(), ddconfig.Datadog.GetInt("dogstatsd_port")); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := getChecks(syscfg, cfg.Orchestrator, ddconfig.IsAnyContainerFeaturePresent())
+	enabledChecks := getChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
 
 	// Exit if agent is not enabled.
 	if len(enabledChecks) == 0 {
@@ -282,10 +217,23 @@ func runAgent(exit chan struct{}) {
 		expVarPort = ddconfig.DefaultProcessExpVarPort
 	}
 
-	if opts.info {
+	hostInfo, err := checks.CollectHostInfo()
+	if err != nil {
+		log.Criticalf("Error collecting host details: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+
+	err = initInfo(hostInfo.HostName, processModuleEnabled)
+	if err != nil {
+		log.Criticalf("Error initializing info: %s", err)
+		cleanupAndExit(1)
+	}
+
+	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
-		if err := Info(os.Stdout, cfg, url); err != nil {
+		if err := Info(os.Stdout, url); err != nil {
 			cleanupAndExit(1)
 		}
 		return
@@ -308,12 +256,19 @@ func runAgent(exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(cfg, enabledChecks)
+	cl, err := NewCollector(syscfg, hostInfo, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)
 		return
 	}
+	cl.submitter, err = NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
+	if err != nil {
+		log.Criticalf("Error creating checkSubmitter: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+
 	if err := cl.run(exit); err != nil {
 		log.Criticalf("Error starting collector: %s", err)
 		os.Exit(1)
@@ -328,15 +283,36 @@ func runAgent(exit chan struct{}) {
 	}
 }
 
-// cleanupAndExit cleans all resources allocated by the agent before calling
-// os.Exit
-func cleanupAndExit(status int) {
-	// remove pidfile if set
-	if opts.pidfilePath != "" {
-		if _, err := os.Stat(opts.pidfilePath); err == nil {
-			os.Remove(opts.pidfilePath)
+// cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
+func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
+	return func(status int) {
+		// remove pidfile if set
+		if globalParams.PidFilePath != "" {
+			if _, err := os.Stat(globalParams.PidFilePath); err == nil {
+				os.Remove(globalParams.PidFilePath)
+			}
 		}
+
+		os.Exit(status)
+	}
+}
+
+// initRuntimeSettings registers settings to be added to the runtime config.
+func initRuntimeSettings() {
+	// NOTE: Any settings you want to register should simply be added here
+	processRuntimeSettings := []settings.RuntimeSetting{
+		settings.LogLevelRuntimeSetting{},
+		settings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction"),
+		settings.RuntimeBlockProfileRate("runtime_block_profile_rate"),
+		settings.ProfilingGoroutines("internal_profiling_goroutines"),
+		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
 	}
 
-	os.Exit(status)
+	// Before we begin listening, register runtime settings
+	for _, setting := range processRuntimeSettings {
+		err := settings.RegisterRuntimeSetting(setting)
+		if err != nil {
+			_ = log.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
+		}
+	}
 }

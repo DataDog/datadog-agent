@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
 
@@ -30,14 +31,14 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	d := daemon.StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
-	d.WaitForDaemon()
+	// force daemon not to wait for flush at end of handleInvocation
+	d.SetFlushStrategy(flush.NewPeriodically(time.Second))
+	d.UseAdaptiveFlush(false)
 
-	d.TellDaemonRuntimeStarted()
+	// deadline = current time + 5s
+	deadlineMs := (time.Now().UnixNano())/1000000 + 5000
 
-	//deadline = current time + 20 ms
-	deadlineMs := (time.Now().UnixNano())/1000000 + 20
-
-	//setting DD_TAGS and DD_EXTRA_TAGS
+	// setting DD_TAGS and DD_EXTRA_TAGS
 	t.Setenv("DD_TAGS", "a1:valueA1,a2:valueA2,A_MAJ:valueAMaj")
 	t.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
 
@@ -101,14 +102,14 @@ func TestComputeTimeout(t *testing.T) {
 }
 
 func TestRemoveQualifierFromArnWithAlias(t *testing.T) {
-	invokedFunctionArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls:$latest"
+	invokedFunctionArn := "arn:aws:lambda:eu-south-1:425362996713:function:inferred-spans-function-urls-dev-harv-function-urls:$latest"
 	functionArn := removeQualifierFromArn(invokedFunctionArn)
-	expectedArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls"
+	expectedArn := "arn:aws:lambda:eu-south-1:425362996713:function:inferred-spans-function-urls-dev-harv-function-urls"
 	assert.Equal(t, functionArn, expectedArn)
 }
 
 func TestRemoveQualifierFromArnWithoutAlias(t *testing.T) {
-	invokedFunctionArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls"
+	invokedFunctionArn := "arn:aws:lambda:eu-south-1:425362996713:function:inferred-spans-function-urls-dev-harv-function-urls"
 	functionArn := removeQualifierFromArn(invokedFunctionArn)
 	assert.Equal(t, functionArn, invokedFunctionArn)
 }

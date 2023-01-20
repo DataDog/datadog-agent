@@ -40,23 +40,29 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	parent.Retain()
 }
 
-// GetNextAncestorNoFork returns the first ancestor that is not a fork entry
-func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
-	if pc.Ancestor == nil {
-		return nil
-	}
-
+// GetNextAncestorBinary returns the first ancestor with a different binary
+func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
+	current := pc
 	ancestor := pc.Ancestor
-	for ancestor.Ancestor != nil {
-		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime.IsZero()) && ancestor.Tid == ancestor.Ancestor.Tid {
-			// this is a fork entry, move on to the next ancestor
-			ancestor = ancestor.Ancestor
-		} else {
-			break
+	for ancestor != nil {
+		if current.Inode != ancestor.Inode {
+			return ancestor
 		}
+		current = ancestor
+		ancestor = ancestor.Ancestor
 	}
+	return nil
+}
 
-	return ancestor
+// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
+func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+	for pc != nil {
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
 }
 
 // Exit a process
@@ -373,21 +379,19 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 		return nil, p.truncated
 	}
 
-	p.filteredEnvs = make([]string, len(values))
+	p.filteredEnvs = make([]string, 0, len(values))
 
-	var i int
 	for _, value := range values {
 		k, _, found := strings.Cut(value, "=")
-		if !found {
-			continue
-		}
-
-		if envsWithValue[k] {
-			p.filteredEnvs[i] = value
+		if found {
+			if envsWithValue[k] {
+				p.filteredEnvs = append(p.filteredEnvs, value)
+			} else {
+				p.filteredEnvs = append(p.filteredEnvs, k)
+			}
 		} else {
-			p.filteredEnvs[i] = k
+			p.filteredEnvs = append(p.filteredEnvs, value)
 		}
-		i++
 	}
 
 	return p.filteredEnvs, p.truncated

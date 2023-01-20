@@ -13,6 +13,10 @@ const (
 	ProductAPMSampling Product = "APM_SAMPLING"
 	// ProductCWSDD is the cloud workload security product
 	ProductCWSDD Product = "CWS_DD"
+	// ProductCWSCustom is the cloud workload security product
+	ProductCWSCustom Product = "CWS_CUSTOM"
+	// ProductAPMTracing is the apm tracing product
+	ProductAPMTracing Product = "APM_TRACING"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
 )

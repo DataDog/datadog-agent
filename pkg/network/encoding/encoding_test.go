@@ -133,7 +133,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		},
 		AgentConfiguration: &model.AgentConfiguration{
 			NpmEnabled: false,
-			TsmEnabled: false,
+			UsmEnabled: false,
 		},
 		Tags: network.GetStaticTags(1),
 	}
@@ -152,14 +152,10 @@ func TestSerialization(t *testing.T) {
 				{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
-					Monotonic: network.StatCountersByCookie{
-						{
-							StatCounters: network.StatCounters{
-								SentBytes:   1,
-								RecvBytes:   100,
-								Retransmits: 201,
-							},
-						},
+					Monotonic: network.StatCounters{
+						SentBytes:   1,
+						RecvBytes:   100,
+						Retransmits: 201,
 					},
 					Last: network.StatCounters{
 						SentBytes:      2,
@@ -525,7 +521,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 		},
 		AgentConfiguration: &model.AgentConfiguration{
 			NpmEnabled: false,
-			TsmEnabled: false,
+			UsmEnabled: false,
 		},
 	}
 

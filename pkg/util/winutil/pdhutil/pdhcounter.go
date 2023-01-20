@@ -10,6 +10,7 @@ package pdhutil
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,9 +23,10 @@ import (
 var (
 	pfnPdhOpenQuery                     = PdhOpenQuery
 	pfnPdhAddEnglishCounter             = PdhAddEnglishCounter
-	pfnPdhCollectQueryData              = PdhCollectQueryData
+	pfnPdhCollectQueryData              = pdhCollectQueryData
 	pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
 	pfnPdhGetFormattedCounterArray      = pdhGetFormattedCounterArray
+	pfnPdhRemoveCounter                 = PdhRemoveCounter
 	pfnPdhCloseQuery                    = PdhCloseQuery
 	pfnPdhMakeCounterPath               = pdhMakeCounterPath
 )
@@ -38,7 +40,7 @@ type CounterInstanceVerify func(string) bool
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhopenqueryw
 type PdhQuery struct {
-	handle   PDH_HQUERY
+	Handle   PDH_HQUERY
 	counters []PdhCounter
 }
 
@@ -49,10 +51,16 @@ type PdhCounter interface {
 	// Return false if a query must not attempt to initialize this counter.
 	ShouldInit() bool
 
-	// Called during (*PdhQuery).CollectQueryData for counters that return true from ShouldInit()
+	// Called during (*PdhQuery).CollectQueryData via AddToQuery() for counters that return true from ShouldInit()
 	// Must call the appropriate PdhAddCounter/PdhAddEnglishCounter function to add the
 	// counter to the query.
 	AddToQuery(*PdhQuery) error
+
+	// Given the result of PdhCounter.AddToQuery, should update initError and initFailCount
+	SetInitError(error) error
+
+	// Calls PdhRemoveCounter and updates internal state (handle field)
+	Remove() error
 }
 
 // Manages a PDH counter with no instance or for a specific instance
@@ -82,7 +90,8 @@ type pdhCounter struct {
 	InstanceName string
 	CounterName  string
 
-	initError error
+	initError     error
+	initFailCount int
 }
 
 // pdhEnglishCounter implements AddToQuery for both single and multi instance english counters
@@ -108,23 +117,66 @@ func (counter *pdhCounter) ShouldInit() bool {
 		// already initialized
 		return false
 	}
+	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
+		counter.initError = fmt.Errorf("Counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt.")
+		// attempts exceeded
+		return false
+	}
 	return true
+}
+
+func (counter *pdhCounter) SetInitError(err error) error {
+	if err == nil {
+		counter.initError = nil
+		return nil
+	}
+
+	counter.initFailCount += 1
+	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
+		err = fmt.Errorf("%v. Counter exceeded the maximum number of failed initialization attempts", err)
+	} else if initFailLimit > 0 {
+		err = fmt.Errorf("%v (Failure %d/%d)", err, counter.initFailCount, initFailLimit)
+	} else {
+		err = fmt.Errorf("%v (Failure %d)", err, counter.initFailCount)
+	}
+	counter.initError = err
+	return counter.initError
+}
+
+func (counter *pdhCounter) Remove() error {
+	if counter.handle == PDH_HCOUNTER(0) {
+		return fmt.Errorf("counter is not initialized")
+	}
+
+	pdherror := pfnPdhRemoveCounter(counter.handle)
+	if ERROR_SUCCESS != pdherror {
+		return fmt.Errorf("RemoveCounter failed: %#x", pdherror)
+	}
+
+	counter.handle = PDH_HCOUNTER(0)
+	return nil
 }
 
 // Implements PdhCounter.AddToQuery for english counters.
 func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
 	path, err := pfnPdhMakeCounterPath("", counter.ObjectName, counter.InstanceName, counter.CounterName)
 	if err != nil {
-		counter.initError = fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err)
-		return counter.initError
+		return fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err)
 	}
-	pdherror := pfnPdhAddEnglishCounter(query.handle, path, uintptr(0), &counter.handle)
+	pdherror := pfnPdhAddEnglishCounter(query.Handle, path, uintptr(0), &counter.handle)
 	if ERROR_SUCCESS != pdherror {
-		counter.initError = fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror)
-		return counter.initError
+		return fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror)
 	}
-	counter.initError = nil
 	return nil
+}
+
+// Calls PdhCounter.AddToQuery and handles initError logic
+// Counters should implement PdhCounter.AddToQuery to override init logic
+func AddToQuery(query *PdhQuery, counter PdhCounter) error {
+	err := counter.AddToQuery(query)
+	return counter.SetInitError(err)
 }
 
 func (query *PdhQuery) AddCounter(counter PdhCounter) {
@@ -137,16 +189,16 @@ func (query *PdhQuery) AddCounter(counter PdhCounter) {
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcounterw
 //
 // Implementation detail: This function does not actually call the Windows API PdhAddEnglishCounter. That happens
-//   when (*PdhQuery).CollectQueryData calls PdhCounter.AddToQuery. This function only links our pdhCounter struct
-//   to our PdhQuery struct.
-//   We do this so we can handle several PDH error cases and their recovery behind the scenes to reduce
-//   duplicate/error prone code in the checks that uses this package.
-//   For example, see tryRefreshPdhObjectCache().
-//   This function cannot fail, if it does then the checks that use it will need to be
-//   restructured so that their Configure() call does not fail if the counter is not available
-//   right away on host boot (see https://github.com/DataDog/datadog-agent/pull/13101).
-//   All errors related to the counter are returned from the GetValue()/GetAllValues() function.
 //
+//	when (*PdhQuery).CollectQueryData calls AddToQuery. This function only links our pdhCounter struct
+//	to our PdhQuery struct.
+//	We do this so we can handle several PDH error cases and their recovery behind the scenes to reduce
+//	duplicate/error prone code in the checks that uses this package.
+//	For example, see tryRefreshPdhObjectCache().
+//	This function cannot fail, if it does then the checks that use it will need to be
+//	restructured so that their Configure() call does not fail if the counter is not available
+//	right away on host boot (see https://github.com/DataDog/datadog-agent/pull/13101).
+//	All errors related to the counter are returned from the GetValue()/GetAllValues() function.
 func (query *PdhQuery) AddEnglishCounterInstance(objectName string, counterName string, instanceName string) PdhSingleInstanceCounter {
 	var p PdhEnglishSingleInstanceCounter
 	p.Initialize(objectName, counterName, instanceName)
@@ -191,7 +243,7 @@ func (query *PdhQuery) CollectQueryData() error {
 			// https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc784382(v=ws.10)
 			_, _ = tryRefreshPdhObjectCache()
 
-			err := counter.AddToQuery(query)
+			err := AddToQuery(query, counter)
 			if err == nil {
 				addedNewCounter = true
 			} else {
@@ -203,16 +255,16 @@ func (query *PdhQuery) CollectQueryData() error {
 		// if we added a new counter then we need an additional call to
 		// PdhCollectQuery data because some counters require two datapoints
 		// before they can return a value.
-		pdherror := pfnPdhCollectQueryData(query.handle)
-		if ERROR_SUCCESS != pdherror {
-			return fmt.Errorf("Failed to collect query data %#x. This error indicates that the Windows performance counter database may need to be rebuilt.", pdherror)
+		err := PdhCollectQueryData(query.Handle)
+		if err != nil {
+			return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
 		}
 	}
 
 	// Update the counters
-	pdherror := pfnPdhCollectQueryData(query.handle)
-	if ERROR_SUCCESS != pdherror {
-		return fmt.Errorf("Failed to collect query data %#x. This error indicates that the Windows performance counter database may need to be rebuilt.", pdherror)
+	err := PdhCollectQueryData(query.Handle)
+	if err != nil {
+		return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
 	}
 	return nil
 }
@@ -233,7 +285,7 @@ func (counter *PdhEnglishMultiInstanceCounter) GetAllValues() (values map[string
 		if counter.initError != nil {
 			return nil, counter.initError
 		}
-		return nil, fmt.Errorf("Counter is not initialized")
+		return nil, fmt.Errorf("counter is not initialized")
 	}
 	// fetch data
 	items, err := pfnPdhGetFormattedCounterArray(counter.handle, PDH_FMT_DOUBLE)
@@ -267,7 +319,7 @@ func (counter *PdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
 		if counter.initError != nil {
 			return 0, counter.initError
 		}
-		return 0, fmt.Errorf("Counter is not initialized")
+		return 0, fmt.Errorf("counter is not initialized")
 	}
 	// fetch data
 	return pfnPdhGetFormattedCounterValueFloat(counter.handle)
@@ -277,15 +329,32 @@ func (counter *PdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
 func CreatePdhQuery() (*PdhQuery, error) {
 	var q PdhQuery
 
-	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &q.handle)
+	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &q.Handle)
 	if ERROR_SUCCESS != pdherror {
-		err := fmt.Errorf("Failed to open PDH query handle %#x", pdherror)
+		err := fmt.Errorf("failed to open PDH query handle %#x", pdherror)
 		return nil, err
 	}
 	return &q, nil
 }
 
 // Close closes the query handle, freeing the underlying windows resources.
+// It is not necessary to remove the counters from the query before calling this function.
+// PdhCloseQuery closes all counter handles associated with the query.
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
 func (query *PdhQuery) Close() {
-	pfnPdhCloseQuery(query.handle)
+	if query.Handle != PDH_HQUERY(0) {
+		pfnPdhCloseQuery(query.Handle)
+		query.Handle = PDH_HQUERY(0)
+	}
+}
+
+func PdhCollectQueryData(hQuery PDH_HQUERY) error {
+	if hQuery == PDH_HQUERY(0) {
+		return fmt.Errorf("invalid query handle")
+	}
+	pdherror := pfnPdhCollectQueryData(hQuery)
+	if ERROR_SUCCESS != pdherror {
+		return fmt.Errorf("failed to collect query data %#x", pdherror)
+	}
+	return nil
 }

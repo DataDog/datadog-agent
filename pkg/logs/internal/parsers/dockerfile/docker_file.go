@@ -19,16 +19,16 @@ import (
 //
 // For example:
 //
-//     `{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`
+//	`{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`
 //
 // returns:
 //
-//     parsers.Message {
-//         Content: []byte("a message"),
-//         Status: "error",
-//         Timestamp: "2019-06-06T16:35:55.930852911Z",
-//         IsPartial: false,
-//     }
+//	parsers.Message {
+//	    Content: []byte("a message"),
+//	    Status: "error",
+//	    Timestamp: "2019-06-06T16:35:55.930852911Z",
+//	    IsPartial: false,
+//	}
 func New() parsers.Parser {
 	return &dockerFileFormat{}
 }

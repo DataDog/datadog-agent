@@ -102,6 +102,8 @@ type ActivityDump struct {
 	processedCount     map[model.EventType]*atomic.Uint64
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
+	brokenLineageDrop  *atomic.Uint64
+	countedByLimiter   bool
 
 	shouldMergePaths bool
 	pathMergedCount  *atomic.Uint64
@@ -149,6 +151,7 @@ func NewEmptyActivityDump() *ActivityDump {
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
+		brokenLineageDrop:  atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
 	}
@@ -460,6 +463,12 @@ func (ad *ActivityDump) disable() error {
 func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 	ad.Lock()
 	defer ad.Unlock()
+	ad.finalize(releaseTracedCgroupSpot)
+}
+
+// finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
+// spot can be released, the dump will be fully stopped.
+func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	ad.DumpMetadata.End = time.Now()
 
 	if releaseTracedCgroupSpot || len(ad.DumpMetadata.Comm) > 0 {
@@ -504,7 +513,7 @@ func (ad *ActivityDump) debug(w io.Writer) {
 	}
 }
 
-func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
+func (ad *ActivityDump) isEventTypeTraced(event *model.Event) bool {
 	for _, evtType := range ad.LoadConfig.TracedEventTypes {
 		if evtType == event.GetEventType() {
 			return true
@@ -513,9 +522,16 @@ func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
 	return false
 }
 
+// IsEmpty return true if the dump did not contain any nodes
+func (ad *ActivityDump) IsEmpty() bool {
+	ad.Lock()
+	defer ad.Unlock()
+	return len(ad.ProcessActivityTree) == 0
+}
+
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
 // false if the event was dropped.
-func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
+func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	ad.Lock()
 	defer ad.Unlock()
 
@@ -541,7 +557,14 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	}()
 
 	// find the node where the event should be inserted
-	entry, _ := event.ResolveProcessCacheEntry()
+	entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event)
+	if entry == nil {
+		return false
+	}
+	if !entry.HasCompleteLineage() { // check that the process context lineage is complete, otherwise drop it
+		ad.brokenLineageDrop.Inc()
+		return false
+	}
 	node := ad.findOrCreateProcessActivityNode(entry, Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
@@ -576,6 +599,11 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		return node
 	}
 
+	// drop processes with abnormal paths
+	if entry.GetPathResolutionError() != "" {
+		return node
+	}
+
 	// look for a ProcessActivityNode by process cookie
 	if entry.Cookie > 0 {
 		var found bool
@@ -594,7 +622,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
-	parentNode := ad.findOrCreateProcessActivityNode(entry.GetNextAncestorNoFork(), Snapshot)
+	parentNode := ad.findOrCreateProcessActivityNode(entry.GetNextAncestorBinary(), Snapshot)
 
 	// if parentNode is nil, the parent of the current node is out of tree (either because the parent is null, or it
 	// doesn't match the dump tags).
@@ -611,6 +639,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 				return root
 			}
 		}
+
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
@@ -629,7 +658,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
-		// insert in the list of root entries
+		// insert in the list of children
 		parentNode.Children = append(parentNode.Children, node)
 	}
 
@@ -727,6 +756,12 @@ func (ad *ActivityDump) SendStats() error {
 		}
 	}
 
+	if value := ad.brokenLineageDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpBrokenLineageDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpBrokenLineageDrop, err)
+		}
+	}
+
 	if value := ad.pathMergedCount.Swap(0); value > 0 {
 		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), nil, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
@@ -771,6 +806,29 @@ func (ad *ActivityDump) resolveTags() error {
 	ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(ad.DumpMetadata.ContainerID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", ad.DumpMetadata.ContainerID, err)
+	}
+
+	if !ad.countedByLimiter {
+		// check if we should discard this dump based on the manager dump limiter
+		limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
+		if limiterKey == ":" {
+			// wait for the tags
+			return nil
+		}
+
+		counter, ok := ad.adm.dumpLimiter.Get(limiterKey)
+		if !ok {
+			counter = atomic.NewUint64(0)
+			ad.adm.dumpLimiter.Add(limiterKey, counter)
+		}
+
+		if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
+			ad.Finalize(true)
+			ad.adm.removeDump(ad)
+		} else {
+			ad.countedByLimiter = true
+			counter.Add(1)
+		}
 	}
 	return nil
 }
@@ -1098,12 +1156,17 @@ func extractFirstParent(path string) (string, int) {
 
 // InsertFileEventInProcess inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
+func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType) bool {
 	var filePath string
 	if generationType != Snapshot {
-		filePath = event.ResolveFilePath(fileEvent)
+		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
 	} else {
 		filePath = fileEvent.PathnameStr
+	}
+
+	// drop file events with abnormal paths
+	if event != nil && event.PathResolutionError != nil {
+		return false
 	}
 
 	parent, nextParentIndex := extractFirstParent(filePath)
@@ -1163,8 +1226,8 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 }
 
 func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
-	evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
-	evt.Event.Type = uint32(model.BindEventType)
+	evt := NewEvent(ad.adm.fieldHandlers)
+	evt.Type = uint32(model.BindEventType)
 
 	evt.Bind.SyscallEvent.Retval = 0
 	evt.Bind.AddrFamily = family
@@ -1305,8 +1368,8 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 			continue
 		}
 
-		evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
-		evt.Event.Type = uint32(model.FileOpenEventType)
+		evt := NewEvent(ad.adm.fieldHandlers)
+		evt.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
 		if err != nil {
@@ -1418,7 +1481,7 @@ type OpenNode struct {
 }
 
 // NewFileActivityNode returns a new FileActivityNode instance
-func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *FileActivityNode {
+func NewFileActivityNode(fileEvent *model.FileEvent, event *model.Event, name string, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *FileActivityNode {
 	nodeStats.fileNodes++
 	fan := &FileActivityNode{
 		Name:           name,
@@ -1441,12 +1504,12 @@ func (fan *FileActivityNode) getNodeLabel() string {
 	return label
 }
 
-func (fan *FileActivityNode) enrichFromEvent(event *Event) {
+func (fan *FileActivityNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
 	}
 	if fan.FirstSeen.IsZero() {
-		fan.FirstSeen = event.ResolveEventTimestamp()
+		fan.FirstSeen = event.FieldHandlers.ResolveEventTimestamp(event)
 	}
 
 	switch event.GetEventType() {
@@ -1461,7 +1524,7 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 
 // InsertFileEventInFile inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType) bool {
+func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType) bool {
 	currentFan := fan
 	currentPath := remainingPath
 	somethingChanged := false

@@ -13,9 +13,9 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 func mkurl(rawurl string) *url.URL {
@@ -26,35 +26,53 @@ func mkurl(rawurl string) *url.URL {
 	return urlResult
 }
 
+func getCheckNames(checks []checks.Check) []string {
+	names := make([]string, len(checks))
+	for idx, ch := range checks {
+		names[idx] = ch.Name()
+	}
+	return names
+}
+
+func assertContainsCheck(t *testing.T, checks []checks.Check, name string) {
+	t.Helper()
+	assert.Contains(t, getCheckNames(checks), name)
+}
+
+func assertNotContainsCheck(t *testing.T, checks []checks.Check, name string) {
+	t.Helper()
+	assert.NotContains(t, getCheckNames(checks), name)
+}
+
 func TestProcessDiscovery(t *testing.T) {
-	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
+	scfg := &sysconfig.Config{}
 	cfg := config.Mock(t)
 
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", true)
-		enabledChecks := getChecks(scfg, ocfg, false)
-		assert.Contains(t, enabledChecks, checks.ProcessDiscovery)
+		enabledChecks := getChecks(scfg, false)
+		assertContainsCheck(t, enabledChecks, checks.DiscoveryCheckName)
 	})
 
 	// Make sure the process_discovery check can be disabled
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", false)
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.NotContains(t, enabledChecks, checks.ProcessDiscovery)
+		enabledChecks := getChecks(scfg, true)
+		assertNotContainsCheck(t, enabledChecks, checks.DiscoveryCheckName)
 	})
 
 	// Make sure the process and process_discovery checks are mutually exclusive
 	t.Run("mutual exclusion", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", true)
 		cfg.Set("process_config.process_collection.enabled", true)
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.NotContains(t, enabledChecks, checks.ProcessDiscovery)
+		enabledChecks := getChecks(scfg, true)
+		assertNotContainsCheck(t, enabledChecks, checks.DiscoveryCheckName)
 	})
 }
 
 func TestContainerCheck(t *testing.T) {
-	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
+	scfg := &sysconfig.Config{}
 	cfg := config.Mock(t)
 
 	// Make sure the container check can be enabled if the process check is disabled
@@ -63,10 +81,10 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.disable_realtime_checks", false)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.Contains(t, enabledChecks, checks.Container)
-		assert.Contains(t, enabledChecks, checks.RTContainer)
-		assert.NotContains(t, enabledChecks, checks.Process)
+		enabledChecks := getChecks(scfg, true)
+		assertContainsCheck(t, enabledChecks, checks.ContainerCheckName)
+		assertContainsCheck(t, enabledChecks, checks.RTContainerCheckName)
+		assertNotContainsCheck(t, enabledChecks, checks.ProcessCheckName)
 	})
 
 	// Make sure that disabling RT disables the rt container check
@@ -75,9 +93,9 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.disable_realtime_checks", true)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.Contains(t, enabledChecks, checks.Container)
-		assert.NotContains(t, enabledChecks, checks.RTContainer)
+		enabledChecks := getChecks(scfg, true)
+		assertContainsCheck(t, enabledChecks, checks.ContainerCheckName)
+		assertNotContainsCheck(t, enabledChecks, checks.RTContainerCheckName)
 	})
 
 	// Make sure the container check cannot be enabled if we cannot access containers
@@ -85,9 +103,9 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
 		cfg.Set("process_config.container_collection.enabled", true)
 
-		enabledChecks := getChecks(scfg, ocfg, false)
-		assert.NotContains(t, enabledChecks, checks.Container)
-		assert.NotContains(t, enabledChecks, checks.RTContainer)
+		enabledChecks := getChecks(scfg, false)
+		assertNotContainsCheck(t, enabledChecks, checks.ContainerCheckName)
+		assertNotContainsCheck(t, enabledChecks, checks.RTContainerCheckName)
 	})
 
 	// Make sure the container and process check are mutually exclusive
@@ -95,10 +113,10 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", true)
 		cfg.Set("process_config.container_collection.enabled", true)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.Contains(t, enabledChecks, checks.Process)
-		assert.NotContains(t, enabledChecks, checks.Container)
-		assert.NotContains(t, enabledChecks, checks.RTContainer)
+		enabledChecks := getChecks(scfg, true)
+		assertContainsCheck(t, enabledChecks, checks.ProcessCheckName)
+		assertNotContainsCheck(t, enabledChecks, checks.ContainerCheckName)
+		assertNotContainsCheck(t, enabledChecks, checks.RTContainerCheckName)
 	})
 }
 
@@ -108,49 +126,22 @@ func TestProcessCheck(t *testing.T) {
 	scfg, err := sysconfig.New("")
 	assert.NoError(t, err)
 
-	ocfg := &oconfig.OrchestratorConfig{}
-
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.NotContains(t, enabledChecks, checks.Process)
+		enabledChecks := getChecks(scfg, true)
+		assertNotContainsCheck(t, enabledChecks, checks.ProcessCheckName)
 	})
 
 	// Make sure the process check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", true)
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.Contains(t, enabledChecks, checks.Process)
-	})
-}
-
-func TestSysprobeProcessModule(t *testing.T) {
-	cfg, ocfg := config.Mock(t), &oconfig.OrchestratorConfig{}
-	cfg.Set("process_config.process_collection.enabled", true)
-	cfg.Set("system_probe_config.enabled", true)
-
-	t.Run("enabled", func(t *testing.T) {
-		cfg.Set("system_probe_config.process_config.enabled", true)
-		scfg, err := sysconfig.New("")
-		assert.NoError(t, err)
-
-		_ = getChecks(scfg, ocfg, true)
-		assert.True(t, checks.Process.SysprobeProcessModuleEnabled)
-	})
-
-	t.Run("disabled", func(t *testing.T) {
-		cfg.Set("system_probe_config.process_config.enabled", false)
-		scfg, err := sysconfig.New("")
-		assert.NoError(t, err)
-
-		_ = getChecks(scfg, ocfg, false)
-		assert.False(t, checks.Process.SysprobeProcessModuleEnabled)
+		enabledChecks := getChecks(scfg, true)
+		assertContainsCheck(t, enabledChecks, checks.ProcessCheckName)
 	})
 }
 
 func TestConnectionsCheck(t *testing.T) {
 	cfg := config.Mock(t)
-	ocfg := &oconfig.OrchestratorConfig{}
 	cfg.Set("system_probe_config.enabled", true)
 
 	t.Run("enabled", func(t *testing.T) {
@@ -158,8 +149,8 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.Contains(t, enabledChecks, checks.Connections)
+		enabledChecks := getChecks(scfg, true)
+		assertContainsCheck(t, enabledChecks, checks.ConnectionsCheckName)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
@@ -167,56 +158,59 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
-		assert.NotContains(t, enabledChecks, checks.Connections)
+		enabledChecks := getChecks(scfg, true)
+		assertNotContainsCheck(t, enabledChecks, checks.ConnectionsCheckName)
 	})
 }
 
 func TestPodCheck(t *testing.T) {
-	cfg := config.Mock(t)
+	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: {}})
+	defer config.SetDetectedFeatures(nil)
 
 	t.Run("enabled", func(t *testing.T) {
+		// Resets the cluster name so that it isn't cached during the call to `getChecks()`
+		clustername.ResetClusterName()
+		defer clustername.ResetClusterName()
+
+		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", true)
+		cfg.Set("cluster_name", "test")
 
-		ocfg := oconfig.NewDefaultOrchestratorConfig()
-		ocfg.KubeClusterName = "test" // We can't reliably detect a kubernetes cluster in a test
-		assert.NoError(t, ocfg.Load())
-
-		enabledChecks := getChecks(&sysconfig.Config{}, ocfg, true)
-		assert.Contains(t, enabledChecks, checks.Pod)
+		enabledChecks := getChecks(&sysconfig.Config{}, true)
+		assertContainsCheck(t, enabledChecks, checks.PodCheckName)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
+		clustername.ResetClusterName()
+		defer clustername.ResetClusterName()
+
+		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", false)
 
-		ocfg := oconfig.NewDefaultOrchestratorConfig()
-		ocfg.KubeClusterName = "test" // We can't reliably detect a kubernetes cluster in a test
-		assert.NoError(t, ocfg.Load())
-
-		enabledChecks := getChecks(&sysconfig.Config{}, ocfg, true)
-		assert.NotContains(t, enabledChecks, checks.Pod)
+		enabledChecks := getChecks(&sysconfig.Config{}, true)
+		assertNotContainsCheck(t, enabledChecks, checks.PodCheckName)
 	})
 }
 
 func TestProcessEventsCheck(t *testing.T) {
-	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
+	scfg := &sysconfig.Config{}
 	cfg := config.Mock(t)
 
 	t.Run("default", func(t *testing.T) {
-		enabledChecks := getChecks(scfg, ocfg, false)
-		assert.NotContains(t, enabledChecks, checks.ProcessEvents)
+		enabledChecks := getChecks(scfg, false)
+		assertNotContainsCheck(t, enabledChecks, checks.ProcessEventsCheckName)
 	})
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.event_collection.enabled", true)
-		enabledChecks := getChecks(scfg, ocfg, false)
-		assert.Contains(t, enabledChecks, checks.ProcessEvents)
+		enabledChecks := getChecks(scfg, false)
+		assertContainsCheck(t, enabledChecks, checks.ProcessEventsCheckName)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.event_collection.enabled", false)
-		enabledChecks := getChecks(scfg, ocfg, false)
-		assert.NotContains(t, enabledChecks, checks.ProcessEvents)
+		enabledChecks := getChecks(scfg, false)
+		assertNotContainsCheck(t, enabledChecks, checks.ProcessEventsCheckName)
 	})
 }
 

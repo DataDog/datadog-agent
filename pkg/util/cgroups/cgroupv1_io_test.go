@@ -11,6 +11,8 @@ package cgroups
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -74,26 +76,26 @@ func TestCgroupV1IOStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Empty(t, cmp.Diff(IOStats{
-		ReadBytes:       uint64Ptr(80053760),
-		WriteBytes:      uint64Ptr(2237900288),
-		ReadOperations:  uint64Ptr(38),
-		WriteOperations: uint64Ptr(27528),
+		ReadBytes:       pointer.Ptr(uint64(80053760)),
+		WriteBytes:      pointer.Ptr(uint64(2237900288)),
+		ReadOperations:  pointer.Ptr(uint64(38)),
+		WriteOperations: pointer.Ptr(uint64(27528)),
 		Devices: map[string]DeviceIOStats{
 			"8:16": {
-				ReadBytes:  uint64Ptr(585728),
-				WriteBytes: uint64Ptr(0),
+				ReadBytes:  pointer.Ptr(uint64(585728)),
+				WriteBytes: pointer.Ptr(uint64(0)),
 			},
 			"8:32": {
-				ReadBytes:  uint64Ptr(4410880),
-				WriteBytes: uint64Ptr(273678336),
+				ReadBytes:  pointer.Ptr(uint64(4410880)),
+				WriteBytes: pointer.Ptr(uint64(273678336)),
 			},
 			"8:48": {
-				ReadBytes:  uint64Ptr(75057152),
-				WriteBytes: uint64Ptr(1964221952),
+				ReadBytes:  pointer.Ptr(uint64(75057152)),
+				WriteBytes: pointer.Ptr(uint64(1964221952)),
 			},
 			"259:0": {
-				ReadOperations:  uint64Ptr(38),
-				WriteOperations: uint64Ptr(27528),
+				ReadOperations:  pointer.Ptr(uint64(38)),
+				WriteOperations: pointer.Ptr(uint64(27528)),
 			},
 		},
 	}, *stats))
@@ -107,10 +109,10 @@ func TestCgroupV1IOStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Empty(t, cmp.Diff(IOStats{
-		ReadBytes:       uint64Ptr(0),
-		WriteBytes:      uint64Ptr(0),
-		ReadOperations:  uint64Ptr(0),
-		WriteOperations: uint64Ptr(0),
+		ReadBytes:       pointer.Ptr(uint64(0)),
+		WriteBytes:      pointer.Ptr(uint64(0)),
+		ReadOperations:  pointer.Ptr(uint64(0)),
+		WriteOperations: pointer.Ptr(uint64(0)),
 		Devices:         nil,
 	}, *stats))
 }

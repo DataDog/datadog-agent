@@ -91,6 +91,12 @@ int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
     return mount_id;
 }
 
+struct dentry * __attribute__((always_inline)) get_mount_mountpoint_dentry(struct mount *mnt) {
+    struct dentry *dentry;
+    bpf_probe_read(&dentry, sizeof(dentry), (char *)mnt + 24);
+    return dentry;
+}
+
 struct vfsmount * __attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
     return (struct vfsmount *)(mnt + 32);
 }

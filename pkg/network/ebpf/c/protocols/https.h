@@ -15,7 +15,7 @@
 #include "port_range.h"
 #include "sockfd.h"
 #include "tags-types.h"
-#include "protocol-classification-helpers.h"
+#include "protocol-dispatcher-helpers.h"
 #include "protocol-dispatcher-maps.h"
 
 #define HTTPS_PORT 443
@@ -41,7 +41,7 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
 
         // try classifying the protocol if no prior identification exists
         if (cur_fragment_protocol_ptr == NULL) {
-            classify_protocol(&cur_fragment_protocol, http.request_fragment, len);
+            classify_protocol_for_dispatcher(&cur_fragment_protocol, &http.tup, http.request_fragment, len);
             // If there has been a change in the classification, save the new protocol.
             if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
                 bpf_map_update_with_telemetry(dispatcher_connection_protocol, &http.tup, &cur_fragment_protocol, BPF_NOEXIST);

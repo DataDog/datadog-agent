@@ -33,7 +33,6 @@ import (
 )
 
 const regoEvaluator = "rego"
-const regoParseTimeout = 20 * time.Second
 const regoEvalTimeout = 20 * time.Second
 
 var (
@@ -46,17 +45,16 @@ var (
 
 type regoInput struct {
 	compliance.RegoInput
-	preparedTransformQuery rego.PreparedEvalQuery
+	regoModuleArgs []func(*rego.Rego)
 }
 
 type regoCheck struct {
 	evalLock sync.Mutex
 
-	ruleID            string
-	ruleScope         compliance.RuleScope
-	inputs            []regoInput
-	regoModuleArgs    []func(*rego.Rego)
-	preparedEvalQuery rego.PreparedEvalQuery
+	ruleID         string
+	ruleScope      compliance.RuleScope
+	inputs         []regoInput
+	regoModuleArgs []func(*rego.Rego)
 }
 
 // NewCheck returns a new rego based check
@@ -194,7 +192,7 @@ func computeRuleTransform(rule *compliance.RegoRule, res compliance.RegoInput, m
 	return append(options, ruleModules...), query, nil
 }
 
-func (r *regoCheck) prepareQuery(moduleArgs []func(*rego.Rego), query string) (rego.PreparedEvalQuery, []func(*rego.Rego), error) {
+func (r *regoCheck) createQuery(moduleArgs []func(*rego.Rego), query string) []func(*rego.Rego) {
 	log.Debugf("rego query: %v", query)
 	moduleArgs = append(moduleArgs, rego.Query(query))
 
@@ -207,14 +205,7 @@ func (r *regoCheck) prepareQuery(moduleArgs []func(*rego.Rego), query string) (r
 		rego.PrintHook(&regoPrintHook{}),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), regoParseTimeout)
-	defer cancel()
-
-	preparedEvalQuery, err := rego.New(
-		moduleArgs...,
-	).PrepareForEval(ctx)
-
-	return preparedEvalQuery, moduleArgs, err
+	return moduleArgs
 }
 
 func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta, metrics metrics.Metrics) error {
@@ -232,14 +223,8 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 
 	moduleArgs = append(moduleArgs, ruleModules...)
 
-	preparedEvalQuery, moduleArgs, err := r.prepareQuery(moduleArgs, query)
-	if err != nil {
-		return err
-	}
-
-	r.preparedEvalQuery = preparedEvalQuery
+	r.regoModuleArgs = r.createQuery(moduleArgs, query)
 	r.ruleScope = ruleScope
-	r.regoModuleArgs = moduleArgs
 
 	// resource transformers
 	for i, input := range r.inputs {
@@ -255,12 +240,7 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 		}
 		moduleArgs = append(moduleArgs, ruleModules...)
 
-		preparedTransformQuery, _, err := r.prepareQuery(moduleArgs, query)
-		if err != nil {
-			return err
-		}
-
-		r.inputs[i].preparedTransformQuery = preparedTransformQuery
+		r.inputs[i].regoModuleArgs = r.createQuery(moduleArgs, query)
 	}
 
 	return nil
@@ -307,7 +287,8 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
 			defer cancel()
 
-			results, err := regoInput.preparedTransformQuery.Eval(ctx, rego.EvalInput(input))
+			regoMod := rego.New(append(regoInput.regoModuleArgs, rego.Input(input))...)
+			results, err := regoMod.Eval(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -451,9 +432,6 @@ func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
 	if r.ruleScope == compliance.KubernetesClusterScope {
 		context["kubernetes_cluster"], _ = env.KubeClient().ClusterID()
 	}
-	if r.ruleScope == compliance.KubernetesNodeScope {
-		context["kubernetes_node_labels"] = env.NodeLabels()
-	}
 
 	mappedInputs := buildMappedInputs(r.inputs)
 	if mappedInputs != nil {
@@ -514,7 +492,7 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 	return reports
 }
 
-func (r *regoCheck) Check(env env.Env) []*compliance.Report {
+func (r *regoCheck) Check(env env.Env) compliance.Reports {
 	r.evalLock.Lock()
 	defer r.evalLock.Unlock()
 

@@ -12,7 +12,9 @@ import (
 )
 
 // buildStore creates a store with the bins defined by a simple dsl:
-//   <key>:<n> <key>:<n> ...
+//
+//	<key>:<n> <key>:<n> ...
+//
 // For example, `0:3 1:1 2:1 2:1 3:max`
 // TODO: move to main_test.go
 func buildStore(t *testing.T, dsl string) *sparseStore {

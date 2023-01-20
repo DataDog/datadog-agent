@@ -263,7 +263,7 @@ func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(pare
 	// If no limit is available, setting the limit to number of CPUs.
 	// Always reporting a limit allows to compute CPU % accurately.
 	if limitPct == nil {
-		limitPct = pointer.Float64Ptr(float64(systemutils.HostCPUCount() * 100))
+		limitPct = pointer.Ptr(float64(systemutils.HostCPUCount() * 100))
 	}
 
 	return limitPct
@@ -274,7 +274,7 @@ func computeCgroupCPULimitPct(cgs *cgroups.CPUStats) *float64 {
 	var limitPct *float64
 
 	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(systemutils.HostCPUCount()) {
-		limitPct = pointer.UIntToFloatPtr(*cgs.CPUCount * 100)
+		limitPct = pointer.Ptr(float64(*cgs.CPUCount) * 100.0)
 	}
 
 	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {

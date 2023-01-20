@@ -24,6 +24,7 @@ import (
 import "C"
 
 // SubmitMetric is the method exposed to Python scripts to submit metrics
+//
 //export SubmitMetric
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
@@ -59,6 +60,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 }
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks
+//
 //export SubmitServiceCheck
 func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
 	goCheckID := C.GoString(checkID)
@@ -87,6 +89,7 @@ func eventParseString(value *C.char, fieldName string) string {
 }
 
 // SubmitEvent is the method exposed to Python scripts to submit events
+//
 //export SubmitEvent
 func SubmitEvent(checkID *C.char, event *C.event_t) {
 	goCheckID := C.GoString(checkID)
@@ -114,6 +117,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 }
 
 // SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
+//
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
@@ -136,6 +140,7 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 }
 
 // SubmitEventPlatformEvent is the method exposed to Python scripts to submit event platform events
+//
 //export SubmitEventPlatformEvent
 func SubmitEventPlatformEvent(checkID *C.char, rawEvent *C.char, eventType *C.char) {
 	_checkID := C.GoString(checkID)

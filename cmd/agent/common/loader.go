@@ -42,6 +42,10 @@ func LoadComponents(ctx context.Context, confdPath string) {
 		options, err := remote.CLCRunnerOptions()
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
+			t = local.NewFakeTagger()
+		} else if options.Disabled {
+			log.Info("remote tagger is disabled")
+			t = local.NewFakeTagger()
 		} else {
 			t = remote.NewTagger(options)
 		}

@@ -28,6 +28,15 @@ package 'kernel headers' do
   end
 end
 
+package 'java' do
+  case node[:platform]
+  when 'redhat', 'centos', 'fedora', 'amazon'
+    package_name 'java'
+  when 'ubuntu', 'debian'
+    package_name 'default-jre'
+  end
+end
+
 package 'python3'
 
 case node[:platform]
@@ -78,6 +87,28 @@ execute 'ensure conntrack is enabled' do
   command "iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT"
   user "root"
   action :run
+end
+
+if Chef::SystemProbeHelpers::arm?(node) and node[:platform] == 'centos'
+  package 'cloud-utils-growpart'
+  package 'gdisk'
+
+  execute 'increase space' do
+    command <<-EOF
+      df -h /tmp
+
+      dev_name=$(df -h / | tail -n1 | awk '{print $1}')
+      dev_name=$(python3 -c "print(' '.join('$dev_name'.rsplit('p', 1)))")
+      dev_name_array=($dev_name)
+
+      growpart ${dev_name_array[0]} ${dev_name_array[1]}
+      xfs_growfs -d /
+      df -h /tmp
+    EOF
+    user "root"
+    live_stream true
+    ignore_failure true
+  end
 end
 
 execute 'disable firewalld on redhat' do
@@ -161,4 +192,30 @@ end
 
 directory "/tmp/pkgjson" do
   recursive true
+end
+
+# Install relevant packages for docker
+include_recipe "::docker_installation"
+
+remote_directory "/tmp/kitchen-dockers" do
+  source 'dockers'
+  files_owner 'root'
+  files_group 'root'
+  files_mode '0750'
+  action :create
+  recursive true
+end
+
+# Load docker images
+execute 'install docker-compose' do
+  cwd '/tmp/kitchen-dockers'
+  command <<-EOF
+    for docker_file in $(ls); do
+      echo docker load -i $docker_file
+      docker load -i $docker_file
+      rm -rf $docker_file
+    done
+  EOF
+  user "root"
+  live_stream true
 end

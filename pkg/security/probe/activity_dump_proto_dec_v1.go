@@ -129,7 +129,7 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 
 		Credentials: protoDecodeCredentials(p.Credentials),
 
-		ScrubbedArgv:  make([]string, len(p.Args)),
+		Argv:          make([]string, len(p.Args)),
 		Argv0:         p.Argv0,
 		ArgsTruncated: p.ArgsTruncated,
 
@@ -137,7 +137,7 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		EnvsTruncated: p.EnvsTruncated,
 	}
 
-	copy(mp.ScrubbedArgv, p.Args)
+	copy(mp.Argv, p.Args)
 	copy(mp.Envs, p.Envs)
 	return mp
 }

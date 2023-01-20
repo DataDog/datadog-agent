@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -493,9 +494,11 @@ var (
 
 func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
 	var (
-		random = rand.New(rand.NewSource(time.Now().Unix()))
-		idx    = 0
-		client = new(nethttp.Client)
+		random  = rand.New(rand.NewSource(time.Now().Unix()))
+		idx     = 0
+		client  = new(nethttp.Client)
+		reqBuf  = make([]byte, 0, len(reqBody))
+		respBuf = make([]byte, 512)
 	)
 
 	return func() *nethttp.Request {
@@ -504,8 +507,14 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 		var body io.Reader
 		var finalBody []byte
 		if len(reqBody) > 0 {
-			finalBody = append([]byte(strings.Repeat(" ", idx)), reqBody...)
+			finalBody = reqBuf[:0]
+			finalBody = append(finalBody, []byte(strings.Repeat(" ", idx))...)
+			finalBody = append(finalBody, reqBody...)
 			body = bytes.NewReader(finalBody)
+
+			// save resized-buffer
+			reqBuf = finalBody
+
 			method = httpMethodsWithBody[random.Intn(len(httpMethodsWithBody))]
 		} else {
 			method = httpMethods[random.Intn(len(httpMethods))]
@@ -520,11 +529,18 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 			return req
 		}
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		if len(reqBody) > 0 {
-			respBody, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, finalBody, respBody)
+			for {
+				n, err := resp.Body.Read(respBuf)
+				require.True(t, n <= len(finalBody))
+				require.Equal(t, respBuf[:n], finalBody[:n])
+				if err != nil {
+					assert.Equal(t, io.EOF, err)
+					break
+				}
+				finalBody = finalBody[n:]
+			}
 		}
 		return req
 	}
