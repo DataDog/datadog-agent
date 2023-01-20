@@ -55,7 +55,6 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 		},
 		nil,
 		config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
-
 	if err != nil {
 		return "", time.Now(), err
 	}
@@ -140,6 +139,10 @@ func GetPublicIPv4(ctx context.Context) (string, error) {
 
 // IsRunningOn returns true if the agent is running on AWS
 func IsRunningOn(ctx context.Context) bool {
+	if config.IsFeaturePresent(config.ECSEC2) || config.IsFeaturePresent(config.ECSFargate) {
+		return true
+	}
+
 	if _, err := GetHostname(ctx); err == nil {
 		return true
 	}
@@ -148,7 +151,6 @@ func IsRunningOn(ctx context.Context) bool {
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.
 func GetHostAliases(ctx context.Context) ([]string, error) {
-
 	instanceID, err := GetInstanceID(ctx)
 	if err == nil {
 		return []string{instanceID}, nil
