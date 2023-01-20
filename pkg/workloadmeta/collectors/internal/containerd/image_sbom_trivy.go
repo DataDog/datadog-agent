@@ -30,7 +30,8 @@ func (c *collector) startSBOMCollection() error {
 	}
 
 	var err error
-	trivyConfiguration, err := trivy.DefaultCollectorConfig()
+	enabledAnalyzers := config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
+	trivyConfiguration, err := trivy.DefaultCollectorConfig(enabledAnalyzers)
 	if err != nil {
 		return fmt.Errorf("error initializing trivy client: %w", err)
 	}

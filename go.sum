@@ -165,8 +165,8 @@ github.com/DataDog/nikos v1.10.0/go.mod h1:Akd6ZjhqCE5wkpy+r2vLzrOyZNrPg+APYr+i+
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8CwZNAY=
 github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
-github.com/DataDog/trivy v0.0.0-20230118103707-807a7ff8aa02 h1:cj0pjOLI1GaJKOZHiuMbPdgU8i/ddy0VkjH6WuSytEw=
-github.com/DataDog/trivy v0.0.0-20230118103707-807a7ff8aa02/go.mod h1:f1nyvEyWU3w5L8dYIQljloMO/BX0i0OK9NwGeZtvmFw=
+github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe h1:37VGGoe+SJ/blsYK0xZDy84m8hp/suVx6MBSeiZJKLc=
+github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe/go.mod h1:f1nyvEyWU3w5L8dYIQljloMO/BX0i0OK9NwGeZtvmFw=
 github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
 github.com/DataDog/viper v1.12.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8 h1:2+uhTsVJvKbLIIGJxRoI3NTSPB9rNWqmLqFAqgPWkPM=
