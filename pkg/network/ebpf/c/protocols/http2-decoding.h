@@ -1,9 +1,6 @@
 #ifndef __HTTP2_DECODING_H
 #define __HTTP2_DECODING_H
 
-// Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Format" section
-#define HTTP2_SETTINGS_SIZE 6
-
 #include "bpf_builtins.h"
 #include "bpf_helpers.h"
 #include "map-defs.h"
@@ -14,10 +11,6 @@
 #include "protocol-classification-defs.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
-
-/* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
-BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_transaction_t, 1)
-BPF_PERCPU_ARRAY_MAP(http_trans_alloc, __u32, http_transaction_t, 1)
 
 static __always_inline http2_transaction_t *http2_fetch_state(http2_transaction_t *http2, http2_packet_t packet_type) {
     if (packet_type == HTTP_PACKET_UNKNOWN) {
@@ -337,7 +330,6 @@ static __always_inline bool process_headers(http2_transaction_t* http2_transacti
     return true;
 }
 
-#define HTTP2_END_OF_STREAM 0x1
 
 static __always_inline void process_frames(http2_transaction_t* http2_transaction) {
     struct http2_frame current_frame = {};
@@ -395,24 +387,65 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
     }
 }
 
-static __always_inline void http2_entrypoint(struct __sk_buff *skb, skb_info_t *skb_info, http2_transaction_t *http2_conn) {
-    // src_port represents the source port number *before* normalization
-    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http2_conn->owned_by_src_port = http2_conn->tup.sport;
-    // todo: need to understand what to do with this function.
-    http2_conn->old_tup = http2_conn->tup;
-    normalize_tuple(&http2_conn->tup);
+static __always_inline void http2_entrypoint(struct __sk_buff *skb, http2_ctx_t *http2_ctx) {
+    __u32 offset = http2_ctx->skb_info.data_off;
+    __s64 remaining_payload_length = 0;
+    char frame_buf[16];
+    bpf_memset((char*)frame_buf, 0, 16);
 
-    read_into_buffer_skb((char *)http2_conn->request_fragment, skb, skb_info);
-    const __u32 payload_length = skb->len - skb_info->data_off;
-    const __u32 final_payload_length = HTTP2_BUFFER_SIZE < payload_length ? HTTP2_BUFFER_SIZE : payload_length;
-    if (is_http2_preface(http2_conn->request_fragment, final_payload_length)) {
-        log_debug("[http2] http2 magic was found, aborting\n");
-        return;
+    struct http2_frame frames_to_process[HTTP2_MAX_FRAMES];
+    bpf_memset(frames_to_process, 0, HTTP2_MAX_FRAMES * sizeof(struct http2_frame));
+    __s8 frame_index = 0;
+    __s8 interesting_frames = 0;
+    bool is_end_of_stream = false;
+    bool is_headers_frame = false;
+    bool is_data_frame_end_of_stream = false;
+    frame_type_t frame_type;
+    __u8 frame_flags;
+
+#pragma unroll
+    for (int iteration = 0; iteration < HTTP2_MAX_FRAMES; iteration++) {
+        remaining_payload_length = skb->len - offset;
+        if (remaining_payload_length < HTTP2_FRAME_HEADER_SIZE) {
+            break;
+        }
+
+        // read frame.
+        bpf_skb_load_bytes_with_telemetry(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
+        offset += HTTP2_FRAME_HEADER_SIZE;
+
+        if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &frames_to_process[frame_index])){
+            log_debug("[http2] unable to read_http2_frame_header");
+            break;
+        }
+        offset += frames_to_process[frame_index].length;
+        frame_type = frames_to_process[frame_index].type;
+        frame_flags = frames_to_process[frame_index].flags;
+
+        // filter frame
+        is_end_of_stream = (frame_flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
+        is_data_frame_end_of_stream = is_end_of_stream && (frame_type == kDataFrame);
+        is_headers_frame = frame_type == kHeadersFrame;
+        if (!is_data_frame_end_of_stream && !is_headers_frame) {
+            log_debug("[http2] %p frame is not headers or data EOS, thus skipping it\n", skb);
+            // Skipping the frame payload.
+            continue;
+        }
+
+        frame_index++;
     }
 
-    process_frames(http2_conn);
-    http2_process(http2_conn, skb_info, NO_TAGS);
+    interesting_frames = frame_index - 1;
+#pragma unroll
+    for (int iteration = 0; iteration < HTTP2_MAX_FRAMES; iteration++) {
+        if (iteration > interesting_frames) {
+            return;
+        }
+
+        log_debug("[http2]%d found an interesting frame length %lu; type %d", iteration, frames_to_process[iteration].length, frames_to_process[iteration].type);
+        log_debug("[http2]%d found an interesting frame flags %d; stream_id %lu", iteration, frames_to_process[iteration].flags, frames_to_process[iteration].stream_id);
+    }
+
     return;
 }
 

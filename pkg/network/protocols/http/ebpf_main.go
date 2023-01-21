@@ -57,7 +57,6 @@ type ebpfProgram struct {
 	subprograms     []subprogram
 	probesResolvers []probeResolver
 	mapCleaner      *ddebpf.MapCleaner
-	mapCleaner2     *ddebpf.MapCleaner
 }
 
 type probeResolver interface {
@@ -384,7 +383,6 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	e.setupMapCleaner()
-	e.setupMapCleaner2()
 
 	return nil
 }
@@ -422,32 +420,6 @@ func (e *ebpfProgram) setupMapCleaner() {
 	})
 
 	e.mapCleaner = httpMapCleaner
-}
-
-func (e *ebpfProgram) setupMapCleaner2() {
-	http2Map, _, _ := e.GetMap(http2InFlightMap)
-	http2MapCleaner, err := ddebpf.NewMapCleaner(http2Map, new(netebpf.ConnTuple), new(ebpfHttpTx))
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return
-	}
-
-	ttl2 := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	http2MapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*ebpfHttpTx)
-		if !ok {
-			return false
-		}
-
-		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
-			return (now - updated) > ttl2
-		}
-
-		started := int64(httpTxn.RequestStarted())
-		return started > 0 && (now-started) > ttl2
-	})
-
-	e.mapCleaner2 = http2MapCleaner
 }
 
 func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {

@@ -6,7 +6,7 @@
 
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES 4
+#define HTTP2_MAX_FRAMES 10
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
@@ -20,6 +20,8 @@
 
 // This determines the size of the payload fragment that is captured for each HTTP request
 #define HTTP2_BUFFER_SIZE (8 * 20)
+
+#define HTTP2_END_OF_STREAM 0x1
 
 typedef enum {
     kMethod = 2,
@@ -105,5 +107,12 @@ typedef struct {
     __u64  path_size;
     char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
 } http2_transaction_t;
+
+typedef struct {
+    conn_tuple_t tup;
+    skb_info_t skb_info;
+    __u8 frames_processed;
+    __u16 owned_by_src_port;
+} http2_ctx_t;
 
 #endif

@@ -52,16 +52,27 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
-    skb_info_t skb_info;
-    const __u32 zero = 0;
-    http2_transaction_t *http2_conn = bpf_map_lookup_elem(&http2_trans_alloc, &zero);
-    if (http2_conn == NULL) {
+    conn_tuple_t tup = {};
+    skb_info_t skb_info = {};
+    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return 0;
     }
-    bpf_memset(http2_conn, 0, sizeof(http2_transaction_t));
-    if (read_conn_tuple_skb(skb, &skb_info, &http2_conn->tup)) {
-        http2_entrypoint(skb, &skb_info, http2_conn);
+
+    conn_tuple_t normalized_tuple = tup;
+    normalize_tuple(&normalized_tuple);
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_context, &normalized_tuple);
+    if (http2_ctx == NULL) {
+        http2_ctx_t new_http2_ctx;
+        bpf_memset(&new_http2_ctx, 0, sizeof(http2_ctx_t));
+        new_http2_ctx.tup = normalized_tuple;
+        new_http2_ctx.skb_info = skb_info;
+        new_http2_ctx.owned_by_src_port = tup.sport;
+        bpf_map_update_with_telemetry(http2_context, &normalized_tuple, &new_http2_ctx, BPF_ANY);
+        // TODO: Abort only if preface
+        return 0;
     }
+
+    http2_entrypoint(skb, http2_ctx);
 
     return 0;
 }
