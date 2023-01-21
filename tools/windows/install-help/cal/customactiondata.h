@@ -22,7 +22,6 @@ class ICustomActionData
     virtual const std::wstring &FullyQualifiedUsername() const = 0;
     virtual PSID Sid() const = 0;
     virtual void Sid(sid_ptr &sid) = 0;
-    virtual bool installSysprobe() const = 0;
     virtual std::shared_ptr<ITargetMachine> GetTargetMachine() const = 0;
 
   protected:
@@ -60,18 +59,15 @@ class CustomActionData : ICustomActionData
     const std::wstring &Domain() const override;
     PSID Sid() const override;
     void Sid(sid_ptr &sid) override;
-    bool installSysprobe() const override;
     std::shared_ptr<ITargetMachine> GetTargetMachine() const override;
 
-    bool npmPresent() const;
+    void setClosedSourceConfig();
 
   private:
     bool _domainUser;
     User _user;
     std::wstring _fullyQualifiedUsername;
     sid_ptr _sid;
-    bool _doInstallSysprobe;
-    bool _ddnpmPresent;
     bool _ddUserExists;
     bool _isServiceAccount;
     LogonCli *_logonCli;
@@ -81,6 +77,6 @@ class CustomActionData : ICustomActionData
     std::optional<User> findSuppliedUserInfo();
     void ensureDomainHasCorrectFormat();
     bool parseUsernameData();
-    bool parseSysprobeData();
+    
 };
 
