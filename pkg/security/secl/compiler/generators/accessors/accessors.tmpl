@@ -48,7 +48,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: {{$Field.OpOverrides}},
 			{{- end}}
 			{{- if $Field.Iterator}}
-				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {	
+				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					{{if $Field.Handler}}
 						ev := ctx.Event.(*Event)
 					{{end}}
@@ -114,7 +114,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						value = iterator.Next()
 					}
 
+					{{if eq $Field.ReturnType "string"}}
+					ctx.StringCache[field] = results
+					{{else}}
 					ctx.Cache[field] = unsafe.Pointer(&results)
+					{{end}}
 
 					return results
 				},
@@ -132,7 +136,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 							return {{$Field.GetDefaultReturnValue}}
 						}
 					{{end}}
-					
+
 					{{- if $Field.Handler}}
 						{{$Ptr := "&"}}
 						{{$Parent := index $.AllFields $Field.Prefix}}

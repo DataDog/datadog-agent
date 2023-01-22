@@ -18,6 +18,7 @@ type Context struct {
 	Registers Registers
 
 	// cache available across all the evaluations
+	StringCache map[string][]string
 	Cache map[string]unsafe.Pointer
 
 	now time.Time
