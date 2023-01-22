@@ -10,7 +10,7 @@
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 10
+#define HTTP2_MAX_HEADERS_COUNT 15
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
@@ -109,8 +109,8 @@ typedef struct {
 } http2_transaction_t;
 
 typedef struct {
-    conn_tuple_t tup;
-    conn_tuple_t normalized_tup;
+    conn_tuple_t tup __attribute__ ((aligned (8)));
+    conn_tuple_t normalized_tup __attribute__ ((aligned (8)));
     skb_info_t skb_info;
     __u8 frames_processed;
 } http2_ctx_t;
@@ -122,23 +122,22 @@ typedef struct {
 typedef struct {
 //    char *head;
 //    const char *end;
-    __u32 offset;
-    __u32 size;
+    __u16 offset;
+    __u16 size;
     char fragment[HTTP2_BUFFER_SIZE];
-} __attribute__ ((packed)) heap_buffer_t;
+} heap_buffer_t;
 
-typedef struct {
-    __u64 response_last_seen;
-    __u64 request_started;
-
-    __u8 end_of_stream;
-    __u8 request_method;
-    __u8 path_size;
-
-    __u16 response_status_code;
-
-    char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
-} http2_stream_t;
+//typedef struct {
+//    __u64 response_last_seen;
+//    __u64 request_started;
+//
+//    __u16 response_status_code;
+//    __u8 end_of_stream;
+//    __u8 request_method;
+//    __u8 path_size;
+//
+//    char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+//} http2_stream_t;
 
 typedef struct {
     conn_tuple_t tup;
@@ -152,11 +151,15 @@ typedef enum {
 } __attribute__ ((packed)) http2_header_type_t;
 
 typedef struct {
-    __u64 index;
     __u32 stream_id;
-    const char *offset;
-    __u32 length;
+    __u16 offset;
+    __u16 length;
+    __u8 index;
     http2_header_type_t type;
 } http2_header_t;
+
+typedef struct {
+    http2_header_t array[HTTP2_MAX_HEADERS_COUNT];
+} http2_headers_t;
 
 #endif

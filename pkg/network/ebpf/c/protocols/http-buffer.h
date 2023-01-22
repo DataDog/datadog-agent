@@ -53,7 +53,9 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
     // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
     // and thus the verifier is able to ensure that we are in-bound.
     void *buf = &buffer[i * BLK_SIZE];
-    if (offset + 14 < len) {
+    if (i * BLK_SIZE >= HTTP_BUFFER_SIZE) {
+        return;
+    } else if (offset + 14 < len) {
         bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 15);
     } else if (offset + 13 < len) {
         bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 14);
