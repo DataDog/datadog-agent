@@ -834,6 +834,17 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
 	})
 
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `["bad1:value with a space","bad2:value with spaces"]`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}, {K: "bad2", V: "value with spaces"}})
+	})
+
 	for _, envKey := range []string{
 		"DD_CONNECTION_LIMIT", // deprecated
 		"DD_APM_CONNECTION_LIMIT",

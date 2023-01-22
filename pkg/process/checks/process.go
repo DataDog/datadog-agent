@@ -35,14 +35,18 @@ const (
 	configDisallowList         = configPrefix + "blacklist_patterns"
 )
 
-// Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{
-	scrubber: procutil.NewDefaultDataScrubber(),
+// NewProcessCehck returns an instance of the ProcessCheck.
+func NewProcessCheck() Check {
+	return &ProcessCheck{
+		scrubber: procutil.NewDefaultDataScrubber(),
+	}
 }
 
-var _ Check = (*ProcessCheck)(nil)
-
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
+
+const (
+	ProcessDiscoveryHint int32 = 1 << iota // 1
+)
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
@@ -80,14 +84,18 @@ type ProcessCheck struct {
 	maxBatchSize  int
 	maxBatchBytes int
 
+	checkCount uint32
+	skipAmount uint32
+
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.hostInfo = info
-	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
+	p.SysprobeProcessModuleEnabled = syscfg.ProcessModuleEnabled
+	p.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
@@ -100,6 +108,14 @@ func (p *ProcessCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 
 	p.maxBatchSize = getMaxBatchSize()
 	p.maxBatchBytes = getMaxBatchBytes()
+
+	p.skipAmount = uint32(ddconfig.Datadog.GetInt32("process_config.process_discovery.hint_frequency"))
+	if p.skipAmount == 0 {
+		log.Warnf("process_config.process_discovery.hint_frequency must be greater than 0. using default value %d",
+			ddconfig.DefaultProcessDiscoveryHintFrequency)
+		ddconfig.Datadog.Set("process_config.process_discovery.hint_frequency", ddconfig.DefaultProcessDiscoveryHintFrequency)
+		p.skipAmount = ddconfig.DefaultProcessDiscoveryHintFrequency
+	}
 
 	initScrubber(p.scrubber)
 
@@ -216,9 +232,12 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return CombinedRunResult{}, nil
 	}
 
+	collectorProcHints := p.generateHints()
+	p.checkCount++
+
 	connsRates := p.getLastConnRates()
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates)
-	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -266,6 +285,16 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	return result, nil
 }
 
+func (p *ProcessCheck) generateHints() int32 {
+	var hints int32
+
+	if p.checkCount%p.skipAmount == 0 {
+		log.Tracef("generated a process discovery hint on check #%d", p.checkCount)
+		hints |= ProcessDiscoveryHint
+	}
+	return hints
+}
+
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 	stats := map[int32]*procutil.Stats{}
 	for pid, proc := range procs {
@@ -300,6 +329,7 @@ func createProcCtrMessages(
 	maxBatchWeight int,
 	groupID int32,
 	networkID string,
+	hints int32,
 ) ([]model.MessageBody, int, int) {
 	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxBatchWeight)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
@@ -312,6 +342,7 @@ func createProcCtrMessages(
 		m.Info = hostInfo.SystemInfo
 		m.GroupId = groupID
 		m.ContainerHostType = hostInfo.ContainerHostType
+		m.Hints = &model.CollectorProc_HintMask{HintMask: hints}
 
 		messages = append(messages, m)
 	}

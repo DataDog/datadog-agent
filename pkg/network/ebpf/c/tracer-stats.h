@@ -5,7 +5,6 @@
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
-#include <net/tcp.h>
 #include "sock-defines.h"
 #include "cookie.h"
 
@@ -135,7 +134,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
 }
 
-static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats, retransmit_count_increment_t retrans_type) {
+static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // query stats without the PID from the tuple
     __u32 pid = t->pid;
     t->pid = 0;
@@ -150,9 +149,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats,
         return;
     }
 
-    if (retrans_type == RETRANSMIT_COUNT_ABSOLUTE) {
-        val->retransmits = stats.retransmits;
-    } else if (retrans_type == RETRANSMIT_COUNT_INCREMENT && stats.retransmits > 0) {
+    if (stats.retransmits > 0) {
         __sync_fetch_and_add(&val->retransmits, stats.retransmits);
     }
 
@@ -177,7 +174,7 @@ static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, si
     return 0;
 }
 
-static __always_inline int handle_retransmit(struct sock *sk, int count, retransmit_count_increment_t retrans_type) {
+static __always_inline int handle_retransmit(struct sock *sk, int segs) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
@@ -185,8 +182,8 @@ static __always_inline int handle_retransmit(struct sock *sk, int count, retrans
         return 0;
     }
 
-    tcp_stats_t stats = { .retransmits = count, .rtt = 0, .rtt_var = 0 };
-    update_tcp_stats(&t, stats, retrans_type);
+    tcp_stats_t stats = { .retransmits = segs, .rtt = 0, .rtt_var = 0 };
+    update_tcp_stats(&t, stats);
 
     return 0;
 }
@@ -201,7 +198,7 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
-    update_tcp_stats(t, stats, RETRANSMIT_COUNT_NONE);
+    update_tcp_stats(t, stats);
 }
 
 

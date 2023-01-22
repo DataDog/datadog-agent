@@ -25,6 +25,7 @@ import (
 )
 
 const interfaceStatusMetric = "snmp.interface.status"
+const topologyLinkSourceTypeLLDP = "lldp"
 
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
@@ -53,7 +54,13 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	// Telemetry
 	for _, interfaceStatus := range interfaces {
 		status := string(computeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus))
-		interfaceTags := []string{"status:" + status, "interface:" + interfaceStatus.Name, "interface_alias:" + interfaceStatus.Alias, "interface_index:" + strconv.Itoa(int(interfaceStatus.Index))}
+		interfaceTags := []string{"status:" + status, "interface_index:" + strconv.Itoa(int(interfaceStatus.Index))}
+		if interfaceStatus.Name != "" {
+			interfaceTags = append(interfaceTags, "interface:"+interfaceStatus.Name)
+		}
+		if interfaceStatus.Alias != "" {
+			interfaceTags = append(interfaceTags, "interface_alias:"+interfaceStatus.Alias)
+		}
 		interfaceTags = append(interfaceTags, tags...)
 		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
 	}
@@ -300,7 +307,13 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 
 		localInterfaceIDType, localInterfaceID = resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
 
+		// remEntryUniqueID: The combination of localPortNum and lldpRemIndex is expected to be unique for each entry in
+		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
+		remEntryUniqueID := localPortNum + "." + lldpRemIndex
+
 		newLink := metadata.TopologyLinkMetadata{
+			ID:         deviceID + ":" + remEntryUniqueID,
+			SourceType: topologyLinkSourceTypeLLDP,
 			Remote: &metadata.TopologyLinkSide{
 				Device: &metadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),

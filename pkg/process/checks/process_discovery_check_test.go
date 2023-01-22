@@ -27,8 +27,9 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	maxBatchSize := 10
 	getMaxBatchSize = func() int { return maxBatchSize }
 
-	ProcessDiscovery.Init(
-		nil,
+	check := &ProcessDiscoveryCheck{}
+	check.Init(
+		&SysProbeConfig{},
 		&HostInfo{
 			SystemInfo: &model.SystemInfo{
 				Cpus:        []*model.CPUInfo{{Number: 0}},
@@ -38,7 +39,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	)
 
 	// Test check runs without error
-	result, err := ProcessDiscovery.Run(testGroupId(0), nil)
+	result, err := check.Run(testGroupId(0), nil)
 	assert.NoError(t, err)
 
 	// Test that result has the proper number of chunks, and that those chunks are of the correct type

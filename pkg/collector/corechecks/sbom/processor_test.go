@@ -36,7 +36,7 @@ func TestProcessEvents(t *testing.T) {
 							ID:   strconv.Itoa(i),
 						},
 						CycloneDXBOM: &cyclonedx.BOM{
-							SpecVersion: "1.4",
+							SpecVersion: cyclonedx.SpecVersion1_4,
 							Version:     42,
 							Components: &[]cyclonedx.Component{
 								{
@@ -70,7 +70,7 @@ func TestProcessEvents(t *testing.T) {
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{
 							SpecVersion: "1.4",
-							Version:     pointer.Int32Ptr(42),
+							Version:     pointer.Ptr(int32(42)),
 							Components: []*cyclonedx_v1_4.Component{
 								{
 									Name: "0",
@@ -92,7 +92,7 @@ func TestProcessEvents(t *testing.T) {
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{
 							SpecVersion: "1.4",
-							Version:     pointer.Int32Ptr(42),
+							Version:     pointer.Ptr(int32(42)),
 							Components: []*cyclonedx_v1_4.Component{
 								{
 									Name: "100",
@@ -126,7 +126,7 @@ func TestProcessEvents(t *testing.T) {
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{
 							SpecVersion: "1.4",
-							Version:     pointer.Int32Ptr(42),
+							Version:     pointer.Ptr(int32(42)),
 							Components: []*cyclonedx_v1_4.Component{
 								{
 									Name: "200",

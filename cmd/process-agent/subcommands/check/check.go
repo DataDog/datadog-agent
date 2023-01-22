@@ -151,31 +151,21 @@ func runCheckCmd(cliParams *cliParams) error {
 	}()
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, checks.Process.SysprobeProcessModuleEnabled = syscfg.EnabledModules[sysconfig.ProcessModule]
+	_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
 
-	if checks.Process.SysprobeProcessModuleEnabled {
+	if processModuleEnabled {
 		net.SetSystemProbePath(syscfg.SocketAddress)
 	}
 
-	// Connections check requires process-check to have occurred first (for process creation ts),
-	if cliParams.checkName == checks.Connections.Name() {
-		// use a different client ID to prevent destructive querying of connections data
-		checks.ProcessAgentClientID = "process-agent-cli-check-id"
-		if err := checks.Process.Init(nil, hostInfo); err != nil {
-			return err
-		}
-		_, _ = checks.Process.Run(nextGroupID(), nil)
-		// Clean up the process check state only after the connections check is executed
-		cleanups = append(cleanups, checks.Process.Cleanup)
-	}
-
-	names := make([]string, 0, len(checks.All))
-	for _, ch := range checks.All {
+	all := checks.All()
+	names := make([]string, 0, len(all))
+	for _, ch := range all {
 		names = append(names, ch.Name())
 
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage: syscfg.MaxConnsPerMessage,
-			SystemProbeAddress: syscfg.SocketAddress,
+			MaxConnsPerMessage:   syscfg.MaxConnsPerMessage,
+			SystemProbeAddress:   syscfg.SocketAddress,
+			ProcessModuleEnabled: processModuleEnabled,
 		}
 
 		if !matchingCheck(cliParams.checkName, ch) {

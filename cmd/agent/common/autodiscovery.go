@@ -7,6 +7,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,7 +35,7 @@ var (
 		"container": {"kubelet": struct{}{}},
 	}
 
-	legacyProviders = []string{"kubelet", "container", "docker"}
+	incompatibleProviders = []string{"kubelet", "container", "docker"}
 )
 
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
@@ -74,16 +76,28 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 		}
 
-		var enableContainerProvider bool
-		for _, p := range legacyProviders {
-			if _, found := uniqueConfigProviders[p]; found {
-				enableContainerProvider = true
-				delete(uniqueConfigProviders, p)
+		ccaInAD := util.CcaInAD()
+		if ccaInAD {
+			var enableContainerProvider bool
+			for _, p := range incompatibleProviders {
+				if _, found := uniqueConfigProviders[p]; found {
+					enableContainerProvider = true
+					delete(uniqueConfigProviders, p)
+				}
 			}
-		}
 
-		if enableContainerProvider {
-			uniqueConfigProviders[names.KubeContainer] = config.ConfigurationProviders{Name: names.KubeContainer}
+			if enableContainerProvider {
+				uniqueConfigProviders[names.KubeContainer] = config.ConfigurationProviders{Name: names.KubeContainer}
+			}
+		} else {
+			// The "docker" config provider was replaced with the "container" one
+			// that supports Docker, but also other runtimes. We need this
+			// conversion to avoid breaking configs that included "docker".
+			if options, found := uniqueConfigProviders["docker"]; found {
+				delete(uniqueConfigProviders, "docker")
+				options.Name = names.Container
+				uniqueConfigProviders["container"] = options
+			}
 		}
 
 		for _, provider := range extraConfigProviders {
@@ -272,12 +286,12 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
 	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
-		var errors []error
+		var errorList []error
 		for _, cfg := range configs {
 			if instanceFilter != "" {
 				instances, filterErrors := filterInstances(cfg.Instances, instanceFilter)
 				if len(filterErrors) > 0 {
-					errors = append(errors, filterErrors...)
+					errorList = append(errorList, filterErrors...)
 					continue
 				}
 				if len(instances) == 0 {
@@ -290,8 +304,8 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 				configChan <- cfg
 			}
 		}
-		if len(errors) > 0 {
-			returnErr = utilserror.NewAggregate(errors)
+		if len(errorList) > 0 {
+			returnErr = errors.New(utilserror.NewAggregate(errorList).Error())
 			stopChan <- struct{}{}
 		}
 	}), true)
