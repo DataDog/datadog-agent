@@ -31,7 +31,7 @@ int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void
     }
     //register the connection in our map
     bpf_map_update_elem(&java_tls_connections, connection, &val, BPF_ANY);
-    https_process(connection, data, bytes_read, JAVA_TLS);
+    https_process(connection, data+sizeof(bytes_read), bytes_read, JAVA_TLS);
     return 0;
 }
 
