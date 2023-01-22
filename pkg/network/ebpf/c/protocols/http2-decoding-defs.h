@@ -7,16 +7,17 @@
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_PER_ITERATION 2
-#define HTTP2_MAX_FRAMES_ITERATIONS 5
+#define HTTP2_MAX_FRAMES_ITERATIONS 4
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 10
+#define HTTP2_MAX_HEADERS_COUNT 15
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_PATH_LEN 32
 
+#define MAX_INTERESTING_STATIC_TABLE_INDEX 15
 #define MAX_STATIC_TABLE_INDEX 61
 
 // This determines the size of the payload fragment that is captured for each HTTP request
@@ -62,7 +63,7 @@ typedef struct {
 
 typedef struct {
     __u64 index;
-    conn_tuple_t old_tup;
+    conn_tuple_t tup;
 } dynamic_table_index_t;
 
 typedef enum {
@@ -110,39 +111,38 @@ typedef struct {
 } http2_transaction_t;
 
 typedef struct {
+    conn_tuple_t tup;
+    __u32  stream_id;
+} http2_stream_key_t;
+
+typedef struct {
+    __u64 response_last_seen;
+    __u64 request_started;
+
+    __u16 response_status_code;
+    __u8 end_of_stream;
+    __u8 request_method;
+    __u8 path_size;
+
+    char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+} http2_stream_t;
+
+typedef struct {
     conn_tuple_t tup __attribute__ ((aligned (8)));
     conn_tuple_t normalized_tup __attribute__ ((aligned (8)));
     skb_info_t skb_info;
+    dynamic_table_index_t dynamic_index;
+    http2_stream_key_t http2_stream_key;
+    http2_stream_t http2_stream;
 } http2_ctx_t;
 
-//typedef struct {
-//
-//} buffer_t;
-
 typedef struct {
-//    char *head;
-//    const char *end;
     __u16 offset;
     __u16 size;
     char fragment[HTTP2_BUFFER_SIZE];
 } heap_buffer_t;
 
-//typedef struct {
-//    __u64 response_last_seen;
-//    __u64 request_started;
-//
-//    __u16 response_status_code;
-//    __u8 end_of_stream;
-//    __u8 request_method;
-//    __u8 path_size;
-//
-//    char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
-//} http2_stream_t;
 
-typedef struct {
-    conn_tuple_t tup;
-    __u8  stream_id;
-} http2_stream_key_t;
 
 typedef enum {
     kStaticHeader  = 0,

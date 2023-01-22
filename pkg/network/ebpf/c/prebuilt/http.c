@@ -52,17 +52,19 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
+    const __u64 skb_addr = (__u64)skb;
+
     conn_tuple_t tup = {};
     skb_info_t skb_info = {};
     if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return 0;
     }
 
-    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &tup);
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &skb_addr);
 
     if (tail_call_state == NULL) {
         const http2_tail_call_state_t iteration_value = {};
-        bpf_map_update_with_telemetry(http2_iterations, &tup, &iteration_value, BPF_ANY);
+        bpf_map_update_with_telemetry(http2_iterations, &skb_addr, &iteration_value, BPF_NOEXIST);
         // TODO: Abort only if preface
         return 0;
     }
@@ -70,25 +72,36 @@ int socket__http2_filter(struct __sk_buff *skb) {
     conn_tuple_t normalized_tuple = tup;
     normalize_tuple(&normalized_tuple);
 
-    http2_ctx_t http2_ctx;
-    bpf_memset(&http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx.tup = tup;
-    http2_ctx.normalized_tup = normalized_tuple;
-    http2_ctx.skb_info = skb_info;
-    http2_ctx.skb_info.data_off += tail_call_state->offset;
+    const __u32 zero = 0;
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
+    if (http2_ctx == NULL) {
+        return -1;
+    }
+    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx->tup = tup;
+    http2_ctx->normalized_tup = normalized_tuple;
+    http2_ctx->http2_stream_key.tup = normalized_tuple;
+    http2_ctx->dynamic_index.tup = normalized_tuple;
+    http2_ctx->skb_info = skb_info;
+    http2_ctx->skb_info.data_off += tail_call_state->offset;
 
-    __u32 read_size = http2_entrypoint(skb, &http2_ctx);
+//    log_debug("[http2] %p running iteration %d", skb, tail_call_state->iteration + 1);
+
+    __u32 read_size = http2_entrypoint(skb, http2_ctx);
 
     if (read_size == -1) {
+//        log_debug("[http2] %p ending 1 iteration %d", skb, tail_call_state->iteration + 1);
         return 0;
     }
-    if (http2_ctx.skb_info.data_off + read_size >= skb->len) {
+    if (http2_ctx->skb_info.data_off + read_size >= skb->len) {
+//        log_debug("[http2] %p ending 2 iteration %d", skb, tail_call_state->iteration + 1);
         return 0;
     }
 
     tail_call_state->iteration += 1;
     tail_call_state->offset += read_size;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
+//        log_debug("[http2] %p calling next iteration %d", skb, tail_call_state->iteration);
         bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
     }
 
