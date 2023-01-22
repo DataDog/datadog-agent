@@ -115,7 +115,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{else if eq $Field.ReturnType "bool"}}
 					ctx.BoolCache[field] = results
 					{{else}}
-					ctx.Cache[field] = unsafe.Pointer(&results)
+					{{ template "error_undefined_array_cache" }}
 					{{end}}
 
 					return results
