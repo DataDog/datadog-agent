@@ -160,18 +160,20 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
 // The error is errNeedMore if p doesn't contain a complete integer.
 static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 factor, __u8 *out){
-    if (heap_buffer->size <= heap_buffer->offset) {
+    const __u16 offset = heap_buffer->offset % HTTP2_BUFFER_SIZE;
+
+    if (heap_buffer->size <= offset) {
         return false;
     }
     // TODO: verifier is happy now.
-    if (HTTP2_BUFFER_SIZE-1 <= heap_buffer->offset) {
+    if (HTTP2_BUFFER_SIZE-1 <= offset) {
         return false;
     }
-    __u8 current_char_as_number = heap_buffer->fragment[heap_buffer->offset];
+    __u8 current_char_as_number = heap_buffer->fragment[offset];
     current_char_as_number &= (1 << factor) - 1;
 
     if (current_char_as_number < (1 << factor) - 1) {
-        heap_buffer->offset += 1;
+        heap_buffer->offset = offset + 1;
         *out = current_char_as_number;
         return true;
     }
@@ -190,11 +192,24 @@ static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 facto
 //     return;
 //}
 
+static __always_inline __u64 get_dynamic_counter(conn_tuple_t *tup) {
+    // global counter is the counter which help us with the calc of the index in our internal hpack dynamic table
+    __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
+    if (counter_ptr != NULL) {
+        return *counter_ptr;
+    }
+    return 0;
+}
+
+static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 *counter) {
+    bpf_map_update_elem(&http2_dynamic_counter_table, tup, counter, BPF_ANY);
+}
+
+
 // TODO: Fix documentation
 // parse_field_indexed is handling the case which the header frame is part of the static table.
 static __always_inline __u8 parse_field_indexed(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u8 index = 0;
-
     if (!read_var_int(heap_buffer, 7, &index)) {
         return false;
     }
@@ -211,13 +226,10 @@ static __always_inline __u8 parse_field_indexed(http2_ctx_t *http2_ctx, http2_he
         return 0;
     }
 
-    __u64 *global_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &http2_ctx->tup);
-    if (global_counter == NULL) {
-        return 0;
-    }
+    __u64 global_counter = get_dynamic_counter(&http2_ctx->tup);
     // we change the index to fit our internal dynamic table implementation index.
     // the index is starting from 1 so we decrease 62 in order to be equal to the given index.
-    __u64 new_index = *global_counter - (index - (MAX_STATIC_TABLE_INDEX + 1));
+    __u64 new_index = global_counter - (index - (MAX_STATIC_TABLE_INDEX + 1));
     dynamic_table_index_t dynamic_index = {};
     dynamic_index.index = new_index;
     // TODO: can be out of the loop
@@ -235,64 +247,21 @@ static __always_inline __u8 parse_field_indexed(http2_ctx_t *http2_ctx, http2_he
     return 1;
 }
 
-static __always_inline void update_current_offset(heap_buffer_t *heap_buffer, __u64 index){
-    __u8 str_len = 0;
-    if (!read_var_int(heap_buffer, 6, &str_len)) {
-        return;
-    }
-    if (str_len > 0) {
-        heap_buffer->offset += str_len;
-    }
-
-    // Literal Header Field with Incremental Indexing - New Name, which means we need to read the body as well,
-    // so we are reading again and updating the len.
-    // TODO: Better document.
-    if (index == 0) {
-        if (!read_var_int(heap_buffer, 6, &str_len)) {
-            return;
-        }
-        if (str_len > 0) {
-            heap_buffer->offset += str_len;
-        }
-    }
-}
-
-static __always_inline __u64 get_dynamic_counter(conn_tuple_t *tup) {
-    // global counter is the counter which help us with the calc of the index in our internal hpack dynamic table
-    __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
-    if (counter_ptr != NULL) {
-        return *counter_ptr;
-    }
-    return 0;
-}
-
-static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 *counter) {
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, counter, BPF_ANY);
-}
-
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
 static __always_inline __u8 parse_field_literal(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
+    __u64 counter = get_dynamic_counter(&http2_ctx->tup);
+
+    counter++;
+    set_dynamic_counter(&http2_ctx->tup, &counter);
+
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 6, &index)) {
         return 0;
     }
 
-    __u64 counter = get_dynamic_counter(&http2_ctx->tup);
-
     __u8 str_len = 0;
     // The key is new and inserted into the dynamic table. So we are skipping the new value.
-    if (index == 0) {
-        counter++;
-        if (!read_var_int(heap_buffer, 6, &str_len)) {
-            set_dynamic_counter(&http2_ctx->tup, &counter);
-            return 0;
-        }
-        heap_buffer->offset += str_len;
-    }
-
-    counter++;
-    set_dynamic_counter(&http2_ctx->tup, &counter);
 
     if (index <= MAX_STATIC_TABLE_INDEX) {
         static_table_entry_t *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
@@ -302,54 +271,46 @@ static __always_inline __u8 parse_field_literal(http2_ctx_t *http2_ctx, http2_he
                 return 0;
             }
             heap_buffer->offset += str_len;
+
+            if (index == 0) {
+                counter+=0;
+                set_dynamic_counter(&http2_ctx->tup, &counter);
+                str_len = 0;
+                if (!read_var_int(heap_buffer, 6, &str_len)) {
+                    return 0;
+                }
+                heap_buffer->offset += str_len;
+            }
             return 0;
         }
     }
 
-
+    str_len = 0;
     if (!read_var_int(heap_buffer, 6, &str_len)) {
         return 0;
     }
 
+    heap_buffer->offset += str_len;
     if (str_len >= HTTP2_MAX_PATH_LEN){
-        heap_buffer->offset += str_len;
         return 0;
     }
-//
-//    if (heap_buffer->offset + HTTP2_MAX_PATH_LEN >= HTTP2_BUFFER_SIZE-1){
-//        heap_buffer->offset += str_len;
-//        return false;
-//    }
 
-//    dynamic_table_entry_t dynamic_value = {};
-//
-//    // create the new dynamic value which will be added to the internal table.
-//    // read up to str len
-//    bpf_memcpy(dynamic_value.value.buffer, &heap_buffer->fragment[heap_buffer->offset], HTTP2_MAX_PATH_LEN);
-//    dynamic_value.value.string_len = str_len;
-//    dynamic_value.index = index;
-//
-//    // create the new dynamic index which is bashed on the counter and the conn_tup.
-//    dynamic_table_index_t dynamic_index = {};
-//    dynamic_index.index = counter;
-//    dynamic_index.old_tup = http2_ctx->tup;
-//
-//    bpf_map_update_elem(&http2_dynamic_table, &dynamic_index, &dynamic_value, BPF_ANY);
-//
-//    heap_buffer->offset += str_len;
-
-    // index 5 represents the :path header - from static table
     if (index != 5){
         return 0;
     }
-//        bpf_memcpy(http2_stream->path, dynamic_value.value.buffer, HTTP2_MAX_PATH_LEN);
-//        http2_stream->path_size = str_len;
-        headers_to_process->index = counter;
-        headers_to_process->stream_id = stream_id;
-        headers_to_process->offset = heap_buffer->offset;
-        headers_to_process->length = str_len;
-        headers_to_process->type = kNewDynamicHeader;
-        return 1;
+
+    dynamic_table_index_t dynamic_index = {};
+    dynamic_table_entry_t dynamic_value = {};
+    dynamic_index.index = counter;
+    dynamic_index.old_tup = http2_ctx->tup;
+    bpf_map_update_elem(&http2_dynamic_table, &dynamic_index, &dynamic_value, BPF_ANY);
+
+    headers_to_process->index = counter;
+    headers_to_process->stream_id = stream_id;
+    headers_to_process->offset = heap_buffer->offset - str_len;
+    headers_to_process->length = str_len;
+    headers_to_process->type = kNewDynamicHeader;
+    return 1;
 }
 
 // This function reads the http2 headers frame.
@@ -359,6 +320,7 @@ static __always_inline __u8 filter_relevant_headers(http2_ctx_t *http2_ctx, http
     __u8 interesting_headers = 0;
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT)
     for (unsigned headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT; headers_index++) {
+        log_debug("[http2] %d iteration %lu %lu", headers_index, heap_buffer->offset, heap_buffer->size);
         if (heap_buffer->size <= heap_buffer->offset) {
             break;
         }
@@ -425,7 +387,7 @@ static __always_inline __s8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
         is_data_frame_end_of_stream = is_end_of_stream && (frame_type == kDataFrame);
         is_headers_frame = frame_type == kHeadersFrame;
         if (!is_data_frame_end_of_stream && !is_headers_frame) {
-            log_debug("[http2] %p frame is not headers or data EOS, thus skipping it\n", skb);
+//            log_debug("[http2] %p frame is not headers or data EOS, thus skipping it\n", skb);
             // Skipping the frame payload.
             continue;
         }
@@ -440,12 +402,55 @@ static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk
 #define BLK_SIZE (16)
     const u32 len = HTTP2_BUFFER_SIZE < (skb->len - (u32)offset) ? (u32)offset + HTTP2_BUFFER_SIZE : skb->len;
 
+    unsigned i = 0;
 #pragma unroll(HTTP2_BUFFER_SIZE / BLK_SIZE)
-    for (unsigned i = 0; i < (HTTP2_BUFFER_SIZE / BLK_SIZE); i++) {
-        if (offset + BLK_SIZE - 1 >= len) { return; }
+    for (; i < (HTTP2_BUFFER_SIZE / BLK_SIZE); i++) {
+        if (offset + BLK_SIZE - 1 >= len) { break; }
 
         bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
         offset += BLK_SIZE;
+    }
+
+    // This part is very hard to write in a loop and unroll it.
+    // Indeed, mostly because of older kernel verifiers, we want to make sure the offset into the buffer is not
+    // stored on the stack, so that the verifier is able to verify that we're not doing out-of-bound on
+    // the stack.
+    // Basically, we should get a register from the code block above containing an fp relative address. As
+    // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
+    // and thus the verifier is able to ensure that we are in-bound.
+    void *buf = &buffer[i * BLK_SIZE];
+    if (i * BLK_SIZE >= HTTP2_BUFFER_SIZE) {
+        return;
+    } else if (offset + 14 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 15);
+    } else if (offset + 13 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 14);
+    } else if (offset + 12 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 13);
+    } else if (offset + 11 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 12);
+    } else if (offset + 10 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 11);
+    } else if (offset + 9 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 10);
+    } else if (offset + 8 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 9);
+    } else if (offset + 7 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 8);
+    } else if (offset + 6 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 7);
+    } else if (offset + 5 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 6);
+    } else if (offset + 4 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 5);
+    } else if (offset + 3 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 4);
+    } else if (offset + 2 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 3);
+    } else if (offset + 1 < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 2);
+    } else if (offset < len) {
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 1);
     }
 }
 
