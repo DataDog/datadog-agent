@@ -5,12 +5,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"net"
 	"reflect"
-	"unsafe"
-)
-
-// suppress unused package warning
-var (
-	_ *unsafe.Pointer
 )
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {

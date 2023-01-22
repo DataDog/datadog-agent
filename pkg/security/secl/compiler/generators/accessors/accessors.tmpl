@@ -7,15 +7,9 @@ package {{.Name}}
 import (
 	"net"
 	"reflect"
-	"unsafe"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-)
-
-// suppress unused package warning
-var (
-	_ *unsafe.Pointer
 )
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
