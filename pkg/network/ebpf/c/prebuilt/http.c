@@ -67,7 +67,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
         new_http2_ctx.tup = tup;
         new_http2_ctx.normalized_tup = normalized_tuple;
         new_http2_ctx.skb_info = skb_info;
-        new_http2_ctx.owned_by_src_port = tup.sport;
         bpf_map_update_with_telemetry(http2_context, &normalized_tuple, &new_http2_ctx, BPF_ANY);
         // TODO: Abort only if preface
         return 0;

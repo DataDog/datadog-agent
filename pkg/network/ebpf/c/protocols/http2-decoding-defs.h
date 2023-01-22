@@ -6,7 +6,7 @@
 
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES 10
+#define HTTP2_MAX_FRAMES 2
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
@@ -113,14 +113,19 @@ typedef struct {
     conn_tuple_t normalized_tup;
     skb_info_t skb_info;
     __u8 frames_processed;
-    __u16 owned_by_src_port;
 } http2_ctx_t;
 
+//typedef struct {
+//
+//} buffer_t;
+
 typedef struct {
-    __u32 size;
+//    char *head;
+//    const char *end;
     __u32 offset;
+    __u32 size;
     char fragment[HTTP2_BUFFER_SIZE];
-} heap_buffer_t;
+} __attribute__ ((packed)) heap_buffer_t;
 
 typedef struct {
     __u64 response_last_seen;
@@ -139,5 +144,19 @@ typedef struct {
     conn_tuple_t tup;
     __u8  stream_id;
 } http2_stream_key_t;
+
+typedef enum {
+    kStaticHeader  = 0,
+    kNewDynamicHeader = 1,
+    kExistingDynamicHeader = 2,
+} __attribute__ ((packed)) http2_header_type_t;
+
+typedef struct {
+    __u64 index;
+    __u32 stream_id;
+    const char *offset;
+    __u32 length;
+    http2_header_type_t type;
+} http2_header_t;
 
 #endif
