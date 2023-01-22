@@ -13,7 +13,7 @@ static bool try_parse_produce_request(kafka_context_t *kafka_context);
 static bool try_parse_fetch_request(kafka_context_t *kafka_context);
 //static bool kafka_read_big_endian_int32(kafka_context_t *kafka_context, int32_t* result);
 static bool kafka_read_big_endian_int16(kafka_context_t *kafka_context, int16_t* result);
-static int32_t read_big_endian_int32(const char* buf);
+//static int32_t read_big_endian_int32(const char* buf);
 static int16_t read_big_endian_int16(const char* buf);
 
 static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
@@ -21,7 +21,7 @@ static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
         return false;
     }
 
-    kafka_context_t kafka_context = {buf, buf_size};
+    kafka_context_t kafka_context = {buf, buf_size, 0, (char*)buf};
 
     if (!is_kafka_request_header(&kafka_context)) {
         return false;
@@ -188,7 +188,12 @@ static __inline bool kafka_read_big_endian_int16(kafka_context_t *kafka_context,
 //    }
 //    const char* current_offset = kafka_context->buffer + kafka_context->offset;
     const char* current_offset = kafka_context->offset_as_pointer;
-    if (current_offset == NULL || current_offset < kafka_context->buffer || current_offset > (kafka_context->buffer + kafka_context->buffer_size)) {
+    if (current_offset == NULL || current_offset < kafka_context->buffer) {
+        return false;
+    }
+    barrier();
+    const char* max_offset = kafka_context->buffer + CLASSIFICATION_MAX_BUFFER - 2;
+    if (current_offset > max_offset) {
         return false;
     }
     *result = read_big_endian_int16(current_offset);
@@ -196,10 +201,10 @@ static __inline bool kafka_read_big_endian_int16(kafka_context_t *kafka_context,
     return true;
 }
 
-static __inline int32_t read_big_endian_int32(const char* buf) {
-    int32_t *val = (int32_t*)buf;
-    return bpf_ntohl(*val);
-}
+//static __inline int32_t read_big_endian_int32(const char* buf) {
+//    int32_t *val = (int32_t*)buf;
+//    return bpf_ntohl(*val);
+//}
 
 static __inline int16_t read_big_endian_int16(const char* buf) {
     int16_t *val = (int16_t*)buf;

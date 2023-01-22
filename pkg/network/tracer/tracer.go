@@ -304,8 +304,14 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 				},
 			})
 	}
-	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
-		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
+	err = offsetMgr.InitWithOptions(buf, offsetOptions)
+	err2 := errors.Unwrap(err)
+	err3 := errors.Unwrap(err2)
+	err4, ok := errors.Unwrap(err3).(*ebpf.VerifierError)
+	if ok {
+		for _, l := range err4.Log {
+			fmt.Println(l)
+		}
 	}
 
 	if err := offsetMgr.Start(); err != nil {
