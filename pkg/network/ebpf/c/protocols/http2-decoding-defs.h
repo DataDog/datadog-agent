@@ -6,11 +6,12 @@
 
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES 2
+#define HTTP2_MAX_FRAMES_PER_ITERATION 2
+#define HTTP2_MAX_FRAMES_ITERATIONS 5
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 12
+#define HTTP2_MAX_HEADERS_COUNT 10
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
@@ -112,7 +113,6 @@ typedef struct {
     conn_tuple_t tup __attribute__ ((aligned (8)));
     conn_tuple_t normalized_tup __attribute__ ((aligned (8)));
     skb_info_t skb_info;
-    __u8 frames_processed;
 } http2_ctx_t;
 
 //typedef struct {
@@ -161,5 +161,9 @@ typedef struct {
 typedef struct {
     http2_header_t array[HTTP2_MAX_HEADERS_COUNT];
 } http2_headers_t;
+
+typedef struct {
+    http2_frame_t array[HTTP2_MAX_FRAMES_PER_ITERATION];
+} http2_frames_t;
 
 #endif

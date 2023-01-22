@@ -58,21 +58,39 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-    conn_tuple_t normalized_tuple = tup;
-    normalize_tuple(&normalized_tuple);
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_context, &normalized_tuple);
-    if (http2_ctx == NULL) {
-        http2_ctx_t new_http2_ctx;
-        bpf_memset(&new_http2_ctx, 0, sizeof(http2_ctx_t));
-        new_http2_ctx.tup = tup;
-        new_http2_ctx.normalized_tup = normalized_tuple;
-        new_http2_ctx.skb_info = skb_info;
-        bpf_map_update_with_telemetry(http2_context, &normalized_tuple, &new_http2_ctx, BPF_ANY);
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &tup);
+
+    if (tail_call_state == NULL) {
+        const http2_tail_call_state_t iteration_value = {};
+        bpf_map_update_with_telemetry(http2_iterations, &tup, &iteration_value, BPF_ANY);
         // TODO: Abort only if preface
         return 0;
     }
 
-    http2_entrypoint(skb, http2_ctx);
+    conn_tuple_t normalized_tuple = tup;
+    normalize_tuple(&normalized_tuple);
+
+    http2_ctx_t http2_ctx;
+    bpf_memset(&http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx.tup = tup;
+    http2_ctx.normalized_tup = normalized_tuple;
+    http2_ctx.skb_info = skb_info;
+    http2_ctx.skb_info.data_off += tail_call_state->offset;
+
+    __u32 read_size = http2_entrypoint(skb, &http2_ctx);
+
+    if (read_size == -1) {
+        return 0;
+    }
+    if (http2_ctx.skb_info.data_off + read_size >= skb->len) {
+        return 0;
+    }
+
+    tail_call_state->iteration += 1;
+    tail_call_state->offset += read_size;
+    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
+        bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
+    }
 
     return 0;
 }

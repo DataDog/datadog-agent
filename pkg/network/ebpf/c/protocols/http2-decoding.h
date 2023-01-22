@@ -349,13 +349,13 @@ static __always_inline __u8 filter_relevant_headers(http2_ctx_t *http2_ctx, http
     return interesting_headers;
 }
 
-static __always_inline __s8 filter_http2_frames(struct __sk_buff *skb, http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process) {
+static __always_inline __s8 filter_http2_frames(struct __sk_buff *skb, http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process, __u32 *max_offset) {
     __u32 offset = http2_ctx->skb_info.data_off;
     __s64 remaining_payload_length = 0;
 
     // length cannot be 9
-    char frame_buf[16];
-    bpf_memset((char*)frame_buf, 0, 16);
+    char frame_buf[10];
+    bpf_memset((char*)frame_buf, 0, 10);
 
     __s8 frame_index = 0;
     bool is_end_of_stream = false;
@@ -364,8 +364,8 @@ static __always_inline __s8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
     frame_type_t frame_type;
     __u8 frame_flags;
 
-#pragma unroll (HTTP2_MAX_FRAMES)
-    for (int iteration = 0; iteration < HTTP2_MAX_FRAMES; iteration++) {
+#pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
+    for (int iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; iteration++) {
         remaining_payload_length = skb->len - offset;
         if (remaining_payload_length < HTTP2_FRAME_HEADER_SIZE) {
             break;
@@ -374,6 +374,7 @@ static __always_inline __s8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
         // read frame.
         bpf_skb_load_bytes_with_telemetry(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
         offset += HTTP2_FRAME_HEADER_SIZE;
+        *max_offset += HTTP2_FRAME_HEADER_SIZE;
 
         if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &frames_to_process[frame_index].header)){
             log_debug("[http2] unable to read_http2_frame_header");
@@ -381,6 +382,7 @@ static __always_inline __s8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
         }
         frames_to_process[frame_index].offset = offset;
         offset += frames_to_process[frame_index].header.length;
+        *max_offset += frames_to_process[frame_index].header.length;
 
         frame_type = frames_to_process[frame_index].header.type;
         frame_flags = frames_to_process[frame_index].header.flags;
@@ -489,16 +491,13 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT * sizeof(http2_header_t));
 
-#pragma unroll (HTTP2_MAX_FRAMES)
-    for (__u8 iteration = 0; iteration < HTTP2_MAX_FRAMES; iteration++) {
+#pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
+    for (__u8 iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; iteration++) {
         if (iteration > number_of_frames) {
             break;
         }
 
         current_frame_header = &frames_to_process[iteration].header;
-        log_debug("[http2]%d found an interesting frame length %lu; type %d", iteration, current_frame_header->length, current_frame_header->type);
-        log_debug("[http2]%d found an interesting frame flags %d; stream_id %lu", iteration, current_frame_header->flags, current_frame_header->stream_id);
-        log_debug("[http2]%d offset is %lu", iteration, frames_to_process[iteration].offset);
 
         if (current_frame_header->type == kDataFrame) {
             // TODO: handle end of stream.
@@ -519,23 +518,27 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
 
         // process headers
         interesting_headers += filter_relevant_headers(http2_ctx, headers_to_process->array, current_frame_header->stream_id, heap_buffer);
-//        log_debug("[http2] frame has %d interesting headers", interesting_headers);
         // if end of stream, process end of stream
     }
 
     process_headers(headers_to_process->array, interesting_headers);
 }
 
-static __always_inline void http2_entrypoint(struct __sk_buff *skb, http2_ctx_t *http2_ctx) {
-    http2_frame_t frames_to_process[HTTP2_MAX_FRAMES];
-    bpf_memset(frames_to_process, 0, HTTP2_MAX_FRAMES * sizeof(http2_frame_t));
+static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_ctx_t *http2_ctx) {
+    const __u32 zero = 0;
+    http2_frames_t *frames_to_process = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
+    if (frames_to_process == NULL) {
+        return -1;
+    }
+    bpf_memset(frames_to_process, 0, HTTP2_MAX_FRAMES_PER_ITERATION * sizeof(http2_frame_t));
 
-    __s8 interesting_frames = filter_http2_frames(skb, http2_ctx, frames_to_process);
+    __u32 max_offset = 0;
+    __s8 interesting_frames = filter_http2_frames(skb, http2_ctx, frames_to_process->array, &max_offset);
     if (interesting_frames >= 0) {
-        process_relevant_http2_frames(skb, http2_ctx, frames_to_process, interesting_frames);
+        process_relevant_http2_frames(skb, http2_ctx, frames_to_process->array, interesting_frames);
     }
 
-    return;
+    return max_offset;
 }
 
 #endif
