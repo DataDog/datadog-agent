@@ -186,16 +186,6 @@ static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 facto
     return false;
 }
 
-//static __always_inline void classify_static_value(http2_stream_t *http2_stream, static_table_entry_t* static_value){
-//     if ((static_value->key == kMethod) && (static_value->value == kPOST)){
-//        http2_stream->request_method = static_value->value;
-//     } else if ((static_value->value <= k500) && (static_value->value >= k200)) {
-//        http2_stream->response_status_code = static_value->value;
-//     }
-//
-//     return;
-//}
-
 static __always_inline __u64 get_dynamic_counter(conn_tuple_t *tup) {
     // global counter is the counter which help us with the calc of the index in our internal hpack dynamic table
     __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
@@ -208,7 +198,6 @@ static __always_inline __u64 get_dynamic_counter(conn_tuple_t *tup) {
 static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 *counter) {
     bpf_map_update_elem(&http2_dynamic_counter_table, tup, counter, BPF_ANY);
 }
-
 
 // TODO: Fix documentation
 // parse_field_indexed is handling the case which the header frame is part of the static table.
@@ -242,7 +231,7 @@ static __always_inline __u8 parse_field_indexed(http2_ctx_t *http2_ctx, http2_he
         return 0;
     }
 
-    headers_to_process->index = index;
+    headers_to_process->index = http2_ctx->dynamic_index.index;
     headers_to_process->stream_id = stream_id;
     headers_to_process->type = kExistingDynamicHeader;
 
@@ -304,19 +293,16 @@ static __always_inline __u8 parse_field_literal(http2_ctx_t *http2_ctx, http2_he
         return 0;
     }
     dynamic_table_entry_t dynamic_value = {};
-    dynamic_value.value.string_len = str_len;
-    dynamic_value.index = index;
+    dynamic_value.string_len = str_len;
 
     // create the new dynamic value which will be added to the internal table.
-    bpf_memcpy(dynamic_value.value.buffer, &heap_buffer->fragment[offset % HTTP2_BUFFER_SIZE], HTTP2_MAX_PATH_LEN);
+    bpf_memcpy(dynamic_value.buffer, &heap_buffer->fragment[offset % HTTP2_BUFFER_SIZE], HTTP2_MAX_PATH_LEN);
 
     http2_ctx->dynamic_index.index = counter;
     bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
     headers_to_process->index = counter;
     headers_to_process->stream_id = stream_id;
-    headers_to_process->offset = offset;
-    headers_to_process->length = str_len;
     headers_to_process->type = kNewDynamicHeader;
     return 1;
 }
@@ -384,9 +370,7 @@ static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
         }
         frames_to_process[frame_index].offset = offset;
 
-        log_debug("[http2] %d pre offset %lu", iteration, offset);
         offset += frames_to_process[frame_index].header.length;
-        log_debug("[http2] %d post offset %lu", iteration, offset);
 
         frame_type = frames_to_process[frame_index].header.type;
 
@@ -462,19 +446,18 @@ static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk
     }
 }
 
-static __always_inline void process_headers(http2_header_t *headers_to_process, __s32 interesting_headers, http2_stream_key_t *http2_stream_key_template) {
+static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __s32 interesting_headers, http2_stream_key_t *http2_stream_key_template) {
     http2_stream_t *current_stream;
     http2_header_t *current_header;
 
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT)
-    for (unsigned iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT; iteration++) {
+    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT; ++iteration) {
         if (iteration >= interesting_headers) {
             break;
         }
 
         current_header = &headers_to_process[iteration];
         log_debug("[http2]stream %lu; found header of type %d; index of %d", current_header->stream_id, current_header->type, current_header->index);
-        log_debug("[http2]stream %lu; header offset %lu; header length of %lu", current_header->stream_id, current_header->offset, current_header->length);
 
         http2_stream_key_template->stream_id = current_header->stream_id;
         current_stream = http2_fetch_stream(http2_stream_key_template);
@@ -491,13 +474,27 @@ static __always_inline void process_headers(http2_header_t *headers_to_process, 
             }
 
             log_debug("[http2]stream %lu; index %d", current_header->stream_id, current_header->index);
-             if ((static_value->key == kMethod) && (static_value->value == kPOST)){
+            if (static_value->key == kMethod){
+                // TODO: mark request
+                current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = static_value->value;
                 log_debug("[http2]stream %lu; is post", current_header->stream_id);
-             } else if ((static_value->value <= k500) && (static_value->value >= k200)) {
+            } else if (static_value->key == kStatus) {
+                // TODO: mark response
                 current_stream->response_status_code = static_value->value;
                 log_debug("[http2]stream %lu; status code is %d", current_header->stream_id, static_value->value);
-             }
+            }
+        } else if (current_header->type == kNewDynamicHeader || current_header->type == kExistingDynamicHeader) {
+            http2_ctx->dynamic_index.index = current_header->index;
+            dynamic_table_entry_t* dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index.index);
+            if (dynamic_value == NULL) {
+                // report error
+                break;
+            }
+            // TODO: reuse same struct
+            current_stream->path_size = dynamic_value->string_len;
+            bpf_memcpy(current_stream->path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+            log_debug("[http2]stream %lu; path_size is %d", current_header->stream_id, current_stream->path_size);
         }
     }
 }
@@ -542,7 +539,7 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
         // if end of stream, process end of stream
     }
 
-    process_headers(headers_to_process->array, interesting_headers, &http2_ctx->http2_stream_key);
+    process_headers(http2_ctx, headers_to_process->array, interesting_headers, &http2_ctx->http2_stream_key);
 }
 
 static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_ctx_t *http2_ctx) {

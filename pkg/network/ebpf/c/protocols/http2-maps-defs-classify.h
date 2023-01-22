@@ -14,9 +14,6 @@ typedef struct {
 /* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
 BPF_LRU_MAP(http2_iterations, __u64, http2_tail_call_state_t, 1024)
 
-//BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_transaction_t, 1)
-//BPF_PERCPU_ARRAY_MAP(http_trans_alloc, __u32, http_transaction_t, 1)
-
 BPF_PERCPU_ARRAY_MAP(http2_heap_buffer, __u32, heap_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, __u32, http2_headers_t, 1)
 BPF_PERCPU_ARRAY_MAP(http2_frames_to_process, __u32, http2_frames_t, 1)

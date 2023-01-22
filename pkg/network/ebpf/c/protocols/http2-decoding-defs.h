@@ -11,7 +11,7 @@
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 15
+#define HTTP2_MAX_HEADERS_COUNT 10
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
@@ -52,13 +52,7 @@ typedef struct {
 
 typedef struct {
     char buffer[32] __attribute__ ((aligned (8)));
-    __u64 string_len;
-} string_value_t;
-
-// TODO: Do we need the index? Should it be static_table_key_t?
-typedef struct {
-    __u64 index;
-    string_value_t value;
+    __u8 string_len;
 } dynamic_table_entry_t;
 
 typedef struct {
@@ -67,48 +61,10 @@ typedef struct {
 } dynamic_table_index_t;
 
 typedef enum {
-    HTTP2_PACKET_UNKNOWN,
-    HTTP2_REQUEST,
-    HTTP2_RESPONSE
-} http2_packet_t;
-
-typedef enum {
     HTTP2_METHOD_UNKNOWN,
     HTTP2_GET,
     HTTP2_POST,
 } http2_method_t;
-
-typedef struct {
-    conn_tuple_t tup;
-    char request_fragment[HTTP2_BUFFER_SIZE] __attribute__ ((aligned (8)));
-
-    char *frag_head;
-    char *frag_end;
-} http2_connection_t;
-
-// HTTP2 transaction information associated to a certain socket (tuple_t)
-typedef struct {
-    conn_tuple_t old_tup;
-    conn_tuple_t tup;
-    __u64 request_started;
-    __u64 tags;
-    __u64 response_last_seen;
-
-    __u32 tcp_seq;
-    __u32 current_offset_in_request_fragment;
-
-    char request_fragment[HTTP2_BUFFER_SIZE] __attribute__ ((aligned (8)));
-
-    __u16 response_status_code;
-    __u16 owned_by_src_port;
-
-    bool end_of_stream;
-    __u8  request_method;
-    __u8  packet_type;
-    __u8  stream_id;
-    __u64  path_size;
-    char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
-} http2_transaction_t;
 
 typedef struct {
     conn_tuple_t tup;
@@ -142,8 +98,6 @@ typedef struct {
     char fragment[HTTP2_BUFFER_SIZE];
 } heap_buffer_t;
 
-
-
 typedef enum {
     kStaticHeader  = 0,
     kNewDynamicHeader = 1,
@@ -152,8 +106,6 @@ typedef enum {
 
 typedef struct {
     __u32 stream_id;
-    __u16 offset;
-    __u16 length;
     __u8 index;
     http2_header_type_t type;
 } http2_header_t;
