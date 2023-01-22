@@ -494,8 +494,10 @@ require (
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
-	github.com/twmb/franz-go/pkg/kmsg v1.2.0 // indirect
 	github.com/twitchtv/twirp v8.1.2+incompatible // indirect
+	github.com/twmb/franz-go v1.10.1
+	github.com/twmb/franz-go/pkg/kadm v1.6.0
+	github.com/twmb/franz-go/pkg/kmsg v1.2.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/vbatts/tar-split v0.11.2 // indirect
@@ -543,8 +545,6 @@ require (
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	github.com/twmb/franz-go v1.10.1
-	github.com/twmb/franz-go/pkg/kadm v1.6.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/component-base v0.25.5 // indirect
