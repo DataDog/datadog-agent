@@ -49,10 +49,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
 
-					if ptr := ctx.Cache[field]; ptr != nil {
-						if result := (*[]{{$Field.ReturnType}})(ptr); result != nil {
-							return *result
-						}
+					if result, ok := ctx.{{$Field.GetCacheName}}[field]; ok {
+						return result
 					}
 
 					var results []{{$Field.ReturnType}}
@@ -108,15 +106,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						value = iterator.Next()
 					}
 
-					{{if eq $Field.ReturnType "string"}}
-					ctx.StringCache[field] = results
-					{{else if eq $Field.ReturnType "int"}}
-					ctx.IntCache[field] = results
-					{{else if eq $Field.ReturnType "bool"}}
-					ctx.BoolCache[field] = results
-					{{else}}
-					{{ template "error_undefined_array_cache" }}
-					{{end}}
+					ctx.{{$Field.GetCacheName}}[field] = results
 
 					return results
 				},
