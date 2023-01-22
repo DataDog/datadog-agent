@@ -290,24 +290,34 @@ static __always_inline __u8 parse_field_literal(http2_ctx_t *http2_ctx, http2_he
         return 0;
     }
 
-    heap_buffer->offset += str_len;
-    if (str_len >= HTTP2_MAX_PATH_LEN){
+
+    if (str_len >= HTTP2_MAX_PATH_LEN || index != 5){
+        heap_buffer->offset += str_len;
         return 0;
     }
 
-    if (index != 5){
+    const __u16 offset = heap_buffer->offset < HTTP2_BUFFER_SIZE - 1 ? heap_buffer->offset : HTTP2_BUFFER_SIZE - 1;
+    heap_buffer->offset += str_len;
+
+    if (offset >=  HTTP2_BUFFER_SIZE - HTTP2_MAX_PATH_LEN) {
         return 0;
     }
+    dynamic_table_entry_t dynamic_value = {};
+    dynamic_value.value.string_len = str_len;
+    dynamic_value.index = index;
+
+    char *beginning = &heap_buffer->fragment[offset % HTTP2_BUFFER_SIZE];
+    // create the new dynamic value which will be added to the internal table.
+    bpf_memcpy(dynamic_value.value.buffer, beginning, HTTP2_MAX_PATH_LEN);
 
     dynamic_table_index_t dynamic_index = {};
-    dynamic_table_entry_t dynamic_value = {};
     dynamic_index.index = counter;
     dynamic_index.old_tup = http2_ctx->tup;
     bpf_map_update_elem(&http2_dynamic_table, &dynamic_index, &dynamic_value, BPF_ANY);
 
     headers_to_process->index = counter;
     headers_to_process->stream_id = stream_id;
-    headers_to_process->offset = heap_buffer->offset - str_len;
+    headers_to_process->offset = offset;
     headers_to_process->length = str_len;
     headers_to_process->type = kNewDynamicHeader;
     return 1;
@@ -458,7 +468,6 @@ static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk
         bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 1);
     }
 }
-
 
 static __always_inline void process_headers(http2_header_t *headers_to_process, __s32 interesting_headers) {
     http2_header_t *current_header;
