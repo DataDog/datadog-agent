@@ -317,6 +317,8 @@ static __always_inline __u8 parse_field_literal(http2_ctx_t *http2_ctx, http2_he
 static __always_inline __u8 filter_relevant_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer) {
     char current_ch;
 
+    __u16 offset = 0;
+
     __u8 interesting_headers = 0;
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT)
     for (unsigned headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT; headers_index++) {
@@ -324,10 +326,11 @@ static __always_inline __u8 filter_relevant_headers(http2_ctx_t *http2_ctx, http
         if (heap_buffer->size <= heap_buffer->offset) {
             break;
         }
-        if (HTTP2_BUFFER_SIZE <= heap_buffer->offset) {
+        offset = heap_buffer->offset % HTTP2_BUFFER_SIZE;
+        if (HTTP2_BUFFER_SIZE -1  <= offset) {
             break;
         }
-        current_ch = heap_buffer->fragment[heap_buffer->offset];
+        current_ch = heap_buffer->fragment[offset];
         if ((current_ch&128) != 0) {
             // Indexed representation.
             // MSB bit set.
