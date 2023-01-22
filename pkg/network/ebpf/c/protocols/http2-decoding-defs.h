@@ -76,9 +76,9 @@ typedef struct {
     __u64 request_started;
 
     __u16 response_status_code;
-    __u8 end_of_stream;
     __u8 request_method;
     __u8 path_size;
+    bool request_end_of_stream;
 
     char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
 } http2_stream_t;

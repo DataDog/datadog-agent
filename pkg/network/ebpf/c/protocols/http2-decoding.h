@@ -27,134 +27,6 @@ static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *ht
     return bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
 }
 
-//static __always_inline bool http2_seen_before(http2_transaction_t *http2, skb_info_t *skb_info) {
-//    if (!skb_info || !skb_info->tcp_seq) {
-//        return false;
-//    }
-//
-//    // check if we've seen this TCP segment before. this can happen in the
-//    // context of localhost traffic where the same TCP segment can be seen
-//    // multiple times coming in and out from different interfaces
-//    return http2->tcp_seq == skb_info->tcp_seq;
-//}
-//
-//static __always_inline void http2_update_seen_before(http2_transaction_t *http2, skb_info_t *skb_info) {
-//    if (!skb_info || !skb_info->tcp_seq) {
-//        return;
-//    }
-//
-//    http2->tcp_seq = skb_info->tcp_seq;
-//}
-//
-//static __always_inline void http2_begin_request(http2_transaction_t *http2, http2_method_t method, char *buffer) {
-////    http2->request_method = method;
-//    http2->request_started = bpf_ktime_get_ns();
-//    http2->response_last_seen = 0;
-//    bpf_memcpy(&http2->request_fragment, buffer, HTTP2_BUFFER_SIZE);
-//}
-//
-//static __always_inline int http2_responding(http2_transaction_t *http2) {
-//    return (http2 != NULL && http2->response_status_code != 0);
-//}
-//
-//static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_info_t *skb_info,__u64 tags) {
-//    http2_packet_t packet_type = HTTP2_PACKET_UNKNOWN;
-//    http2_method_t method = HTTP2_METHOD_UNKNOWN;
-//    __u64 response_code;
-//
-//    if (http2_stack->packet_type > 0) {
-//        packet_type = http2_stack->packet_type;
-//    }
-//
-//    if (packet_type != 0){
-//        log_debug("[http2] ----------------------------------\n");
-//        log_debug("[http2] The method is %d\n", method);
-//        log_debug("[http2] The packet_type is %d\n", packet_type);
-//        log_debug("[http2] the response status code is %d\n", http2_stack->response_status_code);
-//        log_debug("[http2] the end of stream is %d\n", http2_stack->end_of_stream);
-//        log_debug("[http2] ----------------------------------\n");
-//    }
-//
-//    if (packet_type == 3) {
-//        packet_type = HTTP2_RESPONSE;
-//    } else if (packet_type == 2) {
-//        packet_type = HTTP2_REQUEST;
-//    }
-//
-//    http2_transaction_t *http2 = http2_fetch_state(http2_stack, packet_type);
-//    if (!http2 || http2_seen_before(http2, skb_info)) {
-//        log_debug("[http2] the http2 has been seen before!\n");
-//        return 0;
-//    }
-//
-//    if (packet_type == HTTP2_REQUEST) {
-//        log_debug("[http2] http2_process request: type=%d method=%d\n", packet_type, method);
-//        http2_begin_request(http2, method, (char *)http2_stack->request_fragment);
-//        http2_update_seen_before(http2, skb_info);
-//    } else if (packet_type == HTTP2_RESPONSE) {
-//        log_debug("[http2] http2_begin_response: htx=%llx status=%d\n", http2, http2->response_status_code);
-//        http2_update_seen_before(http2, skb_info);
-//    }
-//
-//    if (http2_stack->response_status_code > 0) {
-//        http2_transaction_t *trans = bpf_map_lookup_elem(&http2_in_flight, &http2->old_tup);
-//        if (trans != NULL) {
-//            const __u32 zero = 0;
-//            http_transaction_t *http = bpf_map_lookup_elem(&http_trans_alloc, &zero);
-//            if (http == NULL) {
-//                return 0;
-//            }
-//            bpf_memset(http, 0, sizeof(http_transaction_t));
-//            bpf_memcpy(&http->tup, &trans->tup, sizeof(conn_tuple_t));
-//
-//            http->request_fragment[0] = 'z';
-//            http->request_fragment[1] = http2->path_size;
-//            bpf_memcpy(&http->request_fragment[8], trans->path, HTTP2_MAX_PATH_LEN);
-//
-//            // todo: take it out to a function?!
-//            if (trans->request_method == 2) {
-//                log_debug("[slavin] found http2 get");
-//                method = HTTP2_GET;
-//            } else if (trans->request_method == 3) {
-//                log_debug("[slavin] found http2 post");
-//                method = HTTP2_POST;
-//            }
-//
-//            // todo: take it out to a function and add all the other options as well.
-//            switch(http2_stack->response_status_code) {
-//            case k200:
-//                response_code = 200;
-//                break;
-//            case k204:
-//                response_code = 204;
-//                break;
-//            case k206:
-//                response_code = 206;
-//                break;
-//            case k400:
-//                response_code = 400;
-//                break;
-//            case k500:
-//                response_code = 500;
-//                break;
-//            }
-//
-//            http->response_status_code = response_code;
-//            http->request_started = trans->request_started;
-//            http->request_method = method;
-//            http->response_last_seen = bpf_ktime_get_ns();
-//            http->owned_by_src_port = trans->owned_by_src_port;
-//            http->tcp_seq = trans->tcp_seq;
-//            http->tags = trans->tags;
-//
-//            http_batch_enqueue(http);
-//            bpf_map_delete_elem(&http2_in_flight, &http2_stack->tup);
-//        }
-//    }
-//
-//    return 0;
-//}
-
 // read_var_int reads an unsigned variable length integer off the
 // beginning of p. n is the parameter as described in
 // https://httpwg.org/specs/rfc7541.html#rfc.section.5.1.
@@ -499,6 +371,23 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
     }
 }
 
+static __always_inline void handle_end_of_stream(http2_stream_key_t *http2_stream_key_template) {
+    http2_stream_t *current_stream = http2_fetch_stream(http2_stream_key_template);
+    if (current_stream == NULL) {
+        return;
+    }
+
+    if (!current_stream->request_end_of_stream) {
+        current_stream->request_end_of_stream = true;
+        return;
+    }
+
+    // response end of stream;
+    current_stream->response_last_seen = bpf_ktime_get_ns();
+
+    // enqueue
+}
+
 static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb, http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process, __u8 number_of_frames) {
     const __u32 zero = 0;
     heap_buffer_t *heap_buffer = bpf_map_lookup_elem(&http2_heap_buffer, &zero);
@@ -524,7 +413,6 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
 
         current_frame_header = &frames_to_process[iteration].header;
         if (current_frame_header->type == kDataFrame) {
-            // TODO: handle end of stream.
             continue;
         }
 
@@ -536,10 +424,22 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
 
         // process headers
         interesting_headers += filter_relevant_headers(http2_ctx, headers_to_process->array, current_frame_header->stream_id, heap_buffer);
-        // if end of stream, process end of stream
     }
 
     process_headers(http2_ctx, headers_to_process->array, interesting_headers, &http2_ctx->http2_stream_key);
+
+#pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
+    for (__u8 iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; iteration++) {
+        if (iteration > number_of_frames) {
+            break;
+        }
+
+        current_frame_header = &frames_to_process[iteration].header;
+        http2_ctx->http2_stream_key.stream_id = current_frame_header->stream_id;
+        if ((current_frame_header->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+            handle_end_of_stream(&http2_ctx->http2_stream_key);
+        }
+    }
 }
 
 static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_ctx_t *http2_ctx) {
