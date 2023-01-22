@@ -116,6 +116,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					{{if eq $Field.ReturnType "string"}}
 					ctx.StringCache[field] = results
+					{{else if eq $Field.ReturnType "int"}}
+					ctx.IntCache[field] = results
+					{{else if eq $Field.ReturnType "bool"}}
+					ctx.BoolCache[field] = results
 					{{else}}
 					ctx.Cache[field] = unsafe.Pointer(&results)
 					{{end}}

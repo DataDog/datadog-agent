@@ -3265,7 +3265,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3333,7 +3333,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3355,7 +3355,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3421,7 +3421,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3444,7 +3444,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3466,7 +3466,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3557,7 +3557,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3579,7 +3579,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3628,7 +3628,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3683,7 +3683,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3739,7 +3739,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3766,7 +3766,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3793,7 +3793,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3820,7 +3820,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3847,7 +3847,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3900,7 +3900,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3953,7 +3953,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3981,7 +3981,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4008,7 +4008,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4058,7 +4058,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4102,7 +4102,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4146,7 +4146,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4195,7 +4195,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4250,7 +4250,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4306,7 +4306,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4333,7 +4333,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4360,7 +4360,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4387,7 +4387,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4414,7 +4414,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4467,7 +4467,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4520,7 +4520,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4548,7 +4548,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4575,7 +4575,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4625,7 +4625,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4647,7 +4647,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4669,7 +4669,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4691,7 +4691,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4713,7 +4713,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4757,7 +4757,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6426,7 +6426,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6494,7 +6494,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6516,7 +6516,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6582,7 +6582,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6605,7 +6605,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6627,7 +6627,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6718,7 +6718,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6740,7 +6740,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6789,7 +6789,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6844,7 +6844,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6900,7 +6900,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6927,7 +6927,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6954,7 +6954,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6981,7 +6981,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7008,7 +7008,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7061,7 +7061,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7114,7 +7114,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7142,7 +7142,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7169,7 +7169,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7219,7 +7219,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7263,7 +7263,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7307,7 +7307,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7356,7 +7356,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7411,7 +7411,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7467,7 +7467,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7494,7 +7494,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7521,7 +7521,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7548,7 +7548,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7575,7 +7575,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7628,7 +7628,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7681,7 +7681,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7709,7 +7709,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7736,7 +7736,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7786,7 +7786,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7808,7 +7808,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7830,7 +7830,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7852,7 +7852,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7874,7 +7874,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7918,7 +7918,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10543,7 +10543,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10611,7 +10611,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10633,7 +10633,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10699,7 +10699,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10722,7 +10722,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10744,7 +10744,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10835,7 +10835,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10857,7 +10857,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10906,7 +10906,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10961,7 +10961,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11017,7 +11017,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11044,7 +11044,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11071,7 +11071,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11098,7 +11098,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11125,7 +11125,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11178,7 +11178,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11231,7 +11231,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11259,7 +11259,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11286,7 +11286,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11336,7 +11336,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11380,7 +11380,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11424,7 +11424,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11473,7 +11473,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11528,7 +11528,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11584,7 +11584,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11611,7 +11611,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11638,7 +11638,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11665,7 +11665,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11692,7 +11692,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11745,7 +11745,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11798,7 +11798,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11826,7 +11826,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11853,7 +11853,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11903,7 +11903,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11925,7 +11925,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11947,7 +11947,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11969,7 +11969,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11991,7 +11991,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -12035,7 +12035,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,

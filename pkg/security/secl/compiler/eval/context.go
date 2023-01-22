@@ -19,7 +19,9 @@ type Context struct {
 
 	// cache available across all the evaluations
 	StringCache map[string][]string
-	Cache map[string]unsafe.Pointer
+	IntCache    map[string][]int
+	BoolCache   map[string][]bool
+	Cache       map[string]unsafe.Pointer
 
 	now time.Time
 }
