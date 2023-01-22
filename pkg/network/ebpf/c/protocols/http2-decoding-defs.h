@@ -110,9 +110,34 @@ typedef struct {
 
 typedef struct {
     conn_tuple_t tup;
+    conn_tuple_t normalized_tup;
     skb_info_t skb_info;
     __u8 frames_processed;
     __u16 owned_by_src_port;
 } http2_ctx_t;
+
+typedef struct {
+    __u32 size;
+    __u32 offset;
+    char fragment[HTTP2_BUFFER_SIZE];
+} heap_buffer_t;
+
+typedef struct {
+    __u64 response_last_seen;
+    __u64 request_started;
+
+    __u8 end_of_stream;
+    __u8 request_method;
+    __u8 path_size;
+
+    __u16 response_status_code;
+
+    char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+} http2_stream_t;
+
+typedef struct {
+    conn_tuple_t tup;
+    __u8  stream_id;
+} http2_stream_key_t;
 
 #endif

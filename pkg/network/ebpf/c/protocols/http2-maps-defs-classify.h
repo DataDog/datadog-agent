@@ -1,6 +1,8 @@
 #ifndef __HTTP2_MAPS_DEFS_CLASSIFY_H
 #define __HTTP2_MAPS_DEFS_CLASSIFY_H
 
+#include "http2-decoding-defs.h"
+
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
 BPF_LRU_MAP(http2_in_flight, conn_tuple_t, http2_transaction_t, 0)
 
@@ -10,4 +12,5 @@ BPF_LRU_MAP(http2_context, conn_tuple_t, http2_ctx_t, 1024)
 BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_transaction_t, 1)
 BPF_PERCPU_ARRAY_MAP(http_trans_alloc, __u32, http_transaction_t, 1)
 
+BPF_PERCPU_ARRAY_MAP(http2_heap_buffer, __u32, heap_buffer_t, 1)
 #endif
