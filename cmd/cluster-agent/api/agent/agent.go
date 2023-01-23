@@ -10,7 +10,7 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"sort"
 
@@ -25,9 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
@@ -43,6 +46,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
+	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
@@ -51,13 +56,13 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 	w.Write(jsonStats)
@@ -73,8 +78,7 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 
@@ -92,12 +96,12 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, err := version.Agent()
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 	j, err := json.Marshal(av)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 	w.Write(j)
@@ -112,7 +116,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	}
 	j, err := json.Marshal(hname)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 	w.Write(j)
@@ -132,7 +136,8 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Warnf("The flare failed to be created")
 		}
-		http.Error(w, err.Error(), 500)
+		setJSONError(w, err, 500)
+		return
 	}
 	w.Write([]byte(filePath))
 }
@@ -142,8 +147,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 	if common.AC == nil {
 		log.Errorf("Trying to use /config-check before the agent has been initialized.")
-		body, _ := json.Marshal(map[string]string{"error": "agent not initialized"})
-		http.Error(w, string(body), 503)
+		setJSONError(w, errors.New("agent not initialized"), 503)
 		return
 	}
 
@@ -159,10 +163,45 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	jsonConfig, err := json.Marshal(response)
 	if err != nil {
 		log.Errorf("Unable to marshal config check response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 
 	w.Write(jsonConfig)
+}
+
+func getTaggerList(w http.ResponseWriter, r *http.Request) {
+	response := tagger.List(collectors.HighCardinality)
+
+	jsonTags, err := json.Marshal(response)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+		return
+	}
+	w.Write(jsonTags)
+}
+
+func getWorkloadList(w http.ResponseWriter, r *http.Request) {
+	verbose := false
+	params := r.URL.Query()
+	if v, ok := params["verbose"]; ok {
+		if len(v) >= 1 && v[0] == "true" {
+			verbose = true
+		}
+	}
+
+	response := workloadmeta.GetGlobalStore().Dump(verbose)
+	jsonDump, err := json.Marshal(response)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		return
+	}
+
+	w.Write(jsonDump)
+}
+
+func setJSONError(w http.ResponseWriter, err error, errorCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), errorCode)
 }

@@ -72,7 +72,11 @@ func TestConnectionStatsInfiniteLoop(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to create new driver interface")
 
-	_, _, err = di.GetConnectionStats(activeBuf, closedBuf, func(c *ConnectionStats) bool {
+	_, err = di.GetClosedConnectionStats(closedBuf, func(c *ConnectionStats) bool {
+		return true
+	})
+	require.NoError(t, err, "Failed to get connection stats")
+	_, err = di.GetOpenConnectionStats(activeBuf, func(c *ConnectionStats) bool {
 		return true
 	})
 	require.NoError(t, err, "Failed to get connection stats")

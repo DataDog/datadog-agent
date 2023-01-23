@@ -145,7 +145,8 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	// Initialize remote configuration
 	var rcClient *remote.Client
 	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
-		rcClient, err := initializeRemoteConfig(mainCtx)
+		var err error
+		rcClient, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
@@ -223,7 +224,7 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 		}
 	}
 
-	clusterName := clustername.GetClusterName(context.TODO(), hname)
+	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	if pkgconfig.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster,

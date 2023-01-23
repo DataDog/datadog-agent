@@ -25,6 +25,7 @@ import (
 )
 
 const interfaceStatusMetric = "snmp.interface.status"
+const topologyLinkSourceTypeLLDP = "lldp"
 
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
@@ -306,7 +307,13 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 
 		localInterfaceIDType, localInterfaceID = resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
 
+		// remEntryUniqueID: The combination of localPortNum and lldpRemIndex is expected to be unique for each entry in
+		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
+		remEntryUniqueID := localPortNum + "." + lldpRemIndex
+
 		newLink := metadata.TopologyLinkMetadata{
+			ID:         deviceID + ":" + remEntryUniqueID,
+			SourceType: topologyLinkSourceTypeLLDP,
 			Remote: &metadata.TopologyLinkSide{
 				Device: &metadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),

@@ -35,6 +35,8 @@ const (
 	protocolDispatcherSocketFilterSection  = "socket/protocol_dispatcher"
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
+	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
+	connectionStatesMap                    = "connection_states"
 
 	httpSocketFilter = "socket/http_filter"
 
@@ -115,6 +117,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
+			{Name: connectionStatesMap},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -205,6 +208,16 @@ func (e *ebpfProgram) Init() error {
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			httpInFlightMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			connectionStatesMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			dispatcherConnectionProtocolMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,

@@ -53,3 +53,9 @@ if "%GO_VERSION_CHECK%" == "true" (
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 105
+
+REM only build MSI for main targets for now.
+if "%OMNIBUS_TARGET%" == "main" (
+    @echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%"
+    inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" || exit /b 106
+)

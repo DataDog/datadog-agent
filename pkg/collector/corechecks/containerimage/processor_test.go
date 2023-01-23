@@ -14,7 +14,12 @@ import (
 	model "github.com/DataDog/agent-payload/v5/contimage"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	"github.com/golang/protobuf/ptypes/timestamp"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+
 	"github.com/stretchr/testify/mock"
 )
 
@@ -46,12 +51,18 @@ func TestProcessEvents(t *testing.T) {
 								Digest:    fmt.Sprintf("digest_layer_1_%d", i),
 								SizeBytes: 43,
 								URLs:      []string{"url"},
+								History: v1.History{
+									Created: pointer.Ptr(time.Unix(42, 43)),
+								},
 							},
 							{
 								MediaType: "media",
 								Digest:    fmt.Sprintf("digest_layer_2_%d", i),
 								URLs:      []string{"url"},
 								SizeBytes: 44,
+								History: v1.History{
+									Created: pointer.Ptr(time.Unix(43, 44)),
+								},
 							},
 						},
 					},
@@ -84,13 +95,29 @@ func TestProcessEvents(t *testing.T) {
 							MediaType: "media",
 							Digest:    "digest_layer_1_0",
 							Size:      43,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 42,
+									Nanos:   43,
+								},
+							},
 						},
 						{
 							Urls:      []string{"url"},
 							MediaType: "media",
 							Digest:    "digest_layer_2_0",
 							Size:      44,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 43,
+									Nanos:   44,
+								},
+							},
 						},
+					},
+					BuiltAt: &timestamp.Timestamp{
+						Seconds: 43,
+						Nanos:   44,
 					},
 				},
 				{
@@ -111,13 +138,29 @@ func TestProcessEvents(t *testing.T) {
 							MediaType: "media",
 							Digest:    "digest_layer_1_1",
 							Size:      43,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 42,
+									Nanos:   43,
+								},
+							},
 						},
 						{
 							Urls:      []string{"url"},
 							MediaType: "media",
 							Digest:    "digest_layer_2_1",
 							Size:      44,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 43,
+									Nanos:   44,
+								},
+							},
 						},
+					},
+					BuiltAt: &timestamp.Timestamp{
+						Seconds: 43,
+						Nanos:   44,
 					},
 				},
 			},
@@ -149,13 +192,29 @@ func TestProcessEvents(t *testing.T) {
 							MediaType: "media",
 							Digest:    "digest_layer_1_2",
 							Size:      43,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 42,
+									Nanos:   43,
+								},
+							},
 						},
 						{
 							Urls:      []string{"url"},
 							MediaType: "media",
 							Digest:    "digest_layer_2_2",
 							Size:      44,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 43,
+									Nanos:   44,
+								},
+							},
 						},
+					},
+					BuiltAt: &timestamp.Timestamp{
+						Seconds: 43,
+						Nanos:   44,
 					},
 				},
 			},

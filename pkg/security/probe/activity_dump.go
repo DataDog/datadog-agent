@@ -103,6 +103,7 @@ type ActivityDump struct {
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
 	brokenLineageDrop  *atomic.Uint64
+	countedByLimiter   bool
 
 	shouldMergePaths bool
 	pathMergedCount  *atomic.Uint64
@@ -462,6 +463,12 @@ func (ad *ActivityDump) disable() error {
 func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 	ad.Lock()
 	defer ad.Unlock()
+	ad.finalize(releaseTracedCgroupSpot)
+}
+
+// finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
+// spot can be released, the dump will be fully stopped.
+func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	ad.DumpMetadata.End = time.Now()
 
 	if releaseTracedCgroupSpot || len(ad.DumpMetadata.Comm) > 0 {
@@ -633,6 +640,11 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 			}
 		}
 
+		// we're about to add a root process node, make sure this root node passes the root node sanitizer
+		if !ad.IsValidRootNode(entry) {
+			return node
+		}
+
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
@@ -799,6 +811,29 @@ func (ad *ActivityDump) resolveTags() error {
 	ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(ad.DumpMetadata.ContainerID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", ad.DumpMetadata.ContainerID, err)
+	}
+
+	if !ad.countedByLimiter {
+		// check if we should discard this dump based on the manager dump limiter
+		limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
+		if limiterKey == ":" {
+			// wait for the tags
+			return nil
+		}
+
+		counter, ok := ad.adm.dumpLimiter.Get(limiterKey)
+		if !ok {
+			counter = atomic.NewUint64(0)
+			ad.adm.dumpLimiter.Add(limiterKey, counter)
+		}
+
+		if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
+			ad.Finalize(true)
+			ad.adm.removeDump(ad)
+		} else {
+			ad.countedByLimiter = true
+			counter.Add(1)
+		}
 	}
 	return nil
 }
@@ -1411,6 +1446,12 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 	}
 
 	return newNode
+}
+
+// IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
+func (ad *ActivityDump) IsValidRootNode(entry *model.ProcessCacheEntry) bool {
+	// TODO: evaluate if the same issue affects other container runtimes
+	return !strings.HasPrefix(entry.FileEvent.BasenameStr, "runc")
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump

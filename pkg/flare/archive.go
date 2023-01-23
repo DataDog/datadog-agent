@@ -149,7 +149,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 		fb.AddFileFromFunc("status.log", status.GetAndFormatStatus)
 		fb.AddFileFromFunc("config-check.log", getConfigCheck)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)
-		fb.AddFileFromFunc("workload-list.log", getWorkloadList)
+		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList)
 
 		getProcessChecks(fb, config.GetProcessAPIAddressPort)
@@ -450,17 +450,19 @@ func getTaggerList(remoteURL string) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func getWorkloadList() ([]byte, error) {
+func getAgentWorkloadList() ([]byte, error) {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return nil, err
 	}
 
-	workloadListURL := fmt.Sprintf("https://%v:%v/agent/workload-list/verbose", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cmd_port")))
+}
 
+func getWorkloadList(url string) ([]byte, error) {
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, workloadListURL, apiutil.LeaveConnectionOpen)
+	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}

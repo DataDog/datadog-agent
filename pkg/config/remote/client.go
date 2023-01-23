@@ -23,7 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -55,6 +58,8 @@ type Client struct {
 	agentName    string
 	agentVersion string
 	products     []string
+
+	clusterName string
 
 	pollInterval      time.Duration
 	lastUpdateError   error
@@ -158,6 +163,18 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	backoffPolicy := backoff.NewPolicy(minBackoffFactor, pollInterval.Seconds(),
 		maximalMaxBackoffTime.Seconds(), recoveryInterval, false)
 
+	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
+	// relying on remote config to identify this RC client to be able to write predicates for config routing
+	clusterName := ""
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		hname, err := hostname.Get(context.TODO())
+		if err != nil {
+			log.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
+		} else {
+			clusterName = clustername.GetClusterName(context.TODO(), hname)
+		}
+	}
+
 	ctx, close := context.WithCancel(context.Background())
 
 	return &Client{
@@ -167,6 +184,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		close:               close,
 		agentName:           agentName,
 		agentVersion:        agentVersion,
+		clusterName:         clusterName,
 		products:            data.ProductListToString(products),
 		state:               repository,
 		pollInterval:        pollInterval,
@@ -398,8 +416,9 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			IsAgent:  true,
 			IsTracer: false,
 			ClientAgent: &pbgo.ClientAgent{
-				Name:    c.agentName,
-				Version: c.agentVersion,
+				Name:        c.agentName,
+				Version:     c.agentVersion,
+				ClusterName: c.clusterName,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,

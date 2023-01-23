@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,14 +63,6 @@ func makePartialPoints(ts int) datadog.DataPoint {
 	return datadog.DataPoint{&tsPtr, nil}
 }
 
-func makePtr(val string) *string {
-	return &val
-}
-
-func makePtrInt(val int) *int {
-	return &val
-}
-
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
@@ -96,7 +89,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			map[string]custommetrics.ExternalMetricValue{
@@ -130,7 +123,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			map[string]custommetrics.ExternalMetricValue{
@@ -165,7 +158,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 						makePoints(1431492453000, 14), // Force the point to be considered outdated at all time(> externalMaxAge)
 						makePoints(0, 1000),           // Force the point to be considered fresh at all time(< externalMaxAge)
 					},
-					Scope: makePtr("2foo:bar"),
+					Scope: pointer.Ptr("2foo:bar"),
 				},
 			},
 			map[string]custommetrics.ExternalMetricValue{
@@ -228,7 +221,6 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	for _, i := range invList {
 		require.False(t, i.Valid)
 	}
-
 }
 
 var ASCIIRunes = []rune("qwertyuiopasdfghjklzxcvbnm1234567890")
@@ -256,7 +248,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "one batch",
 			in: lambdaMakeChunks(14, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -265,7 +258,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 1,
@@ -276,7 +269,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "several batches",
 			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -285,7 +279,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 5,
@@ -296,7 +290,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "Overspilling queries",
 			in: lambdaMakeChunks(20, custommetrics.ExternalMetricValue{
 				MetricName: randStringRune(4000),
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -305,7 +300,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 21,
@@ -316,7 +311,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "Overspilling single query",
 			in: lambdaMakeChunks(0, custommetrics.ExternalMetricValue{
 				MetricName: randStringRune(7000),
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -325,7 +321,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 0,
@@ -336,7 +332,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "several batches, one error",
 			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -345,7 +342,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 5,
@@ -389,7 +386,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			}
 			p := &Processor{datadogClient: datadogClient}
 
-			_, err := p.QueryExternalMetric(tt.in)
+			_, err := p.QueryExternalMetric(tt.in, 0)
 			if err != nil || tt.err != nil {
 				assert.Contains(t, err.Error(), tt.err.Error())
 			}

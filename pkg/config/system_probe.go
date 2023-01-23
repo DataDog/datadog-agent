@@ -136,6 +136,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
+	cfg.BindEnvAndSetDefault(join(spNS, "closed_connection_flush_threshold"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 
@@ -163,7 +164,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
-	cfg.BindEnvAndSetDefault(join(spNS, "enable_go_tls_support"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_java_tls_support"), false)
 
@@ -263,6 +264,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
 	bindEnvAndSetLogsConfigKeys(cfg, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
 	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")

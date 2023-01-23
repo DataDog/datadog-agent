@@ -124,7 +124,3 @@ func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
 	return pod
 }
-
-func boolPointer(b bool) *bool {
-	return &b
-}
