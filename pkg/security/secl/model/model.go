@@ -219,6 +219,8 @@ type Event struct {
 
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-" json:"-"`
+
+	Delayed bool `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {

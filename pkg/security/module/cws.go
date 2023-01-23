@@ -41,6 +41,10 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+const (
+	maxDelayedEvents = 30
+)
+
 // CWSConsumer represents the system-probe module for the runtime security agent
 type CWSConsumer struct {
 	sync.RWMutex
@@ -49,24 +53,25 @@ type CWSConsumer struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
-	wg               sync.WaitGroup
-	ctx              context.Context
-	cancelFnc        context.CancelFunc
-	currentRuleSet   *atomic.Value
-	reloading        *atomic.Bool
-	apiServer        *APIServer
-	rateLimiter      *RateLimiter
-	sigupChan        chan os.Signal
-	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
-	policiesVersions []string
-	policyProviders  []rules.PolicyProvider
-	policyLoader     *rules.PolicyLoader
-	policyOpts       rules.PolicyLoaderOpts
-	selfTester       *selftests.SelfTester
-	policyMonitor    *PolicyMonitor
-	sendStatsChan    chan chan bool
-	eventSender      EventSender
-	grpcServer       *GRPCServer
+	wg                sync.WaitGroup
+	ctx               context.Context
+	cancelFnc         context.CancelFunc
+	currentRuleSet    *atomic.Value
+	reloading         *atomic.Bool
+	apiServer         *APIServer
+	rateLimiter       *RateLimiter
+	sigupChan         chan os.Signal
+	rulesLoaded       func(rs *rules.RuleSet, err *multierror.Error)
+	policiesVersions  []string
+	policyProviders   []rules.PolicyProvider
+	policyLoader      *rules.PolicyLoader
+	policyOpts        rules.PolicyLoaderOpts
+	selfTester        *selftests.SelfTester
+	policyMonitor     *PolicyMonitor
+	sendStatsChan     chan chan bool
+	eventSender       EventSender
+	grpcServer        *GRPCServer
+	delayedEventQueue []*events.DelayedEvent
 }
 
 // Init initializes the module with options
@@ -414,8 +419,32 @@ func (c *CWSConsumer) HandleEvent(event *model.Event) {
 		return
 	}
 
-	if ruleSet := c.GetRuleSet(); ruleSet != nil {
-		ruleSet.Evaluate(event)
+	ruleSet := c.GetRuleSet()
+	if ruleSet == nil {
+		return
+	}
+	// dequeue delayed event
+	if len(c.delayedEventQueue) > 0 {
+		var nextDelayedEventQueue []*events.DelayedEvent
+		for _, dev := range c.delayedEventQueue {
+			if dev.ReevaluateAt.Before(time.Now()) {
+				ruleSet.Evaluate(&dev.Event)
+			} else {
+				nextDelayedEventQueue = append(nextDelayedEventQueue, dev)
+				if len(nextDelayedEventQueue) >= maxDelayedEvents {
+					break
+				}
+			}
+		}
+		c.delayedEventQueue = nextDelayedEventQueue
+	}
+
+	if matches := ruleSet.Evaluate(event); !matches {
+		if event.Delayed {
+			if len(c.delayedEventQueue) < maxDelayedEvents {
+				c.delayedEventQueue = append(c.delayedEventQueue, events.NewDelayedEvent(event, 30*time.Second))
+			}
+		}
 	}
 }
 

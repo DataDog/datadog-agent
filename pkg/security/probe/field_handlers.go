@@ -138,8 +138,15 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.Con
 
 // ResolveContainerTags resolves the container tags of the event
 func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
+	e.ID = "testest"
 	if len(e.Tags) == 0 && e.ID != "" {
 		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
+
+		if ev.Delayed {
+			e.Tags = []string{"blahblah"}
+		} else {
+			ev.Delayed = true
+		}
 	}
 	return e.Tags
 }
