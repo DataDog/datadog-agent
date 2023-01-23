@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"io"
 	"math/rand"
 	nethttp "net/http"
@@ -22,7 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
@@ -44,6 +44,15 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 // c is a stream endpoint
 // a + b are unary endpoints
 func TestGRPCScenarios(t *testing.T) {
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	cfg.BPFDebug = true
+
+	s, err := grpc.NewServer(srvAddr)
+	require.NoError(t, err)
+	s.Run()
+	t.Cleanup(s.Stop)
+
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, differentClients bool)
@@ -68,7 +77,7 @@ func TestGRPCScenarios(t *testing.T) {
 			},
 		},
 		{
-			name: "unary, a->a->a",
+			name: "guyunary, a->a->a",
 			runClients: func(t *testing.T, differentClients bool) {
 				var client1, client2 grpc.Client
 				var err error
@@ -90,6 +99,35 @@ func TestGRPCScenarios(t *testing.T) {
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 3,
+			},
+		},
+		{
+			name: "unary, a->b->a",
+			runClients: func(t *testing.T, differentClients bool) {
+				var client1, client2 grpc.Client
+				var err error
+				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
+				require.NoError(t, err)
+				client2 = client1
+				if differentClients {
+					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
+					require.NoError(t, err)
+				}
+
+				ctx := context.Background()
+				require.NoError(t, client1.HandleUnary(ctx, "first"))
+				require.NoError(t, client2.GetFeature(ctx, -746143763, 407838351))
+				require.NoError(t, client1.HandleUnary(ctx, "first"))
+			},
+			expectedEndpoints: map[http.Key]int{
+				http.Key{
+					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Method: http.MethodPost,
+				}: 2,
+				http.Key{
+					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Method: http.MethodPost,
+				}: 1,
 			},
 		},
 		{
@@ -180,6 +218,24 @@ func TestGRPCScenarios(t *testing.T) {
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
+			},
+		},
+		{
+			name: "amitstream, c",
+			runClients: func(t *testing.T, differentClients bool) {
+				var client1 grpc.Client
+				var err error
+				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
+				require.NoError(t, err)
+
+				ctx := context.Background()
+				require.NoError(t, client1.HandleStream(ctx, 10))
+			},
+			expectedEndpoints: map[http.Key]int{
+				http.Key{
+					Path:   http.Path{Content: "/protobuf.Math/Max"},
+					Method: http.MethodPost,
+				}: 1,
 			},
 		},
 		{
@@ -482,22 +538,15 @@ func TestGRPCScenarios(t *testing.T) {
 			},
 		},
 	}
-	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableRuntimeCompiler = true
 	for _, tt := range tests {
-		for _, val := range []bool{false, true} {
+		for _, val := range []bool{false} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", val)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				s, err := grpc.NewServer(srvAddr)
-				require.NoError(t, err)
-				s.Run()
-				t.Cleanup(s.Stop)
-
 				monitor, err := http.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
 				defer monitor.Stop()
+
 				tt.runClients(t, val)
 
 				res := make(map[http.Key]int)

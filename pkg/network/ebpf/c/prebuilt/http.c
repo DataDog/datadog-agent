@@ -54,6 +54,7 @@ SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
     const __u64 skb_addr = (__u64)skb;
 
+    // TODO: move to http2_ctx to iterations map
     conn_tuple_t tup = {};
     skb_info_t skb_info = {};
     if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
@@ -65,8 +66,10 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (tail_call_state == NULL) {
         const http2_tail_call_state_t iteration_value = {};
         bpf_map_update_with_telemetry(http2_iterations, &skb_addr, &iteration_value, BPF_NOEXIST);
-        // TODO: Abort only if preface
-        return 0;
+        tail_call_state = bpf_map_lookup_elem(&http2_iterations, &skb_addr);
+        if (tail_call_state == NULL) {
+            return 0;
+        }
     }
 
     conn_tuple_t normalized_tuple = tup;
@@ -75,13 +78,13 @@ int socket__http2_filter(struct __sk_buff *skb) {
     const __u32 zero = 0;
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
+        bpf_map_delete_elem(&http2_iterations, &skb_addr);
         return -1;
     }
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
     http2_ctx->tup = tup;
-    http2_ctx->normalized_tup = normalized_tuple;
     http2_ctx->http2_stream_key.tup = normalized_tuple;
-    http2_ctx->dynamic_index.tup = normalized_tuple;
+    http2_ctx->dynamic_index.tup = tup;
     http2_ctx->skb_info = skb_info;
     http2_ctx->skb_info.data_off += tail_call_state->offset;
 
@@ -89,20 +92,25 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     __u32 read_size = http2_entrypoint(skb, http2_ctx);
 
-    if (read_size == -1) {
+    if (read_size <= 0) {
 //        log_debug("[http2] %p ending 1 iteration %d", skb, tail_call_state->iteration + 1);
+        bpf_map_delete_elem(&http2_iterations, &skb_addr);
         return 0;
     }
     if (http2_ctx->skb_info.data_off + read_size >= skb->len) {
 //        log_debug("[http2] %p ending 2 iteration %d", skb, tail_call_state->iteration + 1);
+        bpf_map_delete_elem(&http2_iterations, &skb_addr);
         return 0;
     }
 
     tail_call_state->iteration += 1;
     tail_call_state->offset += read_size;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
-//        log_debug("[http2] %p calling next iteration %d", skb, tail_call_state->iteration);
+//        log_debug("[http2] %p calling next iteration %d; len %lu\n", skb, tail_call_state->iteration, skb->len);
+//        log_debug("[http2] %p params; off %lu; read size %lu\n", skb, http2_ctx->skb_info.data_off, read_size);
         bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
+    } else {
+        bpf_map_delete_elem(&http2_iterations, &skb_addr);
     }
 
     return 0;
@@ -122,6 +130,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_flush_batch(ctx);
+    http2_flush_batch(ctx);
     return 0;
 }
 

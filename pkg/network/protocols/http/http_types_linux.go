@@ -35,6 +35,17 @@ type ebpfHttpTx struct {
 	Tcp_seq              uint32
 	Tags                 uint64
 }
+type ebpfHttp2Tx struct {
+	Tup                   httpConnTuple
+	Response_last_seen    uint64
+	Request_started       uint64
+	Response_status_code  uint16
+	Request_method        uint8
+	Path_size             uint8
+	Request_end_of_stream bool
+	Pad_cgo_0             [3]byte
+	Request_path          [32]uint8
+}
 
 type libPath struct {
 	Pid uint32
@@ -57,7 +68,8 @@ const (
 )
 
 const (
-	HTTPBufferSize = 0xa0
+	HTTPBufferSize  = 0xa0
+	HTTP2BufferSize = 0xa0
 
 	libPathMaxSize = 0x78
 )

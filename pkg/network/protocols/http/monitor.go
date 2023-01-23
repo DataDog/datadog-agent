@@ -29,7 +29,8 @@ import (
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	consumer       *events.Consumer
+	httpConsumer   *events.Consumer
+	http2Consumer  *events.Consumer
 	ebpfProgram    *ebpfProgram
 	telemetry      *telemetry
 	statkeeper     *httpStatKeeper
@@ -97,15 +98,25 @@ func (m *Monitor) Start() error {
 	}
 
 	var err error
-	m.consumer, err = events.NewConsumer(
+	m.httpConsumer, err = events.NewConsumer(
 		"http",
 		m.ebpfProgram.Manager.Manager,
-		m.process,
+		m.processHTTP,
 	)
 	if err != nil {
 		return err
 	}
-	m.consumer.Start()
+	m.httpConsumer.Start()
+
+	m.http2Consumer, err = events.NewConsumer(
+		"http2",
+		m.ebpfProgram.Manager.Manager,
+		m.processHTTP2,
+	)
+	if err != nil {
+		return err
+	}
+	m.http2Consumer.Start()
 
 	if err := m.ebpfProgram.Start(); err != nil {
 		return err
@@ -121,7 +132,8 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 		return nil
 	}
 
-	m.consumer.Sync()
+	m.httpConsumer.Sync()
+	m.http2Consumer.Sync()
 	m.telemetry.log()
 	return m.statkeeper.GetAndResetAllStats()
 }
@@ -134,12 +146,20 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
-	m.consumer.Stop()
+	m.httpConsumer.Stop()
+	m.http2Consumer.Stop()
 	m.closeFilterFn()
 }
 
-func (m *Monitor) process(data []byte) {
+func (m *Monitor) processHTTP(data []byte) {
 	tx := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
+	m.telemetry.count(tx)
+	m.statkeeper.Process(tx)
+}
+
+func (m *Monitor) processHTTP2(data []byte) {
+	tx := (*ebpfHttp2Tx)(unsafe.Pointer(&data[0]))
+
 	m.telemetry.count(tx)
 	m.statkeeper.Process(tx)
 }

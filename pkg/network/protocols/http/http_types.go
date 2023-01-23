@@ -22,6 +22,7 @@ type sslSock C.ssl_sock_t
 type sslReadArgs C.ssl_read_args_t
 
 type ebpfHttpTx C.http_transaction_t
+type ebpfHttp2Tx C.http2_stream_t
 
 type libPath C.lib_path_t
 
@@ -41,7 +42,8 @@ const (
 )
 
 const (
-	HTTPBufferSize = C.HTTP_BUFFER_SIZE
+	HTTPBufferSize  = C.HTTP_BUFFER_SIZE
+	HTTP2BufferSize = C.HTTP2_BUFFER_SIZE
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE
 )

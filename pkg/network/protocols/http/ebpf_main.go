@@ -267,6 +267,7 @@ func (e *ebpfProgram) Init() error {
 
 	// configure event stream
 	events.Configure("http", e.Manager.Manager, &options)
+	events.Configure("http2", e.Manager.Manager, &options)
 
 	err := e.InitWithOptions(e.bytecode, options)
 	if err != nil {

@@ -7,7 +7,7 @@
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_PER_ITERATION 2
-#define HTTP2_MAX_FRAMES_ITERATIONS 4
+#define HTTP2_MAX_FRAMES_ITERATIONS 5
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
@@ -24,6 +24,8 @@
 #define HTTP2_BUFFER_SIZE (8 * 20)
 
 #define HTTP2_END_OF_STREAM 0x1
+
+#define HTTP2_BATCH_SIZE 10
 
 typedef enum {
     kMethod = 2,
@@ -60,18 +62,13 @@ typedef struct {
     conn_tuple_t tup;
 } dynamic_table_index_t;
 
-typedef enum {
-    HTTP2_METHOD_UNKNOWN,
-    HTTP2_GET,
-    HTTP2_POST,
-} http2_method_t;
-
 typedef struct {
     conn_tuple_t tup;
     __u32  stream_id;
 } http2_stream_key_t;
 
 typedef struct {
+    conn_tuple_t tup;
     __u64 response_last_seen;
     __u64 request_started;
 
@@ -80,12 +77,11 @@ typedef struct {
     __u8 path_size;
     bool request_end_of_stream;
 
-    char path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
 } http2_stream_t;
 
 typedef struct {
     conn_tuple_t tup __attribute__ ((aligned (8)));
-    conn_tuple_t normalized_tup __attribute__ ((aligned (8)));
     skb_info_t skb_info;
     dynamic_table_index_t dynamic_index;
     http2_stream_key_t http2_stream_key;
@@ -100,8 +96,7 @@ typedef struct {
 
 typedef enum {
     kStaticHeader  = 0,
-    kNewDynamicHeader = 1,
-    kExistingDynamicHeader = 2,
+    kDynamicHeader = 1,
 } __attribute__ ((packed)) http2_header_type_t;
 
 typedef struct {
