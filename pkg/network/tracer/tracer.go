@@ -210,10 +210,6 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		bpfTelemetry:     bpfTelemetry,
 	}
 
-	if tr.timeResolver, err = NewTimeResolver(); err != nil {
-		return nil, fmt.Errorf("could not create time resolver: %w", err)
-	}
-
 	if config.EnableProcessEventMonitoring {
 		if err = events.Init(); err != nil {
 			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
@@ -224,6 +220,10 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		}
 
 		events.RegisterHandler(tr.processCache.handleProcessEvent)
+
+		if tr.timeResolver, err = NewTimeResolver(); err != nil {
+			return nil, fmt.Errorf("could not create time resolver: %w", err)
+		}
 	}
 
 	return tr, nil
@@ -349,6 +349,7 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
+	t.timeResolver.Sync()
 	for i := range connections {
 		cs := &connections[i]
 		if t.shouldSkipConnection(cs) {
@@ -380,11 +381,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	c.ContainerID = nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
-	if ts.IsZero() {
-		return
-	}
-
-	p, ok := t.processCache.Get(c.Pid, int64(ts.UnixNano()))
+	p, ok := t.processCache.Get(c.Pid, int64(ts))
 	if !ok {
 		return
 	}
@@ -579,6 +576,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	active := activeBuffer.Connections()
+	t.timeResolver.Sync()
 	for i := range active {
 		active[i].IPTranslation = t.conntracker.GetTranslationForConn(active[i])
 		// do gateway resolution only on active connections outside

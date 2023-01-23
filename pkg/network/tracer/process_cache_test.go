@@ -156,13 +156,9 @@ func TestProcessCacheAdd(t *testing.T) {
 			})
 		}
 
-		// this will get the closest process with respect
-		// to StartTime
 		p, ok := pc.Get(1234, 0)
-		require.True(t, ok)
-		require.NotNil(t, p)
-		require.Equal(t, int64(1), p.StartTime)
-		require.Equal(t, uint32(1234), p.Pid)
+		require.False(t, ok)
+		require.Nil(t, p)
 
 		// verify all other processes are correct
 		for i := 1; i < maxProcessListSize+1; i++ {
@@ -193,13 +189,9 @@ func TestProcessCacheAdd(t *testing.T) {
 			StartTime: 3,
 		})
 
-		// this will get the closest process with respect
-		// to StartTime
 		p, ok := pc.Get(1234, 1)
-		assert.True(t, ok)
-		require.NotNil(t, p)
-		assert.Equal(t, int64(2), p.StartTime)
-		assert.Equal(t, uint32(1234), p.Pid)
+		assert.False(t, ok)
+		require.Nil(t, p)
 
 		for _, startTime := range []int64{2, 3} {
 			p, ok = pc.Get(1234, startTime)
@@ -321,13 +313,13 @@ func TestProcessCacheGet(t *testing.T) {
 		ok        bool
 		startTime int64
 	}{
-		{ts: 1, ok: true, startTime: 5},
+		{ts: 1, ok: false, startTime: 5},
 		{ts: 5, ok: true, startTime: 5},
 		{ts: 6, ok: true, startTime: 5},
-		{ts: 9, ok: true, startTime: 10},
+		{ts: 9, ok: true, startTime: 5},
 		{ts: 10, ok: true, startTime: 10},
 		{ts: 11, ok: true, startTime: 10},
-		{ts: 12, ok: true, startTime: 14},
+		{ts: 12, ok: true, startTime: 10},
 		{ts: 14, ok: true, startTime: 14},
 		{ts: 15, ok: true, startTime: 14},
 		{ts: 16, ok: true, startTime: 14},

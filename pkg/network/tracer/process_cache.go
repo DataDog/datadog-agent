@@ -296,12 +296,9 @@ func abs(i int64) int64 {
 func (pl processList) closest(ts int64) *process {
 	var closest *process
 	for i := range pl {
-		if closest == nil {
-			closest = pl[i]
-			continue
-		}
-
-		if abs(closest.StartTime-ts) > abs(pl[i].StartTime-ts) {
+		if ts >= pl[i].StartTime &&
+			(closest == nil ||
+				abs(closest.StartTime-ts) > abs(pl[i].StartTime-ts)) {
 			closest = pl[i]
 		}
 	}
