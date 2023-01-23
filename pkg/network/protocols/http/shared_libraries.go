@@ -47,6 +47,14 @@ func (p *pathIdentifier) String() string {
 	return fmt.Sprintf("dev/inode %d.%d/%d", unix.Major(p.dev), unix.Minor(p.dev), p.inode)
 }
 
+// Key is unique (system wide) TLDR Base64(murmur3.Sum64(device, inode))
+// It's construct based the device (minor, major) and inode of a file
+// murmur is non-crypto hashing
+//
+//	As multiple containers overlayfs (same inode but could be overwritten with different binary)
+//	device would be different
+//
+// a Base64 string representation is returned and could be used in a file path
 func (p *pathIdentifier) Key() string {
 	buffer := make([]byte, 16)
 	binary.LittleEndian.PutUint64(buffer, p.dev)
@@ -280,7 +288,7 @@ func (r *soRegistry) Unregister(pid uint32) {
 		return
 	}
 	if reg.Unregister() == true {
-		// we need to cleanup our entries as there are no more process using this ELF
+		// we need to cleanup our entries as there are no more processes using this ELF
 		delete(r.byID, reg.pathID)
 	}
 	delete(r.byPID, pid)
