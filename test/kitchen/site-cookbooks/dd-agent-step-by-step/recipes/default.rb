@@ -39,6 +39,15 @@ when 'debian'
   end
 
 when 'rhel'
+  if platform?('centos') && node['dd-agent-rspec'] && node['dd-agent-rspec']['enable_cws']
+    # TODO(lebauce): enable repositories to install package
+    # package 'policycoreutils-python'
+
+    execute 'disable SElinux to be able to start system-probe' do
+      command "setenforce 0"
+    end
+  end
+
   protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
   # Because of https://bugzilla.redhat.com/show_bug.cgi?id=1792506, we disable
   # repo_gpgcheck on RHEL/CentOS < 8.2
