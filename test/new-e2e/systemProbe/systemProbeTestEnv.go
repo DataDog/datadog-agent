@@ -68,8 +68,8 @@ func NewTestEnv(name, securityGroups, subnet, armInstanceType, x86InstanceType s
 		"microvm:microVMConfigFile":          auto.ConfigValue{Value: VMConfig},
 		"ddinfra:aws/defaultKeyPairName":     auto.ConfigValue{Value: "aws-ssh-key"},
 		"ddinfra:aws/defaultPrivateKeyPath":  auto.ConfigValue{Value: SSHKeyFile},
-		"ddinfra:aws/defaultSecurityGroups":  auto.ConfigValue{Value: securityGroups},
-		"ddinfra:aws/defaultSubnets":         auto.ConfigValue{Value: subnet},
+		"ddinfra:aws/defaultSecurityGroups":  auto.ConfigValue{Value: "[\"sg-0f5617ceb3e5a6c39\"]"},
+		"ddinfra:aws/defaultSubnets":         auto.ConfigValue{Value: "[\"subnet-c18341ed\"]"},
 	}
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
