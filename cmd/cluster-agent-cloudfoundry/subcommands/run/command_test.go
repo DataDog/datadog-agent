@@ -19,6 +19,6 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"run"},
-		start,
+		run,
 		func() {})
 }
