@@ -36,27 +36,18 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
 
-	process := res.Process
-	processes, err := processutils.GetProcesses(CacheValidity)
-
-	log.Debugf("%s: running process check: %s", id, process.Name)
-
+	matchedProcesses, err := processutils.FindProcessesByName(res.Process.Name)
 	if err != nil {
 		return nil, log.Errorf("%s: Unable to fetch processes: %v", id, err)
 	}
 
-	matchedProcesses := processes.FindProcessesByName(process.Name)
-
 	var instances []resources.ResolvedInstance
 	for _, mp := range matchedProcesses {
-		name := mp.Name()
-		exe := mp.Exe()
-		cmdLine := mp.CmdlineSlice()
-		flagValues := processutils.ParseProcessCmdLine(cmdLine)
-		envs, err := mp.EnvsMap(res.Process.Envs)
-		if err != nil {
-			return nil, err
-		}
+		name := mp.Name
+		exe := mp.Exe
+		cmdLine := mp.Cmdline
+		flagValues := mp.CmdlineFlags()
+		envs := mp.EnvsMap(res.Process.Envs)
 
 		instance := eval.NewInstance(
 			eval.VarMap{
@@ -74,11 +65,11 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 				"exe":     exe,
 				"cmdLine": cmdLine,
 				"flags":   flagValues,
-				"pid":     mp.Pid(),
+				"pid":     mp.Pid,
 				"envs":    envs,
 			},
 		)
-		instances = append(instances, resources.NewResolvedInstance(instance, strconv.Itoa(int(mp.Pid())), "process"))
+		instances = append(instances, resources.NewResolvedInstance(instance, strconv.Itoa(int(mp.Pid)), "process"))
 	}
 
 	if len(instances) == 0 && rego {

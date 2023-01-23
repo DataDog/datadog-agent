@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
@@ -17,7 +18,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 type regoInputFixture struct {
@@ -57,9 +57,15 @@ func (f *regoInputFixture) run(t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 
-	cache.Cache.Delete("compliance-processes")
-	processutils.Fetcher = func() (processutils.Processes, error) {
-		return f.processes, nil
+	processutils.PurgeCache()
+	processutils.FetchProcessesWithName = func(searchedName string) (processutils.Processes, error) {
+		var processes processutils.Processes
+		for _, p := range f.processes {
+			if p.Name == searchedName {
+				processes = append(processes, p)
+			}
+		}
+		return processes, nil
 	}
 
 	tf, err := os.CreateTemp("", "rego-input-dump")
@@ -118,7 +124,7 @@ func TestRegoInputCheck(t *testing.T) {
 				},
 			},
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, []string{"FOO=foo", "BAR=bar"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{"FOO=foo", "BAR=bar"}, ""),
 			},
 			expectedInput: `
 				{
