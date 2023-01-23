@@ -10,6 +10,8 @@ package cgroups
 
 import (
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func (c *cgroupV1) GetIOStats(stats *IOStats) error {
@@ -24,10 +26,10 @@ func (c *cgroupV1) GetIOStats(stats *IOStats) error {
 	// Struct is defaulted to allow in-place sums
 	// But we clear it if we get errors while trying to read data
 	stats.Devices = make(map[string]DeviceIOStats)
-	stats.ReadBytes = uint64Ptr(0)
-	stats.WriteBytes = uint64Ptr(0)
-	stats.ReadOperations = uint64Ptr(0)
-	stats.WriteOperations = uint64Ptr(0)
+	stats.ReadBytes = pointer.Ptr(uint64(0))
+	stats.WriteBytes = pointer.Ptr(uint64(0))
+	stats.ReadOperations = pointer.Ptr(uint64(0))
+	stats.WriteOperations = pointer.Ptr(uint64(0))
 
 	if err := c.parseV1blkio(c.pathFor("blkio", "blkio.throttle.io_service_bytes"), stats.Devices, bytesWriter(stats)); err != nil {
 		stats.ReadBytes = nil
@@ -76,11 +78,11 @@ func bytesWriter(stats *IOStats) func(*DeviceIOStats, string, uint64) bool {
 		case opType == "Read":
 			written = true
 			device.ReadBytes = &value
-			stats.ReadBytes = uint64Ptr(*stats.ReadBytes + value)
+			stats.ReadBytes = pointer.Ptr(*stats.ReadBytes + value)
 		case opType == "Write":
 			written = true
 			device.WriteBytes = &value
-			stats.WriteBytes = uint64Ptr(*stats.WriteBytes + value)
+			stats.WriteBytes = pointer.Ptr(*stats.WriteBytes + value)
 		}
 
 		return written
@@ -95,11 +97,11 @@ func opsWriter(stats *IOStats) func(*DeviceIOStats, string, uint64) bool {
 		case opType == "Read":
 			written = true
 			device.ReadOperations = &value
-			stats.ReadOperations = uint64Ptr(*stats.ReadOperations + value)
+			stats.ReadOperations = pointer.Ptr(*stats.ReadOperations + value)
 		case opType == "Write":
 			written = true
 			device.WriteOperations = &value
-			stats.WriteOperations = uint64Ptr(*stats.WriteOperations + value)
+			stats.WriteOperations = pointer.Ptr(*stats.WriteOperations + value)
 		}
 
 		return written

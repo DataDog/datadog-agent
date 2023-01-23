@@ -14,7 +14,6 @@ import (
 	"expvar"
 	"fmt"
 	"sort"
-
 	"testing"
 	"time"
 
@@ -491,53 +490,84 @@ func TestTags(t *testing.T) {
 
 	tests := []struct {
 		name                    string
+		hostname                string
 		tlmContainerTagsEnabled bool
 		agentTags               func(collectors.TagCardinality) ([]string, error)
+		globalTags              func(collectors.TagCardinality) ([]string, error)
 		withVersion             bool
 		want                    []string
 	}{
 		{
 			name:                    "tags disabled, with version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"version:" + version.AgentVersion},
 		},
 		{
 			name:                    "tags disabled, without version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{},
 		},
 		{
 			name:                    "tags enabled, with version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
 		},
 		{
 			name:                    "tags enabled, without version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{"container_name:agent"},
 		},
 		{
 			name:                    "tags enabled, with version, tagger error",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"version:" + version.AgentVersion},
+		},
+		{
+			name:                    "tags enabled, with version, with global tags (no hostname)",
+			hostname:                "",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			withVersion:             true,
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
+		},
+		{
+			name:                    "tags enabled, with version, with global tags (hostname present)",
+			hostname:                "hostname",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			withVersion:             true,
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
 			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
+			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
+			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
 		})
 	}

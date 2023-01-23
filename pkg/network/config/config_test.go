@@ -96,7 +96,7 @@ func TestEnableGoTLSSupport(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		t.Setenv("DD_SYSTEM_PROBE_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -129,6 +129,42 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
+}
+
+func TestEnableJavaTLSSupport(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableJavaTLS.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableJavaTLSSupport)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_JAVA_TLS_SUPPORT", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableJavaTLSSupport)
+	})
+}
+
+func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
+	newConfig()
+	defer restoreGlobalConfig()
+
+	_, err := sysconfig.New("")
+	require.NoError(t, err)
+	cfg := New()
+
+	assert.False(t, cfg.EnableJavaTLSSupport)
 }
 
 func TestDisableGatewayLookup(t *testing.T) {

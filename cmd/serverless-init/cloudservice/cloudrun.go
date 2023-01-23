@@ -37,6 +37,7 @@ func (c *CloudRun) GetTags() map[string]string {
 	}
 
 	tags["origin"] = c.GetOrigin()
+	tags["_dd.origin"] = c.GetOrigin()
 
 	return tags
 }

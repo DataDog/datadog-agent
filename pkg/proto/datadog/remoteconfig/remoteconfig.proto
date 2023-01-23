@@ -53,6 +53,7 @@ message LatestConfigsRequest {
   bool has_error = 11;
   string error = 12;
   string trace_agent_env = 13;
+  string org_uuid = 14;
 }
 
 message LatestConfigsResponse {
@@ -93,6 +94,7 @@ message ClientTracer {
 message ClientAgent {
   string name = 1;
   string version = 2;
+  string cluster_name = 3;
 }
 
 message ConfigState {

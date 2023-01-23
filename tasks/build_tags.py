@@ -39,6 +39,7 @@ ALL_TAGS = {
     "python",
     "secrets",
     "systemd",
+    "trivy",
     "zk",
     "zlib",
     "test",  # used for unit-tests
@@ -68,13 +69,26 @@ AGENT_TAGS = {
     "python",
     "secrets",
     "systemd",
+    "trivy",
     "zk",
     "zlib",
 }
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
-    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "orchestrator", "podman", "systemd"}
+    {
+        "containerd",
+        "cri",
+        "docker",
+        "ec2",
+        "jetson",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+        "podman",
+        "systemd",
+        "trivy",
+    }
 )
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
@@ -91,7 +105,7 @@ IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"}).difference(
-    {"otlp", "python"}
+    {"otlp", "python", "trivy"}
 )
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
@@ -103,7 +117,7 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference("python")
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference("python", "trivy")
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman", "secrets"}
@@ -126,7 +140,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "podman"}
+LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "podman", "trivy"}
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}

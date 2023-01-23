@@ -830,7 +830,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod})
+	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod, DontDiscardRuntime: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
@@ -1650,7 +1650,6 @@ func TestMain(m *testing.M) {
 }
 
 func init() {
-	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")

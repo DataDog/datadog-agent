@@ -113,12 +113,10 @@ const (
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeName = "kretprobe/udp_destroy_sock"
 
-	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
+	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeName = "kprobe/tcp_retransmit_skb"
-	// TCPRetransmitPre470 traces the params for the tcp_retransmit_skb() system call on kernel version < 4.7
+	// TCPRetransmitPre470 traces the return value for the tcp_retransmit_skb() system call on kernel version < 4.7
 	TCPRetransmitPre470 ProbeName = "kprobe/tcp_retransmit_skb/pre_4_7_0"
-	// TCPRetransmitRet traces the return value for the tcp_retransmit_skb() system call
-	TCPRetransmitRet ProbeName = "kretprobe/tcp_retransmit_skb"
 
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	InetCskAcceptReturn ProbeName = "kretprobe/inet_csk_accept"
@@ -160,28 +158,30 @@ type BPFMapName string
 
 // constants for the map names
 const (
-	ConnMap                      BPFMapName = "conn_stats"
-	TCPStatsMap                  BPFMapName = "tcp_stats"
-	TCPConnectSockPidMap         BPFMapName = "tcp_ongoing_connect_pid"
-	ConnCloseEventMap            BPFMapName = "conn_close_event"
-	TracerStatusMap              BPFMapName = "tracer_status"
-	PortBindingsMap              BPFMapName = "port_bindings"
-	UDPPortBindingsMap           BPFMapName = "udp_port_bindings"
-	TelemetryMap                 BPFMapName = "telemetry"
-	ConnCloseBatchMap            BPFMapName = "conn_close_batch"
-	ConntrackMap                 BPFMapName = "conntrack"
-	ConntrackTelemetryMap        BPFMapName = "conntrack_telemetry"
-	SockFDLookupArgsMap          BPFMapName = "sockfd_lookup_args"
-	DoSendfileArgsMap            BPFMapName = "do_sendfile_args"
-	SockByPidFDMap               BPFMapName = "sock_by_pid_fd"
-	PidFDBySockMap               BPFMapName = "pid_fd_by_sock"
-	TagsMap                      BPFMapName = "conn_tags"
-	TcpSendMsgArgsMap            BPFMapName = "tcp_sendmsg_args"
-	IpMakeSkbArgsMap             BPFMapName = "ip_make_skb_args"
-	MapErrTelemetryMap           BPFMapName = "map_err_telemetry_map"
-	HelperErrTelemetryMap        BPFMapName = "helper_err_telemetry_map"
-	TcpRecvMsgArgsMap            BPFMapName = "tcp_recvmsg_args"
-	ProtocolClassificationBufMap BPFMapName = "classification_buf"
+	ConnMap                           BPFMapName = "conn_stats"
+	TCPStatsMap                       BPFMapName = "tcp_stats"
+	TCPConnectSockPidMap              BPFMapName = "tcp_ongoing_connect_pid"
+	ConnCloseEventMap                 BPFMapName = "conn_close_event"
+	TracerStatusMap                   BPFMapName = "tracer_status"
+	PortBindingsMap                   BPFMapName = "port_bindings"
+	UDPPortBindingsMap                BPFMapName = "udp_port_bindings"
+	TelemetryMap                      BPFMapName = "telemetry"
+	ConnCloseBatchMap                 BPFMapName = "conn_close_batch"
+	ConntrackMap                      BPFMapName = "conntrack"
+	ConntrackTelemetryMap             BPFMapName = "conntrack_telemetry"
+	SockFDLookupArgsMap               BPFMapName = "sockfd_lookup_args"
+	DoSendfileArgsMap                 BPFMapName = "do_sendfile_args"
+	SockByPidFDMap                    BPFMapName = "sock_by_pid_fd"
+	PidFDBySockMap                    BPFMapName = "pid_fd_by_sock"
+	TagsMap                           BPFMapName = "conn_tags"
+	TcpSendMsgArgsMap                 BPFMapName = "tcp_sendmsg_args"
+	IpMakeSkbArgsMap                  BPFMapName = "ip_make_skb_args"
+	MapErrTelemetryMap                BPFMapName = "map_err_telemetry_map"
+	HelperErrTelemetryMap             BPFMapName = "helper_err_telemetry_map"
+	TcpRecvMsgArgsMap                 BPFMapName = "tcp_recvmsg_args"
+	ProtocolClassificationBufMap      BPFMapName = "classification_buf"
+	ConnectionProtocolMap             BPFMapName = "connection_protocol"
+	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 )
 
 // SectionName returns the SectionName for the given BPF map

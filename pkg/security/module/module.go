@@ -19,7 +19,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -260,12 +260,12 @@ func (m *Module) displayReport(report *sprobe.Report) {
 	seclog.Debugf("Policy report: %s", content)
 }
 
-func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
+func getEventTypeEnabled(config *config.Config) map[eval.EventType]bool {
 	enabled := make(map[eval.EventType]bool)
 
 	categories := model.GetEventTypePerCategory()
 
-	if m.config.FIMEnabled {
+	if config.FIMEnabled {
 		if eventTypes, exists := categories[model.FIMCategory]; exists {
 			for _, eventType := range eventTypes {
 				enabled[eventType] = true
@@ -273,7 +273,7 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if m.config.NetworkEnabled {
+	if config.NetworkEnabled {
 		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
 				enabled[eventType] = true
@@ -281,7 +281,7 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if m.config.RuntimeEnabled {
+	if config.RuntimeEnabled {
 		// everything but FIM
 		for _, category := range model.GetAllCategories() {
 			if category == model.FIMCategory || category == model.NetworkCategory {
@@ -323,37 +323,11 @@ func (m *Module) ReloadPolicies() error {
 	return m.LoadPolicies(m.policyProviders, true)
 }
 
-func (m *Module) newRuleOpts() (opts rules.Opts) {
-	opts.
-		WithSupportedDiscarders(sprobe.SupportedDiscarders).
-		WithEventTypeEnabled(m.getEventTypeEnabled()).
-		WithReservedRuleIDs(events.AllCustomRuleIDs()).
-		WithLogger(seclog.DefaultLogger)
-	return
-}
-
-func (m *Module) newEvalOpts() (evalOpts eval.Opts) {
-	evalOpts.
-		WithConstants(model.SECLConstants).
-		WithLegacyFields(model.SECLLegacyFields)
-	return evalOpts
-}
-
 func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*rules.RuleSet, *multierror.Error) {
-	evalOpts := m.newEvalOpts()
-	evalOpts.WithVariables(model.SECLVariables)
-
-	opts := m.newRuleOpts()
-	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-		"process": func() rules.VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-				return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
-			}, nil)
-		},
-	})
+	ruleOpts, evalOpts := rules.NewEvalOpts(getEventTypeEnabled(m.config))
 
 	// approver ruleset
-	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
+	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
 
 	// load policies
 	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
@@ -387,22 +361,8 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		return err
 	}
 
-	opts := m.newRuleOpts()
-	opts.
-		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-			"process": func() rules.VariableProvider {
-				scoper := func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer(ctx.Event.(*model.Event).ProcessCacheEntry)
-				}
-				return m.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
-			},
-		})
-
-	evalOpts := m.newEvalOpts()
-	evalOpts.WithVariables(model.SECLVariables)
-
 	// standard ruleset
-	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts)
+	ruleSet := m.probe.NewRuleSet()
 
 	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
 	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {
@@ -489,9 +449,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType); err != nil {
-		seclog.Trace(err)
-	}
+	m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType)
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
@@ -515,8 +473,9 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) 
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev := event.(*model.Event)
 
-	// prepare the event
-	m.probe.OnRuleMatch(rule, ev)
+	// ensure that all the fields are resolved before sending
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
@@ -674,13 +633,19 @@ func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, 
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
-	statsdClient, err := getStatdClient(cfg, opts...)
+func NewModule(cfg *sconfig.Config, opts Opts) (module.Module, error) {
+	statsdClient, err := getStatdClient(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	probe, err := sprobe.NewProbe(cfg, statsdClient)
+	probeOpts := sprobe.Opts{
+		StatsdClient:       statsdClient,
+		DontDiscardRuntime: opts.DontDiscardRuntime,
+		EventTypeEnabled:   getEventTypeEnabled(cfg),
+	}
+
+	probe, err := sprobe.NewProbe(cfg, probeOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -710,8 +675,8 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	}
 	m.apiServer.module = m
 
-	if len(opts) > 0 && opts[0].EventSender != nil {
-		m.eventSender = opts[0].EventSender
+	if opts.EventSender != nil {
+		m.eventSender = opts.EventSender
 	} else {
 		m.eventSender = m
 	}

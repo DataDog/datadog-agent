@@ -134,6 +134,7 @@ DEFAULT_MODULES = {
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
+    "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
 }
 

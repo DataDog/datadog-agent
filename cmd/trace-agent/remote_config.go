@@ -14,8 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc/metadata"
-
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -41,7 +40,7 @@ func putBuffer(buffer *bytes.Buffer) {
 	bufferPool.Put(buffer)
 }
 
-func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, token string, cfg *config.AgentConfig) http.Handler {
+func remoteConfigHandler(r *api.HTTPReceiver, client remote.ConfigUpdater, cfg *config.AgentConfig) http.Handler {
 	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
@@ -66,10 +65,6 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		md := metadata.MD{
-			"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-		}
-		ctx := metadata.NewOutgoingContext(req.Context(), md)
 		if configsRequest.GetClient().GetClientTracer() != nil {
 			normalize(&configsRequest)
 			if configsRequest.Client.ClientTracer.Tags == nil {
@@ -79,7 +74,7 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 				configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, tag)
 			}
 		}
-		cfg, err := client.ClientGetConfigs(ctx, &configsRequest)
+		cfg, err := client.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {
 			statusCode = http.StatusInternalServerError
 			http.Error(w, err.Error(), statusCode)

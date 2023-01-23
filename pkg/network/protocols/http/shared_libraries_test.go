@@ -174,6 +174,16 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,
 			},
+			connectionStatesMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
+			dispatcherConnectionProtocolMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
 		},
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{

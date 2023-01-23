@@ -16,14 +16,14 @@ import (
 
 // The example below represents the following scenario:
 //
-// * Two containers (in this example a redis-client and a redis-server) are
-//   running on the same host (IP 10.0.2.15)
+//   - Two containers (in this example a redis-client and a redis-server) are
+//     running on the same host (IP 10.0.2.15)
 //
-// * The redis-server binds to host port 32769
-//   (`docker run --rm -d -p 6379:32769 redis:alpine`)
+//   - The redis-server binds to host port 32769
+//     (`docker run --rm -d -p 6379:32769 redis:alpine`)
 //
-// * The redis-client communicates to redis-server via the host IP/port
-//   (`docker run --rm redis:alpine redis-cli -h 10.0.2.15 -p 32769 set foo bar`)
+//   - The redis-client communicates to redis-server via the host IP/port
+//     (`docker run --rm redis:alpine redis-cli -h 10.0.2.15 -p 32769 set foo bar`)
 //
 // Since the two containers are co-located within the same host and the communication
 // is done via the Host IP/Port, network traffic flows through docker-proxy.

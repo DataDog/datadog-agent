@@ -16,12 +16,14 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -403,6 +405,10 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.python_memory") {
+		initPymemTelemetry()
+	}
+
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
 		// bounded but never released allocations with CString
@@ -457,4 +463,25 @@ func Initialize(paths ...string) error {
 // tooling, use the rtloader_t struct at your own risk
 func GetRtLoader() *C.rtloader_t {
 	return rtloader
+}
+
+func initPymemTelemetry() {
+	C.init_pymem_stats(rtloader)
+
+	// "alloc" for consistency with go memstats and mallochook metrics.
+	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes allocated by the python interpreter since the start of the agent.")
+	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
+
+	go func() {
+		t := time.NewTicker(1 * time.Second)
+		var prevAlloc C.size_t
+
+		for range t.C {
+			var s C.pymem_stats_t
+			C.get_pymem_stats(rtloader, &s)
+			inuse.Set(float64(s.inuse))
+			alloc.Add(float64(s.alloc - prevAlloc))
+			prevAlloc = s.alloc
+		}
+	}()
 }

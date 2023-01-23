@@ -135,7 +135,7 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 
 func (p *Processor) processContainer(sender aggregator.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
 	if uptime := time.Since(container.State.StartedAt); uptime >= 0 {
-		p.sendMetric(sender.Gauge, "container.uptime", pointer.Float64Ptr(uptime.Seconds()), tags)
+		p.sendMetric(sender.Gauge, "container.uptime", pointer.Ptr(uptime.Seconds()), tags)
 	}
 
 	if containerStats == nil {
@@ -151,7 +151,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Rate, "container.cpu.throttled.periods", containerStats.CPU.ThrottledPeriods, tags)
 		// Convert CPU Limit to nanoseconds to allow easy percentage computation in the App.
 		if containerStats.CPU.Limit != nil {
-			p.sendMetric(sender.Gauge, "container.cpu.limit", pointer.Float64Ptr(*containerStats.CPU.Limit*float64(time.Second/100)), tags)
+			p.sendMetric(sender.Gauge, "container.cpu.limit", pointer.Ptr(*containerStats.CPU.Limit*float64(time.Second/100)), tags)
 		}
 	}
 

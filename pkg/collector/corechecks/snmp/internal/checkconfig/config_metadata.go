@@ -152,6 +152,16 @@ var TopologyMetadataConfig = MetadataConfig{
 			//   - 1.0.8802.1.1.2.1.4.1.1.12  lldpRemSysCapEnabled
 		},
 	},
+	"lldp_remote_management": {
+		Fields: map[string]MetadataField{
+			"interface_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.2.1.3",
+					Name: "lldpRemManAddrIfSubtype",
+				},
+			},
+		},
+	},
 	"lldp_local": {
 		Fields: map[string]MetadataField{
 			"interface_id_type": {
