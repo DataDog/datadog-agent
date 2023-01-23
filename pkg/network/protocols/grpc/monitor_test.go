@@ -221,7 +221,7 @@ func TestGRPCScenarios(t *testing.T) {
 			},
 		},
 		{
-			name: "amitstream, c",
+			name: "stream, c",
 			runClients: func(t *testing.T, differentClients bool) {
 				var client1 grpc.Client
 				var err error
@@ -323,6 +323,26 @@ func TestGRPCScenarios(t *testing.T) {
 				}: 2,
 			},
 		},
+		{
+			name: "amitrequest with large body (1MB)",
+			runClients: func(t *testing.T, differentClients bool) {
+				var client1 grpc.Client
+				var err error
+				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
+				require.NoError(t, err)
+
+				longName := strings.Repeat("1", 1024*1024)
+				ctx := context.Background()
+				require.NoError(t, client1.HandleUnary(ctx, longName))
+			},
+			expectedEndpoints: map[http.Key]int{
+				http.Key{
+					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Method: http.MethodPost,
+				}: 1,
+			},
+		},
+
 		{
 			name: "request with large body (1MB) -> b -> request with large body (1MB) -> b",
 			runClients: func(t *testing.T, differentClients bool) {

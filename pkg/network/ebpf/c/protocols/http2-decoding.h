@@ -178,7 +178,7 @@ static __always_inline __u8 parse_field_literal(http2_ctx_t *http2_ctx, http2_he
     http2_ctx->dynamic_index.index = counter - 1;
     bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
-    log_debug("[http2] put dynamic value at %d", counter - 1);
+//    log_debug("[http2] put dynamic value at %d", counter - 1);
     headers_to_process->index = counter - 1;
     headers_to_process->stream_id = stream_id;
     headers_to_process->type = kDynamicHeader;
@@ -249,6 +249,11 @@ static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
 
         frame_type = frames_to_process[frame_index].header.type;
         frame_flags = frames_to_process[frame_index].header.flags;
+
+        if (frames_to_process[frame_index].header.stream_id != 0) {
+            log_debug("[http2] found frame of type %d  for stream %lu, length %lu", frame_type,  frames_to_process[frame_index].header.stream_id, frames_to_process[frame_index].header.length);
+        }
+
         frames_to_process[frame_index].offset = offset;
 
         offset += frames_to_process[frame_index].header.length;
@@ -389,7 +394,7 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
             }
         } else if (current_header->type == kDynamicHeader) {
             http2_ctx->dynamic_index.index = current_header->index;
-            log_debug("[http2] %d looking finalize dynamic value at %d", iteration, current_header->index);
+//            log_debug("[http2] %d looking finalize dynamic value at %d", iteration, current_header->index);
             dynamic_table_entry_t* dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index);
             if (dynamic_value == NULL) {
                 // report error
@@ -451,6 +456,7 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
             continue;
         }
 
+//        log_debug("[http2] found headers for stream %lu, length %lu", current_frame_header->stream_id, current_frame_header->length);
         // headers frame
         heap_buffer->size = HTTP2_BUFFER_SIZE < current_frame_header->length ? HTTP2_BUFFER_SIZE : current_frame_header->length;
 
