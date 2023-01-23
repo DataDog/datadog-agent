@@ -26,7 +26,7 @@ func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, cl
 	}
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider") {
 		// Use the file config provider for e2e testing only (it replaces RC as a source of configs)
-		return newfileProvider(clusterName), nil
+		return newfileProvider(isLeaderNotif, clusterName), nil
 	}
 	return nil, errors.New("remote config is disabled")
 }
