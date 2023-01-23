@@ -1467,4 +1467,4 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 @task
 def test_microvms(ctx, security_groups, subnet, instance_type_x86="", instance_type_arm=""):
     ctx.run("curl -fsSL https://get.pulumi.com | sh")
-    ctx.run(f"PATH=$PATH:/root/.pulumi/bin cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test --sgs {security_groups} --subnet {subnet} --instance-type-x86 {instance_type_x86}")
+    ctx.run(f"cd ./test/new-e2e && PATH=$PATH:/root/.pulumi/bin go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test --sgs {security_groups} --subnet {subnet} --instance-type-x86 {instance_type_x86}")
