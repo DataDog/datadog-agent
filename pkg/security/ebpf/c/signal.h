@@ -23,24 +23,41 @@ SYSCALL_KPROBE2(kill, int, pid, int, type) {
         return 0;
     }
 
-    /* make a lookup for the target PID in case we are namespaced */
-    /* TODO: make a lookup with the key addition of ns or cgroup id */
-    u32 root_nr = get_root_nr((u32)pid);
-    if (!root_nr) {
-        root_nr = pid;
-    }
-
     /* cache the signal and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
         .type = EVENT_SIGNAL,
         .signal = {
-            .pid = root_nr,
+            .pid = pid, // keep the namespaced pid for now
             .type = type,
         },
     };
     cache_syscall(&syscall);
     return 0;
 }
+
+SEC("kprobe/kill_pid_info")
+int kprobe_kill_pid_info(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SIGNAL);
+    if (!syscall || syscall->signal.pid_lookup_done) {
+        return 0;
+    }
+    syscall->signal.pid_lookup_done = 1;
+
+    struct pid *pid = (struct pid *)PT_REGS_PARM3(ctx);
+    if (!pid) {
+        return 0;
+    }
+
+    // try to replace the namespaced pid with the one from the root namespace
+    u32 root_pidns_pid = get_pid_from_root_pidns(pid);
+    if (root_pidns_pid != 0) {
+        bpf_printk("> root pid is %d\n", root_pidns_pid);
+        syscall->signal.pid = root_pidns_pid;
+    }
+
+    return 0;
+}
+
 
 /* hook here to grab the EPERM retval */
 SEC("kretprobe/check_kill_permission")

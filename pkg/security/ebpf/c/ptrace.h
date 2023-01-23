@@ -32,23 +32,39 @@ SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
     return 0;
 }
 
+SEC("kprobe/pid_task")
+int kprobe_pid_task(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_PTRACE);
+    if (!syscall || syscall->ptrace.pid_lookup_done) {
+        return 0;
+    }
+    syscall->signal.pid_lookup_done = 1;
+
+    struct pid *pid = (struct pid *)PT_REGS_PARM1(ctx);
+    if (!pid) {
+        return 0;
+    }
+
+    // try to replace the namespaced pid with the one from the root namespace
+    u32 root_pidns_pid = get_pid_from_root_pidns(pid);
+    if (root_pidns_pid != 0) {
+        syscall->ptrace.pid = root_pidns_pid;
+    }
+
+    return 0;
+}
+
 int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PTRACE);
     if (!syscall) {
         return 0;
     }
 
-    // try to resolve namespaced nr
-    u32 namespace_nr = get_root_nr(syscall->ptrace.pid);
-    if (namespace_nr == 0) {
-        namespace_nr = syscall->ptrace.pid;
-    }
-
     struct ptrace_event_t event = {
         .syscall.retval = retval,
         .event.async = 0,
         .request = syscall->ptrace.request,
-        .pid = namespace_nr,
+        .pid = syscall->ptrace.pid,
         .addr = syscall->ptrace.addr,
     };
 

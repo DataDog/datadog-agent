@@ -177,6 +177,7 @@ struct syscall_cache_t {
             u32 request;
             u32 pid;
             u64 addr;
+            u8 pid_lookup_done;
         } ptrace;
 
         struct {
@@ -209,6 +210,7 @@ struct syscall_cache_t {
         struct {
             u32 pid;
             u32 type;
+            u8 pid_lookup_done;
         } signal;
 
         struct {

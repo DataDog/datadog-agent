@@ -155,14 +155,7 @@ struct bpf_map_def SEC("maps/root_nr_namespace_nr") root_nr_namespace_nr = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
-    .max_entries = 32768,
-};
-
-struct bpf_map_def SEC("maps/namespace_nr_root_nr") namespace_nr_root_nr = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 32768,
+    .max_entries = 65536,
 };
 
 void __attribute__((always_inline)) register_nr(u32 root_nr, u64 namespace_nr) {
@@ -171,32 +164,23 @@ void __attribute__((always_inline)) register_nr(u32 root_nr, u64 namespace_nr) {
         return;
     }
 
-    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
+    // TODO(will/yoann): this can conflict between nested pid namespaces, add cgroup ID or namespace to the lookup key
     bpf_map_update_elem(&root_nr_namespace_nr, &root_nr, &namespace_nr, BPF_ANY);
-    bpf_map_update_elem(&namespace_nr_root_nr, &namespace_nr, &root_nr, BPF_ANY);
-}
-
-u32 __attribute__((always_inline)) get_root_nr(u32 namespace_nr) {
-    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
-    u32 *pid = bpf_map_lookup_elem(&namespace_nr_root_nr, &namespace_nr);
-    return pid ? *pid : 0;
 }
 
 u32 __attribute__((always_inline)) get_namespace_nr(u32 root_nr) {
-    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
+    // TODO(will/yoann): this can conflict between nested pid namespaces, add cgroup ID or namespace to the lookup key
     u32 *pid = bpf_map_lookup_elem(&root_nr_namespace_nr, &root_nr);
     return pid ? *pid : 0;
 }
 
 void __attribute__((always_inline)) remove_nr(u32 root_nr) {
-    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
-    u32 namespace_nr = get_namespace_nr(root_nr);
-    if (root_nr == 0 || namespace_nr == 0) {
+    // TODO(will/yoann): this can conflict between nested pid namespaces, add cgroup ID or namespace to the lookup key
+    if (root_nr == 0) {
         return;
     }
 
     bpf_map_delete_elem(&root_nr_namespace_nr, &root_nr);
-    bpf_map_delete_elem(&namespace_nr_root_nr, &namespace_nr);
 }
 
 u64 __attribute__((always_inline)) get_pid_level_offset() {
@@ -217,14 +201,19 @@ u64 __attribute__((always_inline)) get_sizeof_upid() {
     return sizeof_upid;
 }
 
+u32 __attribute__((always_inline)) get_pid_from_root_pidns(struct pid *pid) {
+    // read the root pid namespace nr from &pid->numbers[0].nr
+    u32 root_nr = 0;
+    bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
+    return root_nr;
+}
+
 void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     if (pid == NULL) {
         return;
     }
 
-    // read the root namespace nr from &pid->numbers[0].nr
-    u32 root_nr = 0;
-    bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
+    u32 root_nr = get_pid_from_root_pidns(pid);
 
     // TODO(will): iterate over the list to insert the nr of each namespace, for now get only the deepest one
     u32 pid_level = 0;

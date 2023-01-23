@@ -509,6 +509,9 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "ptrace"}, EntryAndExit),
 				},
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/pid_task", EBPFFuncName: "kprobe_pid_task"}},
+				}},
 			},
 
 			// List of probes required to capture mmap events
@@ -564,6 +567,8 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID,
 						EBPFSection: "kretprobe/check_kill_permission", EBPFFuncName: "kretprobe_check_kill_permission"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID,
+						EBPFSection: "kprobe/kill_pid_info", EBPFFuncName: "kprobe_kill_pid_info"}},
 				}},
 				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kill"}, Entry),
