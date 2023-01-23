@@ -231,6 +231,10 @@ func Run(ctx context.Context) {
 		}
 		defer profiling.Stop()
 	}
+	go func() {
+		time.Sleep(time.Second * 30)
+		telemetryCollector.SendStartupSuccess()
+	}()
 	agnt.Run()
 
 	// collect memory profile
