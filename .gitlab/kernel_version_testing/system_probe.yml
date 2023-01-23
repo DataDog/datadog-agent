@@ -10,6 +10,7 @@ kernel_version_testing_system_probe_linux_x64_ec2:
   variables:
     ARCH: x86_64
     EC2_INSTANCE_TYPE: "z1d.metal"
+    AWS_REGION: us-east-1
   script:
     - inv -e system-probe.test-microvms --security-groups="[$KITCHEN_EC2_SG_IDS]" --subnet=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE
 
