@@ -1,10 +1,11 @@
-//go:build kubeapiserver
-// +build kubeapiserver
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+//go:build kubeapiserver
+// +build kubeapiserver
+
 package mutate
 
 import (
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 )
@@ -27,10 +29,12 @@ const (
 	agentHostEnvVarName  = "DD_AGENT_HOST"
 	ddEntityIDEnvVarName = "DD_ENTITY_ID"
 	traceURLEnvVarName   = "DD_TRACE_AGENT_URL"
+
 	// Config injection modes
 	hostIP  = "hostip"
 	socket  = "socket"
 	service = "service"
+
 	// Volume name
 	datadogVolumeName = "datadog"
 )
@@ -45,6 +49,7 @@ var (
 			},
 		},
 	}
+
 	ddEntityIDEnvVar = corev1.EnvVar{
 		Name:  ddEntityIDEnvVarName,
 		Value: "",
@@ -54,10 +59,12 @@ var (
 			},
 		},
 	}
+
 	traceURLEnvVar = corev1.EnvVar{
 		Name:  traceURLEnvVarName,
 		Value: config.Datadog.GetString("admission_controller.inject_config.trace_agent_socket"),
 	}
+
 	agentServiceEnvVar = corev1.EnvVar{
 		Name:  agentHostEnvVarName,
 		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
@@ -75,13 +82,16 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	defer func() {
 		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity))
 	}()
+
 	if pod == nil {
 		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod")
 		return errors.New("cannot inject config into nil pod")
 	}
+
 	if !shouldInjectConf(pod) {
 		return nil
 	}
+
 	mode := injectionMode(pod, config.Datadog.GetString("admission_controller.inject_config.mode"))
 	switch mode {
 	case hostIP:
@@ -97,7 +107,9 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode")
 		return fmt.Errorf("invalid injection mode %q", mode)
 	}
+
 	injectedEntity = injectEnv(pod, ddEntityIDEnvVar)
+
 	return nil
 }
 
@@ -130,8 +142,10 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 			return globalMode
 		}
 	}
+
 	return globalMode
 }
+
 func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
 	pathType := corev1.HostPathDirectoryOrCreate
 	volume := corev1.Volume{
@@ -143,10 +157,12 @@ func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.
 			},
 		},
 	}
+
 	volumeMount := corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: path,
 		ReadOnly:  readOnly,
 	}
+
 	return volume, volumeMount
 }
