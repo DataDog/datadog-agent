@@ -250,10 +250,6 @@ static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
         frame_type = frames_to_process[frame_index].header.type;
         frame_flags = frames_to_process[frame_index].header.flags;
 
-        if (frames_to_process[frame_index].header.stream_id != 0) {
-            log_debug("[http2] found frame of type %d  for stream %lu, length %lu", frame_type,  frames_to_process[frame_index].header.stream_id, frames_to_process[frame_index].header.length);
-        }
-
         frames_to_process[frame_index].offset = offset;
 
         offset += frames_to_process[frame_index].header.length;
@@ -341,8 +337,6 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
         }
 
         current_header = &headers_to_process[iteration];
-        log_debug("[http2] iteration %d; stream_id %lu, type %d\n", iteration, current_header->stream_id, current_header->type);
-        log_debug("[http2] iteration %d; index %d\n", iteration, current_header->index);
 
         http2_stream_key_template->stream_id = current_header->stream_id;
         current_stream = http2_fetch_stream(http2_stream_key_template);
@@ -414,7 +408,6 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
     }
 
     if (!current_stream->request_end_of_stream) {
-        log_debug("[http2] %d end of stream %d\n", type,  http2_stream_key_template->stream_id);
         current_stream->request_end_of_stream = true;
         return;
     }
@@ -424,7 +417,6 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
     current_stream->tup = http2_stream_key_template->tup;
 
     // enqueue
-    log_debug("[http2] enqueue stream %d\n", http2_stream_key_template->stream_id);
     http2_batch_enqueue(current_stream);
 }
 
@@ -456,7 +448,6 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
             continue;
         }
 
-//        log_debug("[http2] found headers for stream %lu, length %lu", current_frame_header->stream_id, current_frame_header->length);
         // headers frame
         heap_buffer->size = HTTP2_BUFFER_SIZE < current_frame_header->length ? HTTP2_BUFFER_SIZE : current_frame_header->length;
 
