@@ -5,6 +5,7 @@
 #include "tracer.h"
 #include "tags-types.h"
 #include "https.h"
+#include "port_range.h"
 
 #define USM_IOCTL_ID 0xda7ad09
 
@@ -31,6 +32,7 @@ int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void
     }
     //register the connection in our map
     bpf_map_update_elem(&java_tls_connections, connection, &val, BPF_ANY);
+    log_debug("[java-tls-handle_request] handling tls request of size: %d\n", bytes_read)
     https_process(connection, data+sizeof(bytes_read), bytes_read, JAVA_TLS);
     return 0;
 }
@@ -41,6 +43,7 @@ void __attribute__((always_inline)) handle_close_connection(conn_tuple_t* connec
     // otherwise just ignore
     if (exists != NULL){
         https_finish(connection);
+        log_debug("[java-tls-handle_request] removing connection from the map %llx\n", connection->daddr_h);
         bpf_map_delete_elem(&java_tls_connections,connection);
     }
 }
@@ -74,6 +77,8 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
         log_debug("[java-tls-handle_erpc_request] failed to parse connection info of java tls erpc request %x for: pid %d\n",op, pid);
         return 1;
     }
+
+    normalize_tuple(&connection);
 
     void *data = req + sizeof(op) + sizeof(conn_tuple_t);
     switch (op) {
