@@ -23,12 +23,28 @@ SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
         .type = EVENT_PTRACE,
         .ptrace = {
             .request = request,
-            .pid = pid,
+            .namespaced_pid = pid, // keep the namespaced pid for now
             .addr = (u64)addr,
         }
     };
 
     cache_syscall(&syscall);
+    return 0;
+}
+
+SEC("kprobe/pid_task")
+int kprobe_pid_task(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_PTRACE);
+    if (!syscall || syscall->ptrace.root_ns_pid) {
+        return 0;
+    }
+
+    struct pid *pid = (struct pid *)PT_REGS_PARM1(ctx);
+    if (!pid) {
+        return 0;
+    }
+    syscall->ptrace.root_ns_pid = get_pid_from_root_pidns(pid);
+
     return 0;
 }
 
@@ -38,17 +54,19 @@ int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
         return 0;
     }
 
-    // try to resolve namespaced nr
-    u32 namespace_nr = get_root_nr(syscall->ptrace.pid);
-    if (namespace_nr == 0) {
-        namespace_nr = syscall->ptrace.pid;
+    u32 pid = syscall->ptrace.root_ns_pid;
+    if (!pid) {
+        pid = get_root_nr(syscall->ptrace.namespaced_pid);
+        if (!pid) {
+            pid = syscall->ptrace.namespaced_pid;
+        }
     }
 
     struct ptrace_event_t event = {
         .syscall.retval = retval,
         .event.async = 0,
         .request = syscall->ptrace.request,
-        .pid = namespace_nr,
+        .pid = pid,
         .addr = syscall->ptrace.addr,
     };
 
