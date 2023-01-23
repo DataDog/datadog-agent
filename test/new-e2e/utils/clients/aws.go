@@ -56,6 +56,8 @@ func getAWSConfig() (*aws.Config, error) {
 		return nil, err
 	}
 
+	cfg.Region = "us-east-1"
+
 	awsConfig = &cfg
 	return awsConfig, nil
 }
