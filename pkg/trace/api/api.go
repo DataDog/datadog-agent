@@ -168,7 +168,7 @@ func (r *HTTPReceiver) Start() {
 		defer watchdog.LogOnPanic()
 		if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
-			r.telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Could not start HTTP server: %w", err))
+			r.telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Could not start HTTP server: %w", err), true)
 		}
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
@@ -182,7 +182,7 @@ func (r *HTTPReceiver) Start() {
 			defer watchdog.LogOnPanic()
 			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 				log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
-				r.telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Could not start UDS server: %w", err))
+				r.telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Could not start UDS server: %w", err), true)
 			}
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
@@ -200,7 +200,7 @@ func (r *HTTPReceiver) Start() {
 			defer watchdog.LogOnPanic()
 			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 				log.Errorf("Could not start Windows Pipes server: %v. Windows Pipes receiver disabled.", err)
-				r.telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Could not start Windows Pipes server: %w", err))
+				r.telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Could not start Windows Pipes server: %w", err), true)
 			}
 		}()
 		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)

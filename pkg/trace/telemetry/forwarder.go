@@ -1,10 +1,14 @@
 package telemetry
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 
 	"go.uber.org/atomic"
@@ -46,12 +50,17 @@ type TelemetryCollector interface {
 	Start()
 	Stop()
 	SendStartupSuccess()
-	SendStartupError(code int, err error)
+	SendStartupError(code int, err error, sync bool)
 }
 
 // TelemetryForwarder ...
 type telemetryCollector struct {
-	forwarder             epforwarder.EventPlatformForwarder
+	in     chan *OnboardingEvent
+	done   chan struct{}
+	client *config.ResetClient
+
+	endpoints             []config.Endpoint
+	userAgent             string
 	cfg                   *config.AgentConfig
 	collectedStartupError *atomic.Bool
 }
@@ -61,8 +70,27 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 	if cfg.TelemetryConfig.Enabled {
 		return &noopTelemetryCollector{}
 	}
+
+	var endpoints []config.Endpoint
+	for _, endpoint := range cfg.TelemetryConfig.Endpoints {
+		u, err := url.Parse(endpoint.Host)
+		if err != nil {
+			continue
+		}
+		u.Path = "/v2/apmtelemetry"
+		endpointWithPath := *endpoint
+		endpointWithPath.Host = u.String()
+
+		endpoints = append(endpoints, endpointWithPath)
+	}
+
 	return &telemetryCollector{
-		forwarder:             epforwarder.NewTraceAgentEventPlatformForwarder(),
+		in:        make(chan *OnboardingEvent, 1000),
+		done:      make(chan struct{}),
+		client:    cfg.NewHTTPClient(),
+		endpoints: endpoints,
+		userAgent: fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+
 		cfg:                   cfg,
 		collectedStartupError: &atomic.Bool{},
 	}
@@ -75,12 +103,46 @@ func NewNoopCollector() TelemetryCollector {
 
 // Start ...
 func (f *telemetryCollector) Start() {
-	f.forwarder.Start()
+	go f.loop()
+}
+
+func (f *telemetryCollector) loop() {
+	for event := range f.in {
+		f.sendEvent(event)
+	}
+	close(f.done)
+}
+
+func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
+	for _, endpoint := range f.endpoints {
+		body := bytes.NewBuffer(nil)
+		if err := json.NewEncoder(body).Encode(event); err != nil {
+			continue
+		}
+
+		req, err := http.NewRequest("POST", endpoint.Host, body)
+		req.Header.Add("Content-Type", "application/json")
+		req.Header.Add("User-Agent", f.userAgent)
+		req.Header.Add("DD-Api-Key", endpoint.APIKey)
+		req.Header.Add("Content-Length", strconv.Itoa(body.Len()))
+
+		if err != nil {
+			continue
+		}
+		resp, err := f.client.Do(req)
+		if err != nil {
+			continue
+		}
+		// Inconditionally read the body and ignore any errors
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}
 }
 
 // Stop ...
 func (f *telemetryCollector) Stop() {
-	f.forwarder.Stop()
+	close(f.in)
+	<-f.done
 }
 
 func NewOnboardingTelemetryPayload(config *config.AgentConfig) OnboardingEvent {
@@ -103,33 +165,29 @@ func (f *telemetryCollector) SendStartupSuccess() {
 	}
 	ev := NewOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.startup.success"
-	f.sendOnboardingEvent(&ev)
+	f.queueEvent(&ev)
 }
 
-func (f *telemetryCollector) SendStartupError(code int, err error) {
+func (f *telemetryCollector) SendStartupError(code int, err error, sync bool) {
 	f.collectedStartupError.Store(true)
 	ev := NewOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.startup.error"
 	ev.Payload.Error.Code = code
 	ev.Payload.Error.Message = err.Error()
-	f.sendOnboardingEvent(&ev)
+	if sync {
+		f.sendEvent(&ev)
+	} else {
+		f.queueEvent(&ev)
+	}
 }
 
-func (f *telemetryCollector) sendOnboardingEvent(e *OnboardingEvent) {
-	content, err := json.Marshal(e)
-	if err != nil {
-		return
-	}
-	m := message.NewMessage(content, nil, message.StatusInfo, 0)
-	err = f.forwarder.SendEventPlatformEvent(m, epforwarder.EventTypeInstrumentatiomTelemetry)
-	if err != nil {
-		return
-	}
+func (f *telemetryCollector) queueEvent(e *OnboardingEvent) {
+	f.in <- e
 }
 
 type noopTelemetryCollector struct{}
 
-func (*noopTelemetryCollector) Start()                               {}
-func (*noopTelemetryCollector) Stop()                                {}
-func (*noopTelemetryCollector) SendStartupSuccess()                  {}
-func (*noopTelemetryCollector) SendStartupError(code int, err error) {}
+func (*noopTelemetryCollector) Start()                                          {}
+func (*noopTelemetryCollector) Stop()                                           {}
+func (*noopTelemetryCollector) SendStartupSuccess()                             {}
+func (*noopTelemetryCollector) SendStartupError(code int, err error, sync bool) {}
