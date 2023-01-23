@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
@@ -399,5 +400,5 @@ func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time)
 }
 
 func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog.GetBool("container_image_collection.metadata.enabled")
+	return config.Datadog.GetBool("container_image_collection.metadata.enabled") && flavor.GetFlavor() != flavor.SecurityAgent
 }
