@@ -234,44 +234,38 @@ static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
 
 #pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
     for (int iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; ++iteration) {
-        if (offset + HTTP2_FRAME_HEADER_SIZE >= skb->len) {
+        if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
             break;
         }
 
         // read frame.
         bpf_skb_load_bytes_with_telemetry(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
         offset += HTTP2_FRAME_HEADER_SIZE;
-        *max_offset += HTTP2_FRAME_HEADER_SIZE;
 
         if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &frames_to_process[frame_index].header)){
             log_debug("[http2] unable to read_http2_frame_header (%d) offset %lu\n", frame_index, offset);
             break;
         }
-        frames_to_process[frame_index].offset = offset;
-
-        offset += frames_to_process[frame_index].header.length;
-        *max_offset += frames_to_process[frame_index].header.length;
 
         frame_type = frames_to_process[frame_index].header.type;
         frame_flags = frames_to_process[frame_index].header.flags;
+        frames_to_process[frame_index].offset = offset;
+
+        offset += frames_to_process[frame_index].header.length;
 
         // filter frame
         is_end_of_stream = (frame_flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
         is_data_frame_end_of_stream = is_end_of_stream && (frame_type == kDataFrame);
         is_headers_frame = frame_type == kHeadersFrame;
-        if (frame_type == kHeadersFrame || frame_type == kDataFrame) {
-            log_debug("[http2] stream %lu header type %d; flags %d", frames_to_process[frame_index].header.stream_id, frame_type, frame_flags);
-            log_debug("[http2] stream %lu header length %lu", frames_to_process[frame_index].header.stream_id, frames_to_process[frame_index].header.length);
-        }
 
         if (!is_data_frame_end_of_stream && !is_headers_frame) {
             // Skipping the frame payload.
             continue;
         }
-        log_debug("[http2] found relevant header; stream %lu; flags %d; type %d\n", frames_to_process[frame_index].header.stream_id, frames_to_process[frame_index].header.flags, frames_to_process[frame_index].header.type);
         ++frame_index;
     }
 
+    *max_offset += offset - http2_ctx->skb_info.data_off;
     return frame_index;
 }
 
@@ -446,9 +440,8 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
     __u8 interesting_headers = 0;
     struct http2_frame *current_frame_header;
 
-    log_debug("[http2] process_relevant_http2_frames is running for %d", number_of_frames);
 #pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
-    for (__u8 iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; iteration++) {
+    for (__u8 iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; ++iteration) {
         if (iteration >= number_of_frames) {
             break;
         }
@@ -466,7 +459,6 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
 
         // process headers
         interesting_headers += filter_relevant_headers(http2_ctx, headers_to_process->array, current_frame_header->stream_id, heap_buffer);
-        log_debug("[http2] process_relevant_http2_frames iter %d; has total %d", number_of_frames, interesting_headers);
     }
 
     process_headers(http2_ctx, headers_to_process->array, interesting_headers, &http2_ctx->http2_stream_key);
@@ -478,8 +470,9 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
         }
 
         current_frame_header = &frames_to_process[iteration].header;
-        log_debug("[http2] stream %lu EOS iteration type %d; flags %d", current_frame_header->stream_id, current_frame_header->type, current_frame_header->flags);
-        log_debug("[http2] stream %lu EOS iteration length %lu", current_frame_header->stream_id, current_frame_header->length);
+        if (current_frame_header == NULL) {
+            break;
+        }
 
         http2_ctx->http2_stream_key.stream_id = current_frame_header->stream_id;
         if ((current_frame_header->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {

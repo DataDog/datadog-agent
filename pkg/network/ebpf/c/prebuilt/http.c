@@ -88,17 +88,13 @@ int socket__http2_filter(struct __sk_buff *skb) {
     http2_ctx->skb_info = skb_info;
     http2_ctx->skb_info.data_off += tail_call_state->offset;
 
-//    log_debug("[http2] %p running iteration %d", skb, tail_call_state->iteration + 1);
-
     __u32 read_size = http2_entrypoint(skb, http2_ctx);
 
     if (read_size <= 0) {
-//        log_debug("[http2] %p ending 1 iteration %d", skb, tail_call_state->iteration + 1);
         bpf_map_delete_elem(&http2_iterations, &skb_addr);
         return 0;
     }
     if (http2_ctx->skb_info.data_off + read_size >= skb->len) {
-//        log_debug("[http2] %p ending 2 iteration %d", skb, tail_call_state->iteration + 1);
         bpf_map_delete_elem(&http2_iterations, &skb_addr);
         return 0;
     }
@@ -106,8 +102,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
     tail_call_state->iteration += 1;
     tail_call_state->offset += read_size;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
-//        log_debug("[http2] %p calling next iteration %d; len %lu\n", skb, tail_call_state->iteration, skb->len);
-//        log_debug("[http2] %p params; off %lu; read size %lu\n", skb, http2_ctx->skb_info.data_off, read_size);
         bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
     } else {
         bpf_map_delete_elem(&http2_iterations, &skb_addr);
