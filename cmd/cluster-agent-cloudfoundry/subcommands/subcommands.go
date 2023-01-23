@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/subcommands/flare"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/subcommands/run"
+	cmdversion "github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/subcommands/version"
 )
 
 // ClusterAgentSubcommands returns SubcommandFactories for the subcommands
@@ -20,5 +21,6 @@ func ClusterAgentSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		cmdflare.Commands,
 		cmdrun.Commands,
+		cmdversion.Commands,
 	}
 }
