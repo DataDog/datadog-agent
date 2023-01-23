@@ -8,7 +8,7 @@ package serializerexporter
 import (
 	"encoding"
 	"fmt"
-	
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
