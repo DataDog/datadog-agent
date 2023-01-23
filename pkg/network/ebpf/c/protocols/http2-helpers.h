@@ -34,6 +34,34 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
     return true;
 }
 
+// This function reads the http2 frame header and validate the frame.
+static __always_inline bool read_http2_frame_header2(const char *buf, size_t buf_size, struct http2_frame *out) {
+    if (buf == NULL) {
+        return false;
+    }
+
+    if (buf_size < HTTP2_FRAME_HEADER_SIZE) {
+        return false;
+    }
+
+    if (is_empty_frame_header(buf)) {
+        return false;
+    }
+
+    // We extract the frame by its shape to fields.
+    // See: https://datatracker.ietf.org/doc/html/rfc7540#section-4.1
+    *out = *((struct http2_frame*)buf);
+    out->length = bpf_ntohl(out->length << 8);
+    out->stream_id = bpf_ntohl(out->stream_id << 1);
+
+    if (out->type > 9) {
+        // TODO: Use const for 9, and change -1 to ERR
+        return false;
+    }
+
+    return true;
+}
+
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
 static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {

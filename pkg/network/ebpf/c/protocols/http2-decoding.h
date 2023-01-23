@@ -242,9 +242,9 @@ static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_ctx
         bpf_skb_load_bytes_with_telemetry(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
         offset += HTTP2_FRAME_HEADER_SIZE;
 
-        if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &frames_to_process[frame_index].header)){
+        if (!read_http2_frame_header2(frame_buf, HTTP2_FRAME_HEADER_SIZE, &frames_to_process[frame_index].header)){
             log_debug("[http2] unable to read_http2_frame_header (%d) offset %lu\n", frame_index, offset);
-            break;
+            return -1;
         }
 
         frame_type = frames_to_process[frame_index].header.type;
@@ -499,6 +499,8 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_ctx_t
     __u8 interesting_frames = filter_http2_frames(skb, http2_ctx, frames_to_process->array, &max_offset);
     if (interesting_frames > 0) {
         process_relevant_http2_frames(skb, http2_ctx, frames_to_process->array, interesting_frames);
+    } else if (interesting_frames == (__u8)(-1)) {
+        return -1;
     }
 
 
