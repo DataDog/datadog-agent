@@ -22,7 +22,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -438,12 +437,6 @@ func (t *Translator) source(m pcommon.Map) (source.Source, error) {
 
 // MapMetrics maps OTLP metrics into the DataDog format
 func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer) error {
-	var runtimeMetrics map[string]map[string]string
-	_, err := toml.DecodeFile("pkg/otlp/model/translator/runtime_metrics_mappings.toml", &runtimeMetrics)
-	if err != nil {
-		fmt.Errorf("error decoding runtime_metrics_mappings.toml: %w", err)
-	}
-
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
@@ -493,13 +486,10 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 				md := metricsArray.At(k)
 
 				// Map metric to equivalent Datadog runtime metric if found
-				for _, mappings := range runtimeMetrics {
-					if ddruntimename, ok := mappings[md.Name()]; ok {
-						ddruntime := metricsArray.AppendEmpty()
-						md.CopyTo(ddruntime)
-						ddruntime.SetName(ddruntimename)
-						break
-					}
+				if ddruntimename, ok := runtimeMetricsMappings[md.Name()]; ok {
+					ddruntime := metricsArray.AppendEmpty()
+					md.CopyTo(ddruntime)
+					ddruntime.SetName(ddruntimename)
 				}
 
 				baseDims := &Dimensions{
