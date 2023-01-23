@@ -43,16 +43,16 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
 	github.com/DataDog/agent-payload/v5 v5.0.67
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.42.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/quantile v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.43.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.43.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.2.0
@@ -82,7 +82,6 @@ require (
 	github.com/aws/aws-sdk-go v1.44.171
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.3.0
-	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -372,7 +371,7 @@ require (
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.3.0
 	github.com/google/wire v0.5.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.7.0 // indirect
@@ -393,7 +392,7 @@ require (
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
-	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
+	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20221208003206-eaf69f594683
 	github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639 // indirect
 	github.com/in-toto/in-toto-golang v0.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
@@ -578,7 +577,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230118103707-807a7ff8aa02
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe
 	github.com/spdx/tools-golang => github.com/spdx/tools-golang v0.3.0
 	oras.land/oras-go => oras.land/oras-go v1.1.1
 )

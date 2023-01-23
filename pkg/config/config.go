@@ -1103,12 +1103,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
 
-	// workloadmeta
-	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.enabled", false)
-	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms", false)
-	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms_use_mount", false)
-	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms_scan_interval", 0)    // Integer seconds
-	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.collect_sboms_scan_timeout", 10*60) // Integer seconds
+	// container_image_collection
+	config.BindEnvAndSetDefault("container_image_collection.metadata.enabled", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.enabled", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.use_mount", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
+	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
+	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)

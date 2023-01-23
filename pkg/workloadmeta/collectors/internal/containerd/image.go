@@ -395,5 +395,5 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 }
 
 func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("workloadmeta.image_metadata_collection.collect_sboms")
+	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
 }
