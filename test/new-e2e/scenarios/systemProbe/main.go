@@ -22,6 +22,7 @@ func main() {
 
 	flag.Parse()
 
+	fmt.Printf("%s %s\n", *securityGroupsPtr, *subnetPtr)
 	systemProbeEnv, err := systemProbe.NewTestEnv(*envNamePtr, *securityGroupsPtr, *subnetPtr, *x86InstanceTypePtr, *armInstanceTypePtr)
 	if err != nil {
 		panic(err)
