@@ -43,7 +43,7 @@ when 'rhel'
     # TODO(lebauce): enable repositories to install package
     # package 'policycoreutils-python'
 
-    execute 'disable SElinux to be able to start system-probe' do
+    execute 'set SElinux to permissive mode to be able to start system-probe' do
       command "setenforce 0"
     end
   end
