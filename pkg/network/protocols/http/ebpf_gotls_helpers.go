@@ -11,10 +11,11 @@ package http
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"reflect"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 )
 
 func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsData, error) {
@@ -151,8 +152,11 @@ func getReturnBytes(result *bininspect.Result, funcName string) (gotls.Location,
 				X_register:  int64(0), // RAX
 			}, nil
 		case bininspect.GoArchARM64:
-			// TODO implement for ARM
-			return gotls.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
+			return gotls.Location{
+				Exists:      boolToBinary(true),
+				In_register: boolToBinary(true),
+				X_register:  int64(0),
+			}, nil
 		default:
 			return gotls.Location{}, bininspect.ErrUnsupportedArch
 		}

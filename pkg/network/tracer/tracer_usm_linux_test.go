@@ -20,7 +20,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -63,10 +62,6 @@ func httpSupported(t *testing.T) bool {
 
 func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
-}
-
-func goTLSSupported() bool {
-	return runtime.GOARCH == "amd64"
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -591,10 +586,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	clientBin := buildGoTLSClientBin(t)
-
-	if !goTLSSupported() {
-		t.Skip("GoTLS support not available on non amd64 architectures")
-	}
 
 	if !httpSupported(t) {
 		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")

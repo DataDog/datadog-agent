@@ -101,17 +101,10 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
         *(u64*)dest = tmp;
         return 0;
     #elif defined(__aarch64__)
-        // TODO Support ARM
-        /*if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
-            // Verifier won't allow direct access to regs array if the index is not const
-            switch (regnum) {
-                case 0:
-                    __builtin_memcpy(dest, &ctx->regs[0], sizeof(ctx->regs[0]));
-                default:
-                    return 1;
-            }
+        if (regnum >= 0 && &(ctx->regs[regnum])+sizeof(ctx->regs[0]) < sizeof(ctx->regs)) {
+            __builtin_memcpy(dest, &ctx->regs[0], sizeof(ctx->regs[0]));
             return 0;
-        }*/
+        }
         return 1;
     #else
         #error "Unsupported platform"
@@ -160,16 +153,9 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
                 return NULL;
         }
     #elif defined(__aarch64__)
-        // TODO Support ARM
-        /*if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
-            // Verifier won't allow direct access to regs array if the index is not const
-            switch (regnum) {
-                case 0:
-                    return &ctx->regs[0];
-                default:
-                    return NULL;
-            }
-        }*/
+        if (regnum >= 0 && regnum < sizeof(ctx->regs)/sizeof(ctx->regs[0])) {
+            return &ctx->regs[regnum];
+        }
         return NULL;
     #else
         #error "Unsupported platform"
