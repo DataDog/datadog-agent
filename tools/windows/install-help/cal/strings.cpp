@@ -57,6 +57,7 @@ std::wstring sysprobe_exe;
 
 std::wstring keyInstalledUser;
 std::wstring keyInstalledDomain;
+std::wstring keyClosedSourceEnabled;
 
 std::wstring *loadStrings[] = {&datadog_path,
                                &datadog_key_root_base,
@@ -83,7 +84,8 @@ std::wstring *loadStrings[] = {&datadog_path,
                                &strUninstallKeyName,
                                &systemProbeService,
                                &keyInstalledUser,
-                               &keyInstalledDomain};
+                               &keyInstalledDomain,
+                               &keyClosedSourceEnabled};
 
 // strings for tracking install state
 std::wstring installCreatedDDUser;
