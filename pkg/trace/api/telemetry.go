@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -91,6 +92,9 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		}
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
+		if r.conf.GlobalTags[tags.FunctionARNKey] != "" {
+			req.Header.Set("DD-Function-ARN", r.conf.GlobalTags[tags.FunctionARNKey])
+		}
 	}
 	return &httputil.ReverseProxy{
 		Director:  director,

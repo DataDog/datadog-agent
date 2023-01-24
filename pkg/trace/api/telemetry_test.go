@@ -6,6 +6,7 @@
 package api
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -58,6 +59,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
 		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
@@ -77,6 +79,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
+	cfg.GlobalTags[tags.FunctionARNKey] = "test_ARN"
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
@@ -96,6 +99,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_1", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 
 		endpointCalled.Add(2)
 		return nil
@@ -107,6 +111,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_2", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 
 		endpointCalled.Add(3)
 		return nil
@@ -128,6 +133,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
+	cfg.GlobalTags[tags.FunctionARNKey] = "test_ARN"
 
 	req, rec := newRequestRecorder(t)
 	recv := newTestReceiverFromConfig(cfg)
