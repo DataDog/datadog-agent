@@ -24,6 +24,10 @@ const (
 	imagesToScanBufferSize = 5000
 )
 
+func sbomCollectionIsEnabled() bool {
+	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
+}
+
 func (c *collector) startSBOMCollection() error {
 	if !sbomCollectionIsEnabled() {
 		return nil
