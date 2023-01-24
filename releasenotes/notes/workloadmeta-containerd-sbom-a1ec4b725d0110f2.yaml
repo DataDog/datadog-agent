@@ -11,5 +11,5 @@ features:
     Adds the option to collect and store in workloadmeta the software bill of
     materials (SBOM) of containerd images using Trivy. This feature is disabled
     by default. It can be enabled by setting
-    `workloadmeta.image_metadata_collection.collect_sboms` to true.
+    `container_image_collection.sbom.enabled` to true.
     Note: This feature is CPU and IO intensive.

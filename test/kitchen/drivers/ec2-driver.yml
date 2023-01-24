@@ -52,6 +52,7 @@ platforms:
 <%
     # TEST_PLATFORMS syntax is `short_name1,ami|...`
     ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
 
     windows_platforms = []
     sles15_platforms = []
@@ -88,6 +89,8 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    dd-agent-rspec:
+      enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
     <% end %>

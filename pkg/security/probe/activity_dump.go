@@ -828,7 +828,7 @@ func (ad *ActivityDump) resolveTags() error {
 		}
 
 		if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
-			ad.Finalize(true)
+			ad.finalize(true)
 			ad.adm.removeDump(ad)
 		} else {
 			ad.countedByLimiter = true
