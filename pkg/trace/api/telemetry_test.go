@@ -6,7 +6,6 @@
 package api
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -79,7 +78,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
-	cfg.GlobalTags[tags.FunctionARNKey] = "test_ARN"
+	cfg.GlobalTags[FunctionARNKey] = "test_ARN"
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
@@ -133,7 +132,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
-	cfg.GlobalTags[tags.FunctionARNKey] = "test_ARN"
+	cfg.GlobalTags[FunctionARNKey] = "test_ARN"
 
 	req, rec := newRequestRecorder(t)
 	recv := newTestReceiverFromConfig(cfg)
