@@ -16,7 +16,6 @@ import (
 	"sync"
 
 	"github.com/CycloneDX/cyclonedx-go"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -392,8 +391,4 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 	}
 
 	return layers, nil
-}
-
-func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
 }
