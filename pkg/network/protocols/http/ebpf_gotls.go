@@ -316,7 +316,10 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 	var err error
 	defer func() {
 		if err != nil {
-			log.Debugf("could not hook new binary %q for process %d: %s", binPath, pid, err)
+			// report hooking issue only if we detect properly a golang binary
+			if !errors.Is(err, binversion.ErrNotGoExe) {
+				log.Debugf("could not hook new binary %q for process %d: %s", binPath, pid, err)
+			}
 			p.unregisterProcess(pid)
 			return
 		}
@@ -339,9 +342,7 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 
 	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
 	if err != nil {
-		if !errors.Is(err, binversion.ErrNotGoExe) {
-			err = fmt.Errorf("error reading exe: %w", err)
-		}
+		err = fmt.Errorf("error reading exe: %w", err)
 		return
 	}
 
