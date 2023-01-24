@@ -16,6 +16,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
+from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
@@ -26,8 +27,6 @@ BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 DNF_TAG = "dnf"
-
-CHECK_SOURCE_CMD = "grep -v '^//' {src_file} | if grep -q ' inline ' ; then echo -e '\u001b[7mPlease use __always_inline instead of inline in {src_file}\u001b[0m';exit 1;fi"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
@@ -964,16 +963,16 @@ def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None):
 
 
 def check_for_inline(ctx):
-    for f in get_ebpf_targets():
-        if os.path.basename(f) == "bpf_helpers.h":
-            continue
-
-        for p in [ebpf_check_source_file(ctx, parallel_build=True, src_file=f)]:
-            p.join()
-
-
-def ebpf_check_source_file(ctx, parallel_build, src_file):
-    return ctx.run(CHECK_SOURCE_CMD.format(src_file=src_file), echo=False, asynchronous=parallel_build)
+    print("checking for invalid inline usage...")
+    src_dirs = ["pkg/ebpf/c/", "pkg/network/ebpf/c/", "pkg/security/ebpf/c/"]
+    grep_filter = "--include='*.c' --include '*.h'"
+    grep_exclude = "--exclude='bpf_helpers.h'"
+    pattern = "'^[^/]*\\binline\\b'"
+    grep_res = ctx.run(f"grep -n {grep_filter} {grep_exclude} -r {pattern} {' '.join(src_dirs)}", warn=True, hide=True)
+    if grep_res.ok:
+        print(color_message("Use __always_inline instead of inline:", "red"))
+        print(grep_res.stdout)
+        raise Exit(code=1)
 
 
 def run_ninja(
@@ -1058,8 +1057,6 @@ def build_object_files(
         verify_system_clang_version(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
-        print("checking for clang executable...")
-        ctx.run("which clang")
 
         if strip_object_files:
             print("checking for llvm-strip...")
@@ -1084,9 +1081,8 @@ def build_object_files(
     if not windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
-        ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
-        ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
-        ctx.run(f"{sudo} find {EMBEDDED_SHARE_DIR} ! -type d | {sudo} xargs chmod 0644")
+        rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
+        ctx.run(f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}")
 
 
 def build_cws_object_files(
