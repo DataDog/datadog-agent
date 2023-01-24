@@ -47,9 +47,9 @@ func (p *pathIdentifier) String() string {
 	return fmt.Sprintf("dev/inode %d.%d/%d", unix.Major(p.dev), unix.Minor(p.dev), p.inode)
 }
 
-// Key is unique (system wide) TLDR Base64(murmur3.Sum64(device, inode))
-// It's construct based the device (minor, major) and inode of a file
-// murmur is non-crypto hashing
+// Key is a unique (system wide) TLDR Base64(murmur3.Sum64(device, inode))
+// It composes based the device (minor, major) and inode of a file
+// murmur is a non-crypto hashing
 //
 //	As multiple containers overlayfs (same inode but could be overwritten with different binary)
 //	device would be different

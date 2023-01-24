@@ -472,6 +472,12 @@ func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(
 // getUID() return a key of length 5 as the kernel uprobe registration path is limited to a length of 64
 // ebpf-manager/utils.go:GenerateEventName() MaxEventNameLen = 64
 // MAX_EVENT_NAME_LEN (linux/kernel/trace/trace.h)
+//
+// Length 5 is arbitrary value as the full string of the eventName format is
+//
+//	fmt.Sprintf("%s_%.*s_%s_%s", probeType, maxFuncNameLen, functionName, UID, attachPIDstr)
+//
+// functionName is variable but with a minimum guarantee of 10 chars
 func getUID(lib pathIdentifier) string {
 	return lib.Key()[:5]
 }

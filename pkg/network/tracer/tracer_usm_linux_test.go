@@ -200,17 +200,13 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 					linked, _ := exec.Command(ldd, fetch).Output()
 
 					var prefechLibs []string
-					foundSSLLib := false
 					for _, lib := range tlsLibs {
 						libSSLPath := lib.FindString(string(linked))
 						if _, err := os.Stat(libSSLPath); err == nil {
-							foundSSLLib = true
-
 							prefechLibs = append(prefechLibs, libSSLPath)
 						}
-
 					}
-					if !foundSSLLib {
+					if len(prefechLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
 
