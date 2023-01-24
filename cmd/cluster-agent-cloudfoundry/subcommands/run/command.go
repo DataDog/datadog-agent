@@ -47,7 +47,7 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	startCmd := &cobra.Command{
 		Use:   "run",
-		Short: "Run the Cluster Agent for Cloud Foundry\"",
+		Short: "Run the Cluster Agent for Cloud Foundry",
 		Long:  `Runs Datadog Cluster Agent for Cloud Foundry in the foreground`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(run,
