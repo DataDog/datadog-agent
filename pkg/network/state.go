@@ -555,7 +555,10 @@ func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *Co
 				return fmt.Sprintf("Stats underflow for cookie:%d, stats counters:%+v, connection counters:%+v", c.Cookie, sts, c.Monotonic)
 			})
 
-			c.Monotonic = c.Monotonic.Max(sts)
+			// only retransmits can "underflow", i.e.
+			// c.Monotonic.Retransmits < sts.Retransmits, so just
+			// use the higher value
+			c.Monotonic.Retransmits = sts.Retransmits
 			last, _ = c.Monotonic.Sub(sts)
 		}
 
