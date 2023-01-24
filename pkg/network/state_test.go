@@ -1159,7 +1159,7 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 		Family:    AFINET,
 		Source:    util.AddressFromString("127.0.0.1"),
 		Dest:      util.AddressFromString("127.0.0.1"),
-		Monotonic: StatCounters{SentBytes: 3},
+		Monotonic: StatCounters{Retransmits: 3},
 		IntraHost: true,
 	}
 
@@ -1175,11 +1175,11 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 	require.Len(t, conns, 1)
 
 	// Expect LastStats to be 3
-	conn.Last.SentBytes = 3
+	conn.Last.Retransmits = 3
 	assert.Equal(t, conn, conns[0])
 
 	// Get the connections again but by simulating an underflow
-	conn.Monotonic.SentBytes--
+	conn.Monotonic.Retransmits--
 
 	conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil).Conns
 	require.Len(t, conns, 0) // dropped because last stats are zero

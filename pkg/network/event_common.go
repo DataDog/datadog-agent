@@ -432,28 +432,6 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	return buf[:n]
 }
 
-// Sub returns s-other
-func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
-	if s.Retransmits < other.Retransmits && s.Retransmits > 0 {
-		return sc, true
-	}
-
-	sc = StatCounters{
-		RecvBytes:      s.RecvBytes - other.RecvBytes,
-		RecvPackets:    s.RecvPackets - other.RecvPackets,
-		SentBytes:      s.SentBytes - other.SentBytes,
-		SentPackets:    s.SentPackets - other.SentPackets,
-		TCPEstablished: s.TCPEstablished - other.TCPEstablished,
-		TCPClosed:      s.TCPClosed - other.TCPClosed,
-	}
-
-	if s.Retransmits > 0 {
-		sc.Retransmits = s.Retransmits - other.Retransmits
-	}
-
-	return sc, false
-}
-
 // Add returns s+other
 func (s StatCounters) Add(other StatCounters) StatCounters {
 	return StatCounters{
