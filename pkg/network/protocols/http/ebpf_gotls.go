@@ -413,7 +413,6 @@ func (p *GoTLSProgram) unregisterProcess(pid pid) {
 	bin.processCount -= 1
 
 	if bin.processCount == 0 {
-		log.Debugf("no processes left for binID %v", bin.binID)
 		p.unhookBinary(bin)
 		delete(p.binaries, binID)
 	}
