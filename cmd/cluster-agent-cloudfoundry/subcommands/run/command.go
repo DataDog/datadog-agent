@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
+//go:build !windows && clusterchecks
+// +build !windows,clusterchecks
 
 package run
 
