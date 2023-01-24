@@ -17,5 +17,5 @@ kernel_version_testing_system_probe_linux_x64_ec2:
     - 'export PATH=$PATH:/root/.pulumi/bin'
     - export PULUMI_CONFIG_PASSPHRASE=1234
     - pulumi login --local
-    - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnet=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE
+    - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE
 
