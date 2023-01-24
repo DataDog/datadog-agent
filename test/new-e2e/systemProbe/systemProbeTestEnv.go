@@ -66,7 +66,7 @@ func NewTestEnv(name, securityGroups, subnets, armInstanceType, x86InstanceType 
 		"ddinfra:aws/defaultARMInstanceType": auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":    auto.ConfigValue{Value: x86InstanceType},
 		"microvm:microVMConfigFile":          auto.ConfigValue{Value: VMConfig},
-		"ddinfra:aws/defaultKeyPairName":     auto.ConfigValue{Value: "ci.datadog-agent.aws_ec2_kitchen_ssh_key"},
+		"ddinfra:aws/defaultKeyPairName":     auto.ConfigValue{Value: "aws_ec2_kitchen_ssh_key"},
 		"ddinfra:aws/defaultPrivateKeyPath":  auto.ConfigValue{Value: SSHKeyFile},
 		"ddinfra:aws/defaultSecurityGroups":  auto.ConfigValue{Value: securityGroups},
 		"ddinfra:aws/defaultSubnets":         auto.ConfigValue{Value: subnets},
