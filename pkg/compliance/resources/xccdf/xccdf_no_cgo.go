@@ -69,7 +69,7 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 				continue
 			}
 			var result string
-			switch ruleResult {
+			switch ruleResult.Result {
 			case XCCDF_RESULT_PASS:
 				result = "passed"
 			case XCCDF_RESULT_FAIL:
