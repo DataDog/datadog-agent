@@ -212,7 +212,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 
     network_flags = "-Ipkg/network/ebpf/c -g"
     network_co_re_flags = f"-I{network_co_re_dir}"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "kafka"]
     network_co_re_programs = []
 
     for prog in network_programs:
@@ -245,6 +245,7 @@ def ninja_runtime_compilation_files(nw):
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
         "pkg/network/protocols/http/compile.go": "http",
+        "pkg/network/protocols/kafka/compile.go": "kafka",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/security/ebpf/compile.go": "runtime-security",
@@ -307,6 +308,10 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/protocols/tags-types.h",
                 "pkg/network/ebpf/c/protocols/http-types.h",
                 "pkg/network/ebpf/c/protocols/protocol-classification-defs.h",
+            ],
+            "pkg/network/protocols/kafka/kafka_types.go": [
+                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/protocols/kafka-types.h",
             ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
