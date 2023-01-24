@@ -258,8 +258,8 @@ func TestGetSNMPConfigEmpty(t *testing.T) {
 
 func TestGetSNMPConfigDefault(t *testing.T) {
 	//check if the default setter is working
-	Input := SNMPConfig{}
-	SetDefault(&Input)
+	input := SNMPConfig{}
+	SetDefault(&input)
 	Exoutput := SNMPConfig{
 		Version:         "2",
 		CommunityString: "public",
@@ -267,7 +267,7 @@ func TestGetSNMPConfigDefault(t *testing.T) {
 		Timeout:         10,
 		Retries:         3,
 	}
-	assert.Equal(t, Exoutput, Input)
+	assert.Equal(t, Exoutput, input)
 
 }
 func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedOutput SNMPConfig) {
