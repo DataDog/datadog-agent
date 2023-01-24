@@ -25,6 +25,7 @@ type CheckedProcess struct {
 	name         string
 	exe          string
 	cmdLineSlice []string
+	envsSlice    []string
 }
 
 // NewCheckedProcess returns a new checked process, based on a real process object
@@ -38,12 +39,13 @@ func NewCheckedProcess(p *process.Process) *CheckedProcess {
 }
 
 // NewCheckedFakeProcess returns a new checked process, based on a fake object
-func NewCheckedFakeProcess(pid int32, name string, cmdLineSlice []string) *CheckedProcess {
+func NewCheckedFakeProcess(pid int32, name string, cmdLineSlice []string, envsSlice []string) *CheckedProcess {
 	return &CheckedProcess{
 		inner:        nil,
 		pid:          pid,
 		name:         name,
 		cmdLineSlice: cmdLineSlice,
+		envsSlice:    envsSlice,
 	}
 }
 
@@ -99,6 +101,30 @@ func (p *CheckedProcess) CmdlineSlice() []string {
 	}
 	p.cmdLineSlice = innerCmdLine
 	return innerCmdLine
+}
+
+// EnvsMap returns a map of the requested environment variables in this checked process
+func (p *CheckedProcess) EnvsMap(envs []string) (map[string]string, error) {
+	envsMap := make(map[string]string, len(envs))
+	if len(envs) == 0 {
+		return envsMap, nil
+	}
+	if p.envsSlice == nil && p.inner != nil {
+		innerEnvSlice, err := p.inner.Environ()
+		if err != nil {
+			return nil, err
+		}
+		p.envsSlice = innerEnvSlice
+	}
+	for _, envValue := range p.envsSlice {
+		for _, envName := range envs {
+			prefix := envName + "="
+			if strings.HasPrefix(envValue, prefix) {
+				envsMap[envName] = strings.TrimPrefix(envValue, prefix)
+			}
+		}
+	}
+	return envsMap, nil
 }
 
 // Processes holds process info indexed per PID
