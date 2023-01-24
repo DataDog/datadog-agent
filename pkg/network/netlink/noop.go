@@ -35,6 +35,8 @@ func (*noOpConntracker) IsSampling() bool {
 
 func (*noOpConntracker) Close() {}
 
+func (*noOpConntracker) RefreshTelemetry() {}
+
 func (*noOpConntracker) GetStats() map[string]int64 {
 	return map[string]int64{
 		"noop_conntracker": 0,

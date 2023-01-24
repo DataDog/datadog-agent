@@ -60,7 +60,7 @@ type kprobeTracer struct {
 	pidCollisions *atomic.Int64
 	removeTuple   *netebpf.ConnTuple
 
-	telemetry telemetry
+	telemetry tracerTelemetry
 
 	// A method to run during the "Stop" action of the tracer to close the socket filter we've created for the protocol
 	// classification feature.
@@ -68,13 +68,13 @@ type kprobeTracer struct {
 	closeProtocolClassifierSocketFilterFn func()
 }
 
-type telemetry struct {
+type tracerTelemetry struct {
 	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
 	udpConns4, udpConns6 *atomic.Int64 `stats:""`
 }
 
-func newTelemetry() telemetry {
-	return telemetry{
+func newTracerTelemetry() tracerTelemetry {
+	return tracerTelemetry{
 		tcpConns4: atomic.NewInt64(0),
 		udpConns4: atomic.NewInt64(0),
 		tcpConns6: atomic.NewInt64(0),
@@ -241,7 +241,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		closeConsumer:                         closeConsumer,
 		pidCollisions:                         atomic.NewInt64(0),
 		removeTuple:                           &netebpf.ConnTuple{},
-		telemetry:                             newTelemetry(),
+		telemetry:                             newTracerTelemetry(),
 		closeProtocolClassifierSocketFilterFn: closeProtocolClassifierSocketFilterFn,
 	}
 
@@ -325,7 +325,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
-	tel := newTelemetry()
+	tel := newTracerTelemetry()
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
@@ -350,14 +350,14 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	return nil
 }
 
-func (t *telemetry) assign(other telemetry) {
+func (t *tracerTelemetry) assign(other tracerTelemetry) {
 	t.tcpConns4.Store(other.tcpConns4.Load())
 	t.tcpConns6.Store(other.tcpConns6.Load())
 	t.udpConns4.Store(other.udpConns4.Load())
 	t.udpConns6.Store(other.udpConns6.Load())
 }
 
-func (t *telemetry) addConnection(conn *network.ConnectionStats) {
+func (t *tracerTelemetry) addConnection(conn *network.ConnectionStats) {
 	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
@@ -375,7 +375,7 @@ func (t *telemetry) addConnection(conn *network.ConnectionStats) {
 	}
 }
 
-func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
+func (t *tracerTelemetry) removeConnection(conn *network.ConnectionStats) {
 	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
@@ -393,7 +393,7 @@ func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
 	}
 }
 
-func (t *telemetry) get() map[string]interface{} {
+func (t *tracerTelemetry) get() map[string]interface{} {
 	return atomicstats.Report(t)
 }
 
