@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -21,6 +23,11 @@ const (
 
 	// ServiceName is the service name used for the system-probe
 	ServiceName = "datadog-system-probe"
+
+	AgentRegistryKey       = `SOFTWARE\DataDog\Datadog Agent`
+	ClosedSourceKeyName    = "AllowClosedSource"
+	ClosedSourceAllowed    = 1
+	ClosedSourceNotAllowed = 0
 )
 
 var (
@@ -40,4 +47,30 @@ func ValidateSocketAddress(sockAddress string) error {
 		return fmt.Errorf("socket address must be of the form 'host:port'")
 	}
 	return nil
+}
+
+func isClosedSourceAllowed() bool {
+	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, AgentRegistryKey, registry.QUERY_VALUE)
+	if err != nil {
+		log.Warnf("unable to open registry key %s: %v", AgentRegistryKey, err)
+		return false
+	}
+	defer regKey.Close()
+
+	val, _, err := regKey.GetIntegerValue(ClosedSourceKeyName)
+	if err != nil {
+		log.Warnf("unable to get value for %s: %v", ClosedSourceKeyName, err)
+		return false
+	}
+
+	if val == ClosedSourceAllowed {
+		log.Info("closed-source software allowed")
+		return true
+	} else if val == ClosedSourceNotAllowed {
+		log.Info("closed-source software not allowed")
+		return false
+	} else {
+		log.Infof("unexpected value set for %s: %d", ClosedSourceKeyName, val)
+		return false
+	}
 }
