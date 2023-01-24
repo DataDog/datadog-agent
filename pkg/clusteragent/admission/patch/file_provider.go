@@ -28,9 +28,9 @@ type filePatchProvider struct {
 
 var _ patchProvider = &filePatchProvider{}
 
-func newfileProvider(isLeaderNotif <-chan struct{}, clusterName string) *filePatchProvider {
+func newfileProvider(file string, isLeaderNotif <-chan struct{}, clusterName string) *filePatchProvider {
 	return &filePatchProvider{
-		file:          "/etc/datadog-agent/auto-instru.json",
+		file:          file,
 		isLeaderNotif: isLeaderNotif,
 		pollInterval:  15 * time.Second,
 		subscribers:   make(map[TargetObjKind]chan PatchRequest),
@@ -45,7 +45,7 @@ func (fpp *filePatchProvider) subscribe(kind TargetObjKind) chan PatchRequest {
 }
 
 func (fpp *filePatchProvider) start(stopCh <-chan struct{}) {
-	log.Info("Starting file patch provider")
+	log.Infof("Starting file patch provider: watching %s", fpp.file)
 	ticker := time.NewTicker(fpp.pollInterval)
 	defer ticker.Stop()
 	for {

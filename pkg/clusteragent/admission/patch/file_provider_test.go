@@ -15,8 +15,7 @@ import (
 )
 
 func TestFileProviderProcess(t *testing.T) {
-	fpp := newfileProvider(make(chan struct{}), "dev")
-	fpp.file = "testdata/auto-instru.json"
+	fpp := newfileProvider("testdata/auto-instru.json", make(chan struct{}), "dev")
 	notifs := fpp.subscribe(KindDeployment)
 	fpp.process(false)
 	require.Len(t, notifs, 1)
