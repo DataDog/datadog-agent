@@ -429,7 +429,11 @@ func (p *GoTLSProgram) removeInspectionResultFromMap(binID binaryID) {
 }
 
 func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (probeIDs []manager.ProbeIdentificationPair, err error) {
-	uid := getUID(binPath)
+	pathID, err := newPathIdentifier(binPath)
+	if err != nil {
+		return probeIDs, fmt.Errorf("can't create path identifier for path %s : %s", binPath, err)
+	}
+	uid := getUID(pathID)
 	defer func() {
 		if err != nil {
 			p.detachHooks(probeIDs)
