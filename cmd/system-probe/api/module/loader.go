@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,9 +46,28 @@ type loader struct {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
+
+	driverNeeded := false
+
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("%s module disabled", factory.Name)
+			continue
+		}
+
+		if factory.RequiresDriver && cfg.ClosedSourceAllowed { // on Windows, driver is closed source
+			// enable and start the driver
+			log.Infof("%s requires driver; closed source allowed so enabling", factory.Name)
+			err := driver.StartDriverService(driver.DriverServiceName)
+			if err != nil {
+				log.Errorf("Failed to start %s's required service: %v", factory.Name, err)
+				continue
+			} else {
+				log.Info("Service started successfully, contining to initialize module")
+			}
+		} else if factory.RequiresDriver && !cfg.ClosedSourceAllowed {
+			log.Errorf("%s requires closed-source component and closed source not allowed")
+			log.Error("Run the [FILLIN] agent command to enable closed source components")
 			continue
 		}
 
@@ -78,8 +98,16 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 		l.modules[factory.Name] = module
 
 		log.Infof("module: %s started", factory.Name)
+		driverNeeded = driverNeeded || factory.RequiresDriver
 	}
 
+	if !driverNeeded {
+		// if running, shut it down
+		log.Info("System probe module initialization complete, driver not needed, shutting down")
+
+		// shut the driver down and optionally disable it, if closed source isn't allowed anymore
+		driver.StopDriverService(driver.DriverServiceName, cfg.ClosedSourceAllowed)
+	}
 	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")

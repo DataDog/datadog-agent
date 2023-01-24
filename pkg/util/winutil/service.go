@@ -158,7 +158,7 @@ func ListDependentServices(serviceName string, state enumServiceState) ([]EnumSe
 	return deps, nil
 }
 
-func IsServiceEnabled(serviceName string) (enabled bool, err error) {
+func IsServiceDisabled(serviceName string) (enabled bool, err error) {
 	enabled = false
 
 	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
@@ -177,7 +177,7 @@ func IsServiceEnabled(serviceName string) (enabled bool, err error) {
 	if err != nil {
 		return enabled, fmt.Errorf("could not retrieve config for %s: %v", serviceName, err)
 	}
-	return (serviceConfig.StartType != windows.SERVICE_DISABLED), nil
+	return (serviceConfig.StartType == windows.SERVICE_DISABLED), nil
 }
 
 func IsServiceRunning(serviceName string) (running bool, err error) {
@@ -189,7 +189,7 @@ func IsServiceRunning(serviceName string) (running bool, err error) {
 	}
 	defer manager.Disconnect()
 
-	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_CONFIG)
+	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_STATUS)
 	if err != nil {
 		return running, fmt.Errorf("could not open service %s: %v", serviceName, err)
 	}

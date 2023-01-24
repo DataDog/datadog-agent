@@ -19,6 +19,7 @@ var ErrNotEnabled = errors.New("module is not enabled")
 type Factory struct {
 	Name             config.ModuleName
 	ConfigNamespaces []string
+	RequiresDriver   bool
 	Fn               func(cfg *config.Config) (Module, error)
 }
 

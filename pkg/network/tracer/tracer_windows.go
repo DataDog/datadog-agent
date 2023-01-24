@@ -10,9 +10,11 @@ package tracer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -58,52 +59,13 @@ type Tracer struct {
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
 
-	var di *network.DriverInterface
-	var err error
+	di, err := network.NewDriverInterface(config, driver.NewHandle)
 
-	// check driver service is enabled
-	enabled, _ := driver.IsDriverEnabled(driver.DriverServiceName)
-	if enabled { // it is, so we should be able to make an interface
-		log.Info("Driver is enabled, checking if running")
-		running, _ := driver.IsDriverRunning(driver.DriverServiceName)
-		if running { // needs to be running
-			log.Info("Driver is running, should be able to connect to it")
-		} else {
-			// TODO: come back to this
-			return nil, fmt.Errorf("driver enabled but not running")
-		}
-	} else { // not enabled, see if we can enable it ourselves
-		log.Info("Driver service not enabled, if closed source is allowed will enable")
-		if driver.IsClosedSourceAllowed() { // we can
-
-			// enable the service
-			err := driver.EnableDriverService(driver.DriverServiceName)
-			if err != nil { // service is enabled
-				log.Warnf("Could not enable ddnpm: %v", err)
-				return nil, err
-			}
-
-			// start the service
-			err = driver.StartDriverService(driver.DriverServiceName)
-			if err != nil { // driver is started
-				log.Warnf("Could not run ddnpm: %v", err)
-				return nil, err
-			}
-
-			// set system-probe to depend on the driver (so Windows starts it for us)
-			err = winutil.AddServiceDependency(driver.SystemProbeServiceName, driver.DriverServiceName)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fmt.Errorf("The Windows driver is not enabled, ensure closed source is allowed")
-		}
-	}
-
-	di, err = network.NewDriverInterface(config, driver.NewHandle)
-	if err != nil {
-		log.Warnf("Driver running but could not connect: %v", err)
-		return nil, err
+	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
+		log.Debugf("could not create driver interface: %v", err)
+		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
+	} else if err != nil {
+		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
 
 	state := network.NewState(
