@@ -8,6 +8,10 @@
 
 package containerd
 
+func sbomCollectionIsEnabled() bool {
+	return false
+}
+
 func (c *collector) startSBOMCollection() error {
 	return nil
 }
