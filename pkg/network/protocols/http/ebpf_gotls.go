@@ -265,9 +265,22 @@ func (p *GoTLSProgram) Stop() {
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	exePath := filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
+
 	binPath, err := os.Readlink(exePath)
 	if err != nil {
-		log.Debugf(" could not read binary path for pid %d: %s", pid, err)
+		// We receive the Exec event, /proc could be slow to update
+		end := time.Now().Add(10 * time.Millisecond)
+		for end.After(time.Now()) {
+			binPath, err = os.Readlink(exePath)
+			if err == nil {
+				break
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	if err != nil {
+		// we can't access to the binary path here (pid probably ended already)
+		// there are not much we can't do and we don't want to flood the logs
 		return
 	}
 
