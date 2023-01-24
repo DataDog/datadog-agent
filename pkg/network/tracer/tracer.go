@@ -349,7 +349,7 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
-	t.timeResolver.Sync()
+	_ = t.timeResolver.Sync()
 	for i := range connections {
 		cs := &connections[i]
 		if t.shouldSkipConnection(cs) {
@@ -576,7 +576,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	active := activeBuffer.Connections()
-	t.timeResolver.Sync()
+	_ = t.timeResolver.Sync()
 	for i := range active {
 		active[i].IPTranslation = t.conntracker.GetTranslationForConn(active[i])
 		// do gateway resolution only on active connections outside
