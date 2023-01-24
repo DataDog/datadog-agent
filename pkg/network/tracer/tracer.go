@@ -166,6 +166,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	conntracker, err := newConntracker(config, bpfTelemetry)
+	go conntracker.RefreshTelemetry()
 	if err != nil {
 		return nil, err
 	}

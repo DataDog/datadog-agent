@@ -13,12 +13,12 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"go.uber.org/atomic"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,8 +35,8 @@ type tcpCloseConsumer struct {
 	once         sync.Once
 
 	// Telemetry
-	perfReceived *atomic.Int64
-	perfLost     *atomic.Int64
+	perfReceived telemetry.Gauge
+	perfLost     telemetry.Gauge
 }
 
 func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*tcpCloseConsumer, error) {
@@ -60,8 +60,8 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
-		perfReceived: atomic.NewInt64(0),
-		perfLost:     atomic.NewInt64(0),
+		perfReceived: telemetry.NewGauge("perf_received", "errors", []string{"map_name", "error"}, "description"),
+		perfLost:     telemetry.NewGauge("perf_lost", "errors", []string{"map_name", "error"}, "description"),
 	}
 	return c, nil
 }
@@ -74,13 +74,6 @@ func (c *tcpCloseConsumer) FlushPending() {
 	wait := make(chan struct{})
 	c.requests <- wait
 	<-wait
-}
-
-func (c *tcpCloseConsumer) GetStats() map[string]int64 {
-	return map[string]int64{
-		perfReceivedStat: c.perfReceived.Load(),
-		perfLostStat:     c.perfLost.Load(),
-	}
 }
 
 func (c *tcpCloseConsumer) Stop() {
@@ -122,7 +115,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				c.perfLost.Add(int64(lc))
+				c.perfLost.Add(float64(lc))
 				lostCount += netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {

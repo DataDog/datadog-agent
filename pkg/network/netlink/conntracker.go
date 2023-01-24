@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,6 +40,7 @@ type Conntracker interface {
 	IsSampling() bool
 	GetStats() map[string]int64
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
+	RefreshTelemetry()
 	Close()
 }
 
@@ -61,14 +63,19 @@ type orphanEntry struct {
 }
 
 type stats struct {
-	gets                 *atomic.Int64
-	getTimeTotal         *atomic.Int64
-	registers            *atomic.Int64
-	registersDropped     *atomic.Int64
-	registersTotalTime   *atomic.Int64
-	unregisters          *atomic.Int64
-	unregistersTotalTime *atomic.Int64
-	evicts               *atomic.Int64
+	gets                     statGaugeWrapper
+	getTimeTotal             *atomic.Int64
+	registers                statGaugeWrapper
+	registersDropped         *atomic.Int64
+	registersTotalTime       *atomic.Int64
+	unregisters              *atomic.Int64
+	unregistersTotalTime     *atomic.Int64
+	evicts                   *atomic.Int64
+	nanoSecondsPerGet        telemetry.Gauge
+	nanoSecondsPerRegister   telemetry.Gauge
+	nanoSecondsPerUnRegister telemetry.Gauge
+	cacheSize                telemetry.Gauge
+	orphanSize               telemetry.Gauge
 }
 
 type realConntracker struct {
@@ -82,6 +89,34 @@ type realConntracker struct {
 
 	compactTicker *time.Ticker
 	stats         stats
+}
+
+type statGaugeWrapper struct {
+	stat  *atomic.Int64
+	gauge telemetry.Gauge
+}
+
+func (sgw *statGaugeWrapper) Inc() {
+	sgw.stat.Inc()
+	sgw.gauge.Inc()
+}
+
+func (sgw *statGaugeWrapper) Set(v int64) {
+	sgw.stat.Store(v)
+	sgw.gauge.Set(float64(v))
+}
+
+func (sgw *statGaugeWrapper) Load() int64 {
+	stat := sgw.stat.Load()
+	sgw.gauge.Set(float64(stat))
+	return stat
+}
+
+func newStatGaugeWrapper(gauge telemetry.Gauge) statGaugeWrapper {
+	return statGaugeWrapper{
+		stat:  atomic.NewInt64(0),
+		gauge: gauge,
+	}
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -108,14 +143,17 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 
 func newStats() stats {
 	return stats{
-		gets:                 atomic.NewInt64(0),
-		getTimeTotal:         atomic.NewInt64(0),
-		registers:            atomic.NewInt64(0),
-		registersDropped:     atomic.NewInt64(0),
-		registersTotalTime:   atomic.NewInt64(0),
-		unregisters:          atomic.NewInt64(0),
-		unregistersTotalTime: atomic.NewInt64(0),
-		evicts:               atomic.NewInt64(0),
+		gets:                     newStatGaugeWrapper(telemetry.NewGauge("conntracker", "gets", []string{"map_name", "error"}, "description")),
+		getTimeTotal:             atomic.NewInt64(0),
+		registers:                newStatGaugeWrapper(telemetry.NewGauge("conntracker", "registers", []string{"map_name", "error"}, "description")),
+		registersDropped:         atomic.NewInt64(0),
+		registersTotalTime:       atomic.NewInt64(0),
+		unregisters:              atomic.NewInt64(0),
+		unregistersTotalTime:     atomic.NewInt64(0),
+		evicts:                   atomic.NewInt64(0),
+		nanoSecondsPerGet:        telemetry.NewGauge("conntracker", "nanoSecondsPerGet", []string{"map_name", "error"}, "description"),
+		nanoSecondsPerRegister:   telemetry.NewGauge("conntracker", "nanoSecondsPerRegister", []string{"map_name", "error"}, "description"),
+		nanoSecondsPerUnRegister: telemetry.NewGauge("conntracker", "nanoSecondsPerUnregister", []string{"map_name", "error"}, "description"),
 	}
 }
 
@@ -155,6 +193,9 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	defer func() {
 		ctr.stats.gets.Inc()
 		ctr.stats.getTimeTotal.Add(time.Now().UnixNano() - then)
+		if gets := ctr.stats.gets.stat.Load(); gets > 0 {
+			ctr.stats.nanoSecondsPerGet.Set(float64(ctr.stats.getTimeTotal.Load() / gets))
+		}
 	}()
 
 	ctr.Lock()
@@ -174,6 +215,17 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	return t.IPTranslation
 }
 
+func (ctr *realConntracker) RefreshTelemetry() {
+	for {
+		ctr.RLock()
+		ctr.stats.cacheSize.Set(float64(ctr.cache.cache.Len()))
+		ctr.stats.orphanSize.Set(float64(ctr.cache.orphans.Len()))
+		ctr.RUnlock()
+		ctr.consumer.GetStats()
+		time.Sleep(time.Duration(10) * time.Second)
+	}
+}
+
 func (ctr *realConntracker) GetStats() map[string]int64 {
 	// only a few stats are locked
 	ctr.RLock()
@@ -186,14 +238,14 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		"orphan_size": int64(orphanSize),
 	}
 
-	gets := ctr.stats.gets.Load()
+	gets := ctr.stats.gets.stat.Load()
 	getTimeTotal := ctr.stats.getTimeTotal.Load()
 	m["gets_total"] = gets
 	if gets != 0 {
 		m["nanoseconds_per_get"] = getTimeTotal / gets
 	}
 
-	registers := ctr.stats.registers.Load()
+	registers := ctr.stats.registers.stat.Load()
 	m["registers_total"] = registers
 	registersTotalTime := ctr.stats.registersTotalTime.Load()
 	if registers != 0 {
@@ -220,6 +272,7 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now().UnixNano()
 	defer func() {
 		ctr.stats.unregistersTotalTime.Add(time.Now().UnixNano() - then)
+		ctr.stats.nanoSecondsPerUnRegister.Set(float64(ctr.stats.unregistersTotalTime.Load() / ctr.stats.unregisters.Load()))
 	}()
 
 	ctr.Lock()

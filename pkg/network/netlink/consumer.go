@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -88,11 +89,11 @@ type Consumer struct {
 	streaming bool
 
 	// telemetry
-	enobufs     *atomic.Int64
-	throttles   *atomic.Int64
-	samplingPct *atomic.Int64
-	readErrors  *atomic.Int64
-	msgErrors   *atomic.Int64
+	enobufs     statGaugeWrapper
+	throttles   statGaugeWrapper
+	samplingPct statGaugeWrapper
+	readErrors  statGaugeWrapper
+	msgErrors   statGaugeWrapper
 
 	netlinkSeqNumber    uint32
 	listenAllNamespaces bool
@@ -138,13 +139,14 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
-		enobufs:             atomic.NewInt64(0),
-		throttles:           atomic.NewInt64(0),
-		samplingPct:         atomic.NewInt64(0),
-		readErrors:          atomic.NewInt64(0),
-		msgErrors:           atomic.NewInt64(0),
-		recvLoopRunning:     atomic.NewBool(false),
-		rootNetNs:           ns,
+		enobufs:             newStatGaugeWrapper(telemetry.NewGauge("consumer", "enobufs", []string{"map_name", "error"}, "description")),
+		throttles:           newStatGaugeWrapper(telemetry.NewGauge("consumer", "throttles", []string{"map_name", "error"}, "description")),
+		samplingPct:         newStatGaugeWrapper(telemetry.NewGauge("consumer", "samplingPct", []string{"map_name", "error"}, "description")),
+		// samplingPct:     *atomic.NewInt64(0),
+		readErrors:      newStatGaugeWrapper(telemetry.NewGauge("consumer", "readErrors", []string{"map_name", "error"}, "description")),
+		msgErrors:       newStatGaugeWrapper(telemetry.NewGauge("consumer", "msgErrors", []string{"map_name", "error"}, "description")),
+		recvLoopRunning: atomic.NewBool(false),
+		rootNetNs:       ns,
 	}
 
 	return c, nil
@@ -483,7 +485,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
-	c.samplingPct.Store(int64(samplingRate * 100.0))
+	c.samplingPct.Set(int64(samplingRate * 100.0))
 	if c.samplingRate >= 1.0 {
 		return nil
 	}
@@ -492,7 +494,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	sampler, _ := GenerateBPFSampler(c.samplingRate)
 	err = c.socket.SetBPF(sampler)
 	if err != nil {
-		c.samplingPct.Store(0)
+		c.samplingPct.Set(0)
 		return fmt.Errorf("failed to attach BPF filter: %w", err)
 	}
 

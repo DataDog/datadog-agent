@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,18 +45,27 @@ var tuplePool = sync.Pool{
 }
 
 type ebpfConntrackerStats struct {
-	gets                 *atomic.Int64
-	getTotalTime         *atomic.Int64
-	unregisters          *atomic.Int64
-	unregistersTotalTime *atomic.Int64
+	gets                     *atomic.Int64
+	getTotalTime             *atomic.Int64
+	unregisters              *atomic.Int64
+	unregistersTotalTime     *atomic.Int64
+	nanoSecondsPerGet        telemetry.Gauge
+	nanoSecondsPerUnregister telemetry.Gauge
+}
+
+type statGaugeWrapper struct {
+	stat  *atomic.Int64
+	gauge telemetry.Gauge
 }
 
 func newEbpfConntrackerStats() ebpfConntrackerStats {
 	return ebpfConntrackerStats{
-		gets:                 atomic.NewInt64(0),
-		getTotalTime:         atomic.NewInt64(0),
-		unregisters:          atomic.NewInt64(0),
-		unregistersTotalTime: atomic.NewInt64(0),
+		gets:                     atomic.NewInt64(0),
+		getTotalTime:             atomic.NewInt64(0),
+		unregisters:              atomic.NewInt64(0),
+		unregistersTotalTime:     atomic.NewInt64(0),
+		nanoSecondsPerGet:        telemetry.NewGauge("perf_received", "nanoSecondsPerGet", []string{"map_name", "error"}, "description"),
+		nanoSecondsPerUnregister: telemetry.NewGauge("perf_received", "nanoSecondsPerUnregister", []string{"map_name", "error"}, "description"),
 	}
 }
 
@@ -237,6 +247,9 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 
 	e.stats.gets.Inc()
 	e.stats.getTotalTime.Add(time.Now().Sub(start).Nanoseconds())
+	if gets := e.stats.gets.Load(); gets > 0 {
+		e.stats.nanoSecondsPerGet.Set(float64(e.stats.getTotalTime.Load() / gets))
+	}
 	return &network.IPTranslation{
 		ReplSrcIP:   dst.SourceAddress(),
 		ReplDstIP:   dst.DestAddress(),
@@ -286,6 +299,16 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	}
 	e.stats.unregisters.Inc()
 	e.stats.unregistersTotalTime.Add(time.Now().Sub(start).Nanoseconds())
+	if unregisters := e.stats.unregisters.Load(); unregisters > 0 {
+		e.stats.nanoSecondsPerUnregister.Set(float64(e.stats.unregistersTotalTime.Load() / unregisters))
+	}
+}
+
+func (e *ebpfConntracker) RefreshTelemetry() {
+	for {
+		
+		time.Sleep(time.Duration(5) * time.Second)
+	}
 }
 
 func (e *ebpfConntracker) GetStats() map[string]int64 {
