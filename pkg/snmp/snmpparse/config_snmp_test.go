@@ -35,6 +35,27 @@ func TestOneInstance(t *testing.T) {
 	}
 	assertSNMP(t, input, Exoutput)
 }
+
+func TestDefaultSet(t *testing.T) {
+	//define the input
+	type Data = integration.Data
+	input := integration.Config{
+		Name:      "snmp",
+		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\"}")},
+	}
+	//define the output
+	Exoutput := []SNMPConfig{
+		{
+			Version:         "2",
+			CommunityString: "public",
+			IPAddress:       "98.6.18.158",
+			Port:            161,
+			Timeout:         10,
+			Retries:         3,
+		},
+	}
+	assertSNMP(t, input, Exoutput)
+}
 func TestSeveralInstances(t *testing.T) {
 	//define the input
 	type Data = integration.Data
@@ -235,6 +256,20 @@ func TestGetSNMPConfigEmpty(t *testing.T) {
 
 }
 
+func TestGetSNMPConfigDefault(t *testing.T) {
+	//check if the default setter is working
+	Input := SNMPConfig{}
+	SetDefault(&Input)
+	Exoutput := SNMPConfig{
+		Version:         "2",
+		CommunityString: "public",
+		Port:            161,
+		Timeout:         10,
+		Retries:         3,
+	}
+	assert.Equal(t, Exoutput, Input)
+
+}
 func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedOutput SNMPConfig) {
 	output := GetIPConfig(input, snmpConfigList)
 	assert.Equal(t, expectedOutput, output)
