@@ -133,7 +133,7 @@ void CustomActionData::setClosedSourceConfig()
     ddRegKey cskey;
     bool newEnabledFlag = false;
     bool setEnabledFlag = false;
-    bool bKey = cskey.getDWORDValue(L"ClosedSourceEnabled", closedSource);
+    bool bKey = cskey.getDWORDValue(keyClosedSourceEnabled.c_str(), closedSource);
     if (bKey)
     {
         if( closedSource == 1)
@@ -233,7 +233,7 @@ void CustomActionData::setClosedSourceConfig()
         newEnabledFlag = false;
     }
     closedSource = newEnabledFlag ? 1 : 0;
-    cskey.setDWORDValue(L"ClosedSourceEnabled", closedSource);
+    cskey.setDWORDValue(keyClosedSourceEnabled.c_str(), closedSource);
     return ;
 }
 
