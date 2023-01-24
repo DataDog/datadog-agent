@@ -1465,5 +1465,5 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
 
 @task
-def test_microvms(ctx, security_groups, subnet, instance_type_x86="", instance_type_arm=""):
-    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test --sgs {security_groups} --subnet {subnet} --instance-type-x86 {instance_type_x86}")
+def test_microvms(ctx, security_groups, subnets, instance_type_x86="", instance_type_arm=""):
+    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test --sgs {security_groups} --subnets {subnets} --instance-type-x86 {instance_type_x86}")

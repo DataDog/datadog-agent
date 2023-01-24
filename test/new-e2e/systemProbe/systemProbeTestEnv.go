@@ -39,7 +39,7 @@ const (
 var SSHKeyFile = filepath.Join("/", "tmp", "aws-ssh-key")
 var VMConfig = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
 
-func NewTestEnv(name, securityGroups, subnet, armInstanceType, x86InstanceType string) (*TestEnv, error) {
+func NewTestEnv(name, securityGroups, subnets, armInstanceType, x86InstanceType string) (*TestEnv, error) {
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
 		envName: "aws/sandbox",
@@ -68,8 +68,8 @@ func NewTestEnv(name, securityGroups, subnet, armInstanceType, x86InstanceType s
 		"microvm:microVMConfigFile":          auto.ConfigValue{Value: VMConfig},
 		"ddinfra:aws/defaultKeyPairName":     auto.ConfigValue{Value: "aws-ssh-key"},
 		"ddinfra:aws/defaultPrivateKeyPath":  auto.ConfigValue{Value: SSHKeyFile},
-		"ddinfra:aws/defaultSecurityGroups":  auto.ConfigValue{Value: "[\"sg-0f5617ceb3e5a6c39\"]"},
-		"ddinfra:aws/defaultSubnets":         auto.ConfigValue{Value: "[\"subnet-c18341ed\"]"},
+		"ddinfra:aws/defaultSecurityGroups":  auto.ConfigValue{Value: securityGroups},
+		"ddinfra:aws/defaultSubnets":         auto.ConfigValue{Value: subnets},
 	}
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
