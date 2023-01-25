@@ -23,7 +23,7 @@ package_testsuites_x64:
 package_testsuites_arm64:
   extends:
     - .package_testsuites
-  needs: ["test_ebpf_arm64"]
+  needs: ["tests_ebpf_arm64"]
   variables:
     ARCHIVE_NAME: "site-cookbooks-arm64.tar.gz"
 
