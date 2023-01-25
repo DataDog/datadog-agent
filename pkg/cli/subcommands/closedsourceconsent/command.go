@@ -6,8 +6,8 @@
 //go:build windows
 // +build windows
 
-// Package toggleclosedsourceconsent implements 'agent AllowClosedSource=[true|false]
-package toggleclosedsourceconsent
+// Package closedsourceconsent implements 'agent closedsourceconsent set [true|false]'.
+package closedsourceconsent
 
 import (
 	"fmt"
@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -31,13 +30,12 @@ type cliParams struct {
 }
 
 type GlobalParams struct {
-	ConfFilePath   string
-	ConfigName     string
-	LoggerName     string
-	SettingsClient func() (settings.Client, error)
+	ConfFilePath string
+	ConfigName   string
+	LoggerName   string
 }
 
-// Commands returns a slice of subcommands for the 'agent' command.
+// MakeCommand returns a slice of subcommands for the 'agent' command.
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 	oneShotRunE := func(callback interface{}) func(cmd *cobra.Command, args []string) error {
@@ -65,9 +63,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 
 	setClosedSourceConsentCmd := &cobra.Command{
-		Use:   "set [true | false]",
-		Short: "Set closed source consent to true or false (agent service restart required for changes to take effect)",
-		Long:  "",
+		Use:   "set [true|false]",
+		Short: "Set closed source consent to true or false (agent restart required for changes to take effect)",
+		Long:  "Consent to closed source Datadog software to be installed and run on the host",
 		RunE:  oneShotRunE(setClosedSourceConsent),
 	}
 	// setClosedSourceConsentCmd.Flags().BoolVar()
@@ -76,28 +74,48 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func showClosedSourceConsent() {
-	consentVal, _ := winutil.GetClosedSourceConsent()
+	consentVal, err := winutil.GetClosedSourceConsent()
+
+	// couldn't get the value
+	if err != nil {
+		fmt.Printf("Unable to retrieve current closed source consent option: %v", err)
+		return
+	}
+
+	// allowed
 	if consentVal == winutil.ClosedSourceAllowed {
 		fmt.Printf("Consent Allowed: %d", consentVal)
-	} else {
+	} else if consentVal == winutil.ClosedSourceDenied { // denied
 		fmt.Printf("Consent Denied: %d", consentVal)
+	} else { // unknown
+		fmt.Printf("Unknown consent value: %d", consentVal)
 	}
 }
 
 func setClosedSourceConsent(log log.Component, config config.Component, cliParams *cliParams) (err error) {
-	consent, err := strconv.ParseBool(cliParams.args[0])
-	if err != nil {
-		fmt.Printf("Invalid parameter passed: %s", cliParams.args[0])
+
+	// only expect 1 arg
+	if len(cliParams.args) != 1 {
+		return fmt.Errorf("Too many arguments provided. Expected %d, received %d", 1, len(cliParams.args))
 	}
 
+	// make sure its a bool
+	consent, err := strconv.ParseBool(cliParams.args[0])
+	if err != nil {
+		return fmt.Errorf("Invalid parameter passed: %s", cliParams.args[0])
+	}
+
+	// update to allowed
 	if consent {
 		err = winutil.AllowClosedSource()
-	} else {
+	} else { // update to denied
 		err = winutil.DenyClosedSource()
 	}
 	if err != nil {
-		fmt.Printf("Unable to update closed source consent: %v", err)
+		err = fmt.Errorf("Unable to update closed source consent: %v", err)
 	}
+
+	// show the current value
 	showClosedSourceConsent()
 	return
 }

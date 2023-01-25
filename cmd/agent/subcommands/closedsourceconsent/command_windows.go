@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package toggleclosedsourceconsent implements 'agent AllowClosedSource'.
-package toggleclosedsourceconsent
+// Package closedsourceconsent implements 'agent closedsourceconsent set [true|false]'.
+package closedsourceconsent
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	consentcmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/toggleclosedsourceconsent"
+	consentcmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/closedsourceconsent"
 
 	"github.com/spf13/cobra"
 )
@@ -18,10 +17,9 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := consentcmd.MakeCommand(func() consentcmd.GlobalParams {
 		return consentcmd.GlobalParams{
-			ConfFilePath:   globalParams.ConfFilePath,
-			ConfigName:     "datadog",
-			LoggerName:     "CORE",
-			SettingsClient: common.NewSettingsClient,
+			ConfFilePath: globalParams.ConfFilePath,
+			ConfigName:   "datadog",
+			LoggerName:   "CORE",
 		}
 	})
 
