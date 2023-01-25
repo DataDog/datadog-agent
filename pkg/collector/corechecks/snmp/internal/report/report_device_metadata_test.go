@@ -579,102 +579,87 @@ func Test_resolveLocalInterface(t *testing.T) {
 	deviceID := "default:1.2.3.4"
 
 	tests := []struct {
-		name           string
-		localIDType    string
-		localID        string
-		expectedIDType string
-		expectedID     string
+		name        string
+		localIDType string
+		localID     string
+		expectedID  string
 	}{
 		{
-			name:           "mac_address",
-			localIDType:    "mac_address",
-			localID:        "00:00:00:00:00:01",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:1",
+			name:        "mac_address",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:01",
+			expectedID:  "default:1.2.3.4:1",
 		},
 		{
-			name:           "mac_address cannot resolve due to multiple results",
-			localIDType:    "mac_address",
-			localID:        "00:00:00:00:00:03",
-			expectedIDType: "mac_address",
-			expectedID:     "00:00:00:00:00:03",
+			name:        "mac_address cannot resolve due to multiple results",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:03",
+			expectedID:  "",
 		},
 		{
-			name:           "interface_name",
-			localIDType:    "interface_name",
-			localID:        "eth2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_name",
+			localIDType: "interface_name",
+			localID:     "eth2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "interface_alias",
-			localIDType:    "interface_alias",
-			localID:        "alias2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_alias",
+			localIDType: "interface_alias",
+			localID:     "alias2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "mac_address by trying",
-			localIDType:    "",
-			localID:        "00:00:00:00:00:01",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:1",
+			name:        "mac_address by trying",
+			localIDType: "",
+			localID:     "00:00:00:00:00:01",
+			expectedID:  "default:1.2.3.4:1",
 		},
 		{
-			name:           "interface_name by trying",
-			localIDType:    "",
-			localID:        "eth2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_name by trying",
+			localIDType: "",
+			localID:     "eth2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "interface_alias by trying",
-			localIDType:    "",
-			localID:        "alias2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_alias by trying",
+			localIDType: "",
+			localID:     "alias2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "interface_alias+interface_name match with same interface should resolve",
-			localIDType:    "",
-			localID:        "eth3",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:3",
+			name:        "interface_alias+interface_name match with same interface should resolve",
+			localIDType: "",
+			localID:     "eth3",
+			expectedID:  "default:1.2.3.4:3",
 		},
 		{
-			name:           "interface_alias+interface_name match with different interface should not resolve",
-			localIDType:    "",
-			localID:        "eth4",
-			expectedIDType: "",
-			expectedID:     "eth4",
+			name:        "interface_alias+interface_name match with different interface should not resolve",
+			localIDType: "",
+			localID:     "eth4",
+			expectedID:  "",
 		},
 		{
-			name:           "interface_index by trying",
-			localIDType:    "",
-			localID:        "2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_index by trying",
+			localIDType: "",
+			localID:     "2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "mac_address not found",
-			localIDType:    "mac_address",
-			localID:        "00:00:00:00:00:99",
-			expectedIDType: "mac_address",
-			expectedID:     "00:00:00:00:00:99",
+			name:        "mac_address not found",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:99",
+			expectedID:  "",
 		},
 		{
-			name:           "invalid",
-			localIDType:    "invalid_type",
-			localID:        "invalidID",
-			expectedIDType: "invalid_type",
-			expectedID:     "invalidID",
+			name:        "invalid",
+			localIDType: "invalid_type",
+			localID:     "invalidID",
+			expectedID:  "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualIDType, actualID := resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID)
-			assert.Equal(t, tt.expectedIDType, actualIDType)
-			assert.Equal(t, tt.expectedID, actualID)
+			assert.Equal(t, tt.expectedID, resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID))
 		})
 	}
 }
