@@ -25,3 +25,7 @@ func Start() error {
 func Stop() error {
 	return nil
 }
+
+func ForceStop() error {
+	return nil
+}
