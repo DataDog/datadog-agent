@@ -44,7 +44,6 @@ const inactivityRestartDuration = 20 * time.Minute
 var NetworkTracer = module.Factory{
 	Name:             config.NetworkTracerModule,
 	ConfigNamespaces: []string{"network_config", "service_monitoring_config"},
-	RequiresDriver:   (runtime.GOOS == "windows"), // Tracer requires driver on Windows
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 

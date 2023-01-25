@@ -11,71 +11,66 @@ package driver
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
-	DriverServiceName      = "ddnpm"
-	SystemProbeServiceName = "datadog-system-probe"
+	driverServiceName = "ddnpm"
 )
 
-func IsDriverServiceDisabled(driverServiceName string) (enabled bool, err error) {
+func isDriverServiceDisabled(driverServiceName string) (enabled bool, err error) {
 	return winutil.IsServiceDisabled(driverServiceName)
 }
 
-func IsDriverRunning(driverServiceName string) (running bool, err error) {
-	log.Infof("Checking if %s is running", driverServiceName)
+func isDriverRunning(driverServiceName string) (running bool, err error) {
+	log.Debugf("Checking if %s is running", driverServiceName)
 	return winutil.IsServiceRunning(driverServiceName)
 }
 
-func UpdateDriverService(driverServiceName string, newconfig mgr.Config) (err error) {
-	return winutil.UpdateServicConfig(driverServiceName, newconfig)
+func updateDriverService(driverServiceName string, newconfig mgr.Config) (err error) {
+	return winutil.UpdateServiceConfig(driverServiceName, newconfig)
 }
 
-func EnableDriverService(driverServiceName string) (err error) {
+func enableDriverService(driverServiceName string) (err error) {
 	newConfig := mgr.Config{
 		StartType: windows.SERVICE_DEMAND_START,
 	}
-	return UpdateDriverService(driverServiceName, newConfig)
+	return updateDriverService(driverServiceName, newConfig)
 }
 
-func StartDriverService(driverServiceName string) (err error) {
-
-	log.Infof("Checking if %s is running", driverServiceName)
-	running, err := IsDriverRunning(driverServiceName)
+func startDriverService(driverServiceName string) (err error) {
+	running, err := isDriverRunning(driverServiceName)
 	if err != nil {
 		return err
 	}
 
 	if running {
-		log.Info("Service already running, nothing to do")
+		log.Debugf("Service %s already running, nothing to do", driverServiceName)
 		return nil
 	}
 
-	log.Infof("Checking if %s is disabled", driverServiceName)
-	disabled, err := IsDriverServiceDisabled(driverServiceName)
+	log.Debugf("Checking if %s is disabled", driverServiceName)
+	disabled, err := isDriverServiceDisabled(driverServiceName)
 	if err != nil {
 		return err
 	}
 	if disabled {
-		log.Info("%s is disabled, enabling it", driverServiceName)
-		newConfig := mgr.Config{StartType: windows.SERVICE_DEMAND_START}
-		err = UpdateDriverService(driverServiceName, newConfig)
+		log.Debugf("%s is disabled, enabling it", driverServiceName)
+		err = enableDriverService(driverServiceName)
 		if err != nil {
 			return err
 		}
 	}
-	servicArgs := []string{}
+	var serviceArgs []string
 	log.Info("Starting %s", driverServiceName)
-	err = winutil.StartService(driverServiceName, servicArgs...)
-	return err
+	return winutil.StartService(driverServiceName, serviceArgs...)
 }
 
-func StopDriverService(driverServiceName string, disable bool) (err error) {
-
+func stopDriverService(driverServiceName string, disable bool) (err error) {
 	// connect to SCM
 	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
