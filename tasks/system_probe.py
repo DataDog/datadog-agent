@@ -1476,4 +1476,4 @@ def test_microvms(ctx, security_groups="", subnets="", instance_type_x86="", ins
     if instance_type_arm != "":
         args += f" --instance-type-arm {instance_type_arm}"
 
-    ctx.run(f"cd ./test/new-e2e && aws-vault exec sandbox-account-admin -- go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test {args}")
+    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test {args}")
