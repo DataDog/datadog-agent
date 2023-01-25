@@ -28,6 +28,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
@@ -37,6 +39,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -611,6 +614,10 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
 	// and running the CO-RE tests as well
 	t.Run("new process (co-re)", func(t *testing.T) {
+		if !coreSupported() {
+			t.Skip("co-re not supported on this host")
+		}
+
 		cfg := config.New()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
@@ -619,6 +626,10 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 
 	t.Run("already running process (co-re)", func(t *testing.T) {
+		if !coreSupported() {
+			t.Skip("co-re not supported on this host")
+		}
+
 		cfg := config.New()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
@@ -754,4 +765,13 @@ func (m requestsMap) String() string {
 	}
 
 	return result.String()
+}
+
+func coreSupported() bool {
+	// if we get an error loading the core asset we assume this host doesn't support it
+	err := ddebpf.LoadCOREAsset(&config.New().Config, "http.o", func(bytecode.AssetReader, manager.Options) error {
+		return nil
+	})
+
+	return err == nil
 }
