@@ -45,9 +45,6 @@ BPF_HASH_MAP(go_tls_write_args, go_tls_function_args_key_t, go_tls_write_args_da
    if goTLS is enabled. */
 BPF_HASH_MAP(conn_tup_by_go_tls_conn, __u32, conn_tuple_t, 1)
 
-/* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
-BPF_PERCPU_ARRAY_MAP(task_thread, __u32, struct thread_struct, 1)
-
 /* This map used for notifying userspace of a shared library being loaded */
 BPF_PERF_EVENT_ARRAY_MAP(shared_libraries, __u32, 0)
 

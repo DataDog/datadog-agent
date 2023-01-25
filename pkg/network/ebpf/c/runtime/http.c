@@ -847,35 +847,23 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
 }
 
 static __always_inline void* get_tls_base(struct task_struct* task) {
-#ifdef COMPILE_RUNTIME
-    u32 key = 0;
-    struct thread_struct *t = bpf_map_lookup_elem(&task_thread, &key);
-    if (t == NULL) {
-        return NULL;
-    }
-    if (bpf_probe_read_kernel(t, sizeof(struct thread_struct), &task->thread)) {
-        return NULL;
-    }
 #if defined(__TARGET_ARCH_x86)
-    return (void*) t->fsbase;
-#elif defined(__TARGET_ARCH_arm64)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-    return (void*) t->tp_value;
-#else
-    return (void*) t->uw.tp_value;
-#endif
-#else
-#error "unsupported platform (runtime)"
-#endif
-#else
-// CO-RE
-#if defined(__TARGET_ARCH_x86)
+    // X86 (RUNTIME & CO-RE)
     return (void *)BPF_CORE_READ(task, thread.fsbase);
+#elif defined(__TARGET_ARCH_arm64)
+    // ARM64
+#ifdef COMPILE_RUNTIME
+    // ARM64 (RUNTIME)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+    return (void *)BPF_CORE_READ(task, tp_value);
 #else
-    // TODO: Add support for arm64
+    return (void *)BPF_CORE_READ(task, uw.tp_value);
+#endif
+#else
+    // CO-RE ARM64
     return NULL;
-#endif
-#endif
+#endif // CO-RE ARM64
+#endif // defined(__TARGET_ARCH_arm64)
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

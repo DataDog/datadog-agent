@@ -163,7 +163,6 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
     go_tls_offsets_data_key_t key;
     dev_t dev_id;
 
-#if COMPILE_CORE
     int err;
     err = BPF_CORE_READ_INTO(&key.ino, t, mm, exe_file, f_inode, i_ino);
     if (err) {
@@ -176,30 +175,7 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
         log_debug("get_offsets_data: could not read s_dev field\n");
         return NULL;
     }
-#else
-    struct mm_struct *mm;
-    struct file *exe_file;
-    struct inode *inode;
-    struct super_block *sb;
 
-    bpf_probe_read(&mm, sizeof(mm), &t->mm);
-    bpf_probe_read(&exe_file, sizeof(exe_file), &mm->exe_file);
-    bpf_probe_read(&inode, sizeof(inode), &exe_file->f_inode);
-
-    if (!inode) {
-        log_debug("get_offsets_data: could not read inode struct pointer\n");
-        return NULL;
-    }
-
-    bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
-    if (!sb) {
-        log_debug("get_offsets_data: could not read superblock struct pointer\n");
-        return NULL;
-    }
-
-    bpf_probe_read(&key.ino, sizeof(key.ino), &inode->i_ino);
-    bpf_probe_read(&dev_id, sizeof(dev_id), &sb->s_dev);
-#endif
     key.device_id_major = MAJOR(dev_id);
     key.device_id_minor = MINOR(dev_id);
 
