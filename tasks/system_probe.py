@@ -1465,5 +1465,15 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
 
 @task
-def test_microvms(ctx, security_groups, subnets, instance_type_x86="", instance_type_arm=""):
-    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test --sgs {security_groups} --subnets {subnets} --instance-type-x86 {instance_type_x86}")
+def test_microvms(ctx, security_groups="", subnets="", instance_type_x86="", instance_type_arm=""):
+    args = ""
+    if security_groups != "":
+        args += f" --sgs {security_groups}"
+    if subnets != "":
+        args += f" --subnets {subnets}"
+    if instance_type_x86 != "":
+        args += f" --instance-type-x86 {instance_type_x86}"
+    if instance_type_arm != "":
+        args += f" --instance-type-arm {instance_type_arm}"
+
+    ctx.run(f"cd ./test/new-e2e && aws-vault exec sandbox-account-admin -- go run ./scenarios/systemProbe/main.go --destroy --name usama-saqib-test {args}")
