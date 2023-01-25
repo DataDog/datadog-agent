@@ -1084,16 +1084,22 @@ def build_object_files(
 
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
-            ctx.run(f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}")
+            ctx.run(
+                f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}"
+            )
         else:
             with ctx.cd(build_dir):
+
                 def cp_cmd(out_dir):
                     dest = os.path.join(EMBEDDED_SHARE_DIR, out_dir)
-                    return " ".join([
-                        f"-execdir cp -p {{}} {dest}/ \\;",
-                        f"-execdir chown root:root {dest}/{{}} \\;",
-                        f"-execdir chmod 0644 {dest}/{{}} \\;",
-                        ])
+                    return " ".join(
+                        [
+                            f"-execdir cp -p {{}} {dest}/ \\;",
+                            f"-execdir chown root:root {dest}/{{}} \\;",
+                            f"-execdir chmod 0644 {dest}/{{}} \\;",
+                        ]
+                    )
+
                 ctx.run(f"{sudo} find . -maxdepth 1 -type f -name '*.o' {cp_cmd('.')}")
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/co-re")
                 ctx.run(f"{sudo} find ./co-re -maxdepth 1 -type f -name '*.o' {cp_cmd('co-re')}")
