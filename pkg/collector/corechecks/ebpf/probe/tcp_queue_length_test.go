@@ -25,8 +25,7 @@ import (
 
 var (
 	missingBTFS = map[string]struct{}{
-		"4.18.0-1018-azure":            {},
-		"4.18.0-147.43.1.el8_1.x86_64": {},
+		"4.18.0-1018-azure": {},
 	}
 )
 

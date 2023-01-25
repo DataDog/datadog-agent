@@ -13,8 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
-	"github.com/DataDog/agent-payload/v5/contimage"
 	model "github.com/DataDog/agent-payload/v5/contimage"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type processor struct {
@@ -24,7 +25,7 @@ type processor struct {
 func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
-			sender.ContainerImage([]contimage.ContainerImagePayload{
+			sender.ContainerImage([]model.ContainerImagePayload{
 				{
 					Version: "v1",
 					Images:  images,
@@ -52,13 +53,27 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 }
 
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
+	var lastCreated *timestamppb.Timestamp = nil
 	layers := make([]*model.ContainerImage_ContainerImageLayer, 0, len(img.Layers))
 	for _, layer := range img.Layers {
+		var created *timestamppb.Timestamp = nil
+		if layer.History.Created != nil {
+			created = timestamppb.New(*layer.History.Created)
+			lastCreated = created
+		}
+
 		layers = append(layers, &model.ContainerImage_ContainerImageLayer{
 			Urls:      layer.URLs,
 			MediaType: layer.MediaType,
 			Digest:    layer.Digest,
 			Size:      layer.SizeBytes,
+			History: &model.ContainerImage_ContainerImageLayer_History{
+				Created:    created,
+				CreatedBy:  layer.History.CreatedBy,
+				Author:     layer.History.Author,
+				Comment:    layer.History.Comment,
+				EmptyLayer: layer.History.EmptyLayer,
+			},
 		})
 	}
 
@@ -76,7 +91,8 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 			Version:      img.OSVersion,
 			Architecture: img.Architecture,
 		},
-		Layers: layers,
+		Layers:  layers,
+		BuiltAt: lastCreated,
 	}
 }
 

@@ -853,7 +853,7 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     https_finish(t);
 
     // Clear the element in the map since this connection is closed
-    bpf_map_delete_elem(&conn_tup_by_tls_conn, &conn_pointer);
+    bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
 
     return 0;
 }

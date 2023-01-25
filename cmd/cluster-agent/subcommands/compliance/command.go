@@ -31,8 +31,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		LogParams:    log.LogForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 	}
 
-	// TODO: The SecAgent Check package should be a component
-	complianceCmd.AddCommand(check.CommandsWrapped(bundleParams)...)
+	complianceCmd.AddCommand(check.ClusterAgentCommands(bundleParams)...)
 
 	return []*cobra.Command{complianceCmd}
 }

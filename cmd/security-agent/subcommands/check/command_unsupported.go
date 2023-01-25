@@ -8,10 +8,16 @@
 package check
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core"
 )
 
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	return nil
+}
+
+func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
 	return nil
 }

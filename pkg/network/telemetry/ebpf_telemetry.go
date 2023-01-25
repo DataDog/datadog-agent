@@ -14,11 +14,12 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -324,7 +325,7 @@ func patchEBPFTelemetry(m *manager.Manager, newIns asm.Instruction, specs []*ebp
 				continue
 			}
 
-			*ins = newIns
+			*ins = newIns.WithMetadata(ins.Metadata)
 		}
 	}
 }

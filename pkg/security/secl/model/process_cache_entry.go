@@ -54,6 +54,17 @@ func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
 	return nil
 }
 
+// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
+func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+	for pc != nil {
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
+}
+
 // Exit a process
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
@@ -119,6 +130,11 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 // Equals returns whether process cache entries share the same values for comm and args/envs
 func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
+}
+
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
+func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
 }
 
 // ArgsEnvs raw value for args and envs
