@@ -12,7 +12,9 @@
 #ifndef _WIN32
 // clang-format off
 // handler stuff
+#ifdef __GLIBC__
 #include <execinfo.h>
+#endif
 #include <csignal>
 #include <cstring>
 #include <sys/types.h>
@@ -371,11 +373,14 @@ static inline void core(int sig)
 #    define STACKTRACE_SIZE 500
 void signalHandler(int sig, siginfo_t *, void *)
 {
+#    ifdef __GLIBC__
     void *buffer[STACKTRACE_SIZE];
     char **symbols;
 
     size_t nptrs = backtrace(buffer, STACKTRACE_SIZE);
+#    endif
     std::cerr << "HANDLER CAUGHT signal Error: signal " << sig << std::endl;
+#    ifdef __GLIBC__
     symbols = backtrace_symbols(buffer, nptrs);
     if (symbols == NULL) {
         std::cerr << "Error getting backtrace symbols" << std::endl;
@@ -387,6 +392,7 @@ void signalHandler(int sig, siginfo_t *, void *)
 
         _free(symbols);
     }
+#    endif
 
     // dump core if so configured
     __sync_synchronize();
