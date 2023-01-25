@@ -23,7 +23,6 @@ build do
     python_prefix = "#{install_dir}/embedded"
   end
 
-  command "#{python_bin} bootstrap.py"
   command "#{python_bin} setup.py install --prefix=#{python_prefix}"
 
   if ohai["platform"] != "windows"
