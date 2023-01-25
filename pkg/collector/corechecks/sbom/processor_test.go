@@ -35,18 +35,20 @@ func TestProcessEvents(t *testing.T) {
 							Kind: workloadmeta.KindContainerImageMetadata,
 							ID:   strconv.Itoa(i),
 						},
-						CycloneDXBOM: &cyclonedx.BOM{
-							SpecVersion: cyclonedx.SpecVersion1_4,
-							Version:     42,
-							Components: &[]cyclonedx.Component{
-								{
-									Name: strconv.Itoa(100 * i),
-								},
-								{
-									Name: strconv.Itoa(100*i + 1),
-								},
-								{
-									Name: strconv.Itoa(100*i + 2),
+						SBOM: &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx.BOM{
+								SpecVersion: cyclonedx.SpecVersion1_4,
+								Version:     42,
+								Components: &[]cyclonedx.Component{
+									{
+										Name: strconv.Itoa(100 * i),
+									},
+									{
+										Name: strconv.Itoa(100*i + 1),
+									},
+									{
+										Name: strconv.Itoa(100*i + 2),
+									},
 								},
 							},
 						},

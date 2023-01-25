@@ -57,7 +57,7 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 }
 
 func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
-	if img.CycloneDXBOM == nil {
+	if img.SBOM == nil || img.SBOM.CycloneDXBOM == nil {
 		return
 	}
 
@@ -68,7 +68,7 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 		Tags:        img.RepoTags,
 		InUse:       true, // TODO: compute this field
 		Sbom: &sbom.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(img.CycloneDXBOM),
+			Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
 		},
 	}
 }
