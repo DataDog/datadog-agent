@@ -34,8 +34,10 @@ var Bundle = fxutil.Bundle(
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
-	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-	config.Module,
-	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
-	log.Module,
+	// fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+	fx.Supply(config.Params{}),
+	config.MockModule,
+	fx.Supply(log.Params{}),
+	// fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
+	log.MockModule,
 )

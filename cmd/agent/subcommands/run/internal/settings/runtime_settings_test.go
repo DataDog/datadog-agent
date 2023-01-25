@@ -32,10 +32,10 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	// fx.Populate(&server)
 
 	fxutil.Test(t, fx.Options(
+		core.MockBundle,
 		fx.Supply(server.Params{
 			Serverless: false,
 		}),
-		core.MockBundle,
 		dogstatsd.Bundle,
 	), func(server server.Component) {
 
