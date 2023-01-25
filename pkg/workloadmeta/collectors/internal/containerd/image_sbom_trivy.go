@@ -96,6 +96,7 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespa
 
 	sbom := workloadmeta.SBOM{
 		CycloneDXBOM:       cycloneDXBOM,
+		GenerationTime:     tStartScan,
 		GenerationDuration: scanDuration,
 	}
 

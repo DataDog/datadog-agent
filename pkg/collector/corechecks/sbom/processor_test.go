@@ -19,12 +19,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestProcessEvents(t *testing.T) {
 	sender := mocksender.NewMockSender(check.ID(""))
 	sender.On("SBOM", mock.Anything, mock.Anything).Return()
 	p := newProcessor(sender, 2, 50*time.Millisecond)
+
+	sbomGenerationTime := time.Now()
 
 	for i := 0; i < 3; i++ {
 		p.processEvents(workloadmeta.EventBundle{
@@ -52,6 +55,7 @@ func TestProcessEvents(t *testing.T) {
 									},
 								},
 							},
+							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 						},
 					},
@@ -71,6 +75,7 @@ func TestProcessEvents(t *testing.T) {
 					Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:                 "0",
 					InUse:              true,
+					GeneratedAt:        timestamppb.New(sbomGenerationTime),
 					GenerationDuration: durationpb.New(10 * time.Second),
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{
@@ -94,6 +99,7 @@ func TestProcessEvents(t *testing.T) {
 					Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:                 "1",
 					InUse:              true,
+					GeneratedAt:        timestamppb.New(sbomGenerationTime),
 					GenerationDuration: durationpb.New(10 * time.Second),
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{
@@ -129,6 +135,7 @@ func TestProcessEvents(t *testing.T) {
 					Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:                 "2",
 					InUse:              true,
+					GeneratedAt:        timestamppb.New(sbomGenerationTime),
 					GenerationDuration: durationpb.New(10 * time.Second),
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{

@@ -12,6 +12,7 @@ import (
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/agent-payload/v5/sbom"
 	model "github.com/DataDog/agent-payload/v5/sbom"
@@ -64,7 +65,7 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 	p.queue <- &model.SBOMEntity{
 		Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 		Id:                 img.ID,
-		GeneratedAt:        nil,
+		GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
 		Tags:               img.RepoTags,
 		InUse:              true, // TODO: compute this field
 		GenerationDuration: convertDuration(img.SBOM.GenerationDuration),

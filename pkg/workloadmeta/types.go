@@ -652,6 +652,7 @@ type ContainerImageLayer struct {
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
 type SBOM struct {
 	CycloneDXBOM       *cyclonedx.BOM
+	GenerationTime     time.Time
 	GenerationDuration time.Duration
 }
 
