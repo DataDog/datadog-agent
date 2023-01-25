@@ -39,7 +39,7 @@ const (
 var SSHKeyFile = filepath.Join("/", "tmp", "aws-ssh-key")
 var VMConfig = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
 
-func NewTestEnv(name, securityGroups, subnets, armInstanceType, x86InstanceType string) (*TestEnv, error) {
+func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string) (*TestEnv, error) {
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
 		envName: "aws/sandbox",
