@@ -183,9 +183,9 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 
 	postgresTeardown := func(t *testing.T, ctx testContext) {
 		db := ctx.extras["db"].(*bun.DB)
+		defer db.Close()
 		taskCtx := ctx.extras["ctx"].(context.Context)
 		_, _ = db.NewDropTable().Model((*pgutils.DummyTable)(nil)).Exec(taskCtx)
-		defer db.Close()
 	}
 
 	// Setting one instance of postgres server for all tests.
