@@ -18,6 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+const (
+	// 100Gbps * 30s = 375GB
+	maxByteCountChange uint64 = 375 << 30
+	// jumbo frame size (MTU) of 9216 = 9 * 1024
+	maxPacketCountChange uint64 = maxByteCountChange / (9 << 10)
+)
+
 // ConnectionType will be either TCP or UDP
 type ConnectionType uint8
 
@@ -472,4 +479,14 @@ func (s StatCounters) Max(other StatCounters) StatCounters {
 		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
 		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
 	}
+}
+
+// isUnderflow checks if a metric has "underflowed", i.e.
+// the most recent value is less than what was seen
+// previously. We distinguish between an "underflow" and
+// an integer overflow if the change is greater than
+// some preset max value; if the change is greater, then
+// its an underflow
+func isUnderflow(previous, current, maxChange uint64) bool {
+	return current < previous && (current-previous) > maxChange
 }

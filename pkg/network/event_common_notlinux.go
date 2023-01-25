@@ -10,13 +10,13 @@ package network
 
 // Sub returns s-other
 func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
-	if s.RecvBytes < other.RecvBytes ||
-		s.RecvPackets < other.RecvPackets ||
-		(s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
-		s.SentBytes < other.SentBytes ||
-		s.SentPackets < other.SentPackets ||
+	if (s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
 		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
-		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) {
+		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) ||
+		isUnderflow(other.RecvBytes, s.RecvBytes, maxByteCountChange) ||
+		isUnderflow(other.SentBytes, s.SentBytes, maxByteCountChange) ||
+		isUnderflow(other.RecvPackets, s.RecvPackets, maxPacketCountChange) ||
+		isUnderflow(other.SentPackets, s.SentPackets, maxPacketCountChange) {
 		return sc, true
 	}
 

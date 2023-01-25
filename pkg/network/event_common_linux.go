@@ -12,22 +12,26 @@ package network
 func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
 	if s.Retransmits < other.Retransmits && s.Retransmits > 0 ||
 		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
-		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) {
+		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) ||
+		isUnderflow(other.RecvBytes, s.RecvBytes, maxByteCountChange) ||
+		isUnderflow(other.SentBytes, s.SentBytes, maxByteCountChange) {
 		return sc, true
 	}
 
 	sc = StatCounters{
-		RecvBytes:      s.RecvBytes - other.RecvBytes,
-		SentBytes:      s.SentBytes - other.SentBytes,
-		TCPEstablished: s.TCPEstablished - other.TCPEstablished,
-		TCPClosed:      s.TCPClosed - other.TCPClosed,
+		RecvBytes: s.RecvBytes - other.RecvBytes,
+		SentBytes: s.SentBytes - other.SentBytes,
 	}
 
-	// on linux, sent and recv packets are actually collected
+	// on linux, sent and recv packets are collected
 	// as uint32's, but StatCounters stores them as uint64,
-	// so we need to treat them as uint32 to detect overflows
+	// so we need to treat them as uint32 to detect underflows
 	sc.RecvPackets = uint64(uint32(s.RecvPackets) - uint32(other.RecvPackets))
 	sc.SentPackets = uint64(uint32(s.SentPackets) - uint32(other.SentPackets))
+	if (s.RecvPackets < other.RecvPackets && sc.RecvPackets > maxPacketCountChange) ||
+		(s.SentPackets < other.SentPackets && sc.SentPackets > maxPacketCountChange) {
+		return StatCounters{}, true
+	}
 
 	if s.Retransmits > 0 {
 		sc.Retransmits = s.Retransmits - other.Retransmits
