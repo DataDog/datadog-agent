@@ -2,14 +2,16 @@
   stage: kernel_version_testing
   rules:
     !reference [.on_system_probe_changes_or_manual]
-  images: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
   script:
     - pushd $DD_AGENT_TESTING_DIR
     - tar czvf $ARCHIVE_NAME site-cookbooks
     - popd
-  paths:
-    - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
 
 package_testsuites_x64:
   extends:
