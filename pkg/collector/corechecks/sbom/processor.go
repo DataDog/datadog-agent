@@ -12,6 +12,7 @@ import (
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/agent-payload/v5/sbom"
 	model "github.com/DataDog/agent-payload/v5/sbom"
@@ -57,18 +58,19 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 }
 
 func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
-	if img.CycloneDXBOM == nil {
+	if img.SBOM == nil || img.SBOM.CycloneDXBOM == nil {
 		return
 	}
 
 	p.queue <- &model.SBOMEntity{
-		Type:        model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-		Id:          img.ID,
-		GeneratedAt: nil,
-		Tags:        img.RepoTags,
-		InUse:       true, // TODO: compute this field
+		Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+		Id:                 img.ID,
+		GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
+		Tags:               img.RepoTags,
+		InUse:              true, // TODO: compute this field
+		GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
 		Sbom: &sbom.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(img.CycloneDXBOM),
+			Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
 		},
 	}
 }

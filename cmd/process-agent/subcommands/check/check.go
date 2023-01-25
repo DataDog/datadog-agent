@@ -220,9 +220,15 @@ func runCheck(cliParams *cliParams, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	msgs := result.Payloads()
-	if options != nil && options.RunRealtime {
+	var msgs []process.MessageBody
+
+	switch {
+	case result == nil:
+		break
+	case options != nil && options.RunRealtime:
 		msgs = result.RealtimePayloads()
+	default:
+		msgs = result.Payloads()
 	}
 
 	return printResults(cliParams.checkName, msgs, cliParams.checkOutputJSON)
