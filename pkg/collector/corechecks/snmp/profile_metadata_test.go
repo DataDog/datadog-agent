@@ -566,10 +566,12 @@ profiles:
         {
             "id": "profile-metadata:1.2.3.4:101.1",
             "source_type": "lldp",
-            "local_device_id": "profile-metadata:1.2.3.4",
-            "local_interface_id": "profile-metadata:1.2.3.4:1",
             "local": {
+                "device": {
+                    "dd_id": "profile-metadata:1.2.3.4"
+                },
                 "interface": {
+                    "dd_id": "profile-metadata:1.2.3.4:1",
                     "id": "82:a5:6e:a5:c9:01",
                     "id_type": "mac_address"
                 }
@@ -592,10 +594,12 @@ profiles:
         {
             "id": "profile-metadata:1.2.3.4:102.2",
             "source_type": "lldp",
-            "local_device_id": "profile-metadata:1.2.3.4",
-            "local_interface_id": "profile-metadata:1.2.3.4:2",
             "local": {
+                "device": {
+                    "dd_id": "profile-metadata:1.2.3.4"
+                },
                 "interface": {
+                    "dd_id": "profile-metadata:1.2.3.4:2",
                     "id": "82:a5:6e:a5:c9:02",
                     "id_type": "mac_address"
                 }

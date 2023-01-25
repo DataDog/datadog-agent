@@ -328,12 +328,14 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 					Description: store.GetColumnAsString("lldp_remote.interface_desc", strIndex),
 				},
 			},
-			LocalDeviceID:    deviceID,
-			LocalInterfaceID: resolvedLocalInterfaceID,
 			Local: &metadata.TopologyLinkSide{
 				Interface: &metadata.TopologyLinkInterface{
+					DDID:   resolvedLocalInterfaceID,
 					ID:     localInterfaceID,
 					IDType: localInterfaceIDType,
+				},
+				Device: &metadata.TopologyLinkDevice{
+					DDID: deviceID,
 				},
 			},
 		}
