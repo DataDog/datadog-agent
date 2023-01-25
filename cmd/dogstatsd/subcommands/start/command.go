@@ -14,10 +14,11 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -35,7 +36,7 @@ import (
 
 var (
 	metaScheduler  *metadata.Scheduler
-	statsd         *dogstatsd.Server
+	statsd         dogstatsdServer.Component
 	dogstatsdStats *http.Server
 )
 
@@ -89,10 +90,14 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			config.WithConfigName("dogstatsd")),
 		),
 		config.Module,
+		fx.Supply(dogstatsdServer.Params{
+			Serverless: false,
+		}),
+		dogstatsd.Bundle,
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, params *Params) error {
+func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel)
@@ -100,7 +105,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params) error 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunAgent(ctx, cliParams, config, params)
+	err := RunAgent(ctx, cliParams, config, params, server)
 	if err != nil {
 		return err
 	}
@@ -111,7 +116,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params) error 
 	return nil
 }
 
-func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -217,7 +222,8 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		}
 	}
 
-	statsd, err = dogstatsd.NewServer(demux, false)
+	statsd = server
+	statsd.Start(demux)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
