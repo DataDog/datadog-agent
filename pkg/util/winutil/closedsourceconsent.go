@@ -20,65 +20,51 @@ const (
 	ClosedSourceDenied  = 0
 )
 
+// This function retrieves the current consent value from the Winows registry
 func GetClosedSourceConsent() (consentVal uint64, err error) {
 
+	// try to open the Datadog agent reg key
 	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, AgentRegistryKey, registry.QUERY_VALUE)
-	if err != nil {
+	if err != nil { // couldn't open
 		log.Warnf("unable to open registry key %s: %v", AgentRegistryKey, err)
-		return
+		return // consentVal will be 0 (denied)
 	}
 	defer regKey.Close()
 
+	// get the value for AllowClosedSource
 	consentVal, _, err = regKey.GetIntegerValue(ClosedSourceKeyName)
 	if err != nil {
 		log.Warnf("unable to get value for %s: %v", ClosedSourceKeyName, err)
-		return
+		return // consentVal will be 0 (denied)
 	}
 	return
 }
 
 // Determine if closed source is allowed or denied on the host
 func IsClosedSourceAllowed() (allowed bool, err error) {
-	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, AgentRegistryKey, registry.QUERY_VALUE)
+	val, err := GetClosedSourceConsent()
 	if err != nil {
-		log.Warnf("unable to open registry key %s: %v", AgentRegistryKey, err)
 		return
 	}
-	defer regKey.Close()
-
-	regValue, _, err := regKey.GetIntegerValue(ClosedSourceKeyName)
-	if err != nil {
-		log.Warnf("unable to get value for %s: %v", ClosedSourceKeyName, err)
-		return
-	}
-
-	if regValue == ClosedSourceAllowed {
-		allowed = true
-	}
-	return
+	return (val == ClosedSourceAllowed), err
 }
 
 // Allow closed source, if already allowed, does nothing
 func AllowClosedSource() error {
 
+	// check current value
 	allowed, err := IsClosedSourceAllowed()
 	if err != nil {
 		return err
 	}
 
+	// already allowed, return
 	if allowed {
 		return nil
 	}
 
-	access := registry.SET_VALUE
-	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, AgentRegistryKey, uint32(access))
-	if err != nil {
-		log.Warnf("unable to open registry key %s: %v", AgentRegistryKey, err)
-		return err
-	}
-	defer regKey.Close()
-
-	err = regKey.SetDWordValue(ClosedSourceKeyName, uint32(ClosedSourceAllowed))
+	// not allowed, so update the value to allowed
+	err = doSetKey(ClosedSourceAllowed)
 	if err != nil {
 		return err
 	}
@@ -88,27 +74,42 @@ func AllowClosedSource() error {
 // Deny closed source, if already denied, does nothing
 func DenyClosedSource() error {
 
+	// check current value
 	allowed, err := IsClosedSourceAllowed()
 	if err != nil {
 		return err
 	}
 
+	// already not allowed, return
 	if !allowed {
 		return nil
 	}
 
-	access := registry.SET_VALUE
-	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, AgentRegistryKey, uint32(access))
-	if err != nil {
-		log.Warnf("unable to open registry key %s: %v", AgentRegistryKey, err)
-		return err
-	}
-	defer regKey.Close()
-
-	err = regKey.SetDWordValue(ClosedSourceKeyName, uint32(ClosedSourceDenied))
+	// allowed, so update the value to denied
+	err = doSetKey(ClosedSourceDenied)
 	if err != nil {
 		return err
 	}
 	return nil
+}
 
+// helper function for opening and setting key value
+func doSetKey(val uint32) error {
+
+	// only need to set the value
+	access := registry.SET_VALUE
+
+	// try to open the key
+	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, AgentRegistryKey, uint32(access))
+	if err != nil {
+		return err
+	}
+	defer regKey.Close()
+
+	// try to set to val
+	err = regKey.SetDWordValue(ClosedSourceKeyName, val)
+	if err != nil {
+		return err
+	}
+	return nil
 }
