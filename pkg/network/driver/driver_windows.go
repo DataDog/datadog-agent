@@ -7,6 +7,7 @@ package driver
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -36,9 +37,6 @@ func Init(cfg *config.Config) error {
 			allowed: cfg.ClosedSourceAllowed,
 		}
 	})
-	if !cfg.ClosedSourceAllowed {
-		return stopDriverService(driverServiceName, true)
-	}
 	return nil
 }
 
@@ -55,7 +53,18 @@ func Stop() error {
 	if driverRef == nil {
 		return ErrDriverNotInitialized
 	}
-	return driverRef.stop()
+	if driverRef.inuse.Load() == 0 {
+		return fmt.Errorf("driver.Stop called without corresponding Start")
+	}
+	return driverRef.stop(false)
+}
+
+// ForceStop forcefully stops the driver without concern to current usage
+func ForceStop() error {
+	if driverRef == nil {
+		return ErrDriverNotInitialized
+	}
+	return driverRef.stop(true)
 }
 
 // IsNeeded will return if one or more users have called Start and not called Stop yet
@@ -67,6 +76,9 @@ func IsNeeded() bool {
 }
 
 func (d *driver) isNeeded() bool {
+	if !d.allowed {
+		return false
+	}
 	return d.inuse.Load() > 0
 }
 
@@ -80,9 +92,10 @@ func (d *driver) start() error {
 	return nil
 }
 
-func (d *driver) stop() error {
-	if !d.allowed {
-		return stopDriverService(driverServiceName, true)
+func (d *driver) stop(force bool) error {
+	if force {
+		d.inuse.Store(0)
+		return stopDriverService(driverServiceName, !d.allowed)
 	}
 	if refs := d.inuse.Dec(); refs == 0 {
 		return stopDriverService(driverServiceName, false)
