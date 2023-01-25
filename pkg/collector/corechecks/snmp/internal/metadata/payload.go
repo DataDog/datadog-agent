@@ -113,6 +113,7 @@ type TopologyLinkSide struct {
 type TopologyLinkMetadata struct {
 	ID               string            `json:"id"`
 	SourceType       string            `json:"source_type"`
+	LocalDeviceID    string            `json:"local_device_id"`
 	LocalInterfaceID string            `json:"local_interface_id"`
 	Local            *TopologyLinkSide `json:"local"`
 	Remote           *TopologyLinkSide `json:"remote"`
