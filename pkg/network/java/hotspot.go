@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"io/fs"
 	"net"
@@ -197,11 +198,13 @@ func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, 
 //	otherwise the JVM is blocked and waiting for more bytes
 //	This applies only for some command like : 'load agent.so true'
 func (h *Hotspot) command(cmd string, tailingNull bool) error {
+	log.Debugf("jattach hotspot command '%s' tailingNull %v", cmd, tailingNull)
 	if _, err := h.conn.Write([]byte{'1', 0}); err != nil { // Protocol version
 		return err
 	}
 
-	for _, c := range strings.Split(cmd, " ") {
+	//we split by space for at most 4 words, since our longest command is "load instrument false <javaagent=args>" which is 4 words
+	for _, c := range strings.SplitN(cmd, " ", 4) {
 		cmd := append([]byte(c), 0)
 		if _, err := h.conn.Write(cmd); err != nil {
 			return err
@@ -317,5 +320,9 @@ func (h *Hotspot) Attach(agentPath string, args string, uid int, gid int) error 
 			loadCommand += " " + args
 		}
 	}
-	return h.command(loadCommand, !isJar)
+	if err := h.command(loadCommand, !isJar); err != nil {
+		log.Debugf("java attach hotspot pid %d/%d command '%s' failed isJar=%v : %s", h.pid, h.nsPid, loadCommand, isJar, err)
+		return err
+	}
+	return nil
 }
