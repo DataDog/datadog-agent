@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/stretchr/testify/assert"
@@ -34,6 +35,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		fx.Supply(server.Params{
 			Serverless: false,
 		}),
+		core.MockBundle,
 		dogstatsd.Bundle,
 	), func(server server.Component) {
 
