@@ -222,7 +222,7 @@ func UpdateServicConfig(serviceName string, newConfig mgr.Config) (err error) {
 	// set it to manual start
 	err = serviceHandle.UpdateConfig(newConfig)
 	if err != nil {
-		log.Warnf("could not enable %s: %v", err)
+		log.Warnf("could not enable %s: %v", serviceName, err)
 	}
 	return
 }

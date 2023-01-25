@@ -9,6 +9,8 @@
 package driver
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
@@ -102,13 +104,19 @@ func StopDriverService(driverServiceName string, disable bool) (err error) {
 
 	// RUNNING, so stop it
 	if status.State == windows.SERVICE_RUNNING {
-		winutil.StopService(driverServiceName)
+		err := winutil.StopService(driverServiceName)
+		if err != nil {
+			return fmt.Errorf("Unable to stop service: %v", err)
+		}
 	}
 
 	// if needed, disable it, too
 	if disable {
 		config := mgr.Config{StartType: windows.SERVICE_DISABLED}
-		service.UpdateConfig(config)
+		err := service.UpdateConfig(config)
+		if err != nil {
+			return fmt.Errorf("Unable to update config: %v", err)
+		}
 	}
 	return nil
 }
