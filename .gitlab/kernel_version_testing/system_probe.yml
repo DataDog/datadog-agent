@@ -1,3 +1,31 @@
+.package_testsuites:
+  stage: kernel_version_testing
+  rules:
+    !reference [.on_system_probe_changes_or_manual]
+  images: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    - pushd $DD_AGENT_TESTING_DIR
+    - tar czvf $ARCHIVE_NAME site-cookbooks
+    - popd
+  paths:
+    - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
+
+package_testsuites_x64:
+  extends:
+    - .package_testsuites
+  needs: ["tests_ebpf_x64"]
+  variables:
+    ARCHIVE_NAME: "site-cookbooks-x86_64.tar.gz"
+
+package_testsuites_arm64:
+  extends:
+    - .package_testsuites
+  needs: ["test_ebpf_arm64"]
+  variables:
+    ARCHIVE_NAME: "site-cookbooks-arm64.tar.gz"
+
+
 kernel_version_testing_system_probe_linux_x64_ec2:
   extends:
     - .kitchen_ec2_location_us_east_1
@@ -5,7 +33,7 @@ kernel_version_testing_system_probe_linux_x64_ec2:
   rules:
     !reference [.on_system_probe_changes_or_manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps", "go_tools_deps", "package_testsuites_x64"]
   tags: ["runner:main"]
   variables:
     ARCH: x86_64
