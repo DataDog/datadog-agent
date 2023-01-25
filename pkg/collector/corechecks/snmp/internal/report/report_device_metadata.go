@@ -358,17 +358,23 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 	} else {
 		typesToTry = []string{localInterfaceIDType}
 	}
-	var matchedIfIndexes []int32
+	matchedIfIndexesMap := make(map[int32]struct{})
 	for _, idType := range typesToTry {
 		interfaceIndexByIDValue, ok := interfaceIndexByIDType[idType]
 		if ok {
 			ifIndexes, ok := interfaceIndexByIDValue[localInterfaceID]
 			if ok {
-				matchedIfIndexes = append(matchedIfIndexes, ifIndexes...)
+				for _, ifIndex := range ifIndexes {
+					matchedIfIndexesMap[ifIndex] = struct{}{}
+				}
 			}
 		}
 	}
-	if len(matchedIfIndexes) == 1 {
+	if len(matchedIfIndexesMap) == 1 {
+		var matchedIfIndexes []int32
+		for key := range matchedIfIndexesMap {
+			matchedIfIndexes = append(matchedIfIndexes, key)
+		}
 		return metadata.IDTypeNDM, deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
 	}
 	return localInterfaceIDType, localInterfaceID

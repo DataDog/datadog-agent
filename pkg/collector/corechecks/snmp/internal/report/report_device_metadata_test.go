@@ -562,10 +562,14 @@ func Test_resolveLocalInterface(t *testing.T) {
 		"interface_name": {
 			"eth1": []int32{1},
 			"eth2": []int32{2},
+			"eth3": []int32{3},
+			"eth4": []int32{4},
 		},
 		"interface_alias": {
 			"alias1": []int32{1},
 			"alias2": []int32{2},
+			"eth3":   []int32{3},
+			"eth4":   []int32{44},
 		},
 		"interface_index": {
 			"1": []int32{1},
@@ -631,11 +635,18 @@ func Test_resolveLocalInterface(t *testing.T) {
 			expectedID:     "default:1.2.3.4:2",
 		},
 		{
-			name:           "interface_alias by trying",
+			name:           "interface_alias+interface_name match with same interface should resolve",
 			localIDType:    "",
-			localID:        "alias2",
+			localID:        "eth3",
 			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			expectedID:     "default:1.2.3.4:3",
+		},
+		{
+			name:           "interface_alias+interface_name match with different interface should not resolve",
+			localIDType:    "",
+			localID:        "eth4",
+			expectedIDType: "",
+			expectedID:     "eth4",
 		},
 		{
 			name:           "interface_index by trying",
