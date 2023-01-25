@@ -117,7 +117,7 @@ std::shared_ptr<ITargetMachine> CustomActionData::GetTargetMachine() const
    -  ADDLOCAL=all -or- NPM.  This was the previous way of enabling via the NPM feature
 
    The way this is intended to work
-   - if the CLOSEDSOURCEENABLED property is set, and is not zero.  This can happen
+   - if the ALLOWCLOSEDSOURCE property is set, and is not zero.  This can happen
      on command line or via the dialog during the install.
 
    - if the registry value is already set.

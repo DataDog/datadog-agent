@@ -4,7 +4,7 @@
         Type="CheckBox" 
         X="25" Y="144" Width="330" Height="18" 
         CheckBoxValue="1" 
-        Property="CLOSEDSOURCEACCEPTED" 
+        Property="ALLOWCLOSEDSOURCE" 
         Text="!(loc.ClosedSrcAcceptedCheckText)" />
 
      <Control Id="EnterKey" Type="Text" Height="32" Width="320" X="25" Y="116"

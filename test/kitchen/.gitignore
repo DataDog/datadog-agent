@@ -17,3 +17,5 @@ azureid.sh
 !site-cookbooks/**/files/**/*.ps1
 localplatforms.json
 uservars.json
+Gemfile
+Gemfile.lock
