@@ -132,6 +132,7 @@ type Server struct {
 	workers []*worker
 
 	packetsIn               chan packets.Packets
+	captureChan             chan packets.Packets
 	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
 	sharedPacketPoolManager *packets.PoolManager
@@ -143,7 +144,7 @@ type Server struct {
 	histToDist              bool
 	histToDistPrefix        string
 	extraTags               []string
-	Debug                   *dsdServerDebug
+	Debug                   *DsdServerDebug
 	debugTagsAccumulator    *tagset.HashingTagsAccumulator
 	TCapture                *replay.TrafficCapture
 	mapper                  *mapper.MetricMapper
@@ -182,7 +183,7 @@ type metricStat struct {
 	Tags     string    `json:"tags"`
 }
 
-type dsdServerDebug struct {
+type DsdServerDebug struct {
 	sync.Mutex
 	Enabled *atomic.Bool
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
@@ -196,15 +197,15 @@ type dsdServerDebug struct {
 	clock clock.Clock
 }
 
-// newDSDServerDebug creates a new instance of a dsdServerDebug
-func newDSDServerDebug() *dsdServerDebug {
+// newDSDServerDebug creates a new instance of a DsdServerDebug
+func newDSDServerDebug() *DsdServerDebug {
 	return newDSDServerDebugWithClock(clock.New())
 }
 
-// newDSDServerDebugWithClock creates a new instance of a dsdServerDebug with a specific clock
-// It is used to create a dsdServerDebug with a real clock for production code and with a mock clock for testing code
-func newDSDServerDebugWithClock(clock clock.Clock) *dsdServerDebug {
-	return &dsdServerDebug{
+// newDSDServerDebugWithClock creates a new instance of a DsdServerDebug with a specific clock
+// It is used to create a DsdServerDebug with a real clock for production code and with a mock clock for testing code
+func newDSDServerDebugWithClock(clock clock.Clock) *DsdServerDebug {
+	return &DsdServerDebug{
 		Enabled: atomic.NewBool(false),
 		Stats:   make(map[ckey.ContextKey]metricStat),
 		metricsCounts: metricsCountBuckets{
@@ -228,7 +229,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server, error) {
+func NewServer(serverless bool) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -241,12 +242,6 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 		}
 		stats = s
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
-	}
-
-	metricsStatsEnabled := false
-	if config.Datadog.GetBool("dogstatsd_metrics_stats_enable") {
-		log.Info("Dogstatsd: metrics statistics will be stored.")
-		metricsStatsEnabled = true
 	}
 
 	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
@@ -345,10 +340,11 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 		Started:                 true,
 		Statistics:              stats,
 		packetsIn:               packetsChannel,
+		captureChan:             packetsChannel,
 		sharedPacketPool:        sharedPacketPool,
 		sharedPacketPoolManager: sharedPacketPoolManager,
 		sharedFloat64List:       newFloat64ListPool(),
-		demultiplexer:           demultiplexer,
+		demultiplexer:           nil,
 		listeners:               tmpListeners,
 		stopChan:                make(chan bool),
 		serverlessFlushChan:     make(chan bool),
@@ -377,6 +373,13 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 			originOptOutEnabled:       config.Datadog.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 	}
+	return s, nil
+}
+
+func (s *Server) Start(demultiplexer aggregator.Demultiplexer) {
+
+	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
+	s.demultiplexer = demultiplexer
 
 	// packets forwarding
 	// ----------------------
@@ -390,7 +393,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
 			s.packetsIn = make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
-			go s.forwarder(con, packetsChannel)
+			go s.forwarder(con)
 		}
 	}
 
@@ -402,7 +405,8 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 	// start the debug loop
 	// ----------------------
 
-	if metricsStatsEnabled {
+	if config.Datadog.GetBool("dogstatsd_metrics_stats_enable") {
+		log.Info("Dogstatsd: metrics statistics will be stored.")
 		s.EnableMetricsStats()
 	}
 
@@ -422,7 +426,6 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 			s.mapper = mapperInstance
 		}
 	}
-	return s, nil
 }
 
 func (s *Server) handleMessages() {
@@ -459,12 +462,12 @@ func (s *Server) Capture(p string, d time.Duration, compressed bool) error {
 	return s.TCapture.Start(p, d, compressed)
 }
 
-func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
+func (s *Server) forwarder(fcon net.Conn) {
 	for {
 		select {
 		case <-s.stopChan:
 			return
-		case packets := <-packetsChannel:
+		case packets := <-s.captureChan:
 			for _, packet := range packets {
 				_, err := fcon.Write(packet.Contents)
 

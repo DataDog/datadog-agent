@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -293,13 +294,13 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 	// Weird state that should not happen: dogstatsd is enabled
 	// but the server has not been successfully initialized.
 	// Return no data.
-	if common.DSD == nil {
+	if global.DSD == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{}`))
 		return
 	}
 
-	jsonStats, err := common.DSD.GetJSONDebugStats()
+	jsonStats, err := global.DSD.GetJSONDebugStats()
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
 		return

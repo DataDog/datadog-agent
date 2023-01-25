@@ -7,13 +7,31 @@
 package server
 
 import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
-// team: processes
+// team: Agent Metrics Logs
 
 // Component is the component type.
 type Component interface {
+	Start(demultiplexer aggregator.Demultiplexer)
+	Stop()
+
+	Capture(p string, d time.Duration, compressed bool) error
+	IsCaputreOngoing() bool
+	GetCapturePath() (string, error)
+
+	GetJSONDebugStats() ([]byte, error)
+	GetDebug() *dogstatsd.DsdServerDebug
+
+	EnableMetricsStats()
+	DisableMetricsStats()
+	UdsListenerRunning() bool
 }
 
 // Mock implements mock-specific methods.
@@ -23,7 +41,7 @@ type Mock interface {
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-// fx.Provide(newRunner),
+	fx.Provide(newServer),
 )
 
 // MockModule defines the fx options for the mock component.

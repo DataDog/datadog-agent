@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -36,6 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -43,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -121,6 +123,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
 			core.Bundle,
+			fx.Supply(dogstatsdServer.Params{
+				Serverless: false,
+			}),
+			dogstatsd.Bundle,
 		)
 	}
 
@@ -145,7 +151,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component, config config.Component, flare flare.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, flare flare.Component, cliParams *cliParams, server dogstatsdServer.Component) error {
 	defer func() {
 		stopAgent(cliParams)
 	}()
@@ -186,7 +192,7 @@ func run(log log.Component, config config.Component, flare flare.Component, cliP
 		}
 	}()
 
-	if err := startAgent(cliParams, flare); err != nil {
+	if err := startAgent(cliParams, flare, server); err != nil {
 		return err
 	}
 
@@ -199,19 +205,23 @@ func run(log log.Component, config config.Component, flare flare.Component, cliP
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
 func StartAgentWithDefaults() error {
 	// run startAgent in an app, so that the log and config components get initialized
-	return fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component) error {
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare)
+	return fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, server dogstatsdServer.Component) error {
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, server)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParamsWithSecrets(""),
 			LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
 		core.Bundle,
+		fx.Supply(dogstatsdServer.Params{
+			Serverless: false,
+		}),
+		dogstatsd.Bundle,
 	)
 }
 
 // startAgent Initializes the agent process
-func startAgent(cliParams *cliParams, flare flare.Component) error {
+func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdServer.Component) error {
 	var err error
 
 	// Main context passed to components
@@ -425,7 +435,7 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(demux, false)
+		global.DSD = server
 		if err != nil {
 			pkglog.Errorf("Could not start dogstatsd: %s", err)
 		} else {
@@ -503,8 +513,8 @@ func stopAgent(cliParams *cliParams) {
 			pkglog.Errorf("Error shutting down expvar server: %v", err)
 		}
 	}
-	if common.DSD != nil {
-		common.DSD.Stop()
+	if global.DSD != nil {
+		global.DSD.Stop()
 	}
 	if common.OTLP != nil {
 		common.OTLP.Stop()

@@ -49,7 +49,7 @@ func (l DsdCaptureDurationRuntimeSetting) Set(v interface{}) error {
 	}
 
 	// TODO
-	// common.DSD.Capture.SetDuration(d)
+	// global.DSD.Capture.SetDuration(d)
 
 	return nil
 }

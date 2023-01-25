@@ -16,11 +16,11 @@ import (
 	"fmt"
 	"time"
 
+	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -76,17 +76,17 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 		return &pb.CaptureTriggerResponse{}, err
 	}
 
-	err = common.DSD.Capture(req.GetPath(), d, req.GetCompressed())
+	err = global.DSD.Capture(req.GetPath(), d, req.GetCompressed())
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
 	}
 
 	// wait for the capture to start
-	for !common.DSD.TCapture.IsOngoing() {
+	for !global.DSD.IsCaputreOngoing() {
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	p, err := common.DSD.TCapture.Path()
+	p, err := global.DSD.GetCapturePath()
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
 	}
