@@ -52,15 +52,7 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
-    const __u64 skb_addr = (__u64)skb;
-
-    // TODO: move to http2_ctx to iterations map
-    conn_tuple_t tup = {};
-    skb_info_t skb_info = {};
-    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
-        return 0;
-    }
-
+    const __u64 skb_addr = (__u64)skb->hash;
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &skb_addr);
 
     if (tail_call_state == NULL) {
@@ -70,6 +62,13 @@ int socket__http2_filter(struct __sk_buff *skb) {
         if (tail_call_state == NULL) {
             return 0;
         }
+    }
+
+    // TODO: move to http2_ctx to iterations map
+    conn_tuple_t tup = {};
+    skb_info_t skb_info = {};
+    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
+        return 0;
     }
 
     conn_tuple_t normalized_tuple = tup;
