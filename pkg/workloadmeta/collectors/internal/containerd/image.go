@@ -186,11 +186,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	imageName := img.Name()
 	registry := ""
 	shortName := ""
-	parsedImg, err := workloadmeta.NewContainerImage(imageName)
-	if err == nil {
-		// Don't set a short name. We know that some images handled here contain
-		// "sha256" in the name, and those don't have a short name.
-	} else {
+	if parsedImg, err := workloadmeta.NewContainerImage(imageName); err == nil {
 		registry = parsedImg.Registry
 		shortName = parsedImg.ShortName
 	}
