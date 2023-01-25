@@ -22,8 +22,10 @@ import (
 	cmdsecrethelper "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/secrethelper"
 	cmdstart "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/start"
 	cmdstatus "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/status"
+	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/taggerlist"
 	cmdtelemetry "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/telemetry"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/version"
+	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/workloadlist"
 )
 
 // ClusterAgentSubcommands returns SubcommandFactories for the subcommands
@@ -44,5 +46,7 @@ func ClusterAgentSubcommands() []command.SubcommandFactory {
 		cmdsecrethelper.Commands,
 		cmdtelemetry.Commands,
 		cmdstatus.Commands,
+		cmdworkloadlist.Commands,
+		cmdtaggerlist.Commands,
 	}
 }

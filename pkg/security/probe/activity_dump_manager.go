@@ -16,7 +16,11 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -28,8 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 func areCGroupADsEnabled(c *config.Config) bool {
@@ -53,6 +55,8 @@ type ActivityDumpManager struct {
 	cgroupWaitList         *ebpf.Map
 	activityDumpsConfigMap *ebpf.Map
 	ignoreFromSnapshot     map[string]bool
+
+	dumpLimiter *simplelru.LRU[string, *atomic.Uint64]
 
 	activeDumps    []*ActivityDump
 	snapshotQueue  chan *ActivityDump
@@ -205,6 +209,12 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
 	}
 
+	limiter, err := simplelru.NewLRU(1024, func(workloadSelector string, count *atomic.Uint64) {
+	})
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)
+	}
+
 	adm := &ActivityDumpManager{
 		config:                 config,
 		statsdClient:           statsdClient,
@@ -221,6 +231,7 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		snapshotQueue:          make(chan *ActivityDump, 100),
 		ignoreFromSnapshot:     make(map[string]bool),
 		storage:                storageManager,
+		dumpLimiter:            limiter,
 	}
 
 	loadController, err := NewActivityDumpLoadController(adm)
@@ -388,6 +399,22 @@ func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListPa
 	return &api.ActivityDumpListMessage{
 		Dumps: activeDumps,
 	}, nil
+}
+
+func (adm *ActivityDumpManager) removeDump(dump *ActivityDump) {
+	adm.Lock()
+	defer adm.Unlock()
+
+	toDelete := -1
+	for i, d := range adm.activeDumps {
+		if d.Name == dump.Name {
+			toDelete = i
+			break
+		}
+	}
+	if toDelete >= 0 {
+		adm.activeDumps = append(adm.activeDumps[:toDelete], adm.activeDumps[toDelete+1:]...)
+	}
 }
 
 // StopActivityDump stops an active activity dump

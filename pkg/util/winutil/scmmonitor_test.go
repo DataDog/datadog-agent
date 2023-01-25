@@ -72,9 +72,12 @@ func TestServices(t *testing.T) {
 		si, err := scm.GetServiceInfo(uint64(pid))
 		assert.Nil(t, err, "Error on pid %v", pid)
 		if entries[2] != "N/A" {
-			assert.NotNil(t, si)
-			for _, name := range entries[2:] {
-				assert.Contains(t, si.ServiceName, name)
+			if assert.NotNil(t, si) {
+				for _, name := range entries[2:] {
+					assert.Contains(t, si.ServiceName, name)
+				}
+			} else {
+				t.Logf("Unexpected empty entry %v", entries)
 			}
 		} else {
 			// the "N/A" processes are not services, so should not get

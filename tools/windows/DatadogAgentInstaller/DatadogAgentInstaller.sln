@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32014.148
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WixSetup", "WixSetup\WixSetup.csproj", "{168321DA-C4C0-4361-94C6-105346EC0FC5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions", "CustomActions\CustomActions.csproj", "{461CE844-4B07-47BA-B2D2-5415ABD36792}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions.Tests", "CustomActions.Tests\CustomActions.Tests.csproj", "{848B3918-CCFC-47CA-92EF-763C75EFD16D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WixSetup.Tests", "WixSetup.Tests\WixSetup.Tests.csproj", "{5D344B27-0E3F-41DF-A284-C811EB9F8748}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{168321DA-C4C0-4361-94C6-105346EC0FC5}.Debug|x64.ActiveCfg = Debug|x64
+		{168321DA-C4C0-4361-94C6-105346EC0FC5}.Debug|x64.Build.0 = Debug|x64
+		{168321DA-C4C0-4361-94C6-105346EC0FC5}.Release|x64.ActiveCfg = Release|x64
+		{168321DA-C4C0-4361-94C6-105346EC0FC5}.Release|x64.Build.0 = Release|x64
+		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Debug|x64.ActiveCfg = Debug|x64
+		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Debug|x64.Build.0 = Debug|x64
+		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Release|x64.ActiveCfg = Release|x64
+		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Release|x64.Build.0 = Release|x64
+		{848B3918-CCFC-47CA-92EF-763C75EFD16D}.Debug|x64.ActiveCfg = Debug|x64
+		{848B3918-CCFC-47CA-92EF-763C75EFD16D}.Debug|x64.Build.0 = Debug|x64
+		{848B3918-CCFC-47CA-92EF-763C75EFD16D}.Release|x64.ActiveCfg = Release|x64
+		{848B3918-CCFC-47CA-92EF-763C75EFD16D}.Release|x64.Build.0 = Release|x64
+		{5D344B27-0E3F-41DF-A284-C811EB9F8748}.Debug|x64.ActiveCfg = Debug|x64
+		{5D344B27-0E3F-41DF-A284-C811EB9F8748}.Debug|x64.Build.0 = Debug|x64
+		{5D344B27-0E3F-41DF-A284-C811EB9F8748}.Release|x64.ActiveCfg = Release|x64
+		{5D344B27-0E3F-41DF-A284-C811EB9F8748}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {85D3AD3F-7C15-4BCA-BC30-822989F3EE40}
+	EndGlobalSection
+EndGlobal

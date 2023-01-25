@@ -38,6 +38,7 @@ func init() {
 	registerFeature(Containerd)
 	registerFeature(Cri)
 	registerFeature(Kubernetes)
+	registerFeature(ECSEC2)
 	registerFeature(ECSFargate)
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
@@ -51,6 +52,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(Containerd) ||
 		IsFeaturePresent(Cri) ||
 		IsFeaturePresent(Kubernetes) ||
+		IsFeaturePresent(ECSEC2) ||
 		IsFeaturePresent(ECSFargate) ||
 		IsFeaturePresent(EKSFargate) ||
 		IsFeaturePresent(CloudFoundry) ||
@@ -61,7 +63,7 @@ func detectContainerFeatures(features FeatureMap) {
 	detectKubernetes(features)
 	detectDocker(features)
 	detectContainerd(features)
-	detectFargate(features)
+	detectAWSEnvironments(features)
 	detectCloudFoundry(features)
 	detectPodman(features)
 }
@@ -155,7 +157,7 @@ func isCriSupported() bool {
 	return IsKubernetes()
 }
 
-func detectFargate(features FeatureMap) {
+func detectAWSEnvironments(features FeatureMap) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
 		return
@@ -164,6 +166,11 @@ func detectFargate(features FeatureMap) {
 	if Datadog.GetBool("eks_fargate") {
 		features[EKSFargate] = struct{}{}
 		features[Kubernetes] = struct{}{}
+		return
+	}
+
+	if IsECS() {
+		features[ECSEC2] = struct{}{}
 	}
 }
 

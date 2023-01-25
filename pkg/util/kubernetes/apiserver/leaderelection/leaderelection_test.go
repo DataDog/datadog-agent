@@ -75,6 +75,7 @@ func TestNewLeaseAcquiring(t *testing.T) {
 		LeaderNamespace: "default",
 		LeaseDuration:   1 * time.Second,
 		coreClient:      client.CoreV1(),
+		coordClient:     client.CoordinationV1(),
 		leaderMetric:    &dummyGauge{},
 	}
 	_, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
@@ -110,6 +111,7 @@ func TestSubscribe(t *testing.T) {
 		LeaderNamespace: "default",
 		LeaseDuration:   1 * time.Second,
 		coreClient:      client.CoreV1(),
+		coordClient:     client.CoordinationV1(),
 		leaderMetric:    &dummyGauge{},
 	}
 
@@ -167,6 +169,7 @@ func TestGetLeaderIPFollower(t *testing.T) {
 		LeaderNamespace: "default",
 		LeaseDuration:   120 * time.Second,
 		coreClient:      client.CoreV1(),
+		coordClient:     client.CoordinationV1(),
 		leaderMetric:    &dummyGauge{},
 	}
 

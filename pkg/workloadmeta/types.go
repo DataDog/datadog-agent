@@ -692,6 +692,12 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
+		if i.CycloneDXBOM != nil {
+			_, _ = fmt.Fprintln(&sb, "SBOM: stored")
+		} else {
+			_, _ = fmt.Fprintln(&sb, "SBOM: not stored")
+		}
+
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
 		for _, layer := range i.Layers {
 			if layer.SizeBytes != 0 { // Skip layers that have a history command associated but are empty

@@ -255,6 +255,7 @@ type BufferedAggregator struct {
 
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+	globalTags              func(collectors.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
@@ -330,6 +331,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName:                   agentName,
 		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
+		globalTags:                  tagger.GlobalTags,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
 	}
 
@@ -905,16 +907,33 @@ func (agg *BufferedAggregator) handleSBOM(event senderSBOM) {
 // tags returns the list of tags that should be added to the agent telemetry metrics
 // Container agent tags may be missing in the first seconds after agent startup
 func (agg *BufferedAggregator) tags(withVersion bool) []string {
-	tags := []string{}
-	if agg.tlmContainerTagsEnabled {
+	var tags []string
+	if agg.hostname == "" {
 		var err error
-		tags, err = agg.agentTags(tagger.ChecksCardinality)
+		tags, err = agg.globalTags(tagger.ChecksCardinality)
 		if err != nil {
+			log.Debugf("Couldn't get Global tags: %v", err)
+		}
+	}
+	if agg.tlmContainerTagsEnabled {
+		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
+		if err == nil {
+			if tags == nil {
+				tags = agentTags
+			} else {
+				tags = append(tags, agentTags...)
+			}
+		} else {
 			log.Debugf("Couldn't get Agent tags: %v", err)
 		}
 	}
 	if withVersion {
-		return append(tags, "version:"+version.AgentVersion)
+		tags = append(tags, "version:"+version.AgentVersion)
+	}
+	// nil to empty string
+	// This is expected by other components/tests
+	if tags == nil {
+		tags = []string{}
 	}
 	return tags
 }

@@ -6,6 +6,7 @@
 package config
 
 import (
+	"runtime"
 	"strings"
 	"time"
 
@@ -122,6 +123,10 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered int
 
+	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
+	// the agent to flush the connections.  This value only valid on Windows
+	ClosedConnectionFlushThreshold int
+
 	// MaxDNSStatsBuffered represents the maximum number of DNS stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxDNSStatsBuffered int
@@ -228,11 +233,12 @@ func New() *Config {
 		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
 		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
 
-		MaxTrackedConnections:        uint(cfg.GetInt(join(spNS, "max_tracked_connections"))),
-		MaxClosedConnectionsBuffered: cfg.GetInt(join(spNS, "max_closed_connections_buffered")),
-		ClosedChannelSize:            cfg.GetInt(join(spNS, "closed_channel_size")),
-		MaxConnectionsStateBuffered:  cfg.GetInt(join(spNS, "max_connection_state_buffered")),
-		ClientStateExpiry:            2 * time.Minute,
+		MaxTrackedConnections:          uint(cfg.GetInt(join(spNS, "max_tracked_connections"))),
+		MaxClosedConnectionsBuffered:   cfg.GetInt(join(spNS, "max_closed_connections_buffered")),
+		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),
+		ClosedChannelSize:              cfg.GetInt(join(spNS, "closed_channel_size")),
+		MaxConnectionsStateBuffered:    cfg.GetInt(join(spNS, "max_connection_state_buffered")),
+		ClientStateExpiry:              2 * time.Minute,
 
 		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
 		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
@@ -246,7 +252,6 @@ func New() *Config {
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		EnableGoTLSSupport:    cfg.GetBool(join(spNS, "enable_go_tls_support")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
@@ -274,8 +279,17 @@ func New() *Config {
 
 		// Service Monitoring
 		EnableJavaTLSSupport: cfg.GetBool(join(smNS, "enable_java_tls_support")),
+		EnableGoTLSSupport:   cfg.GetBool(join(smNS, "enable_go_tls_support")),
 	}
 
+	if runtime.GOOS == "windows" {
+		if cfg.IsSet(join(spNS, "closed_connection_flush_threshold")) && c.ClosedConnectionFlushThreshold < 1024 {
+			log.Warnf("Closed connection notification threshold set to invalid value %d.  Resetting to default.", c.ClosedConnectionFlushThreshold)
+
+			// 0 will allow the underlying driver interface mechanism to choose appropriately
+			c.ClosedConnectionFlushThreshold = 0
+		}
+	}
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
 		// make sure max_closed_connections_buffered is equal to
 		// max_tracked_connections, since the former is not set.
