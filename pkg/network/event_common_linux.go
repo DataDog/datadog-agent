@@ -10,7 +10,9 @@ package network
 
 // Sub returns s-other
 func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
-	if s.Retransmits < other.Retransmits && s.Retransmits > 0 {
+	if s.Retransmits < other.Retransmits && s.Retransmits > 0 ||
+		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
+		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) {
 		return sc, true
 	}
 
@@ -29,6 +31,12 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 
 	if s.Retransmits > 0 {
 		sc.Retransmits = s.Retransmits - other.Retransmits
+	}
+	if s.TCPEstablished > 0 {
+		sc.TCPEstablished = s.TCPEstablished - other.TCPEstablished
+	}
+	if s.TCPClosed > 0 {
+		sc.TCPClosed = s.TCPClosed - other.TCPClosed
 	}
 
 	return sc, false
