@@ -562,8 +562,8 @@ func Test_resolveLocalInterface(t *testing.T) {
 		"interface_name": {
 			"eth1": []int32{1},
 			"eth2": []int32{2},
-			"eth3": []int32{3},
-			"eth4": []int32{4},
+			"eth3": []int32{3}, // eth3 is both a name and alias, and reference the same interface
+			"eth4": []int32{4}, // eth4 is both a name and alias, and reference two different interfaces
 		},
 		"interface_alias": {
 			"alias1": []int32{1},
