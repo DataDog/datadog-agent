@@ -1,5 +1,5 @@
 name "setuptools2"
-default_version "66.1.1"
+default_version "40.9.0"
 
 skip_transitive_dependency_licensing true
 
@@ -8,7 +8,7 @@ dependency "python2"
 relative_path "setuptools-#{version}"
 
 source :url => "https://github.com/pypa/setuptools/archive/v#{version}.tar.gz",
-       :sha256 => "081209b1c080b30ca78013dde35600a3070508fcce745a939498f4d76e05b6a6",
+       :sha256 => "9ef6623c057d6e46ada8156bb48dc72ef6dbe721768720cc66966cca4097061c",
        :extract => :seven_zip
 
 build do
