@@ -344,7 +344,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 	return links
 }
 
-func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string]int32, localInterfaceIDType string, localInterfaceID string) (string, string) {
+func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) (string, string) {
 	if localInterfaceID == "" {
 		return localInterfaceIDType, localInterfaceID
 	}
@@ -358,30 +358,35 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 	} else {
 		typesToTry = []string{localInterfaceIDType}
 	}
+	var matchedIfIndexes []int32
 	for _, idType := range typesToTry {
 		interfaceIndexByIDValue, ok := interfaceIndexByIDType[idType]
 		if ok {
-			ifIndex, ok := interfaceIndexByIDValue[localInterfaceID]
+			ifIndexes, ok := interfaceIndexByIDValue[localInterfaceID]
 			if ok {
-				return metadata.IDTypeNDM, deviceID + ":" + strconv.Itoa(int(ifIndex))
+				matchedIfIndexes = append(matchedIfIndexes, ifIndexes...)
 			}
 		}
+	}
+	if len(matchedIfIndexes) == 1 {
+		return metadata.IDTypeNDM, deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
 	}
 	return localInterfaceIDType, localInterfaceID
 }
 
-func buildInterfaceIndexByIDType(interfaces []metadata.InterfaceMetadata) map[string]map[string]int32 {
-	interfaceIndexByIDType := make(map[string]map[string]int32) // map[ID_TYPE]map[ID_VALUE]IF_INDEX
+func buildInterfaceIndexByIDType(interfaces []metadata.InterfaceMetadata) map[string]map[string][]int32 {
+	interfaceIndexByIDType := make(map[string]map[string][]int32) // map[ID_TYPE]map[ID_VALUE]IF_INDEX
 	for _, idType := range []string{"mac_address", "interface_name", "interface_alias", "interface_index"} {
-		interfaceIndexByIDType[idType] = make(map[string]int32)
+		interfaceIndexByIDType[idType] = make(map[string][]int32)
 	}
 	for _, devInterface := range interfaces {
-		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = devInterface.Index
-		interfaceIndexByIDType["interface_name"][devInterface.Name] = devInterface.Index
-		interfaceIndexByIDType["interface_alias"][devInterface.Alias] = devInterface.Index
+		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = append(interfaceIndexByIDType["mac_address"][devInterface.MacAddress], devInterface.Index)
+		interfaceIndexByIDType["interface_name"][devInterface.Name] = append(interfaceIndexByIDType["interface_name"][devInterface.Name], devInterface.Index)
+		interfaceIndexByIDType["interface_alias"][devInterface.Alias] = append(interfaceIndexByIDType["interface_alias"][devInterface.Alias], devInterface.Index)
 
 		// interface_index is not a type defined by LLDP, it's used in local interface "smart resolution" when the idType is not present
-		interfaceIndexByIDType["interface_index"][strconv.Itoa(int(devInterface.Index))] = devInterface.Index
+		strIndex := strconv.Itoa(int(devInterface.Index))
+		interfaceIndexByIDType["interface_index"][strIndex] = append(interfaceIndexByIDType["interface_index"][strIndex], devInterface.Index)
 	}
 	return interfaceIndexByIDType
 }
