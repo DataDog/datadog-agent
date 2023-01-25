@@ -13,8 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
+	"github.com/DataDog/test-infra-definitions/aws"
 	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microVMs"
+	"github.com/DataDog/test-infra-definitions/command"
 
+	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -73,9 +76,29 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	}
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-		err := microVMs.Run(ctx)
+		conn, err := microVMs.RunAndReturnConnections(ctx)
 		if err != nil {
 			return err
+		}
+
+		e, err := aws.AWSEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+
+		for arch, connection := range conn {
+			remoteRunner, err := command.NewRunner(*e.CommonEnvironment, "remote-runner-"+arch, connection, func(r *command.Runner) (*remote.Command, error) {
+				return command.WaitForCloudInit(e.Ctx, r)
+			})
+
+			filemanager := command.NewFileManager(remoteRunner)
+			_, err = filemanager.CopyFile(
+				fmt.Sprintf("$DD_AGENT_TESTING_DIR/site-cookbooks-%s.tar.gz", arch),
+				"/opt/kernel-version-testing/",
+			)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil

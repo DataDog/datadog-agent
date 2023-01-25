@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.18.4
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.33.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
+	github.com/pulumi/pulumi-command/sdk v0.7.0
 	github.com/pulumi/pulumi/sdk/v3 v3.49.0
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/crypto v0.4.0
@@ -67,7 +68,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/pulumi-aws/sdk/v5 v5.23.0 // indirect
 	github.com/pulumi/pulumi-awsx/sdk v1.0.0 // indirect
-	github.com/pulumi/pulumi-command/sdk v0.7.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.22.2 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.3.0 // indirect
