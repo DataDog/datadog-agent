@@ -17,6 +17,7 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 // scan buffer needs to be very large as we cannot block containerd collector
@@ -82,10 +83,12 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespa
 		scanFunc = c.trivyClient.ScanContainerdImageFromFilesystem
 	}
 
+	tStartScan := time.Now()
 	bom, err := scanFunc(ctx, storedImage, imageToScan.image)
 	if err != nil {
 		return err
 	}
+	telemetry.SBOMGenerationDuration.Observe(time.Since(tStartScan).Seconds())
 
 	time.Sleep(timeBetweenScans())
 
