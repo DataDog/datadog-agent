@@ -164,6 +164,7 @@ func load(configPath string) (*Config, error) {
 	c := &Config{
 		Enabled:             cfg.GetBool(key(spNS, "enabled")),
 		EnabledModules:      make(map[ModuleName]struct{}),
+		ClosedSourceAllowed: isClosedSourceAllowed(),
 		ExternalSystemProbe: cfg.GetBool(key(spNS, "external")),
 
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
@@ -247,8 +248,6 @@ func load(configPath string) (*Config, error) {
 			log.Info("process service inference is enabled")
 		}
 	}
-
-	c.ClosedSourceAllowed = isClosedSourceAllowed()
 
 	return c, nil
 }

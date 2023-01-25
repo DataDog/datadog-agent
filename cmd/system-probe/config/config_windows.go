@@ -12,9 +12,10 @@ import (
 	"fmt"
 	"net"
 
+	"golang.org/x/sys/windows/registry"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -24,10 +25,10 @@ const (
 	// ServiceName is the service name used for the system-probe
 	ServiceName = "datadog-system-probe"
 
-	AgentRegistryKey       = `SOFTWARE\DataDog\Datadog Agent`
-	ClosedSourceKeyName    = "AllowClosedSource"
-	ClosedSourceAllowed    = 1
-	ClosedSourceNotAllowed = 0
+	agentRegistryKey       = `SOFTWARE\DataDog\Datadog Agent`
+	closedSourceKeyName    = "AllowClosedSource"
+	closedSourceAllowed    = 1
+	closedSourceNotAllowed = 0
 )
 
 var (
@@ -50,27 +51,27 @@ func ValidateSocketAddress(sockAddress string) error {
 }
 
 func isClosedSourceAllowed() bool {
-	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, AgentRegistryKey, registry.QUERY_VALUE)
+	regKey, err := registry.OpenKey(registry.LOCAL_MACHINE, agentRegistryKey, registry.QUERY_VALUE)
 	if err != nil {
-		log.Warnf("unable to open registry key %s: %v", AgentRegistryKey, err)
+		log.Warnf("unable to open registry key %s: %v", agentRegistryKey, err)
 		return false
 	}
 	defer regKey.Close()
 
-	val, _, err := regKey.GetIntegerValue(ClosedSourceKeyName)
+	val, _, err := regKey.GetIntegerValue(closedSourceKeyName)
 	if err != nil {
-		log.Warnf("unable to get value for %s: %v", ClosedSourceKeyName, err)
+		log.Warnf("unable to get value for %s: %v", closedSourceKeyName, err)
 		return false
 	}
 
-	if val == ClosedSourceAllowed {
-		log.Info("closed-source software allowed")
+	if val == closedSourceAllowed {
+		log.Debug("closed-source software allowed")
 		return true
-	} else if val == ClosedSourceNotAllowed {
-		log.Info("closed-source software not allowed")
+	} else if val == closedSourceNotAllowed {
+		log.Debug("closed-source software not allowed")
 		return false
 	} else {
-		log.Infof("unexpected value set for %s: %d", ClosedSourceKeyName, val)
+		log.Debugf("unexpected value set for %s: %d", closedSourceKeyName, val)
 		return false
 	}
 }

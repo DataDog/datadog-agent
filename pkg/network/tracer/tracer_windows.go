@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/windows"
 )
 
 const (
@@ -59,7 +60,9 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
-
+	if err := driver.Start(); err != nil {
+		return nil, fmt.Errorf("error starting driver: %s", err)
+	}
 	di, err := network.NewDriverInterface(config, driver.NewHandle)
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
@@ -140,6 +143,9 @@ func (t *Tracer) Stop() {
 		log.Errorf("error closing driver interface: %s", err)
 	}
 	t.closedEventLoop.Wait()
+	if err := driver.Stop(); err != nil {
+		log.Errorf("error stopping driver: %s", err)
+	}
 }
 
 // GetActiveConnections returns all active connections

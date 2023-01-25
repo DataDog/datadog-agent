@@ -202,7 +202,7 @@ func IsServiceRunning(serviceName string) (running bool, err error) {
 	return (serviceStatus.State == windows.SERVICE_RUNNING), nil
 }
 
-func UpdateServicConfig(serviceName string, newConfig mgr.Config) (err error) {
+func UpdateServiceConfig(serviceName string, newConfig mgr.Config) (err error) {
 
 	// connect to SCM
 	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
