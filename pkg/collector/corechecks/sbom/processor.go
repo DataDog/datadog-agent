@@ -62,11 +62,12 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 	}
 
 	p.queue <- &model.SBOMEntity{
-		Type:        model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-		Id:          img.ID,
-		GeneratedAt: nil,
-		Tags:        img.RepoTags,
-		InUse:       true, // TODO: compute this field
+		Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+		Id:                 img.ID,
+		GeneratedAt:        nil,
+		Tags:               img.RepoTags,
+		InUse:              true, // TODO: compute this field
+		GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
 		Sbom: &sbom.SBOMEntity_Cyclonedx{
 			Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
 		},
