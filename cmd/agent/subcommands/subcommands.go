@@ -31,6 +31,7 @@ import (
 	cmdstop "github.com/DataDog/datadog-agent/cmd/agent/subcommands/stop"
 	cmdstreamlogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/taggerlist"
+	cmdtoggleclosedsourceconsent "github.com/DataDog/datadog-agent/cmd/agent/subcommands/toggleclosedsourceconsent"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/agent/subcommands/version"
 	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadlist"
 )
@@ -65,5 +66,6 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdintegrations.Commands,
 		cmdstop.Commands,
 		cmdcontrolsvc.Commands,
+		cmdtoggleclosedsourceconsent.Commands,
 	}
 }
