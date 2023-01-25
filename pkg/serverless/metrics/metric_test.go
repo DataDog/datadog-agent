@@ -200,8 +200,9 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
-	s, err := dogstatsd.NewServer(demux, true)
+	s, err := dogstatsd.NewServer(true)
 	require.NoError(t, err, "cannot start DSD")
+	s.Start(demux)
 	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
