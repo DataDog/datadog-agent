@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -46,7 +45,7 @@ func TestMMapEvent(t *testing.T) {
 				return fmt.Errorf("couldn't unmap memory segment: %w", err)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "mmap", event.GetType(), "wrong event type")
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 			assert.Equal(t, event.Async, false)
@@ -57,9 +56,7 @@ func TestMMapEvent(t *testing.T) {
 			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 
-			if !validateMMapSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateMMapSchema(t, event)
 		})
 	})
 }

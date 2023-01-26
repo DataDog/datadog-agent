@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -630,7 +629,9 @@ func flowi6EntryState(status *netebpf.TracerStatus) netebpf.GuessWhat {
 // possible offset and expected value of each field in a eBPF map. In kernel-space
 // we rely on two different kprobes: `tcp_getsockopt` and `tcp_connect_v6`. When they're
 // are triggered, we store the value of
-//     (struct sock *)skp + possible_offset
+//
+//	(struct sock *)skp + possible_offset
+//
 // in the eBPF map. Then, back in userspace (checkAndUpdateCurrentOffset()), we
 // check that value against the expected value of the field, advancing the
 // offset and repeating the process until we find the value we expect. Then, we
@@ -934,7 +935,7 @@ func acceptHandler(l net.Listener) {
 			return
 		}
 
-		_, _ = io.Copy(ioutil.Discard, conn)
+		_, _ = io.Copy(io.Discard, conn)
 		if tcpc, ok := conn.(*net.TCPConn); ok {
 			_ = tcpc.SetLinger(0)
 		}

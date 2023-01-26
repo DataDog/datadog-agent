@@ -30,7 +30,7 @@ shared_examples_for 'a correctly created binary root' do
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('PROJECTLOCATION')
   }
   it 'has the proper binary root' do
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog")
+    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent")
     expect(File).to exist("#{binary_path}")
   end
 end
@@ -50,9 +50,8 @@ shared_examples_for 'an Agent with valid permissions' do
     expected_sddl = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object(configuration_path)
-    equal_base = equal_sddl?(expected_sddl, actual_sddl)
-    equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
-    expect(equal_base | equal_2016).to be_truthy
+    expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
+                       .or have_sddl_equal_to(expected_sddl_2016)
   end
   it 'has proper permissions on datadog.yaml' do
     # should have a sddl like so 
@@ -64,9 +63,8 @@ shared_examples_for 'an Agent with valid permissions' do
     expected_sddl = "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{configuration_path}\\datadog.yaml")
-    equal_base = equal_sddl?(expected_sddl, actual_sddl)
-    equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
-    expect(equal_base | equal_2016).to be_truthy
+    expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
+                       .or have_sddl_equal_to(expected_sddl_2016)
   end
   it 'has proper permissions on the conf.d directory' do
     # A,OICI;FA;;;SY = Allows Object Inheritance (OI) container inherit (CI); File All Access to LocalSystem
@@ -78,8 +76,7 @@ shared_examples_for 'an Agent with valid permissions' do
     expected_sddl =      "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{configuration_path}\\conf.d")
 
-    sddl_result = equal_sddl?(expected_sddl, actual_sddl)
-    expect(sddl_result).to be_truthy
+    expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
   end
 
   it 'has the proper permissions on the DataDog registry key' do
@@ -104,19 +101,22 @@ shared_examples_for 'an Agent with valid permissions' do
     # A;CIID;KA;;;SY  =                                       Keyallaccess  (local system)
     # A;CIIOID;KA;;;CO= container inherit, inherit only, inherited ace, keyallAccess, to creator/owner
     # A;CIID;KR;;;AC = allow container inherit/inherited ace  Key Read to AC ()
-    expected_sddl =           "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)"
-    expected_sddl_2008 =      "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;ID;KR;;;BU)(A;CIIOID;GR;;;BU)(A;ID;KA;;;BA)(A;CIIOID;GA;;;BA)(A;ID;KA;;;SY)(A;CIIOID;GA;;;SY)(A;CIIOID;GA;;;CO)"
-    expected_sddl_with_edge = "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)(A;CIID;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)"
+    expected_sddl =               "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)"
+    expected_sddl_2008 =          "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;ID;KR;;;BU)(A;CIIOID;GR;;;BU)(A;ID;KA;;;BA)(A;CIIOID;GA;;;BA)(A;ID;KA;;;SY)(A;CIIOID;GA;;;SY)(A;CIIOID;GA;;;CO)"
+    expected_sddl_with_edge =     "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)(A;CIID;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)"
+    expected_sddl_ng =            "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)"
+    expected_sddl_ng_with_edge =  "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)(A;CIID;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)"
     
     ## sigh.  M$ added a mystery sid some time back, that Edge/IE use for sandboxing,
     ## and it's an inherited ace.  Allow that one, too
 
     actual_sddl = get_sddl_for_object("HKLM:Software\\Datadog\\Datadog Agent")
 
-    sddl_result = equal_sddl?(expected_sddl, actual_sddl)
-    equal_2008 = equal_sddl?(expected_sddl_2008, actual_sddl)
-    edge_result = equal_sddl?(expected_sddl_with_edge, actual_sddl)
-    expect(sddl_result | equal_2008 | edge_result).to be_truthy
+    expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
+                       .or have_sddl_equal_to(expected_sddl_2008)
+                       .or have_sddl_equal_to(expected_sddl_with_edge)
+                       .or have_sddl_equal_to(expected_sddl_ng)
+                       .or have_sddl_equal_to(expected_sddl_ng_with_edge)
   end
 
   it 'has agent.exe running as ddagentuser' do

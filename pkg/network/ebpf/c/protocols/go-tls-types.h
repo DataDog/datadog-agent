@@ -40,6 +40,12 @@ typedef struct {
 } tls_conn_layout_t;
 
 typedef struct {
+    __u32 device_id_major;
+    __u32 device_id_minor;
+    __u64 ino;
+} go_tls_offsets_data_key_t;
+
+typedef struct {
     goroutine_id_metadata_t goroutine_id;
     tls_conn_layout_t conn_layout;
 

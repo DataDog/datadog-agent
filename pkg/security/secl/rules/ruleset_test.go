@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -38,7 +39,7 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 	}
 	evaluator, _ := f.model.GetEvaluator(field, "")
 
-	ctx := eval.NewContext(event.GetPointer())
+	ctx := eval.NewContext(event)
 
 	value := evaluator.Eval(ctx)
 
@@ -67,7 +68,9 @@ func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
 		ruleDefs = append(ruleDefs, ruleDef)
 	}
 
-	if err := rs.AddRules(ruleDefs); err != nil {
+	pc := ast.NewParsingContext()
+
+	if err := rs.AddRules(pc, ruleDefs); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -84,14 +87,7 @@ func newRuleSet() *RuleSet {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
-}
-
-func emptyReplCtx() eval.ReplacementContext {
-	return eval.ReplacementContext{
-		Opts:       &eval.Opts{},
-		MacroStore: &eval.MacroStore{},
-	}
+	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts)
 }
 
 func TestRuleBuckets(t *testing.T) {
@@ -569,11 +565,11 @@ func TestRuleSetApprovers14(t *testing.T) {
 }
 
 func TestGetRuleEventType(t *testing.T) {
-	rule := &eval.Rule{
-		ID:         "aaa",
-		Expression: `open.filename == "test"`,
-	}
-	if err := rule.GenEvaluator(&testModel{}, emptyReplCtx()); err != nil {
+	rule := eval.NewRule("aaa", `open.filename == "test"`, &eval.Opts{})
+
+	pc := ast.NewParsingContext()
+
+	if err := rule.GenEvaluator(&testModel{}, pc); err != nil {
 		t.Fatal(err)
 	}
 

@@ -62,11 +62,9 @@ func TestUpdateFromStartLog(t *testing.T) {
 	assert := assert.New(t)
 
 	startTime := time.Now()
-	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	ec := ExecutionContext{}
-	ec.UpdateFromStartLog(testRequestID, startTime)
+	ec.UpdateStartTime(startTime)
 
-	assert.Equal(testRequestID, ec.lastLogRequestID)
 	assert.Equal(startTime, ec.startTime)
 }
 
@@ -79,14 +77,14 @@ func TestSaveAndRestoreFromFile(t *testing.T) {
 	endTime := startTime.Add(10 * time.Second)
 	ec := ExecutionContext{}
 	ec.SetFromInvocation(testArn, testRequestID)
-	ec.UpdateFromStartLog(testRequestID, startTime)
-	ec.UpdateFromRuntimeDoneLog(endTime)
+	ec.UpdateStartTime(startTime)
+	ec.UpdateEndTime(endTime)
 
 	err := ec.SaveCurrentExecutionContext()
 	assert.Nil(err)
 
-	ec.UpdateFromStartLog(testRequestID, startTime.Add(time.Hour))
-	ec.UpdateFromRuntimeDoneLog(endTime.Add(time.Hour))
+	ec.UpdateStartTime(startTime.Add(time.Hour))
+	ec.UpdateEndTime(endTime.Add(time.Hour))
 	ec.SetFromInvocation("this-arn-should-be-overwritten", "this-request-id-should-be-overwritten")
 
 	err = ec.RestoreCurrentStateFromFile()
@@ -103,7 +101,7 @@ func TestUpdateFromRuntimeDoneLog(t *testing.T) {
 
 	endTime := time.Now()
 	ec := ExecutionContext{}
-	ec.UpdateFromRuntimeDoneLog(endTime)
+	ec.UpdateEndTime(endTime)
 
 	assert.Equal(endTime, ec.endTime)
 }

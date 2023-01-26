@@ -67,11 +67,6 @@ Logs Agent
         {{$input}}
       {{- end }}
       {{- end }}
-      BytesRead: {{ .bytes_read }}
-      Average Latency (ms): {{ .all_time_avg_latency }}
-      24h Average Latency (ms): {{ .recent_avg_latency }}
-      Peak Latency (ms): {{ .all_time_peak_latency }}
-      24h Peak Latency (ms): {{ .recent_peak_latency }}
       {{- if .info }}
       {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
       {{$key}}: {{index $value 0}} {{ else }}

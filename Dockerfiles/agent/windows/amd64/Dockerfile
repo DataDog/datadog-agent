@@ -1,5 +1,7 @@
 ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1809
 FROM ${BASE_IMAGE}
+LABEL baseimage.os "windows server core"
+LABEL baseimage.name "${BASE_IMAGE}"
 
 ARG WITH_JMX="false"
 ARG VARIANT="unknown"

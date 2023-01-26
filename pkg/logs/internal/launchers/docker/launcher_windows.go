@@ -10,7 +10,7 @@ package docker
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
@@ -20,7 +20,7 @@ const (
 
 func checkReadAccess() error {
 	// We need read access to the docker folder
-	_, err := ioutil.ReadDir(basePath)
+	_, err := os.ReadDir(basePath)
 	return err
 }
 

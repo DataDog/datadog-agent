@@ -61,7 +61,6 @@ func FormatConnection(
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
-	c.PidCreateTime = 0
 	c.LastBytesSent = conn.Last.SentBytes
 	c.LastBytesReceived = conn.Last.RecvBytes
 	c.LastPacketsSent = conn.Last.SentPackets
@@ -278,14 +277,15 @@ func unsafeStringSlice(key string) []byte {
 
 // formatProtocol converts a single protocol into a protobuf representation of protocol stack.
 // i.e: the input is ProtocolHTTP2 and the output should be:
-// &model.ProtocolStack{
-//		Stack: []model.ProtocolType{
-//			model.ProtocolType_protocolHTTP2,
-//		},
-//	}
+//
+//	&model.ProtocolStack{
+//			Stack: []model.ProtocolType{
+//				model.ProtocolType_protocolHTTP2,
+//			},
+//		}
 func formatProtocol(protocol network.ProtocolType) *model.ProtocolStack {
 	if protocol == network.ProtocolUnclassified {
-		return nil
+		protocol = network.ProtocolUnknown
 	}
 
 	return &model.ProtocolStack{

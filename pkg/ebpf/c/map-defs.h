@@ -3,9 +3,6 @@
 
 #include "bpf_helpers.h"
 
-#define __uint(name, val) int (*name)[val]
-#define __type(name, val) typeof(val) *name
-
 #define BPF_MAP(_name, _type, _key_type, _value_type, _max_entries, _pin) \
     struct {                                                        \
         __uint(type, _type);                                        \

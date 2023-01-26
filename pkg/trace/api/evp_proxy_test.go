@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -37,7 +37,7 @@ func (r roundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
 func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request) (outReqs []*http.Request, resp *http.Response, logs string) {
 	mockRoundTripper := roundTripperMock(func(req *http.Request) (*http.Response, error) {
 		if req.Body != nil {
-			if _, err := ioutil.ReadAll(req.Body); err != nil && err != io.EOF {
+			if _, err := io.ReadAll(req.Body); err != nil && err != io.EOF {
 				return nil, err
 			}
 		}
@@ -45,7 +45,7 @@ func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request) 
 		// If we got here it means the proxy didn't raise an error earlier, return an ok resp
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("ok_resprino"))),
+			Body:       io.NopCloser(bytes.NewBuffer([]byte("ok_resprino"))),
 		}, nil
 	})
 	handler := evpProxyForwarder(conf)
@@ -95,7 +95,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "test_user_agent", proxyreq.Header.Get("User-Agent"))
 		assert.Equal(t, "text/json", proxyreq.Header.Get("Content-Type"))
 		assert.NotContains(t, proxyreq.Header, "X-Datadog-Container-Tags")
-		assert.NotContains(t, proxyreq.Header, headerContainerID)
+		assert.NotContains(t, proxyreq.Header, header.ContainerID)
 		assert.Equal(t, "", logs)
 
 		// check metrics
@@ -128,14 +128,14 @@ func TestEVPProxyForwarder(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
-		req.Header.Set(headerContainerID, "myid")
+		req.Header.Set(header.ContainerID, "myid")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Len(t, proxyreqs, 1)
 		assert.Equal(t, "container:myid", proxyreqs[0].Header.Get("X-Datadog-Container-Tags"))
-		assert.Equal(t, "myid", proxyreqs[0].Header.Get(headerContainerID))
+		assert.Equal(t, "myid", proxyreqs[0].Header.Get(header.ContainerID))
 		assert.Equal(t, "", logs)
 	})
 

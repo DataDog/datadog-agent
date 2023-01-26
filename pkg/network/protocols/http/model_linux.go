@@ -65,36 +65,15 @@ func (tx *ebpfHttpTx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_status_code == 0
 }
 
-func (tx *ebpfHttpTx) ReqFragment() []byte {
-	return tx.Request_fragment[:]
-}
-
-func (tx *ebpfHttpTx) isIPV4() bool {
-	return true
-}
-
-func (tx *ebpfHttpTx) SrcIPHigh() uint64 {
-	return tx.Tup.Saddr_h
-}
-
-func (tx *ebpfHttpTx) SrcIPLow() uint64 {
-	return tx.Tup.Saddr_l
-}
-
-func (tx *ebpfHttpTx) SrcPort() uint16 {
-	return tx.Tup.Sport
-}
-
-func (tx *ebpfHttpTx) DstIPHigh() uint64 {
-	return tx.Tup.Daddr_h
-}
-
-func (tx *ebpfHttpTx) DstIPLow() uint64 {
-	return tx.Tup.Daddr_l
-}
-
-func (tx *ebpfHttpTx) DstPort() uint16 {
-	return tx.Tup.Dport
+func (tx *ebpfHttpTx) ConnTuple() KeyTuple {
+	return KeyTuple{
+		SrcIPHigh: tx.Tup.Saddr_h,
+		SrcIPLow:  tx.Tup.Saddr_l,
+		DstIPHigh: tx.Tup.Daddr_h,
+		DstIPLow:  tx.Tup.Daddr_l,
+		SrcPort:   tx.Tup.Sport,
+		DstPort:   tx.Tup.Dport,
+	}
 }
 
 func (tx *ebpfHttpTx) Method() Method {
@@ -121,11 +100,7 @@ func (tx *ebpfHttpTx) RequestStarted() uint64 {
 	return tx.Request_started
 }
 
-func (tx *ebpfHttpTx) RequestMethod() uint32 {
-	return uint32(tx.Request_method)
-}
-
-func (tx *ebpfHttpTx) SetRequestMethod(m uint32) {
+func (tx *ebpfHttpTx) SetRequestMethod(m Method) {
 	tx.Request_method = uint8(m)
 }
 
@@ -147,11 +122,6 @@ func (tx *ebpfHttpTx) String() string {
 	output.WriteString("Fragment: '" + hex.EncodeToString(tx.Request_fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
-}
-
-// Transactions returns the slice of HTTP transactions embedded in the batch
-func (batch *httpBatch) Transactions() []ebpfHttpTx {
-	return batch.Txs[:]
 }
 
 // below is copied from pkg/trace/stats/statsraw.go

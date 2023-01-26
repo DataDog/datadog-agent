@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -106,13 +107,17 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 
 	assert.NotNil(t, metricAgent.Demux)
 
-	go func() {
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	server := http.Server{
+		Addr: "localhost:8888",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(10 * time.Millisecond)
-		})
+		}),
+	}
+	defer server.Close()
 
-		err := http.ListenAndServe("localhost:8888", nil)
-		if err != nil {
+	go func() {
+		err := server.ListenAndServe()
+		if !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}
 	}()

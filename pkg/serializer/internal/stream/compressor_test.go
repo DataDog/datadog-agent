@@ -12,7 +12,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	jsoniter "github.com/json-iterator/go"
@@ -37,7 +37,7 @@ func decompressPayload(payload []byte) ([]byte, error) {
 	}
 	defer r.Close()
 
-	dst, err := ioutil.ReadAll(r)
+	dst, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

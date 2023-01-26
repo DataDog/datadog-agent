@@ -19,7 +19,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
@@ -28,7 +27,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
@@ -106,6 +107,7 @@ func (m *Module) Init() error {
 	}()
 
 	// start api server
+	sapi.RegisterVTCodec()
 	m.apiServer.Start(m.ctx)
 
 	// monitor policies
@@ -151,7 +153,7 @@ func (m *Module) Start() error {
 	}
 
 	// runtime security is disabled but might be used by other component like process
-	if !m.config.IsEnabled() {
+	if !m.config.IsRuntimeEnabled() {
 		if m.config.EventMonitoring {
 			// Currently select process related event type.
 			// TODO external monitors should be allowed to select the event types
@@ -260,12 +262,12 @@ func (m *Module) displayReport(report *sprobe.Report) {
 	seclog.Debugf("Policy report: %s", content)
 }
 
-func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
+func getEventTypeEnabled(config *config.Config) map[eval.EventType]bool {
 	enabled := make(map[eval.EventType]bool)
 
 	categories := model.GetEventTypePerCategory()
 
-	if m.config.FIMEnabled {
+	if config.FIMEnabled {
 		if eventTypes, exists := categories[model.FIMCategory]; exists {
 			for _, eventType := range eventTypes {
 				enabled[eventType] = true
@@ -273,7 +275,7 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if m.config.NetworkEnabled {
+	if config.NetworkEnabled {
 		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
 				enabled[eventType] = true
@@ -281,7 +283,7 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if m.config.RuntimeEnabled {
+	if config.RuntimeEnabled {
 		// everything but FIM
 		for _, category := range model.GetAllCategories() {
 			if category == model.FIMCategory || category == model.NetworkCategory {
@@ -323,38 +325,11 @@ func (m *Module) ReloadPolicies() error {
 	return m.LoadPolicies(m.policyProviders, true)
 }
 
-func (m *Module) newRuleOpts() (opts rules.Opts) {
-	opts.
-		WithSupportedDiscarders(sprobe.SupportedDiscarders).
-		WithEventTypeEnabled(m.getEventTypeEnabled()).
-		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLogger(seclog.DefaultLogger)
-	return
-}
-
-func (m *Module) newEvalOpts() (evalOpts eval.Opts) {
-	evalOpts.
-		WithConstants(model.SECLConstants).
-		WithLegacyFields(model.SECLLegacyFields)
-	return evalOpts
-}
-
 func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*rules.RuleSet, *multierror.Error) {
-	evalOpts := m.newEvalOpts()
-	evalOpts.WithVariables(model.SECLVariables)
-
-	opts := m.newRuleOpts()
-	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-		"process": func() rules.VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-				return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
-			}, nil)
-		},
-	})
+	ruleOpts, evalOpts := rules.NewEvalOpts(getEventTypeEnabled(m.config))
 
 	// approver ruleset
-	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
 
 	// load policies
 	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
@@ -388,22 +363,8 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		return err
 	}
 
-	opts := m.newRuleOpts()
-	opts.
-		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-			"process": func() rules.VariableProvider {
-				scoper := func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer((*sprobe.Event)(ctx.Object).ProcessCacheEntry)
-				}
-				return m.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
-			},
-		})
-
-	evalOpts := m.newEvalOpts()
-	evalOpts.WithVariables(model.SECLVariables)
-
 	// standard ruleset
-	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts, &eval.MacroStore{})
+	ruleSet := m.probe.NewRuleSet()
 
 	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
 	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {
@@ -429,21 +390,20 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		return err
 	}
 
+	// set the rate limiters
+	m.rateLimiter.Apply(ruleSet, events.AllCustomRuleIDs())
+
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
 	ruleIDs = append(ruleIDs, ruleSet.ListRuleIDs()...)
-	ruleIDs = append(ruleIDs, sprobe.AllCustomRuleIDs()...)
+	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	m.apiServer.Apply(ruleIDs)
-	m.rateLimiter.Apply(ruleIDs)
 
 	m.displayReport(report)
 
 	if sendLoadedReport {
-		// report that a new policy was loaded
-		monitor := m.probe.GetMonitor()
-		monitor.ReportRuleSetLoaded(ruleSet, loadApproversErrs)
-
+		ReportRuleSetLoaded(m.eventSender, m.statsdClient, ruleSet, loadApproversErrs)
 		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
 	}
 
@@ -491,13 +451,11 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
-		seclog.Trace(err)
-	}
+	m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType)
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
-func (m *Module) HandleEvent(event *sprobe.Event) {
+func (m *Module) HandleEvent(event *model.Event) {
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.SavedByActivityDumps {
 		return
@@ -509,20 +467,23 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 }
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
-func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+func (m *Module) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	m.eventSender.SendEvent(rule, event, func() []string { return nil }, "")
 }
 
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
-	// prepare the event
-	m.probe.OnRuleMatch(rule, event.(*sprobe.Event))
+	ev := event.(*model.Event)
+
+	// ensure that all the fields are resolved before sending
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
-	service := event.(*sprobe.Event).GetProcessServiceTag()
+	service := ev.FieldHandlers.GetProcessServiceTag(ev)
 
-	id := event.(*sprobe.Event).ContainerContext.ID
+	id := ev.ContainerContext.ID
 
 	extTagsCb := func() []string {
 		var tags []string
@@ -540,7 +501,7 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	}
 
 	// send if not selftest related events
-	if m.selfTester == nil || !m.selfTester.IsExpectedEvent(rule, event) {
+	if m.selfTester == nil || !m.selfTester.IsExpectedEvent(rule, event, m.probe) {
 		m.eventSender.SendEvent(rule, event, extTagsCb, service)
 	}
 }
@@ -552,6 +513,16 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
+}
+
+// SendProcessEvent sends a process event using the provided EventSender interface
+func (m *Module) SendProcessEvent(data []byte) {
+	m.eventSender.SendProcessEventData(data)
+}
+
+// SendProcessEventData implements the EventSender interface forwarding a process event to the APIServer
+func (m *Module) SendProcessEventData(data []byte) {
+	m.apiServer.SendProcessEvent(data)
 }
 
 // HandleActivityDump sends an activity dump to the backend
@@ -664,21 +635,24 @@ func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, 
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
-	statsdClient, err := getStatdClient(cfg, opts...)
+func NewModule(cfg *sconfig.Config, opts Opts) (module.Module, error) {
+	statsdClient, err := getStatdClient(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	probe, err := sprobe.NewProbe(cfg, statsdClient)
+	probeOpts := sprobe.Opts{
+		StatsdClient:       statsdClient,
+		DontDiscardRuntime: opts.DontDiscardRuntime,
+		EventTypeEnabled:   getEventTypeEnabled(cfg),
+	}
+
+	probe, err := sprobe.NewProbe(cfg, probeOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
-
-	// custom limiters
-	limits := make(map[rules.RuleID]Limit)
 
 	selfTester, err := selftests.NewSelfTester()
 	if err != nil {
@@ -693,7 +667,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		statsdClient:   statsdClient,
 		apiServer:      NewAPIServer(cfg, probe, statsdClient),
 		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
@@ -703,8 +677,8 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	}
 	m.apiServer.module = m
 
-	if len(opts) > 0 && opts[0].EventSender != nil {
-		m.eventSender = opts[0].EventSender
+	if opts.EventSender != nil {
+		m.eventSender = opts.EventSender
 	} else {
 		m.eventSender = m
 	}
@@ -744,8 +718,7 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 
 	// send the report
 	if m.config.SelfTestSendReport {
-		monitor := m.probe.GetMonitor()
-		monitor.ReportSelfTest(success, fails)
+		ReportSelfTest(m.eventSender, m.statsdClient, success, fails)
 	}
 
 	return nil

@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 )
 
 //go:embed testdata/adv1.protobuf
@@ -24,7 +24,7 @@ var v1testdata []byte
 
 func getTestDataActivityDump(tb testing.TB) *probe.ActivityDump {
 	ad := probe.NewEmptyActivityDump()
-	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), dump.PROTOBUF); err != nil {
+	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), config.PROTOBUF); err != nil {
 		tb.Fatal(err)
 	}
 	return ad

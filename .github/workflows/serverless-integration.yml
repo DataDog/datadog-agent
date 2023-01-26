@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 14
-      
+
       - name: Install Serverless Framework
         run: sudo yarn global add serverless@^3.7.9 --prefix /usr/local
 
@@ -45,8 +45,13 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Run tests if AWS credentials are available
+        uses: nick-fields/retry@v2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }} 
-        run: ARCHITECTURE=${{ matrix.architecture }} ./test/integration/serverless/run.sh
-        working-directory: go/src/github.com/DataDog/datadog-agent
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
+        with:
+          timeout_minutes: 30
+          max_attempts: 2
+          command: |
+            cd go/src/github.com/DataDog/datadog-agent
+            ARCHITECTURE=${{ matrix.architecture }} ./test/integration/serverless/run.sh

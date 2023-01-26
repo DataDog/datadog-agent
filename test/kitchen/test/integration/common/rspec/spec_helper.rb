@@ -18,13 +18,17 @@ os_cache = nil
 # We retrieve the value defined in kitchen.yml because there is no simple way
 # to set env variables on the target machine or via parameters in Kitchen/Busser
 # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
-def get_agent_flavor
+def parse_dna
   if os == :windows
     dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
   else
     dna_json_path = "/tmp/kitchen/dna.json"
   end
-  JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('agent_flavor')
+  JSON.parse(IO.read(dna_json_path))
+end
+
+def get_agent_flavor
+  parse_dna().fetch('dd-agent-rspec').fetch('agent_flavor')
 end
 
 def get_service_name(flavor)
@@ -234,13 +238,16 @@ def integration_freeze
   end
 end
 
-def json_info
+def json_info(command)
   tmpfile = Tempfile.new('agent-status')
   begin
-    `#{agent_command} status -j -o #{tmpfile.path}`
+    `#{command} status -j -o #{tmpfile.path}`
     info_output = File.read(tmpfile.path)
 
     JSON.parse(info_output)
+  rescue Exception => e
+    puts $!
+    return {}
   ensure
     tmpfile.close
     tmpfile.unlink
@@ -297,11 +304,38 @@ def agent_processes_running?
   false
 end
 
+def security_agent_running?
+  %w(security-agent security-agent.exe).each do |p|
+    return true if is_process_running?(p)
+  end
+  false
+end
+
+def system_probe_running?
+  %w(system-probe system-probe.exe).each do |p|
+    return true if is_process_running?(p)
+  end
+  false
+end
+
+def process_agent_running?
+  %w(process-agent process-agent.exe).each do |p|
+    return true if is_process_running?(p)
+  end
+  false
+end
+
 def dogstatsd_processes_running?
   %w(dogstatsd dogstatsd.exe).each do |p|
       return true if is_process_running?(p)
   end
   false
+end
+
+def deploy_cws?
+  os != :windows &&
+  get_agent_flavor == 'datadog-agent' &&
+  parse_dna().fetch('dd-agent-rspec').fetch('enable_cws') == true
 end
 
 def read_agent_file(path, commit_hash)
@@ -340,13 +374,17 @@ def is_port_bound(port)
   end
 end
 
+def get_conf_file(conf_path)
+  if os == :windows
+    return "#{ENV['ProgramData']}\\Datadog\\#{conf_path}"
+  else
+    return "/etc/datadog-agent/#{conf_path}"
+  end
+end
 
-def read_conf_file
-    conf_path = ""
-    if os == :windows
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    else
-      conf_path = '/etc/datadog-agent/datadog.yaml'
+def read_conf_file(conf_path = "")
+    if conf_path == ""
+      conf_path = get_conf_file("datadog.yaml")
     end
     puts "cp is #{conf_path}"
     f = File.read(conf_path)
@@ -358,7 +396,7 @@ def fetch_python_version(timeout = 15)
   # Fetch the python_version from the Agent status
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    json_info_output = json_info
+    json_info_output = json_info(agent_command())
     if json_info_output.key?('python_version') &&
       ! json_info_output['python_version'].nil? && # nil is considered a correct version by Gem::Version
       Gem::Version.correct?(json_info_output['python_version']) # Check that we do have a version number
@@ -399,6 +437,9 @@ shared_examples_for 'Agent behavior' do
   it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
+  if deploy_cws?
+    it_behaves_like 'a running Agent with CWS enabled'
+  end
 end
 
 shared_examples_for 'Agent uninstall' do
@@ -424,12 +465,7 @@ shared_examples_for "an installed Agent" do
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:skip_windows_signing_check) {
-    if os == :windows
-      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
-    else
-      dna_json_path = "/tmp/kitchen/dna.json"
-    end
-    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
+    parse_dna().fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
   }
 
   it 'is properly signed' do
@@ -501,11 +537,7 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'has a config file' do
-    if os == :windows
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    else
-      conf_path = '/etc/datadog-agent/datadog.yaml'
-    end
+    conf_path = get_conf_file("datadog.yaml")
     expect(File).to exist(conf_path)
   end
 
@@ -514,7 +546,7 @@ shared_examples_for "a running Agent with no errors" do
     # Wait for the collector to do its first run
     # Timeout after 30 seconds
     for _ in 1..30 do
-      json_info_output = json_info
+      json_info_output = json_info(agent_command())
       if json_info_output.key?('runnerStats') &&
         json_info_output['runnerStats'].key?('Checks') &&
         !json_info_output['runnerStats']['Checks'].empty?
@@ -550,19 +582,27 @@ shared_examples_for "a running Agent with no errors" do
 end
 
 shared_examples_for "a running Agent with APM" do
+  if os == :windows
+    it 'has the apm agent running' do
+      expect(is_process_running?("trace-agent.exe")).to be_truthy
+      expect(is_service_running?("datadog-trace-agent")).to be_truthy
+    end
+  end
   it 'is bound to the port that receives traces by default' do
     expect(is_port_bound(8126)).to be_truthy
   end
 end
 
+shared_examples_for "a running Agent with process enabled" do
+  it 'has the process agent running' do
+    expect(is_process_running?("process-agent.exe")).to be_truthy
+    expect(is_service_running?("datadog-process-agent")).to be_truthy
+  end
+end
+
 shared_examples_for "a running Agent with APM manually disabled" do
   it 'is not bound to the port that receives traces when apm_enabled is set to false' do
-    conf_path = ""
-    if os != :windows
-      conf_path = "/etc/datadog-agent/datadog.yaml"
-    else
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    end
+    conf_path = get_conf_file("datadog.yaml")
 
     f = File.read(conf_path)
     confYaml = YAML.load(f)
@@ -644,12 +684,7 @@ end
 
 shared_examples_for 'an Agent with python3 enabled' do
   it 'restarts after python_version is set to 3' do
-    conf_path = ""
-    if os != :windows
-      conf_path = "/etc/datadog-agent/datadog.yaml"
-    else
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    end
+    conf_path = get_conf_file("datadog.yaml")
     f = File.read(conf_path)
     confYaml = YAML.load(f)
     confYaml["python_version"] = 3
@@ -670,12 +705,7 @@ shared_examples_for 'an Agent with python3 enabled' do
 
   it 'restarts after python_version is set back to 2' do
     skip if info.include? "v7."
-    conf_path = ""
-    if os != :windows
-      conf_path = "/etc/datadog-agent/datadog.yaml"
-    else
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    end
+    conf_path = get_conf_file("datadog.yaml")
     f = File.read(conf_path)
     confYaml = YAML.load(f)
     confYaml["python_version"] = 2
@@ -828,6 +858,11 @@ shared_examples_for 'an Agent that is removed' do
     if os == :windows
       expect(File).not_to exist("C:\\Program Files\\Datadog\\Datadog Agent\\")
     else
+      remaining_files = []
+      if Dir.exists?("/opt/datadog-agent")
+        Find.find('/opt/datadog-agent').each { |f| remaining_files.push(f) }
+      end
+      expect(remaining_files).to be_empty
       expect(File).not_to exist("/opt/datadog-agent/")
     end
   end
@@ -845,11 +880,6 @@ shared_examples_for 'an Agent with APM enabled' do
     expect(confYaml).to have_key("apm_config")
     expect(confYaml["apm_config"]).to have_key("enabled")
     expect(confYaml["apm_config"]["enabled"]).to be_truthy
-    expect(is_port_bound(8126)).to be_truthy
-  end
-  it 'has the apm agent running' do
-    expect(is_process_running?("trace-agent.exe")).to be_truthy
-    expect(is_service_running?("datadog-trace-agent")).to be_truthy
   end
 end
 
@@ -870,9 +900,39 @@ shared_examples_for 'an Agent with process enabled' do
     expect(confYaml["process_config"]["process_collection"]).to have_key("enabled")
     expect(confYaml["process_config"]["process_collection"]["enabled"]).to be_truthy
   end
-  it 'has the process agent running' do
-    expect(is_process_running?("process-agent.exe")).to be_truthy
-    expect(is_service_running?("datadog-process-agent")).to be_truthy
+end
+
+shared_examples_for 'a running Agent with CWS enabled' do
+  it 'has CWS enabled' do
+    enable_cws(get_conf_file("system-probe.yaml"), true)
+    enable_cws(get_conf_file("security-agent.yaml"), true)
+
+    output = restart "datadog-agent"
+    expect(output).to be_truthy
+  end
+
+  it 'has the security agent running' do
+    expect(security_agent_running?).to be_truthy
+    expect(is_service_running?("datadog-agent-security")).to be_truthy
+  end
+
+  it 'has system-probe running' do
+    expect(system_probe_running?).to be_truthy
+    expect(is_service_running?("datadog-agent-sysprobe")).to be_truthy
+  end
+
+  it 'has security-agent and system-probe communicating' do
+    for _ in 1..20 do
+      json_info_output = json_info("sudo /opt/datadog-agent/embedded/bin/security-agent")
+      if json_info_output.key?('runtimeSecurityStatus') &&
+        json_info_output['runtimeSecurityStatus'].key?('connected') &&
+        json_info_output['runtimeSecurityStatus']['connected']
+        result = true
+        break
+      end
+      sleep 3
+    end
+    expect(result).to be_truthy
   end
 end
 
@@ -881,12 +941,7 @@ shared_examples_for 'an upgraded Agent with the expected version' do
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:agent_expected_version) {
-    if os == :windows
-      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
-    else
-      dna_json_path = "/tmp/kitchen/dna.json"
-    end
-    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-upgrade-rspec').fetch('agent_expected_version')
+    parse_dna().fetch('dd-agent-upgrade-rspec').fetch('agent_expected_version')
   }
 
   it 'runs with the expected version (based on the `info` command output)' do
@@ -906,6 +961,21 @@ shared_examples_for 'an upgraded Agent with the expected version' do
   end
 end
 
+def enable_cws(conf_path, state)
+  begin
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    if !confYaml.key("runtime_security_config")
+      confYaml["runtime_security_config"] = {}
+    end
+    confYaml["runtime_security_config"]["enabled"] = state
+  rescue
+    confYaml = {'runtime_security_config' => {'enabled' => state}}
+  ensure
+    File.write(conf_path, confYaml.to_yaml)
+  end
+end
+
 def get_user_sid(uname)
   output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip
   output
@@ -918,43 +988,6 @@ def get_sddl_for_object(name)
   sddl
 end
 
-def equal_sddl?(left, right)
-  # First, split the sddl into the ownership (user and group), and the dacl
-  left_array = left.split("D:")
-  right_array = right.split("D:")
-
-  # compare the ownership & group.  Must be the same
-  if left_array[0] != right_array[0]
-    return false
-  end
-  left_dacl = left_array[1].scan(/(\([^)]*\))/)
-  right_dacl = right_array[1].scan(/(\([^)]*\))/)
-
-
-  # if they're different lengths, they're different
-  if left_dacl.length != right_dacl.length
-    return false
-  end
-
-  ## now need to break up the DACL list, because they may be listed in different
-  ## orders... the order doesn't matter but the components should be the same.  So..
-
-  left_dacl.each do |left_entry|
-    found = false
-    right_dacl.each do |right_entry|
-      if left_entry == right_entry
-        found = true
-        right_dacl.delete(right_entry)
-        break
-      end
-    end
-    if !found
-      return false
-    end
-  end
-  return false if right_dacl.length != 0
-  return true
-end
 def get_security_settings
   fname = "secout.txt"
   system "secedit /export /cfg  #{fname} /areas USER_RIGHTS"
@@ -1002,4 +1035,281 @@ def get_username_from_tasklist(exename)
   #username is fully qualified <domain>\username
   uname = output.split(' ')[7].partition('\\').last
   uname
+end
+
+if os == :windows
+  require 'English'
+
+  module SDDLHelper
+    @@ace_types = {
+      'A' => 'Access Allowed',
+      'D' => 'Access Denied',
+      'OA' => 'Object Access Allowed',
+      'OD' => 'Object Access Denied',
+      'AU' => 'System Audit',
+      'AL' => 'System Alarm',
+      'OU' => 'Object System Audit',
+      'OL' => 'Object System Alarm'
+    }
+
+    def self.ace_types
+      @@ace_types
+    end
+
+    @@ace_flags = {
+      'CI' => 'Container Inherit',
+      'OI' => 'Object Inherit',
+      'NP' => 'No Propagate',
+      'IO' => 'Inheritance Only',
+      'ID' => 'Inherited',
+      'SA' => 'Successful Access Audit',
+      'FA' => 'Failed Access Audit'
+    }
+
+    def self.ace_flags
+      @@ace_flags
+    end
+
+    @@permissions = {
+      'GA' => 'Generic All',
+      'GR' => 'Generic Read',
+      'GW' => 'Generic Write',
+      'GX' => 'Generic Execute',
+
+      'RC' => 'Read Permissions',
+      'SD' => 'Delete',
+      'WD' => 'Modify Permissions',
+      'WO' => 'Modify Owner',
+      'RP' => 'Read All Properties',
+      'WP' => 'Write All Properties',
+      'CC' => 'Create All Child Objects',
+      'DC' => 'Delete All Child Objects',
+      'LC' => 'List Contents',
+      'SW' => 'All Validated Writes',
+      'LO' => 'List Object',
+      'DT' => 'Delete Subtree',
+      'CR' => 'All Extended Rights',
+
+      'FA' => 'File All Access',
+      'FR' => 'File Generic Read',
+      'FW' => 'File Generic Write',
+      'FX' => 'File Generic Execute',
+
+      'KA' => 'Key All Access',
+      'KR' => 'Key Read',
+      'KW' => 'Key Write',
+      'KX' => 'Key Execute'
+    }
+
+    def self.permissions
+      @@permissions
+    end
+
+    @@trustee = {
+      'AO' => 'Account Operators',
+      'RU' => 'Alias to allow previous Windows 2000',
+      'AN' => 'Anonymous Logon',
+      'AU' => 'Authenticated Users',
+      'BA' => 'Built-in Administrators',
+      'BG' => 'Built in Guests',
+      'BO' => 'Backup Operators',
+      'BU' => 'Built-in Users',
+      'CA' => 'Certificate Server Administrators',
+      'CG' => 'Creator Group',
+      'CO' => 'Creator Owner',
+      'DA' => 'Domain Administrators',
+      'DC' => 'Domain Computers',
+      'DD' => 'Domain Controllers',
+      'DG' => 'Domain Guests',
+      'DU' => 'Domain Users',
+      'EA' => 'Enterprise Administrators',
+      'ED' => 'Enterprise Domain Controllers',
+      'WD' => 'Everyone',
+      'PA' => 'Group Policy Administrators',
+      'IU' => 'Interactively logged-on user',
+      'LA' => 'Local Administrator',
+      'LG' => 'Local Guest',
+      'LS' => 'Local Service Account',
+      'SY' => 'Local System',
+      'NU' => 'Network Logon User',
+      'NO' => 'Network Configuration Operators',
+      'NS' => 'Network Service Account',
+      'PO' => 'Printer Operators',
+      'PS' => 'Self',
+      'PU' => 'Power Users',
+      'RS' => 'RAS Servers group',
+      'RD' => 'Terminal Server Users',
+      'RE' => 'Replicator',
+      'RC' => 'Restricted Code',
+      'SA' => 'Schema Administrators',
+      'SO' => 'Server Operators',
+      'SU' => 'Service Logon User'
+    }
+
+    def self.trustee
+      @@trustee
+    end
+
+    def self.lookup_trustee(trustee)
+      if @@trustee[trustee].nil?
+        nt_account = `powershell -command "(New-Object System.Security.Principal.SecurityIdentifier('#{trustee}')).Translate([System.Security.Principal.NTAccount]).Value"`.strip
+        return nt_account if 0 == $CHILD_STATUS
+
+        # Can't lookup, just return value
+        return trustee
+      end
+
+      @@trustee[trustee]
+    end
+  end
+
+  class SDDL
+    def initialize(sddl_str)
+      sddl_str.scan(/(.):(.*?)(?=.:|$)/) do |m|
+        case m[0]
+        when 'D'
+          @dacls = []
+          m[1].scan(/(\((?<ace_type>.*?);(?<ace_flags>.*?);(?<permissions>.*?);(?<object_type>.*?);(?<inherited_object_type>.*?);(?<trustee>.*?)\))/) do |ace_type, ace_flags, permissions, object_type, inherited_object_type, trustee|
+            @dacls.append(DACL.new(ace_type, ace_flags, permissions, object_type, inherited_object_type, trustee))
+          end
+        when 'O'
+          @owner = m[1]
+        when 'G'
+          @group = m[1]
+        end
+      end
+    end
+
+    attr_reader :owner, :group, :dacls
+
+    def to_s
+      str  = "Owner: #{SDDLHelper.lookup_trustee(@owner)}\n"
+      str += "Group: #{SDDLHelper.lookup_trustee(@owner)}\n"
+      @dacls.each do |dacl|
+        str += dacl.to_s
+      end
+      str
+    end
+
+    def ==(other_sddl)
+      return false if
+        @owner != other_sddl.owner ||
+        @group != other_sddl.group ||
+        @dacls.length != other_sddl.dacls.length
+
+      @dacls.each do |d1|
+        if other_sddl.dacls.find { |d2| d1 == d2 }.eql? nil
+          return false
+        end
+      end
+
+      other_sddl.dacls.each do |d1|
+        if @dacls.find { |d2| d1 == d2 }.eql? nil
+          return false
+        end
+      end
+    end
+
+    def eql?(other_sddl)
+      self == other_sddl
+    end
+
+  end
+
+  class DACL
+    def initialize(ace_type, ace_flags, permissions, object_type, inherited_object_type, trustee)
+      @ace_type = ace_type
+      @ace_flags = ace_flags
+      @permissions = permissions
+      @object_type = object_type
+      @inherited_object_type = inherited_object_type
+      @trustee = trustee
+    end
+
+    attr_reader :ace_type, :ace_flags, :permissions, :object_type, :inherited_object_type, :trustee
+
+    def ==(other_dacl)
+      return false if other_dacl.eql? nil
+
+      @ace_type == other_dacl.ace_type &&
+      @ace_flags == other_dacl.ace_flags &&
+      @permissions == other_dacl.permissions &&
+      @object_type == other_dacl.object_type &&
+      @inherited_object_type == other_dacl.inherited_object_type &&
+      @trustee == other_dacl.trustee
+    end
+
+    def eql?(other_dacl)
+      self == other_dacl
+    end
+
+    def to_s
+      str = "  Trustee: #{SDDLHelper.lookup_trustee(@trustee)}\n"
+      str += "  Type: #{SDDLHelper.ace_types[@ace_type]}\n"
+      str += "  Permissions: \n    - #{break_flags(@permissions, SDDLHelper.permissions).join("\n    - ")}\n" if permissions != ''
+      str += "  Inheritance: \n    - #{break_flags(@ace_flags, SDDLHelper.ace_flags).join("\n    - ")}\n" if ace_flags != ''
+      str
+    end
+
+    private
+
+    def break_flags(flags, lookup_dict)
+      return [lookup_dict[flags]] if flags.length <= 2
+
+      idx = 0
+      flags_str = ''
+      flags_list = []
+      flags.each_char do |ch|
+        if idx.positive? && idx.even?
+          flags_list.append(lookup_dict[flags_str])
+          flags_str = ''
+        end
+        flags_str += ch
+        idx += 1
+      end
+      flags_list
+    end
+  end
+
+  RSpec::Matchers.define :have_sddl_equal_to do |expected|
+    def get_difference(actual, expected)
+      actual_sddl = SDDL.new(actual)
+      expected_sddl = SDDL.new(expected)
+
+      difference = ''
+      if expected_sddl.owner != actual_sddl.owner
+        difference += " => expected owner to be \"#{SDDLHelper.lookup_trustee(expected_sddl.owner)}\" but was \"#{SDDLHelper.lookup_trustee(actual_sddl.owner)}\"\n"
+      end
+      if expected_sddl.group != actual_sddl.group
+        difference += " => expected owner to be \"#{SDDLHelper.lookup_trustee(expected_sddl.owner)}\" but was \"#{SDDLHelper.lookup_trustee(actual_sddl.owner)}\"\n"
+      end
+
+      expected_sddl.dacls.each do |expected_dacl|
+        actual_dacl = actual_sddl.dacls.find { |d| expected_dacl == d }
+        if actual_dacl.eql? nil
+          difference += " => expected missing DACL\n#{expected_dacl}\n"
+        end
+      end
+
+      actual_sddl.dacls.each do |actual_dacl|
+        expected_dacl = expected_sddl.dacls.find { |d| actual_dacl == d }
+        if expected_dacl.eql? nil
+          difference += " => found unexpected DACL\n#{actual_dacl}\n"
+        end
+      end
+
+      difference
+    end
+
+    match do |actual|
+      actual_sddl = SDDL.new(actual)
+      expected_sddl = SDDL.new(expected)
+      return actual_sddl == expected_sddl
+    end
+
+    failure_message do |actual|
+      get_difference(actual, expected)
+    end
+  end
+
 end

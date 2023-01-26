@@ -86,10 +86,10 @@ func (s *Scheduler) Enter(check check.Check) error {
 	}
 
 	if check.Interval() < minAllowedInterval {
-		return fmt.Errorf("Schedule interval must be greater than %v or 0", minAllowedInterval)
+		return fmt.Errorf("schedule interval must be greater than %v or 0", minAllowedInterval)
 	}
 
-	log.Infof("Scheduling check %v with an interval of %v", check, check.Interval())
+	log.Infof("Scheduling check %s with an interval of %v", check.ID(), check.Interval())
 
 	// sync when accessing `jobQueues` and `check2queue`
 	s.mu.Lock()

@@ -35,8 +35,9 @@ func (b *bin) incrSafe(by int) int {
 
 // appendSafe appends 1 or more bins with the given key safely handing overflow by
 // inserting multiple buckets when needed.
-//   (1) n <= maxBinWidth :  1 bin
-//   (2) n > maxBinWidth  : >1 bin
+//
+//	(1) n <= maxBinWidth :  1 bin
+//	(2) n > maxBinWidth  : >1 bin
 func appendSafe(bins []bin, k Key, n int) []bin {
 	if n <= maxBinWidth {
 		return append(bins, bin{k: k, n: uint16(n)})

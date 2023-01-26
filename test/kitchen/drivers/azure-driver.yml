@@ -1,12 +1,21 @@
 <%
   ENV['AZURE_LOCATION'] ||= "North Central US"
   location = ENV['AZURE_LOCATION']
+
+  change_mount_dir = ENV['AZURE_KITCHEN_MOUNT_DIR']
+  ENV['AZURE_KITCHEN_MOUNT_DIR'] ||= "/mnt/kitchen"
+  mount_dir = ENV['AZURE_KITCHEN_MOUNT_DIR']
+
+  change_target_mount_dir = ENV['AZURE_KITCHEN_TARGET_MOUNT_DIR']
+  ENV['AZURE_KITCHEN_TARGET_MOUNT_DIR'] ||= "/tmp/kitchen"
+  target_mount_dir = ENV['AZURE_KITCHEN_TARGET_MOUNT_DIR']
 %>
 
 <%
   vm_tags = {
     'dd_agent_testing': 'dd_agent_testing'
   }
+  vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
   if ENV['DD_PIPELINE_ID']
     vm_tags['pipeline_id'] = ENV['DD_PIPELINE_ID']
   else
@@ -16,6 +25,9 @@
 
 provisioner:
   name: chef_solo
+  <% if change_target_mount_dir %>
+  root_path: <%= ENV['AZURE_KITCHEN_TARGET_MOUNT_DIR'] %>/kitchen
+  <% end %>
   product_name: chef
   # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
   <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
@@ -46,9 +58,13 @@ driver_config:
   custom_data: |
     #cloud-config
     runcmd:
-      - mkdir /mnt/kitchen
-      - chmod a+rwx /mnt/kitchen
-      - ln -s /mnt/kitchen /tmp/kitchen
+      - mkdir <%= mount_dir %>
+      - chmod -R a+rwx <%= mount_dir %>
+      - ln -s <%= mount_dir %> <%= target_mount_dir %>
+      <% if change_mount_dir %>
+      - mkdir <%= mount_dir %>/kitchen
+      - chown -R <%=  vm_username %>:<%= vm_username %> <%= target_mount_dir %>/kitchen
+      <% end %>
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
@@ -59,6 +75,7 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
 
     if ENV['TEST_IMAGE_SIZE'] != ""
       sizes = [
@@ -120,7 +137,6 @@ platforms:
       ed25519_platforms = []
       use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
 
-      vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
       vm_password = ENV['SERVER_PASSWORD']
 
 %>
@@ -128,6 +144,8 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    dd-agent-rspec:
+      enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
     <% end %>
@@ -159,6 +177,17 @@ platforms:
       <% end %>
     username: <%= vm_username %>
     password: <%= vm_password %>
+
+  lifecycle:
+    # HACK: this is needed to install rexml for system-probe tests without using bundler, which cannot be used for now
+    # (see the explanation in tasks/run-test-kitchen.sh).
+    pre_verify:
+      - local: echo 'Installing rexml gem for the system-probe-test suite'
+      <% if windows %>
+      - remote: C:/opscode/chef/embedded/bin/gem.bat install rexml --install-dir C:/Users/<%= vm_username %>/AppData/Local/Temp/verifier/gems
+      <% else %>
+      - remote: /opt/chef/embedded/bin/gem install rexml --install-dir /tmp/verifier/gems
+      <% end %>
 
   transport:
     <% if windows %>

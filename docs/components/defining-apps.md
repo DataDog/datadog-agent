@@ -165,7 +165,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
             cliParams.args = args
             return fxutil.OneShot(run,
                 fx.Supply(cliParams),
-                fx.Supply(core.BundleParams{}),
+                fx.Supply(core.CreateaBundleParams()),
                 core.Bundle,
                 ..., // any other bundles needed for this app
             )

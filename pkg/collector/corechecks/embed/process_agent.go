@@ -144,7 +144,7 @@ func (c *ProcessAgentCheck) run() error {
 }
 
 // Configure the ProcessAgentCheck
-func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *ProcessAgentCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// only log whether process check is enabled or not but don't return early, because we still need to initialize "binPath", "source" and
 	// start up process-agent. Ultimately it's up to process-agent to decide whether to run or not based on the config
 	if enabled := config.Datadog.GetBool("process_config.process_collection.enabled"); !enabled {

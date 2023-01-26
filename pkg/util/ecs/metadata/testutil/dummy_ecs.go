@@ -7,10 +7,10 @@ package testutil
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strconv"
 )
 
@@ -54,7 +54,7 @@ func NewDummyECS(ops ...Option) (*DummyECS, error) {
 		o(d)
 	}
 	for pattern, testDataPath := range d.fileHandlers {
-		raw, err := ioutil.ReadFile(testDataPath)
+		raw, err := os.ReadFile(testDataPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to register handler for pattern %s: could not read test data file with path %s", pattern, testDataPath)
 		}

@@ -27,6 +27,16 @@ func init() {
 	registerCheck("proc mount", procMount, map[AgentType]struct{}{CoreAgent: {}, ProcessAgent: {}})
 }
 
+func isHidepid2Set(mountsOptsLookup map[string]struct{}) (setting string, isSet bool) {
+	if _, hidepid2Set := mountsOptsLookup["hidepid=2"]; hidepid2Set {
+		return "hidepid=2", true
+	}
+	if _, hidepidInvisibleSet := mountsOptsLookup["hidepid=invisible"]; hidepidInvisibleSet {
+		return "hidepid=invisible", true
+	}
+	return "", false
+}
+
 func procMount() error {
 
 	if os.Geteuid() == 0 {
@@ -91,9 +101,10 @@ func checkProcMountHidePid(path string, uid int, groups []int) error {
 			mountOptsLookup[opt] = struct{}{}
 		}
 
-		if _, ok := mountOptsLookup["hidepid=2"]; !ok {
+		hidepidSetting, hidepid2Set := isHidepid2Set(mountOptsLookup)
+		if !hidepid2Set {
 			// hidepid is not set, no further checks necessary
-			log.Tracef("Proc mounts hidepid=2 option is not set")
+			log.Tracef("Proc mounts hidepid=2 or hidepid=invisible option is not set")
 			return nil
 		}
 
@@ -107,13 +118,13 @@ func checkProcMountHidePid(path string, uid int, groups []int) error {
 			gidList = append(gidList, strconv.Itoa(gid))
 			if _, ok := mountOptsLookup[gidOpt]; ok {
 				// While hidepid=2 is set, one of the groups is enabled
-				log.Tracef("Proc mounts hidepid=2 with %s - proc fs inspection is enabled", gidOpt)
+				log.Tracef("Proc mounts %s with %s - proc fs inspection is enabled", hidepidSetting, gidOpt)
 				return nil
 			}
 		}
 
-		return fmt.Errorf("hidepid=2 option detected in %s (options=%s) - proc fs inspection may not work (uid=%d, groups=[%s])",
-			path, fields[3], uid, strings.Join(gidList, ","))
+		return fmt.Errorf("%s option detected in %s (options=%s) - proc fs inspection may not work (uid=%d, groups=[%s])",
+			hidepidSetting, path, fields[3], uid, strings.Join(gidList, ","))
 	}
 
 	return errors.Wrapf(scanner.Err(), "failed to scan %s", path)

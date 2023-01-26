@@ -49,6 +49,7 @@ class FailedJobReason(Enum):
     FAILED_JOB_SCRIPT = 5
     GITLAB = 6
     KITCHEN = 7
+    EC2_SPOT = 8
 
 
 class SlackMessage:

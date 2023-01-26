@@ -133,7 +133,7 @@ func newTestOnDiskRetryQueue(a *assert.Assertions, path string, maxSizeInBytes i
 			Total:     10000,
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 1)
-	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry, NewPointDroppedSenderMock())
+	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry, NewPointCountTelemetryMock())
 	a.NoError(err)
 	return storage
 }

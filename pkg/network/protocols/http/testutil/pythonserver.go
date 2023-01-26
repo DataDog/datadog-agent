@@ -8,8 +8,6 @@ package testutil
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -17,6 +15,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -82,7 +82,7 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) (func(), error
 }
 
 func writeTempFile(pattern string, content string) (*os.File, error) {
-	f, err := ioutil.TempFile("", pattern)
+	f, err := os.CreateTemp("", pattern)
 	if err != nil {
 		return nil, err
 	}

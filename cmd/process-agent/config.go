@@ -17,15 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAccessContainers bool) (checkCfg []checks.Check) {
+func getChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []checks.Check) {
 	rtChecksEnabled := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
-		checkCfg = append(checkCfg, checks.Process)
+		checkCfg = append(checkCfg, checks.NewProcessCheck())
 	} else {
 		if ddconfig.Datadog.GetBool("process_config.container_collection.enabled") && canAccessContainers {
-			checkCfg = append(checkCfg, checks.Container)
+			checkCfg = append(checkCfg, checks.NewContainerCheck())
 			if rtChecksEnabled {
-				checkCfg = append(checkCfg, checks.RTContainer)
+				checkCfg = append(checkCfg, checks.NewRTContainerCheck())
 			}
 		} else if !canAccessContainers {
 			_ = log.Warn("Disabled container check because no container environment detected (see list of detected features in `agent status`)")
@@ -35,34 +35,40 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 			if ddconfig.IsECSFargate() {
 				log.Debug("Process discovery is not supported on ECS Fargate")
 			} else {
-				checkCfg = append(checkCfg, checks.ProcessDiscovery)
+				checkCfg = append(checkCfg, checks.NewProcessDiscoveryCheck())
 			}
 		}
 	}
 
 	if ddconfig.Datadog.GetBool("process_config.event_collection.enabled") {
-		checkCfg = append(checkCfg, checks.ProcessEvents)
+		checkCfg = append(checkCfg, checks.NewProcessEventsCheck())
 	}
 
-	// activate the pod collection if enabled and we have the cluster name set
-	if oCfg.OrchestrationCollectionEnabled {
-		if oCfg.KubeClusterName != "" {
-			checkCfg = append(checkCfg, checks.Pod)
-		} else {
-			_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
-		}
+	if isOrchestratorCheckEnabled() {
+		checkCfg = append(checkCfg, checks.NewPodCheck())
 	}
 
 	if sysCfg.Enabled {
-		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-		_, checks.Process.SysprobeProcessModuleEnabled = sysCfg.EnabledModules[sysconfig.ProcessModule]
-
 		if _, ok := sysCfg.EnabledModules[sysconfig.NetworkTracerModule]; ok {
-			checkCfg = append(checkCfg, checks.Connections)
+			checkCfg = append(checkCfg, checks.NewConnectionsCheck())
 		}
 	}
 
 	return
+}
+
+func isOrchestratorCheckEnabled() bool {
+	// activate the pod collection if enabled and we have the cluster name set
+	orchestratorEnabled, kubeClusterName := oconfig.IsOrchestratorEnabled()
+	if !orchestratorEnabled {
+		return false
+	}
+
+	if kubeClusterName == "" {
+		_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		return false
+	}
+	return true
 }
 
 func getAPIEndpoints() (eps []apicfg.Endpoint, err error) {

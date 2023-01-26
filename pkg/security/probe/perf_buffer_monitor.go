@@ -15,6 +15,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -50,10 +51,13 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 }
 
 // PerfBufferMonitor holds statistics about the number of lost and received events
+//
 //nolint:structcheck,unused
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
-	probe *Probe
+	probe        *Probe
+	config       *config.Config
+	statsdClient statsd.ClientInterface
 	// numCPU holds the current count of CPU
 	numCPU int
 	// perfBufferStatsMaps holds the pointers to the statistics kernel maps
@@ -87,6 +91,8 @@ type PerfBufferMonitor struct {
 func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
+		config:              p.Config,
+		statsdClient:        p.StatsdClient,
 		perfBufferStatsMaps: make(map[string]*lib.Map),
 		perfBufferSize:      make(map[string]float64),
 
@@ -113,7 +119,7 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 
 	// Select perf buffer statistics maps
 	for perfMapName, statsMapName := range pbm.perfBufferMapNameToStatsMapsName {
-		stats, ok, err := p.manager.GetMap(statsMapName)
+		stats, ok, err := p.Manager.GetMap(statsMapName)
 		if !ok {
 			return nil, fmt.Errorf("map %s not found", statsMapName)
 		}
@@ -130,12 +136,12 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 		}
 	}
 
-	maps := make(map[string]int, len(p.manager.PerfMaps)+len(p.manager.RingBuffers))
-	for _, pm := range p.manager.PerfMaps {
+	maps := make(map[string]int, len(p.Manager.PerfMaps)+len(p.Manager.RingBuffers))
+	for _, pm := range p.Manager.PerfMaps {
 		maps[pm.Name] = pm.PerfRingBufferSize
 	}
 
-	for _, rb := range p.manager.RingBuffers {
+	for _, rb := range p.Manager.RingBuffers {
 		maps[rb.Name] = rb.RingBufferSize
 	}
 
@@ -380,7 +386,7 @@ func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp ui
 func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
 	var count int64
 	var err error
-	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
+	tags := []string{pbm.config.StatsTagsCardinality, "", ""}
 
 	for m := range pbm.stats {
 		tags[1] = fmt.Sprintf("map:%s", m)
@@ -402,7 +408,7 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientIn
 				}
 
 				if count = pbm.getAndResetSortingErrorCount(evtType, m); count > 0 {
-					if err = pbm.probe.statsdClient.Count(metrics.MetricPerfBufferSortingError, count, tags, 1.0); err != nil {
+					if err = pbm.statsdClient.Count(metrics.MetricPerfBufferSortingError, count, tags, 1.0); err != nil {
 						return err
 					}
 				}
@@ -413,7 +419,7 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientIn
 }
 
 func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterface) error {
-	tags := []string{pbm.probe.config.StatsTagsCardinality, ""}
+	tags := []string{pbm.config.StatsTagsCardinality, ""}
 
 	for m := range pbm.readLostEvents {
 		var total float64
@@ -450,7 +456,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 		cpuStats[i] = NewPerfMapStats()
 	}
 
-	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
+	tags := []string{pbm.config.StatsTagsCardinality, "", ""}
 
 	// loop through the statistics buffers of each perf map
 	for perfMapName, statsMap := range pbm.perfBufferStatsMaps {
@@ -522,7 +528,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 			)
 
 			// snapshot traced cgroups if a CgroupTracing event was lost
-			if pbm.probe.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
+			if pbm.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
 				pbm.probe.monitor.activityDumpManager.snapshotTracedCgroups()
 			}
 		}
@@ -554,7 +560,7 @@ func (pbm *PerfBufferMonitor) sendKernelStats(client statsd.ClientInterface, sta
 
 // SendStats send event stats using the provided statsd client
 func (pbm *PerfBufferMonitor) SendStats() error {
-	if err := pbm.collectAndSendKernelStats(pbm.probe.statsdClient); err != nil {
+	if err := pbm.collectAndSendKernelStats(pbm.statsdClient); err != nil {
 		return err
 	}
 
@@ -562,9 +568,9 @@ func (pbm *PerfBufferMonitor) SendStats() error {
 		pbm.probe.resolvers.DentryResolver.BumpCacheGenerations()
 	}
 
-	if err := pbm.sendEventsAndBytesReadStats(pbm.probe.statsdClient); err != nil {
+	if err := pbm.sendEventsAndBytesReadStats(pbm.statsdClient); err != nil {
 		return err
 	}
 
-	return pbm.sendLostEventsReadStats(pbm.probe.statsdClient)
+	return pbm.sendLostEventsReadStats(pbm.statsdClient)
 }

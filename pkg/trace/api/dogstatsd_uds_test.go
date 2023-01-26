@@ -10,7 +10,7 @@ package api
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -48,7 +48,7 @@ func TestDogStatsDReverseProxyEndToEndUDS(t *testing.T) {
 	defer server.Close()
 
 	// Test metrics
-	body := ioutil.NopCloser(bytes.NewBufferString("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	body := io.NopCloser(bytes.NewBufferString("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }

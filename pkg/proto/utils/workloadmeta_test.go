@@ -17,18 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func TestProtobufEventFromWorkloadmetaEvent(t *testing.T) {
-	createdAt := time.Now()
+// This function tests both the function that converts a workloadmeta.Event into
+// protobuf and the one that converts the protobuf into workloadmeta.Event. This
+// is to avoid duplicating all the events and protobufs in 2 functions.
+func TestConversions(t *testing.T) {
+	createdAt := time.Unix(1669071600, 0)
 
 	tests := []struct {
-		name             string
-		event            workloadmeta.Event
-		expectedProtobuf *pb.WorkloadmetaEvent
-		expectsError     bool
+		name                   string
+		workloadmetaEvent      workloadmeta.Event
+		protoWorkloadmetaEvent *pb.WorkloadmetaEvent
+		expectsError           bool
 	}{
 		{
 			name: "event with a container",
-			event: workloadmeta.Event{
+			workloadmetaEvent: workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.Container{
 					EntityID: workloadmeta.EntityID{
@@ -82,7 +85,7 @@ func TestProtobufEventFromWorkloadmetaEvent(t *testing.T) {
 					},
 				},
 			},
-			expectedProtobuf: &pb.WorkloadmetaEvent{
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
 				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
 				Container: &pb.Container{
 					EntityId: &pb.WorkloadmetaEntityId{
@@ -140,7 +143,7 @@ func TestProtobufEventFromWorkloadmetaEvent(t *testing.T) {
 		},
 		{
 			name: "event with a Kubernetes pod",
-			event: workloadmeta.Event{
+			workloadmetaEvent: workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesPod{
 					EntityID: workloadmeta.EntityID{
@@ -193,7 +196,7 @@ func TestProtobufEventFromWorkloadmetaEvent(t *testing.T) {
 					},
 				},
 			},
-			expectedProtobuf: &pb.WorkloadmetaEvent{
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
 				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
 				KubernetesPod: &pb.KubernetesPod{
 					EntityId: &pb.WorkloadmetaEntityId{
@@ -250,7 +253,7 @@ func TestProtobufEventFromWorkloadmetaEvent(t *testing.T) {
 		},
 		{
 			name: "event with an ECS task",
-			event: workloadmeta.Event{
+			workloadmetaEvent: workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.ECSTask{
 					EntityID: workloadmeta.EntityID{
@@ -294,7 +297,7 @@ func TestProtobufEventFromWorkloadmetaEvent(t *testing.T) {
 					},
 				},
 			},
-			expectedProtobuf: &pb.WorkloadmetaEvent{
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
 				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
 				EcsTask: &pb.ECSTask{
 					EntityId: &pb.WorkloadmetaEntityId{
@@ -342,9 +345,13 @@ func TestProtobufEventFromWorkloadmetaEvent(t *testing.T) {
 		},
 		{
 			name: "invalid event",
-			event: workloadmeta.Event{
+			workloadmetaEvent: workloadmeta.Event{
 				Type:   -1, // invalid
 				Entity: &workloadmeta.Container{},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type:      -1, // invalid
+				Container: &pb.Container{},
 			},
 			expectsError: true,
 		},
@@ -352,13 +359,21 @@ func TestProtobufEventFromWorkloadmetaEvent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			resultProtobuf, err := ProtobufEventFromWorkloadmetaEvent(test.event)
+			resultProtobuf, err := ProtobufEventFromWorkloadmetaEvent(test.workloadmetaEvent)
 
 			if test.expectsError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.True(t, proto.Equal(resultProtobuf, test.expectedProtobuf))
+				assert.True(t, proto.Equal(resultProtobuf, test.protoWorkloadmetaEvent))
+			}
+
+			resultWorkloadmetaEvent, err := WorkloadmetaEventFromProtoEvent(test.protoWorkloadmetaEvent)
+			if test.expectsError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.workloadmetaEvent, resultWorkloadmetaEvent)
 			}
 		})
 	}

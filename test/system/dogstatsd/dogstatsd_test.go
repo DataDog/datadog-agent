@@ -9,7 +9,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +52,7 @@ func (d *dogstatsdTest) setup(t *testing.T) {
 
 	// start fake backend
 	d.ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err, "Could not read request Body")
 
 		d.m.Lock()
@@ -67,8 +67,8 @@ func (d *dogstatsdTest) setup(t *testing.T) {
 
 	// write temp conf
 	content := []byte("dd_url: " + d.ts.URL + "\napi_key: dummy\n")
-	tmpConf := filepath.Join(dir, "datadog.yaml")
-	err := ioutil.WriteFile(tmpConf, content, 0666)
+	tmpConf := filepath.Join(d.tmpDir, "datadog.yaml")
+	err := os.WriteFile(tmpConf, content, 0666)
 	require.NoError(t, err, "Could not write temp conf")
 
 	// start dogstatsd

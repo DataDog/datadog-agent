@@ -108,7 +108,7 @@ type checkInitCfg struct {
 	JavaOptions    string   `yaml:"java_options,omitempty"`
 }
 
-// Monitor TODO <agent-core> : IML-199
+// Monitor monitors this JMXFetch instance, waiting for JMX to stop. Gracefully handles restarting the JMXFetch process.
 func (j *JMXFetch) Monitor() {
 	limiter := newRestartLimiter(config.Datadog.GetInt("jmx_max_restarts"), float64(config.Datadog.GetInt("jmx_restart_interval")))
 	ticker := time.NewTicker(500 * time.Millisecond)

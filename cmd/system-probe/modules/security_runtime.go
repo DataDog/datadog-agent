@@ -18,11 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
-	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
-)
-
 // SecurityRuntime - Security runtime Factory
 var SecurityRuntime = module.Factory{
 	Name:             config.SecurityRuntimeModule,
@@ -33,7 +28,7 @@ var SecurityRuntime = module.Factory{
 			return nil, fmt.Errorf("invalid security runtime module configuration: %w", err)
 		}
 
-		m, err := secmodule.NewModule(config)
+		m, err := secmodule.NewModule(config, secmodule.Opts{})
 		if err == ebpf.ErrNotImplemented {
 			log.Info("Datadog runtime security agent is only supported on Linux")
 			return nil, module.ErrNotEnabled

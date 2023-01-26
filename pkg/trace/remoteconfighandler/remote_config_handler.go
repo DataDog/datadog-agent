@@ -7,27 +7,15 @@ package remoteconfighandler
 
 import (
 	"encoding/json"
-	"fmt"
-	"regexp"
-
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-)
-
-type apmsamplingRemoteConfigID string
-
-const (
-	dynamicRatesByService     apmsamplingRemoteConfigID = "dynamic_rates"
-	userDefinedRatesByService apmsamplingRemoteConfigID = "user_rates"
-	samplerconfig             apmsamplingRemoteConfigID = "samplerconfig"
+	"github.com/davecgh/go-spew/spew"
 )
 
 type prioritySampler interface {
 	UpdateTargetTPS(targetTPS float64)
-	UpdateRemoteRates(updates []sampler.RemoteRateUpdate)
 }
 
 type errorsSampler interface {
@@ -40,12 +28,11 @@ type rareSampler interface {
 
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
-	remoteClient          config.RemoteClient
-	prioritySampler       prioritySampler
-	errorsSampler         errorsSampler
-	rareSampler           rareSampler
-	agentConfig           *config.AgentConfig
-	remoteConfigPathRegex *regexp.Regexp
+	remoteClient    config.RemoteClient
+	prioritySampler prioritySampler
+	errorsSampler   errorsSampler
+	rareSampler     rareSampler
+	agentConfig     *config.AgentConfig
 }
 
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
@@ -53,16 +40,12 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		return nil
 	}
 
-	// paths are in the form datadog/<org ID>/<product name>/<config ID>/config
-	r := regexp.MustCompile(`datadog\/\d+\/APM_SAMPLING\/(.+)\/config`)
-
 	return &RemoteConfigHandler{
-		remoteClient:          conf.RemoteSamplingClient,
-		prioritySampler:       prioritySampler,
-		rareSampler:           rareSampler,
-		errorsSampler:         errorsSampler,
-		agentConfig:           conf,
-		remoteConfigPathRegex: r,
+		remoteClient:    conf.RemoteSamplingClient,
+		prioritySampler: prioritySampler,
+		rareSampler:     rareSampler,
+		errorsSampler:   errorsSampler,
+		agentConfig:     conf,
 	}
 }
 
@@ -76,67 +59,27 @@ func (h *RemoteConfigHandler) Start() {
 }
 
 func (h *RemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig) {
-	remoteRateUpdates, samplerconfigPayload, err := h.extractUpdatePayloads(update)
-	if err != nil {
-		log.Error(err)
+	if len(update) == 0 {
+		log.Debugf("no samplers configuration in remote config update payload")
 		return
 	}
 
-	if len(remoteRateUpdates) != 0 {
-		log.Debugf("updating remote rates with updates: %v", remoteRateUpdates)
-		h.prioritySampler.UpdateRemoteRates(remoteRateUpdates)
+	if len(update) > 1 {
+		log.Errorf("samplers remote config payload contains %v configurations, but it should contain at most one", len(update))
+		return
 	}
 
-	if samplerconfigPayload != nil {
-		log.Debugf("updating samplers with remote configuration: %v", samplerconfigPayload)
-		h.updateSamplers(*samplerconfigPayload)
-	}
-}
-
-func (h *RemoteConfigHandler) extractUpdatePayloads(update map[string]state.APMSamplingConfig) ([]sampler.RemoteRateUpdate, *apmsampling.SamplerConfig, error) {
-	var remoteRateUpdates []sampler.RemoteRateUpdate
-	var samplerconfigPayload *apmsampling.SamplerConfig
-	for path, conf := range update {
-		configID, err := h.configPathToID(path)
+	var samplerconfigPayload apmsampling.SamplerConfig
+	for _, v := range update {
+		err := json.Unmarshal(v.Config, &samplerconfigPayload)
 		if err != nil {
-			return []sampler.RemoteRateUpdate{}, nil, err
-		}
-
-		switch configID {
-		case dynamicRatesByService, userDefinedRatesByService:
-			var payload apmsampling.APMSampling
-			_, err := payload.UnmarshalMsg(conf.Config)
-			if err != nil {
-				return []sampler.RemoteRateUpdate{}, nil, fmt.Errorf("failed to unmarshal APMSampling remote config envPayload: %w", err)
-			}
-			remoteRateUpdates = append(remoteRateUpdates, sampler.RemoteRateUpdate{Version: conf.Metadata.Version, Config: payload})
-		case samplerconfig:
-			samplerconfigPayload = &apmsampling.SamplerConfig{}
-			err = json.Unmarshal(conf.Config, samplerconfigPayload)
-			if err != nil {
-				return []sampler.RemoteRateUpdate{}, nil, fmt.Errorf("failed to unmarshal SamplerConfig remote config envPayload: %w", err)
-			}
+			log.Error(err)
+			return
 		}
 	}
-	return remoteRateUpdates, samplerconfigPayload, nil
-}
 
-func (h *RemoteConfigHandler) configPathToID(path string) (apmsamplingRemoteConfigID, error) {
-	pathMatch := h.remoteConfigPathRegex.FindStringSubmatch(path)
-	if pathMatch == nil {
-		return "", fmt.Errorf("failed to match remote config path %s", path)
-	}
-
-	switch pathMatch[1] {
-	case string(dynamicRatesByService):
-		return dynamicRatesByService, nil
-	case string(userDefinedRatesByService):
-		return userDefinedRatesByService, nil
-	case string(samplerconfig):
-		return samplerconfig, nil
-	default:
-		return "", fmt.Errorf("unexpected remote config ID: %s", pathMatch[1])
-	}
+	log.Debugf("updating samplers with remote configuration: %v", spew.Sdump(samplerconfigPayload))
+	h.updateSamplers(samplerconfigPayload)
 }
 
 func (h *RemoteConfigHandler) updateSamplers(config apmsampling.SamplerConfig) {

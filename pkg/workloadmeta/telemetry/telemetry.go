@@ -66,4 +66,35 @@ var (
 		"Number of notifications sent by workloadmeta to its subscribers",
 		commonOpts,
 	)
+
+	// RemoteClientErrors tracks the number of errors on the remote workloadmeta
+	// client while receiving events.
+	RemoteClientErrors = telemetry.NewCounterWithOpts(
+		subsystem,
+		"remote_client_errors",
+		[]string{},
+		"Number of errors on the remote workloadmeta client while receiving events",
+		commonOpts,
+	)
+
+	// RemoteServerErrors track the number of errors on the remote workloadmeta
+	// server while streaming events.
+	RemoteServerErrors = telemetry.NewCounterWithOpts(
+		subsystem,
+		"remote_server_errors",
+		[]string{},
+		"Number of errors on the remote workloadmeta server while streaming events",
+		commonOpts,
+	)
+
+	// SBOMGenerationDuration measures the time that it takes to generate SBOMs
+	// in seconds.
+	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
+		subsystem,
+		"sbom_generation_duration",
+		[]string{},
+		"SBOM generation duration (in seconds)",
+		[]float64{10, 30, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600},
+		commonOpts,
+	)
 )

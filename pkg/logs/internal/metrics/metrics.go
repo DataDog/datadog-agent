@@ -59,7 +59,8 @@ var (
 	// DestinationExpVars a map of sender utilization metrics for each http destination
 	DestinationExpVars = expvar.Map{}
 	// TODO: Add LogsCollected for the total number of collected logs.
-
+	DestinationHttpRespByStatusAndUrl    = expvar.Map{}
+	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 )
 
 func init() {

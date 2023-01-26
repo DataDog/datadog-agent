@@ -42,120 +42,132 @@ func fixtureProfileDefinitionMap() profileDefinitionMap {
 		},
 		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
-	return profileDefinitionMap{"f5-big-ip": profileDefinition{
-		Metrics:      metrics,
-		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-		Device:       DeviceMeta{Vendor: "f5"},
-		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
-		StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
-		MetricTags: []MetricTagConfig{
-			{
-				OID:     "1.3.6.1.2.1.1.5.0",
-				Name:    "sysName",
-				Match:   "(\\w)(\\w+)",
-				pattern: regexp.MustCompile("(\\w)(\\w+)"),
-				Tags: map[string]string{
-					"some_tag": "some_tag_value",
-					"prefix":   "\\1",
-					"suffix":   "\\2",
-				},
-			},
-			{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-		},
-		Metadata: MetadataConfig{
-			"device": {
-				Fields: map[string]MetadataField{
-					"vendor": {
-						Value: "f5",
-					},
-					"description": {
-						Symbol: SymbolConfig{
-							OID:  "1.3.6.1.2.1.1.1.0",
-							Name: "sysDescr",
-						},
-					},
-					"name": {
-						Symbol: SymbolConfig{
-							OID:  "1.3.6.1.2.1.1.5.0",
-							Name: "sysName",
-						},
-					},
-					"serial_number": {
-						Symbol: SymbolConfig{
-							OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
-							Name: "sysGeneralChassisSerialNum",
-						},
-					},
-					"sys_object_id": {
-						Symbol: SymbolConfig{
-							OID:  "1.3.6.1.2.1.1.2.0",
-							Name: "sysObjectID",
-						},
+	return profileDefinitionMap{
+		"f5-big-ip": profileDefinition{
+			Metrics:      metrics,
+			Extends:      []string{"_base.yaml", "_generic-if.yaml"},
+			Device:       DeviceMeta{Vendor: "f5"},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+			StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
+			MetricTags: []MetricTagConfig{
+				{
+					OID:     "1.3.6.1.2.1.1.5.0",
+					Name:    "sysName",
+					Match:   "(\\w)(\\w+)",
+					pattern: regexp.MustCompile("(\\w)(\\w+)"),
+					Tags: map[string]string{
+						"some_tag": "some_tag_value",
+						"prefix":   "\\1",
+						"suffix":   "\\2",
 					},
 				},
+				{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 			},
-			"interface": {
-				Fields: map[string]MetadataField{
-					"admin_status": {
-						Symbol: SymbolConfig{
+			Metadata: MetadataConfig{
+				"device": {
+					Fields: map[string]MetadataField{
+						"vendor": {
+							Value: "f5",
+						},
+						"description": {
+							Symbol: SymbolConfig{
+								OID:  "1.3.6.1.2.1.1.1.0",
+								Name: "sysDescr",
+							},
+						},
+						"name": {
+							Symbol: SymbolConfig{
+								OID:  "1.3.6.1.2.1.1.5.0",
+								Name: "sysName",
+							},
+						},
+						"serial_number": {
+							Symbol: SymbolConfig{
+								OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
+								Name: "sysGeneralChassisSerialNum",
+							},
+						},
+						"sys_object_id": {
+							Symbol: SymbolConfig{
+								OID:  "1.3.6.1.2.1.1.2.0",
+								Name: "sysObjectID",
+							},
+						},
+					},
+				},
+				"interface": {
+					Fields: map[string]MetadataField{
+						"admin_status": {
+							Symbol: SymbolConfig{
 
-							OID:  "1.3.6.1.2.1.2.2.1.7",
-							Name: "ifAdminStatus",
+								OID:  "1.3.6.1.2.1.2.2.1.7",
+								Name: "ifAdminStatus",
+							},
+						},
+						"alias": {
+							Symbol: SymbolConfig{
+								OID:  "1.3.6.1.2.1.31.1.1.1.18",
+								Name: "ifAlias",
+							},
+						},
+						"description": {
+							Symbol: SymbolConfig{
+								OID:                  "1.3.6.1.2.1.31.1.1.1.1",
+								Name:                 "ifName",
+								ExtractValue:         "(Row\\d)",
+								ExtractValueCompiled: regexp.MustCompile("(Row\\d)"),
+							},
+						},
+						"mac_address": {
+							Symbol: SymbolConfig{
+								OID:    "1.3.6.1.2.1.2.2.1.6",
+								Name:   "ifPhysAddress",
+								Format: "mac_address",
+							},
+						},
+						"name": {
+							Symbol: SymbolConfig{
+								OID:  "1.3.6.1.2.1.31.1.1.1.1",
+								Name: "ifName",
+							},
+						},
+						"oper_status": {
+							Symbol: SymbolConfig{
+								OID:  "1.3.6.1.2.1.2.2.1.8",
+								Name: "ifOperStatus",
+							},
 						},
 					},
-					"alias": {
-						Symbol: SymbolConfig{
-							OID:  "1.3.6.1.2.1.31.1.1.1.18",
-							Name: "ifAlias",
+					IDTags: MetricTagConfigList{
+						{
+							Tag: "custom-tag",
+							Column: SymbolConfig{
+								OID:  "1.3.6.1.2.1.31.1.1.1.1",
+								Name: "ifAlias",
+							},
 						},
-					},
-					"description": {
-						Symbol: SymbolConfig{
-							OID:                  "1.3.6.1.2.1.31.1.1.1.1",
-							Name:                 "ifName",
-							ExtractValue:         "(Row\\d)",
-							ExtractValueCompiled: regexp.MustCompile("(Row\\d)"),
-						},
-					},
-					"mac_address": {
-						Symbol: SymbolConfig{
-							OID:    "1.3.6.1.2.1.2.2.1.6",
-							Name:   "ifPhysAddress",
-							Format: "mac_address",
-						},
-					},
-					"name": {
-						Symbol: SymbolConfig{
-							OID:  "1.3.6.1.2.1.31.1.1.1.1",
-							Name: "ifName",
-						},
-					},
-					"oper_status": {
-						Symbol: SymbolConfig{
-							OID:  "1.3.6.1.2.1.2.2.1.8",
-							Name: "ifOperStatus",
-						},
-					},
-				},
-				IDTags: MetricTagConfigList{
-					{
-						Tag: "custom-tag",
-						Column: SymbolConfig{
-							OID:  "1.3.6.1.2.1.31.1.1.1.1",
-							Name: "ifAlias",
-						},
-					},
-					{
-						Tag: "interface",
-						Column: SymbolConfig{
-							OID:  "1.3.6.1.2.1.31.1.1.1.1",
-							Name: "ifName",
+						{
+							Tag: "interface",
+							Column: SymbolConfig{
+								OID:  "1.3.6.1.2.1.31.1.1.1.1",
+								Name: "ifName",
+							},
 						},
 					},
 				},
 			},
 		},
-	}}
+		"another_profile": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "someMetric"}, ForcedType: ""},
+			},
+			MetricTags: []MetricTagConfig{
+				{Tag: "snmp_host2", Column: SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+				{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
+			},
+			Metadata: MetadataConfig{},
+		},
+	}
 }
 
 func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
@@ -167,6 +179,9 @@ func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
 	expectedProfileConfig := profileConfigMap{
 		"f5-big-ip": {
 			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
+		},
+		"another_profile": {
+			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "another_profile.yaml"),
 		},
 	}
 

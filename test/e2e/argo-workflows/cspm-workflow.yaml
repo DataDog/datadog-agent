@@ -76,6 +76,8 @@ spec:
                   value: "{{inputs.parameters.ci_pipeline_id}}"
                 - name: ci_job_id
                   value: "{{inputs.parameters.ci_job_id}}"
+                - name: remote_configuration_enabled
+                  value: "false"
 
         - - name: wait-datadog-agent
             templateRef:
@@ -99,24 +101,8 @@ spec:
 
     - name: exit-handler
       steps:
-        - - name: delete
-            template: delete
-            when: "{{workflow.status}} == Succeeded"
-
-          - name: diagnose
+        - - name: diagnose
             template: diagnose
-            when: "{{workflow.status}} != Succeeded"
-
-    - name: delete
-      steps:
-        - - name: stop-datadog-agent
-            templateRef:
-              name: datadog-agent
-              template: delete
-            arguments:
-              parameters:
-                - name: namespace
-                  value: "{{workflow.namespace}}"
 
     - name: diagnose
       steps:

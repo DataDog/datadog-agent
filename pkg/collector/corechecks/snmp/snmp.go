@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -28,10 +30,11 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config         *checkconfig.CheckConfig
-	singleDeviceCk *devicecheck.DeviceCheck
-	discovery      *discovery.Discovery
-	sessionFactory session.Factory
+	config                     *checkconfig.CheckConfig
+	singleDeviceCk             *devicecheck.DeviceCheck
+	discovery                  *discovery.Discovery
+	sessionFactory             session.Factory
+	workerRunDeviceCheckErrors *atomic.Uint64
 }
 
 // Run executes the check
@@ -90,7 +93,8 @@ func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-ch
 	for job := range jobs {
 		err := c.runCheckDevice(job)
 		if err != nil {
-			log.Errorf("worker %d : error collecting for device %s: %s", workerID, job.GetIPAddress(), err)
+			c.workerRunDeviceCheckErrors.Inc()
+			log.Errorf("worker %d : error collecting for device %s (total errors: %d): %s", workerID, job.GetIPAddress(), c.workerRunDeviceCheckErrors.Load(), err)
 		}
 	}
 }
@@ -107,7 +111,7 @@ func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 }
 
 // Configure configures the snmp checks
-func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	var err error
 
 	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig)
@@ -133,9 +137,9 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 
 	// Must be called before c.CommonConfigure
-	c.BuildID(rawInstance, rawInitConfig)
+	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err = c.CommonConfigure(rawInitConfig, rawInstance, source)
+	err = c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
@@ -167,8 +171,9 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		CheckBase:      core.NewCheckBase(common.SnmpIntegrationName),
-		sessionFactory: session.NewGosnmpSession,
+		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
+		sessionFactory:             session.NewGosnmpSession,
+		workerRunDeviceCheckErrors: atomic.NewUint64(0),
 	}
 }
 

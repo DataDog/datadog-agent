@@ -32,11 +32,14 @@ type CronJobV1Beta1Collector struct {
 func NewCronJobV1Beta1Collector() *CronJobV1Beta1Collector {
 	return &CronJobV1Beta1Collector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: false,
-			IsStable:         true,
-			Name:             "cronjobs",
-			NodeType:         orchestrator.K8sCronJob,
-			Version:          "batch/v1beta1",
+			IsDefaultVersion:          false,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "cronjobs",
+			NodeType:                  orchestrator.K8sCronJob,
+			Version:                   "batch/v1beta1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Beta1Handlers)),
 	}

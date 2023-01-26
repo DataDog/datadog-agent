@@ -10,6 +10,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	v1 "k8s.io/api/apps/v1"
 )
@@ -47,6 +48,7 @@ func ExtractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 	}
 
 	statefulSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(sts.Spec.Template)
+	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveUnifiedServiceTags(sts.ObjectMeta.Labels)...)
 
 	return &statefulSet
 }

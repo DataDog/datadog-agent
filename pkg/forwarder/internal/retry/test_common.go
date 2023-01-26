@@ -10,9 +10,9 @@ package retry
 
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
-func NewPointDroppedSenderMock() *PointDroppedSender {
+func NewPointCountTelemetryMock() *PointCountTelemetry {
 	provider := telemetry.NewStatsTelemetryProvider(StatsTelemetrySenderMock{})
-	return NewPointDroppedSender("domain", provider)
+	return NewPointCountTelemetry("domain", provider)
 }
 
 type StatsTelemetrySenderMock struct{}

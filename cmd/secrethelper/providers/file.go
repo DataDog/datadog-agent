@@ -10,7 +10,7 @@ package providers
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,7 +75,7 @@ func ReadSecretFile(path string) s.Secret {
 		return s.Secret{Value: "", ErrorMsg: err.Error()}
 	}
 
-	bytes, err := ioutil.ReadAll(file)
+	bytes, err := io.ReadAll(file)
 	if err != nil {
 		return s.Secret{Value: "", ErrorMsg: err.Error()}
 	}

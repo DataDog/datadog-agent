@@ -75,23 +75,18 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	orch := fargate.GetOrchestrator(ctx)
-	cancel()
-	if err := ctx.Err(); err != nil && err != context.Canceled {
-		log.Errorf("Failed to get Fargate orchestrator. This may cause issues if you are in a Fargate instance: %v", err)
-	}
-	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	coreconfig.Datadog.SetConfigFile(path)
 	if _, err := coreconfig.Load(); err != nil {
 		return cfg, err
 	}
+	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
+	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	if p := coreconfig.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+		client, err := remote.NewGRPCClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -326,13 +321,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 
-	// undocumented
-	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
-		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
-	}
-	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
-		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
-	}
+	setMaxMemCPU(c, coreconfig.IsContainerized())
 
 	// undocumented writers
 	for key, cfg := range map[string]*config.WriterConfig{
@@ -668,4 +657,23 @@ func SetHandler() http.Handler {
 
 func httpError(w http.ResponseWriter, status int, err error) {
 	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
+}
+
+// setMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
+// If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
+// Resource limits are better handled by container runtimes and orchestrators.
+func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
+	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
+		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
+	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_cpu_percent is not set, setting it to 0")
+		c.MaxCPU = 0
+	}
+
+	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
+		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
+	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
+		c.MaxMemory = 0
+	}
 }

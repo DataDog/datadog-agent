@@ -10,7 +10,7 @@ package host
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 	"time"
@@ -151,7 +151,7 @@ install_method:
   tool: chef
   installer_version: datadog-cookbook-4.2.1
 `
-	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+	assert.Nil(t, os.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
 
 	// the install is considered coming from chef (example)
 	installMethod = getInstallMethod(installInfoPath)
@@ -168,7 +168,7 @@ install_methodlol:
   name: chef-15
   version: datadog-cookbook-4.2.1
 `
-	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+	assert.Nil(t, os.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
 
 	// the parsing does not occur and the install is kept undefined
 	installMethod = getInstallMethod(installInfoPath)

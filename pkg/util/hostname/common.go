@@ -8,7 +8,6 @@ package hostname
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,7 +55,7 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 		return "", fmt.Errorf("'hostname_file' configuration is not enabled")
 	}
 
-	fileContent, err := ioutil.ReadFile(hostnameFilepath)
+	fileContent, err := os.ReadFile(hostnameFilepath)
 	if err != nil {
 		return "", fmt.Errorf("Could not read hostname from %s: %v", hostnameFilepath, err)
 	}
@@ -72,9 +70,9 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 	return hostname, nil
 }
 
-func fromFargate(ctx context.Context, _ string) (string, error) {
+func fromFargate(_ context.Context, _ string) (string, error) {
 	// If we're running on fargate we strip the hostname
-	if isFargateInstance(ctx) {
+	if isFargateInstance() {
 		return "", nil
 	}
 	return "", fmt.Errorf("agent is not runnning on Fargate")
@@ -133,7 +131,7 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
 	// or ec2_prioritize_instance_id_as_hostname is set to true
-	if ecs.IsECSInstance() || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
+	if config.IsFeaturePresent(config.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
 		return getValidEC2Hostname(ctx)
 	} else if ec2.IsWindowsDefaultHostname(currentHostname) {
 		// Display a message when enabling `ec2_use_windows_prefix_detection` would make the hostname resolution change.

@@ -13,7 +13,6 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"os"
@@ -144,7 +143,7 @@ func fetchAuthToken(tokenCreationAllowed bool) (string, error) {
 		log.Infof("Saved a new authentication token to %s", authTokenFile)
 	}
 	// Read the token
-	authTokenRaw, e := ioutil.ReadFile(authTokenFile)
+	authTokenRaw, e := os.ReadFile(authTokenFile)
 	if e != nil {
 		return "", fmt.Errorf("unable to read authentication token file: " + e.Error())
 	}
@@ -214,7 +213,7 @@ func getClusterAgentAuthToken(tokenCreationAllowed bool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("empty cluster_agent.auth_token and cannot find %q: %s", tokenAbsPath, err)
 	}
-	b, err := ioutil.ReadFile(tokenAbsPath)
+	b, err := os.ReadFile(tokenAbsPath)
 	if err != nil {
 		return "", fmt.Errorf("empty cluster_agent.auth_token and cannot read %s: %s", tokenAbsPath, err)
 	}
@@ -233,7 +232,7 @@ func validateAuthToken(authToken string) error {
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
 func saveAuthToken(token, tokenPath string) error {
-	if err := ioutil.WriteFile(tokenPath, []byte(token), 0o600); err != nil {
+	if err := os.WriteFile(tokenPath, []byte(token), 0o600); err != nil {
 		return err
 	}
 

@@ -14,24 +14,28 @@ package core
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/internal"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // team: agent-shared-components
 
-// BundleParams defines the parameters for this bundle.
-type BundleParams = internal.BundleParams
-
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
+	// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
+	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
 	config.Module,
+	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 	log.Module,
+	flare.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
-	config.MockModule,
+	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+	config.Module,
+	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 	log.Module,
 )

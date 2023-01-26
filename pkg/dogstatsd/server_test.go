@@ -47,6 +47,9 @@ func getAvailableUDPPort() (int, error) {
 }
 
 func TestNewServer(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -62,6 +65,9 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestStopServer(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -94,7 +100,7 @@ func TestStopServer(t *testing.T) {
 // introducing a data race.
 func TestNoRaceOriginTagMaps(t *testing.T) {
 	const N = 100
-	s := &Server{cachedTlmOriginIds: make(map[string]cachedTagsOriginMap)}
+	s := &Server{cachedOriginCounters: make(map[string]cachedOriginCounter)}
 	sync := make(chan struct{})
 	done := make(chan struct{}, N)
 	for i := 0; i < N; i++ {
@@ -102,7 +108,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 		go func() {
 			defer func() { done <- struct{}{} }()
 			<-sync
-			s.createOriginTagMaps(id)
+			s.getOriginCounter(id)
 		}()
 	}
 	close(sync)
@@ -112,6 +118,9 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 }
 
 func TestUDPReceive(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -389,6 +398,9 @@ func TestUDPReceive(t *testing.T) {
 }
 
 func TestUDPForward(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	fport, err := getAvailableUDPPort()
 	require.NoError(t, err)
 
@@ -433,6 +445,9 @@ func TestUDPForward(t *testing.T) {
 }
 
 func TestHistToDist(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	defaultPort := config.Datadog.GetInt("dogstatsd_port")
@@ -531,6 +546,9 @@ func TestEOLParsing(t *testing.T) {
 }
 
 func TestE2EParsing(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -573,6 +591,9 @@ func TestE2EParsing(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -607,11 +628,11 @@ func TestStaticTags(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
-	config.Datadog.SetDefault("eks_fargate", true) // triggers DD_TAGS in static_tags
 	config.Datadog.SetDefault("tags", []string{"from:dd_tags"})
-	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
-	defer config.Datadog.SetDefault("eks_fargate", false)
+
+	config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
+	defer config.SetDetectedFeatures(nil)
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	s, err := NewServer(demux, false)
@@ -642,6 +663,9 @@ func TestStaticTags(t *testing.T) {
 }
 
 func TestDebugStatsSpike(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	assert := assert.New(t)
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
@@ -702,6 +726,9 @@ func TestDebugStatsSpike(t *testing.T) {
 }
 
 func TestDebugStats(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
 	s, err := NewServer(demux, false)
@@ -777,6 +804,9 @@ func TestDebugStats(t *testing.T) {
 }
 
 func TestNoMappingsConfig(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	datadogYaml := ``
 	samples := []metrics.MetricSample{}
 
@@ -894,6 +924,9 @@ dogstatsd_mapper_profiles:
 	samples := []metrics.MetricSample{}
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
+			config.SetDetectedFeatures(config.FeatureMap{})
+			defer config.SetDetectedFeatures(nil)
+
 			config.Datadog.SetConfigType("yaml")
 			err := config.Datadog.ReadConfig(strings.NewReader(scenario.config))
 			assert.NoError(t, err, "Case `%s` failed. ReadConfig should not return error %v", scenario.name, err)
@@ -931,6 +964,9 @@ dogstatsd_mapper_profiles:
 }
 
 func TestNewServerExtraTags(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	// restore env/config after having runned the test
 	p := config.Datadog.Get("dogstatsd_port")
 	defer func() {
@@ -979,7 +1015,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
 	s.Stop()
 
-	assert.Len(s.cachedTlmOriginIds, 0, "this cache must be empty")
+	assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 	assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
 	parser := newParser(newFloat64ListPool())
@@ -992,7 +1028,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "container_id://test_container", true)
 	assert.NoError(err)
 	assert.Len(samples, 2)
-	assert.Len(s.cachedTlmOriginIds, 1, "one entry should have been cached")
+	assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
 	assert.Len(s.cachedOrder, 1, "one entry should have been cached")
 	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
 
@@ -1000,7 +1036,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://test_container", true)
 	assert.NoError(err)
 	assert.Len(samples, 3)
-	assert.Len(s.cachedTlmOriginIds, 1, "one entry should have been cached")
+	assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
 	assert.Len(s.cachedOrder, 1, "one entry should have been cached")
 	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
 	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
@@ -1010,7 +1046,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://another_container", true)
 	assert.NoError(err)
 	assert.Len(samples, 4)
-	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached")
+	assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached")
 	assert.Len(s.cachedOrder, 2, "two entries should have been cached")
 	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
 	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
@@ -1020,11 +1056,11 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
 
 	// oldest one should be removed once we reach the limit of the cache
-	maxOriginTagsCached = 2
+	maxOriginCounters = 2
 	samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", true)
 	assert.NoError(err)
 	assert.Len(samples, 5)
-	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached, one has been evicted already")
+	assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, one has been evicted already")
 	assert.Len(s.cachedOrder, 2, "two entries should have been cached, one has been evicted already")
 	assert.Equal(s.cachedOrder[0].origin, "container_id://another_container")
 	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
@@ -1034,11 +1070,11 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
 
 	// oldest one should be removed once we reach the limit of the cache
-	maxOriginTagsCached = 2
+	maxOriginCounters = 2
 	samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", true)
 	assert.NoError(err)
 	assert.Len(samples, 6)
-	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached, two have been evicted already")
+	assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, two have been evicted already")
 	assert.Len(s.cachedOrder, 2, "two entries should have been cached, two have been evicted already")
 	assert.Equal(s.cachedOrder[0].origin, "third_origin")
 	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})
@@ -1049,6 +1085,9 @@ func testProcessedMetricsOrigin(t *testing.T) {
 }
 
 func TestProcessedMetricsOrigin(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
 	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {
@@ -1087,6 +1126,9 @@ func testContainerIDParsing(t *testing.T) {
 }
 
 func TestContainerIDParsing(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
 	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {
@@ -1137,6 +1179,9 @@ func testOriginOptout(t *testing.T, enabled bool) {
 }
 
 func TestOriginOptout(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
 	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {

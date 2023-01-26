@@ -40,11 +40,14 @@ type RoleBindingCollector struct {
 func NewRoleBindingCollector() *RoleBindingCollector {
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "rolebindings",
-			NodeType:         orchestrator.K8sRoleBinding,
-			Version:          "rbac.authorization.k8s.io/v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "rolebindings",
+			NodeType:                  orchestrator.K8sRoleBinding,
+			Version:                   "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
 	}

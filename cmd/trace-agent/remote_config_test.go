@@ -8,7 +8,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"google.golang.org/grpc"
 )
 
 func TestConfigEndpoint(t *testing.T) {
@@ -55,11 +54,11 @@ func TestConfigEndpoint(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
-			grpc := mockAgentSecureServer{}
+			grpc := agentGRPCConfigFetcher{}
 			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil)
 			mux := http.NewServeMux()
 			cfg := &config.AgentConfig{}
-			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", cfg))
+			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, cfg))
 			server := httptest.NewServer(mux)
 			if tc.valid {
 				var request pbgo.ClientGetConfigsRequest
@@ -71,7 +70,7 @@ func TestConfigEndpoint(t *testing.T) {
 			req.Header.Set("Content-Type", "application/msgpack")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			assert.Nil(err)
 			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
@@ -80,7 +79,7 @@ func TestConfigEndpoint(t *testing.T) {
 	}
 }
 
-func TestTags(t *testing.T) {
+func TestUpstreamRequest(t *testing.T) {
 
 	var tcs = []struct {
 		name                    string
@@ -90,29 +89,29 @@ func TestTags(t *testing.T) {
 	}{
 		{
 			name:      "both tracer and container tags",
-			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
 			cfg: &config.AgentConfig{
 				ContainerTags: func(cid string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar","baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar","baz:qux"]}}}`,
 		},
 		{
 			name:                    "tracer tags only",
-			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
 			cfg:                     &config.AgentConfig{},
 		},
 		{
 			name:      "container tags only",
-			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{}}}`,
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test"}}}`,
 			cfg: &config.AgentConfig{
 				ContainerTags: func(cid string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["baz:qux"]}}}`,
 		},
 		{
 			name:                    "no tracer",
@@ -120,11 +119,17 @@ func TestTags(t *testing.T) {
 			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
 			cfg:                     &config.AgentConfig{},
 		},
+		{
+			name:                    "tracer service and env are normalized",
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test ww w@","env":"test@ww","tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test_ww_w","env":"test_ww","tags":["foo:bar"]}}}`,
+			cfg:                     &config.AgentConfig{},
+		},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
-			grpc := mockAgentSecureServer{}
+			grpc := agentGRPCConfigFetcher{}
 			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil)
 
 			var request pbgo.ClientGetConfigsRequest
@@ -133,7 +138,7 @@ func TestTags(t *testing.T) {
 			grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: []byte("test")}, nil)
 
 			mux := http.NewServeMux()
-			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", tc.cfg))
+			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, tc.cfg))
 			server := httptest.NewServer(mux)
 
 			req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(tc.tracerReq))
@@ -141,43 +146,21 @@ func TestTags(t *testing.T) {
 			req.Header.Set("Datadog-Container-ID", "cid")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			assert.Nil(err)
+			assert.NoError(err)
 			assert.Equal(200, resp.StatusCode)
 			assert.Equal(`{"targets":"dGVzdA=="}`, string(body))
-
 		})
-
 	}
 }
 
-type mockAgentSecureServer struct {
+type agentGRPCConfigFetcher struct {
 	pbgo.AgentSecureClient
 	mock.Mock
 }
 
-func (a *mockAgentSecureServer) TaggerStreamEntities(ctx context.Context, in *pbgo.StreamTagsRequest, opts ...grpc.CallOption) (pbgo.AgentSecure_TaggerStreamEntitiesClient, error) {
-	args := a.Called(ctx, in, opts)
-	return args.Get(0).(pbgo.AgentSecure_TaggerStreamEntitiesClient), args.Error(1)
-}
-
-func (a *mockAgentSecureServer) TaggerFetchEntity(ctx context.Context, in *pbgo.FetchEntityRequest, opts ...grpc.CallOption) (*pbgo.FetchEntityResponse, error) {
-	args := a.Called(ctx, in, opts)
-	return args.Get(0).(*pbgo.FetchEntityResponse), args.Error(1)
-}
-
-func (a *mockAgentSecureServer) DogstatsdCaptureTrigger(ctx context.Context, in *pbgo.CaptureTriggerRequest, opts ...grpc.CallOption) (*pbgo.CaptureTriggerResponse, error) {
-	args := a.Called(ctx, in, opts)
-	return args.Get(0).(*pbgo.CaptureTriggerResponse), args.Error(1)
-}
-
-func (a *mockAgentSecureServer) DogstatsdSetTaggerState(ctx context.Context, in *pbgo.TaggerState, opts ...grpc.CallOption) (*pbgo.TaggerStateResponse, error) {
-	args := a.Called(ctx, in, opts)
-	return args.Get(0).(*pbgo.TaggerStateResponse), args.Error(1)
-}
-
-func (a *mockAgentSecureServer) ClientGetConfigs(ctx context.Context, in *pbgo.ClientGetConfigsRequest, opts ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error) {
-	args := a.Called(ctx, in, opts)
+func (a *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, in *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+	args := a.Called(ctx, in)
 	return args.Get(0).(*pbgo.ClientGetConfigsResponse), args.Error(1)
 }

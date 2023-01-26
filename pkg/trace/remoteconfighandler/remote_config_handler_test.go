@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -40,40 +40,6 @@ func TestStartNoRemoteClient(t *testing.T) {
 	assert.NotPanics(t, h.Start)
 }
 
-func TestRemoteRates(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient}
-	prioritySampler := NewMockprioritySampler(ctrl)
-	errorsSampler := NewMockerrorsSampler(ctrl)
-	rareSampler := NewMockrareSampler(ctrl)
-
-	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
-
-	payload := apmsampling.APMSampling{
-		TargetTPS: []apmsampling.TargetTPS{{
-			Service:   "service-1",
-			Env:       "env-1",
-			Value:     42,
-			Rank:      1,
-			Mechanism: 1,
-		}},
-	}
-
-	raw, _ := payload.MarshalMsg(nil)
-
-	remoteRatesConfig := state.APMSamplingConfig{
-		Metadata: state.Metadata{Version: 42},
-		Config:   raw,
-	}
-
-	prioritySampler.EXPECT().UpdateRemoteRates([]sampler.RemoteRateUpdate{{Version: 42, Config: payload}}).Times(1)
-
-	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/dynamic_rates/config": remoteRatesConfig})
-
-	ctrl.Finish()
-}
-
 func TestPrioritySampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
@@ -86,7 +52,7 @@ func TestPrioritySampler(t *testing.T) {
 
 	payload := apmsampling.SamplerConfig{
 		AllEnvs: apmsampling.SamplerEnvConfig{
-			PrioritySamplerTargetTPS: floatPointer(42),
+			PrioritySamplerTargetTPS: pointer.Ptr(42.0),
 		},
 	}
 
@@ -116,7 +82,7 @@ func TestErrorsSampler(t *testing.T) {
 
 	payload := apmsampling.SamplerConfig{
 		AllEnvs: apmsampling.SamplerEnvConfig{
-			ErrorsSamplerTargetTPS: floatPointer(42),
+			ErrorsSamplerTargetTPS: pointer.Ptr(42.0),
 		},
 	}
 
@@ -146,7 +112,7 @@ func TestRareSampler(t *testing.T) {
 
 	payload := apmsampling.SamplerConfig{
 		AllEnvs: apmsampling.SamplerEnvConfig{
-			RareSamplerEnabled: boolPointer(false),
+			RareSamplerEnabled: pointer.Ptr(false),
 		},
 	}
 
@@ -176,16 +142,16 @@ func TestEnvPrecedence(t *testing.T) {
 
 	payload := apmsampling.SamplerConfig{
 		AllEnvs: apmsampling.SamplerEnvConfig{
-			PrioritySamplerTargetTPS: floatPointer(42),
-			ErrorsSamplerTargetTPS:   floatPointer(42),
-			RareSamplerEnabled:       boolPointer(true),
+			PrioritySamplerTargetTPS: pointer.Ptr(42.0),
+			ErrorsSamplerTargetTPS:   pointer.Ptr(42.0),
+			RareSamplerEnabled:       pointer.Ptr(true),
 		},
 		ByEnv: []apmsampling.EnvAndConfig{{
 			Env: "agent-env",
 			Config: apmsampling.SamplerEnvConfig{
-				PrioritySamplerTargetTPS: floatPointer(43),
-				ErrorsSamplerTargetTPS:   floatPointer(43),
-				RareSamplerEnabled:       boolPointer(false),
+				PrioritySamplerTargetTPS: pointer.Ptr(43.0),
+				ErrorsSamplerTargetTPS:   pointer.Ptr(43.0),
+				RareSamplerEnabled:       pointer.Ptr(false),
 			},
 		}},
 	}
@@ -202,12 +168,4 @@ func TestEnvPrecedence(t *testing.T) {
 	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
 	ctrl.Finish()
-}
-
-func floatPointer(f float64) *float64 {
-	return &f
-}
-
-func boolPointer(b bool) *bool {
-	return &b
 }

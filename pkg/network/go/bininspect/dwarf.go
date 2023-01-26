@@ -76,12 +76,11 @@ func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []Fiel
 	}
 
 	return &Result{
-		Arch:                 arch,
-		ABI:                  abi,
-		GoVersion:            goVersion,
-		IncludesDebugSymbols: true,
-		Functions:            functionsMetadata,
-		StructOffsets:        structOffsets,
+		Arch:          arch,
+		ABI:           abi,
+		GoVersion:     goVersion,
+		Functions:     functionsMetadata,
+		StructOffsets: structOffsets,
 	}, nil
 
 }

@@ -35,27 +35,34 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	}
 
 	pc.Ancestor = parent
+	pc.Parent = &parent.Process
 	pc.IsThread = false
 	parent.Retain()
 }
 
-// GetNextAncestorNoFork returns the first ancestor that is not a fork entry
-func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
-	if pc.Ancestor == nil {
-		return nil
-	}
-
+// GetNextAncestorBinary returns the first ancestor with a different binary
+func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
+	current := pc
 	ancestor := pc.Ancestor
-	for ancestor.Ancestor != nil {
-		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime.IsZero()) && ancestor.Tid == ancestor.Ancestor.Tid {
-			// this is a fork entry, move on to the next ancestor
-			ancestor = ancestor.Ancestor
-		} else {
-			break
+	for ancestor != nil {
+		if current.Inode != ancestor.Inode {
+			return ancestor
 		}
+		current = ancestor
+		ancestor = ancestor.Ancestor
 	}
+	return nil
+}
 
-	return ancestor
+// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
+func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+	for pc != nil {
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
 }
 
 // Exit a process
@@ -89,17 +96,17 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 // ShareArgsEnvs share args and envs between the current entry and the given child entry
 func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 	childEntry.ArgsEntry = pc.ArgsEntry
-	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+	if childEntry.ArgsEntry != nil {
+		childEntry.ArgsEntry.Retain()
 	}
 	childEntry.EnvsEntry = pc.EnvsEntry
-	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+	if childEntry.EnvsEntry != nil {
+		childEntry.EnvsEntry.Retain()
 	}
 }
 
-// SetParent set the parent of a fork child
-func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
+// SetParentOfForkChild set the parent of a fork child
+func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	parent.ShareArgsEnvs(pc)
 	pc.IsThread = true
@@ -117,7 +124,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.LinuxBinprm = pc.LinuxBinprm
 	childEntry.Cookie = pc.Cookie
 
-	childEntry.SetParent(pc)
+	childEntry.SetParentOfForkChild(pc)
 }
 
 // Equals returns whether process cache entries share the same values for comm and args/envs
@@ -125,18 +132,10 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
-/*func (pc *ProcessCacheEntry) String() string {
-	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
-	ancestor := pc.Ancestor
-	for i := 0; ancestor != nil; i++ {
-		for j := 0; j <= i; j++ {
-			s += "\t"
-		}
-		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid, ancestor.ArgsArray)
-		ancestor = ancestor.Ancestor
-	}
-	return s
-}*/
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
+func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+}
 
 // ArgsEnvs raw value for args and envs
 type ArgsEnvs struct {
@@ -162,7 +161,7 @@ type ArgsEnvsCacheEntry struct {
 }
 
 // Reset the entry
-func (p *ArgsEnvsCacheEntry) release() {
+func (p *ArgsEnvsCacheEntry) forceReleaseAll() {
 	entry := p
 	for entry != nil {
 		next := entry.next
@@ -187,6 +186,10 @@ func (p *ArgsEnvsCacheEntry) release() {
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 	p.TotalSize += uint64(entry.Size)
 
+	// this shouldn't happen, but is here to protect against infinite loops
+	entry.next = nil
+	entry.last = nil
+
 	if p.last != nil {
 		p.last.next = entry
 	} else {
@@ -196,18 +199,20 @@ func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 }
 
 // Retain increment ref counter
-func (p *ArgsEnvsCacheEntry) Retain() {
+func (p *ArgsEnvsCacheEntry) retain() {
 	p.refCount++
 }
 
 // Release decrement and eventually release the entry
-func (p *ArgsEnvsCacheEntry) Release() {
+func (p *ArgsEnvsCacheEntry) release() bool {
 	p.refCount--
 	if p.refCount > 0 {
-		return
+		return false
 	}
 
-	p.release()
+	p.forceReleaseAll()
+
+	return true
 }
 
 // NewArgsEnvsCacheEntry returns a new args/env cache entry
@@ -245,29 +250,56 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry
+	cacheEntry *ArgsEnvsCacheEntry
 
-	Values    []string
-	Truncated bool
+	values    []string
+	truncated bool
 
 	parsed bool
 }
 
+// NewEnvsEntry returns a new entry
+func NewArgsEntry(cacheEntry *ArgsEnvsCacheEntry) *ArgsEntry {
+	return &ArgsEntry{
+		cacheEntry: cacheEntry,
+	}
+}
+
+// SetValues set the values
+func (p *ArgsEntry) SetValues(values []string) {
+	p.values = values
+	p.parsed = true
+}
+
+// Retain increment ref counter
+func (p *ArgsEntry) Retain() {
+	if p.cacheEntry != nil {
+		p.cacheEntry.retain()
+	}
+}
+
+// Release decrement and eventually release the entry
+func (p *ArgsEntry) Release() {
+	if p.cacheEntry != nil && p.cacheEntry.release() {
+		p.cacheEntry = nil
+	}
+}
+
 // ToArray returns args as array
 func (p *ArgsEntry) ToArray() ([]string, bool) {
-	if len(p.Values) > 0 || p.parsed {
-		return p.Values, p.Truncated
+	if len(p.values) > 0 || p.parsed {
+		return p.values, p.truncated
 	}
-	p.Values, p.Truncated = p.toArray()
+	p.values, p.truncated = p.cacheEntry.toArray()
 	p.parsed = true
 
-	// now we have the cache we can free
-	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
-		p.ArgsEnvsCacheEntry = nil
+	// now we have the cache we can force the free without having to check the refcount
+	if p.cacheEntry != nil {
+		p.cacheEntry.forceReleaseAll()
+		p.cacheEntry = nil
 	}
 
-	return p.Values, p.Truncated
+	return p.values, p.truncated
 }
 
 // Equals compares two ArgsEntry
@@ -286,63 +318,88 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry
+	cacheEntry *ArgsEnvsCacheEntry
 
-	Values    []string
-	Truncated bool
+	values    []string
+	truncated bool
 
 	parsed       bool
 	filteredEnvs []string
 	kv           map[string]string
 }
 
+// NewEnvsEntry returns a new entry
+func NewEnvsEntry(cacheEntry *ArgsEnvsCacheEntry) *EnvsEntry {
+	return &EnvsEntry{
+		cacheEntry: cacheEntry,
+	}
+}
+
+// SetValues set the values
+func (p *EnvsEntry) SetValues(values []string) {
+	p.values = values
+	p.parsed = true
+}
+
+// Retain increment ref counter
+func (p *EnvsEntry) Retain() {
+	if p.cacheEntry != nil {
+		p.cacheEntry.retain()
+	}
+}
+
+// Release decrement and eventually release the entry
+func (p *EnvsEntry) Release() {
+	if p.cacheEntry != nil && p.cacheEntry.release() {
+		p.cacheEntry = nil
+	}
+}
+
 // ToArray returns envs as an array
 func (p *EnvsEntry) ToArray() ([]string, bool) {
 	if p.parsed {
-		return p.Values, p.Truncated
+		return p.values, p.truncated
 	}
 
-	p.Values, p.Truncated = p.toArray()
+	p.values, p.truncated = p.cacheEntry.toArray()
 	p.parsed = true
 
-	// now we have the cache we can free
-	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
-		p.ArgsEnvsCacheEntry = nil
+	// now we have the cache we can force the free without having to check the refcount
+	if p.cacheEntry != nil {
+		p.cacheEntry.forceReleaseAll()
+		p.cacheEntry = nil
 	}
 
-	return p.Values, p.Truncated
+	return p.values, p.truncated
 }
 
 // FilterEnvs returns an array of envs, only the name of each variable is returned unless the variable name is part of the provided filter
 func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 	if p.filteredEnvs != nil {
-		return p.filteredEnvs, p.Truncated
+		return p.filteredEnvs, p.truncated
 	}
 
 	values, _ := p.ToArray()
 	if len(values) == 0 {
-		return nil, p.Truncated
+		return nil, p.truncated
 	}
 
-	p.filteredEnvs = make([]string, len(values))
+	p.filteredEnvs = make([]string, 0, len(values))
 
-	var i int
 	for _, value := range values {
 		k, _, found := strings.Cut(value, "=")
-		if !found {
-			continue
-		}
-
-		if envsWithValue[k] {
-			p.filteredEnvs[i] = value
+		if found {
+			if envsWithValue[k] {
+				p.filteredEnvs = append(p.filteredEnvs, value)
+			} else {
+				p.filteredEnvs = append(p.filteredEnvs, k)
+			}
 		} else {
-			p.filteredEnvs[i] = k
+			p.filteredEnvs = append(p.filteredEnvs, value)
 		}
-		i++
 	}
 
-	return p.filteredEnvs, p.Truncated
+	return p.filteredEnvs, p.truncated
 }
 
 func (p *EnvsEntry) toMap() {

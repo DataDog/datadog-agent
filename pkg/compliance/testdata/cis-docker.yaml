@@ -7,8 +7,6 @@ rules:
 - id: cis-docker-1
   scope:
     - docker
-  hostSelector: '"foo" in node.labels'
-  resources:
+  input:
     - file:
         path: /etc/docker/daemon.json
-      condition: file.permissions == 0644
