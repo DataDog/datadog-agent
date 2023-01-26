@@ -9,15 +9,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/DataDog/test-infra-definitions/aws"
 	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microVMs"
-	"github.com/DataDog/test-infra-definitions/command"
 
-	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -90,19 +89,20 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		}
 
 		for _, instance := range scenarioDone.Instances {
-			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
-				return command.WaitForCloudInit(awsEnvironment.Ctx, r)
-			})
+			localRunner
+			//remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
+			//	return command.WaitForCloudInit(awsEnvironment.Ctx, r)
+			//})
 
-			filemanager := command.NewFileManager(remoteRunner)
-			_, err = filemanager.CopyFile(
-				fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
-				"/tmp",
-				pulumi.DependsOn(scenarioDone.Dependencies),
-			)
-			if err != nil {
-				return err
-			}
+			//filemanager := command.NewFileManager(remoteRunner)
+			//_, err = filemanager.CopyFile(
+			//	fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
+			//	"/tmp",
+			//	pulumi.DependsOn(scenarioDone.Dependencies),
+			//)
+			//if err != nil {
+			//	return err
+			//}
 		}
 
 		return nil
@@ -117,6 +117,12 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	outputX86, found := upResult.Outputs["x86_64-instance-ip"]
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
+
+		cmd := exec.Command(fmt.Printf("scp -i %s %s/site-cookbooks-x86_64.tar.gz %s:/tmp", SSHKeyFile, DD_AGENT_TESTING_DIR, systemProbeTestEnv.X86_64InstanceIP))
+		err := cmd.Run()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return systemProbeTestEnv, nil
