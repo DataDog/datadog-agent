@@ -83,7 +83,6 @@ __attribute__((always_inline)) struct exec_event_t *new_exec_event() {
     if (!pre_evt) {
         return NULL;
     }
-    __builtin_memset(pre_evt, 0, sizeof(*pre_evt));
 
     u64 pid = bpf_get_current_pid_tgid();
     if (bpf_map_update_elem(&exec_event_gen, &pid, pre_evt, BPF_ANY) != 0) {
@@ -92,7 +91,6 @@ __attribute__((always_inline)) struct exec_event_t *new_exec_event() {
 
     struct exec_event_t *evt = bpf_map_lookup_elem(&exec_event_gen, &pid);
     if (evt) {
-        __builtin_memset(evt, 0, sizeof(*evt));
         evt->event.is_activity_dump_sample = 1;
     }
 
