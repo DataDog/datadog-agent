@@ -67,9 +67,6 @@ type Collector struct {
 	// Enables running realtime checks
 	runRealTime bool
 
-	// Drop payloads from specified checks
-	dropCheckPayloads []string
-
 	// Submits check payloads to datadog
 	submitter Submitter
 }
@@ -240,7 +237,6 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}
 	updateEnabledChecks(checkNames)
-	updateDropCheckPayloads(l.dropCheckPayloads)
 	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
 
 	go util.HandleSignals(exit)
