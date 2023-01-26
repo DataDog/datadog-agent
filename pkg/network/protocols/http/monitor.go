@@ -9,7 +9,9 @@
 package http
 
 import (
+	"errors"
 	"fmt"
+	"syscall"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -24,7 +26,7 @@ import (
 )
 
 var (
-	USMStartupError error
+	startupError error
 )
 
 // Monitor is responsible for:
@@ -45,7 +47,7 @@ type Monitor struct {
 func setStartupErrorAndReturn(err error) error {
 	if err != nil {
 		err = fmt.Errorf("could not instantiate http monitor: %w", err)
-		USMStartupError = err
+		startupError = err
 	}
 
 	return err
@@ -53,6 +55,10 @@ func setStartupErrorAndReturn(err error) error {
 
 // NewMonitor returns a new Monitor instance
 func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
+	if !c.EnableHTTPMonitoring {
+		return nil, setStartupErrorAndReturn(fmt.Errorf("http monitoring is disabled"))
+	}
+
 	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, setStartupErrorAndReturn(fmt.Errorf("error setting up http ebpf program: %s", err))
@@ -97,6 +103,20 @@ func (m *Monitor) Start() error {
 	}
 
 	var err error
+
+	defer func() {
+		if err != nil {
+			if errors.Is(err, syscall.ENOMEM) {
+				err = fmt.Errorf("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+			}
+
+			if err != nil {
+				err = fmt.Errorf("could not enable http monitoring: %s", err)
+			}
+			startupError = err
+		}
+	}()
+
 	m.consumer, err = events.NewConsumer(
 		"http",
 		m.ebpfProgram.Manager.Manager,
@@ -107,17 +127,20 @@ func (m *Monitor) Start() error {
 	}
 	m.consumer.Start()
 
-	if err := m.ebpfProgram.Start(); err != nil {
+	err = m.ebpfProgram.Start()
+	if err != nil {
 		return err
 	}
 
-	return m.processMonitor.Initialize()
+	// Need to explicitly save the error in `err` so the defer function could save the startup error.
+	err = m.processMonitor.Initialize()
+	return err
 }
 
 func (m *Monitor) GetUSMStats() map[string]interface{} {
 	if m == nil {
 		return map[string]interface{}{
-			"Error": USMStartupError.Error(),
+			"Error": startupError.Error(),
 		}
 	}
 	return map[string]interface{}{

@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"math"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -806,11 +805,6 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 }
 
 func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
-	if !c.EnableHTTPMonitoring {
-		http.USMStartupError = fmt.Errorf("http monitoring is disabled")
-		return nil
-	}
-
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
 
@@ -820,16 +814,8 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 		return nil
 	}
 
-	err = monitor.Start()
-	if errors.Is(err, syscall.ENOMEM) {
-		http.USMStartupError = fmt.Errorf("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
-		log.Error(http.USMStartupError.Error())
-		return nil
-	}
-
-	if err != nil {
-		http.USMStartupError = fmt.Errorf("could not enable http monitoring: %s", err)
-		log.Error(http.USMStartupError.Error())
+	if err := monitor.Start(); err != nil {
+		log.Error(err)
 		return nil
 	}
 
