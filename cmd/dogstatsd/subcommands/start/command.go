@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -89,7 +90,9 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			config.WithConfigMissingOK(true),
 			config.WithConfigName("dogstatsd")),
 		),
+		fx.Supply(logComponent.LogForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module,
+		logComponent.Module,
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),

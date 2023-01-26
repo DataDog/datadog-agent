@@ -6,20 +6,29 @@
 package start
 
 import (
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStartCommand(t *testing.T) {
+
+	testDir := t.TempDir()
+	path := fmt.Sprintf("%s/dogstatsd.yaml", testDir)
+	os.Create(path)
+
 	fxutil.TestOneShotSubcommand(t,
 		[]*cobra.Command{MakeCommand("defaultLogFile")},
-		[]string{"start", "--cfgpath", "PATH"},
+		[]string{"start", "--cfgpath", path},
 		start,
-		func(cliParams *CLIParams, _ config.Params) {
-			require.Equal(t, "PATH", cliParams.confPath)
+		func(cliParams *CLIParams, _ config.Params, _ dogstatsdServer.Component) {
+			require.Equal(t, path, cliParams.confPath)
+			os.Remove(path)
 		})
 }
