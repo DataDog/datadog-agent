@@ -67,7 +67,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct {
 }
 
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (*dogstatsd.Server, error) {
+func (m *MetricDogStatsDMocked) NewServer() (*dogstatsd.Server, error) {
 	return nil, fmt.Errorf("error")
 }
 
