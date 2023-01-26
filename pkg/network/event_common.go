@@ -21,8 +21,8 @@ import (
 const (
 	// 100Gbps * 30s = 375GB
 	maxByteCountChange uint64 = 375 << 30
-	// jumbo frame size (MTU) of 9216 = 9 * 1024
-	maxPacketCountChange uint64 = maxByteCountChange / (9 << 10)
+	// use typical small MTU size, 1300, to get max packet count
+	maxPacketCountChange uint64 = maxByteCountChange / 1300
 )
 
 // ConnectionType will be either TCP or UDP
