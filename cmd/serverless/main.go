@@ -239,27 +239,27 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		defer wg.Done()
 		if len(os.Getenv("DD_LOCAL_TEST")) > 0 {
 			log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
-		} else {
-			log.Debug("Enabling telemetry collection HTTP route")
-			logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
-			logRegistrationError := registration.EnableTelemetryCollection(
-				registration.EnableTelemetryCollectionArgs{
-					ID:                  serverlessID,
-					RegistrationURL:     logRegistrationURL,
-					RegistrationTimeout: logsAPIRegistrationTimeout,
-					LogsType:            os.Getenv(logsLogsTypeSubscribed),
-					Port:                logsAPIHttpServerPort,
-					CollectionRoute:     logsAPICollectionRoute,
-					Timeout:             logsAPITimeout,
-					MaxBytes:            logsAPIMaxBytes,
-					MaxItems:            logsAPIMaxItems,
-				})
+			return
+		}
+		log.Debug("Enabling telemetry collection HTTP route")
+		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
+		logRegistrationError := registration.EnableTelemetryCollection(
+			registration.EnableTelemetryCollectionArgs{
+				ID:                  serverlessID,
+				RegistrationURL:     logRegistrationURL,
+				RegistrationTimeout: logsAPIRegistrationTimeout,
+				LogsType:            os.Getenv(logsLogsTypeSubscribed),
+				Port:                logsAPIHttpServerPort,
+				CollectionRoute:     logsAPICollectionRoute,
+				Timeout:             logsAPITimeout,
+				MaxBytes:            logsAPIMaxBytes,
+				MaxItems:            logsAPIMaxItems,
+			})
 
-			if logRegistrationError != nil {
-				log.Error("Can't subscribe to logs:", logRegistrationError)
-			} else {
-				serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
-			}
+		if logRegistrationError != nil {
+			log.Error("Can't subscribe to logs:", logRegistrationError)
+		} else {
+			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
 		}
 	}()
 
