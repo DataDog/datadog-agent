@@ -120,7 +120,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
+				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+			}),
+			flare.Module,
 			core.Bundle,
 		)
 	}
