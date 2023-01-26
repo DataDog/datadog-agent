@@ -127,8 +127,8 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
 		if err != nil {
 			continue
 		}
-		// Inconditionally read the body and ignore any errors
-		io.Copy(io.Discard, resp.Body)
+		// Unconditionally read the body and ignore any errors
+		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 	}
 }
