@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package runner implements a component to run data collection checks in the Process Agent.
+// Package server implements a component to run the dogstatsd server
 package server
 
 import (
