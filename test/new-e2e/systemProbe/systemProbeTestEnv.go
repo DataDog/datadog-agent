@@ -76,7 +76,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	}
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-		conn, err := microVMs.RunAndReturnConnections(ctx)
+		instances, err := microVMs.RunAndReturnInstances(ctx)
 		if err != nil {
 			return err
 		}
@@ -86,14 +86,14 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			return err
 		}
 
-		for arch, connection := range conn {
-			remoteRunner, err := command.NewRunner(*e.CommonEnvironment, "remote-runner-"+arch, connection, func(r *command.Runner) (*remote.Command, error) {
+		for _, instance := range instances {
+			remoteRunner, err := command.NewRunner(*e.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
 				return command.WaitForCloudInit(e.Ctx, r)
 			})
 
 			filemanager := command.NewFileManager(remoteRunner)
 			_, err = filemanager.CopyFile(
-				fmt.Sprintf("$DD_AGENT_TESTING_DIR/site-cookbooks-%s.tar.gz", arch),
+				fmt.Sprintf("$DD_AGENT_TESTING_DIR/site-cookbooks-%s.tar.gz", instance.Arch),
 				"/opt/kernel-version-testing/",
 			)
 			if err != nil {
