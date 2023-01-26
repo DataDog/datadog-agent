@@ -163,6 +163,7 @@ func (r *HTTPReceiver) Start() {
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	ln, err := r.listenTCP(addr)
 	if err != nil {
+		r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 		killProcess("Error creating tcp listener: %v", err)
 	}
 	go func() {
@@ -177,6 +178,7 @@ func (r *HTTPReceiver) Start() {
 	if path := r.conf.ReceiverSocket; path != "" {
 		ln, err := r.listenUnix(path)
 		if err != nil {
+			r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
 			killProcess("Error creating UDS listener: %v", err)
 		}
 		go func() {
@@ -195,6 +197,7 @@ func (r *HTTPReceiver) Start() {
 		secdec := r.conf.PipeSecurityDescriptor
 		ln, err := listenPipe(pipepath, secdec, bufferSize)
 		if err != nil {
+			r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
 		}
 		go func() {
