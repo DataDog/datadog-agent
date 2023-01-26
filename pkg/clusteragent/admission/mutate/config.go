@@ -99,7 +99,7 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	case service:
 		injectedConfig = injectEnv(pod, agentServiceEnvVar)
 	case socket:
-		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
+		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"))
 		injectedVol := injectVolume(pod, volume, volumeMount)
 		injectedEnv := injectEnv(pod, traceURLEnvVar)
 		injectedConfig = injectedEnv || injectedVol
@@ -146,7 +146,7 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 	return globalMode
 }
 
-func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
+func buildVolume(volumeName, path string) (corev1.Volume, corev1.VolumeMount) {
 	pathType := corev1.HostPathDirectoryOrCreate
 	volume := corev1.Volume{
 		Name: volumeName,
@@ -161,7 +161,6 @@ func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.
 	volumeMount := corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: path,
-		ReadOnly:  readOnly,
 	}
 
 	return volume, volumeMount
