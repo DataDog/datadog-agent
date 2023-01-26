@@ -91,7 +91,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 
 		// resolve laddr
 		//
-		// if process monitoring is enabled in the saystem-probe,
+		// if process monitoring is enabled in the system-probe,
 		// then laddr container id may be set, so check that
 		// first
 		cid := conn.Laddr.ContainerId
