@@ -76,19 +76,19 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	}
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-		instances, err := microVMs.RunAndReturnInstances(ctx)
+		awsEnvironment, err := aws.AWSEnvironment(ctx)
 		if err != nil {
 			return err
 		}
 
-		e, err := aws.AWSEnvironment(ctx)
+		instances, err := microVMs.RunAndReturnInstances(ctx, awsEnvironment)
 		if err != nil {
 			return err
 		}
 
 		for _, instance := range instances {
-			remoteRunner, err := command.NewRunner(*e.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
-				return command.WaitForCloudInit(e.Ctx, r)
+			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
+				return command.WaitForCloudInit(awsEnvironment.Ctx, r)
 			})
 
 			filemanager := command.NewFileManager(remoteRunner)
