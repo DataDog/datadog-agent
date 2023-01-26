@@ -87,8 +87,6 @@ func Run(ctx context.Context) {
 	}
 
 	telemetryCollector := telemetry.NewCollector(cfg)
-	telemetryCollector.Start()
-	defer telemetryCollector.Stop()
 
 	if err := coreconfig.SetupLogger(
 		coreconfig.LoggerName("TRACE"),
@@ -99,7 +97,7 @@ func Run(ctx context.Context) {
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
 	); err != nil {
-		telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Cannot create logger: %w", err), true)
+		telemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)
 		osutil.Exitf("Cannot create logger: %v", err)
 	}
 	tracelog.SetLogger(corelogger{})
@@ -107,7 +105,7 @@ func Run(ctx context.Context) {
 
 	if !cfg.Enabled {
 		log.Info(messageAgentDisabled)
-		telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf(messageAgentDisabled), true)
+		telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
 		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -131,7 +129,7 @@ func Run(ctx context.Context) {
 	if flags.PIDFilePath != "" {
 		err := pidfile.WritePID(flags.PIDFilePath)
 		if err != nil {
-			telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Error writing PID file, exiting: %w", err), true)
+			telemetryCollector.SendStartupError(telemetry.CantWritePIDFile, err)
 			log.Criticalf("Error writing PID file, exiting: %v", err)
 			os.Exit(1)
 		}
@@ -146,14 +144,14 @@ func Run(ctx context.Context) {
 
 	err = manager.ConfigureAutoExit(ctx)
 	if err != nil {
-		telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Unable to configure auto-exit, err: %w", err), true)
+		telemetryCollector.SendStartupError(telemetry.CantSetupAutoExit, err)
 		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
 		return
 	}
 
 	err = metrics.Configure(cfg, []string{"version:" + version.AgentVersion})
 	if err != nil {
-		telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Cannot configure dogstatsd, err: %w", err), true)
+		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
 	defer metrics.Flush()
@@ -200,12 +198,12 @@ func Run(ctx context.Context) {
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
 		client, err := grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
-			telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Could not instantiate the tracer remote config client: %w", err), true)
+			telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)
 		}
 		token, err := security.FetchAuthToken()
 		if err != nil {
-			telemetryCollector.SendStartupError(telemetry.GenericError, fmt.Errorf("Could obtain the auth token for the tracer remote config client: %w", err), true)
+			telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			osutil.Exitf("could obtain the auth token for the tracer remote config client: %v", err)
 		}
 		api.AttachEndpoint(api.Endpoint{
