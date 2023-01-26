@@ -5,7 +5,7 @@ typedef enum
 {
     KAFKA_PRODUCE = 0,
     KAFKA_FETCH
-} kafka_operation_t;
+} __attribute__ ((packed)) kafka_operation_t;
 
 typedef struct {
     int32_t message_size;
@@ -13,7 +13,7 @@ typedef struct {
     int16_t api_version;
     int32_t correlation_id;
     int16_t client_id_size;
-} kafka_header_t;
+} __attribute__ ((packed)) kafka_header_t;
 
 typedef struct {
     const char* buffer;
@@ -21,6 +21,6 @@ typedef struct {
     uint32_t offset;
     char* offset_as_pointer;
     kafka_header_t header;
-} kafka_context_t;
+} __attribute__ ((packed)) kafka_context_t;
 
 #endif
