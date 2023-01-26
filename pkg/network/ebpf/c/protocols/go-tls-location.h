@@ -4,6 +4,9 @@
 #include "bpf_helpers.h"
 
 #define REG_SIZE 8
+#ifdef __aarch64__
+#define NUM_REGISTERS 31
+#endif
 
 // This function was adapted from https://github.com/go-delve/delve:
 // - https://github.com/go-delve/delve/blob/cd9e6c02a6ca5f0d66c1f770ee10a0d8f4419333/pkg/proc/internal/ebpf/bpf/trace.bpf.c#L43
@@ -101,11 +104,16 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
         *(u64*)dest = tmp;
         return 0;
     #elif defined(__aarch64__)
-        if (regnum >= 0 && &(ctx->regs[regnum])+sizeof(ctx->regs[0]) < sizeof(ctx->regs)) {
-            __builtin_memcpy(dest, &ctx->regs[0], sizeof(ctx->regs[0]));
-            return 0;
+        volatile u64 tmp = 0;
+    #pragma unroll
+        for (int i = 0; i < NUM_REGISTERS; i++) {
+            if (i == regnum) {
+                tmp = ctx->regs[i];
+            }
         }
-        return 1;
+
+        *(u64*)dest = tmp;
+        return regnum < NUM_REGISTERS;
     #else
         #error "Unsupported platform"
     #endif
@@ -153,7 +161,7 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
                 return NULL;
         }
     #elif defined(__aarch64__)
-        if (regnum >= 0 && regnum < sizeof(ctx->regs)/sizeof(ctx->regs[0])) {
+        if (regnum >= 0 && regnum < NUM_REGISTERS) {
             return &ctx->regs[regnum];
         }
         return NULL;
