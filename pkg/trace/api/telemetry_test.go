@@ -78,7 +78,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
-	cfg.GlobalTags[FunctionARNKey] = "test_ARN"
+	cfg.GlobalTags[functionARNKey] = "test_ARN"
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
@@ -132,7 +132,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
-	cfg.GlobalTags[FunctionARNKey] = "test_ARN"
+	cfg.GlobalTags[functionARNKey] = "test_ARN"
 
 	req, rec := newRequestRecorder(t)
 	recv := newTestReceiverFromConfig(cfg)
