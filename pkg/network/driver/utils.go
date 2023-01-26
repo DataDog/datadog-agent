@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -29,10 +28,6 @@ func isDriverServiceDisabled(driverServiceName string) (enabled bool, err error)
 func isDriverRunning(driverServiceName string) (running bool, err error) {
 	log.Debugf("Checking if %s is running", driverServiceName)
 	return winutil.IsServiceRunning(driverServiceName)
-}
-
-func updateDriverService(driverServiceName string, newconfig mgr.Config) (err error) {
-	return winutil.UpdateServiceConfig(driverServiceName, newconfig)
 }
 
 func enableDriverService(driverServiceName string) (err error) {
@@ -122,7 +117,7 @@ func stopDriverService(driverServiceName string, disable bool) (err error) {
 		}
 	}
 
-	// if needed, disable it, too
+	// if needed, disable it too
 	if disable {
 		noChange := uint32(windows.SERVICE_NO_CHANGE)
 		err := windows.ChangeServiceConfig(service.Handle, noChange, windows.SERVICE_DISABLED, noChange, nil, nil, nil, nil, nil, nil, nil)

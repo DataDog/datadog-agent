@@ -202,62 +202,6 @@ func IsServiceRunning(serviceName string) (running bool, err error) {
 	return (serviceStatus.State == windows.SERVICE_RUNNING), nil
 }
 
-func UpdateServiceConfig(serviceName string, newConfig mgr.Config) (err error) {
-
-	// connect to SCM
-	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
-	if err != nil {
-		return
-	}
-	defer manager.Disconnect()
-
-	// get a handle to the service
-	serviceAccess := windows.SERVICE_CHANGE_CONFIG | windows.SERVICE_QUERY_CONFIG
-	serviceHandle, err := OpenService(manager, serviceName, uint32(serviceAccess))
-	if err != nil {
-		return
-	}
-	defer serviceHandle.Close()
-
-	// set it to manual start
-	err = serviceHandle.UpdateConfig(newConfig)
-	if err != nil {
-		log.Warnf("could not enable %s: %v", serviceName, err)
-	}
-	return
-}
-
-func AddServiceDependency(serviceName string, dependencyName string) (err error) {
-	// connect to SCM
-	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
-	if err != nil {
-		return
-	}
-	defer manager.Disconnect()
-
-	// get a handle to the service
-	serviceAccess := windows.SERVICE_CHANGE_CONFIG | windows.SERVICE_QUERY_CONFIG
-	serviceHandle, err := OpenService(manager, serviceName, uint32(serviceAccess))
-	if err != nil {
-		return
-	}
-	defer serviceHandle.Close()
-
-	currentConfig, err := serviceHandle.Config()
-	if err != nil {
-		return
-	}
-	newConfig := mgr.Config{
-		Dependencies: append(currentConfig.Dependencies, dependencyName),
-	}
-
-	err = serviceHandle.UpdateConfig(newConfig)
-	if err != nil {
-		return fmt.Errorf("unable to add dependency %s to %s", dependencyName, serviceName)
-	}
-	return
-}
-
 // ServiceStatus reports information pertaining to enumerated services
 // only exported so binary.Read works
 type ServiceStatus struct {
