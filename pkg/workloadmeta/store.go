@@ -323,6 +323,16 @@ func (s *store) ListImages() []*ContainerImageMetadata {
 	return images
 }
 
+// GetImage implements Store#GetImage
+func (s *store) GetImage(id string) (*ContainerImageMetadata, error) {
+	entity, err := s.getEntityByKind(KindContainerImageMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*ContainerImageMetadata), nil
+}
+
 // Notify implements Store#Notify
 func (s *store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {

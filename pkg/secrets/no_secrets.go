@@ -18,8 +18,7 @@ import (
 var SecretBackendOutputMaxSize = 1024 * 1024
 
 // Init placeholder when compiled without the 'secrets' build tag
-func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool, sha256 string, configFile string) {
-}
+func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool) {}
 
 // Decrypt encrypted secrets are not available on windows
 func Decrypt(data []byte, origin string) ([]byte, error) {
@@ -28,5 +27,5 @@ func Decrypt(data []byte, origin string) ([]byte, error) {
 
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func GetDebugInfo() (*SecretInfo, error) {
-	return nil, fmt.Errorf("secret feature is not available in this version of the agent")
+	return nil, fmt.Errorf("Secret feature is not available in this version of the agent")
 }

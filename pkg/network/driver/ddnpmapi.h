@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x14
+#define DD_NPMDRIVER_VERSION       0x15
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -89,12 +89,12 @@ typedef unsigned char       uint8_t;
 
 #define DDNPMDRIVER_IOCTL_GET_OPEN_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x80D, \
-                                              METHOD_BUFFERED,\
+                                              METHOD_OUT_DIRECT,\
                                               FILE_ANY_ACCESS)
 
 #define DDNPMDRIVER_IOCTL_GET_CLOSED_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x80E, \
-                                              METHOD_BUFFERED,\
+                                              METHOD_OUT_DIRECT,\
                                               FILE_ANY_ACCESS)
 
 #define DDNPMDRIVER_IOCTL_SET_CLOSED_FLOWS_NOTIFY  CTL_CODE(FILE_DEVICE_NETWORK, \
@@ -220,24 +220,32 @@ typedef struct _filterDefinition
     uint64_t        interfaceIndex;
 } FILTER_DEFINITION;
 
-/*!
- * PACKET_HEADER structure
- *
- * provided by the driver during the upcall with implementation specific
- * information in the header.
- */
 
 typedef struct _udpFlowData {
     uint64_t        reserved;
 } UDP_FLOW_DATA;
-typedef struct _tcpFlowData {
 
+typedef enum _ConnectionStatus {
+    CONN_STAT_UNKNOWN,
+    CONN_STAT_ATTEMPTED,
+    CONN_STAT_ESTABLISHED,
+    CONN_STAT_ACKRST,
+    CONN_STAT_TIMEOUT
+} CONNECTION_STATUS;
+
+typedef struct _tcpFlowData {
     uint64_t        iRTT;           // initial RTT
     uint64_t        sRTT;           // smoothed RTT
     uint64_t        rttVariance;
     uint64_t        retransmitCount;
+    CONNECTION_STATUS connectionStatus;
 } TCP_FLOW_DATA;
-typedef struct _perFlowData {
+
+/** _userFlowData
+ *
+ * This structure holds the state that will be passed up to user space (system probe).
+*/
+typedef struct _userFlowData {
     uint64_t          flowHandle;
     uint64_t          processId;
     uint16_t          addressFamily; // AF_INET or AF_INET6
@@ -254,7 +262,7 @@ typedef struct _perFlowData {
     uint64_t packetsOut;
     uint64_t monotonicSentBytes;              // total bytes including ip header
     uint64_t transportBytesOut;     // payload (not including ip or transport header)
-
+//80
     uint64_t packetsIn;
     uint64_t monotonicRecvBytes;
     uint64_t transportBytesIn;
@@ -276,12 +284,13 @@ typedef struct _perFlowData {
     uint16_t        tls_version_chosen;
     uint64_t        tls_alpn_requested;
     uint64_t        tls_alpn_chosen;
+//64 144
     // stats unique to a particular transport
     union {
-        TCP_FLOW_DATA     tcp;
+        TCP_FLOW_DATA     tcp; //36
         UDP_FLOW_DATA     udp;
     } protocol_u;
-} PER_FLOW_DATA;
+} USER_FLOW_DATA;
 
 #define CLASSIFICATION_UNCLASSIFIED                 (0)
 #define CLASSIFICATION_CLASSIFIED                   (CLASSIFICATION_UNCLASSIFIED + 1)

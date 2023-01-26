@@ -17,7 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -52,7 +52,7 @@ func TestUtimes(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(123), event.Utimes.Atime.Unix())
 			assert.Equal(t, int64(456), event.Utimes.Mtime.Unix())
@@ -89,7 +89,7 @@ func TestUtimes(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(111), event.Utimes.Atime.Unix())
 			assert.Equal(t, int64(222), event.Utimes.Atime.UnixNano()%int64(time.Second)/int64(time.Microsecond))
@@ -129,7 +129,7 @@ func TestUtimes(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(555), event.Utimes.Mtime.Unix())
 			assert.Equal(t, int64(666), event.Utimes.Mtime.UnixNano()%int64(time.Second)/int64(time.Nanosecond))

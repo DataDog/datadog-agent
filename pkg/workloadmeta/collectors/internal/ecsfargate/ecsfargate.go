@@ -10,13 +10,11 @@ package ecsfargate
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,10 +43,6 @@ func init() {
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.ECSFargate) {
 		return errors.NewDisabled(componentName, "Agent is not running on Fargate")
-	}
-
-	if !ecsutil.IsFargateInstance(ctx) {
-		return fmt.Errorf("failed to connect to ECS Fargate task metadata API")
 	}
 
 	var err error

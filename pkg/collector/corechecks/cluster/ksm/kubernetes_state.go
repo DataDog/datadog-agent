@@ -146,12 +146,14 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
+	agentConfig          config.Config
 	instance             *KSMConfig
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
 	cancel               context.CancelFunc
 	isCLCRunner          bool
-	clusterName          string
+	clusterNameTagValue  string
+	clusterNameRFC1123   string
 	metricNamesMapper    map[string]string
 	metricAggregators    map[string]metricAggregator
 	metricTransformers   map[string]metricTransformerFunc
@@ -197,6 +199,7 @@ func init() {
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
+	k.agentConfig = ddconfig.Datadog
 
 	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
@@ -557,8 +560,8 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			tag, hostTag := k.buildTag(key, value, lMapperOverride)
 			tags = append(tags, tag)
 			if hostTag != "" {
-				if k.clusterName != "" {
-					hostname = hostTag + "-" + k.clusterName
+				if k.clusterNameRFC1123 != "" {
+					hostname = hostTag + "-" + k.clusterNameRFC1123
 				} else {
 					hostname = hostTag
 				}
@@ -577,8 +580,8 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
 			tags = append(tags, tag)
 			if hostTag != "" {
-				if k.clusterName != "" {
-					hostname = hostTag + "-" + k.clusterName
+				if k.clusterNameRFC1123 != "" {
+					hostname = hostTag + "-" + k.clusterNameRFC1123
 				} else {
 					hostname = hostTag
 				}
@@ -695,8 +698,12 @@ func (k *KSMCheck) processLabelsOrAnnotationsAsTags(what string, configStuffAsTa
 // getClusterName retrieves the name of the cluster, if found
 func (k *KSMCheck) getClusterName() {
 	hostname, _ := hostnameUtil.Get(context.TODO())
-	if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
-		k.clusterName = clusterName
+	if clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostname); clusterName != "" {
+		k.clusterNameRFC1123 = clusterName
+	}
+
+	if clusterName := clustername.GetClusterNameTagValue(context.TODO(), hostname); clusterName != "" {
+		k.clusterNameTagValue = clusterName
 	}
 }
 
@@ -708,12 +715,12 @@ func (k *KSMCheck) initTags() {
 		k.instance.Tags = []string{}
 	}
 
-	if k.clusterName != "" {
-		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterName)
+	if k.clusterNameTagValue != "" {
+		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterNameTagValue)
 	}
 
 	if !k.instance.DisableGlobalTags {
-		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(false)...)
+		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(k.agentConfig, false)...)
 	}
 }
 

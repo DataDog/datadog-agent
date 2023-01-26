@@ -432,9 +432,6 @@ func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
 	if r.ruleScope == compliance.KubernetesClusterScope {
 		context["kubernetes_cluster"], _ = env.KubeClient().ClusterID()
 	}
-	if r.ruleScope == compliance.KubernetesNodeScope {
-		context["kubernetes_node_labels"] = env.NodeLabels()
-	}
 
 	mappedInputs := buildMappedInputs(r.inputs)
 	if mappedInputs != nil {
@@ -495,7 +492,7 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 	return reports
 }
 
-func (r *regoCheck) Check(env env.Env) []*compliance.Report {
+func (r *regoCheck) Check(env env.Env) compliance.Reports {
 	r.evalLock.Lock()
 	defer r.evalLock.Unlock()
 

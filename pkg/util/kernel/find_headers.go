@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -82,16 +81,26 @@ type headerProvider struct {
 	kernelHeaders []string
 }
 
-func initProvider(config *ebpf.Config) {
+type KernelHeaderOptions struct {
+	DownloadEnabled bool
+	Dirs            []string
+	DownloadDir     string
+
+	AptConfigDir   string
+	YumReposDir    string
+	ZypperReposDir string
+}
+
+func initProvider(opts KernelHeaderOptions) {
 	HeaderProvider = &headerProvider{
-		downloadEnabled:   config.EnableKernelHeaderDownload,
-		headerDirs:        config.KernelHeadersDirs,
-		headerDownloadDir: config.KernelHeadersDownloadDir,
+		downloadEnabled:   opts.DownloadEnabled,
+		headerDirs:        opts.Dirs,
+		headerDownloadDir: opts.DownloadDir,
 
 		downloader: headerDownloader{
-			aptConfigDir:   config.AptConfigDir,
-			yumReposDir:    config.YumReposDir,
-			zypperReposDir: config.ZypperReposDir,
+			aptConfigDir:   opts.AptConfigDir,
+			yumReposDir:    opts.YumReposDir,
+			zypperReposDir: opts.ZypperReposDir,
 		},
 
 		result:        notAttempted,
@@ -107,12 +116,12 @@ func initProvider(config *ebpf.Config) {
 // Any subsequent calls to GetKernelHeaders will return the result of the first call. This is because
 // kernel header downloading can be a resource intensive process, so we don't want to retry it an unlimited
 // number of times.
-func GetKernelHeaders(config *ebpf.Config, client statsd.ClientInterface) []string {
+func GetKernelHeaders(opts KernelHeaderOptions, client statsd.ClientInterface) []string {
 	providerMu.Lock()
 	defer providerMu.Unlock()
 
 	if HeaderProvider == nil {
-		initProvider(config)
+		initProvider(opts)
 	}
 
 	if HeaderProvider.result != notAttempted {

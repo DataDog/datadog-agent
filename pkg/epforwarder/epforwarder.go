@@ -42,11 +42,11 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:              eventTypeDBMSamples,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
-		hostnameEndpointPrefix: "dbquery-intake.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "databasequery",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxContentSize:    10e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
@@ -138,7 +138,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	case p.in <- e:
 		return nil
 	default:
-		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. consider increasing batch_max_concurrent_send", eventType)
+		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
 	}
 }
 
@@ -162,7 +162,11 @@ func (s *defaultEventPlatformForwarder) Purge() map[string][]*message.Message {
 	defer s.purgeMx.Unlock()
 	result := make(map[string][]*message.Message)
 	for eventType, p := range s.pipelines {
-		result[eventType] = purgeChan(p.in)
+		res := purgeChan(p.in)
+		result[eventType] = res
+		if eventType == eventTypeDBMActivity || eventType == eventTypeDBMMetrics || eventType == eventTypeDBMSamples {
+			log.Debugf("purged DBM channel %s: %d events", eventType, len(res))
+		}
 	}
 	return result
 }

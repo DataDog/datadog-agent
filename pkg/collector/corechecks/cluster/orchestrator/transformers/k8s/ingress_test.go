@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -59,7 +60,7 @@ func TestExtractIngress(t *testing.T) {
 					},
 					DefaultBackend: &netv1.IngressBackend{
 						Resource: &v1.TypedLocalObjectReference{
-							APIGroup: strPtr("apiGroup"),
+							APIGroup: pointer.Ptr("apiGroup"),
 							Kind:     "kind",
 							Name:     "name",
 						},
@@ -70,7 +71,7 @@ func TestExtractIngress(t *testing.T) {
 							SecretName: "secret",
 						},
 					},
-					IngressClassName: strPtr("ingressClassName"),
+					IngressClassName: pointer.Ptr("ingressClassName"),
 				},
 				Status: netv1.IngressStatus{
 					LoadBalancer: v1.LoadBalancerStatus{
@@ -232,7 +233,7 @@ func TestExtractIngressBackend(t *testing.T) {
 		"with resource": {
 			input: netv1.IngressBackend{
 				Resource: &v1.TypedLocalObjectReference{
-					APIGroup: strPtr("apiGroup"),
+					APIGroup: pointer.Ptr("apiGroup"),
 					Kind:     "kind",
 					Name:     "name",
 				},

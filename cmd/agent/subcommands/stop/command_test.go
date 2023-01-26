@@ -24,6 +24,6 @@ func TestCommand(t *testing.T) {
 		[]string{"stop"},
 		stop,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }

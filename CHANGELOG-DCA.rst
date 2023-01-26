@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.42.0:
+
+7.42.0 / 6.42.0
+======
+
+.. _Release Notes_7.42.0_New Features:
+
+New Features
+------------
+
+- Supports the collection of custom resource definition and custom resource manifests for the orchestrator explorer.
+
+
+.. _Release Notes_7.42.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collects Unified Service Tags for the orchestrator explorer product.
+
+
 .. _Release Notes_7.41.0:
 
 7.41.0 / 6.41.0

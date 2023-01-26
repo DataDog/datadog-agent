@@ -199,19 +199,18 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 					}
 					linked, _ := exec.Command(ldd, fetch).Output()
 
-					foundSSLLib := false
+					var prefechLibs []string
 					for _, lib := range tlsLibs {
 						libSSLPath := lib.FindString(string(linked))
 						if _, err := os.Stat(libSSLPath); err == nil {
-							foundSSLLib = true
-							break
+							prefechLibs = append(prefechLibs, libSSLPath)
 						}
 					}
-					if !foundSSLLib {
+					if len(prefechLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
 
-					testHTTPSLibrary(t, test.fetchCmd)
+					testHTTPSLibrary(t, test.fetchCmd, prefechLibs)
 
 				})
 			}
@@ -219,7 +218,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -230,9 +229,12 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	err = tr.RegisterClient("1")
 	require.NoError(t, err)
 
-	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
-	exec.Command(fetchCmd[0]).Run()
-	time.Sleep(2 * time.Second)
+	// not ideal but, short process are hard to catch
+	for _, lib := range prefechLibs {
+		f, _ := os.Open(lib)
+		defer f.Close()
+	}
+	time.Sleep(time.Second)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
@@ -492,19 +494,19 @@ func TestProtocolClassification(t *testing.T) {
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
-		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
 		testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
 	})
 
 	t.Run("with snat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
-		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
 		testProtocolClassificationMapCleanup(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
 		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
 }

@@ -8,11 +8,9 @@ package trace
 import (
 	"context"
 	"strings"
-	"sync"
 
 	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -57,7 +55,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 }
 
 // Start starts the agent
-func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionContext *executioncontext.ExecutionContext) {
+func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) {
 	if enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
@@ -72,13 +70,9 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc, telemetry.NewNoopCollector())
-			s.spanModifier = &spanModifier{}
-			if executionContext != nil {
-				s.spanModifier.coldStartSpanCreator = &ColdStartSpanCreator{
-					executionContext: executionContext,
-					traceAgent:       s,
-					createSpan:       &sync.Once{},
-				}
+			s.spanModifier = &spanModifier{
+				coldStartSpanId: coldStartSpanId,
+				lambdaSpanChan:  lambdaSpanChan,
 			}
 
 			s.ta.ModifySpan = s.spanModifier.ModifySpan

@@ -226,8 +226,10 @@ func PdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserDat
 	return uint32(ret)
 }
 
-/* pdhCollectQueryData
-   Collects the current raw data value for all counters in the specified query and updates the status code of each counter.
+/*
+	pdhCollectQueryData
+	  Collects the current raw data value for all counters in the specified query and updates the status code of each counter.
+
 Parameters
 hQuery [in, out]
 Handle of the query for which you want to collect data. The PdhOpenQuery function returns this handle.

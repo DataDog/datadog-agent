@@ -16,13 +16,13 @@
                 "mount": {
                     "type": "object",
                     "required": [
-                        "mountpoint",
+                        "mp",
                         "mount_id",
                         "parent_mount_id",
                         "fs_type"
                     ],
                     "properties": {
-                        "mountpoint": {
+                        "mp": {
                             "properties": {
                                 "path": {
                                     "type": "string"
@@ -41,7 +41,7 @@
                         "fs_type": {
                             "type": "string"
                         },
-                        "source": {
+                        "root": {
                             "properties": {
                                 "path": {
                                     "type": "string"

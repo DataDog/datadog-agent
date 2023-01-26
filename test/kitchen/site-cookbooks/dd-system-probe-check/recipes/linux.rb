@@ -28,6 +28,15 @@ package 'kernel headers' do
   end
 end
 
+package 'java' do
+  case node[:platform]
+  when 'redhat', 'centos', 'fedora', 'amazon'
+    package_name 'java'
+  when 'ubuntu', 'debian'
+    package_name 'default-jre'
+  end
+end
+
 package 'python3'
 
 case node[:platform]

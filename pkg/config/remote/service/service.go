@@ -84,6 +84,7 @@ type uptaneClient interface {
 	Update(response *pbgo.LatestConfigsResponse) error
 	State() (uptane.State, error)
 	DirectorRoot(version uint64) ([]byte, error)
+	StoredOrgUUID() (string, error)
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
@@ -267,7 +268,12 @@ func (s *Service) refresh() error {
 	if err != nil {
 		log.Warnf("could not get previous backend client state: %v", err)
 	}
-	request := buildLatestConfigsRequest(s.hostname, s.traceAgentEnv, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	orgUUID, err := s.uptane.StoredOrgUUID()
+	if err != nil {
+		return err
+	}
+
+	request := buildLatestConfigsRequest(s.hostname, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)

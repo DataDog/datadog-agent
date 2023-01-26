@@ -24,10 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -45,10 +46,10 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router) *mux.Router {
+func SetupHandlers(r *mux.Router, flare flare.Component) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
@@ -65,8 +66,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
-	r.HandleFunc("/workload-list/short", getShortWorkloadList).Methods("GET")
-	r.HandleFunc("/workload-list/verbose", getVerboseWorkloadList).Methods("GET")
+	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
 
@@ -97,8 +97,8 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request) {
-	var profile flare.ProfileData
+func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
+	var profile pkgflare.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
@@ -125,8 +125,18 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	if jmxLogFile == "" {
 		jmxLogFile = common.DefaultJmxLogFile
 	}
+
+	// If we're not in an FX app we fallback to pkgflare implementation. Once all app have been migrated to flare we
+	// could remove this.
+	var filePath string
+	var err error
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	if flare != nil {
+		filePath, err = flare.Create(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	} else {
+		filePath, err = pkgflare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	}
+
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -370,15 +380,15 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonTags)
 }
 
-func getVerboseWorkloadList(w http.ResponseWriter, r *http.Request) {
-	workloadList(w, true)
-}
+func getWorkloadList(w http.ResponseWriter, r *http.Request) {
+	verbose := false
+	params := r.URL.Query()
+	if v, ok := params["verbose"]; ok {
+		if len(v) >= 1 && v[0] == "true" {
+			verbose = true
+		}
+	}
 
-func getShortWorkloadList(w http.ResponseWriter, r *http.Request) {
-	workloadList(w, false)
-}
-
-func workloadList(w http.ResponseWriter, verbose bool) {
 	response := workloadmeta.GetGlobalStore().Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
