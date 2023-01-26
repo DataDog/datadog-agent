@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
 const (
@@ -89,11 +90,11 @@ type Consumer struct {
 	streaming bool
 
 	// telemetry
-	enobufs     statGaugeWrapper
-	throttles   statGaugeWrapper
-	samplingPct statGaugeWrapper
-	readErrors  statGaugeWrapper
-	msgErrors   statGaugeWrapper
+	enobufs     nettelemetry.StatGaugeWrapper
+	throttles   nettelemetry.StatGaugeWrapper
+	samplingPct nettelemetry.StatGaugeWrapper
+	readErrors  nettelemetry.StatGaugeWrapper
+	msgErrors   nettelemetry.StatGaugeWrapper
 
 	netlinkSeqNumber    uint32
 	listenAllNamespaces bool
@@ -139,12 +140,11 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
-		enobufs:             newStatGaugeWrapper(telemetry.NewGauge("consumer", "enobufs", []string{"map_name", "error"}, "description")),
-		throttles:           newStatGaugeWrapper(telemetry.NewGauge("consumer", "throttles", []string{"map_name", "error"}, "description")),
-		samplingPct:         newStatGaugeWrapper(telemetry.NewGauge("consumer", "samplingPct", []string{"map_name", "error"}, "description")),
-		// samplingPct:     *atomic.NewInt64(0),
-		readErrors:      newStatGaugeWrapper(telemetry.NewGauge("consumer", "readErrors", []string{"map_name", "error"}, "description")),
-		msgErrors:       newStatGaugeWrapper(telemetry.NewGauge("consumer", "msgErrors", []string{"map_name", "error"}, "description")),
+		enobufs:             nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "enobufs", []string{}, "description")),
+		throttles:           nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "throttles", []string{}, "description")),
+		samplingPct:         nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "samplingPct", []string{}, "description")),
+		readErrors:      nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "readErrors", []string{}, "description")),
+		msgErrors:       nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "msgErrors", []string{}, "description")),
 		recvLoopRunning: atomic.NewBool(false),
 		rootNetNs:       ns,
 	}

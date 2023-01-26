@@ -20,7 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
-	"go.uber.org/atomic"
+	// "go.uber.org/atomic"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
 const (
@@ -28,38 +29,38 @@ const (
 	perfLostStat     = "perf_lost"
 )
 
-type statGaugeWrapper struct {
-	stat  *atomic.Int64
-	gauge telemetry.Gauge
-}
+// type statGaugeWrapper struct {
+// 	stat  *atomic.Int64
+// 	gauge telemetry.Gauge
+// }
 
-func (sgw *statGaugeWrapper) Inc() {
-	sgw.stat.Inc()
-	sgw.gauge.Inc()
-}
+// func (sgw *statGaugeWrapper) Inc() {
+// 	sgw.stat.Inc()
+// 	sgw.gauge.Inc()
+// }
 
-func (sgw *statGaugeWrapper) Add(v int64) {
-	sgw.stat.Add(v)
-	sgw.gauge.Add(float64(v))
-}
+// func (sgw *statGaugeWrapper) Add(v int64) {
+// 	sgw.stat.Add(v)
+// 	sgw.gauge.Add(float64(v))
+// }
 
-func (sgw *statGaugeWrapper) Set(v int64) {
-	sgw.stat.Store(v)
-	sgw.gauge.Set(float64(v))
-}
+// func (sgw *statGaugeWrapper) Set(v int64) {
+// 	sgw.stat.Store(v)
+// 	sgw.gauge.Set(float64(v))
+// }
 
-func (sgw *statGaugeWrapper) Load() int64 {
-	stat := sgw.stat.Load()
-	sgw.gauge.Set(float64(stat))
-	return stat
-}
+// func (sgw *statGaugeWrapper) Load() int64 {
+// 	stat := sgw.stat.Load()
+// 	sgw.gauge.Set(float64(stat))
+// 	return stat
+// }
 
-func newStatGaugeWrapper(gauge telemetry.Gauge) statGaugeWrapper {
-	return statGaugeWrapper{
-		stat:  atomic.NewInt64(0),
-		gauge: gauge,
-	}
-}
+// func newStatGaugeWrapper(gauge telemetry.Gauge) statGaugeWrapper {
+// 	return statGaugeWrapper{
+// 		stat:  atomic.NewInt64(0),
+// 		gauge: gauge,
+// 	}
+// }
 
 type tcpCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler
@@ -69,8 +70,8 @@ type tcpCloseConsumer struct {
 	once         sync.Once
 
 	// Telemetry
-	perfReceived statGaugeWrapper
-	perfLost     statGaugeWrapper
+	perfReceived nettelemetry.StatGaugeWrapper
+	perfLost     nettelemetry.StatGaugeWrapper
 }
 
 func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*tcpCloseConsumer, error) {
@@ -94,8 +95,8 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
-		perfReceived: newStatGaugeWrapper(telemetry.NewGauge("perf_received", "errors", []string{"map_name", "error"}, "description")),
-		perfLost:     newStatGaugeWrapper(telemetry.NewGauge("perf_lost", "errors", []string{"map_name", "error"}, "description")),
+		perfReceived: nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("tcp_close_consumer", perfReceivedStat, []string{}, "description")),
+		perfLost:     nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("tcp_close_consumer", perfLostStat, []string{}, "description")),
 	}
 	return c, nil
 }

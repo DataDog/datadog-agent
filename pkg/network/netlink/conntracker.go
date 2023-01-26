@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
 const (
@@ -63,9 +64,9 @@ type orphanEntry struct {
 }
 
 type stats struct {
-	gets                     statGaugeWrapper
+	gets                     nettelemetry.StatGaugeWrapper
 	getTimeTotal             *atomic.Int64
-	registers                statGaugeWrapper
+	registers                nettelemetry.StatGaugeWrapper
 	registersDropped         *atomic.Int64
 	registersTotalTime       *atomic.Int64
 	unregisters              *atomic.Int64
@@ -91,33 +92,33 @@ type realConntracker struct {
 	stats         stats
 }
 
-type statGaugeWrapper struct {
-	stat  *atomic.Int64
-	gauge telemetry.Gauge
-}
+// type statGaugeWrapper struct {
+// 	stat  *atomic.Int64
+// 	gauge telemetry.Gauge
+// }
 
-func (sgw *statGaugeWrapper) Inc() {
-	sgw.stat.Inc()
-	sgw.gauge.Inc()
-}
+// func (sgw *statGaugeWrapper) Inc() {
+// 	sgw.stat.Inc()
+// 	sgw.gauge.Inc()
+// }
 
-func (sgw *statGaugeWrapper) Set(v int64) {
-	sgw.stat.Store(v)
-	sgw.gauge.Set(float64(v))
-}
+// func (sgw *statGaugeWrapper) Set(v int64) {
+// 	sgw.stat.Store(v)
+// 	sgw.gauge.Set(float64(v))
+// }
 
-func (sgw *statGaugeWrapper) Load() int64 {
-	stat := sgw.stat.Load()
-	sgw.gauge.Set(float64(stat))
-	return stat
-}
+// func (sgw *statGaugeWrapper) Load() int64 {
+// 	stat := sgw.stat.Load()
+// 	sgw.gauge.Set(float64(stat))
+// 	return stat
+// }
 
-func newStatGaugeWrapper(gauge telemetry.Gauge) statGaugeWrapper {
-	return statGaugeWrapper{
-		stat:  atomic.NewInt64(0),
-		gauge: gauge,
-	}
-}
+// func newStatGaugeWrapper(gauge telemetry.Gauge) statGaugeWrapper {
+// 	return statGaugeWrapper{
+// 		stat:  atomic.NewInt64(0),
+// 		gauge: gauge,
+// 	}
+// }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
 func NewConntracker(config *config.Config) (Conntracker, error) {
@@ -143,17 +144,17 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 
 func newStats() stats {
 	return stats{
-		gets:                     newStatGaugeWrapper(telemetry.NewGauge("conntracker", "gets", []string{"map_name", "error"}, "description")),
+		gets:                     nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("conntracker", "gets", []string{}, "description")),
 		getTimeTotal:             atomic.NewInt64(0),
-		registers:                newStatGaugeWrapper(telemetry.NewGauge("conntracker", "registers", []string{"map_name", "error"}, "description")),
+		registers:                nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("conntracker", "registers", []string{}, "description")),
 		registersDropped:         atomic.NewInt64(0),
 		registersTotalTime:       atomic.NewInt64(0),
 		unregisters:              atomic.NewInt64(0),
 		unregistersTotalTime:     atomic.NewInt64(0),
 		evicts:                   atomic.NewInt64(0),
-		nanoSecondsPerGet:        telemetry.NewGauge("conntracker", "nanoSecondsPerGet", []string{"map_name", "error"}, "description"),
-		nanoSecondsPerRegister:   telemetry.NewGauge("conntracker", "nanoSecondsPerRegister", []string{"map_name", "error"}, "description"),
-		nanoSecondsPerUnRegister: telemetry.NewGauge("conntracker", "nanoSecondsPerUnregister", []string{"map_name", "error"}, "description"),
+		nanoSecondsPerGet:        telemetry.NewGauge("conntracker", "nanoSecondsPerGet", []string{}, "description"),
+		nanoSecondsPerRegister:   telemetry.NewGauge("conntracker", "nanoSecondsPerRegister", []string{}, "description"),
+		nanoSecondsPerUnRegister: telemetry.NewGauge("conntracker", "nanoSecondsPerUnregister", []string{}, "description"),
 	}
 }
 
@@ -193,7 +194,7 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	defer func() {
 		ctr.stats.gets.Inc()
 		ctr.stats.getTimeTotal.Add(time.Now().UnixNano() - then)
-		if gets := ctr.stats.gets.stat.Load(); gets > 0 {
+		if gets := ctr.stats.gets.Load(); gets > 0 {
 			ctr.stats.nanoSecondsPerGet.Set(float64(ctr.stats.getTimeTotal.Load() / gets))
 		}
 	}()
@@ -238,14 +239,14 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		"orphan_size": int64(orphanSize),
 	}
 
-	gets := ctr.stats.gets.stat.Load()
+	gets := ctr.stats.gets.Load()
 	getTimeTotal := ctr.stats.getTimeTotal.Load()
 	m["gets_total"] = gets
 	if gets != 0 {
 		m["nanoseconds_per_get"] = getTimeTotal / gets
 	}
 
-	registers := ctr.stats.registers.stat.Load()
+	registers := ctr.stats.registers.Load()
 	m["registers_total"] = registers
 	registersTotalTime := ctr.stats.registersTotalTime.Load()
 	if registers != 0 {

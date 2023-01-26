@@ -64,8 +64,8 @@ func newEbpfConntrackerStats() ebpfConntrackerStats {
 		getTotalTime:             atomic.NewInt64(0),
 		unregisters:              atomic.NewInt64(0),
 		unregistersTotalTime:     atomic.NewInt64(0),
-		nanoSecondsPerGet:        telemetry.NewGauge("perf_received", "nanoSecondsPerGet", []string{"map_name", "error"}, "description"),
-		nanoSecondsPerUnregister: telemetry.NewGauge("perf_received", "nanoSecondsPerUnregister", []string{"map_name", "error"}, "description"),
+		nanoSecondsPerGet:        telemetry.NewGauge("ebpf_conntracker", "nanoSecondsPerGet", []string{}, "description"),
+		nanoSecondsPerUnregister: telemetry.NewGauge("ebpf_conntracker", "nanoSecondsPerUnregister", []string{}, "description"),
 	}
 }
 
