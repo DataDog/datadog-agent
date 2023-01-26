@@ -67,7 +67,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct {
 }
 
-func (m *MetricDogStatsDMocked) NewServer() (*dogstatsd.Server, error) {
+func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (*dogstatsd.Server, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -200,9 +200,9 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
-	s, err := dogstatsd.NewServer(true)
+	s := dogstatsd.NewServer(true)
+	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
-	s.Start(demux)
 	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))

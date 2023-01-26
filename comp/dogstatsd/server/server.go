@@ -20,16 +20,12 @@ type server struct {
 	server *dogstatsd.Server
 }
 
-func newServer(deps dependencies) (Component, error) {
-	s, err := dogstatsd.NewServer(deps.Params.Serverless)
-	if err != nil {
-		return nil, err
-	}
-	return &server{server: s}, nil
+func newServer(deps dependencies) Component {
+	return &server{server: dogstatsd.NewServer(deps.Params.Serverless)}
 }
 
-func (s *server) Start(demultiplexer aggregator.Demultiplexer) {
-	s.server.Start(demultiplexer)
+func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
+	return s.server.Start(demultiplexer)
 
 }
 func (s *server) Stop() {

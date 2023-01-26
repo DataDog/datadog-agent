@@ -229,7 +229,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-func NewServer(serverless bool) (*Server, error) {
+func NewServer(serverless bool) *Server {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -242,53 +242,6 @@ func NewServer(serverless bool) (*Server, error) {
 		}
 		stats = s
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
-	}
-
-	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
-	tmpListeners := make([]listeners.StatsdListener, 0, 2)
-	capture, err := replay.NewTrafficCapture()
-	if err != nil {
-		return nil, err
-	}
-
-	// sharedPacketPool is used by the packet assembler to retrieve already allocated
-	// buffer in order to avoid allocation. The packets are pushed back by the server.
-	sharedPacketPool := packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
-	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
-
-	udsListenerRunning := false
-
-	socketPath := config.Datadog.GetString("dogstatsd_socket")
-	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, capture)
-		if err != nil {
-			log.Errorf(err.Error())
-		} else {
-			tmpListeners = append(tmpListeners, unixListener)
-			udsListenerRunning = true
-		}
-	}
-	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, capture)
-		if err != nil {
-			log.Errorf(err.Error())
-		} else {
-			tmpListeners = append(tmpListeners, udpListener)
-		}
-	}
-
-	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
-	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, capture)
-		if err != nil {
-			log.Errorf("named pipe error: %v", err.Error())
-		} else {
-			tmpListeners = append(tmpListeners, namedPipeListener)
-		}
-	}
-
-	if len(tmpListeners) == 0 {
-		return nil, fmt.Errorf("listening on neither udp nor socket, please check your configuration")
 	}
 
 	// check configuration for custom namespace
@@ -339,13 +292,13 @@ func NewServer(serverless bool) (*Server, error) {
 	s := &Server{
 		Started:                 true,
 		Statistics:              stats,
-		packetsIn:               packetsChannel,
-		captureChan:             packetsChannel,
-		sharedPacketPool:        sharedPacketPool,
-		sharedPacketPoolManager: sharedPacketPoolManager,
+		packetsIn:               nil,
+		captureChan:             nil,
+		sharedPacketPool:        nil,
+		sharedPacketPoolManager: nil,
 		sharedFloat64List:       newFloat64ListPool(),
 		demultiplexer:           nil,
-		listeners:               tmpListeners,
+		listeners:               nil,
 		stopChan:                make(chan bool),
 		serverlessFlushChan:     make(chan bool),
 		health:                  health.RegisterLiveness("dogstatsd-main"),
@@ -359,8 +312,8 @@ func NewServer(serverless bool) (*Server, error) {
 		Debug:                   newDSDServerDebug(),
 		originTelemetry: config.Datadog.GetBool("telemetry.enabled") &&
 			config.Datadog.GetBool("telemetry.dogstatsd_origin"),
-		TCapture:             capture,
-		UdsListenerRunning:   udsListenerRunning,
+		TCapture:             nil,
+		UdsListenerRunning:   false,
 		cachedOriginCounters: make(map[string]cachedOriginCounter),
 		ServerlessMode:       serverless,
 		enrichConfig: enrichConfig{
@@ -373,13 +326,69 @@ func NewServer(serverless bool) (*Server, error) {
 			originOptOutEnabled:       config.Datadog.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 	}
-	return s, nil
+	return s
 }
 
-func (s *Server) Start(demultiplexer aggregator.Demultiplexer) {
+func (s *Server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
 	s.demultiplexer = demultiplexer
+
+	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
+	tmpListeners := make([]listeners.StatsdListener, 0, 2)
+	capture, err := replay.NewTrafficCapture()
+
+	if err != nil {
+		return err
+	}
+
+	// sharedPacketPool is used by the packet assembler to retrieve already allocated
+	// buffer in order to avoid allocation. The packets are pushed back by the server.
+	sharedPacketPool := packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
+
+	udsListenerRunning := false
+
+	socketPath := config.Datadog.GetString("dogstatsd_socket")
+	if len(socketPath) > 0 {
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, capture)
+		if err != nil {
+			log.Errorf(err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, unixListener)
+			udsListenerRunning = true
+		}
+	}
+	if config.Datadog.GetInt("dogstatsd_port") > 0 {
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, capture)
+		if err != nil {
+			log.Errorf(err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, udpListener)
+		}
+	}
+
+	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
+	if len(pipeName) > 0 {
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, capture)
+		if err != nil {
+			log.Errorf("named pipe error: %v", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, namedPipeListener)
+		}
+	}
+
+	if len(tmpListeners) == 0 {
+		return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
+	}
+
+	s.UdsListenerRunning = udsListenerRunning
+	s.packetsIn = packetsChannel
+	s.captureChan = packetsChannel
+	s.sharedPacketPool = sharedPacketPool
+	s.sharedPacketPoolManager = sharedPacketPoolManager
+	s.listeners = tmpListeners
+	s.TCapture = capture
 
 	// packets forwarding
 	// ----------------------
@@ -426,6 +435,7 @@ func (s *Server) Start(demultiplexer aggregator.Demultiplexer) {
 			s.mapper = mapperInstance
 		}
 	}
+	return nil
 }
 
 func (s *Server) handleMessages() {

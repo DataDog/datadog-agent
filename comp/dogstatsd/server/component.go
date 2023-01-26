@@ -19,7 +19,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	Start(demultiplexer aggregator.Demultiplexer)
+	Start(demultiplexer aggregator.Demultiplexer) error
 	Stop()
 
 	Capture(p string, d time.Duration, compressed bool) error
