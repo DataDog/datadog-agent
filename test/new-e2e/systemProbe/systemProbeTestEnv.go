@@ -39,8 +39,11 @@ const (
 	composeDataPath = "compose/data"
 )
 
-var SSHKeyFile = filepath.Join("/", "tmp", "aws-ssh-key")
-var VMConfig = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
+var (
+	SSHKeyFile           = filepath.Join("/", "tmp", "aws-ssh-key")
+	VMConfig             = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
+	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
+)
 
 func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string) (*TestEnv, error) {
 	systemProbeTestEnv := &TestEnv{
@@ -93,7 +96,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 
 			filemanager := command.NewFileManager(remoteRunner)
 			_, err = filemanager.CopyFile(
-				fmt.Sprintf("$DD_AGENT_TESTING_DIR/site-cookbooks-%s.tar.gz", instance.Arch),
+				fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
 				"/opt/kernel-version-testing/",
 			)
 			if err != nil {
