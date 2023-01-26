@@ -19,18 +19,34 @@ import (
 
 // Component is the component type.
 type Component interface {
+
+	// Start starts the dogstatsd server
 	Start(demultiplexer aggregator.Demultiplexer) error
+	// Stop stops the dogstatsd server
 	Stop()
 
+	// Capture starts a new dogstatsd traffic capture
 	Capture(p string, d time.Duration, compressed bool) error
+
+	// IsCaputreOngoing returns true if a capture is ongoing
 	IsCaputreOngoing() bool
+
+	// GetCapturePath returns the capture destination path
 	GetCapturePath() (string, error)
 
+	// GetJSONDebugStats returns a json representation of debug stats
 	GetJSONDebugStats() ([]byte, error)
+
+	// GetJSONDebugStats gets the DsdServerDebug instance which provides metric stats
 	GetDebug() *dogstatsd.DsdServerDebug
 
+	// EnableMetricsStats enables metric stats tracking
 	EnableMetricsStats()
+
+	// DisableMetricsStats disables metric stats tracking
 	DisableMetricsStats()
+
+	// UdsListenerRunning returns true if the uds listener is running
 	UdsListenerRunning() bool
 }
 
@@ -44,7 +60,8 @@ var Module = fxutil.Component(
 	fx.Provide(newServer),
 )
 
+// TODO: Create a mock version once dogstatsd server is migrated
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
+// var MockModule = fxutil.Component(
 // fx.Provide(newMock),
-)
+// )
