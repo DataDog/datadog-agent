@@ -66,7 +66,7 @@ func startDriverService(driverServiceName string) (err error) {
 		}
 	}
 	var serviceArgs []string
-	log.Info("Starting %s", driverServiceName)
+	log.Infof("Starting %s", driverServiceName)
 	return winutil.StartService(driverServiceName, serviceArgs...)
 }
 
@@ -79,7 +79,7 @@ func stopDriverService(driverServiceName string, disable bool) (err error) {
 	defer manager.Disconnect()
 
 	// connect to service
-	driverAccess := windows.SERVICE_QUERY_STATUS
+	driverAccess := windows.SERVICE_QUERY_STATUS | windows.SERVICE_CHANGE_CONFIG
 	service, err := winutil.OpenService(manager, driverServiceName, uint32(driverAccess))
 	if err != nil {
 		return err
