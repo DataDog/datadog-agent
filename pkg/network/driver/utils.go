@@ -36,10 +36,27 @@ func updateDriverService(driverServiceName string, newconfig mgr.Config) (err er
 }
 
 func enableDriverService(driverServiceName string) (err error) {
-	newConfig := mgr.Config{
-		StartType: windows.SERVICE_DEMAND_START,
+	// connect to SCM
+	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return err
 	}
-	return updateDriverService(driverServiceName, newConfig)
+	defer manager.Disconnect()
+
+	// connect to service
+	driverAccess := windows.SERVICE_QUERY_STATUS | windows.SERVICE_QUERY_CONFIG | windows.SERVICE_CHANGE_CONFIG
+	service, err := winutil.OpenService(manager, driverServiceName, uint32(driverAccess))
+	if err != nil {
+		return err
+	}
+	defer service.Close()
+
+	noChange := uint32(windows.SERVICE_NO_CHANGE)
+	err = windows.ChangeServiceConfig(service.Handle, noChange, windows.SERVICE_DEMAND_START, noChange, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		return fmt.Errorf("Unable to update config: %v", err)
+	}
+	return nil
 }
 
 func startDriverService(driverServiceName string) (err error) {
@@ -79,7 +96,7 @@ func stopDriverService(driverServiceName string, disable bool) (err error) {
 	defer manager.Disconnect()
 
 	// connect to service
-	driverAccess := windows.SERVICE_QUERY_STATUS | windows.SERVICE_CHANGE_CONFIG
+	driverAccess := windows.SERVICE_QUERY_STATUS | windows.SERVICE_QUERY_CONFIG | windows.SERVICE_CHANGE_CONFIG
 	service, err := winutil.OpenService(manager, driverServiceName, uint32(driverAccess))
 	if err != nil {
 		return err
@@ -107,8 +124,8 @@ func stopDriverService(driverServiceName string, disable bool) (err error) {
 
 	// if needed, disable it, too
 	if disable {
-		config := mgr.Config{StartType: windows.SERVICE_DISABLED}
-		err := service.UpdateConfig(config)
+		noChange := uint32(windows.SERVICE_NO_CHANGE)
+		err := windows.ChangeServiceConfig(service.Handle, noChange, windows.SERVICE_DISABLED, noChange, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			return fmt.Errorf("Unable to update config: %v", err)
 		}
