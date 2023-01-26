@@ -45,7 +45,7 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
     .max_entries = 1,
 };
 
-struct exec_event_t {
+struct exec_event_t  {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
@@ -59,18 +59,38 @@ struct exec_event_t {
     u32 envs_truncated;
 };
 
-// _gen is a suffix for maps storing large structs to work around ebpf object size limits
-struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
+
+struct bpf_map_def SEC("maps/exec_event_pregen") exec_event_pregen = {
     .type = BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct exec_event_t),
     .max_entries = 1,
 };
 
+#define EXEC_EVENT_GEN_IN_FLIGHT 8
+
+// _gen is a suffix for maps storing large structs to work around ebpf object size limits
+struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
+    .type = BPF_MAP_TYPE_LRU_PERCPU_HASH,
+    .key_size = sizeof(u64),
+    .value_size = sizeof(struct exec_event_t),
+    .max_entries = EXEC_EVENT_GEN_IN_FLIGHT,
+};
+
 __attribute__((always_inline)) struct exec_event_t *new_exec_event() {
     u32 key = 0;
-    struct exec_event_t *evt = bpf_map_lookup_elem(&exec_event_gen, &key);
+    struct exec_event_t *pre_evt = bpf_map_lookup_elem(&exec_event_pregen, &key);
+    if (!pre_evt) {
+        return NULL;
+    }
+    __builtin_memset(pre_evt, 0, sizeof(*pre_evt));
 
+    u32 pid = bpf_get_current_pid_tgid();
+    if (bpf_map_update_elem(&exec_event_gen, &pid, pre_evt, BPF_ANY) != 0) {
+        return NULL;
+    }
+
+    struct exec_event_t *evt = bpf_map_lookup_elem(&exec_event_gen, &pid);
     if (evt) {
         __builtin_memset(evt, 0, sizeof(*evt));
         evt->event.is_activity_dump_sample = 1;
