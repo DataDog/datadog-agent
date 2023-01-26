@@ -20,15 +20,16 @@ import (
 func TestStartCommand(t *testing.T) {
 
 	testDir := t.TempDir()
-	path := fmt.Sprintf("%s/dogstatsd.yaml", testDir)
-	os.Create(path)
+	cfgPath := fmt.Sprintf("%s/dogstatsd.yaml", testDir)
+	logpath := fmt.Sprintf("%s/default.log", testDir)
+	os.Create(cfgPath)
+	os.Create(logpath)
 
 	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{MakeCommand("defaultLogFile")},
-		[]string{"start", "--cfgpath", path},
+		[]*cobra.Command{MakeCommand(logpath)},
+		[]string{"start", "--cfgpath", cfgPath},
 		start,
 		func(cliParams *CLIParams, _ config.Params, _ dogstatsdServer.Component) {
-			require.Equal(t, path, cliParams.confPath)
-			os.Remove(path)
+			require.Equal(t, cfgPath, cliParams.confPath)
 		})
 }
