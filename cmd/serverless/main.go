@@ -6,6 +6,8 @@
 package main
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"os"
 	"os/signal"
 	"strings"
@@ -23,11 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -224,12 +224,59 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon)
-	go enableTelemetryCollection(&wg, serverlessID, logChannel)
-	wg.Wait()
+	wg.Add(3)
 
-	httpsecSubProcessor := startAppSec()
+	// starts trace agent
+	go func() {
+		defer wg.Done()
+		traceAgent := &trace.ServerlessTraceAgent{}
+		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
+		serverlessDaemon.SetTraceAgent(traceAgent)
+	}()
+
+	// enable telemetry collection
+	go func() {
+		defer wg.Done()
+		if len(os.Getenv("DD_LOCAL_TEST")) > 0 {
+			log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
+		} else {
+			log.Debug("Enabling telemetry collection HTTP route")
+			logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
+			logRegistrationError := registration.EnableTelemetryCollection(
+				registration.EnableTelemetryCollectionArgs{
+					ID:                  serverlessID,
+					RegistrationURL:     logRegistrationURL,
+					RegistrationTimeout: logsAPIRegistrationTimeout,
+					LogsType:            os.Getenv(logsLogsTypeSubscribed),
+					Port:                logsAPIHttpServerPort,
+					CollectionRoute:     logsAPICollectionRoute,
+					Timeout:             logsAPITimeout,
+					MaxBytes:            logsAPIMaxBytes,
+					MaxItems:            logsAPIMaxItems,
+				})
+
+			if logRegistrationError != nil {
+				log.Error("Can't subscribe to logs:", logRegistrationError)
+			} else {
+				serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			}
+		}
+	}()
+
+	// start appsec
+	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
+	go func() {
+		defer wg.Done()
+		appsec, err := appsec.New()
+		if err != nil {
+			log.Error("appsec: could not start: ", err)
+		} else if appsec != nil {
+			log.Info("appsec: started successfully")
+			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
+		}
+	}()
+
+	wg.Wait()
 
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
 		LambdaSpanChan:   lambdaSpanChan,
@@ -276,54 +323,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// please be careful before modifying/removing it
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
 	return
-}
-
-func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon) {
-	// starts trace agent
-	defer wg.Done()
-	traceAgent := &trace.ServerlessTraceAgent{}
-	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
-	serverlessDaemon.SetTraceAgent(traceAgent)
-}
-
-func startAppSec() invocationlifecycle.InvocationSubProcessor {
-	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
-	appsecApi, err := appsec.New()
-	if err != nil {
-		log.Error("appsec: could not start: ", err)
-	} else if appsecApi != nil {
-		log.Info("appsec: started successfully")
-		httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsecApi) // note that the receiving variable is in the parent scope
-	}
-	return httpsecSubProcessor
-}
-
-func enableTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage) {
-	defer wg.Done()
-	if len(os.Getenv("DD_LOCAL_TEST")) > 0 {
-		log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
-	} else {
-		log.Debug("Enabling telemetry collection HTTP route")
-		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
-		logRegistrationError := registration.EnableTelemetryCollection(
-			registration.EnableTelemetryCollectionArgs{
-				ID:                  serverlessID,
-				RegistrationURL:     logRegistrationURL,
-				RegistrationTimeout: logsAPIRegistrationTimeout,
-				LogsType:            os.Getenv(logsLogsTypeSubscribed),
-				Port:                logsAPIHttpServerPort,
-				CollectionRoute:     logsAPICollectionRoute,
-				Timeout:             logsAPITimeout,
-				MaxBytes:            logsAPIMaxBytes,
-				MaxItems:            logsAPIMaxItems,
-			})
-
-		if logRegistrationError != nil {
-			log.Error("Can't subscribe to logs:", logRegistrationError)
-		} else {
-			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
-		}
-	}
 }
 
 // handleSignals handles OS signals, if a SIGTERM is received,
