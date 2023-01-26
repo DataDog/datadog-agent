@@ -226,7 +226,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 	}
 
 	statsd = server
-	statsd.Start(demux)
+	err = statsd.Start(demux)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
