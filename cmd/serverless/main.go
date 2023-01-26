@@ -6,8 +6,6 @@
 package main
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,9 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -237,7 +237,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// enable telemetry collection
 	go func() {
 		defer wg.Done()
-		if len(os.Getenv("DD_LOCAL_TEST")) > 0 {
+		if len(os.Getenv(daemon.LocalTestEnvVar)) > 0 {
 			log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
 			return
 		}
