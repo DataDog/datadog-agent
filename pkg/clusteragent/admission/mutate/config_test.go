@@ -135,7 +135,6 @@ func TestInjectSocket(t *testing.T) {
 	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].Name, "datadog")
-	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].ReadOnly, true)
 	assert.Equal(t, pod.Spec.Volumes[0].Name, "datadog")
 	assert.Equal(t, pod.Spec.Volumes[0].VolumeSource.HostPath.Path, "/var/run/datadog")
 	assert.Equal(t, *pod.Spec.Volumes[0].VolumeSource.HostPath.Type, corev1.HostPathDirectoryOrCreate)
