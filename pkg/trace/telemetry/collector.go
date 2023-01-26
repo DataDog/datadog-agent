@@ -27,6 +27,7 @@ const (
 	CantStartHttpServer        = 14
 	CantStartUdsServer         = 15
 	CantStartWindowsPipeServer = 16
+	InvalidIntakeEndpoint      = 17
 )
 
 // OnboardingEvent contains
