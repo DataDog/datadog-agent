@@ -9,6 +9,9 @@
 package network
 
 // Sub returns s-other
+//
+// Note: there is separate implementation for this function on Linux;
+// see event_common_linux.go in this folder
 func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
 	if (s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
 		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||

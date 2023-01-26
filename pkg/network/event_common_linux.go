@@ -8,7 +8,13 @@
 
 package network
 
-// Sub returns s-other
+// Sub returns s-other.
+//
+// This implementation is different from the implementation on
+// other platforms as packet counts are actually sampled from the kernel
+// as uint32's, but stored in StatCounters as uint64's. To detect overflows
+// in these counts correctly, a simple subtraction will not do, and they
+// need to be treated differently (see below)
 func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
 	if s.Retransmits < other.Retransmits && s.Retransmits > 0 ||
 		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
