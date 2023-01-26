@@ -86,8 +86,8 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		cliParams,
 		DefaultConfPath,
 		defaultLogFile,
-		func(config config.Component, params *start.Params) error {
-			return start.RunAgent(ctx, cliParams, config, params)
+		func(config config.Component, params *start.Params, server dogstatsdServer.Component) error {
+			return start.RunAgent(ctx, cliParams, config, params, server)
 		})
 
 	if err != nil {
