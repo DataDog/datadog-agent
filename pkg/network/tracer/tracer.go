@@ -816,8 +816,7 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 
 	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
 	if err != nil {
-		http.USMStartupError = fmt.Errorf("could not instantiate http monitor: %s", err)
-		log.Error(http.USMStartupError.Error())
+		log.Error(err)
 		return nil
 	}
 

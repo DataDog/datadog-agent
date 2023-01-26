@@ -42,31 +42,40 @@ type Monitor struct {
 	closeFilterFn func()
 }
 
+func setStartupErrorAndReturn(err error) error {
+	if err != nil {
+		err = fmt.Errorf("could not instantiate http monitor: %w", err)
+		USMStartupError = err
+	}
+
+	return err
+}
+
 // NewMonitor returns a new Monitor instance
 func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
 	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
-		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
+		return nil, setStartupErrorAndReturn(fmt.Errorf("error setting up http ebpf program: %s", err))
 	}
 
 	if err := mgr.Init(); err != nil {
-		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
+		return nil, setStartupErrorAndReturn(fmt.Errorf("error initializing http ebpf program: %s", err))
 	}
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: protocolDispatcherSocketFilterSection, EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
 	if filter == nil {
-		return nil, fmt.Errorf("error retrieving socket filter")
+		return nil, setStartupErrorAndReturn(fmt.Errorf("error retrieving socket filter"))
 	}
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
-		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
+		return nil, setStartupErrorAndReturn(fmt.Errorf("error enabling HTTP traffic inspection: %s", err))
 	}
 
 	telemetry, err := newTelemetry()
 	if err != nil {
 		closeFilterFn()
-		return nil, err
+		return nil, setStartupErrorAndReturn(err)
 	}
 
 	statkeeper := newHTTPStatkeeper(c, telemetry)
