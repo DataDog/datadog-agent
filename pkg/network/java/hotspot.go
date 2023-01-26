@@ -235,6 +235,31 @@ func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, 
 //	otherwise the JVM is blocked and waiting for more bytes
 //	This applies only for some command like : 'load agent.so true'
 func (h *Hotspot) command(cmd string, tailingNull bool) error {
+	hasRetried := false
+retry:
+	if err := h.commandWriteRead(cmd, tailingNull); err != nil {
+		// if we receive EPIPE (write) or ECONNRESET (read) from the kernel may from old hotspot JVM
+		// let's retry with credentials, see dialunix() for more info
+		if !hasRetried && (errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)) {
+			log.Debugf("java attach hotspot pid %d/%d old hotspot JVM detected, requires credentials", h.pid, h.nsPid)
+			hasRetried = true
+			h.conn.Close()
+			_, err = h.connect(true) // we don't need to propagate the cleanConn() callback as it's doing the same thing.
+			if err != nil {
+				return err
+			}
+			goto retry
+		}
+		return err
+	}
+	return nil
+}
+
+// commandWriteRead: tailingNull is necessary here to flush command
+//
+//	otherwise the JVM is blocked and waiting for more bytes
+//	This applies only for some command like : 'load agent.so true'
+func (h *Hotspot) commandWriteRead(cmd string, tailingNull bool) error {
 	if _, err := h.conn.Write([]byte{'1', 0}); err != nil { // Protocol version
 		return err
 	}
@@ -358,21 +383,7 @@ func (h *Hotspot) Attach(agentPath string, args string, uid int, gid int) error 
 		}
 	}
 
-	hasRetried := false
-retry:
 	if err := h.command(loadCommand, !isJar); err != nil {
-		// if we receive EPIPE (write) or ECONNRESET (read) from the kernel may from old hotspot JVM
-		// let's retry with credentials, see dialunix() for more info
-		if !hasRetried && (errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)) {
-			log.Debugf("java attach hotspot pid %d/%d old hotspot JVM detected, requires credentials", h.pid, h.nsPid)
-			hasRetried = true
-			cleanConn()
-			cleanConn, err = h.connect(true)
-			if err != nil {
-				return err
-			}
-			goto retry
-		}
 		log.Debugf("java attach hotspot pid %d/%d command '%s' failed isJar=%v : %s", h.pid, h.nsPid, loadCommand, isJar, err)
 		return err
 	}
