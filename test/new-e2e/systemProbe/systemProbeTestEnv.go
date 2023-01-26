@@ -84,12 +84,12 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			return err
 		}
 
-		instances, err := microVMs.RunAndReturnInstances(ctx, awsEnvironment)
+		scenarioDone, err := microVMs.RunAndReturnInstances(ctx, awsEnvironment)
 		if err != nil {
 			return err
 		}
 
-		for _, instance := range instances {
+		for _, instance := range scenarioDone.Instances {
 			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
 				return command.WaitForCloudInit(awsEnvironment.Ctx, r)
 			})
@@ -97,7 +97,8 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			filemanager := command.NewFileManager(remoteRunner)
 			_, err = filemanager.CopyFile(
 				fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
-				"/tmp",
+				"/opt/kernel-version-testing/",
+				pulumi.DependsOn(scenarioDone.Dependencies),
 			)
 			if err != nil {
 				return err
