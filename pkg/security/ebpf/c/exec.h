@@ -85,7 +85,7 @@ __attribute__((always_inline)) struct exec_event_t *new_exec_event() {
     }
     __builtin_memset(pre_evt, 0, sizeof(*pre_evt));
 
-    u32 pid = bpf_get_current_pid_tgid();
+    u64 pid = bpf_get_current_pid_tgid();
     if (bpf_map_update_elem(&exec_event_gen, &pid, pre_evt, BPF_ANY) != 0) {
         return NULL;
     }
