@@ -83,27 +83,27 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			return err
 		}
 
-		scenarioDone, err := microVMs.RunAndReturnInstances(ctx, awsEnvironment)
+		_, err = microVMs.RunAndReturnInstances(ctx, awsEnvironment)
 		if err != nil {
 			return err
 		}
 
-		for _, instance := range scenarioDone.Instances {
-			localRunner
-			//remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
-			//	return command.WaitForCloudInit(awsEnvironment.Ctx, r)
-			//})
+		//for _, instance := range scenarioDone.Instances {
+		//	localRunner
+		//	//remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
+		//	//	return command.WaitForCloudInit(awsEnvironment.Ctx, r)
+		//	//})
 
-			//filemanager := command.NewFileManager(remoteRunner)
-			//_, err = filemanager.CopyFile(
-			//	fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
-			//	"/tmp",
-			//	pulumi.DependsOn(scenarioDone.Dependencies),
-			//)
-			//if err != nil {
-			//	return err
-			//}
-		}
+		//	//filemanager := command.NewFileManager(remoteRunner)
+		//	//_, err = filemanager.CopyFile(
+		//	//	fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
+		//	//	"/tmp",
+		//	//	pulumi.DependsOn(scenarioDone.Dependencies),
+		//	//)
+		//	//if err != nil {
+		//	//	return err
+		//	//}
+		//}
 
 		return nil
 	})
@@ -118,7 +118,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
 
-		cmd := exec.Command(fmt.Printf("scp -i %s %s/site-cookbooks-x86_64.tar.gz %s:/tmp", SSHKeyFile, DD_AGENT_TESTING_DIR, systemProbeTestEnv.X86_64InstanceIP))
+		cmd := exec.Command(fmt.Sprintf("scp -i %s %s/site-cookbooks-x86_64.tar.gz %s:/tmp", SSHKeyFile, DD_AGENT_TESTING_DIR, systemProbeTestEnv.X86_64InstanceIP))
 		err := cmd.Run()
 		if err != nil {
 			return nil, err
