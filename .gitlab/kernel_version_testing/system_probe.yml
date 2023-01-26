@@ -7,6 +7,7 @@
   script:
     - pushd $DD_AGENT_TESTING_DIR
     - tar czvf $ARCHIVE_NAME site-cookbooks
+    - ls -lh .
     - popd
   artifacts:
     when: always
