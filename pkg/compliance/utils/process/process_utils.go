@@ -121,6 +121,8 @@ func (p *CheckedProcess) EnvsMap(envs []string) (map[string]string, error) {
 			prefix := envName + "="
 			if strings.HasPrefix(envValue, prefix) {
 				envsMap[envName] = strings.TrimPrefix(envValue, prefix)
+			} else if envValue == envName {
+				envsMap[envName] = ""
 			}
 		}
 	}
