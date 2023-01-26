@@ -364,7 +364,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 
 	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
 	if err != nil {
-		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
+		log.Warnf("Error getting unit unitProperties: %s: %v", unit.Name, err)
 		return
 	}
 	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")

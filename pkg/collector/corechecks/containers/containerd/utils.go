@@ -27,7 +27,7 @@ func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter
 }
 
 func getImageTags(imageName string) []string {
-	long, short, tag, err := containers.SplitImageName(imageName)
+	long, _, short, tag, err := containers.SplitImageName(imageName)
 	if err != nil {
 		return []string{fmt.Sprintf("image:%s", imageName)}
 	}

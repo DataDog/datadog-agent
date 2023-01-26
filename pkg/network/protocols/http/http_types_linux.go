@@ -14,10 +14,6 @@ type httpConnTuple struct {
 	Pid      uint32
 	Metadata uint32
 }
-type httpBatchState struct {
-	Idx      uint64
-	To_flush uint64
-}
 type sslSock struct {
 	Tup       httpConnTuple
 	Fd        uint32
@@ -39,15 +35,6 @@ type ebpfHttpTx struct {
 	Tcp_seq              uint32
 	Tags                 uint64
 }
-type httpBatch struct {
-	Idx uint64
-	Pos uint8
-	Txs [15]ebpfHttpTx
-}
-type httpBatchKey struct {
-	Cpu uint32
-	Num uint32
-}
 
 type libPath struct {
 	Pid uint32
@@ -58,16 +45,18 @@ type libPath struct {
 type ProtocolType uint8
 
 const (
-	ProtocolUnknown ProtocolType = 0x1
-	ProtocolHTTP    ProtocolType = 0x2
-	ProtocolHTTP2   ProtocolType = 0x3
-	ProtocolTLS     ProtocolType = 0x4
-	ProtocolMax     ProtocolType = 0x5
+	ProtocolUnknown  ProtocolType = 0x1
+	ProtocolHTTP     ProtocolType = 0x2
+	ProtocolHTTP2    ProtocolType = 0x3
+	ProtocolTLS      ProtocolType = 0x4
+	ProtocolMONGO    ProtocolType = 0x6
+	ProtocolPostgres ProtocolType = 0x7
+	ProtocolAMQP     ProtocolType = 0x8
+	ProtocolRedis    ProtocolType = 0x9
+	ProtocolMax      ProtocolType = 0xa
 )
 
 const (
-	HTTPBatchSize  = 0xf
-	HTTPBatchPages = 0x3
 	HTTPBufferSize = 0xa0
 
 	libPathMaxSize = 0x78

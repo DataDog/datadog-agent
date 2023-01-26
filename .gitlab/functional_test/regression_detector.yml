@@ -3,7 +3,7 @@ single-machine-performance-regression_detector:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   needs:
-    - job: docker_build_agent7_single_machine_performance
+    - job: single_machine_performance-amd64-a7
       artifacts: false
   artifacts:
     expire_in: 1 weeks
@@ -18,6 +18,16 @@ single-machine-performance-regression_detector:
     REPLICAS: 10
     CPUS: 7
     MEMORY: "30g"
+  # At present we require two artifacts to exist for the 'baseline' and the
+  # 'comparison'. We are guaranteed by the structure of the pipeline that
+  # 'comparison' exists, not so much with 'baseline' as it has to come from main
+  # merge pipeline run. This is solved in Vector by building Vector twice each
+  # Regression Detector run but remains an unsolved problem for
+  # datadog-agent. So, we allow failure for now.
+  #
+  # _Unfortunately_ this also means that if the Regression Detector finds a
+  # performance issue with a PR it will not be flagged.
+  allow_failure: true
   script:
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"

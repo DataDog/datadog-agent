@@ -41,6 +41,8 @@ type Sender interface {
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
 	OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string)
 	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
+	ContainerImage(msgs []serializer.ContainerImageMessage)
+	SBOM(msgs []serializer.SBOMMessage)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -64,6 +66,8 @@ type checkSender struct {
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	contlcycleOut           chan<- senderContainerLifecycleEvent
+	contimageOut            chan<- senderContainerImage
+	sbomOut                 chan<- senderSBOM
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
@@ -109,6 +113,14 @@ type senderContainerLifecycleEvent struct {
 	msgs []serializer.ContainerLifecycleMessage
 }
 
+type senderContainerImage struct {
+	msgs []serializer.ContainerImageMessage
+}
+
+type senderSBOM struct {
+	msgs []serializer.SBOMMessage
+}
+
 type senderOrchestratorManifest struct {
 	msgs      []serializer.ProcessMessageBody
 	clusterID string
@@ -130,6 +142,8 @@ func newCheckSender(
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
 	contlcycleOut chan<- senderContainerLifecycleEvent,
+	contimageOut chan<- senderContainerImage,
+	sbomOut chan<- senderSBOM,
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
@@ -143,6 +157,8 @@ func newCheckSender(
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
 		contlcycleOut:           contlcycleOut,
+		contimageOut:            contimageOut,
+		sbomOut:                 sbomOut,
 	}
 }
 
@@ -434,8 +450,17 @@ func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody,
 	}
 	s.orchestratorManifestOut <- om
 }
+
 func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
 	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
+}
+
+func (s *checkSender) ContainerImage(msgs []serializer.ContainerImageMessage) {
+	s.contimageOut <- senderContainerImage{msgs: msgs}
+}
+
+func (s *checkSender) SBOM(msgs []serializer.SBOMMessage) {
+	s.sbomOut <- senderSBOM{msgs: msgs}
 }
 
 func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
@@ -463,6 +488,8 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
 		sp.agg.contLcycleIn,
+		sp.agg.contImageIn,
+		sp.agg.sbomIn,
 	)
 	sp.senders[id] = sender
 	return sender, err

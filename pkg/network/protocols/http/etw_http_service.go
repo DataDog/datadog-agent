@@ -389,7 +389,6 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 
 // -----------------------------------------------------------
 // HttpService ETW Event #21 (HTTPConnectionTraceTaskConnConn)
-//
 func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -486,7 +485,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 		connOpen.conn.tup.Family = binary.LittleEndian.Uint16(userData[12:14])
 		connOpen.conn.tup.SrvPort = binary.BigEndian.Uint16(userData[14:16])
 		copy(connOpen.conn.tup.SrvAddr[:], userData[20:36])
-		connOpen.conn.tup.CliPort = binary.BigEndian.Uint16(userData[36:48])
+		connOpen.conn.tup.CliPort = binary.BigEndian.Uint16(userData[46:48])
 		copy(connOpen.conn.tup.CliAddr[:], userData[52:68])
 	}
 
@@ -512,7 +511,6 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 
 // -------------------------------------------------------------
 // HttpService ETW Event #23 (HTTPConnectionTraceTaskConnClose)
-//
 func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -554,7 +552,6 @@ func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInf
 
 // -----------------------------------------------------------
 // HttpService ETW Event #1 (HTTPRequestTraceTaskRecvReq)
-//
 func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -621,7 +618,6 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #2 (HTTPRequestTraceTaskParse)
-//
 func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -682,7 +678,7 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 		// whole thing
 		httpConnLink.http.RequestFragment = make([]byte, maxRequestFragmentBytes)
 		httpConnLink.http.Txn.MaxRequestFragment = uint16(maxRequestFragmentBytes)
-		httpConnLink.http.RequestFragment[0] = 32
+		httpConnLink.http.RequestFragment[0] = 32 // this is a leading space.
 
 		// copy rest of arguments
 		copy(httpConnLink.http.RequestFragment[1:], urlParsed.Path)
@@ -700,7 +696,6 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #3 (HTTPRequestTraceTaskDeliver)
-//
 func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -784,7 +779,6 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #4, #8 (HTTPRequestTraceTaskFastResp, HTTPRequestTraceTaskRecvResp)
-//
 func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -842,7 +836,6 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #16-17 (HTTPRequestTraceTaskSrvdFrmCache, HTTPRequestTraceTaskCachedNotModified)
-//
 func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -914,7 +907,6 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInf
 
 // -----------------------------------------------------------
 // HttpService ETW Event #25 (HTTPCacheTraceTaskAddedCacheEntry)
-//
 func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -995,7 +987,6 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventIn
 
 // -----------------------------------------------------------
 // HttpService ETW Event #26 (HTTPCacheTraceTaskFlushedCache)
-//
 func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -1054,7 +1045,6 @@ func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo)
 
 // -----------------------------------------------------------
 // HttpService ETW Event #10-14 (HTTPRequestTraceTaskXXXSendXXX)
-//
 func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
 
 	// We probably should use this event as a last event for a particular activity and use
@@ -1074,7 +1064,6 @@ func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #34 (EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent)
-//
 func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -1293,6 +1282,7 @@ func SetMaxRequestBytes(maxRequestBytes uint64) {
 }
 
 func SetEnabledProtocols(http, https bool) {
+	captureHTTP = http
 	captureHTTPS = https
 }
 func (hei *httpEtwInterface) OnStart() {

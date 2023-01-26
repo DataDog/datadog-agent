@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -67,16 +69,16 @@ func TestCgroupV1CPUStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Equal(t, "", cmp.Diff(CPUStats{
-		User:             uint64Ptr(8718602 * UserHZToNano),
-		System:           uint64Ptr(1439790 * UserHZToNano),
-		Total:            uint64Ptr(115456978426898),
-		Shares:           uint64Ptr(200),
-		ElapsedPeriods:   uint64Ptr(421),
-		ThrottledPeriods: uint64Ptr(0),
-		ThrottledTime:    uint64Ptr(0),
-		SchedulerPeriod:  uint64Ptr(100000 * uint64(time.Microsecond)),
+		User:             pointer.Ptr(8718602 * UserHZToNano),
+		System:           pointer.Ptr(1439790 * UserHZToNano),
+		Total:            pointer.Ptr(uint64(115456978426898)),
+		Shares:           pointer.Ptr(uint64(200)),
+		ElapsedPeriods:   pointer.Ptr(uint64(421)),
+		ThrottledPeriods: pointer.Ptr(uint64(0)),
+		ThrottledTime:    pointer.Ptr(uint64(0)),
+		SchedulerPeriod:  pointer.Ptr(100000 * uint64(time.Microsecond)),
 		SchedulerQuota:   nil,
-		CPUCount:         uint64Ptr(8),
+		CPUCount:         pointer.Ptr(uint64(8)),
 	}, *stats))
 
 	// Test reading files in CPU controllers, all files present except 1 (cpu.shares)
@@ -90,15 +92,15 @@ func TestCgroupV1CPUStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, len(tr.errors), 1)
 	assert.Equal(t, "", cmp.Diff(CPUStats{
-		User:             uint64Ptr(8718602 * UserHZToNano),
-		System:           uint64Ptr(1439790 * UserHZToNano),
-		Total:            uint64Ptr(115456978426898),
+		User:             pointer.Ptr(8718602 * UserHZToNano),
+		System:           pointer.Ptr(1439790 * UserHZToNano),
+		Total:            pointer.Ptr(uint64(115456978426898)),
 		Shares:           nil,
-		ElapsedPeriods:   uint64Ptr(421),
-		ThrottledPeriods: uint64Ptr(0),
-		ThrottledTime:    uint64Ptr(0),
+		ElapsedPeriods:   pointer.Ptr(uint64(421)),
+		ThrottledPeriods: pointer.Ptr(uint64(0)),
+		ThrottledTime:    pointer.Ptr(uint64(0)),
 		SchedulerPeriod:  nil,
 		SchedulerQuota:   nil,
-		CPUCount:         uint64Ptr(8),
+		CPUCount:         pointer.Ptr(uint64(8)),
 	}, *stats))
 }

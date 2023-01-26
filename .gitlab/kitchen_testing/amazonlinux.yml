@@ -22,6 +22,7 @@
 .kitchen_scenario_amazonlinux_a6_x64:
   variables:
     KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
     DEFAULT_KITCHEN_OSVERS: "amazonlinux2-5-10"
   extends:
     - .kitchen_agent_a6
@@ -32,6 +33,7 @@
 .kitchen_scenario_amazonlinux_a7_x64:
   variables:
     KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
     DEFAULT_KITCHEN_OSVERS: "amazonlinux2-5-10"
   extends:
     - .kitchen_agent_a7
@@ -42,6 +44,7 @@
 .kitchen_scenario_amazonlinux_a6_arm64:
   variables:
     KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
     DEFAULT_KITCHEN_OSVERS: "amazonlinux2-5-10"
   extends:
     - .kitchen_agent_a6
@@ -52,6 +55,7 @@
 .kitchen_scenario_amazonlinux_a7_arm64:
   variables:
     KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
     DEFAULT_KITCHEN_OSVERS: "amazonlinux2-5-10"
   extends:
     - .kitchen_agent_a7
@@ -64,11 +68,13 @@
 
 kitchen_amazonlinux_install_script_agent-a6_x64:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_amazonlinux_a6_x64
     - .kitchen_test_install_script_agent
 
 kitchen_amazonlinux_install_script_agent-a6_arm64:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_amazonlinux_a6_arm64
     - .kitchen_test_install_script_agent
 
@@ -77,6 +83,7 @@ kitchen_amazonlinux_install_script_agent-a7_x64:
   rules:
     !reference [.on_default_kitchen_tests_a7]
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_amazonlinux_a7_x64
     - .kitchen_test_install_script_agent
 
@@ -84,5 +91,6 @@ kitchen_amazonlinux_install_script_agent-a7_arm64:
   rules:
     !reference [.on_all_kitchen_builds_a7]
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_amazonlinux_a7_arm64
     - .kitchen_test_install_script_agent

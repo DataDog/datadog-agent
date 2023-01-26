@@ -14,11 +14,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/mholt/archiver/v3"
+)
+
+const (
+	filePerm = 0644
 )
 
 func newBuilder(root string, hostname string) (*builder, error) {
@@ -58,7 +63,7 @@ func newBuilder(root string, hostname string) (*builder, error) {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY, filePerm)
 	if err != nil {
 		return nil, fmt.Errorf("Could not create flare_creation.log file: %s", err)
 	}
@@ -83,6 +88,15 @@ func NewFlareBuilder() (FlareBuilder, error) {
 		hostname = "unknown"
 	}
 	hostname = validate.CleanHostnameDir(hostname)
+
+	fperm, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
+	err = fperm.RemoveAccessToOtherUsers(tmpDir)
+	if err != nil {
+		return nil, err
+	}
 
 	return newBuilder(tmpDir, hostname)
 }
@@ -121,15 +135,30 @@ func (fb *builder) Save() (string, error) {
 	_ = fb.AddFileFromFunc("permissions.log", fb.permsInfos.commit)
 	_ = fb.logFile.Close()
 
-	archivePath := filepath.Join(os.TempDir(), getArchiveName())
+	archiveName := getArchiveName()
+	archiveTmpPath := filepath.Join(fb.tmpDir, archiveName)
+	archiveFinalPath := filepath.Join(os.TempDir(), archiveName)
+
+	// We first create the archive in our fb.tmpDir directory which is only readable by the current user (and
+	// SYSTEM/ADMIN on Windows). Then we retrict the archive permissions before moving it to the system temporary
+	// directory. This prevents other users from being able to read local flares.
 
 	// File format is determined based on archivePath extension, so zip
-	err := archiver.Archive([]string{fb.flareDir}, archivePath)
+	err := archiver.Archive([]string{fb.flareDir}, archiveTmpPath)
 	if err != nil {
 		return "", err
 	}
 
-	return archivePath, nil
+	fperm, err := filesystem.NewPermission()
+	if err != nil {
+		return "", err
+	}
+	err = fperm.RemoveAccessToOtherUsers(archiveTmpPath)
+	if err != nil {
+		return "", err
+	}
+
+	return archiveFinalPath, os.Rename(archiveTmpPath, archiveFinalPath)
 }
 
 func (fb *builder) clean() {
@@ -162,7 +191,7 @@ func (fb *builder) AddFile(destFile string, content []byte) error {
 		return err
 	}
 
-	if err := os.WriteFile(f, content, os.ModePerm); err != nil {
+	if err := os.WriteFile(f, content, filePerm); err != nil {
 		return fb.logError("error writing data to '%s': %s", destFile, err)
 	}
 	return nil
@@ -189,7 +218,7 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 		}
 	}
 
-	err = os.WriteFile(path, content, os.ModePerm)
+	err = os.WriteFile(path, content, filePerm)
 	if err != nil {
 		return fb.logError("error writing file '%s': %s", destFile, err)
 	}
@@ -254,4 +283,13 @@ func (fb *builder) PrepareFilePath(path string) (string, error) {
 
 func (fb *builder) RegisterFilePerm(path string) {
 	fb.permsInfos.add(path)
+}
+
+func (fb *builder) RegisterDirPerm(path string) {
+	_ = filepath.Walk(path, func(src string, f os.FileInfo, err error) error {
+		if f != nil {
+			fb.RegisterFilePerm(src)
+		}
+		return nil
+	})
 }

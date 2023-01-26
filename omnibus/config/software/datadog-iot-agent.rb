@@ -118,17 +118,6 @@ build do
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end
   end
-  block do
-    # defer compilation step in a block to allow getting the project's build version, which is populated
-    # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-    if windows?
-      platform = windows_arch_i386? ? "x86" : "x64"
-      # Build the security-agent with the correct go version for windows
-      command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
-
-      copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-    end
-  end
 
   # The file below is touched by software builds that don't put anything in the installation
   # directory (libgcc right now) so that the git_cache gets updated let's remove it from the

@@ -79,9 +79,24 @@ func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func
 
 // NewSecurityAgentParams creates a new instance of Params for the Security Agent.
 func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...func(*Params)) Params {
-	params := NewParams("", options...)
-	params.securityAgentConfigFilePaths = securityAgentConfigFilePaths
+	params := NewParams(common.DefaultConfPath, options...)
+
+	// By default, we load datadog.yaml and then merge security-agent.yaml
+	if len(securityAgentConfigFilePaths) > 0 {
+		params.confFilePath = securityAgentConfigFilePaths[0]                  // Default: datadog.yaml
+		params.securityAgentConfigFilePaths = securityAgentConfigFilePaths[1:] // Default: security-agent.yaml
+	}
 	params.configLoadSecurityAgent = true
+
+	params.configLoadSecrets = true
+	params.configMissingOK = false
+	return params
+}
+
+func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Params {
+	params := NewParams(common.DefaultConfPath, options...)
+	params.confFilePath = configFilePath
+	params.configName = "datadog-cluster"
 	return params
 }
 

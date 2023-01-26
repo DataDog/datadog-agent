@@ -56,8 +56,8 @@ func (cext *criCustomMetricsExtension) Process(tags []string, container *workloa
 		return
 	}
 
-	cext.sender(cext.aggSender.Gauge, "cri.disk.used", pointer.UIntToFloatPtr(criStats.GetWritableLayer().GetUsedBytes().GetValue()), tags)
-	cext.sender(cext.aggSender.Gauge, "cri.disk.inodes", pointer.UIntToFloatPtr(criStats.GetWritableLayer().GetInodesUsed().GetValue()), tags)
+	cext.sender(cext.aggSender.Gauge, "cri.disk.used", pointer.Ptr(float64(criStats.GetWritableLayer().GetUsedBytes().GetValue())), tags)
+	cext.sender(cext.aggSender.Gauge, "cri.disk.inodes", pointer.Ptr(float64(criStats.GetWritableLayer().GetInodesUsed().GetValue())), tags)
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`

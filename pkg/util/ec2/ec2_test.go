@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -33,12 +34,20 @@ func resetPackageVars() {
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
 	token = httputils.NewAPIToken(getToken)
+	currentMetadataSource = metadataSourceNone
 
 	instanceIDFetcher.Reset()
-	localIPv4Fetcher.Reset()
 	publicIPv4Fetcher.Reset()
 	hostnameFetcher.Reset()
 	networkIDFetcher.Reset()
+}
+
+func setupDMIForEC2(t *testing.T) {
+	dmi.SetupMock(t, "ec2something", "ec2something2", "i-myinstance", DMIBoardVendor)
+}
+
+func setupDMIForNotEC2(t *testing.T) {
+	dmi.SetupMock(t, "", "", "", "")
 }
 
 func TestIsDefaultHostname(t *testing.T) {
@@ -119,20 +128,46 @@ func TestGetHostAliases(t *testing.T) {
 		name          string
 		instanceID    string
 		expectedHosts []string
+		setupDMI      bool
+		disableDMI    bool
 	}{
 		{
 			name:          "Instance ID found",
 			instanceID:    "i-0b22a22eec53b9321",
 			expectedHosts: []string{"i-0b22a22eec53b9321"},
+			setupDMI:      false,
 		},
 		{
 			name:          "No Instance ID found",
 			expectedHosts: []string{},
+			setupDMI:      false,
+		},
+		{
+			name:          "Instance ID found with DMI",
+			expectedHosts: []string{"i-myinstance"},
+			setupDMI:      true,
+		},
+		{
+			name:          "Instance ID found with DMI",
+			expectedHosts: []string{},
+			setupDMI:      true,
+			disableDMI:    true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.setupDMI {
+				setupDMIForEC2(t)
+			} else {
+				setupDMIForNotEC2(t)
+			}
+
+			config.Mock(t)
+			if tc.disableDMI {
+				config.Datadog.Set("ec2_use_dmi", false)
+			}
+
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
 				var responseCode int
@@ -259,124 +294,6 @@ func TestExtractClusterName(t *testing.T) {
 	}
 }
 
-func TestGetNetworkID(t *testing.T) {
-	ctx := context.Background()
-	mac := "00:00:00:00:00"
-	vpc := "vpc-12345"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/network/interfaces/macs":
-			io.WriteString(w, mac+"/")
-		case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
-			io.WriteString(w, vpc)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-
-	defer ts.Close()
-	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	val, err := GetNetworkID(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, vpc, val)
-}
-
-func TestGetInstanceIDNoMac(t *testing.T) {
-	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "")
-	}))
-
-	defer ts.Close()
-	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	_, err := GetNetworkID(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no mac addresses returned")
-}
-
-func TestGetInstanceIDMultipleVPC(t *testing.T) {
-	ctx := context.Background()
-	mac := "00:00:00:00:00"
-	vpc := "vpc-12345"
-	mac2 := "00:00:00:00:01"
-	vpc2 := "vpc-6789"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/network/interfaces/macs":
-			io.WriteString(w, mac+"/\n")
-			io.WriteString(w, mac2+"/\n")
-		case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
-			io.WriteString(w, vpc)
-		case "/network/interfaces/macs/00:00:00:00:01/vpc-id":
-			io.WriteString(w, vpc2)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-
-	defer ts.Close()
-	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	_, err := GetNetworkID(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "too many mac addresses returned")
-}
-
-func TestGetLocalIPv4(t *testing.T) {
-	ip := "10.0.0.2"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/local-ipv4":
-			io.WriteString(w, ip)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-
-	defer ts.Close()
-	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	ips, err := GetLocalIPv4()
-	require.NoError(t, err)
-	assert.Equal(t, []string{ip}, ips)
-}
-
-func TestGetPublicIPv4(t *testing.T) {
-	ctx := context.Background()
-	ip := "10.0.0.2"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/public-ipv4":
-			io.WriteString(w, ip)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-
-	defer ts.Close()
-	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	val, err := GetPublicIPv4(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, ip, val)
-}
-
 func TestGetToken(t *testing.T) {
 	ctx := context.Background()
 	originalToken := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
@@ -406,6 +323,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	var requestWithToken *http.Request
 	var seq int
 	config.Datadog.SetDefault("ec2_prefer_imdsv2", true)
+	ctx := context.Background()
 
 	ipv4 := "198.51.100.1"
 	tok := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
@@ -434,7 +352,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 				return
 			}
 			switch r.RequestURI {
-			case "/local-ipv4":
+			case "/public-ipv4":
 				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
 				seq++
 				requestWithToken = r
@@ -443,7 +361,6 @@ func TestMetedataRequestWithToken(t *testing.T) {
 				w.WriteHeader(http.StatusNotFound)
 			}
 		default:
-			fmt.Println("q")
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
@@ -453,9 +370,9 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	ips, err := GetLocalIPv4()
+	ips, err := GetPublicIPv4(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
+	assert.Equal(t, ipv4, ips)
 
 	assert.Nil(t, requestWithoutToken)
 
@@ -465,13 +382,13 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	assert.Equal(t, http.MethodPut, requestForToken.Method)
 	assert.Equal(t, "/", requestForToken.RequestURI)
 	assert.Equal(t, tok, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
-	assert.Equal(t, "/local-ipv4", requestWithToken.RequestURI)
+	assert.Equal(t, "/public-ipv4", requestWithToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithToken.Method)
 
 	// Ensure token has been cached
-	ips, err = GetLocalIPv4()
+	ips, err = GetPublicIPv4(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
+	assert.Equal(t, ipv4, ips)
 	// Unchanged
 	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
 	// Incremented
@@ -479,9 +396,9 @@ func TestMetedataRequestWithToken(t *testing.T) {
 
 	// Force refresh
 	token.ExpirationDate = time.Now()
-	ips, err = GetLocalIPv4()
+	ips, err = GetPublicIPv4(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
+	assert.Equal(t, ipv4, ips)
 	// Incremented
 	assert.Equal(t, "3", requestForToken.Header.Get("X-sequence"))
 	assert.Equal(t, "4", requestWithToken.Header.Get("X-sequence"))
@@ -503,7 +420,7 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 			token := r.Header.Get("X-aws-ec2-metadata-token")
 			assert.Equal(t, token, "")
 			switch r.RequestURI {
-			case "/local-ipv4":
+			case "/public-ipv4":
 				requestWithoutToken = r
 				io.WriteString(w, ipv4)
 			default:
@@ -519,27 +436,147 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	ips, err := GetLocalIPv4()
+	ips, err := GetPublicIPv4(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
+	assert.Equal(t, ipv4, ips)
 
-	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
+	assert.Equal(t, "/public-ipv4", requestWithoutToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
 }
 
-func TestGetNTPHosts(t *testing.T) {
-	ctx := context.Background()
-	expectedHosts := []string{"169.254.169.123"}
-
+func TestGetNTPHostsFromIMDS(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
 	}))
 	defer ts.Close()
+	defer resetPackageVars()
 
 	metadataURL = ts.URL
-	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
-	actualHosts := GetNTPHosts(ctx)
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
+}
 
-	assert.Equal(t, expectedHosts, actualHosts)
+func TestGetNTPHostsDMI(t *testing.T) {
+	setupDMIForEC2(t)
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
+}
+
+func TestGetNTPHostsEC2UUID(t *testing.T) {
+	dmi.SetupMock(t, "ec2something", "", "", "")
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
+}
+
+func TestGetNTPHostsDisabledDMI(t *testing.T) {
+	config.Mock(t)
+	config.Datadog.Set("ec2_use_dmi", false)
+
+	// DMI without EC2 UUID
+	dmi.SetupMock(t, "something", "something", "i-myinstance", DMIBoardVendor)
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string(nil), actualHosts)
+}
+
+func TestGetNTPHostsNotEC2(t *testing.T) {
+	setupDMIForNotEC2(t)
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string(nil), actualHosts)
+}
+
+func TestMetadataSourceIMDS(t *testing.T) {
+	ctx := context.Background()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.Method {
+		case http.MethodPut: // token request
+			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+		case http.MethodGet: // metadata request
+			switch r.RequestURI {
+			case "/hostname":
+				io.WriteString(w, "ip-10-10-10-10.ec2.internal")
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	tokenURL = ts.URL
+	defer resetPackageVars()
+	config.Mock(t)
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.Set("ec2_prefer_imdsv2", true)
+
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceIMDSv2, currentMetadataSource)
+
+	// trying IMDSv1
+	hostnameFetcher.Reset()
+	currentMetadataSource = metadataSourceNone
+	config.Datadog.Set("ec2_prefer_imdsv2", false)
+
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceIMDSv1, currentMetadataSource)
+}
+
+func TestMetadataSourceUUID(t *testing.T) {
+	ctx := context.Background()
+
+	metadataURL = ""
+	defer resetPackageVars()
+
+	dmi.SetupMock(t, "ec2something", "", "", "")
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+
+	dmi.SetupMock(t, "", "ec2something", "", "")
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+
+	dmi.SetupMock(t, "", "45E12AEC-DCD1-B213-94ED-012345ABCDEF", "", "")
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+}
+
+func TestMetadataSourceDMI(t *testing.T) {
+	ctx := context.Background()
+
+	metadataURL = ""
+	defer resetPackageVars()
+
+	setupDMIForEC2(t)
+	GetHostAliases(ctx)
+	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
+}
+
+func TestMetadataSourceDMIPreventFallback(t *testing.T) {
+	ctx := context.Background()
+
+	metadataURL = ""
+	defer resetPackageVars()
+
+	setupDMIForEC2(t)
+	GetHostAliases(ctx)
+	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
+
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
 }

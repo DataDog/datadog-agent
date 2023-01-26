@@ -264,6 +264,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
+	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
+	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
@@ -363,6 +365,7 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
+	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
@@ -371,7 +374,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
-	config.BindEnvAndSetDefault("secret_backend_command_sha256", "")
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
@@ -715,6 +717,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
+	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude", []string{
+		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
+		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
+	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -731,6 +737,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
 	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
+	config.BindEnvAndSetDefault("ec2_use_dmi", true)                             // should the agent leverage DMI information to know if it's running on EC2 or not.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
@@ -819,6 +826,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
 
@@ -1016,12 +1024,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false) // to be enabled only in e2e tests
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
+	config.BindEnvAndSetDefault("telemetry.python_memory", true)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
@@ -1051,10 +1062,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
 	config.BindEnv("orchestrator_explorer.max_per_message")
 	config.BindEnv("orchestrator_explorer.max_message_bytes")
-	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
-	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
+	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL")
+	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
-	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
@@ -1062,6 +1073,16 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
 	config.BindEnv("container_lifecycle.dd_url")
 	config.BindEnv("container_lifecycle.additional_endpoints")
+
+	// Container image configuration
+	config.BindEnvAndSetDefault("container_image.enabled", false)
+	config.BindEnv("container_image.dd_url")
+	config.BindEnv("container_image.additional_endpoints")
+
+	// SBOM configuration
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnv("sbom.dd_url")
+	config.BindEnv("sbom.additional_endpoints")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1081,6 +1102,14 @@ func InitConfig(config Config) {
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
+
+	// container_image_collection
+	config.BindEnvAndSetDefault("container_image_collection.metadata.enabled", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.enabled", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.use_mount", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
+	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
+	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1108,7 +1137,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
-	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", true)
 	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 
 	// Datadog security agent (runtime)
@@ -1171,8 +1199,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
-	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
+	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
 	config.BindEnv("runtime_security_config.event_stream.buffer_size")
 	config.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 
@@ -1224,12 +1253,17 @@ func InitConfig(config Config) {
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
 
+	// Datadog Agent Manager System Tray
+	config.BindEnvAndSetDefault("system_tray.log_file", "")
+
 	setupAPM(config)
 	SetupOTLP(config)
 	setupProcesses(config)
 }
 
-var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
+// version (see AddAgentVersionToDomain).
+var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
 // GetProxies returns the proxy settings from the configuration
 func GetProxies() *Proxy {
@@ -1548,6 +1582,8 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 9:  network devices snmp traps (unused)
 	// port_range_start + 10: instrumentation telemetry
 	// port_range_start + 11: appsec events (unused)
+	// port_range_start + 12: orchestrator explorer
+	// port_range_start + 13: runtime security
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
@@ -1567,6 +1603,8 @@ func setupFipsEndpoints(config Config) error {
 		networkDevicesSnmpTraps    = 9
 		instrumentationTelemetry   = 10
 		appsecEvents               = 11
+		orchestratorExplorer       = 12
+		runtimeSecurity            = 13
 	)
 
 	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
@@ -1596,21 +1634,17 @@ func setupFipsEndpoints(config Config) error {
 	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics))
 
+	// Logs
+	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles))
+	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
+	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
 
 	// Processes
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
-
-	// Logs
-	config.Set("logs_config.use_http", true)
-	config.Set("logs_config.logs_no_ssl", true)
-	if config.GetBool("fips.https") {
-		config.Set("logs_config.logs_no_ssl", false)
-	}
-	config.Set("logs_config.logs_dd_url", urlFor(logs))
 
 	// Database monitoring
 	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
@@ -1620,7 +1654,19 @@ func setupFipsEndpoints(config Config) error {
 	// Network devices
 	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
 
+	// Orchestrator Explorer
+	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))
+
+	// CWS
+	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+
 	return nil
+}
+
+func setupFipsLogsConfig(config Config, configPrefix string, url string) {
+	config.Set(configPrefix+"use_http", true)
+	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
+	config.Set(configPrefix+"logs_dd_url", url)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -1635,8 +1681,6 @@ func ResolveSecrets(config Config, origin string) error {
 		config.GetInt("secret_backend_timeout"),
 		config.GetInt("secret_backend_output_max_size"),
 		config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		config.GetString("secret_backend_command_sha256"),
-		config.ConfigFileUsed(),
 	)
 
 	if config.GetString("secret_backend_command") != "" {
@@ -2031,17 +2075,16 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	return aliases
 }
 
-// GetConfiguredTags returns complete list of user configured tags.
-//
-// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
-// if includeDogstatsd is true.
-func GetConfiguredTags(includeDogstatsd bool) []string {
-	tags := Datadog.GetStringSlice("tags")
-	extraTags := Datadog.GetStringSlice("extra_tags")
+// GetConfiguredTags returns list of tags from a configuration, based on
+// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
+// if includeDogdstatsd is true.
+func GetConfiguredTags(config Config, includeDogstatsd bool) []string {
+	tags := config.GetStringSlice("tags")
+	extraTags := config.GetStringSlice("extra_tags")
 
 	var dsdTags []string
 	if includeDogstatsd {
-		dsdTags = Datadog.GetStringSlice("dogstatsd_tags")
+		dsdTags = config.GetStringSlice("dogstatsd_tags")
 	}
 
 	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
@@ -2050,6 +2093,14 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+// GetGlobalConfiguredTags returns complete list of user configured tags.
+//
+// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
+// if includeDogstatsd is true.
+func GetGlobalConfiguredTags(includeDogstatsd bool) []string {
+	return GetConfiguredTags(Datadog, includeDogstatsd)
 }
 
 func bindVectorOptions(config Config, datatype DataType) {
@@ -2084,7 +2135,7 @@ func GetTraceAgentDefaultEnv() string {
 		defaultEnv = Datadog.GetString("env")
 		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
 	} else {
-		for _, tag := range GetConfiguredTags(false) {
+		for _, tag := range GetConfiguredTags(Datadog, false) {
 			if strings.HasPrefix(tag, "env:") {
 				defaultEnv = strings.TrimPrefix(tag, "env:")
 				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)

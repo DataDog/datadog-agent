@@ -21,9 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -39,8 +40,6 @@ import (
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
-
-const loggerName ddconfig.LoggerName = "PROCESS"
 
 const (
 	agent6DisabledMessage = `process-agent not enabled.
@@ -85,8 +84,8 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	if err := config.LoadConfigIfExists(globalParams.ConfFilePath); err != nil {
-		_ = log.Criticalf("Error parsing config: %s", err)
+	if err := command.BootstrapConfig(globalParams.ConfFilePath, false); err != nil {
+		_ = log.Critical(err)
 		cleanupAndExit(1)
 	}
 
@@ -97,13 +96,10 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	config.InitRuntimeSettings()
+	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+	_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
 
-	cfg, err := config.NewAgentConfig(loggerName, globalParams.ConfFilePath, syscfg)
-	if err != nil {
-		log.Criticalf("Error parsing config: %s", err)
-		cleanupAndExit(1)
-	}
+	initRuntimeSettings()
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
@@ -114,8 +110,8 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 
 	// Now that the logger is configured log host info
-	hostInfo := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostInfo.Platform)
+	hostStatus := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostStatus.Platform)
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
@@ -152,18 +148,12 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 	defer tagger.Stop() //nolint:errcheck
 
-	err = initInfo(cfg)
-	if err != nil {
-		log.Criticalf("Error initializing info: %s", err)
-		cleanupAndExit(1)
-	}
-
 	if err := statsd.Configure(ddconfig.GetBindHost(), ddconfig.Datadog.GetInt("dogstatsd_port")); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := getChecks(syscfg, cfg.Orchestrator, ddconfig.IsAnyContainerFeaturePresent())
+	enabledChecks := getChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
 
 	// Exit if agent is not enabled.
 	if len(enabledChecks) == 0 {
@@ -227,10 +217,23 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		expVarPort = ddconfig.DefaultProcessExpVarPort
 	}
 
+	hostInfo, err := checks.CollectHostInfo()
+	if err != nil {
+		log.Criticalf("Error collecting host details: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+
+	err = initInfo(hostInfo.HostName, processModuleEnabled)
+	if err != nil {
+		log.Criticalf("Error initializing info: %s", err)
+		cleanupAndExit(1)
+	}
+
 	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
-		if err := Info(os.Stdout, cfg, url); err != nil {
+		if err := Info(os.Stdout, url); err != nil {
 			cleanupAndExit(1)
 		}
 		return
@@ -253,12 +256,19 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(cfg, enabledChecks)
+	cl, err := NewCollector(syscfg, hostInfo, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)
 		return
 	}
+	cl.submitter, err = NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
+	if err != nil {
+		log.Criticalf("Error creating checkSubmitter: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+
 	if err := cl.run(exit); err != nil {
 		log.Criticalf("Error starting collector: %s", err)
 		os.Exit(1)
@@ -284,5 +294,25 @@ func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
 		}
 
 		os.Exit(status)
+	}
+}
+
+// initRuntimeSettings registers settings to be added to the runtime config.
+func initRuntimeSettings() {
+	// NOTE: Any settings you want to register should simply be added here
+	processRuntimeSettings := []settings.RuntimeSetting{
+		settings.LogLevelRuntimeSetting{},
+		settings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction"),
+		settings.RuntimeBlockProfileRate("runtime_block_profile_rate"),
+		settings.ProfilingGoroutines("internal_profiling_goroutines"),
+		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
+	}
+
+	// Before we begin listening, register runtime settings
+	for _, setting := range processRuntimeSettings {
+		err := settings.RegisterRuntimeSetting(setting)
+		if err != nil {
+			_ = log.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
+		}
 	}
 }

@@ -16,9 +16,14 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -27,8 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 func areCGroupADsEnabled(c *config.Config) bool {
@@ -38,12 +41,12 @@ func areCGroupADsEnabled(c *config.Config) bool {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	probe         *Probe
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
+	emptyDropped  *atomic.Uint64
+	fieldHandlers *FieldHandlers
 	resolvers     *Resolvers
 	kernelVersion *kernel.Version
-	scrubber      *pconfig.DataScrubber
 	manager       *manager.Manager
 
 	tracedPIDsMap          *ebpf.Map
@@ -52,6 +55,8 @@ type ActivityDumpManager struct {
 	cgroupWaitList         *ebpf.Map
 	activityDumpsConfigMap *ebpf.Map
 	ignoreFromSnapshot     map[string]bool
+
+	dumpLimiter *simplelru.LRU[string, *atomic.Uint64]
 
 	activeDumps    []*ActivityDump
 	snapshotQueue  chan *ActivityDump
@@ -104,9 +109,13 @@ func (adm *ActivityDumpManager) cleanup() {
 		ad.Finalize(true)
 		seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 
-		// persist dump
-		if err := adm.storage.Persist(ad); err != nil {
-			seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+		// persist dump if not empty
+		if !ad.IsEmpty() {
+			if err := adm.storage.Persist(ad); err != nil {
+				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+			}
+		} else {
+			adm.emptyDropped.Inc()
 		}
 
 		// remove from the map of ignored dumps
@@ -169,7 +178,7 @@ func (adm *ActivityDumpManager) resolveTags() {
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
 func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd.ClientInterface, resolvers *Resolvers,
-	kernelVersion *kernel.Version, scrubber *pconfig.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
+	kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -200,12 +209,19 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
 	}
 
+	limiter, err := simplelru.NewLRU(1024, func(workloadSelector string, count *atomic.Uint64) {
+	})
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)
+	}
+
 	adm := &ActivityDumpManager{
 		config:                 config,
 		statsdClient:           statsdClient,
+		emptyDropped:           atomic.NewUint64(0),
+		fieldHandlers:          p.fieldHandlers,
 		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
-		scrubber:               scrubber,
 		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
 		tracedCommsMap:         tracedComms,
@@ -215,6 +231,7 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		snapshotQueue:          make(chan *ActivityDump, 100),
 		ignoreFromSnapshot:     make(map[string]bool),
 		storage:                storageManager,
+		dumpLimiter:            limiter,
 	}
 
 	loadController, err := NewActivityDumpLoadController(adm)
@@ -240,7 +257,7 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
 
 	// merge tags from config
-	for _, tag := range coreconfig.GetConfiguredTags(true) {
+	for _, tag := range coreconfig.GetGlobalConfiguredTags(true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
@@ -384,6 +401,22 @@ func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListPa
 	}, nil
 }
 
+func (adm *ActivityDumpManager) removeDump(dump *ActivityDump) {
+	adm.Lock()
+	defer adm.Unlock()
+
+	toDelete := -1
+	for i, d := range adm.activeDumps {
+		if d.Name == dump.Name {
+			toDelete = i
+			break
+		}
+	}
+	if toDelete >= 0 {
+		adm.activeDumps = append(adm.activeDumps[:toDelete], adm.activeDumps[toDelete+1:]...)
+	}
+}
+
 // StopActivityDump stops an active activity dump
 func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	adm.Lock()
@@ -401,9 +434,13 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 			toDelete = i
 
-			// persist now
-			if err := adm.storage.Persist(d); err != nil {
-				seclog.Errorf("couldn't persist [%s]: %v", d.GetSelectorStr(), err)
+			// persist dump if not empty
+			if !d.IsEmpty() {
+				if err := adm.storage.Persist(d); err != nil {
+					seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
+				}
+			} else {
+				adm.emptyDropped.Inc()
 			}
 			break
 		}
@@ -424,7 +461,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 }
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
-func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
+func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample {
 		return
@@ -446,10 +483,10 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 
 		// compute the list of ancestors, we need to start inserting them from the root
 		ancestors := []*model.ProcessCacheEntry{entry}
-		parent := entry.GetNextAncestorNoFork()
+		parent := entry.GetNextAncestorBinary()
 		for parent != nil {
 			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
-			parent = parent.GetNextAncestorNoFork()
+			parent = parent.GetNextAncestorBinary()
 		}
 
 		for _, parent = range ancestors {
@@ -505,6 +542,13 @@ func (adm *ActivityDumpManager) SendStats() error {
 	if err := adm.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumps, activeDumps, []string{}, 1.0); err != nil {
 		seclog.Errorf("couldn't send MetricActivityDumpActiveDumps metric: %v", err)
 	}
+
+	if value := adm.emptyDropped.Swap(0); value > 0 {
+		if err := adm.statsdClient.Count(metrics.MetricActivityDumpEmptyDropped, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEmptyDropped, err)
+		}
+	}
+
 	return nil
 }
 
@@ -583,9 +627,13 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		ad.Finalize(false)
 		seclog.Infof("tracing paused for [%s]", ad.GetSelectorStr())
 
-		// persist dump
-		if err := adm.storage.Persist(ad); err != nil {
-			seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+		// persist dump if not empty
+		if !ad.IsEmpty() {
+			if err := adm.storage.Persist(ad); err != nil {
+				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+			}
+		} else {
+			adm.emptyDropped.Inc()
 		}
 
 		// restart a new dump for the same workload

@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -126,6 +127,8 @@ func (c *complianceCheck) Run() error {
 	var err error
 
 	reports := c.checkable.Check(c)
+	sort.Stable(reports)
+
 	resourceQuadIDs := make(map[resourceQuadID]bool)
 
 	for _, report := range reports {

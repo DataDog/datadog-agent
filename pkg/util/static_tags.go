@@ -31,7 +31,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	tags := []string{}
 
 	// DD_TAGS / DD_EXTRA_TAGS
-	tags = append(tags, config.GetConfiguredTags(false)...)
+	tags = append(tags, config.GetGlobalConfiguredTags(false)...)
 
 	// EKS Fargate specific tags
 	if config.IsFeaturePresent(config.EKSFargate) {
@@ -56,7 +56,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 		if found {
 			log.Infof("'%s' was set manually via DD_TAGS, not changing it", clusterTagNamePrefix+tag)
 		} else {
-			cluster := clustername.GetClusterName(ctx, "")
+			cluster := clustername.GetClusterNameTagValue(ctx, "")
 			if cluster == "" {
 				log.Infof("Couldn't build the %q.. tag, DD_CLUSTER_NAME can be used to set it", clusterTagNamePrefix)
 			} else {

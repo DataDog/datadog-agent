@@ -48,14 +48,19 @@ func getClusterName(attrs pcommon.Map) (string, bool) {
 
 // HostnameFromAttributes tries to get a valid hostname from attributes by checking, in order:
 //
-//   1. a custom Datadog hostname provided by the "datadog.host.name" attribute
-//   2. the Kubernetes node name (and cluster name if available),
-//   3. cloud provider specific hostname for AWS or GCP
-//   4. the container ID,
-//   5. the cloud provider host ID and
-//   6. the host.name attribute.
+//  1. a custom Datadog hostname provided by the "datadog.host.name" attribute
 //
-//  It returns a boolean value indicated if any name was found
+//  2. the Kubernetes node name (and cluster name if available),
+//
+//  3. cloud provider specific hostname for AWS or GCP
+//
+//  4. the container ID,
+//
+//  5. the cloud provider host ID and
+//
+//  6. the host.name attribute.
+//
+//     It returns a boolean value indicated if any name was found
 func hostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
 	// Check if the host is localhost or 0.0.0.0, if so discard it.
 	// We don't do the more strict validation done for metadata,

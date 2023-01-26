@@ -50,9 +50,6 @@ type FlareBuilder interface {
 
 	// CopyFile copies the content of 'srcFile' to the root of the flare.
 	//
-	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
-	// automatically be created.
-	//
 	// The data is automatically scrubbed of any sensitive informations before being copied.
 	//
 	// Example: CopyFile("/etc/datadog/datadog.yaml") will create a copy of "/etc/datadog/datadog.yaml", named
@@ -75,7 +72,7 @@ type FlareBuilder interface {
 	// The path for each file in 'srcDir' is passed to the 'shouldInclude' callback. If 'shouldInclude' returns true, the
 	// file is copies to the flare. If not, the file is ignored.
 	//
-	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/dir").
+	// 'destDir' is a path relative to the flare root (ex: "some/path/to/a/dir").
 	//
 	// The data of each copied file is automatically scrubbed of any sensitive informations before being copied.
 	//
@@ -88,7 +85,7 @@ type FlareBuilder interface {
 	// The path for each file in 'srcDir' is passed to the 'shouldInclude' callback. If 'shouldInclude' returns true, the
 	// file is copies to the flare. If not, the file is ignored.
 	//
-	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/dir").
+	// 'destDir' is a path relative to the flare root (ex: "some/path/to/a/dir").
 	//
 	// The data of each copied file is NOT scrubbed of any sensitive informations before being copied. Only files
 	// already scrubbed should be added in this way (ex: agent logs that are scrubbed at creation).
@@ -109,7 +106,10 @@ type FlareBuilder interface {
 	// RegisterFilePerm add the current permissions for a file to the flare's permissions.log.
 	RegisterFilePerm(path string)
 
-	// Save archives all the data added to the to the flare, cleanup all the temporary directories and return the path to
+	// RegisterDirPerm add the current permissions for all the files in a directory to the flare's permissions.log.
+	RegisterDirPerm(path string)
+
+	// Save archives all the data added to the flare, cleanup all the temporary directories and return the path to
 	// the archive file. Upon error the cleanup is still done.
 	// Error or not, once Save as been called the FlareBuilder is no longer capable of receiving new data. It is the caller
 	// responsibility to make sure of this.

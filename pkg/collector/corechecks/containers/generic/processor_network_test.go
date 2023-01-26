@@ -38,20 +38,20 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container1.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container1"}, nil)
 	mockCollector.SetContainerEntry(container1.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
-			BytesSent:   pointer.Float64Ptr(12),
-			BytesRcvd:   pointer.Float64Ptr(12),
-			PacketsSent: pointer.Float64Ptr(12),
-			PacketsRcvd: pointer.Float64Ptr(12),
+			BytesSent:   pointer.Ptr(12.0),
+			BytesRcvd:   pointer.Ptr(12.0),
+			PacketsSent: pointer.Ptr(12.0),
+			PacketsRcvd: pointer.Ptr(12.0),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   pointer.Float64Ptr(12),
-					BytesRcvd:   pointer.Float64Ptr(12),
-					PacketsSent: pointer.Float64Ptr(12),
-					PacketsRcvd: pointer.Float64Ptr(12),
+					BytesSent:   pointer.Ptr(12.0),
+					BytesRcvd:   pointer.Ptr(12.0),
+					PacketsSent: pointer.Ptr(12.0),
+					PacketsRcvd: pointer.Ptr(12.0),
 				},
 			},
-			NetworkIsolationGroupID: pointer.UInt64Ptr(100),
-			UsingHostNetwork:        pointer.BoolPtr(false),
+			NetworkIsolationGroupID: pointer.Ptr(uint64(100)),
+			UsingHostNetwork:        pointer.Ptr(false),
 		},
 	})
 
@@ -59,20 +59,20 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container2.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container2"}, nil)
 	mockCollector.SetContainerEntry(container2.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
-			BytesSent:   pointer.Float64Ptr(12),
-			BytesRcvd:   pointer.Float64Ptr(12),
-			PacketsSent: pointer.Float64Ptr(12),
-			PacketsRcvd: pointer.Float64Ptr(12),
+			BytesSent:   pointer.Ptr(12.0),
+			BytesRcvd:   pointer.Ptr(12.0),
+			PacketsSent: pointer.Ptr(12.0),
+			PacketsRcvd: pointer.Ptr(12.0),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   pointer.Float64Ptr(12),
-					BytesRcvd:   pointer.Float64Ptr(12),
-					PacketsSent: pointer.Float64Ptr(12),
-					PacketsRcvd: pointer.Float64Ptr(12),
+					BytesSent:   pointer.Ptr(12.0),
+					BytesRcvd:   pointer.Ptr(12.0),
+					PacketsSent: pointer.Ptr(12.0),
+					PacketsRcvd: pointer.Ptr(12.0),
 				},
 			},
-			NetworkIsolationGroupID: pointer.UInt64Ptr(100),
-			UsingHostNetwork:        pointer.BoolPtr(false),
+			NetworkIsolationGroupID: pointer.Ptr(uint64(100)),
+			UsingHostNetwork:        pointer.Ptr(false),
 		},
 	})
 
@@ -80,16 +80,16 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container3.ID), "foo", []string{"low:common"}, []string{"orch:standalone3"}, []string{"id:container3"}, nil)
 	mockCollector.SetContainerEntry(container3.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
-			BytesSent:   pointer.Float64Ptr(3),
-			BytesRcvd:   pointer.Float64Ptr(3),
-			PacketsSent: pointer.Float64Ptr(3),
-			PacketsRcvd: pointer.Float64Ptr(3),
+			BytesSent:   pointer.Ptr(3.0),
+			BytesRcvd:   pointer.Ptr(3.0),
+			PacketsSent: pointer.Ptr(3.0),
+			PacketsRcvd: pointer.Ptr(3.0),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   pointer.Float64Ptr(3),
-					BytesRcvd:   pointer.Float64Ptr(3),
-					PacketsSent: pointer.Float64Ptr(3),
-					PacketsRcvd: pointer.Float64Ptr(3),
+					BytesSent:   pointer.Ptr(3.0),
+					BytesRcvd:   pointer.Ptr(3.0),
+					PacketsSent: pointer.Ptr(3.0),
+					PacketsRcvd: pointer.Ptr(3.0),
 				},
 			},
 		},
@@ -99,20 +99,20 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container4.ID), "foo", []string{"low:common"}, []string{"orch:standalone4"}, []string{"id:container4"}, nil)
 	mockCollector.SetContainerEntry(container4.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
-			BytesSent:   pointer.Float64Ptr(4),
-			BytesRcvd:   pointer.Float64Ptr(4),
-			PacketsSent: pointer.Float64Ptr(4),
-			PacketsRcvd: pointer.Float64Ptr(4),
+			BytesSent:   pointer.Ptr(4.0),
+			BytesRcvd:   pointer.Ptr(4.0),
+			PacketsSent: pointer.Ptr(4.0),
+			PacketsRcvd: pointer.Ptr(4.0),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   pointer.Float64Ptr(4),
-					BytesRcvd:   pointer.Float64Ptr(4),
-					PacketsSent: pointer.Float64Ptr(4),
-					PacketsRcvd: pointer.Float64Ptr(4),
+					BytesSent:   pointer.Ptr(4.0),
+					BytesRcvd:   pointer.Ptr(4.0),
+					PacketsSent: pointer.Ptr(4.0),
+					PacketsRcvd: pointer.Ptr(4.0),
 				},
 			},
-			NetworkIsolationGroupID: pointer.UInt64Ptr(400),
-			UsingHostNetwork:        pointer.BoolPtr(false),
+			NetworkIsolationGroupID: pointer.Ptr(uint64(400)),
+			UsingHostNetwork:        pointer.Ptr(false),
 		},
 	})
 
@@ -120,20 +120,20 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container5.ID), "foo", []string{"low:common"}, []string{"orch:standalone5"}, []string{"id:container5"}, nil)
 	mockCollector.SetContainerEntry(container5.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
-			BytesSent:   pointer.Float64Ptr(5),
-			BytesRcvd:   pointer.Float64Ptr(5),
-			PacketsSent: pointer.Float64Ptr(5),
-			PacketsRcvd: pointer.Float64Ptr(5),
+			BytesSent:   pointer.Ptr(5.0),
+			BytesRcvd:   pointer.Ptr(5.0),
+			PacketsSent: pointer.Ptr(5.0),
+			PacketsRcvd: pointer.Ptr(5.0),
 			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   pointer.Float64Ptr(5),
-					BytesRcvd:   pointer.Float64Ptr(5),
-					PacketsSent: pointer.Float64Ptr(5),
-					PacketsRcvd: pointer.Float64Ptr(5),
+					BytesSent:   pointer.Ptr(5.0),
+					BytesRcvd:   pointer.Ptr(5.0),
+					PacketsSent: pointer.Ptr(5.0),
+					PacketsRcvd: pointer.Ptr(5.0),
 				},
 			},
-			NetworkIsolationGroupID: pointer.UInt64Ptr(1),
-			UsingHostNetwork:        pointer.BoolPtr(true),
+			NetworkIsolationGroupID: pointer.Ptr(uint64(1)),
+			UsingHostNetwork:        pointer.Ptr(true),
 		},
 	})
 
