@@ -402,9 +402,6 @@ func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListPa
 }
 
 func (adm *ActivityDumpManager) removeDump(dump *ActivityDump) {
-	adm.Lock()
-	defer adm.Unlock()
-
 	toDelete := -1
 	for i, d := range adm.activeDumps {
 		if d.Name == dump.Name {
