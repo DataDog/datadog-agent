@@ -160,8 +160,8 @@ func (h *Hotspot) dialunix(raddr *net.UnixAddr, withCredential bool) (*net.UnixC
 		origeuid := syscall.Geteuid()
 		origegid := syscall.Getegid()
 		defer func() {
-			syscall.Seteuid(origeuid)
-			syscall.Setegid(origegid)
+			_ = syscall.Seteuid(origeuid)
+			_ = syscall.Setegid(origegid)
 			syscall.ForkLock.Unlock()
 			runtime.UnlockOSThread()
 		}()

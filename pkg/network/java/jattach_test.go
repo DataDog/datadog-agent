@@ -130,7 +130,7 @@ func TestInject(t *testing.T) {
 	})
 
 	// old hotspot JVM require connect() with the same uid/gid as executed
-	p := "unshare -p --fork -U "
+	p = "unshare -p --fork -U "
 	// flush the caches to slow start java
 	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
 	t.Run("PIDnamespace", func(t *testing.T) {
