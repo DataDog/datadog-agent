@@ -483,3 +483,55 @@ func TestParseGaugeTimestampMalformed(t *testing.T) {
 	_, err = parseMetricSample([]byte("metric:1234|g|#onetag|T-102348932"))
 	assert.Error(t, err)
 }
+
+func TestParseManyPipes(t *testing.T) {
+	t.Run("Sample rate and container ID (4 pipes)", func(t *testing.T) {
+		sample, err := parseMetricSample([]byte("example.metric:2.39283|d|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f"))
+
+		require.NoError(t, err)
+
+		assert.Equal(t, "example.metric", sample.name)
+		assert.InEpsilon(t, 2.39283, sample.value, epsilon)
+		require.Nil(t, sample.values)
+		assert.Equal(t, distributionType, sample.metricType)
+		require.Equal(t, 1, len(sample.tags))
+		assert.Equal(t, "environment:dev", sample.tags[0])
+		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	})
+
+	t.Run("Sample rate and container ID and timestamp (5 pipes)", func(t *testing.T) {
+		config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
+		defer config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
+
+		sample, err := parseMetricSample([]byte("example.metric:2.39283|d|T1657100540|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f"))
+
+		require.NoError(t, err)
+
+		assert.Equal(t, "example.metric", sample.name)
+		assert.InEpsilon(t, 2.39283, sample.value, epsilon)
+		require.Nil(t, sample.values)
+		assert.Equal(t, distributionType, sample.metricType)
+		require.Equal(t, 1, len(sample.tags))
+		assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
+		assert.Equal(t, "environment:dev", sample.tags[0])
+		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	})
+
+	t.Run("Sample rate and container ID and timestamp and future extension (6 pipes)", func(t *testing.T) {
+		config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
+		defer config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
+
+		sample, err := parseMetricSample([]byte("example.metric:2.39283|d|T1657100540|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f|f:wowthisisacoolfeature"))
+
+		require.NoError(t, err)
+
+		assert.Equal(t, "example.metric", sample.name)
+		assert.InEpsilon(t, 2.39283, sample.value, epsilon)
+		require.Nil(t, sample.values)
+		assert.Equal(t, distributionType, sample.metricType)
+		require.Equal(t, 1, len(sample.tags))
+		assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
+		assert.Equal(t, "environment:dev", sample.tags[0])
+		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	})
+}
