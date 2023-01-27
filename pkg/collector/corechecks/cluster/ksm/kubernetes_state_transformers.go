@@ -227,9 +227,9 @@ func containerResourceLimitsTransformer(s aggregator.Sender, name string, metric
 func submitContainerResourceMetric(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
 
 	var allowedResources = map[string]string{
-		"cpu":                              "cpu",
-		"memory":                           "memory",
-		"kubernetes_io_network_bandwidth":  "network_bandwidth",
+		"cpu":                             "cpu",
+		"memory":                          "memory",
+		"kubernetes_io_network_bandwidth": "network_bandwidth",
 	}
 
 	resource, found := metric.Labels["resource"]
@@ -260,11 +260,11 @@ func nodeCapacityTransformer(s aggregator.Sender, name string, metric ksmstore.D
 func submitNodeResourceMetric(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
 
 	var allowedResources = map[string]string{
-		"cpu":                              "cpu",
-		"memory":                           "memory",
-		"pods":                             "pods",
-		"ephemeral_storage":                "ephemeral_storage",
-		"kubernetes_io_network_bandwidth":  "network_bandwidth",
+		"cpu":                             "cpu",
+		"memory":                          "memory",
+		"pods":                            "pods",
+		"ephemeral_storage":               "ephemeral_storage",
+		"kubernetes_io_network_bandwidth": "network_bandwidth",
 	}
 
 	resource, found := metric.Labels["resource"]
