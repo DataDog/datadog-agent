@@ -14,6 +14,12 @@ functional_test_junit_upload:
       optional: true
     - job: kitchen_test_system_probe_linux_arm64
       optional: true
+    - job: kitchen_test_security_agent_x64
+      optional: true
+    - job: kitchen_test_security_agent_arm64
+      optional: true
+    - job: kitchen_test_security_agent_amazonlinux_x64
+      optional: true
   variables:
     DD_ENV: ci
   script:
