@@ -195,8 +195,11 @@ func getReturnError(result *bininspect.Result, funcName string) (gotls.Location,
 				X_register:  int64(3), // RBX
 			}, nil
 		case bininspect.GoArchARM64:
-			// TODO implement for ARM
-			return gotls.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
+			return gotls.Location{
+				Exists:      boolToBinary(true),
+				In_register: boolToBinary(true),
+				X_register:  int64(1),
+			}, nil
 		default:
 			return gotls.Location{}, bininspect.ErrUnsupportedArch
 		}

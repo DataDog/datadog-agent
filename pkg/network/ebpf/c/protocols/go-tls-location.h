@@ -113,7 +113,10 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
         }
 
         *(u64*)dest = tmp;
-        return regnum < NUM_REGISTERS;
+        if (regnum < NUM_REGISTERS) {
+            return 0;
+        }
+        return 1;
     #else
         #error "Unsupported platform"
     #endif
