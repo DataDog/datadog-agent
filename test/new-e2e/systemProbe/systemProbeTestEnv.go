@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/DataDog/test-infra-definitions/aws"
 	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microVMs"
-	"gotest.tools/gotestsum/cmd"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -127,13 +126,13 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
 
 		cmd1 := exec.Command(fmt.Sprintf("ls -lh %s", SSHKeyFile))
-		err := cmd.Run()
+		err := cmd1.Run()
 		if err != nil {
 			return nil, err
 		}
 
 		cmd2 := exec.Command("ls -lh /tmp/test123.txt")
-		err = cmd.Run()
+		err = cmd2.Run()
 		if err != nil {
 			return nil, err
 		}
