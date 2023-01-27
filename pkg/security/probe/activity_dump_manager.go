@@ -173,6 +173,29 @@ func (adm *ActivityDumpManager) resolveTags() {
 		if err != nil {
 			seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
 		}
+
+		if !ad.countedByLimiter {
+			// check if we should discard this dump based on the manager dump limiter
+			limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
+			if limiterKey == ":" {
+				// wait for the tags
+				continue
+			}
+
+			counter, ok := adm.dumpLimiter.Get(limiterKey)
+			if !ok {
+				counter = atomic.NewUint64(0)
+				adm.dumpLimiter.Add(limiterKey, counter)
+			}
+
+			if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
+				ad.Finalize(true)
+				adm.RemoveDump(ad)
+			} else {
+				ad.countedByLimiter = true
+				counter.Add(1)
+			}
+		}
 	}
 }
 
@@ -399,6 +422,13 @@ func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListPa
 	return &api.ActivityDumpListMessage{
 		Dumps: activeDumps,
 	}, nil
+}
+
+// RemoveDump removes a dump
+func (adm *ActivityDumpManager) RemoveDump(dump *ActivityDump) {
+	adm.Lock()
+	defer adm.Unlock()
+	adm.removeDump(dump)
 }
 
 func (adm *ActivityDumpManager) removeDump(dump *ActivityDump) {
