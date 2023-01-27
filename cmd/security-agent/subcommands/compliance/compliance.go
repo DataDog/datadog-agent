@@ -7,35 +7,35 @@ package compliance
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
-func StartCompliance(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*agent.Agent, error) {
-	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
+func StartCompliance(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*agent.Agent, error) {
+	enabled := config.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil, nil
 	}
 
-	endpoints, context, err := common.NewLogContextCompliance()
+	endpoints, context, err := command.NewLogContextCompliance(log)
 	if err != nil {
 		log.Error(err)
 	}
 	stopper.Add(context)
 
-	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
+	runPath := config.GetString("compliance_config.run_path")
 	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
 	if err != nil {
 		return nil, err
@@ -47,9 +47,9 @@ func StartCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 	scheduler := scheduler.NewScheduler(runner.GetChan())
 	runner.SetScheduler(scheduler)
 
-	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
-	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
-	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
+	checkInterval := config.GetDuration("compliance_config.check_interval")
+	checkMaxEvents := config.GetInt("compliance_config.check_max_events_per_run")
+	configDir := config.GetString("compliance_config.dir")
 
 	options := []checks.BuilderOption{
 		checks.WithInterval(checkInterval),

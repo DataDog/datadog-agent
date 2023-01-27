@@ -492,7 +492,7 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 	return reports
 }
 
-func (r *regoCheck) Check(env env.Env) []*compliance.Report {
+func (r *regoCheck) Check(env env.Env) compliance.Reports {
 	r.evalLock.Lock()
 	defer r.evalLock.Unlock()
 

@@ -5,7 +5,6 @@
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
-#include <net/tcp.h>
 #include "sock-defines.h"
 #include "cookie.h"
 
@@ -199,7 +198,6 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
-
     update_tcp_stats(t, stats);
 }
 

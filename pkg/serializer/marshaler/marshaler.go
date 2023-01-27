@@ -46,11 +46,11 @@ type StreamJSONMarshaler interface {
 // serialize themselves in a stream.
 // Expected usage:
 //
-//	m.WriteHeader(stream)
-//	for m.MoveNext() {
-//		m.WriteCurrentItem(stream)
-//  }
-//	m.WriteFooter(stream)
+//		m.WriteHeader(stream)
+//		for m.MoveNext() {
+//			m.WriteCurrentItem(stream)
+//	 }
+//		m.WriteFooter(stream)
 type IterableStreamJSONMarshaler interface {
 	WriteHeader(*jsoniter.Stream) error
 	WriteFooter(*jsoniter.Stream) error

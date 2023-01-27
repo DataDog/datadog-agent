@@ -1,7 +1,10 @@
 *                                    @DataDog/agent-platform
 
 # Deps build
-build_clang*                         @DataDog/ebpf-platform
+build_clang_*                        @DataDog/ebpf-platform
+build_omnibus-nikos_*                @DataDog/ebpf-platform
+build_processed_btfhub_archive       @DataDog/ebpf-platform
+build_vcpkg_deps                     @DataDog/windows-agent
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
@@ -9,8 +12,8 @@ tests_*                              @DataDog/multiple
 tests_ebpf                           @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
 
-# Golang dependency list generation
-golang_deps_generate                 @DataDog/agent-core
+# Golang dependency list generation (currently disabled)
+golang_deps_generate                 @DataDog/agent-shared-components
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
@@ -19,12 +22,15 @@ cluster_agent-build*                 @DataDog/container-integrations
 build_serverless*                    @DataDog/serverless
 check_serverless_*                   @DataDog/serverless
 
+# Package deps build
+generate_minimized_btfs_*            @DataDog/ebpf-platform
+
 # Image build
 docker_build*                        @DataDog/container-integrations
 
 # Image scan
-scan_*_docker_hub*                   @DataDog/container-integrations
-dca_scan_*_docker_hub*               @DataDog/container-integrations
+scan_*                               @DataDog/container-integrations
+dca_scan_*                           @DataDog/container-integrations
 
 # Check deploy
 # Do not notify on these jobs, they're expected to fail on duplicate
@@ -42,10 +48,10 @@ docker_trigger_internal*               @DataDog/container-integrations
 docker_trigger_cluster_agent_internal* @DataDog/container-integrations
 
 # Internal kubernetes deploy
-internal_kubernetes_deploy*           @DataDog/container-integrations
+internal_kubernetes_deploy*            @DataDog/container-integrations
 
 # Deploy
-deploy_containers*                   @DataDog/container-integrations
+deploy_containers*                     @DataDog/container-integrations
 
 # Functional test
 kitchen_*_system_probe*                        @DataDog/ebpf-platform
@@ -54,7 +60,6 @@ kitchen_*_process_agent*                       @DataDog/processes
 pull_test_dockers                              @DataDog/universal-service-monitoring
 cleanup_kitchen_functional_test                @DataDog/ebpf-platform @DataDog/agent-security
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
-
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations

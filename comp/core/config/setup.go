@@ -8,13 +8,12 @@ package config
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/viper"
 	"io/fs"
-	"os"
 	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/viper"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
@@ -67,65 +66,5 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 		}
 		return warnings, err
 	}
-	return warnings, nil
-}
-
-// MergeConfigurationFiles reads an array of configuration filenames and attempts to merge them. The userDefined value is used to specify that configurationFilesArray contains filenames defined on the command line.
-// TODO: This is ONLY for SecAgent use! Deleting this once all SecAgent commands have been converted to fx
-func MergeConfigurationFiles(configName string, configurationFilesArray []string, userDefined bool) (*config.Warnings, error) {
-	// we'll search for a config file named `datadog.yaml`
-	config.Datadog.SetConfigName(configName)
-
-	// Track if a configuration file was loaded
-	loadedConfiguration := false
-
-	var warnings *config.Warnings
-	var deps dependencies
-
-	// Load and merge configuration files
-	for _, configurationFilename := range configurationFilesArray {
-		if _, err := os.Stat(configurationFilename); err != nil {
-			if userDefined {
-				fmt.Printf("Warning: unable to access %s\n", configurationFilename)
-			}
-			continue
-		}
-		if !loadedConfiguration {
-			deps.Params.confFilePath = configurationFilename
-			deps.Params.configName = ""
-			deps.Params.configLoadSecrets = true
-			deps.Params.configMissingOK = false
-			deps.Params.defaultConfPath = ""
-			deps.Params.configLoadSecurityAgent = true
-
-			w, err := setupConfig(deps)
-			if err != nil {
-				if userDefined {
-					fmt.Printf("Warning: unable to open %s\n", configurationFilename)
-				}
-				continue
-			}
-			warnings = w
-			loadedConfiguration = true
-		} else {
-			file, err := os.Open(configurationFilename)
-			if err != nil {
-				if userDefined {
-					fmt.Printf("Warning: unable to open %s\n", configurationFilename)
-				}
-				continue
-			}
-
-			err = config.Datadog.MergeConfig(file)
-			if err != nil {
-				return warnings, fmt.Errorf("unable to merge a configuration file: %v", err)
-			}
-		}
-	}
-
-	if !loadedConfiguration {
-		return warnings, fmt.Errorf("unable to load any configuration file from %s", configurationFilesArray)
-	}
-
 	return warnings, nil
 }

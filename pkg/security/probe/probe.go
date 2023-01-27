@@ -75,6 +75,7 @@ type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, fi
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
 	// Constants and configuration
+	Opts           Opts
 	Manager        *manager.Manager
 	managerOptions manager.Options
 	Config         *config.Config
@@ -709,10 +710,14 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve tracee process context
-		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0)
-		if cacheEntry != nil {
-			event.PTrace.Tracee = &cacheEntry.ProcessContext
+		var pce *model.ProcessCacheEntry
+		if event.PTrace.PID > 0 { // pid can be 0 for a PTRACE_TRACEME request
+			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0)
 		}
+		if pce == nil {
+			pce = model.NewEmptyProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+		}
+		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
 		if _, err = event.MMap.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
@@ -750,10 +755,14 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve target process context
-		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0)
-		if cacheEntry != nil {
-			event.Signal.Target = &cacheEntry.ProcessContext
+		var pce *model.ProcessCacheEntry
+		if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
+			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0)
 		}
+		if pce == nil {
+			pce = model.NewEmptyProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+		}
+		event.Signal.Target = &pce.ProcessContext
 	case model.SpliceEventType:
 		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
@@ -853,8 +862,6 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 			}
 		}
 	}
-
-	return
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
@@ -1109,8 +1116,12 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet {
-	opts.WithLogger(seclog.DefaultLogger)
+func (p *Probe) NewRuleSet() *rules.RuleSet {
+	ruleOpts, evalOpts := rules.NewEvalOpts(p.Opts.EventTypeEnabled)
+
+	ruleOpts.WithLogger(seclog.DefaultLogger)
+	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+	ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
 
 	eventCtor := func() eval.Event {
 		return &model.Event{
@@ -1118,7 +1129,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet
 		}
 	}
 
-	return rules.NewRuleSet(NewModel(p), eventCtor, opts, evalOpts)
+	return rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts, evalOpts)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -1187,7 +1198,9 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+	opts.normalize()
+
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -1196,6 +1209,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
+		Opts:                 opts,
 		Config:               config,
 		approvers:            make(map[eval.EventType]activeApprovers),
 		managerOptions:       ebpf.NewDefaultOptions(),
@@ -1203,9 +1217,9 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		cancelFnc:            cancel,
 		Erpc:                 nerpc,
 		erpcRequest:          &erpc.ERPCRequest{},
-		StatsdClient:         statsdClient,
+		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
+		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
 		event:                &model.Event{},
 	}
 

@@ -298,17 +298,6 @@ func (ev *Event) Release() {
 	}
 }
 
-// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events
-func (ev *Event) NewEmptyProcessCacheEntry() *ProcessCacheEntry {
-	return &ProcessCacheEntry{
-		ProcessContext: ProcessContext{
-			Process: Process{
-				PIDContext: ev.PIDContext,
-			},
-		},
-	}
-}
-
 // SetPathResolutionError sets the Event.pathResolutionError
 func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	fileFields.PathResolutionError = err
@@ -594,6 +583,7 @@ type Mount struct {
 }
 
 // MountEvent represents a mount event
+//
 //msgp:ignore MountEvent
 type MountEvent struct {
 	SyscallEvent

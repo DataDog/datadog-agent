@@ -9,21 +9,21 @@ import (
 	"fmt"
 	"os"
 
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Merge will merge the security-agent configuration into the existing datadog configuration
+// Merge will merge additional configuration into an existing configuration. The default is merging security-agent.yaml into datadog.yaml.
 func Merge(configPaths []string) error {
 	for _, configPath := range configPaths {
 		if f, err := os.Open(configPath); err == nil {
-			err = aconfig.Datadog.MergeConfig(f)
+			err = pkgconfig.Datadog.MergeConfig(f)
 			_ = f.Close()
 			if err != nil {
 				return fmt.Errorf("error merging %s config file: %w", configPath, err)
 			}
 		} else {
-			log.Infof("no config exists at %s, ignoring...", configPath)
+			pkglog.Infof("no config exists at %s, ignoring...", configPath)
 		}
 	}
 

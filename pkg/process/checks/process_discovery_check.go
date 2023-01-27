@@ -14,8 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// ProcessDiscovery is a ProcessDiscoveryCheck singleton. ProcessDiscovery should not be instantiated elsewhere.
-var ProcessDiscovery = &ProcessDiscoveryCheck{}
+// NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
+func NewProcessDiscoveryCheck() Check {
+	return &ProcessDiscoveryCheck{}
+}
 
 // ProcessDiscoveryCheck is a check that gathers basic process metadata.
 // It uses its own ProcessDiscovery payload.
@@ -29,10 +31,10 @@ type ProcessDiscoveryCheck struct {
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
+func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	d.info = info
 	d.initCalled = true
-	d.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
+	d.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
 
 	d.maxBatchSize = getMaxBatchSize()
 	return nil

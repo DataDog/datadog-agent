@@ -365,6 +365,7 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
+	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
@@ -716,6 +717,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
+	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude", []string{
+		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
+		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
+	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -936,6 +941,9 @@ func InitConfig(config Config) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
+	// temporary feature flag until this becomes the only option
+	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
+
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
 	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
@@ -1057,7 +1065,7 @@ func InitConfig(config Config) {
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
-	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
@@ -1095,8 +1103,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
 
-	// workloadmeta
-	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.enabled", false)
+	// container_image_collection
+	config.BindEnvAndSetDefault("container_image_collection.metadata.enabled", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.enabled", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.use_mount", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
+	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
+	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1186,8 +1199,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
-	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
+	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
 	config.BindEnv("runtime_security_config.event_stream.buffer_size")
 	config.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 
@@ -1568,6 +1582,8 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 9:  network devices snmp traps (unused)
 	// port_range_start + 10: instrumentation telemetry
 	// port_range_start + 11: appsec events (unused)
+	// port_range_start + 12: orchestrator explorer
+	// port_range_start + 13: runtime security
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
@@ -1587,6 +1603,8 @@ func setupFipsEndpoints(config Config) error {
 		networkDevicesSnmpTraps    = 9
 		instrumentationTelemetry   = 10
 		appsecEvents               = 11
+		orchestratorExplorer       = 12
+		runtimeSecurity            = 13
 	)
 
 	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
@@ -1616,6 +1634,9 @@ func setupFipsEndpoints(config Config) error {
 	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics))
 
+	// Logs
+	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
@@ -1625,14 +1646,6 @@ func setupFipsEndpoints(config Config) error {
 	// Processes
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
 
-	// Logs
-	config.Set("logs_config.use_http", true)
-	config.Set("logs_config.logs_no_ssl", true)
-	if config.GetBool("fips.https") {
-		config.Set("logs_config.logs_no_ssl", false)
-	}
-	config.Set("logs_config.logs_dd_url", urlFor(logs))
-
 	// Database monitoring
 	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
 	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics))
@@ -1641,7 +1654,19 @@ func setupFipsEndpoints(config Config) error {
 	// Network devices
 	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
 
+	// Orchestrator Explorer
+	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))
+
+	// CWS
+	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+
 	return nil
+}
+
+func setupFipsLogsConfig(config Config, configPrefix string, url string) {
+	config.Set(configPrefix+"use_http", true)
+	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
+	config.Set(configPrefix+"logs_dd_url", url)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values

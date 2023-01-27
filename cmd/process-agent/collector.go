@@ -67,9 +67,6 @@ type Collector struct {
 	// Enables running realtime checks
 	runRealTime bool
 
-	// Drop payloads from specified checks
-	dropCheckPayloads []string
-
 	// Submits check payloads to datadog
 	submitter Submitter
 }
@@ -80,6 +77,9 @@ func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCh
 
 	cfg := &checks.SysProbeConfig{}
 	if syscfg != nil && syscfg.Enabled {
+		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+		_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
+		cfg.ProcessModuleEnabled = processModuleEnabled
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
@@ -232,12 +232,11 @@ func (l *Collector) run(exit chan struct{}) error {
 
 		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
 		// process_rt doesn't show up in the enabled checks
-		if check.Name() == checks.Process.Name() && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+		if check.Name() == checks.ProcessCheckName && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
 			checkNames = append(checkNames, checks.RTProcessCheckName)
 		}
 	}
 	updateEnabledChecks(checkNames)
-	updateDropCheckPayloads(l.dropCheckPayloads)
 	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
 
 	go util.HandleSignals(exit)
@@ -455,7 +454,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.Pod.Name(), checks.PodCheckManifestName, checks.ProcessEvents.Name():
+	case checks.PodCheckName, checks.PodCheckManifestName, checks.ProcessEventsCheckName:
 		return true
 	default:
 		return false

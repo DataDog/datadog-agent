@@ -31,6 +31,9 @@ if exist \omnibus-ruby\pkg\*.wixpdb copy \omnibus-ruby\pkg\*.wixpdb c:\mnt\omnib
 REM copy customaction pdb file for debugging purposes
 if exist \omnibus-ruby\pkg\*.pdb copy \omnibus-ruby\pkg\*.pdb c:\mnt\omnibus\pkg\ || exit /b 8
 
+REM copy Next Gen installer
+if exist \dev\go\src\github.com\DataDog\datadog-agent\tools\windows\DatadogAgentInstaller\WixSetup\*.msi copy \dev\go\src\github.com\DataDog\datadog-agent\tools\windows\DatadogAgentInstaller\WixSetup\*.msi c:\mnt\omnibus\pkg\ || exit /b 8
+
 REM show output binary directories (for debugging)
 dir C:\opt\datadog-agent\bin\agent\
 

@@ -11,6 +11,8 @@ package cgroups
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -93,23 +95,23 @@ func TestCgroupV1MemoryStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Equal(t, "", cmp.Diff(MemoryStats{
-		UsageTotal:   uint64Ptr(354488320),
-		Cache:        uint64Ptr(4866048),
-		Swap:         uint64Ptr(0),
-		RSS:          uint64Ptr(19058688),
-		RSSHuge:      uint64Ptr(0),
-		MappedFile:   uint64Ptr(0),
-		Pgpgin:       uint64Ptr(878460),
-		Pgpgout:      uint64Ptr(872515),
-		Pgfault:      uint64Ptr(879450),
-		Pgmajfault:   uint64Ptr(0),
-		InactiveAnon: uint64Ptr(0),
-		ActiveAnon:   uint64Ptr(18923520),
-		InactiveFile: uint64Ptr(4595712),
-		ActiveFile:   uint64Ptr(0),
-		Unevictable:  uint64Ptr(0),
-		OOMEvents:    uint64Ptr(0),
-		Limit:        uint64Ptr(67108864),
-		KernelMemory: uint64Ptr(4444160),
+		UsageTotal:   pointer.Ptr(uint64(354488320)),
+		Cache:        pointer.Ptr(uint64(4866048)),
+		Swap:         pointer.Ptr(uint64(0)),
+		RSS:          pointer.Ptr(uint64(19058688)),
+		RSSHuge:      pointer.Ptr(uint64(0)),
+		MappedFile:   pointer.Ptr(uint64(0)),
+		Pgpgin:       pointer.Ptr(uint64(878460)),
+		Pgpgout:      pointer.Ptr(uint64(872515)),
+		Pgfault:      pointer.Ptr(uint64(879450)),
+		Pgmajfault:   pointer.Ptr(uint64(0)),
+		InactiveAnon: pointer.Ptr(uint64(0)),
+		ActiveAnon:   pointer.Ptr(uint64(18923520)),
+		InactiveFile: pointer.Ptr(uint64(4595712)),
+		ActiveFile:   pointer.Ptr(uint64(0)),
+		Unevictable:  pointer.Ptr(uint64(0)),
+		OOMEvents:    pointer.Ptr(uint64(0)),
+		Limit:        pointer.Ptr(uint64(67108864)),
+		KernelMemory: pointer.Ptr(uint64(4444160)),
 	}, *stats))
 }

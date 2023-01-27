@@ -1,0 +1,12 @@
+prefix=/usr/local
+exec_prefix=/usr/local
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: datadog-agent-rtloader
+Description: CPython backend for the Datadog Agent
+Version: 0.1.0
+
+Requires:
+Libs: -L${libdir} -lmylib
+Cflags: -I${includedir}

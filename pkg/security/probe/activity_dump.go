@@ -102,6 +102,8 @@ type ActivityDump struct {
 	processedCount     map[model.EventType]*atomic.Uint64
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
+	brokenLineageDrop  *atomic.Uint64
+	countedByLimiter   bool
 
 	shouldMergePaths bool
 	pathMergedCount  *atomic.Uint64
@@ -149,6 +151,7 @@ func NewEmptyActivityDump() *ActivityDump {
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
+		brokenLineageDrop:  atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
 	}
@@ -460,6 +463,12 @@ func (ad *ActivityDump) disable() error {
 func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 	ad.Lock()
 	defer ad.Unlock()
+	ad.finalize(releaseTracedCgroupSpot)
+}
+
+// finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
+// spot can be released, the dump will be fully stopped.
+func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	ad.DumpMetadata.End = time.Now()
 
 	if releaseTracedCgroupSpot || len(ad.DumpMetadata.Comm) > 0 {
@@ -513,6 +522,13 @@ func (ad *ActivityDump) isEventTypeTraced(event *model.Event) bool {
 	return false
 }
 
+// IsEmpty return true if the dump did not contain any nodes
+func (ad *ActivityDump) IsEmpty() bool {
+	ad.Lock()
+	defer ad.Unlock()
+	return len(ad.ProcessActivityTree) == 0
+}
+
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
 // false if the event was dropped.
 func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
@@ -542,6 +558,13 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 
 	// find the node where the event should be inserted
 	entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event)
+	if entry == nil {
+		return false
+	}
+	if !entry.HasCompleteLineage() { // check that the process context lineage is complete, otherwise drop it
+		ad.brokenLineageDrop.Inc()
+		return false
+	}
 	node := ad.findOrCreateProcessActivityNode(entry, Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
@@ -599,7 +622,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
-	parentNode := ad.findOrCreateProcessActivityNode(entry.GetNextAncestorNoFork(), Snapshot)
+	parentNode := ad.findOrCreateProcessActivityNode(entry.GetNextAncestorBinary(), Snapshot)
 
 	// if parentNode is nil, the parent of the current node is out of tree (either because the parent is null, or it
 	// doesn't match the dump tags).
@@ -616,6 +639,12 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 				return root
 			}
 		}
+
+		// we're about to add a root process node, make sure this root node passes the root node sanitizer
+		if !ad.IsValidRootNode(entry) {
+			return node
+		}
+
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
@@ -634,7 +663,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
-		// insert in the list of root entries
+		// insert in the list of children
 		parentNode.Children = append(parentNode.Children, node)
 	}
 
@@ -732,6 +761,12 @@ func (ad *ActivityDump) SendStats() error {
 		}
 	}
 
+	if value := ad.brokenLineageDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpBrokenLineageDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpBrokenLineageDrop, err)
+		}
+	}
+
 	if value := ad.pathMergedCount.Swap(0); value > 0 {
 		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), nil, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
@@ -776,6 +811,29 @@ func (ad *ActivityDump) resolveTags() error {
 	ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(ad.DumpMetadata.ContainerID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", ad.DumpMetadata.ContainerID, err)
+	}
+
+	if !ad.countedByLimiter {
+		// check if we should discard this dump based on the manager dump limiter
+		limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
+		if limiterKey == ":" {
+			// wait for the tags
+			return nil
+		}
+
+		counter, ok := ad.adm.dumpLimiter.Get(limiterKey)
+		if !ok {
+			counter = atomic.NewUint64(0)
+			ad.adm.dumpLimiter.Add(limiterKey, counter)
+		}
+
+		if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
+			ad.finalize(true)
+			ad.adm.removeDump(ad)
+		} else {
+			ad.countedByLimiter = true
+			counter.Add(1)
+		}
 	}
 	return nil
 }
@@ -1388,6 +1446,12 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 	}
 
 	return newNode
+}
+
+// IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
+func (ad *ActivityDump) IsValidRootNode(entry *model.ProcessCacheEntry) bool {
+	// TODO: evaluate if the same issue affects other container runtimes
+	return !strings.HasPrefix(entry.FileEvent.BasenameStr, "runc")
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump

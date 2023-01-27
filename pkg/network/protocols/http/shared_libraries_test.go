@@ -9,6 +9,7 @@
 package http
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"os/exec"
@@ -22,7 +23,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -33,22 +33,28 @@ import (
 
 func TestSharedLibraryDetection(t *testing.T) {
 	perfHandler, doneFn := initEBPFProgram(t)
-	fpath := filepath.Join(t.TempDir(), "foo.so")
 	t.Cleanup(doneFn)
+	fpath := filepath.Join(t.TempDir(), "foo.so")
+
+	// touch the file, as the file must exist when the process Exec
+	// for the file identifier stat()
+	f, err := os.Create(fpath)
+	require.NoError(t, err)
+	f.Close()
 
 	var (
 		mux          sync.Mutex
 		pathDetected string
 	)
 
-	callback := func(path string) error {
+	callback := func(id pathIdentifier, root string, path string) error {
 		mux.Lock()
 		defer mux.Unlock()
 		pathDetected = path
 		return nil
 	}
 
-	watcher := newSOWatcher("/proc", perfHandler,
+	watcher := newSOWatcher(perfHandler,
 		soRule{
 			re:         regexp.MustCompile(`foo.so`),
 			registerCB: callback,
@@ -61,14 +67,75 @@ func TestSharedLibraryDetection(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// assert that soWatcher detected foo.so being opened and triggered the callback
-	assert.Equal(t, fpath, pathDetected)
+	require.Equal(t, fpath, pathDetected)
+}
+
+func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
+	_, err := os.Stat("/usr/bin/busybox")
+	if err != nil {
+		t.Skip("skip for the moment as some distro are not friendly with busybox package")
+	}
+
+	tempDir := t.TempDir()
+	root := filepath.Join(tempDir, "root")
+	err = os.MkdirAll(root, 0755)
+	require.NoError(t, err)
+
+	libpath := "/fooroot.so"
+
+	simulateOpenAt(root + libpath)
+	err = exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
+	require.NoError(t, err)
+	err = exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
+	require.NoError(t, err)
+
+	perfHandler, doneFn := initEBPFProgram(t)
+	t.Cleanup(doneFn)
+
+	var (
+		mux          sync.Mutex
+		pathDetected string
+	)
+
+	callback := func(id pathIdentifier, root string, path string) error {
+		mux.Lock()
+		defer mux.Unlock()
+		pathDetected = path
+		return nil
+	}
+
+	watcher := newSOWatcher(perfHandler,
+		soRule{
+			re:         regexp.MustCompile(`fooroot.so`),
+			registerCB: callback,
+		},
+	)
+	watcher.Start()
+
+	time.Sleep(10 * time.Millisecond)
+	// simulate a slow (1 second) : open, write, close of the file
+	// in an new pid and mount namespaces
+	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
+	if err != nil {
+		t.Log(err, string(o))
+	}
+	require.NoError(t, err)
+
+	time.Sleep(10 * time.Millisecond)
+
+	// assert that soWatcher detected foo.so being opened and triggered the callback
+	require.Equal(t, libpath, pathDetected)
+
+	// must failed on the host
+	_, err = os.Stat(libpath)
+	require.Error(t, err)
 }
 
 func TestSameInodeRegression(t *testing.T) {
 	perfHandler, doneFn := initEBPFProgram(t)
+	t.Cleanup(doneFn)
 	fpath1 := filepath.Join(t.TempDir(), "a-foo.so")
 	fpath2 := filepath.Join(t.TempDir(), "b-foo.so")
-	t.Cleanup(doneFn)
 
 	f, err := os.Create(fpath1)
 	require.NoError(t, err)
@@ -79,12 +146,12 @@ func TestSameInodeRegression(t *testing.T) {
 	require.NoError(t, err)
 
 	registers := atomic.NewInt64(0)
-	callback := func(string) error {
+	callback := func(id pathIdentifier, root string, path string) error {
 		registers.Add(1)
 		return nil
 	}
 
-	watcher := newSOWatcher("/proc", perfHandler,
+	watcher := newSOWatcher(perfHandler,
 		soRule{
 			re:         regexp.MustCompile(`foo.so`),
 			registerCB: callback,
@@ -98,7 +165,7 @@ func TestSameInodeRegression(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// assert that callback was called only once
-	assert.Equal(t, int64(1), registers.Load())
+	require.Equal(t, int64(1), registers.Load())
 }
 
 // we use this helper to open files for two reasons:
@@ -171,6 +238,16 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 			},
 			"http_in_flight": {
 				Type:       ebpf.LRUHash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
+			connectionStatesMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
+			dispatcherConnectionProtocolMap: {
+				Type:       ebpf.Hash,
 				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,
 			},

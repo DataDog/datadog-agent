@@ -23,8 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ProcessEvents is a ProcessEventsCheck singleton
-var ProcessEvents = &ProcessEventsCheck{}
+// NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
+func NewProcessEventsCheck() Check {
+	return &ProcessEventsCheck{}
+}
 
 // ProcessEventsCheck collects process lifecycle events such as exec and exit signals
 type ProcessEventsCheck struct {

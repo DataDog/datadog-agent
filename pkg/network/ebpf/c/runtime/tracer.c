@@ -4,6 +4,7 @@
 #include "bpf_tracing.h"
 #include "tracer.h"
 
+#include "protocols/protocol-classification-tracer-maps.h"
 #include "protocols/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
@@ -397,7 +398,6 @@ int kprobe__skb_consume_udp(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
-    log_debug("kprobe/tcp_retransmit\n");
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     u64 tid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
@@ -426,7 +426,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
         return 0;
     }
     struct sock* sk = args->sk;
-    u32 retrans_outs_pre = args->retrans_out_pre;
+    u32 retrans_out_pre = args->retrans_out_pre;
     u32 retrans_out = 0;
     bpf_probe_read_kernel_with_telemetry(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
 
