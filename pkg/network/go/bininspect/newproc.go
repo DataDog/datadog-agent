@@ -222,6 +222,11 @@ func (i *newProcessBinaryInspector) getGoroutineIDMetadata(abi GoABI) (Goroutine
 		runtimeGInRegister = abi == GoABIRegister
 	}
 
+	// Temporarily disabling register hot-path for runtime.G pointer for Arm64
+	if i.elf.arch == GoArchARM64 {
+		runtimeGInRegister = false
+	}
+
 	var runtimeGRegister int
 	var runtimeGTLSAddrOffset uint64
 	if runtimeGInRegister {
