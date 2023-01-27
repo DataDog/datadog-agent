@@ -114,7 +114,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 
 	systemProbeTestEnv.StackOutput = upResult
 
-	f2, err := os.Create("/tmp/test123.txt")
+	f2, err := os.Create("/tmp/")
 	if err != nil {
 		return nil, err
 	}
