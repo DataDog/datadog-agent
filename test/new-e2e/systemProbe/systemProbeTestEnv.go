@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/DataDog/test-infra-definitions/aws"
 	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microVMs"
+	"gotest.tools/gotestsum/cmd"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -125,8 +126,20 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
 
-		cmd := exec.Command(fmt.Sprintf("scp -i %s /tmp/test123.txt %s:/tmp", SSHKeyFile, systemProbeTestEnv.X86_64InstanceIP))
+		cmd1 := exec.Command(fmt.Sprintf("ls -lh %s", SSHKeyFile))
 		err := cmd.Run()
+		if err != nil {
+			return nil, err
+		}
+
+		cmd2 := exec.Command("ls -lh /tmp/test123.txt")
+		err = cmd.Run()
+		if err != nil {
+			return nil, err
+		}
+
+		cmd := exec.Command(fmt.Sprintf("scp -i %s /tmp/test123.txt %s:/tmp", SSHKeyFile, systemProbeTestEnv.X86_64InstanceIP))
+		err = cmd.Run()
 		if err != nil {
 			return nil, err
 		}
