@@ -6,6 +6,7 @@
 package sbom
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -62,16 +63,28 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
-	p.queue <- &model.SBOMEntity{
-		Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-		Id:                 img.ID,
-		GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
-		Tags:               img.RepoTags,
-		InUse:              true, // TODO: compute this field
-		GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
-		Sbom: &sbom.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
-		},
+	for _, repoDigest := range img.RepoDigests {
+		repo := strings.SplitN(repoDigest, "@sha256:", 2)[0]
+		id := repo + "@" + img.ID
+
+		tags := make([]string, 0, len(img.RepoTags))
+		for _, repoTag := range img.RepoTags {
+			if strings.HasPrefix(repoTag, repo+":") {
+				tags = append(tags, strings.SplitN(repoTag, ":", 2)[1])
+			}
+		}
+
+		p.queue <- &model.SBOMEntity{
+			Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+			Id:                 id,
+			GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
+			Tags:               tags,
+			InUse:              true, // TODO: compute this field
+			GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
+			Sbom: &sbom.SBOMEntity_Cyclonedx{
+				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
+			},
+		}
 	}
 }
 
