@@ -182,8 +182,6 @@ func setCollectionIsWorkingDCAMode(status map[string]interface{}) {
 }
 
 func setManifestBufferInformationDCAMode(status map[string]interface{}) {
-
-	// get cache hits
 	manifestBufferJSON := []byte(expvar.Get("orchestrator-manifest-buffer").String())
 	manifestBuffer := make(map[string]int64)
 	json.Unmarshal(manifestBufferJSON, &manifestBuffer) //nolint:errcheck
