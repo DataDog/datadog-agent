@@ -30,6 +30,10 @@ func TestStartCommand(t *testing.T) {
 		[]string{"start", "--cfgpath", cfgPath},
 		start,
 		func(cliParams *CLIParams, _ config.Params, _ dogstatsdServer.Component) {
+			defer func() {
+				os.Remove(cfgPath)
+				os.Remove(logpath)
+			}()
 			require.Equal(t, cfgPath, cliParams.confPath)
 		})
 }
