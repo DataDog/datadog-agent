@@ -404,7 +404,7 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     args.sk = sk;
     args.segs = 0;
     args.total_retrans_pre = 0;
-    if (bpf_probe_read_kernel_with_telemetry(&(args.total_retrans_pre), sizeof(args.total_retrans_pre), &(tcp_sk(sk)->total_retrans)) < 0) {
+    if (bpf_probe_read_kernel_with_telemetry(&(args.total_retrans_pre), sizeof(args.total_retrans_pre), &(tcp_sk(sk)->retrans_out)) < 0) {
         return 0;
     }
 
@@ -424,7 +424,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock* sk = args->sk;
     u32 total_retrans_pre = args->total_retrans_pre;
     u32 total_retrans = 0;
-    bpf_probe_read_kernel_with_telemetry(&total_retrans, sizeof(total_retrans), &(tcp_sk(sk)->total_retrans));
+    bpf_probe_read_kernel_with_telemetry(&total_retrans, sizeof(total_retrans), &(tcp_sk(sk)->retrans_out));
 
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
 
