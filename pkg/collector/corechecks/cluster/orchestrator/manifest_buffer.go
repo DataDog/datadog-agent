@@ -35,13 +35,6 @@ var (
 func init() {
 	bufferExpVars.Set("ManifestsFlushedLastTime", manifestFlushed)
 	bufferExpVars.Set("BufferFlushed", bufferFlushedTotal)
-	for _, nodeType := range orchestrator.NodeTypes() {
-		if nodeType != orchestrator.K8sCluster {
-			bufferedManifest[nodeType] = &expvar.Int{}
-			bufferExpVars.Set(nodeType.String(), bufferedManifest[nodeType])
-		}
-	}
-
 }
 
 // ManifestBufferConfig contains information about buffering manifests.
@@ -167,7 +160,11 @@ func setManifestStats(manifests []interface{}) {
 	bufferFlushedTotal.Add(1)
 	// Number of manifests flushed per resource in total
 	for _, m := range manifests {
-		manifest := m.(*model.Manifest)
-		bufferedManifest[orchestrator.NodeType(manifest.Type)].Add(1)
+		nodeTye := orchestrator.NodeType(m.(*model.Manifest).Type)
+		if _, ok := bufferedManifest[nodeTye]; !ok {
+			bufferedManifest[nodeTye] = &expvar.Int{}
+			bufferExpVars.Set(nodeTye.String(), bufferedManifest[nodeTye])
+		}
+		bufferedManifest[nodeTye].Add(1)
 	}
 }
