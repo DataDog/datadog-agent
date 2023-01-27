@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	SSHKeyFile           = filepath.Join("/", "tmp", "aws-ssh-key")
+	SSHKeyFile           = filepath.Join(".", "/", "aws-ssh-key")
 	VMConfig             = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
 	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 )
