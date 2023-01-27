@@ -114,11 +114,18 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 
 	systemProbeTestEnv.StackOutput = upResult
 
+	f2, err := os.Create("/tmp/test123.txt")
+	if err != nil {
+		return nil, err
+	}
+	f2.WriteString("testing\n")
+	f2.Close()
+
 	outputX86, found := upResult.Outputs["x86_64-instance-ip"]
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
 
-		cmd := exec.Command(fmt.Sprintf("ls -lh %s && scp -i %s %s/site-cookbooks-x86_64.tar.gz %s:/tmp", DD_AGENT_TESTING_DIR, SSHKeyFile, DD_AGENT_TESTING_DIR, systemProbeTestEnv.X86_64InstanceIP))
+		cmd := exec.Command(fmt.Sprintf("scp -i %s /tmp/test123.txt %s:/tmp", SSHKeyFile, systemProbeTestEnv.X86_64InstanceIP))
 		err := cmd.Run()
 		if err != nil {
 			return nil, err
