@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
-	// "go.uber.org/atomic"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
@@ -28,39 +27,6 @@ const (
 	perfReceivedStat = "perf_recv"
 	perfLostStat     = "perf_lost"
 )
-
-// type statGaugeWrapper struct {
-// 	stat  *atomic.Int64
-// 	gauge telemetry.Gauge
-// }
-
-// func (sgw *statGaugeWrapper) Inc() {
-// 	sgw.stat.Inc()
-// 	sgw.gauge.Inc()
-// }
-
-// func (sgw *statGaugeWrapper) Add(v int64) {
-// 	sgw.stat.Add(v)
-// 	sgw.gauge.Add(float64(v))
-// }
-
-// func (sgw *statGaugeWrapper) Set(v int64) {
-// 	sgw.stat.Store(v)
-// 	sgw.gauge.Set(float64(v))
-// }
-
-// func (sgw *statGaugeWrapper) Load() int64 {
-// 	stat := sgw.stat.Load()
-// 	sgw.gauge.Set(float64(stat))
-// 	return stat
-// }
-
-// func newStatGaugeWrapper(gauge telemetry.Gauge) statGaugeWrapper {
-// 	return statGaugeWrapper{
-// 		stat:  atomic.NewInt64(0),
-// 		gauge: gauge,
-// 	}
-// }
 
 type tcpCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler

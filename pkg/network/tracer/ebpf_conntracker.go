@@ -306,7 +306,7 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 
 func (e *ebpfConntracker) RefreshTelemetry() {
 	for {
-		
+		e.GetStats()
 		time.Sleep(time.Duration(5) * time.Second)
 	}
 }

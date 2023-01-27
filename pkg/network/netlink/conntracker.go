@@ -23,10 +23,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
 const (
@@ -77,6 +77,8 @@ type stats struct {
 	nanoSecondsPerUnRegister telemetry.Gauge
 	cacheSize                telemetry.Gauge
 	orphanSize               telemetry.Gauge
+	adamkStat                telemetry.Gauge
+	adamkStat2               nettelemetry.StatGaugeWrapper
 }
 
 type realConntracker struct {
@@ -91,34 +93,6 @@ type realConntracker struct {
 	compactTicker *time.Ticker
 	stats         stats
 }
-
-// type statGaugeWrapper struct {
-// 	stat  *atomic.Int64
-// 	gauge telemetry.Gauge
-// }
-
-// func (sgw *statGaugeWrapper) Inc() {
-// 	sgw.stat.Inc()
-// 	sgw.gauge.Inc()
-// }
-
-// func (sgw *statGaugeWrapper) Set(v int64) {
-// 	sgw.stat.Store(v)
-// 	sgw.gauge.Set(float64(v))
-// }
-
-// func (sgw *statGaugeWrapper) Load() int64 {
-// 	stat := sgw.stat.Load()
-// 	sgw.gauge.Set(float64(stat))
-// 	return stat
-// }
-
-// func newStatGaugeWrapper(gauge telemetry.Gauge) statGaugeWrapper {
-// 	return statGaugeWrapper{
-// 		stat:  atomic.NewInt64(0),
-// 		gauge: gauge,
-// 	}
-// }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
 func NewConntracker(config *config.Config) (Conntracker, error) {
@@ -155,6 +129,8 @@ func newStats() stats {
 		nanoSecondsPerGet:        telemetry.NewGauge("conntracker", "nanoSecondsPerGet", []string{}, "description"),
 		nanoSecondsPerRegister:   telemetry.NewGauge("conntracker", "nanoSecondsPerRegister", []string{}, "description"),
 		nanoSecondsPerUnRegister: telemetry.NewGauge("conntracker", "nanoSecondsPerUnregister", []string{}, "description"),
+		adamkStat:                telemetry.NewGauge("conntracker", "adamk_stat", []string{}, "description"),
+		adamkStat2:               nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("conntracker", "adamkStat2", []string{}, "description")),
 	}
 }
 
@@ -228,6 +204,8 @@ func (ctr *realConntracker) RefreshTelemetry() {
 }
 
 func (ctr *realConntracker) GetStats() map[string]int64 {
+	ctr.stats.adamkStat.Set(1000)
+	ctr.stats.adamkStat2.Inc()
 	// only a few stats are locked
 	ctr.RLock()
 	size := ctr.cache.cache.Len()
