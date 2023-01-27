@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -189,7 +188,7 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 		}
 	}()
 
-	if err := startAgent(cliParams, flare); err != nil {
+	if err := startAgent(cliParams, flare, sysprobeconfig); err != nil {
 		return err
 	}
 
@@ -202,19 +201,22 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
 func StartAgentWithDefaults() error {
 	// run startAgent in an app, so that the log and config components get initialized
-	return fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component) error {
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare)
+	return fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component) error {
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParamsWithSecrets(""),
-			LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
+			ConfigParams:         config.NewAgentParamsWithSecrets(""),
+			SysprobeConfigParams: sysprobeconfig.NewParams(),
+			LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+		}),
+		flare.Module,
 		core.Bundle,
 	)
 }
 
 // startAgent Initializes the agent process
-func startAgent(cliParams *cliParams, flare flare.Component) error {
+func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysprobeconfig.Component) error {
 	var err error
 
 	// Main context passed to components
@@ -407,14 +409,6 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 		if err != nil {
 			pkglog.Errorf("Failed to start snmp-traps server: %s", err)
 		}
-	}
-
-	// FIXME: this is necessary to fix windows agent starting as a service, since it is bypassing fx providing
-	// sysprobeconfig via the cobra run command. If this is removed, the system-probe config is not initialized
-	// correctly, and the agent does not correctly determine if system-probe is enabled. Ultimately causing the
-	// system-probe service to not start.
-	if _, err := sysconfig.New(cliParams.SysProbeConfFilePath); err != nil {
-		pkglog.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
 
 	// Detect Cloud Provider
