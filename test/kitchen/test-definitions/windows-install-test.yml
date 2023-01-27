@@ -27,7 +27,6 @@ suites:
       - "recipe[dd-agent-upgrade]"
     attributes:
       datadog:
-        agent_major_version: 7
         agent_version: <%= ENV['LAST_STABLE_VERSION'] %>
         api_key: <%= api_key %>
       dd-agent-upgrade:
