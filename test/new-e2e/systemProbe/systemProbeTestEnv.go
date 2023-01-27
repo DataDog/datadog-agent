@@ -125,14 +125,14 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
 
-		cmd2 := exec.Command("/usr/bin/ls -lh ./test123.txt")
-		err = cmd2.Run()
+		cmd3 := exec.Command("/usr/bin/ls -la .")
+		err = cmd3.Run()
 		if err != nil {
 			return nil, err
 		}
 
-		cmd3 := exec.Command("/usr/bin/ls -la .")
-		err = cmd3.Run()
+		cmd2 := exec.Command("/usr/bin/ls -lh ./test123.txt")
+		err = cmd2.Run()
 		if err != nil {
 			return nil, err
 		}
