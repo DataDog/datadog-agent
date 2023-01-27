@@ -114,7 +114,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 
 	systemProbeTestEnv.StackOutput = upResult
 
-	f2, err := os.Create("/tmp/test123.txt")
+	f2, err := os.Create("./test123.txt")
 	if err != nil {
 		return nil, err
 	}
@@ -125,13 +125,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
 
-		cmd1 := exec.Command("/usr/bin/ls -lh /tmp")
-		err := cmd1.Run()
-		if err != nil {
-			return nil, err
-		}
-
-		cmd2 := exec.Command("/usr/bin/ls -lh /tmp/test123.txt")
+		cmd2 := exec.Command("/usr/bin/ls -lh ./test123.txt")
 		err = cmd2.Run()
 		if err != nil {
 			return nil, err
@@ -143,7 +137,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			return nil, err
 		}
 
-		cmd := exec.Command(fmt.Sprintf("/usr/bin/scp -i %s /tmp/test123.txt %s:/tmp", SSHKeyFile, systemProbeTestEnv.X86_64InstanceIP))
+		cmd := exec.Command(fmt.Sprintf("/usr/bin/scp -i %s ./test123.txt %s:/tmp", SSHKeyFile, systemProbeTestEnv.X86_64InstanceIP))
 		err = cmd.Run()
 		if err != nil {
 			return nil, err
