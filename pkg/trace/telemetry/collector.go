@@ -80,7 +80,7 @@ type telemetryCollector struct {
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
 func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
-	if cfg.TelemetryConfig.Enabled {
+	if !cfg.TelemetryConfig.Enabled {
 		return &noopTelemetryCollector{}
 	}
 
@@ -90,7 +90,7 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 		if err != nil {
 			continue
 		}
-		u.Path = "/v2/apmtelemetry"
+		u.Path = "/api/v2/apmtelemetry"
 		endpointWithPath := *endpoint
 		endpointWithPath.Host = u.String()
 
@@ -113,21 +113,22 @@ func NewNoopCollector() TelemetryCollector {
 }
 
 func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
+	body, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	bodyLen := strconv.Itoa(len(body))
 	for _, endpoint := range f.endpoints {
-		body := bytes.NewBuffer(nil)
-		if err := json.NewEncoder(body).Encode(event); err != nil {
-			continue
-		}
-
-		req, err := http.NewRequest("POST", endpoint.Host, body)
-		req.Header.Add("Content-Type", "application/json")
-		req.Header.Add("User-Agent", f.userAgent)
-		req.Header.Add("DD-Api-Key", endpoint.APIKey)
-		req.Header.Add("Content-Length", strconv.Itoa(body.Len()))
-
+		fmt.Println(endpoint)
+		req, err := http.NewRequest("POST", endpoint.Host, bytes.NewReader(body))
 		if err != nil {
 			continue
 		}
+		req.Header.Add("Content-Type", "application/json")
+		req.Header.Add("User-Agent", f.userAgent)
+		req.Header.Add("DD-Api-Key", endpoint.APIKey)
+		req.Header.Add("Content-Length", bodyLen)
+
 		resp, err := f.client.Do(req)
 		if err != nil {
 			continue
