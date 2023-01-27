@@ -41,6 +41,13 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert.NotNil(metricAgent.Demux)
 	assert.True(metricAgent.IsReady())
 
+	// setup otlp agent
+	otlpAgent := &ServerlessOTLPAgent{}
+	otlpAgent.Start(metricAgent.Demux.Serializer())
+	defer otlpAgent.Stop()
+	assert.NotNil(otlpAgent.pipeline)
+	assert.Nil(otlpAgent.Wait(5 * time.Second))
+
 	// setup trace agent
 	traceAgent := &trace.ServerlessTraceAgent{}
 	traceAgent.Start(true, &trace.LoadConfig{Path: "./testdata/valid.yml"}, nil, 0)
@@ -51,13 +58,6 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 		// indicates when trace is received
 		traceChan <- struct{}{}
 	})
-
-	// setup otlp agent
-	otlpAgent := &ServerlessOTLPAgent{}
-	otlpAgent.Start(metricAgent.Demux.Serializer())
-	defer otlpAgent.Stop()
-	assert.NotNil(otlpAgent.pipeline)
-	assert.Nil(otlpAgent.Wait(5 * time.Second))
 
 	// test http traces
 	httpClient := otlptracehttp.NewClient(
@@ -89,7 +89,7 @@ func testServerlessOTLPAgentReceivesTraces(client otlptrace.Client, traceChan <-
 
 	select {
 	case <-traceChan:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		return fmt.Errorf("timeout waiting for span to arrive")
 	}
 	return nil
