@@ -9,14 +9,15 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/DataDog/test-infra-definitions/aws"
 	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microVMs"
+	"github.com/DataDog/test-infra-definitions/command"
 
+	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -83,27 +84,26 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			return err
 		}
 
-		_, err = microVMs.RunAndReturnInstances(ctx, awsEnvironment)
+		scenarioDone, err := microVMs.RunAndReturnInstances(ctx, awsEnvironment)
 		if err != nil {
 			return err
 		}
 
-		//for _, instance := range scenarioDone.Instances {
-		//	localRunner
-		//	//remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
-		//	//	return command.WaitForCloudInit(awsEnvironment.Ctx, r)
-		//	//})
+		for _, instance := range scenarioDone.Instances {
+			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
+				return command.WaitForCloudInit(awsEnvironment.Ctx, r)
+			})
 
-		//	//filemanager := command.NewFileManager(remoteRunner)
-		//	//_, err = filemanager.CopyFile(
-		//	//	fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
-		//	//	"/tmp",
-		//	//	pulumi.DependsOn(scenarioDone.Dependencies),
-		//	//)
-		//	//if err != nil {
-		//	//	return err
-		//	//}
-		//}
+			filemanager := command.NewFileManager(remoteRunner)
+			_, err = filemanager.CopyFile(
+				fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
+				fmt.Sprintf("/tmp/site-cookbooks-%s.tar.gz", instance.Arch),
+				pulumi.DependsOn(scenarioDone.Dependencies),
+			)
+			if err != nil {
+				return err
+			}
+		}
 
 		return nil
 	})
@@ -114,34 +114,9 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 
 	systemProbeTestEnv.StackOutput = upResult
 
-	f2, err := os.Create("./test123.txt")
-	if err != nil {
-		return nil, err
-	}
-	f2.WriteString("testing\n")
-	f2.Close()
-
 	outputX86, found := upResult.Outputs["x86_64-instance-ip"]
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
-
-		cmd3 := exec.Command("/usr/bin/ls -la .")
-		err = cmd3.Run()
-		if err != nil {
-			return nil, err
-		}
-
-		cmd2 := exec.Command("/usr/bin/ls -lh ./test123.txt")
-		err = cmd2.Run()
-		if err != nil {
-			return nil, err
-		}
-
-		cmd := exec.Command(fmt.Sprintf("/usr/bin/scp -i %s ./test123.txt %s:/tmp", SSHKeyFile, systemProbeTestEnv.X86_64InstanceIP))
-		err = cmd.Run()
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return systemProbeTestEnv, nil
