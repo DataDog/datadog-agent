@@ -23,7 +23,7 @@ build do
     python_prefix = "#{install_dir}/embedded"
   end
 
-  command "#{python_bin} setup.py install --prefix=#{python_prefix}"
+  command "mkdir -p build/scripts-3.8 && #{python_bin} setup.py install --prefix=#{python_prefix} --root=/"
 
   if ohai["platform"] != "windows"
     block do
