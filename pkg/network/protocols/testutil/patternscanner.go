@@ -36,6 +36,8 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 	n = len(p)
 	err = nil
 
+	//fmt.Print(string(p))
+
 	if !ps.stopped && ps.pattern.Match(p) {
 		ps.stopOnce.Do(func() {
 			ps.DoneChan <- struct{}{}

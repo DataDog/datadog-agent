@@ -9,5 +9,6 @@
 
 #define KAFKA_MIN_LENGTH 14
 #define CLIENT_ID_SIZE_TO_VALIDATE 20
+#define TOPIC_NAME_MAX_STRING_SIZE (8 * 10)
 
 #endif

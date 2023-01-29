@@ -19,7 +19,6 @@ typedef struct {
     const char* buffer;
     uint32_t buffer_size;
     uint32_t offset;
-    char* offset_as_pointer;
     kafka_header_t header;
 } __attribute__ ((packed)) kafka_context_t;
 

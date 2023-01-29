@@ -43,8 +43,9 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 		case <-patternScanner.DoneChan:
 			t.Logf("%s server is ready", serverName)
 			return
-		case <-time.After(time.Second * 60):
+		case <-time.After(time.Minute * 2):
 			t.Fatalf("failed to start %s server", serverName)
+			t.Logf("%s", cmd.Stdout)
 			return
 		}
 	}

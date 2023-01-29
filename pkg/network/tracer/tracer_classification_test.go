@@ -879,7 +879,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			validation: validateProtocolConnection,
 		},
 		{
-			name: "Kafka produce",
+			name: "Kafka produce - version V0_10_1",
 			context: testContext{
 				expectedProtocol: network.ProtocolKafka,
 				serverPort:       "9092",
@@ -928,6 +928,53 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 		// TODO: Add null client id, kgo has removed the support for this so it's not trivial at the moment
 		{
 			name: "Kafka produce - empty string client id",
+			context: testContext{
+				expectedProtocol: network.ProtocolKafka,
+				serverPort:       "9092",
+				clientDialer:     defaultDialer,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				kafka.RunKafkaServer(t, host, port)
+				topicName := "franz-kafka"
+				seeds := []string{ctx.serverAddress}
+				client, err := kgo.NewClient(
+					kgo.SeedBrokers(seeds...),
+					kgo.DefaultProduceTopic(topicName),
+					kgo.ClientID(""),
+				)
+				require.NoError(t, err)
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				err = client.Ping(ctxTimeout)
+				cancel()
+				require.NoError(t, err)
+
+				// Create the topic
+				adminClient := kadm.NewClient(client)
+				ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+				_, err = adminClient.CreateTopics(ctxTimeout, 1, 1, nil, topicName)
+				cancel()
+				require.NoError(t, err)
+
+				ctx.extras["client"] = client
+				ctx.extras["topic_name"] = topicName
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kgo.Client)
+				defer client.Close()
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				err := client.ProduceSync(ctxTimeout, record).FirstErr()
+				require.NoError(t, err, "record had a produce error while synchronously producing")
+			},
+			validation: validateProtocolConnection,
+			teardown:   nil,
+		},
+		{
+			name: "Kafka produce",
 			context: testContext{
 				expectedProtocol: network.ProtocolKafka,
 				serverPort:       "9092",
