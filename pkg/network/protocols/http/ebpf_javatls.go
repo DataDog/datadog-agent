@@ -60,7 +60,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	}
 
 	javaUSMAgentArgs = c.JavaAgentArgs
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, AgentUSMJar)
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
 
 	jar, err := os.Open(javaUSMAgentJarPath)
 	if err != nil {

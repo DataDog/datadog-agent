@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"io/fs"
 	"net"
