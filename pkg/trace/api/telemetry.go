@@ -94,7 +94,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
 		if arn, ok := r.conf.GlobalTags[functionARNKey]; ok {
-			req.Header.Set("DD-Function-ARN", key)
+			req.Header.Set("DD-Function-ARN", arn)
 		}
 	}
 	return &httputil.ReverseProxy{
