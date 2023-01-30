@@ -53,8 +53,8 @@ func (s *server) GetJSONDebugStats() ([]byte, error) {
 	return s.server.GetJSONDebugStats()
 }
 
-func (s *server) GetDebug() *dogstatsd.DsdServerDebug {
-	return s.server.Debug
+func (s *server) IsDebugEnabled() bool {
+	return s.server.Debug.Enabled.Load()
 }
 
 func (s *server) EnableMetricsStats() {

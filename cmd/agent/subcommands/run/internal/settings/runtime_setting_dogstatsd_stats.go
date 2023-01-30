@@ -33,7 +33,7 @@ func (s DsdStatsRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (s DsdStatsRuntimeSetting) Get() (interface{}, error) {
-	return global.DSD.GetDebug().Enabled.Load(), nil
+	return global.DSD.IsDebugEnabled(), nil
 }
 
 // Set changes the value of the runtime setting

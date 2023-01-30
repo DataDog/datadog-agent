@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -31,8 +30,8 @@ type Component interface {
 	// GetJSONDebugStats returns a json representation of debug stats
 	GetJSONDebugStats() ([]byte, error)
 
-	// GetJSONDebugStats gets the DsdServerDebug instance which provides metric stats
-	GetDebug() *dogstatsd.DsdServerDebug
+	// IsDebugEnabled gets the DsdServerDebug instance which provides metric stats
+	IsDebugEnabled() bool
 
 	// EnableMetricsStats enables metric stats tracking
 	EnableMetricsStats()
