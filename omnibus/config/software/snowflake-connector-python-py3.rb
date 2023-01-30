@@ -6,12 +6,12 @@
 # modify the wheel build.
 
 name "snowflake-connector-python-py3"
-default_version "2.8.2"
+default_version "2.8.3"
 
 dependency "pip3"
 
 source :url => "https://github.com/snowflakedb/snowflake-connector-python/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "2920e32145c500cb4953b08cf55f09729d731f8c0f49922144372ac8a2e3057b",
+       :sha256 => "1c868db9620d75dfc556696b92cd72f045443792141a2c5f6977b6afab6ca6ed",
        :extract => :seven_zip
 
 relative_path "snowflake-connector-python-#{version}"
@@ -29,4 +29,5 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
+  command "#{pip} install ."
 end

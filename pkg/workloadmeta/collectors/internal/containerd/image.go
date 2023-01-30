@@ -15,8 +15,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/CycloneDX/cyclonedx-go"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -155,7 +153,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 	}
 }
 
-func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace string, imageName string, bom *cyclonedx.BOM) error {
+func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace string, imageName string, bom *workloadmeta.SBOM) error {
 	img, err := c.containerdClient.Image(namespace, imageName)
 	if err != nil {
 		return fmt.Errorf("error getting image: %w", err)
@@ -164,7 +162,7 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, bom *cyclonedx.BOM) error {
+func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, bom *workloadmeta.SBOM) error {
 	ctxWithNamespace := namespaces.WithNamespace(ctx, namespace)
 
 	manifest, err := images.Manifest(ctxWithNamespace, img.ContentStore(), img.Target(), img.Platform())
@@ -188,11 +186,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	imageName := img.Name()
 	registry := ""
 	shortName := ""
-	parsedImg, err := workloadmeta.NewContainerImage(imageName)
-	if err == nil {
-		// Don't set a short name. We know that some images handled here contain
-		// "sha256" in the name, and those don't have a short name.
-	} else {
+	if parsedImg, err := workloadmeta.NewContainerImage(imageName); err == nil {
 		registry = parsedImg.Registry
 		shortName = parsedImg.ShortName
 	}
@@ -220,8 +214,8 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			shortName = existingImg.ShortName
 		}
 
-		if existingBOM == nil && existingImg.CycloneDXBOM != nil {
-			existingBOM = existingImg.CycloneDXBOM
+		if existingBOM == nil && existingImg.SBOM != nil {
+			existingBOM = existingImg.SBOM
 		}
 	}
 
@@ -279,7 +273,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		Architecture: architecture,
 		Variant:      variant,
 		Layers:       layers,
-		CycloneDXBOM: existingBOM,
+		SBOM:         existingBOM,
 	}
 
 	c.store.Notify([]workloadmeta.CollectorEvent{
@@ -392,8 +386,4 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 	}
 
 	return layers, nil
-}
-
-func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
 }

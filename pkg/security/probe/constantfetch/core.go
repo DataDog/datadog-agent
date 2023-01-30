@@ -46,6 +46,7 @@ func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer btf.FlushKernelSpec()
 	return NewBTFConstantFetcherFromSpec(spec), nil
 }
 
