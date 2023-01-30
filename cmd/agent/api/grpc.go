@@ -76,17 +76,7 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 		return &pb.CaptureTriggerResponse{}, err
 	}
 
-	err = global.DSD.Capture(req.GetPath(), d, req.GetCompressed())
-	if err != nil {
-		return &pb.CaptureTriggerResponse{}, err
-	}
-
-	// wait for the capture to start
-	for !global.DSD.IsCaputreOngoing() {
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	p, err := global.DSD.GetCapturePath()
+	p, err := global.DSD.Capture(req.GetPath(), d, req.GetCompressed())
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
 	}

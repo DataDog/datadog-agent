@@ -32,16 +32,21 @@ func (s *server) Stop() {
 	s.server.Stop()
 }
 
-func (s *server) Capture(p string, d time.Duration, compressed bool) error {
-	return s.server.Capture(p, d, compressed)
-}
+func (s *server) Capture(p string, d time.Duration, compressed bool) (string, error) {
 
-func (s *server) IsCaputreOngoing() bool {
-	return s.server.TCapture.IsOngoing()
-}
+	err := s.server.Capture(p, d, compressed)
+	if err != nil {
+		return "", err
+	}
 
-func (s *server) GetCapturePath() (string, error) {
-	return s.server.TCapture.Path()
+	// wait for the capture to start
+	for !s.server.TCapture.IsOngoing() {
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	path, err := s.server.TCapture.Path()
+
+	return path, err
 }
 
 func (s *server) GetJSONDebugStats() ([]byte, error) {

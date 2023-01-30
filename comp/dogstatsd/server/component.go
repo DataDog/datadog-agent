@@ -25,14 +25,8 @@ type Component interface {
 	// Stop stops the dogstatsd server
 	Stop()
 
-	// Capture starts a new dogstatsd traffic capture
-	Capture(p string, d time.Duration, compressed bool) error
-
-	// IsCaputreOngoing returns true if a capture is ongoing
-	IsCaputreOngoing() bool
-
-	// GetCapturePath returns the capture destination path
-	GetCapturePath() (string, error)
+	// Capture starts a new dogstatsd traffic capture, returns the capture path if successful
+	Capture(p string, d time.Duration, compressed bool) (string, error)
 
 	// GetJSONDebugStats returns a json representation of debug stats
 	GetJSONDebugStats() ([]byte, error)
