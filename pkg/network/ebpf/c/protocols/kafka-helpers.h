@@ -50,7 +50,7 @@ static __always_inline bool is_kafka_request_header(kafka_context_t* kafka_conte
         return false;
     }
 
-    log_debug("kafka: message size: %d\n", kafka_header->message_size);
+//    log_debug("kafka: message size: %d\n", kafka_header->message_size);
 
     switch (kafka_header->api_key) {
     case KAFKA_FETCH:
@@ -67,25 +67,25 @@ static __always_inline bool is_kafka_request_header(kafka_context_t* kafka_conte
         return false;
     }
 
-    log_debug("kafka: api key: %d\n", kafka_header->api_key);
+//    log_debug("kafka: api key: %d\n", kafka_header->api_key);
 
     if (kafka_header->api_version < 0 || kafka_header->api_version > KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION) {
         return false;
     }
 
-    log_debug("kafka: api version: %d\n", kafka_header->api_version);
+//    log_debug("kafka: api version: %d\n", kafka_header->api_version);
 
     if (kafka_header->correlation_id < 0) {
         return false;
     }
 
-    log_debug("kafka: correlation id: %d\n", kafka_header->correlation_id);
+//    log_debug("kafka: correlation id: %d\n", kafka_header->correlation_id);
 
     if (kafka_header->client_id_size < 0) {
          return false;
     }
 
-    log_debug("kafka: client_id_size: %d\n", kafka_header->client_id_size);
+    log_debug("kafka: client_id_size: %d", kafka_header->client_id_size);
 
     ENSURE_LIMITS(kafka_context, kafka_header->client_id_size, false);
 
@@ -106,9 +106,9 @@ static __always_inline bool is_kafka_request_header(kafka_context_t* kafka_conte
         }
     }
 
-    if (kafka_header->client_id_size > 0) {
-        log_debug("kafka: client id: %s\n", client_id_starting_offset);
-    }
+//    if (kafka_header->client_id_size > 0) {
+//        log_debug("kafka: client id: %s\n", client_id_starting_offset);
+//    }
 
     kafka_context->offset += kafka_header->client_id_size;
     return true;
@@ -125,7 +125,7 @@ static __always_inline void fill_kafka_header(kafka_context_t* kafka_context) {
     kafka_context->offset += sizeof(kafka_header_t);
 }
 
-static  __always_inline bool is_kafka_request(kafka_context_t* kafka_context) {
+static __always_inline bool is_kafka_request(kafka_context_t* kafka_context) {
     switch (kafka_context->header.api_key) {
         case KAFKA_PRODUCE:
             return try_parse_produce_request(kafka_context);
@@ -149,7 +149,7 @@ static __always_inline bool try_parse_produce_request(kafka_context_t *kafka_con
         if (!kafka_read_big_endian_int16(kafka_context, &transactional_id_size)) {
             return false;
         }
-        log_debug("kafka: transactional_id_size: %d\n", transactional_id_size);
+//        log_debug("kafka: transactional_id_size: %d\n", transactional_id_size);
         if (transactional_id_size > 0) {
             kafka_context->offset += transactional_id_size;
         }
@@ -163,7 +163,7 @@ static __always_inline bool try_parse_produce_request(kafka_context_t *kafka_con
     if (!kafka_read_big_endian_int16(kafka_context, &acks)) {
         return false;
     }
-    log_debug("kafka: required acks: %d\n", acks);
+//    log_debug("kafka: required acks: %d\n", acks);
 
     if (acks > 1 || acks < -1) {
         // The number of acknowledgments the producer requires the leader to have received before considering a request
@@ -175,7 +175,7 @@ static __always_inline bool try_parse_produce_request(kafka_context_t *kafka_con
     if (!kafka_read_big_endian_int32(kafka_context, &timeout_ms)) {
         return false;
     }
-    log_debug("kafka: timeout ms: %d\n", timeout_ms);
+//    log_debug("kafka: timeout ms: %d\n", timeout_ms);
 
     if (timeout_ms < 0) {
         // timeout_ms cannot be negative.
@@ -246,14 +246,10 @@ static __always_inline bool try_parse_fetch_request(kafka_context_t *kafka_conte
 
 static __always_inline bool kafka_read_big_endian_int32(kafka_context_t *kafka_context, int32_t* result) {
     ENSURE_LIMITS(kafka_context, sizeof(int32_t), false);
-    *result = read_big_endian_int32(kafka_context->buffer + kafka_context->offset);
+    const char *beg = &kafka_context->buffer[kafka_context->offset];
+    *result = read_big_endian_int32(beg);
     kafka_context->offset += sizeof(int32_t);
     return true;
-}
-
-static __always_inline int32_t read_big_endian_int32(const char* buf) {
-    int32_t *val = (int32_t*)buf;
-    return bpf_ntohl(*val);
 }
 
 static __always_inline bool kafka_read_big_endian_int16(kafka_context_t *kafka_context, int16_t* result) {
@@ -262,6 +258,11 @@ static __always_inline bool kafka_read_big_endian_int16(kafka_context_t *kafka_c
     *result = read_big_endian_int16(beg);
     kafka_context->offset += sizeof(int16_t);
     return true;
+}
+
+static __always_inline int32_t read_big_endian_int32(const char* buf) {
+    int32_t *val = (int32_t*)buf;
+    return bpf_ntohl(*val);
 }
 
 static __always_inline int16_t read_big_endian_int16(const char* buf) {

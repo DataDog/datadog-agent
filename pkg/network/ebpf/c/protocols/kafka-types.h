@@ -20,6 +20,6 @@ typedef struct {
     uint32_t buffer_size;
     uint32_t offset;
     kafka_header_t header;
-} __attribute__ ((packed)) kafka_context_t;
+} kafka_context_t;
 
 #endif
