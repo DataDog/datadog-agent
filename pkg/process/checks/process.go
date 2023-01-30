@@ -358,7 +358,12 @@ func chunkProcessesAndContainers(
 	maxChunkSize int,
 	maxChunkWeight int,
 ) ([]*model.CollectorProc, int, int) {
-	chunker := &collectorProcChunker{}
+	chunker := &util.ChunkAllocator[model.CollectorProc, model.Process]{
+		NewChunk: func() *model.CollectorProc { return &model.CollectorProc{} },
+		AppendToChunk: func(c *model.CollectorProc, ps []*model.Process) {
+			c.Processes = append(c.Processes, ps...)
+		},
+	}
 
 	totalProcs := len(procsByCtr[emptyCtrID])
 
@@ -371,7 +376,7 @@ func chunkProcessesAndContainers(
 
 		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
-	return chunker.collectorProcs, totalProcs, totalContainers
+	return *chunker.GetChunks(), totalProcs, totalContainers
 }
 
 // fmtProcesses goes through each process, converts them to process object and group them by containers
