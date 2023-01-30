@@ -149,11 +149,12 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 }
 
 func (h *Hotspot) dialunix(raddr *net.UnixAddr, withCredential bool) (*net.UnixConn, error) {
-	// Hotspot reject connection if credential by checking uid/gid of the connect() SOL_SOCKET/SO_PEERCRED
-	// but older hotspot JRE (1.8.0) doesn't accept root and want explicitly uid/gid matching
+	// Hotspot reject connection credentials by checking uid/gid of the client calling connect()
+	// via getsockopt(SOL_SOCKET/SO_PEERCRED).
+	// but older hotspot JRE (1.8.0) accept only the same uid/gid and reject root
 	//
-	// side effect for go, during the connect() syscall we don't want to fork() and stay on the same pthread
-	// to avoid side effect of set effective uid/gid.
+	// For go, during the connect() syscall we don't want to fork() and stay on the same pthread
+	// to avoid side effect (pollution) of set effective uid/gid.
 	if withCredential {
 		runtime.LockOSThread()
 		syscall.ForkLock.Lock()
