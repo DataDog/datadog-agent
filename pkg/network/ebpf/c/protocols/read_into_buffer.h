@@ -10,8 +10,7 @@
 
 #define STRINGIFY(a) #a
 
-// The method is used to read the data buffer from the __sk_buf struct. Similar implementation as `read_into_buffer_skb`
-// from http parsing, but uses a different constant (CLASSIFICATION_MAX_BUFFER).
+// The method is used to read the data buffer from the TCP segment data up to `total_size` bytes.
 #define READ_INTO_BUFFER(name, total_size, blk_size)                                                                \
     static __always_inline void read_into_buffer_##name(char *buffer, struct __sk_buff *skb, skb_info_t *info) {    \
         u64 offset = (u64)info->data_off;                                                                           \
