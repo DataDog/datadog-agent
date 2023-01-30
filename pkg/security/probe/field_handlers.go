@@ -9,11 +9,13 @@
 package probe
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
 // FieldHandlers defines a field handlers
@@ -62,7 +64,11 @@ func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
 
 	// first search in the process context itself
 	if entry.EnvsEntry != nil {
-		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
+		service := entry.EnvsEntry.Get(ServiceEnvVar)
+		if service == "" {
+			service = entry.EnvsEntry.Get(WorkloadServiceEnvVar)
+		}
+		if service != "" {
 			serviceValues = append(serviceValues, service)
 		}
 	}
@@ -105,11 +111,37 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.Con
 	return int(e.CreatedAt)
 }
 
-// ResolveContainerTags resolves the container tags of the event
-func (fh *FieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
-	if len(e.Tags) == 0 && e.ID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
+func (fh *FieldHandlers) resolveContainerEnvTags(ev *model.Event, e *model.ContainerContext) {
+	if !e.EnvTagsResolved {
+		envp := fh.ResolveProcessEnvp(ev, &ev.ProcessContext.Process)
+		for _, env := range envp {
+			if split := strings.SplitN(env, "=", 2); len(split) > 1 {
+				if containerTagKey, found := workloadLabelsAsEnvVars[split[0]]; found {
+					containerTag := fmt.Sprintf("%s:%s", containerTagKey, split[1])
+					e.Tags = append(e.Tags, containerTag)
+				}
+			}
+		}
+		e.EnvTagsResolved = true
 	}
+}
+
+func (fh *FieldHandlers) resolveContainerRemoteTags(_ *model.Event, e *model.ContainerContext) {
+	if !e.RemoteTagsResolved {
+		if remoteTags := fh.resolvers.TagsResolver.Resolve(e.ID); len(remoteTags) > 0 {
+			e.Tags = utils.ConcatenateTags(remoteTags, e.Tags)
+			e.RemoteTagsResolved = true
+		}
+	}
+}
+
+// ResolveContainerTags resolves the container tags of the event
+func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
+	if e.ID != "" {
+		fh.resolveContainerEnvTags(ev, e)
+		fh.resolveContainerRemoteTags(ev, e)
+	}
+
 	return e.Tags
 }
 
