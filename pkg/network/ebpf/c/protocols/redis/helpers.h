@@ -1,7 +1,8 @@
 #ifndef __REDIS_HELPERS_H
 #define __REDIS_HELPERS_H
 
-#include "protocol-classification-common.h"
+#include "protocols/classification/common.h"
+#include "protocols/redis/defs.h"
 
 // Checks the buffer represent a standard response (OK) or any of redis commands
 // https://redis.io/commands/

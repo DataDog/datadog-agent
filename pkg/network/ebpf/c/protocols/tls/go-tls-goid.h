@@ -5,9 +5,11 @@
 #include <linux/sched.h>
 
 #include "bpf_helpers.h"
-#include "go-tls-types.h"
-#include "go-tls-location.h"
-#include "http-maps.h"
+
+#include "protocols/http/maps.h"
+
+#include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/go-tls-location.h"
 
 // Implemented either in c/runtime/runtime-get-tls-base.h or in ____ (TODO add offset-guessed version)
 static void* get_tls_base(struct task_struct* task);

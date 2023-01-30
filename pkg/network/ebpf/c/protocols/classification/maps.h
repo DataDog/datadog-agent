@@ -1,9 +1,10 @@
 #ifndef __PROTOCOL_CLASSIFICATION_MAPS_H
 #define __PROTOCOL_CLASSIFICATION_MAPS_H
 
-#include "protocol-classification-defs.h"
-#include "protocol-classification-structs.h"
 #include "map-defs.h"
+
+#include "protocols/classification/defs.h"
+#include "protocols/classification/structs.h"
 
 // Kernels before 4.7 do not know about per-cpu array maps.
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
