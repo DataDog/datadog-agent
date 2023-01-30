@@ -62,17 +62,20 @@ int socket__http2_filter(struct __sk_buff *skb) {
         if (tail_call_state == NULL) {
             return 0;
         }
+
+        if (!read_conn_tuple_skb(skb, &tail_call_state->skb_info, &tail_call_state->tup)) {
+            return 0;
+        }
     }
 
-    // TODO: move to http2_ctx to iterations map
-    conn_tuple_t tup = {};
-    skb_info_t skb_info = {};
-    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
+    conn_tuple_t normalized_tuple = tail_call_state->tup;
+    normalize_tuple(&normalized_tuple);
+
+    if (is_tcp_termination(&tail_call_state->skb_info)) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &tail_call_state->tup);
+        bpf_map_delete_elem(&http2_iterations, &skb_addr);
         return 0;
     }
-
-    conn_tuple_t normalized_tuple = tup;
-    normalize_tuple(&normalized_tuple);
 
     const __u32 zero = 0;
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
@@ -81,10 +84,10 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return -1;
     }
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->tup = tup;
+    http2_ctx->tup = tail_call_state->tup;
     http2_ctx->http2_stream_key.tup = normalized_tuple;
-    http2_ctx->dynamic_index.tup = tup;
-    http2_ctx->skb_info = skb_info;
+    http2_ctx->dynamic_index.tup = tail_call_state->tup;
+    http2_ctx->skb_info = tail_call_state->skb_info;
     http2_ctx->skb_info.data_off += tail_call_state->offset;
 
     __u32 read_size = http2_entrypoint(skb, http2_ctx);
