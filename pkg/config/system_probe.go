@@ -28,6 +28,9 @@ const (
 	// defaultSystemProbeJavaDir is the default path for java agent program
 	defaultSystemProbeJavaDir = "/opt/datadog-agent/embedded/share/system-probe/java"
 
+	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
+	defaultServiceMonitoringJavaAgentArgs = "dd.appsec.enabled=false dd.trace.enabled=false dd.usm.enabled=true"
+
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 
@@ -153,6 +156,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_java_tls_support"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "java_agent_args"), defaultServiceMonitoringJavaAgentArgs)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
