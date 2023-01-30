@@ -10,6 +10,7 @@ name 'datadog-agent-integrations-py3'
 
 dependency 'datadog-agent'
 dependency 'pip3'
+dependency 'setuptools3'
 
 dependency 'snowflake-connector-python-py3'
 
@@ -145,7 +146,7 @@ build do
     # install the core integrations.
     #
     command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
-    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env # Version from ./setuptools3.rb
+    command "#{pip} download --dest #{build_deps_dir} setuptools==66.1.1", :env => pre_build_env # Version from ./setuptools3.rb
     command "#{pip} install wheel==0.38.4", :env => pre_build_env
     command "#{pip} install pip-tools==6.4.0", :env => pre_build_env
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']

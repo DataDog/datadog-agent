@@ -22,7 +22,7 @@ if ohai["platform"] != "windows"
   python_configure = ["./configure",
                       "--prefix=#{install_dir}/embedded",
                       "--with-ssl=#{install_dir}/embedded",
-                      "--with-ensurepip=no"] # pip is installed separately by its own software def
+                      "--with-ensurepip=yes"] # We upgrade pip later, in the pip3 software definition
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",

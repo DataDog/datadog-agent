@@ -3,7 +3,7 @@ default_version "66.1.1"
 
 skip_transitive_dependency_licensing true
 
-dependency "python3"
+dependency "pip3"
 
 relative_path "setuptools-#{version}"
 
@@ -16,14 +16,12 @@ build do
   license "Python-2.0"
 
   if ohai["platform"] == "windows"
-    python_bin = "#{windows_safe_path(python_3_embedded)}\\python.exe"
-    python_prefix = "#{windows_safe_path(python_3_embedded)}"
+    pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
   else
-    python_bin = "#{install_dir}/embedded/bin/python3"
-    python_prefix = "#{install_dir}/embedded"
+    pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-  command "mkdir -p build/scripts-3.8 && #{python_bin} setup.py install --prefix=#{python_prefix} --root=/"
+  command "#{pip} install ."
 
   if ohai["platform"] != "windows"
     block do
