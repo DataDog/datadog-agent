@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -232,7 +233,23 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			chunks, totalProcs, totalContainers := chunkProcessesAndContainers(tc.procsByCtr, tc.containers, tc.maxChunkSize, tc.maxChunkWeight)
+
+			fmt.Println("Got")
+
+			for i, m := range chunks {
+				fmt.Println("m %i", i)
+				fmt.Println(proto.MarshalTextString(m))
+			}
+
+			fmt.Println("Expected")
+
+			for i, m := range tc.expectedChunks {
+				fmt.Println("m %i", i)
+				fmt.Println(proto.MarshalTextString(m))
+			}
+
 			assert.Equal(t, tc.expectedChunks, chunks)
+
 			expectedProcs := 0
 
 			for _, procs := range tc.procsByCtr {

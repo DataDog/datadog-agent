@@ -17,84 +17,6 @@ type testPayload struct {
 	weight int
 }
 
-type testPayloadList struct {
-	payloads []*testPayload
-	chunker  testPayloadChunker
-}
-
-type testPayloadChunker interface {
-	Accept(payloads []*testPayload, weight int)
-}
-
-func (l *testPayloadList) Len() int {
-	return len(l.payloads)
-}
-
-func (l *testPayloadList) WeightAt(idx int) int {
-	if idx >= len(l.payloads) {
-		return 0
-	}
-	return l.payloads[idx].weight
-}
-
-func (l *testPayloadList) ToChunk(start, end int, weight int) {
-	l.chunker.Accept(l.payloads[start:end], weight)
-}
-
-// chunkProps is used to track weight and size of chunks
-type chunkProps struct {
-	weight int
-	size   int
-}
-
-// chunkPropsTracker tracks weight and size of chunked payloads
-type chunkPropsTracker struct {
-	props []chunkProps
-	idx   int
-}
-
-// TakenSize returns the size allocated to the current chunk
-func (c *chunkPropsTracker) TakenSize() int {
-	if c.idx < len(c.props) {
-		return c.props[c.idx].size
-	}
-	return 0
-}
-
-// TakenWeight returns the weight allocated to the current chunk
-func (c *chunkPropsTracker) TakenWeight() int {
-	if c.idx < len(c.props) {
-		return c.props[c.idx].weight
-	}
-	return 0
-}
-
-// Append creates a new chunk at the end (cases when it is known any previously allocated chunks cannot fit the payload)
-func (c *chunkPropsTracker) Append() {
-	c.idx = len(c.props)
-}
-
-// Next moves to the next chunk or allocates a new chunk if the current chunk is the last
-func (c *chunkPropsTracker) Next() {
-	c.idx++
-}
-
-type testChunker struct {
-	chunkPropsTracker
-	chunks [][]*testPayload
-}
-
-func (c *testChunker) Accept(payloads []*testPayload, weight int) {
-	if c.idx >= len(c.chunks) {
-		c.chunks = append(c.chunks, []*testPayload{})
-		c.props = append(c.props, chunkProps{})
-	}
-
-	c.chunks[c.idx] = append(c.chunks[c.idx], payloads...)
-	c.props[c.idx].size += len(payloads)
-	c.props[c.idx].weight += weight
-}
-
 type chunkGroup struct {
 	weights []int
 	start   int
@@ -108,7 +30,7 @@ type chunkTest struct {
 	expectedIDs [][]int
 }
 
-func (ct *chunkTest) runGroup(id int, chunker *testChunker, g chunkGroup) {
+func (ct *chunkTest) runGroup(id int, chunker *ChunkAllocator[[]*testPayload, *testPayload], g chunkGroup) {
 	payloads := make([]*testPayload, len(g.weights))
 	for i := range payloads {
 		payloads[i] = &testPayload{
@@ -118,9 +40,11 @@ func (ct *chunkTest) runGroup(id int, chunker *testChunker, g chunkGroup) {
 		id++
 	}
 
-	list := &testPayloadList{
-		payloads: payloads,
-		chunker:  chunker,
+	list := &PayloadList[*testPayload]{
+		Items: payloads,
+		WeightAt: func(i int) int {
+			return payloads[i].weight
+		},
 	}
 
 	chunker.idx = g.start
@@ -129,7 +53,11 @@ func (ct *chunkTest) runGroup(id int, chunker *testChunker, g chunkGroup) {
 
 func (ct *chunkTest) run(t *testing.T) {
 	t.Helper()
-	chunker := &testChunker{}
+	chunker := &ChunkAllocator[[]*testPayload, *testPayload]{
+		AppendToChunk: func(c *[]*testPayload, ps []*testPayload) {
+			*c = append(*c, ps...)
+		},
+	}
 
 	id := 1
 	for _, g := range ct.groups {
@@ -137,8 +65,8 @@ func (ct *chunkTest) run(t *testing.T) {
 		id += len(g.weights)
 	}
 	actualIDs := make([][]int, len(chunker.chunks))
-	for i := range chunker.chunks {
-		for _, p := range chunker.chunks[i] {
+	for i := range *chunker.GetChunks() {
+		for _, p := range (*chunker.GetChunks())[i] {
 			actualIDs[i] = append(actualIDs[i], p.id)
 		}
 	}
