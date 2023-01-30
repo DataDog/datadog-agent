@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -37,8 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type connTag = uint64
@@ -80,9 +80,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	defer tr.Stop()
+	_ = setupTracer(t, cfg)
 }
 
 func TestHTTPStats(t *testing.T) {
@@ -93,11 +91,7 @@ func TestHTTPStats(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	initTracerState(t, tr)
+	tr := setupTracer(t, cfg)
 
 	// Start an HTTP server on localhost:8080
 	serverAddr := "127.0.0.1:8080"
@@ -128,11 +122,7 @@ func TestHTTPStats(t *testing.T) {
 	// Iterate through active connections until we find connection created above
 	var httpReqStats *http.RequestStats
 	require.Eventuallyf(t, func() bool {
-		payload, err := tr.GetActiveConnections("1")
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
 			if key.Path.Content == "/test" {
 				httpReqStats = stats
@@ -223,11 +213,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	defer tr.Stop()
-	err = tr.RegisterClient("1")
-	require.NoError(t, err)
+	tr := setupTracer(t, cfg)
 
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefechLibs {
@@ -243,15 +229,11 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	cmd := append(fetchCmd, targetURL)
 	requestCmd := exec.Command(cmd[0], cmd[1:]...)
 	var out []byte
-	out, err = requestCmd.CombinedOutput()
+	out, err := requestCmd.CombinedOutput()
 	require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
 
 	require.Eventuallyf(t, func() bool {
-		payload, err := tr.GetActiveConnections("1")
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
 			if !stats.HasStats(200) {
 				continue
@@ -296,10 +278,7 @@ func TestOpenSSLVersions(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	initTracerState(t, tr)
-	defer tr.Stop()
+	tr := setupTracer(t, cfg)
 
 	addressOfHTTPPythonServer := "127.0.0.1:8001"
 	closer, err := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
@@ -377,11 +356,7 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 		missedRequests = append(missedRequests, requestFn())
 	}
 
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	initTracerState(t, tr)
+	tr := setupTracer(t, cfg)
 
 	// Giving the tracer time to install the hooks
 	time.Sleep(time.Second)
@@ -531,14 +506,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 			},
 		}
 
-		tr, err := NewTracer(cfg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer tr.Stop()
-
-		initTracerState(t, tr)
-		require.NoError(t, err)
+		tr := setupTracer(t, cfg)
 		done := make(chan struct{})
 		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
@@ -631,10 +599,7 @@ func testHTTPGoTLSCaptureNewProcess(clientBin string) func(t *testing.T) {
 		cfg.EnableHTTPSMonitoring = true
 		cfg.EnableRuntimeCompiler = true
 
-		tr, err := NewTracer(cfg)
-		require.NoError(t, err)
-		defer tr.Stop()
-		require.NoError(t, tr.RegisterClient("1"))
+		tr := setupTracer(t, cfg)
 
 		// This maps will keep track of whether or not the tracer saw this request already or not
 		reqs := make(requestsMap)
@@ -699,11 +664,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(clientBin string) func(t *testing.T) {
 			closeServer()
 		}()
 
-		tr, err := NewTracer(cfg)
-		require.NoError(t, err)
-		defer tr.Stop()
-		require.NoError(t, tr.RegisterClient("1"))
-
+		tr := setupTracer(t, cfg)
 		_, err = clientInput.Write([]byte{1})
 		require.NoError(t, err)
 
@@ -752,8 +713,7 @@ func checkRequests(t *testing.T, tr *Tracer, expectedOccurrences int, reqs reque
 
 	occurrences := PrintableInt(0)
 	require.Eventually(t, func() bool {
-		stats, err := tr.GetActiveConnections("1")
-		require.NoError(t, err)
+		stats := getConnections(t, tr)
 		occurrences += PrintableInt(countRequestsOccurrences(t, stats, reqs))
 		return int(occurrences) == expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured. Requests not found:\n%v", expectedOccurrences, &occurrences, reqs)

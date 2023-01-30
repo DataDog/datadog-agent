@@ -53,24 +53,6 @@ type testContext struct {
 	extras map[string]interface{}
 }
 
-func setupTracer(t *testing.T, cfg *config.Config) *Tracer {
-	tr, err := NewTracer(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		tr.Stop()
-	})
-
-	initTracerState(t, tr)
-	require.NoError(t, err)
-
-	// Giving the tracer time to run
-	time.Sleep(time.Second)
-
-	return tr
-}
-
 func validateProtocolConnection(t *testing.T, ctx testContext, tr *Tracer) {
 	waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, ctx.expectedProtocol)
 }
