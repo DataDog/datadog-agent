@@ -352,6 +352,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 			} else {
 				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"), cwsInstrumentation.InjectCWSPodInstrumentation, apiCl.DynamicCl, apiCl.Cl)
 				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"), cwsInstrumentation.InjectCWSCommandInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.workload_tags_endpoint"), cwsInstrumentation.InjectCWSWorkloadTags, apiCl.DynamicCl, apiCl.Cl)
 			}
 
 			// Start the k8s admission webhook server

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	kubeutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,6 +40,14 @@ const (
 	// CWSInstrumentationPodLabelEnabled is used to label pods that should be instrumented or skipped by the CWS mutating webhook
 	CWSInstrumentationPodLabelEnabled = "admission.datadoghq.com/cws-instrumentation.enabled"
 )
+
+var labelsToWorkloadEnv = [][2]string{
+	{kubeutil.EnvTagLabelKey, "DD_WORKLOAD_ENV"},
+	{kubeutil.ServiceTagLabelKey, "DD_WORKLOAD_SERVICE"},
+	{kubeutil.KubeAppNameLabelKey, "DD_WORKLOAD_SERVICE"},
+	{kubeutil.VersionTagLabelKey, "DD_WORKLOAD_VERSION"},
+	{kubeutil.KubeAppVersionLabelKey, "DD_WORKLOAD_VERSION"},
+}
 
 func parseCWSInitContainerResources() (*corev1.ResourceRequirements, error) {
 	var resources = &corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
@@ -315,4 +325,39 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 		initContainer.Resources = *resources
 	}
 	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
+}
+
+// InjectCWSWorkloadTags injects workload tags as environment variables
+func (ci *CWSInstrumentation) InjectCWSWorkloadTags(rawPod []byte, _ string, ns string, userInfo *authenticationv1.UserInfo, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
+	return mutate(rawPod, ns, ci.injectCWSWorkloadTags, dc)
+}
+
+func (ci *CWSInstrumentation) injectCWSWorkloadTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
+	if !shouldInject(pod) {
+		// Ignore pod if it has the label admission.datadoghq.com/enabled=false or Single step configuration is disabled
+		return nil
+	}
+
+	if config.Datadog.GetBool("admission_controller.cws_instrumentation.inject_workload_tags") {
+		if err := injectTags(pod, ns, dc, labelsToWorkloadEnv, metrics.CWSWorkloadTags); err != nil {
+			return err
+		}
+
+		for i := range pod.Spec.Containers {
+			split := strings.SplitN(pod.Spec.Containers[i].Image, ":", 2)
+			injectEnvIntoContainer(&pod.Spec.Containers[i], corev1.EnvVar{
+				Name:  "DD_WORKLOAD_IMAGE_NAME",
+				Value: split[0],
+			})
+
+			if len(split) > 1 {
+				injectEnvIntoContainer(&pod.Spec.Containers[i], corev1.EnvVar{
+					Name:  "DD_WORKLOAD_IMAGE_TAG",
+					Value: split[1],
+				})
+			}
+		}
+	}
+
+	return nil
 }

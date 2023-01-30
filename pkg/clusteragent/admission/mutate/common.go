@@ -101,29 +101,35 @@ func envIndex(envs []corev1.EnvVar, name string) int {
 	return -1
 }
 
-// injectEnv injects an env var into a pod template if it doesn't exist
-func injectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
+func injectEnvIntoContainer(container *corev1.Container, env corev1.EnvVar) bool {
+	if contains(container.Env, env.Name) {
+		return false
+	}
+
+	// prepend rather than append so that our new vars precede container vars in the final list, so that they
+	// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
+	container.Env = append([]corev1.EnvVar{env}, container.Env...)
+	return true
+
+}
+
+// injectEnvIntoPod injects an env var into a pod template if it doesn't exist
+func injectEnvIntoPod(pod *corev1.Pod, env corev1.EnvVar) bool {
 	injected := false
 	podStr := podString(pod)
 	log.Debugf("Injecting env var '%s' into pod %s", env.Name, podStr)
 	for i, ctr := range pod.Spec.Containers {
-		if contains(ctr.Env, env.Name) {
+		if !injectEnvIntoContainer(&pod.Spec.Containers[i], env) {
 			log.Debugf("Ignoring container '%s' in pod %s: env var '%s' already exist", ctr.Name, podStr, env.Name)
 			continue
 		}
-		// prepend rather than append so that our new vars precede container vars in the final list, so that they
-		// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
-		pod.Spec.Containers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.Containers[i].Env...)
 		injected = true
 	}
 	for i, ctr := range pod.Spec.InitContainers {
-		if contains(ctr.Env, env.Name) {
+		if !injectEnvIntoContainer(&pod.Spec.InitContainers[i], env) {
 			log.Debugf("Ignoring init container '%s' in pod %s: env var '%s' already exist", ctr.Name, podStr, env.Name)
 			continue
 		}
-		// prepend rather than append so that our new vars precede container vars in the final list, so that they
-		// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
-		pod.Spec.InitContainers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.InitContainers[i].Env...)
 		injected = true
 	}
 	return injected

@@ -640,7 +640,7 @@ func injectLibConfig(pod *corev1.Pod, lang language) error {
 		return fmt.Errorf("invalid json config in annotation %s=%s: %w", configAnnotKey, confString, err)
 	}
 	for _, env := range libConfig.ToEnvs() {
-		_ = injectEnv(pod, env)
+		_ = injectEnvIntoPod(pod, env)
 	}
 
 	return nil

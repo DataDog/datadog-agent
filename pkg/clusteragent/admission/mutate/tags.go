@@ -31,10 +31,15 @@ import (
 
 var ownerCacheTTL = config.Datadog.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
 
-var labelsToEnv = map[string]string{
-	kubernetes.EnvTagLabelKey:     kubernetes.EnvTagEnvVar,
-	kubernetes.ServiceTagLabelKey: kubernetes.ServiceTagEnvVar,
-	kubernetes.VersionTagLabelKey: kubernetes.VersionTagEnvVar,
+type labelToEnv struct {
+	label   string
+	environ string
+}
+
+var standardLabelsToEnv = []labelToEnv{
+	{kubernetes.EnvTagLabelKey, kubernetes.EnvTagEnvVar},
+	{kubernetes.ServiceTagLabelKey, kubernetes.ServiceTagEnvVar},
+	{kubernetes.VersionTagLabelKey, kubernetes.VersionTagEnvVar},
 }
 
 type owner struct {
@@ -81,7 +86,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 	}
 
 	var found bool
-	if found, injected = injectTagsFromLabels(pod.GetLabels(), pod); found {
+	if found, injected = injectTagsFromLabels(pod.GetLabels(), pod, labelsToEnv); found {
 		// Standard labels found in the pod's labels
 		// No need to lookup the pod's owner
 		return nil
@@ -109,29 +114,36 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 	}
 
 	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, podString(pod))
-	_, injected = injectTagsFromLabels(owner.labels, pod)
+	_, injected = injectTagsFromLabels(owner.labels, pod, labelsToEnv)
 
 	return nil
 }
 
 // injectTagsFromLabels looks for standard tags in pod labels
 // and injects them as environment variables if found
-func injectTagsFromLabels(labels map[string]string, pod *corev1.Pod) (bool, bool) {
-	found := false
+func injectTagsFromLabels(labels map[string]string, pod *corev1.Pod, env []labelToEnv) (bool, bool) {
+	foundOne := false
 	injectedAtLeastOnce := false
-	for l, envName := range labelsToEnv {
-		if tagValue, labelFound := labels[l]; labelFound {
-			env := corev1.EnvVar{
-				Name:  envName,
-				Value: tagValue,
-			}
-			if injected := injectEnv(pod, env); injected {
-				injectedAtLeastOnce = true
-			}
-			found = true
-		}
+
+	for _, env := range env {
+		found, injected := injectTag(labels, pod, env.label, env.environ)
+		foundOne = foundOne || found
+		injectedAtLeastOnce = injectedAtLeastOnce || injected
 	}
-	return found, injectedAtLeastOnce
+
+	return foundOne, injectedAtLeastOnce
+}
+
+func injectTag(labels map[string]string, pod *corev1.Pod, label string, envName string) (bool, bool) {
+	if tagValue, labelFound := labels[label]; labelFound {
+		env := corev1.EnvVar{
+			Name:  envName,
+			Value: tagValue,
+		}
+		return true, injectEnvIntoPod(pod, env)
+	}
+
+	return false, false
 }
 
 // getOwnerInfo returns the required information to get the owner object

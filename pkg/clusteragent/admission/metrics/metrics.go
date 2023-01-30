@@ -23,6 +23,7 @@ const (
 	LibInjectionMutationType = "lib_injection"
 	CWSPodInstrumentation    = "cws_pod_instrumentation"
 	CWSExecInstrumentation   = "cws_exec_instrumentation"
+	CWSWorkloadTags          = "cws_workload_tags"
 )
 
 // Telemetry metrics
