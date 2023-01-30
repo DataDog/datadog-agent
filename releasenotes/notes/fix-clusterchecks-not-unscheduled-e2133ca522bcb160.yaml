@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix an issue in Autodiscovery that could prevent Cluster Checks containing secrets (ENC[] syntax) to be unscheduled properly.
