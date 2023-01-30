@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: Agent Metrics Logs
+// team: agent-metrics-logs
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
