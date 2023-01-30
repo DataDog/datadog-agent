@@ -266,7 +266,7 @@ func (h *Hotspot) commandWriteRead(cmd string, tailingNull bool) error {
 		return err
 	}
 
-	//we split by space for at most 4 words, since our longest command is "load instrument false <javaagent=args>" which is 4 words
+	// We split by space for at most 4 words, since our longest command is "load instrument false <javaagent=args>" which is 4 words
 	for _, c := range strings.SplitN(cmd, " ", 4) {
 		cmd := append([]byte(c), 0)
 		if _, err := h.conn.Write(cmd); err != nil {
