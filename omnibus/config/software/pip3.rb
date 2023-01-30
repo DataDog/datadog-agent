@@ -1,12 +1,12 @@
 name "pip3"
-default_version "21.3.1"
+default_version "22.3.1"
 
 skip_transitive_dependency_licensing true
 
 dependency "setuptools3"
 
 source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
-       :sha256 => "cbfb6a0b5bc2d1e4b4647729ee5b944bb313c8ffd9ff83b9d2e0f727f0c79714",
+       :sha256 => "8d9f7cd8ad0d6f0c70e71704fd3f0f6538d70930454f1f21bbc2f8e94f6964ee",
        :extract => :seven_zip
 
 relative_path "pip-#{version}"
