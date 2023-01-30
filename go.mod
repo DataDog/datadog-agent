@@ -199,7 +199,7 @@ require (
 	go.opentelemetry.io/collector/confmap v0.68.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.68.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.68.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rc2
+	go.opentelemetry.io/collector/pdata v1.0.0-rc4
 	go.opentelemetry.io/collector/processor/batchprocessor v0.68.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.68.0
 	go.uber.org/atomic v1.10.0
@@ -218,8 +218,8 @@ require (
 	golang.org/x/time v0.1.0
 	golang.org/x/tools v0.5.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
-	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c
-	google.golang.org/grpc v1.51.0
+	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6
+	google.golang.org/grpc v1.52.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
@@ -248,7 +248,7 @@ require (
 	cloud.google.com/go v0.105.0 // indirect
 	cloud.google.com/go/compute v1.12.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.1 // indirect
-	cloud.google.com/go/iam v0.6.0 // indirect
+	cloud.google.com/go/iam v0.7.0 // indirect
 	cloud.google.com/go/storage v1.28.0 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
