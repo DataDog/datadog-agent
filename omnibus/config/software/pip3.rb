@@ -1,6 +1,8 @@
 name "pip3"
 default_version "21.3.1"
 
+skip_transitive_dependency_licensing true
+
 dependency "setuptools3"
 
 source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
