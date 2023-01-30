@@ -22,6 +22,17 @@ const (
 	timingType
 )
 
+const (
+	maxSeparatorCnt = 5
+	// Client libraries may be reporting to older agents
+	// and if we add a new dogstatsd feature, the client library may
+	// have that on by default which could lead to the Agent rejecting
+	// the dogstatsd messages due to too many separators.
+	//
+	// This gives some breathing room for (future) forward compatibility.
+	reservedFutureSeparatorCnt = 2
+)
+
 var (
 	gaugeSymbol        = []byte("g")
 	countSymbol        = []byte("c")
@@ -58,7 +69,7 @@ func hasMetricSampleFormat(message []byte) bool {
 		return false
 	}
 	separatorCount := bytes.Count(message, fieldSeparator)
-	if separatorCount < 1 || separatorCount > 6 {
+	if separatorCount < 1 || separatorCount > (maxSeparatorCnt+reservedFutureSeparatorCnt) {
 		return false
 	}
 	return true
