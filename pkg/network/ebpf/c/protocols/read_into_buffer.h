@@ -26,17 +26,22 @@
             offset += (blk_size);                                                                                   \
         }                                                                                                           \
                                                                                                                     \
+        /* Calculating the remaining bytes to read. If we have none, then we abort. */                              \
         const s64 left_payload = (s64)len - (s64)offset;                                                            \
         if (left_payload < 1) {                                                                                     \
             return;                                                                                                 \
         }                                                                                                           \
                                                                                                                     \
+        /* The maximum that we can read if (blk_size) - 1. Checking (to please the verifier) that we read no more */\
+        /* than the allowed max size. */                                                                            \
         s64 read_size = (blk_size) - 1;                                                                             \
         if (left_payload < read_size) {                                                                             \
             read_size = left_payload;                                                                               \
         }                                                                                                           \
                                                                                                                     \
-        const s64 left_buffer = (s64)CLASSIFICATION_MAX_BUFFER - (s64)(i*(blk_size));                               \
+        /* Calculating the absolute size from the allocated buffer, that was left empty, again to please the */     \
+        /* verifier so it can be assured we are not exceeding the memory limits. */                                 \
+        const s64 left_buffer = (s64)(total_size) - (s64)(i*(blk_size));                                            \
         if (read_size <= left_buffer) {                                                                             \
             bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * (blk_size)], read_size);                     \
         }                                                                                                           \
