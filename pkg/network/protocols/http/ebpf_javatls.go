@@ -25,7 +25,8 @@ import (
 )
 
 const (
-	AgentUSMJar = "agent-usm.jar"
+	agentUSMJar           = "agent-usm.jar"
+	javaTLSConnectionsMap = "java_tls_connections"
 )
 
 var (
@@ -37,6 +38,7 @@ var (
 )
 
 type JavaTLSProgram struct {
+	manager        *nettelemetry.Manager
 	processMonitor *monitor.ProcessMonitor
 	cleanupExec    func()
 }
@@ -53,7 +55,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 		log.Errorf("java TLS support requires runtime-compilation to be enabled")
 		return nil
 	}
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, AgentUSMJar)
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
 	jar, err := os.Open(javaUSMAgentJarPath)
 	if err != nil {
 		log.Errorf("java TLS can't access to agent-usm.jar file %s : %s", javaUSMAgentJarPath, err)
@@ -68,14 +70,42 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 }
 
 func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
+	p.manager = m
+	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
+		{Name: javaTLSConnectionsMap},
+	}...)
+
+	p.manager.Probes = append(m.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  "kprobe/do_vfs_ioctl",
+			EBPFFuncName: "kprobe__do_vfs_ioctl",
+			UID:          probeUID,
+		},
+			KProbeMaxActive: maxActive,
+		},
+	)
 	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
 	authID = rand.Int63()
 }
 
-func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {}
+func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
+	options.ActivatedProbes = append(options.ActivatedProbes,
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/do_vfs_ioctl",
+				EBPFFuncName: "kprobe__do_vfs_ioctl",
+				UID:          probeUID,
+			},
+		})
+}
 
 func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
-	return
+
+	probeList = append(probeList, manager.ProbeIdentificationPair{
+		EBPFSection:  "kprobe/do_vfs_ioctl",
+		EBPFFuncName: "kprobe__do_vfs_ioctl"})
+
+	return probeList
 }
 
 func newJavaProcess(pid uint32) {
