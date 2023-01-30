@@ -44,7 +44,7 @@ struct __tcphdr {
 #define __IPPROTO_TCP 6
 #define __IPPROTO_UDP 17
 
-// TODO: these are mostly hacky placehodlers until we decide on what is the best
+// TODO: these are mostly hacky placeholders until we decide on what is the best
 // approach to work around the eBPF bug described here:
 // https://github.com/torvalds/linux/commit/e6a18d36118bea3bf497c9df4d9988b6df120689
 // We should consider using something like `asm volatile("":::"r1")` so this patch
