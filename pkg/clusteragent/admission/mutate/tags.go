@@ -37,6 +37,14 @@ var labelsToEnv = map[string]string{
 	kubernetes.VersionTagLabelKey: kubernetes.VersionTagEnvVar,
 }
 
+var labelsToWorkloadEnv = [][2]string{
+	{kubernetes.EnvTagLabelKey, "DD_WORKLOAD_ENV"},
+	{kubernetes.ServiceTagLabelKey, "DD_WORKLOAD_SERVICE"},
+	{kubernetes.KubeAppNameLabelKey, "DD_WORKLOAD_SERVICE"},
+	{kubernetes.VersionTagLabelKey, "DD_WORKLOAD_VERSION"},
+	{kubernetes.KubeAppVersionLabelKey, "DD_WORKLOAD_VERSION"},
+}
+
 // ownerInfo wraps the information needed to get pod's owner object
 type ownerInfo struct {
 	gvr  schema.GroupVersionResource
@@ -119,18 +127,46 @@ func shouldInjectTags(pod *corev1.Pod) bool {
 func injectTagsFromLabels(labels map[string]string, pod *corev1.Pod) (bool, bool) {
 	found := false
 	injectedAtLeastOnce := false
-	for l, envName := range labelsToEnv {
-		if tagValue, labelFound := labels[l]; labelFound {
+
+	injectTag := func(label, envName string) {
+		if tagValue, labelFound := labels[label]; labelFound {
 			env := corev1.EnvVar{
 				Name:  envName,
 				Value: tagValue,
 			}
-			if injected := injectEnv(pod, env); injected {
+			if injected := injectEnvIntoPod(pod, env); injected {
 				injectedAtLeastOnce = true
 			}
 			found = true
 		}
 	}
+
+	for l, envName := range labelsToEnv {
+		injectTag(l, envName)
+	}
+
+	if config.Datadog.GetBool("admission_controller.inject_tags.workload_tags") {
+		for _, entry := range labelsToWorkloadEnv {
+			l, envName := entry[0], entry[1]
+			injectTag(l, envName)
+		}
+
+		for i := range pod.Spec.Containers {
+			split := strings.SplitN(pod.Spec.Containers[i].Image, ":", 2)
+			injectedAtLeastOnce = injectEnvIntoContainer(&pod.Spec.Containers[i], corev1.EnvVar{
+				Name:  "DD_WORKLOAD_IMAGE_NAME",
+				Value: split[0],
+			}) || injectedAtLeastOnce
+
+			if len(split) > 1 {
+				injectedAtLeastOnce = injectEnvIntoContainer(&pod.Spec.Containers[i], corev1.EnvVar{
+					Name:  "DD_WORKLOAD_IMAGE_TAG",
+					Value: split[1],
+				}) || injectedAtLeastOnce
+			}
+		}
+	}
+
 	return found, injectedAtLeastOnce
 }
 
