@@ -69,6 +69,57 @@ cookbook_file "#{wrk_dir}/nikos.tar.gz" do
   mode '755'
 end
 
+
+directory "/go/bin" do
+  recursive true
+end
+
+cookbook_file "/go/bin/gotestsum" do
+  source "gotestsum"
+  mode '0744'
+  action :create
+end
+
+cookbook_file "/go/bin/test2json" do
+  source "test2json"
+  mode '0744'
+  action :create
+end
+
+directory "/tmp/junit" do
+  recursive true
+end
+
+cookbook_file "/tmp/junit/job_url.txt" do
+  source "job_url.txt"
+  mode '0444'
+  action :create
+  ignore_failure true
+end
+
+cookbook_file "/tmp/junit/tags.txt" do
+  source "tags.txt"
+  mode '0444'
+  action :create
+  ignore_failure true
+end
+
+directory "/tmp/testjson" do
+  recursive true
+end
+
+directory "/tmp/pkgjson" do
+  recursive true
+end
+
+if node[:platform] == "amazon" and node[:platform_version] == "2022"
+  execute "increase /tmp size" do
+    command "mount -o remount,size=5G /tmp/"
+    live_stream true
+    action :run
+  end
+end
+
 execute "Extract nikos.tar.gz" do
   command "mkdir -p /opt/datadog-agent/embedded/nikos/embedded/ && tar -xzvf #{wrk_dir}/nikos.tar.gz -C /opt/datadog-agent/embedded/nikos/embedded/"
   action :run
