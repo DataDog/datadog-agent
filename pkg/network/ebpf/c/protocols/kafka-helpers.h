@@ -37,8 +37,9 @@ static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
     kafka_context.buffer = buf;
     kafka_context.buffer_size = MIN(buf_size, CLASSIFICATION_MAX_BUFFER);
     fill_kafka_header(&kafka_context);
+    log_debug("kafka: kafka_context->offset: %u\n", kafka_context.offset);
 
-    return is_kafka_request_header(&kafka_context) || is_kafka_request(&kafka_context);
+    return is_kafka_request_header(&kafka_context) && is_kafka_request(&kafka_context);
 }
 
 static __always_inline bool is_kafka_request_header(kafka_context_t* kafka_context) {
