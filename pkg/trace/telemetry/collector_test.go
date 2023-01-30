@@ -73,14 +73,11 @@ func TestNoSuccessAfterError(t *testing.T) {
 
 	server.assertReq = func(req *http.Request) {
 		reqCount += 1
-
 		body, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
-
 		ev := OnboardingEvent{}
 		err = json.Unmarshal(body, &ev)
 		assert.NoError(t, err)
-
 		eventName = ev.Payload.EventName
 	}
 
@@ -103,14 +100,11 @@ func TestErrorAfterSuccess(t *testing.T) {
 
 	server.assertReq = func(req *http.Request) {
 		reqCount += 1
-
 		body, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
-
 		ev := OnboardingEvent{}
 		err = json.Unmarshal(body, &ev)
 		assert.NoError(t, err)
-
 		eventNames = append(eventNames, ev.Payload.EventName)
 	}
 
@@ -139,18 +133,14 @@ func TestDualShipping(t *testing.T) {
 
 	server.assertReq = func(req *http.Request) {
 		reqCount += 1
-
 		b, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
-
 		body = b
 	}
 	server2.assertReq = func(req *http.Request) {
 		reqCount2 += 1
-
 		b, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
-
 		body2 = b
 	}
 
