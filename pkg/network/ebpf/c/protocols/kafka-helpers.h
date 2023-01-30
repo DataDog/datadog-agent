@@ -149,7 +149,7 @@ static __always_inline bool try_parse_produce_request(kafka_context_t *kafka_con
         if (!kafka_read_big_endian_int16(kafka_context, &transactional_id_size)) {
             return false;
         }
-//        log_debug("kafka: transactional_id_size: %d\n", transactional_id_size);
+        log_debug("kafka: transactional_id_size: %d\n", transactional_id_size);
         if (transactional_id_size > 0) {
             kafka_context->offset += transactional_id_size;
         }
