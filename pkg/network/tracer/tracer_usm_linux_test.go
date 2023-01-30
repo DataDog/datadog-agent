@@ -591,8 +591,8 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
 	}
 
-	if !httpsSupported(t) {
-		t.Skip("HTTPS feature not available supported for this setup")
+	if !config.New().EnableRuntimeCompiler {
+		t.Skip("GoTLS requires runtime compilation")
 	}
 
 	t.Run("New Process", testHTTPGoTLSCaptureNewProcess(clientBin))
