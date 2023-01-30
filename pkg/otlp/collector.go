@@ -174,6 +174,7 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 		DisableGracefulShutdown: true,
 		ConfigProvider:          configProvider,
 		LoggingOptions:          options,
+		SkipSettingGRPCLogger:   true,
 	})
 
 	if err != nil {
