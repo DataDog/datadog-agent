@@ -983,8 +983,8 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			},
 			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				kafka.RunKafkaServer(t, host, port)
+				//host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				//kafka.RunKafkaServer(t, host, port)
 				topicName := "franz-kafka"
 				seeds := []string{ctx.serverAddress}
 				client, err := kgo.NewClient(
