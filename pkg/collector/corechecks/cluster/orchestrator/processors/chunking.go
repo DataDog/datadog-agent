@@ -18,7 +18,8 @@ import (
 // We use yaml size as payload weight
 func chunkOrchestratorPayloadsBySizeAndWeight(orchestratorPayloads []interface{}, orchestratorYaml []interface{}, maxChunkSize, maxChunkWeight int) *[][]interface{} {
 	if len(orchestratorPayloads) == 0 {
-		return nil
+		chunks := make([][]interface{}, 0)
+		return &chunks
 	}
 
 	chunker := &util.ChunkAllocator[[]interface{}, interface{}]{
