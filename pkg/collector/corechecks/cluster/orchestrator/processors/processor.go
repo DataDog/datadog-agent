@@ -191,11 +191,11 @@ func ChunkManifest(ctx *ProcessorContext, buildManifestBody func(ctx *ProcessorC
 	// Chunk manifest messages and use itself as weight indicator
 	chunks := chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes)
 
-	chunkCount := len(*chunks)
+	chunkCount := len(chunks)
 	manifestMessages := make([]model.MessageBody, 0, chunkCount)
 
 	for i := 0; i < chunkCount; i++ {
-		manifestMessages = append(manifestMessages, buildManifestBody(ctx, (*chunks)[i], chunkCount))
+		manifestMessages = append(manifestMessages, buildManifestBody(ctx, chunks[i], chunkCount))
 	}
 
 	return manifestMessages
@@ -207,10 +207,10 @@ func ChunkMetadata(ctx *ProcessorContext, p *Processor, resourceMetadataModels, 
 	// Chunk metadata messages and use resourceManifestModels as weight indicator
 	chunks := chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes)
 
-	chunkCount := len(*chunks)
+	chunkCount := len(chunks)
 	metadataMessages := make([]model.MessageBody, 0, chunkCount)
 	for i := 0; i < chunkCount; i++ {
-		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, (*chunks)[i], chunkCount))
+		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, chunks[i], chunkCount))
 	}
 
 	return metadataMessages

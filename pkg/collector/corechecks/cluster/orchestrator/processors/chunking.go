@@ -16,10 +16,9 @@ import (
 
 // chunkOrchestratorPayloadsBySizeAndWeight chunks orchestrator payloads by max allowed size and max allowed weight of a chunk
 // We use yaml size as payload weight
-func chunkOrchestratorPayloadsBySizeAndWeight(orchestratorPayloads []interface{}, orchestratorYaml []interface{}, maxChunkSize, maxChunkWeight int) *[][]interface{} {
+func chunkOrchestratorPayloadsBySizeAndWeight(orchestratorPayloads []interface{}, orchestratorYaml []interface{}, maxChunkSize, maxChunkWeight int) [][]interface{} {
 	if len(orchestratorPayloads) == 0 {
-		chunks := make([][]interface{}, 0)
-		return &chunks
+		return make([][]interface{}, 0)
 	}
 
 	chunker := &util.ChunkAllocator[[]interface{}, interface{}]{
@@ -40,5 +39,5 @@ func chunkOrchestratorPayloadsBySizeAndWeight(orchestratorPayloads []interface{}
 
 	util.ChunkPayloadsBySizeAndWeight[[]interface{}, interface{}](list, chunker, maxChunkSize, maxChunkWeight)
 
-	return chunker.GetChunks()
+	return *chunker.GetChunks()
 }
