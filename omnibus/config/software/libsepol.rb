@@ -15,19 +15,14 @@
 #
 
 name "libsepol"
-default_version "3.0"
+default_version "3.4"
 
 license "LGPLv2"
 skip_transitive_dependency_licensing true
 
 version '3.4' do
   source url: 'https://github.com/SELinuxProject/selinux/releases/download/3.4/libsepol-3.4.tar.gz',
-         sha512: '7ffa6d2159d2333d836bde3f75dfc78a278283b66ae1e441c178371adb6f463aa6f2d62439079e2068d1135c39dd2b367b001d917c0bdc6871a73630919ef81e'
-end
-
-version '3.0' do
-  source url: 'https://github.com/SELinuxProject/selinux/releases/download/20191204/libsepol-3.0.tar.gz',
-         sha512: '82a5bae0afd9ae53b55ddcfc9f6dd61724a55e45aef1d9cd0122d1814adf2abe63c816a7ac63b64b401f5c67acb910dd8e0574eec546bed04da7842ab6c3bb55'
+         sha512: '5e47e6ac626f2bfc10a9f2f24c2e66c4d7f291ca778ebd81c7d565326e036e821d3eb92e5d7540517b1c715466232a7d7da895ab48811d037ad92d423ed934b6'
 end
 
 relative_path "#{name}-#{version}"
@@ -36,6 +31,8 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   patch source: "ln_no_relative.patch", env: env
+
+  env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
 
   make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
   make "-j #{workers} install PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env

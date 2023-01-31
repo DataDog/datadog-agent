@@ -15,7 +15,7 @@
 #
 
 name "libselinux"
-default_version "3.0"
+default_version "3.4"
 
 dependency 'pcre2'
 dependency 'libsepol'
@@ -28,17 +28,15 @@ version '3.4' do
          sha512: '7ffa6d2159d2333d836bde3f75dfc78a278283b66ae1e441c178371adb6f463aa6f2d62439079e2068d1135c39dd2b367b001d917c0bdc6871a73630919ef81e'
 end
 
-version '3.0' do
-  source url: 'https://github.com/SELinuxProject/selinux/releases/download/20191204/libselinux-3.0.tar.gz',
-         sha512: '6fd8c3711e25cb1363232e484268609b71d823975537b3863e403836222eba026abce8ca198f64dba6f4c1ea4deb7ecef68a0397b9656a67b363e4d74409cd95'
-end
-
 relative_path "#{name}-#{version}"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   patch source: "ln_no_relative.patch", env: env
+  patch source: "fcntl_o_path.patch", env: env
+
+  env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
 
   make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
   make "-j #{workers} install PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env

@@ -1,8 +1,6 @@
-diff --git a/src/Makefile b/src/Makefile
-index ccb70233..cf01a715 100644
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -85,7 +85,7 @@ install: all
+@@ -91,7 +91,7 @@
  	install -m 755 $(LIBSO) $(DESTDIR)$(SHLIBDIR)
  	test -d $(DESTDIR)$(LIBDIR)/pkgconfig || install -m 755 -d $(DESTDIR)$(LIBDIR)/pkgconfig
  	install -m 644 $(LIBPC) $(DESTDIR)$(LIBDIR)/pkgconfig
