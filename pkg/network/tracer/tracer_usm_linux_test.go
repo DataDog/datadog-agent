@@ -623,8 +623,8 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.InjectJavaVersion(t, "openjdk:21-oraclelinux8")
-				// if InjectJavaVersion failing to start it's probably because the java process has not been injected
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 
 				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
 			},

@@ -2,6 +2,6 @@ version: '3'
 services:
   java:
     image: ${IMAGE_VERSION}
-    entrypoint: java -cp /v JustWait
+    entrypoint: java -cp /v ${ENTRYCLASS}
     volumes:
       - ${TESTDATA_DIR}:/v
