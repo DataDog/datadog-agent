@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/google/gopacket"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,13 +30,13 @@ var _ ReverseDNS = &socketFilterSnooper{}
 // socketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type socketFilterSnooper struct {
 	// Telemetry
-	decodingErrors *atomic.Int64
-	truncatedPkts  *atomic.Int64
+	decodingErrors telemetry.StatGaugeWrapper
+	truncatedPkts  telemetry.StatGaugeWrapper
 
 	// DNS telemetry, values calculated *till* the last tick in pollStats
-	queries   *atomic.Int64
-	successes *atomic.Int64
-	errors    *atomic.Int64
+	queries   telemetry.StatGaugeWrapper
+	successes telemetry.StatGaugeWrapper
+	errors    telemetry.StatGaugeWrapper
 
 	source          packetSource
 	parser          *dnsParser
@@ -83,11 +83,11 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &socketFilterSnooper{
-		decodingErrors: atomic.NewInt64(0),
-		truncatedPkts:  atomic.NewInt64(0),
-		queries:        atomic.NewInt64(0),
-		successes:      atomic.NewInt64(0),
-		errors:         atomic.NewInt64(0),
+		decodingErrors: telemetry.NewStatGaugeWrapper("snooper", "decodingErrors", []string{}, ""),
+		truncatedPkts:  telemetry.NewStatGaugeWrapper("snooper", "truncatedPkts", []string{}, ""),
+		queries:        telemetry.NewStatGaugeWrapper("snooper", "queries", []string{}, ""),
+		successes:      telemetry.NewStatGaugeWrapper("snooper", "successes", []string{}, ""),
+		errors:         telemetry.NewStatGaugeWrapper("snooper", "errors", []string{}, ""),
 
 		source:          source,
 		parser:          newDNSParser(source.PacketType(), cfg),

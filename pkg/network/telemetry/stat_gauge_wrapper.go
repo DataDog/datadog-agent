@@ -36,9 +36,16 @@ func (sgw *StatGaugeWrapper) Load() int64 {
 	return stat
 }
 
-func NewStatGaugeWrapper(gauge telemetry.Gauge) StatGaugeWrapper {
+// func NewStatGaugeWrapper(gauge telemetry.Gauge) StatGaugeWrapper {
+// 	return StatGaugeWrapper{
+// 		stat:  atomic.NewInt64(0),
+// 		gauge: gauge,
+// 	}
+// }
+
+func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) StatGaugeWrapper {
 	return StatGaugeWrapper{
 		stat:  atomic.NewInt64(0),
-		gauge: gauge,
+		gauge: telemetry.NewGauge(subsystem, statName, tags, description),
 	}
 }

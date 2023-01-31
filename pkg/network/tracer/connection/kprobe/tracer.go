@@ -27,6 +27,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -57,7 +58,7 @@ type kprobeTracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 
-	pidCollisions *atomic.Int64
+	pidCollisions telemetry.StatGaugeWrapper
 	removeTuple   *netebpf.ConnTuple
 
 	telemetry tracerTelemetry
@@ -239,7 +240,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		m:                                     m,
 		config:                                config,
 		closeConsumer:                         closeConsumer,
-		pidCollisions:                         atomic.NewInt64(0),
+		pidCollisions:                         telemetry.NewStatGaugeWrapper("k_probe_tracer", "pid_collisions", []string{}, "description"),
 		removeTuple:                           &netebpf.ConnTuple{},
 		telemetry:                             newTracerTelemetry(),
 		closeProtocolClassifierSocketFilterFn: closeProtocolClassifierSocketFilterFn,

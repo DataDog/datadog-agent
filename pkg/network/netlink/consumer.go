@@ -23,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
@@ -140,11 +139,11 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
-		enobufs:             nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "enobufs", []string{}, "description")),
-		throttles:           nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "throttles", []string{}, "description")),
-		samplingPct:         nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "samplingPct", []string{}, "description")),
-		readErrors:      nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "readErrors", []string{}, "description")),
-		msgErrors:       nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("consumer", "msgErrors", []string{}, "description")),
+		enobufs:             nettelemetry.NewStatGaugeWrapper("consumer", "enobufs", []string{}, "description"),
+		throttles:           nettelemetry.NewStatGaugeWrapper("consumer", "throttles", []string{}, "description"),
+		samplingPct:         nettelemetry.NewStatGaugeWrapper("consumer", "samplingPct", []string{}, "description"),
+		readErrors:      nettelemetry.NewStatGaugeWrapper("consumer", "readErrors", []string{}, "description"),
+		msgErrors:       nettelemetry.NewStatGaugeWrapper("consumer", "msgErrors", []string{}, "description"),
 		recvLoopRunning: atomic.NewBool(false),
 		rootNetNs:       ns,
 	}

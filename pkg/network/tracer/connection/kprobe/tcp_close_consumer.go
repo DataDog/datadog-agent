@@ -17,7 +17,6 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
@@ -61,8 +60,8 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
-		perfReceived: nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("tcp_close_consumer", perfReceivedStat, []string{}, "description")),
-		perfLost:     nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("tcp_close_consumer", perfLostStat, []string{}, "description")),
+		perfReceived: nettelemetry.NewStatGaugeWrapper("tcp_close_consumer", perfReceivedStat, []string{}, "description"),
+		perfLost:     nettelemetry.NewStatGaugeWrapper("tcp_close_consumer", perfLostStat, []string{}, "description"),
 	}
 	return c, nil
 }

@@ -118,9 +118,9 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 
 func newStats() stats {
 	return stats{
-		gets:                     nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("conntracker", "gets", []string{}, "description")),
+		gets:                     nettelemetry.NewStatGaugeWrapper("conntracker", "gets", []string{}, "description"),
 		getTimeTotal:             atomic.NewInt64(0),
-		registers:                nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("conntracker", "registers", []string{}, "description")),
+		registers:                nettelemetry.NewStatGaugeWrapper("conntracker", "registers", []string{}, "description"),
 		registersDropped:         atomic.NewInt64(0),
 		registersTotalTime:       atomic.NewInt64(0),
 		unregisters:              atomic.NewInt64(0),
@@ -130,7 +130,7 @@ func newStats() stats {
 		nanoSecondsPerRegister:   telemetry.NewGauge("conntracker", "nanoSecondsPerRegister", []string{}, "description"),
 		nanoSecondsPerUnRegister: telemetry.NewGauge("conntracker", "nanoSecondsPerUnregister", []string{}, "description"),
 		adamkStat:                telemetry.NewGauge("conntracker", "adamk_stat", []string{}, "description"),
-		adamkStat2:               nettelemetry.NewStatGaugeWrapper(telemetry.NewGauge("conntracker", "adamkStat2", []string{}, "description")),
+		adamkStat2:               nettelemetry.NewStatGaugeWrapper("conntracker", "adamkStat2", []string{}, "description"),
 	}
 }
 
@@ -199,6 +199,11 @@ func (ctr *realConntracker) RefreshTelemetry() {
 		ctr.stats.orphanSize.Set(float64(ctr.cache.orphans.Len()))
 		ctr.RUnlock()
 		ctr.consumer.GetStats()
+		registers := ctr.stats.registers.Load()
+		registersTotalTime := ctr.stats.registersTotalTime.Load()
+		if registers != 0 {
+			ctr.stats.nanoSecondsPerRegister.Set(float64(registersTotalTime / registers))
+		}
 		time.Sleep(time.Duration(10) * time.Second)
 	}
 }

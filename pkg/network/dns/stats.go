@@ -12,8 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,8 +66,8 @@ type dnsStatKeeper struct {
 	numStats         int
 	maxStats         int
 	droppedStats     int
-	lastNumStats     *atomic.Int32
-	lastDroppedStats *atomic.Int32
+	lastNumStats     telemetry.StatGaugeWrapper
+	lastDroppedStats telemetry.StatGaugeWrapper
 }
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
@@ -79,8 +78,8 @@ func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 		exit:             make(chan struct{}),
 		maxSize:          maxStateMapSize,
 		maxStats:         maxStats,
-		lastNumStats:     atomic.NewInt32(0),
-		lastDroppedStats: atomic.NewInt32(0),
+		lastNumStats:     telemetry.NewStatGaugeWrapper("dnsStatKeeper", "lastNumStats", []string{}, ""),
+		lastDroppedStats: telemetry.NewStatGaugeWrapper("dnsStatKeeper", "lastDroppedStats", []string{}, ""),
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)
@@ -171,7 +170,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
 	numStats := d.lastNumStats.Load()
 	droppedStats := d.lastDroppedStats.Load()
-	return numStats, droppedStats
+	return int32(numStats), int32(droppedStats)
 }
 
 func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
@@ -180,8 +179,8 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(StatsByKeyByNameByType)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
-	d.lastNumStats.Store(int32(d.numStats))
-	d.lastDroppedStats.Store(int32(d.droppedStats))
+	d.lastNumStats.Set(int64(d.numStats))
+	d.lastDroppedStats.Set(int64(d.droppedStats))
 	d.numStats = 0
 	d.droppedStats = 0
 	return ret
