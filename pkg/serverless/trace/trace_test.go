@@ -100,6 +100,24 @@ func TestFilterSpanFromLambdaLibraryOrRuntime(t *testing.T) {
 		},
 	}
 
+	spanFromDNSlocalhost := pb.Span{
+		Meta: map[string]string{
+			"dns.address": "127.0.0.1",
+		},
+	}
+
+	spanFromDNSNonRoutableAddress := pb.Span{
+		Meta: map[string]string{
+			"dns.address": "0.0.0.0",
+		},
+	}
+
+	spanFromTCPlocalhost := pb.Span{
+		Meta: map[string]string{
+			"tcp.remote.host": "127.0.0.1",
+		},
+	}
+
 	legitimateSpan := pb.Span{
 		Meta: map[string]string{
 			"http.url": "http://www.datadoghq.com",
@@ -109,5 +127,9 @@ func TestFilterSpanFromLambdaLibraryOrRuntime(t *testing.T) {
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaLibrary))
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaRuntime))
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromStatsD))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromDNSlocalhost))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromDNSNonRoutableAddress))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromTCPlocalhost))
 	assert.False(t, filterSpanFromLambdaLibraryOrRuntime(&legitimateSpan))
+
 }
