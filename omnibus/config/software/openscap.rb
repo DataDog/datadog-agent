@@ -6,10 +6,9 @@
 require './lib/cmake.rb'
 
 name 'openscap'
-default_version '1.2.17'
+default_version '1.3.6'
 
-version("1.3.6") { source sha256: "5e4d6c4addc15b2a0245b5caef80fda3020f1cac83ed4aa436ef3f1703d1d761060c931c2536fa68de7ad5bab002b79c8b2d1e5f7695d46249f4562f5a1569a0" }
-version("1.2.17") { source sha256: "8a8cea880193b092895e1094dcc1368f8f44d986cf0749166e5da40ab6214982" }
+version("1.3.6") { source sha256: "40634f2e27a542b112d2e3b374ebbef7e56af18a3d8ae78da2462ab0b1e4e6b7" }
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
@@ -34,27 +33,17 @@ relative_path "openscap-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  patch source: "fix_apt_key_pkgconfig.patch", env: env
   patch source: "get_results_from_session.patch", env: env
-  patch source: "5e5bc61c1fc6a6556665aa5689a62d6bc6487c74.patch", env: env
-  patch source: "apt-1.9.0.patch", env: env
-  patch source: "apt-1.9.11.patch", env: env
-  patch source: "dpkg-version-comparison-1.patch", env: env
-  patch source: "dpkg-version-comparison-2.patch", env: env
-  patch source: "dpkg-version-comparison-3.patch", env: env
-  patch source: "disable_ldap_probe.patch", env: env
+  patch source: "010_perlpm_install_fix.patch", env: env
 
-  env["CC"] = "/opt/gcc-8.4.0/bin/gcc"
-  env["CXX"] = "/opt/gcc-8.4.0/bin/g++"
+  env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
+  env["CXX"] = "/opt/gcc-10.4.0/bin/g++"
   env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
 
-  configure_options = [
-    "--disable-python",
-    "--disable-python3",
-    "--disable-static",
+  cmake_build_dir = "#{project_dir}/build"
+  cmake_options = [
+    "-DENABLE_PERL=OFF",
+    "-DENABLE_PYTHON3=OFF",
   ]
-  configure(*configure_options, env: env)
-
-  make "-j #{workers}", env: env
-  make "install", env: env
+  cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
 end

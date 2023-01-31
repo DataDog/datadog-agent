@@ -1,0 +1,23 @@
+From: Philippe Thierry <philou@debian.org>
+Date: Wed, 20 Jul 2022 09:38:12 +0200
+Subject: _perlpm_install_fix
+
+Forwarded: not-needed
+---
+ swig/perl/CMakeLists.txt | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/swig/perl/CMakeLists.txt b/swig/perl/CMakeLists.txt
+index 057b365..59dc1fa 100644
+--- a/swig/perl/CMakeLists.txt
++++ b/swig/perl/CMakeLists.txt
+@@ -20,7 +20,7 @@ if (APPLE OR (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD"))
+                 DESTINATION ${CMAKE_INSTALL_DATADIR}/perl5/vendor_perl)
+ else()
+         install(TARGETS ${SWIG_MODULE_openscap_pm_REAL_NAME}
+-               DESTINATION ${PERL_VENDORLIB})
++               DESTINATION ${CMAKE_INSTALL_LIBDIR}/perl5/${PERL_VERSION})
+         install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/openscap_pm.pm
+-               DESTINATION ${PERL_VENDORARCH})
++               DESTINATION ${CMAKE_INSTALL_DATADIR}/perl5/)
+ endif()
