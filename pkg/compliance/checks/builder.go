@@ -439,6 +439,20 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 }
 
 func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
+	ruleFilterModel := module.NewRuleFilterModel()
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+
+	accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+		Filters: rule.Filters,
+	})
+	if err != nil {
+		log.Errorf("failed to apply rule filters: %s", err)
+	}
+	if !accepted {
+		log.Infof("rule %s skipped - not matching constraints", rule.ID)
+		return nil, ErrRuleDoesNotApply
+	}
+
 	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
@@ -479,21 +493,6 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 	regoCheck := rego.NewCheck(rule)
 	if err := regoCheck.CompileRule(rule, ruleScope, meta, m); err != nil {
 		return nil, err
-	}
-
-	ruleFilterModel := module.NewRuleFilterModel()
-	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
-
-	accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
-		Filters: rule.Filters,
-	})
-	if err != nil {
-		log.Errorf("failed to apply rule filters: %s", err)
-	}
-
-	if !accepted {
-		log.Infof("rule %s skipped - not matching constraints", rule.ID)
-		return nil, ErrRuleDoesNotApply
 	}
 
 	var notify eventNotify
