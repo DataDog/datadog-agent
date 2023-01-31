@@ -228,7 +228,6 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	const targetURL = "https://127.0.0.1:443/200/foobar"
 	cmd := append(fetchCmd, targetURL)
 	requestCmd := exec.Command(cmd[0], cmd[1:]...)
-	var out []byte
 	out, err := requestCmd.CombinedOutput()
 	require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
 

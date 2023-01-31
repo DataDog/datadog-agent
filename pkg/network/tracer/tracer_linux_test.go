@@ -187,14 +187,17 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	require.NoError(t, err)
 	defer socketFile.Close()
 
-	// Enable BPF-based system probe
-	// this is done so that the server incoming/outgoing
-	// connection is not recorded. if this connection
-	// is recorded, it can lead to 11 connections being
-	// reported below instead of 10, since tcp stats
-	// can get attached to this connection (if there are
-	// pid collisions, we assign the tcp stats to one
-	// connection, which is the point of this test)
+	// Enable BPF-based system probe.
+	// normally this is done first thing in a test
+	// to collect all test traffic, but
+	// this is done late here so that the server
+	// incoming/outgoing connection is not recorded.
+	// if this connection is recorded, it can lead
+	// to 11 connections being reported below instead
+	// of 10, since tcp stats can get attached to
+	// this connection (if there are pid collisions,
+	// we assign the tcp stats to one connection randomly,
+	// which is the point of this test)
 	tr := setupTracer(t, testConfig())
 
 	const numProcesses = 10
