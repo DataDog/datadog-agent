@@ -67,6 +67,7 @@ build do
     "--without-cap",
     "--without-acl",
     "--without-audit",
+    "--without-readline",
     "--with-crypto=openssl",
     "--localstatedir=/var", # use /var/lib/rpm database from the system
     "--disable-static",
