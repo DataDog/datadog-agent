@@ -45,6 +45,8 @@ func newHTTPTestMonitor(t *testing.T) *Monitor {
 	cfg.EnableHTTPMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	t.Cleanup(monitor.Stop)
 	return monitor
 }
 
@@ -63,8 +65,6 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
 
 	monitor := newHTTPTestMonitor(t)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
 
 	client := nethttp.Client{}
 
@@ -105,8 +105,6 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
 
 	monitor := newHTTPTestMonitor(t)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
 
 	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
 	wg := sync.WaitGroup{}
@@ -325,8 +323,6 @@ func TestUnknownMethodRegression(t *testing.T) {
 	defer srvDoneFn()
 
 	monitor := newHTTPTestMonitor(t)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
 
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
 	for i := 0; i < 100; i++ {
@@ -347,8 +343,6 @@ func TestRSTPacketRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
 	monitor := newHTTPTestMonitor(t)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -384,8 +378,6 @@ func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
 	monitor := newHTTPTestMonitor(t)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -467,8 +459,6 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
 	monitor := newHTTPTestMonitor(t)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
 
 	// Perform a number of random requests
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
