@@ -444,7 +444,7 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
         }
 
         current_frame_header = &frames_to_process[iteration].header;
-        if (current_frame_header->type == !kHeadersFrame) {
+        if (current_frame_header->type != kHeadersFrame) {
             continue;
         }
 

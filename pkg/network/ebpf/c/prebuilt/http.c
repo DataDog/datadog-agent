@@ -52,7 +52,7 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
-    const __u64 skb_addr = (__u64)skb->hash;
+    const __u64 skb_addr = (__u64)skb;
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &skb_addr);
 
     if (tail_call_state == NULL) {
