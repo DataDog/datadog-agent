@@ -3,7 +3,7 @@
 
 #include "ktypes.h"
 
-#include "protocols/protocol-classification-defs.h"
+#include "protocols/classification/defs.h"
 
 #define bool _Bool
 #define true 1

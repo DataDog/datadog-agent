@@ -30,6 +30,9 @@
 #include "port.h"
 #include "tcp-recv.h"
 
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
+
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
 #endif

@@ -1,9 +1,10 @@
 #ifndef __AMQP_HELPERS_H
 #define __AMQP_HELPERS_H
 
-#include "amqp-defs.h"
 #include "bpf_endian.h"
-#include "protocol-classification-common.h"
+
+#include "protocols/amqp/defs.h"
+#include "protocols/classification/common.h"
 
 // The method checks if the given buffer includes the protocol header which must be sent in the start of a new connection.
 // Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf

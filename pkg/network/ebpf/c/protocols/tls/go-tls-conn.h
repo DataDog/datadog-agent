@@ -2,10 +2,11 @@
 #define __GO_TLS_CONN_H
 
 #include "bpf_helpers.h"
-#include "go-tls-types.h"
-#include "http-maps.h"
 #include "ip.h"
 #include "port_range.h"
+
+#include "protocols/http/maps.h"
+#include "protocols/tls/go-tls-types.h"
 
 // Implemented either in c/sock.h or c/prebuilt/sock.h
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);

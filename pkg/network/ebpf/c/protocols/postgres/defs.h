@@ -4,7 +4,7 @@
 // The minimum size we want to be able to check for a startup message. This size includes:
 // - The length field: 4 bytes
 // - The protocol major version: 2 bytes
-// - The protocol minior version: 2 bytes
+// - The protocol minor version: 2 bytes
 // - The "user" string, as the first connection parameter name: 5 bytes
 #define POSTGRES_STARTUP_MIN_LEN 13
 
