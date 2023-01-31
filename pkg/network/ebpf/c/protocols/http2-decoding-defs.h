@@ -81,8 +81,6 @@ typedef struct {
 } http2_stream_t;
 
 typedef struct {
-    conn_tuple_t tup __attribute__ ((aligned (8)));
-    skb_info_t skb_info;
     dynamic_table_index_t dynamic_index;
     http2_stream_key_t http2_stream_key;
     http2_stream_t http2_stream;
@@ -112,5 +110,15 @@ typedef struct {
 typedef struct {
     http2_frame_t array[HTTP2_MAX_FRAMES_PER_ITERATION];
 } http2_frames_t;
+
+typedef struct {
+    __u32 offset;
+    __u8 iteration;
+} http2_tail_call_state_t;
+
+typedef struct {
+    conn_tuple_t tup;
+    skb_info_t skb_info;
+} http2_iterations_key_t;
 
 #endif

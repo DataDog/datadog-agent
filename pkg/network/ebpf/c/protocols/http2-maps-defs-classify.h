@@ -6,15 +6,8 @@
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
 BPF_LRU_MAP(http2_in_flight, http2_stream_key_t, http2_stream_t, 0)
 
-typedef struct {
-    conn_tuple_t tup;
-    skb_info_t skb_info;
-    __u32 offset;
-    __u8 iteration;
-} http2_tail_call_state_t;
-
 /* thread_struct id too bi1g for allocation on stack in eBPF function, we use an array as a heap allocator */
-BPF_LRU_MAP(http2_iterations, __u64, http2_tail_call_state_t, 1024)
+BPF_LRU_MAP(http2_iterations, http2_iterations_key_t, http2_tail_call_state_t, 1024)
 
 BPF_PERCPU_ARRAY_MAP(http2_heap_buffer, __u32, heap_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, __u32, http2_headers_t, 1)
