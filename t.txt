@@ -1,0 +1,125 @@
+ ___669TestProto-172192  [001] .... 28236.502097: 0: kafka: fill_kafka_header: kafka_context->api_key1: 3
+ ___669TestProto-172192  [001] .... 28236.502098: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+ ___669TestProto-172192  [001] .... 28236.502098: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+ ___669TestProto-172192  [001] .... 28236.502100: 0: kafka: is_kafka: kafka_context->offset: 0
+ ___669TestProto-172192  [001] .... 28236.502101: 0: kafka: message size: 44
+ ___669TestProto-172192  [001] .... 28236.502101: 0: kafka: api key: 0
+ ___669TestProto-172192  [001] .... 28236.502101: 0: kafka: api version: 12
+ ___669TestProto-172192  [001] .... 28236.502102: 0: kafka: correlation id: 0
+ ___669TestProto-172192  [001] .... 28236.502102: 0: kafka: client_id_size: 0 ___669TestProto-172192  [001] .... 28236.502103: 0: kafka: trying to parse produce request
+ ___669TestProto-172192  [001] .... 28236.502103: 0: kafka: Produce request version 9 and above is not supported: 12
+ ___669TestProto-172192  [001] ..s1 28236.502115: 0: kafka: fill_kafka_header: kafka_context->api_key1: 3
+ ___669TestProto-172192  [001] ..s1 28236.502115: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+ ___669TestProto-172192  [001] ..s1 28236.502116: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+ ___669TestProto-172192  [001] ..s1 28236.502116: 0: kafka: is_kafka: kafka_context->offset: 0
+ ___669TestProto-172192  [001] ..s1 28236.502116: 0: kafka: message size: 44
+ ___669TestProto-172192  [001] ..s1 28236.502117: 0: kafka: api key: 0
+ ___669TestProto-172192  [001] ..s1 28236.502117: 0: kafka: api version: 12
+ ___669TestProto-172192  [001] ..s1 28236.502117: 0: kafka: correlation id: 0
+ ___669TestProto-172192  [001] ..s1 28236.502118: 0: kafka: client_id_size: 0 ___669TestProto-172192  [001] ..s1 28236.502118: 0: kafka: trying to parse produce request
+ ___669TestProto-172192  [001] ..s1 28236.502119: 0: kafka: Produce request version 9 and above is not supported: 12
+    docker-proxy-81272   [003] .... 28236.502392: 0: kafka: fill_kafka_header: kafka_context->api_key1: 3
+    docker-proxy-81272   [003] .... 28236.502393: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+    docker-proxy-81272   [003] .... 28236.502393: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+    docker-proxy-81272   [003] .... 28236.502393: 0: kafka: is_kafka: kafka_context->offset: 0
+    docker-proxy-81272   [003] .... 28236.502394: 0: kafka: message size: 44
+    docker-proxy-81272   [003] .... 28236.502395: 0: kafka: api key: 0
+    docker-proxy-81272   [003] .... 28236.502395: 0: kafka: api version: 12
+    docker-proxy-81272   [003] .... 28236.502396: 0: kafka: correlation id: 0
+    docker-proxy-81272   [003] .... 28236.502396: 0: kafka: client_id_size: 0    docker-proxy-81272   [003] .... 28236.502396: 0: kafka: trying to parse produce request
+    docker-proxy-81272   [003] .... 28236.502397: 0: kafka: Produce request version 9 and above is not supported: 12
+    docker-proxy-81272   [003] .... 28236.502402: 0: kafka: fill_kafka_header: kafka_context->api_key1: 3
+    docker-proxy-81272   [003] .... 28236.502402: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+    docker-proxy-81272   [003] .... 28236.502402: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+    docker-proxy-81272   [003] .... 28236.502403: 0: kafka: is_kafka: kafka_context->offset: 0
+    docker-proxy-81272   [003] .... 28236.502403: 0: kafka: message size: 44
+    docker-proxy-81272   [003] .... 28236.502403: 0: kafka: api key: 0
+    docker-proxy-81272   [003] .... 28236.502404: 0: kafka: api version: 12
+    docker-proxy-81272   [003] .... 28236.502404: 0: kafka: correlation id: 0
+    docker-proxy-81272   [003] .... 28236.502404: 0: kafka: client_id_size: 0    docker-proxy-81272   [003] .... 28236.502405: 0: kafka: trying to parse produce request
+    docker-proxy-81272   [003] .... 28236.502405: 0: kafka: Produce request version 9 and above is not supported: 12
+ data-plane-kafk-42652   [000] ..s1 28236.509527: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
+ data-plane-kafk-42652   [000] ..s1 28236.509527: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+ data-plane-kafk-42652   [000] ..s1 28236.509528: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+ data-plane-kafk-42652   [000] ..s1 28236.509529: 0: kafka: is_kafka: kafka_context->offset: 0
+ data-plane-kafk-42652   [000] ..s1 28236.509530: 0: kafka: message size: 122
+ data-plane-kafk-42652   [000] ..s1 28236.509562: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
+ data-plane-kafk-42652   [000] ..s1 28236.509563: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+ data-plane-kafk-42652   [000] ..s1 28236.509563: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+ data-plane-kafk-42652   [000] ..s1 28236.509564: 0: kafka: is_kafka: kafka_context->offset: 0
+ data-plane-kafk-42652   [000] ..s1 28236.509564: 0: kafka: message size: 122
+    docker-proxy-81272   [003] .... 28236.509866: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
+    docker-proxy-81272   [003] .... 28236.509869: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+    docker-proxy-81272   [003] .... 28236.509870: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+    docker-proxy-81272   [003] .... 28236.509870: 0: kafka: is_kafka: kafka_context->offset: 0
+    docker-proxy-81272   [003] .... 28236.509871: 0: kafka: message size: 122
+    docker-proxy-81272   [003] ..s1 28236.509878: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
+    docker-proxy-81272   [003] ..s1 28236.509878: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+    docker-proxy-81272   [003] ..s1 28236.509879: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+    docker-proxy-81272   [003] ..s1 28236.509879: 0: kafka: is_kafka: kafka_context->offset: 0
+    docker-proxy-81272   [003] ..s1 28236.509880: 0: kafka: message size: 122
+ ___669TestProto-172192  [002] .... 28236.510952: 0: kafka: fill_kafka_header: kafka_context->api_key1: 22
+ ___669TestProto-172192  [002] .... 28236.510953: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+ ___669TestProto-172192  [002] .... 28236.510954: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+ ___669TestProto-172192  [002] .... 28236.510955: 0: kafka: is_kafka: kafka_context->offset: 0
+ ___669TestProto-172192  [002] .... 28236.510955: 0: kafka: message size: 27
+ ___669TestProto-172192  [002] .... 28236.510955: 0: kafka: api key: 0
+ ___669TestProto-172192  [002] .... 28236.510956: 0: kafka: api version: 4
+ ___669TestProto-172192  [002] .... 28236.510957: 0: kafka: correlation id: 3
+ ___669TestProto-172192  [002] .... 28236.510957: 0: kafka: client_id_size: 0 ___669TestProto-172192  [002] .... 28236.510958: 0: kafka: trying to parse produce request
+ ___669TestProto-172192  [002] .... 28236.510959: 0: kafka: transactional_id_size: 0
+ ___669TestProto-172192  [002] .... 28236.510959: 0: kafka: required acks: 0
+ ___669TestProto-172192  [002] .... 28236.510960: 0: kafka: timeout ms: 27
+    docker-proxy-81272   [003] .... 28236.514513: 0: kafka: fill_kafka_header: kafka_context->api_key1: 22
+    docker-proxy-81272   [003] .... 28236.514514: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+    docker-proxy-81272   [003] .... 28236.514514: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+    docker-proxy-81272   [003] .... 28236.514515: 0: kafka: is_kafka: kafka_context->offset: 0
+    docker-proxy-81272   [003] .... 28236.514515: 0: kafka: message size: 27
+    docker-proxy-81272   [003] .... 28236.514515: 0: kafka: api key: 0
+    docker-proxy-81272   [003] .... 28236.514516: 0: kafka: api version: 4
+    docker-proxy-81272   [003] .... 28236.514516: 0: kafka: correlation id: 3
+    docker-proxy-81272   [003] .... 28236.514517: 0: kafka: client_id_size: 0    docker-proxy-81272   [003] .... 28236.514517: 0: kafka: trying to parse produce request
+    docker-proxy-81272   [003] .... 28236.514518: 0: kafka: transactional_id_size: 0
+    docker-proxy-81272   [003] .... 28236.514518: 0: kafka: required acks: 0
+    docker-proxy-81272   [003] .... 28236.514519: 0: kafka: timeout ms: 27
+ ___669TestProto-172187  [001] .... 28236.520070: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
+ ___669TestProto-172187  [001] .... 28236.520071: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+ ___669TestProto-172187  [001] .... 28236.520072: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+ ___669TestProto-172187  [001] .... 28236.520072: 0: kafka: is_kafka: kafka_context->offset: 0
+ ___669TestProto-172187  [001] .... 28236.520073: 0: kafka: message size: 120
+ ___669TestProto-172187  [001] .... 28236.520073: 0: kafka: api key: 0
+ ___669TestProto-172187  [001] .... 28236.520074: 0: kafka: api version: 9
+ ___669TestProto-172187  [001] .... 28236.520075: 0: kafka: correlation id: 0
+ ___669TestProto-172187  [001] .... 28236.520075: 0: kafka: client_id_size: 0 ___669TestProto-172187  [001] .... 28236.520077: 0: kafka: trying to parse produce request
+ ___669TestProto-172187  [001] .... 28236.520078: 0: kafka: Produce request version 9 and above is not supported: 9
+ ___669TestProto-172187  [001] ..s1 28236.520085: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
+ ___669TestProto-172187  [001] ..s1 28236.520086: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+ ___669TestProto-172187  [001] ..s1 28236.520086: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+ ___669TestProto-172187  [001] ..s1 28236.520086: 0: kafka: is_kafka: kafka_context->offset: 0
+ ___669TestProto-172187  [001] ..s1 28236.520087: 0: kafka: message size: 120
+ ___669TestProto-172187  [001] ..s1 28236.520087: 0: kafka: api key: 0
+ ___669TestProto-172187  [001] ..s1 28236.520088: 0: kafka: api version: 9
+ ___669TestProto-172187  [001] ..s1 28236.520088: 0: kafka: correlation id: 0
+ ___669TestProto-172187  [001] ..s1 28236.520088: 0: kafka: client_id_size: 0 ___669TestProto-172187  [001] ..s1 28236.520088: 0: kafka: trying to parse produce request
+ ___669TestProto-172187  [001] ..s1 28236.520089: 0: kafka: Produce request version 9 and above is not supported: 9
+    docker-proxy-42330   [000] .... 28236.522731: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
+    docker-proxy-42330   [000] .... 28236.522732: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+    docker-proxy-42330   [000] .... 28236.522732: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+    docker-proxy-42330   [000] .... 28236.522733: 0: kafka: is_kafka: kafka_context->offset: 0
+    docker-proxy-42330   [000] .... 28236.522733: 0: kafka: message size: 120
+    docker-proxy-42330   [000] .... 28236.522734: 0: kafka: api key: 0
+    docker-proxy-42330   [000] .... 28236.522734: 0: kafka: api version: 9
+    docker-proxy-42330   [000] .... 28236.522734: 0: kafka: correlation id: 0
+    docker-proxy-42330   [000] .... 28236.522735: 0: kafka: client_id_size: 0    docker-proxy-42330   [000] .... 28236.522735: 0: kafka: trying to parse produce request
+    docker-proxy-42330   [000] .... 28236.522736: 0: kafka: Produce request version 9 and above is not supported: 9
+    docker-proxy-42330   [000] .... 28236.522741: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
+    docker-proxy-42330   [000] .... 28236.522742: 0: kafka: fill_kafka_header: kafka_context->api_key2: 0
+    docker-proxy-42330   [000] .... 28236.522742: 0: kafka: fill_kafka_header: kafka_context->offset: 0
+    docker-proxy-42330   [000] .... 28236.522743: 0: kafka: is_kafka: kafka_context->offset: 0
+    docker-proxy-42330   [000] .... 28236.522743: 0: kafka: message size: 120
+    docker-proxy-42330   [000] .... 28236.522743: 0: kafka: api key: 0
+    docker-proxy-42330   [000] .... 28236.522744: 0: kafka: api version: 9
+    docker-proxy-42330   [000] .... 28236.522744: 0: kafka: correlation id: 0
+    docker-proxy-42330   [000] .... 28236.522744: 0: kafka: client_id_size: 0    docker-proxy-42330   [000] .... 28236.522744: 0: kafka: trying to parse produce request
+    docker-proxy-42330   [000] .... 28236.522745: 0: kafka: Produce request version 9 and above is not supported: 9
+ data-plane-kafk-42650   [000] ..s1 28236.528656: 0: kafka: fill_kafka_header: kafka_context->api_key1: 0
