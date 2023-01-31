@@ -14,11 +14,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	nethttp "net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -572,15 +574,19 @@ func TestJavaInjection(t *testing.T) {
 	log.SetupLogger(seelog.Default, "debug")
 
 	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableJavaTLSSupport = true
 
-	agentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
-	require.NoError(t, err)
-	defer os.RemoveAll(agentDir)
-	cfg.JavaDir = agentDir
 	dir, _ := testutil.CurDir()
-	_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/")
-	require.NoError(t, err)
+	{ // create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
+		agentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
+		require.NoError(t, err)
+		defer os.RemoveAll(agentDir)
+		cfg.JavaDir = agentDir
+		_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/agent-usm.jar")
+		require.NoError(t, err)
+	}
 
 	// testContext shares the context of a given test.
 	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
@@ -592,9 +598,6 @@ func TestJavaInjection(t *testing.T) {
 		extras map[string]interface{}
 	}
 
-	validateInjection := func(t *testing.T, ctx testContext, tr *Tracer) {
-		t.Log("validation")
-	}
 	tests := []struct {
 		name            string
 		context         testContext
@@ -610,11 +613,27 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.InjectJavaVersion(t, "openjdk:21-oraclelinux8")
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.InjectJavaVersion(t, "openjdk:21-oraclelinux8")
+				// if InjectJavaVersion failing to start it's probably because the java process has not been injected
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
 			},
-			validation: validateInjection,
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+				os.Remove(testfile)
+			},
 		},
 	}
 	for _, tt := range tests {
