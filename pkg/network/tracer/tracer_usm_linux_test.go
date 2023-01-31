@@ -26,13 +26,14 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/sys/unix"
-
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -41,6 +42,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type connTag = uint64
@@ -562,6 +564,75 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		gRPCServer.Stop()
 		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, network.ProtocolHTTP2)
 	})
+}
+
+// Java Injection and TLS tests
+
+func TestJavaInjection(t *testing.T) {
+	log.SetupLogger(seelog.Default, "debug")
+
+	cfg := testConfig()
+	cfg.EnableJavaTLSSupport = true
+
+	agentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
+	require.NoError(t, err)
+	defer os.RemoveAll(agentDir)
+	cfg.JavaDir = agentDir
+	dir, _ := testutil.CurDir()
+	_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/")
+	require.NoError(t, err)
+
+	// testContext shares the context of a given test.
+	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
+	// attributes to the `extras` map.
+	type testContext struct {
+		// A channel to mark goroutines (like servers) to halt.
+		done chan struct{}
+		// A dynamic map that allows extending the context easily between phases of the test.
+		extras map[string]interface{}
+	}
+
+	validateInjection := func(t *testing.T, ctx testContext, tr *Tracer) {
+		t.Log("validation")
+	}
+	tests := []struct {
+		name            string
+		context         testContext
+		preTracerSetup  func(t *testing.T, ctx testContext)
+		postTracerSetup func(t *testing.T, ctx testContext)
+		validation      func(t *testing.T, ctx testContext, tr *Tracer)
+		teardown        func(t *testing.T, ctx testContext)
+	}{
+		{
+			// Test the java hotspot injection is working
+			name: "java_hotspot_injection",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.InjectJavaVersion(t, "openjdk:21-oraclelinux8")
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+			},
+			validation: validateInjection,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.context.done = make(chan struct{})
+			if tt.teardown != nil {
+				t.Cleanup(func() {
+					tt.teardown(t, tt.context)
+				})
+			}
+			if tt.preTracerSetup != nil {
+				tt.preTracerSetup(t, tt.context)
+			}
+			tr := setupTracer(t, cfg)
+			tt.postTracerSetup(t, tt.context)
+			tt.validation(t, tt.context, tr)
+		})
+	}
 }
 
 // GoTLS test
