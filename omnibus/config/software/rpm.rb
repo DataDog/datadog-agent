@@ -59,6 +59,7 @@ build do
   configure_options = [
     "--enable-sqlite=yes",
     "--enable-bdb=no",
+    "--enable-bdb-ro=yes",
     "--disable-nls",
     "--disable-openmp",
     "--disable-plugins",
