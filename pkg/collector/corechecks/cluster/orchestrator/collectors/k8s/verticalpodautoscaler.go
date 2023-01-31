@@ -48,7 +48,7 @@ func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 			SupportsManifestBuffering: true,
 			Name:                      "verticalpodautoscalers",
 			NodeType:                  orchestrator.K8sVerticalPodAutoscaler,
-			Version:                   "v1",
+			Version:                   "autoscaling.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.VerticalPodAutoscalerHandlers)),
 	}
