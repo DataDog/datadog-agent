@@ -3,12 +3,12 @@
 
 #include "ktypes.h"
 
-#include "amqp-defs.h"
-#include "http-classification-defs.h"
-#include "http2-defs.h"
-#include "mongo-defs.h"
-#include "redis-defs.h"
-#include "sql-defs.h"
+#include "protocols/amqp/defs.h"
+#include "protocols/http/classification-defs.h"
+#include "protocols/http2/defs.h"
+#include "protocols/mongo/defs.h"
+#include "protocols/redis/defs.h"
+#include "protocols/sql/defs.h"
 
 // Represents the max buffer size required to classify protocols .
 // We need to round it to be multiplication of 16 since we are reading blocks of 16 bytes in read_into_buffer_skb_all_kernels.

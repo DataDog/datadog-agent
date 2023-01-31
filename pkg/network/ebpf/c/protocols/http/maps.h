@@ -1,11 +1,12 @@
 #ifndef __HTTP_MAPS_H
 #define __HTTP_MAPS_H
 
-#include "tracer.h"
 #include "bpf_helpers.h"
-#include "http-types.h"
-#include "go-tls-types.h"
 #include "map-defs.h"
+#include "tracer.h"
+
+#include "protocols/http/types.h"
+#include "protocols/tls/go-tls-types.h"
 
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
 BPF_LRU_MAP(http_in_flight, conn_tuple_t, http_transaction_t, 0)

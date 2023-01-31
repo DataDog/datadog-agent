@@ -2,7 +2,8 @@
 #define __SQL_HELPERS_H
 
 #include "bpf_builtins.h"
-#include "sql-defs.h"
+
+#include "protocols/sql/defs.h"
 
 // Check that we can read the amount of memory we want, then to the comparison.
 // Note: we use `sizeof(command) - 1` to *not* compare with the null-terminator of

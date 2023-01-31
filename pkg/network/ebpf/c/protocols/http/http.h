@@ -4,10 +4,11 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "tracer.h"
-#include "http-types.h"
-#include "http-maps.h"
-#include "https.h"
-#include "events.h"
+
+#include "protocols/events.h"
+#include "protocols/http/types.h"
+#include "protocols/http/maps.h"
+#include "protocols/tls/https.h"
 
 USM_EVENTS_INIT(http, http_transaction_t, HTTP_BATCH_SIZE);
 

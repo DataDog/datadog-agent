@@ -3,20 +3,19 @@
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
 #include "tracer.h"
-
-#include "protocols/protocol-classification-tracer-maps.h"
-#include "protocols/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "sockfd.h"
 #include "tcp-recv.h"
-
 #include "bpf_endian.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "port.h"
+
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
 
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>

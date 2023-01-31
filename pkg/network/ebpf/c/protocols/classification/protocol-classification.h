@@ -1,19 +1,20 @@
 #ifndef __PROTOCOL_CLASSIFICATION_H
 #define __PROTOCOL_CLASSIFICATION_H
 
-#include "protocol-classification-common.h"
-#include "protocol-classification-defs.h"
-#include "protocol-classification-maps.h"
-#include "protocol-classification-structs.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
-#include "amqp-helpers.h"
-#include "http-classification-helpers.h"
-#include "http2-helpers.h"
-#include "mongo-helpers.h"
-#include "redis-helpers.h"
-#include "postgres-helpers.h"
+
+#include "protocols/amqp/helpers.h"
+#include "protocols/classification/common.h"
+#include "protocols/classification/defs.h"
+#include "protocols/classification/maps.h"
+#include "protocols/classification/structs.h"
+#include "protocols/http/classification-helpers.h"
+#include "protocols/http2/helpers.h"
+#include "protocols/mongo/helpers.h"
+#include "protocols/redis/helpers.h"
+#include "protocols/postgres/helpers.h"
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.

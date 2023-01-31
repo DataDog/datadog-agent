@@ -15,16 +15,17 @@
 #endif
 
 #include "bpf_builtins.h"
-#include "go-tls-types.h"
-#include "http-buffer.h"
-#include "http-types.h"
-#include "http-maps.h"
-#include "http.h"
 #include "port_range.h"
 #include "sockfd.h"
-#include "tags-types.h"
-#include "protocol-dispatcher-helpers.h"
-#include "protocol-dispatcher-maps.h"
+
+#include "protocols/classification/dispatcher-helpers.h"
+#include "protocols/classification/dispatcher-maps.h"
+#include "protocols/http/buffer.h"
+#include "protocols/http/types.h"
+#include "protocols/http/maps.h"
+#include "protocols/http/http.h"
+#include "protocols/tls/tags-types.h"
+#include "protocols/tls/go-tls-types.h"
 
 #define HTTPS_PORT 443
 

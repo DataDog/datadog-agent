@@ -1,8 +1,9 @@
 #ifndef __PROTOCOL_DISPATCHER_MAPS_H
 #define __PROTOCOL_DISPATCHER_MAPS_H
 
-#include "protocol-classification-defs.h"
 #include "map-defs.h"
+
+#include "protocols/classification/defs.h"
 
 // Maps a connection tuple to latest tcp segment we've processed. Helps to detect same packets that travels multiple
 // interfaces or retransmissions.

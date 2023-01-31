@@ -6,6 +6,7 @@
 package containerimage
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -77,22 +78,48 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		})
 	}
 
-	p.queue <- &model.ContainerImage{
-		Id:          img.ID,
-		Name:        img.Name,
-		Registry:    img.Registry,
-		ShortName:   img.ShortName,
-		Tags:        img.RepoTags,
-		Digest:      img.ID,
-		Size:        img.SizeBytes,
-		RepoDigests: img.RepoDigests,
-		Os: &model.ContainerImage_OperatingSystem{
-			Name:         img.OS,
-			Version:      img.OSVersion,
-			Architecture: img.Architecture,
-		},
-		Layers:  layers,
-		BuiltAt: lastCreated,
+	for _, repoDigest := range img.RepoDigests {
+		repo := strings.SplitN(repoDigest, "@sha256:", 2)[0]
+		repoSplitted := strings.Split(repo, "/")
+		registry := ""
+		if len(repoSplitted) > 2 {
+			registry = repoSplitted[0]
+		}
+		shortName := repoSplitted[len(repoSplitted)-1]
+
+		id := repo + "@" + img.ID
+
+		tags := make([]string, 0, len(img.RepoTags))
+		for _, repoTag := range img.RepoTags {
+			if strings.HasPrefix(repoTag, repo+":") {
+				tags = append(tags, strings.SplitN(repoTag, ":", 2)[1])
+			}
+		}
+
+		repoDigests := make([]string, 0, 1)
+		for _, repoDigest := range img.RepoDigests {
+			if strings.HasPrefix(repoDigest, repo+"@sha256:") {
+				repoDigests = append(repoDigests, repoDigest)
+			}
+		}
+
+		p.queue <- &model.ContainerImage{
+			Id:          id,
+			Name:        repo,
+			Registry:    registry,
+			ShortName:   shortName,
+			Tags:        tags,
+			Digest:      img.ID,
+			Size:        img.SizeBytes,
+			RepoDigests: repoDigests,
+			Os: &model.ContainerImage_OperatingSystem{
+				Name:         img.OS,
+				Version:      img.OSVersion,
+				Architecture: img.Architecture,
+			},
+			Layers:  layers,
+			BuiltAt: lastCreated,
+		}
 	}
 }
 

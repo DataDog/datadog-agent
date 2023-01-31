@@ -1,9 +1,8 @@
 #ifndef __MONGO_HELPERS_H
 #define __MONGO_HELPERS_H
 
-
-#include "mongo-defs.h"
-#include "protocol-classification-common.h"
+#include "protocols/classification/common.h"
+#include "protocols/mongo/defs.h"
 
 static __always_inline void mongo_handle_request(conn_tuple_t *tup, __s32 request_id) {
     // mongo_request_id acts as a set, and we only check for existence in that set.
