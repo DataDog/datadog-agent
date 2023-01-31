@@ -401,6 +401,9 @@ func TestTCPOverIPv6(t *testing.T) {
 }
 
 func TestTCPCollectionDisabled(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Test disabled on Windows")
+	}
 	// Enable BPF-based system probe with TCP disabled
 	config := testConfig()
 	config.CollectTCPConns = false

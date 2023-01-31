@@ -265,9 +265,22 @@ func (p *GoTLSProgram) Stop() {
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	exePath := filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
+
 	binPath, err := os.Readlink(exePath)
 	if err != nil {
-		log.Debugf(" could not read binary path for pid %d: %s", pid, err)
+		// We receive the Exec event, /proc could be slow to update
+		end := time.Now().Add(10 * time.Millisecond)
+		for end.After(time.Now()) {
+			binPath, err = os.Readlink(exePath)
+			if err == nil {
+				break
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	if err != nil {
+		// we can't access to the binary path here (pid probably ended already)
+		// there are not much we can do and we don't want to flood the logs
 		return
 	}
 
@@ -303,7 +316,10 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 	var err error
 	defer func() {
 		if err != nil {
-			log.Debugf("could not hook new binary %q for process %d: %s", binPath, pid, err)
+			// report hooking issue only if we detect properly a golang binary
+			if !errors.Is(err, binversion.ErrNotGoExe) {
+				log.Debugf("could not hook new binary %q for process %d: %s", binPath, pid, err)
+			}
 			p.unregisterProcess(pid)
 			return
 		}
@@ -326,9 +342,7 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 
 	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
 	if err != nil {
-		if !errors.Is(err, binversion.ErrNotGoExe) {
-			err = fmt.Errorf("error reading exe: %w", err)
-		}
+		err = fmt.Errorf("error reading exe: %w", err)
 		return
 	}
 
@@ -399,7 +413,6 @@ func (p *GoTLSProgram) unregisterProcess(pid pid) {
 	bin.processCount -= 1
 
 	if bin.processCount == 0 {
-		log.Debugf("no processes left for binID %v", bin.binID)
 		p.unhookBinary(bin)
 		delete(p.binaries, binID)
 	}
