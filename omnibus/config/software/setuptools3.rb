@@ -16,12 +16,12 @@ build do
   license "Python-2.0"
 
   if ohai["platform"] == "windows"
-    pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
+    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   else
-    pip = "#{install_dir}/embedded/bin/pip3"
+    python = "#{install_dir}/embedded/bin/python3"
   end
 
-  command "#{pip} install ."
+  command "#{python} -m pip install ."
 
   if ohai["platform"] != "windows"
     block do

@@ -90,7 +90,7 @@ else
     command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
 
     # Install pip
-    python_bin = "#{windows_safe_path(python_3_embedded)}\\python.exe"
-    command "#{python_bin} -m ensurepip"
+    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
+    command "#{python} -m ensurepip"
   end
 end
