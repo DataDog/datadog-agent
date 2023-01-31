@@ -439,6 +439,11 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 }
 
 func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
+	// skip rules with Xccdf input if compliance_config.xccdf.enabled is no optin
+	if !config.Datadog.GetBool("compliance_config.xccdf.enabled") && rule.HasResourceKind(compliance.KindXccdf) {
+		return nil, ErrRuleDoesNotApply
+	}
+
 	if len(rule.Filters) > 0 {
 		ruleFilterModel := module.NewRuleFilterModel()
 		seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
