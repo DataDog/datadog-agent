@@ -184,7 +184,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	var undefinedProbes []manager.ProbeIdentificationPair
 
 	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported(config) {
+	if ClassificationSupported(config) && config.CollectTCPConns {
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
 			EBPFSection:  string(probes.ProtocolClassifierEntrySocketFilter),
 			EBPFFuncName: mainProbes[probes.ProtocolClassifierEntrySocketFilter],
