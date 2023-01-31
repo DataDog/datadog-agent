@@ -168,8 +168,6 @@ func TestTCPRetransmit(t *testing.T) {
 }
 
 func TestTCPRetransmitSharedSocket(t *testing.T) {
-	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -188,6 +186,16 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	socketFile, err := c.(*net.TCPConn).File()
 	require.NoError(t, err)
 	defer socketFile.Close()
+
+	// Enable BPF-based system probe
+	// this is done so that the server incoming/outgoing
+	// connection is not recorded. if this connection
+	// is recorded, it can lead to 11 connections being
+	// reported below instead of 10, since tcp stats
+	// can get attached to this connection (if there are
+	// pid collisions, we assign the tcp stats to one
+	// connection, which is the point of this test)
+	tr := setupTracer(t, testConfig())
 
 	const numProcesses = 10
 	iptablesWrapper(t, func() {
@@ -411,6 +419,7 @@ func TestConntrackExpiration(t *testing.T) {
 	// conntrack should still have the connection information since the connection is still
 	// alive
 	tr.config.TCPConnTimeout = time.Duration(-1)
+	_ = getConnections(t, tr)
 
 	assert.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should not have been deleted")
 
@@ -418,6 +427,7 @@ func TestConntrackExpiration(t *testing.T) {
 	cmd := exec.Command("conntrack", "-D", "-s", c.LocalAddr().(*net.TCPAddr).IP.String(), "-d", c.RemoteAddr().(*net.TCPAddr).IP.String(), "-p", "tcp")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "conntrack delete failed, output: %s", out)
+	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
 }
@@ -596,7 +606,7 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	require.NoError(t, tr.start(), "could not start tracer")
 	defer tr.Stop()
 
-	getConnections(t, tr)
+	initTracerState(t, tr)
 
 	dnsClientAddr, dnsServerAddr := doDNSQuery(t, "google.com", "8.8.8.8")
 
@@ -643,7 +653,7 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 	require.NoError(t, tr.start(), "failed to start tracer")
 	defer tr.Stop()
 
-	getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// do two dns queries to prompt more than one subnet lookup attempt
 	localAddr, remoteAddr := doDNSQuery(t, "google.com", "8.8.8.8")
@@ -974,7 +984,6 @@ func TestSelfConnect(t *testing.T) {
 	cfg := testConfig()
 	cfg.TCPConnTimeout = 3 * time.Second
 	tr := setupTracer(t, cfg)
-	getConnections(t, tr)
 
 	started := make(chan struct{})
 	cmd := exec.Command("testdata/fork.py")
