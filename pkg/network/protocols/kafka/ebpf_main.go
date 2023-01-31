@@ -121,6 +121,14 @@ func (e *ebpfProgram) Init() error {
 	//	return fmt.Errorf("couldn't determine number of CPUs: %w", err)
 	//}
 
+	var undefinedProbes []manager.ProbeIdentificationPair
+	for _, tc := range tailCalls {
+		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
+	}
+	e.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
+	}
+
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
