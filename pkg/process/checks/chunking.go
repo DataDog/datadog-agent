@@ -12,7 +12,7 @@ import (
 )
 
 // chunkProcessesBySizeAndWeight chunks `model.Process` payloads by max allowed size and max allowed weight of a chunk
-func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container, maxChunkSize, maxChunkWeight int, chunker *util.ChunkAllocator[model.CollectorProc, model.Process]) {
+func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container, maxChunkSize, maxChunkWeight int, chunker *util.ChunkAllocator[model.CollectorProc, *model.Process]) {
 	if ctr != nil && len(procs) == 0 {
 		// can happen in two scenarios, and we still need to report the container
 		// a) if a process is skipped (e.g. disallowlisted)
@@ -33,20 +33,20 @@ func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container,
 			t.Containers = append(t.Containers, ctr)
 		}
 	}
-	list := &util.PayloadList[model.Process]{
+	list := &util.PayloadList[*model.Process]{
 		Items: procs,
 		WeightAt: func(i int) int {
 			return weighProcess(procs[i])
 		},
 	}
-	util.ChunkPayloadsBySizeAndWeight[model.CollectorProc, model.Process](list, chunker, maxChunkSize, maxChunkWeight)
+	util.ChunkPayloadsBySizeAndWeight[model.CollectorProc, *model.Process](list, chunker, maxChunkSize, maxChunkWeight)
 }
 
-func appendContainerWithoutProcesses(ctr *model.Container, collectorProcs *[]*model.CollectorProc) {
+func appendContainerWithoutProcesses(ctr *model.Container, collectorProcs *[]model.CollectorProc) {
 	if len(*collectorProcs) == 0 {
-		*collectorProcs = append(*collectorProcs, &model.CollectorProc{})
+		*collectorProcs = append(*collectorProcs, model.CollectorProc{})
 	}
-	collectorProc := (*collectorProcs)[len(*collectorProcs)-1]
+	collectorProc := &(*collectorProcs)[len(*collectorProcs)-1]
 	collectorProc.Containers = append(collectorProc.Containers, ctr)
 }
 

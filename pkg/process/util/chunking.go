@@ -24,7 +24,8 @@ type chunkProps struct {
 }
 
 type AppendToChunk[T any, P any] func(t *T, ps []P)
-type NewChunk[T any] func() *T
+
+// type NewChunk[T any] func() T
 type OnAccept[T any] func(t *T)
 
 // ChunkAllocator abstracts management operations for chunk allocation

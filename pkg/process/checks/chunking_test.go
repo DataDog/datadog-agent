@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,7 +36,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 		procsByCtr     map[string][]*model.Process
 		maxChunkSize   int
 		maxChunkWeight int
-		expectedChunks []*model.CollectorProc
+		expectedChunks []model.CollectorProc
 	}{
 		{
 			name: "chunk by size only",
@@ -61,7 +60,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 			},
 			maxChunkSize:   3,
 			maxChunkWeight: 1000,
-			expectedChunks: []*model.CollectorProc{
+			expectedChunks: []model.CollectorProc{
 				{
 					Containers: []*model.Container{
 						ctr("foo"),
@@ -109,7 +108,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 			},
 			maxChunkSize:   3,
 			maxChunkWeight: 1000,
-			expectedChunks: []*model.CollectorProc{
+			expectedChunks: []model.CollectorProc{
 				{
 					Containers: []*model.Container{
 						ctr("foo"),
@@ -156,7 +155,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 			},
 			maxChunkSize:   3,
 			maxChunkWeight: 1000,
-			expectedChunks: []*model.CollectorProc{
+			expectedChunks: []model.CollectorProc{
 				{
 					Processes: []*model.Process{
 						proc(100, "top"),
@@ -205,7 +204,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 			},
 			maxChunkSize:   3,
 			maxChunkWeight: 1000,
-			expectedChunks: []*model.CollectorProc{
+			expectedChunks: []model.CollectorProc{
 				{
 					Containers: []*model.Container{
 						ctr("foo"),
@@ -233,22 +232,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			chunks, totalProcs, totalContainers := chunkProcessesAndContainers(tc.procsByCtr, tc.containers, tc.maxChunkSize, tc.maxChunkWeight)
-
-			fmt.Println("Got")
-
-			for i, m := range chunks {
-				fmt.Println("m %i", i)
-				fmt.Println(proto.MarshalTextString(m))
-			}
-
-			fmt.Println("Expected")
-
-			for i, m := range tc.expectedChunks {
-				fmt.Println("m %i", i)
-				fmt.Println(proto.MarshalTextString(m))
-			}
-
-			assert.Equal(t, tc.expectedChunks, chunks)
+			assert.Equal(t, tc.expectedChunks, *chunks)
 
 			expectedProcs := 0
 
