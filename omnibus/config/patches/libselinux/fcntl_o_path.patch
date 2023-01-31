@@ -24,3 +24,16 @@
  
  static ssize_t fgetxattr_wrapper(int fd, const char *name, void *value, size_t size) {
  	char buf[40];
+--- a/src/selinux_restorecon.c
++++ b/src/selinux_restorecon.c
+@@ -39,6 +39,10 @@
+ #include "label_file.h"
+ #include "sha1.h"
+ 
++#ifndef O_PATH
++# define O_PATH 010000000
++#endif
++
+ #define STAR_COUNT 1024
+ 
+ static struct selabel_handle *fc_sehandle = NULL;
