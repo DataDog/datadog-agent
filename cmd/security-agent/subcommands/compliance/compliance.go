@@ -13,8 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
-	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -41,12 +40,7 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		return nil, err
 	}
 
-	runner := runner.NewRunner()
-	stopper.Add(runner)
-
-	scheduler := scheduler.NewScheduler(runner.GetChan())
-	runner.SetScheduler(scheduler)
-
+	scheduler := compliance.NewPeriodicScheduler()
 	checkInterval := config.GetDuration("compliance_config.check_interval")
 	checkMaxEvents := config.GetInt("compliance_config.check_max_events_per_run")
 	configDir := config.GetString("compliance_config.dir")

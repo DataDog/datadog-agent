@@ -12,7 +12,6 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -22,19 +21,10 @@ import (
 
 var status = expvar.NewMap("compliance")
 
-// Scheduler abstracts the collector.Scheduler interface
-type Scheduler interface {
-	Enter(check check.Check) error
-	Cancel(id check.ID) error
-	Run()
-	Stop() error
-	IsCheckScheduled(id check.ID) bool
-}
-
 // Agent defines Compliance Agent
 type Agent struct {
 	builder   checks.Builder
-	scheduler Scheduler
+	scheduler compliance.Scheduler
 	telemetry *telemetry
 	configDir string
 	endpoints *config.Endpoints
@@ -42,7 +32,7 @@ type Agent struct {
 }
 
 // New creates a new instance of Agent
-func New(reporter event.Reporter, scheduler Scheduler, configDir string, endpoints *config.Endpoints, options ...checks.BuilderOption) (*Agent, error) {
+func New(reporter event.Reporter, scheduler compliance.Scheduler, configDir string, endpoints *config.Endpoints, options ...checks.BuilderOption) (*Agent, error) {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -111,8 +101,6 @@ func (a *Agent) Run() error {
 
 	go a.telemetry.run(ctx)
 
-	a.scheduler.Run()
-
 	defer status.Set(
 		"Checks",
 		expvar.Func(func() interface{} {
@@ -120,21 +108,20 @@ func (a *Agent) Run() error {
 		}),
 	)
 
+	var checks []compliance.Check
 	onCheck := func(rule *compliance.RuleCommon, check compliance.Check, err error) bool {
 		if err != nil {
 			log.Infof("%s: check not scheduled: %v", rule.ID, err)
 			return true
 		}
-
-		err = a.scheduler.Enter(check)
-		if err != nil {
-			log.Errorf("%s: failed to schedule check: %v", rule.ID, err)
-			return false
-		}
-
+		checks = append(checks, check)
 		return true
 	}
-	return a.buildChecks(onCheck)
+	if err := a.buildChecks(onCheck); err != nil {
+		return err
+	}
+	a.scheduler.StartScheduling(checks)
+	return nil
 }
 
 func runCheck(rule *compliance.RuleCommon, check compliance.Check, err error) bool {
@@ -164,9 +151,7 @@ func (a *Agent) RunChecksFromFile(file string) error {
 
 // Stop stops the Compliance Agent
 func (a *Agent) Stop() {
-	if err := a.scheduler.Stop(); err != nil {
-		log.Errorf("Scheduler failed to stop: %v", err)
-	}
+	a.scheduler.StopScheduling(context.TODO())
 
 	if err := a.builder.Close(); err != nil {
 		log.Errorf("Builder failed to close: %v", err)

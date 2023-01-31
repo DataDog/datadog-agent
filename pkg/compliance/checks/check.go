@@ -9,8 +9,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -51,54 +49,20 @@ type complianceCheck struct {
 	eventNotify eventNotify
 }
 
-func (c *complianceCheck) Stop() {
-}
-
-func (c *complianceCheck) Cancel() {
-}
-
 func (c *complianceCheck) String() string {
 	return compliance.CheckName(c.ruleID, c.description)
 }
 
-func (c *complianceCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	return nil
-}
-
-func (c *complianceCheck) Interval() time.Duration {
+func (c *complianceCheck) Period() time.Duration {
 	return c.interval
 }
 
-func (c *complianceCheck) ID() check.ID {
-	return check.ID(c.ruleID)
-}
-
-func (c *complianceCheck) InitConfig() string {
-	return ""
-}
-
-func (c *complianceCheck) InstanceConfig() string {
-	return ""
-}
-
-func (c *complianceCheck) GetWarnings() []error {
-	return nil
-}
-
-func (c *complianceCheck) GetSenderStats() (check.SenderStats, error) {
-	return check.NewSenderStats(), nil
+func (c *complianceCheck) ID() string {
+	return c.ruleID
 }
 
 func (c *complianceCheck) Version() string {
 	return c.suiteMeta.Version
-}
-
-func (c *complianceCheck) ConfigSource() string {
-	return c.suiteMeta.Source
-}
-
-func (c *complianceCheck) IsTelemetryEnabled() bool {
-	return false
 }
 
 func (c *complianceCheck) reportToResource(report *compliance.Report) compliance.ReportResource {

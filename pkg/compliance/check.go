@@ -8,7 +8,6 @@ package compliance
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 )
 
@@ -18,7 +17,13 @@ const (
 )
 
 // Check is the interface for compliance checks
-type Check check.Check
+type Check interface {
+	ID() string
+	String() string
+	Version() string
+	Period() time.Duration
+	Run() error
+}
 
 // CheckStatus describes current status for a check
 type CheckStatus struct {

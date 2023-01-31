@@ -3,7 +3,10 @@
 package mocks
 
 import (
-	check "github.com/DataDog/datadog-agent/pkg/collector/check"
+	context "context"
+
+	compliance "github.com/DataDog/datadog-agent/pkg/compliance"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -12,65 +15,14 @@ type Scheduler struct {
 	mock.Mock
 }
 
-// Cancel provides a mock function with given fields: id
-func (_m *Scheduler) Cancel(id check.ID) error {
-	ret := _m.Called(id)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(check.ID) error); ok {
-		r0 = rf(id)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
+// StartScheduling provides a mock function with given fields: checks
+func (_m *Scheduler) StartScheduling(checks []compliance.Check) {
+	_m.Called(checks)
 }
 
-// Enter provides a mock function with given fields: _a0
-func (_m *Scheduler) Enter(_a0 check.Check) error {
-	ret := _m.Called(_a0)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(check.Check) error); ok {
-		r0 = rf(_a0)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// IsCheckScheduled provides a mock function with given fields: id
-func (_m *Scheduler) IsCheckScheduled(id check.ID) bool {
-	ret := _m.Called(id)
-
-	var r0 bool
-	if rf, ok := ret.Get(0).(func(check.ID) bool); ok {
-		r0 = rf(id)
-	} else {
-		r0 = ret.Get(0).(bool)
-	}
-
-	return r0
-}
-
-// Run provides a mock function with given fields:
-func (_m *Scheduler) Run() {
-	_m.Called()
-}
-
-// Stop provides a mock function with given fields:
-func (_m *Scheduler) Stop() error {
-	ret := _m.Called()
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func() error); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
+// StopScheduling provides a mock function with given fields: ctx
+func (_m *Scheduler) StopScheduling(ctx context.Context) {
+	_m.Called(ctx)
 }
 
 type mockConstructorTestingTNewScheduler interface {

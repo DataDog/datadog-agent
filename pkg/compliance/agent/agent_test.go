@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
@@ -126,12 +126,12 @@ func TestRunK8s(t *testing.T) {
 	scheduler := &mocks.Scheduler{}
 	defer scheduler.AssertExpectations(t)
 
-	scheduler.On("Run").Once().Return(nil)
-	scheduler.On("Stop").Once().Return(nil)
-
-	scheduler.On("Enter", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-		check := args.Get(0).(check.Check)
-		check.Run()
+	scheduler.On("StopScheduling", mock.Anything).Once()
+	scheduler.On("StartScheduling", mock.Anything).Once().Run(func(args mock.Arguments) {
+		checks := args.Get(0).([]compliance.Check)
+		for _, check := range checks {
+			check.Run()
+		}
 	})
 
 	kubeClient := &mocks.KubeClient{}
@@ -218,12 +218,12 @@ func TestRunDocker(t *testing.T) {
 	scheduler := &mocks.Scheduler{}
 	defer scheduler.AssertExpectations(t)
 
-	scheduler.On("Run").Once().Return(nil)
-	scheduler.On("Stop").Once().Return(nil)
-
-	scheduler.On("Enter", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-		check := args.Get(0).(check.Check)
-		check.Run()
+	scheduler.On("StopScheduling", mock.Anything).Once()
+	scheduler.On("StartScheduling", mock.Anything).Once().Run(func(args mock.Arguments) {
+		checks := args.Get(0).([]compliance.Check)
+		for _, check := range checks {
+			check.Run()
+		}
 	})
 
 	dockerClient := &mocks.DockerClient{}
