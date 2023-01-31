@@ -924,15 +924,18 @@ func TestUDPConnExpiryTimeout(t *testing.T) {
 }
 
 func TestDNATIntraHostIntegration(t *testing.T) {
-	t.SkipNow()
-
 	setupDNAT(t)
 
 	tr := setupTracer(t, testConfig())
 
+	var serverAddr struct {
+		local, remote net.Addr
+	}
 	server := &TCPServer{
-		address: "1.1.1.1:5432",
+		address: "1.1.1.1:0",
 		onMessage: func(c net.Conn) {
+			serverAddr.local = c.LocalAddr()
+			serverAddr.remote = c.RemoteAddr()
 			bs := make([]byte, 1)
 			_, err := c.Read(bs)
 			require.NoError(t, err, "error reading in server")
@@ -947,7 +950,9 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 	require.NoError(t, err)
 	defer close(doneChan)
 
-	conn, err := net.Dial("tcp", "2.2.2.2:5432")
+	_, port, err := net.SplitHostPort(server.address)
+	require.NoError(t, err)
+	conn, err := net.Dial("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err, "error connecting to client")
 	_, err = conn.Write([]byte("ping"))
 	require.NoError(t, err, "error writing in client")
@@ -961,25 +966,16 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 
 	time.Sleep(time.Second * 1)
 
-	conns := getConnections(t, tr).Conns
-	assert.Condition(t, func() bool {
-		for _, c := range conns {
-			if c.Source == util.AddressFromString("1.1.1.1") {
-				return c.IntraHost == true
-			}
-		}
+	conns := getConnections(t, tr)
+	c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+	require.True(t, found, "could not find outgoing connection %+v", conns)
+	require.NotNil(t, c, "could not find outgoing connection %+v", conns)
+	assert.True(t, c.IntraHost, "did not find outgoing connection classified as local: %v", c)
 
-		return false
-	}, "did not find 1.1.1.1 connection classified as local: %v", conns)
-
-	assert.Condition(t, func() bool {
-		for _, c := range conns {
-			if c.Dest == util.AddressFromString("2.2.2.2") {
-				return c.IntraHost == true
-			}
-		}
-		return true
-	})
+	c, found = findConnection(serverAddr.local, serverAddr.remote, conns)
+	require.True(t, found, "could not find incoming connection %+v", conns)
+	require.NotNil(t, c, "could not find incoming connection %+v", conns)
+	assert.True(t, c.IntraHost, "did not find incoming connection classified as local: %v", c)
 }
 
 func TestSelfConnect(t *testing.T) {
