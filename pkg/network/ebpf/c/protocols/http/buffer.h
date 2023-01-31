@@ -2,9 +2,11 @@
 #define __HTTP_BUFFER_H
 
 #include <linux/err.h>
+
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
-#include "http-types.h"
+
+#include "protocols/http/types.h"
 
 // This function reads a constant number of bytes into the fragment buffer of the http
 // transaction object, and returns the number of bytes of the valid data. The number of

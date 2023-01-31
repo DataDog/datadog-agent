@@ -3,13 +3,14 @@
 
 #include <linux/types.h>
 
-#include "http-classification-helpers.h"
-#include "http2-helpers.h"
 #include "ip.h"
-#include "protocol-classification-defs.h"
-#include "protocol-classification-maps.h"
-#include "protocol-classification-structs.h"
-#include "protocol-dispatcher-maps.h"
+
+#include "protocols/classification/defs.h"
+#include "protocols/classification/maps.h"
+#include "protocols/classification/structs.h"
+#include "protocols/classification/dispatcher-maps.h"
+#include "protocols/http/classification-helpers.h"
+#include "protocols/http2/helpers.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {

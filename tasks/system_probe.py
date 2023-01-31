@@ -299,13 +299,13 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
-                "pkg/network/ebpf/c/protocols/go-tls-types.h",
+                "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
             "pkg/network/protocols/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
-                "pkg/network/ebpf/c/protocols/tags-types.h",
-                "pkg/network/ebpf/c/protocols/http-types.h",
-                "pkg/network/ebpf/c/protocols/protocol-classification-defs.h",
+                "pkg/network/ebpf/c/protocols/tls/tags-types.h",
+                "pkg/network/ebpf/c/protocols/http/types.h",
+                "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",

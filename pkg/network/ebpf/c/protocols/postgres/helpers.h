@@ -1,8 +1,8 @@
 #ifndef __POSTGRES_HELPERS_H
 #define __POSTGRES_HELPERS_H
 
-#include "postgres-defs.h"
-#include "sql-helpers.h"
+#include "defs.h"
+#include "protocols/sql/helpers.h"
 
 // is_postgres_connect checks if the buffer is a Postgres startup message.
 static __always_inline bool is_postgres_connect(const char *buf, __u32 buf_size) {
