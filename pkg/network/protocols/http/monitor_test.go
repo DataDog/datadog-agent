@@ -40,6 +40,14 @@ var (
 	emptyBody = []byte(nil)
 )
 
+func newHTTPTestMonitor(t *testing.T) *Monitor {
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	return monitor
+}
+
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -54,8 +62,7 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
+	monitor := newHTTPTestMonitor(t)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
 
@@ -97,8 +104,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
+	monitor := newHTTPTestMonitor(t)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
 
@@ -182,8 +188,7 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 				EnableKeepAlives: true,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil, nil)
-			require.NoError(t, err)
+			monitor := newHTTPTestMonitor(t)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
 
@@ -246,8 +251,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 				SlowResponse: slowResponseTimeout,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil, nil)
-			require.NoError(t, err)
+			monitor := newHTTPTestMonitor(t)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
 
@@ -320,10 +324,8 @@ func TestUnknownMethodRegression(t *testing.T) {
 	})
 	defer srvDoneFn()
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
+	monitor := newHTTPTestMonitor(t)
+	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
 
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
@@ -344,10 +346,8 @@ func TestUnknownMethodRegression(t *testing.T) {
 func TestRSTPacketRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
+	monitor := newHTTPTestMonitor(t)
+	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
 
 	serverAddr := "127.0.0.1:8080"
@@ -383,10 +383,8 @@ func TestRSTPacketRegression(t *testing.T) {
 func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
+	monitor := newHTTPTestMonitor(t)
+	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
 
 	const req = "GET /200/foobar HTTP/1.1\n"
@@ -468,10 +466,8 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
+	monitor := newHTTPTestMonitor(t)
+	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
 
 	// Perform a number of random requests
