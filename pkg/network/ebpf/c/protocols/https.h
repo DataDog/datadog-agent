@@ -160,17 +160,24 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
  */
 static __always_inline tls_offsets_data_t* get_offsets_data() {
     struct task_struct *t = (struct task_struct *) bpf_get_current_task();
+    struct inode *inode;
     go_tls_offsets_data_key_t key;
     dev_t dev_id;
 
+    inode = BPF_CORE_READ(t, mm, exe_file, f_inode);
+    if (!inode) {
+        log_debug("get_offsets_data: could not read f_inode field\n");
+        return NULL;
+    }
+
     int err;
-    err = BPF_CORE_READ_INTO(&key.ino, t, mm, exe_file, f_inode, i_ino);
+    err = BPF_CORE_READ_INTO(&key.ino, inode, i_ino);
     if (err) {
         log_debug("get_offsets_data: could not read i_ino field\n");
         return NULL;
     }
 
-    err = BPF_CORE_READ_INTO(&dev_id, t, mm, exe_file, f_inode, i_sb, s_dev);
+    err = BPF_CORE_READ_INTO(&dev_id, inode, i_sb, s_dev);
     if (err) {
         log_debug("get_offsets_data: could not read s_dev field\n");
         return NULL;
