@@ -257,7 +257,7 @@ func TestGetSNMPConfigEmpty(t *testing.T) {
 }
 
 func TestGetSNMPConfigDefault(t *testing.T) {
-	//check if the default setter is working
+	//check if the default setter is valid
 	input := SNMPConfig{}
 	SetDefault(&input)
 	Exoutput := SNMPConfig{
