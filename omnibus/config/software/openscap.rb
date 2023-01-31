@@ -6,9 +6,9 @@
 require './lib/cmake.rb'
 
 name 'openscap'
-default_version '1.3.6'
+default_version '1.3.7'
 
-version("1.3.6") { source sha256: "40634f2e27a542b112d2e3b374ebbef7e56af18a3d8ae78da2462ab0b1e4e6b7" }
+version("1.3.7") { source sha256: "a74f5bfb420b748916d2f88941bb6e04cad4c67a4cafc78c96409cc15c54d1d3" }
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
