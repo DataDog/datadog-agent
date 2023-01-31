@@ -8,10 +8,9 @@ default_version '5.3.28'
 
 dependency "config_guess"
 
-version '5.3.28' do
-  source url: 'https://github.com/berkeleydb/libdb/releases/download/v5.3.28/db-5.3.28.tar.gz',
-         sha512: 'e91bbe550fc147a8be7e69ade86fdb7066453814971b2b0223f7d17712bd029a8eff5b2b6b238042ff6ec1ffa6879d44cb95c5645a922fee305c26c3eeaee090'
-end
+version("5.3.28") { source sha256: "e0a992d740709892e81f9d93f06daf305cf73fb81b545afe72478043172c3628" }
+
+source url: "https://github.com/berkeleydb/libdb/releases/download/v#{version}/db-#{version}.tar.gz"
 
 relative_path "db-#{version}"
 

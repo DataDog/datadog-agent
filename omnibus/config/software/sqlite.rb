@@ -15,7 +15,7 @@
 #
 
 name "sqlite"
-default_version "3.33.0"
+default_version "3.40.1"
 
 dependency 'libedit'
 dependency 'zlib'
@@ -23,12 +23,12 @@ dependency 'zlib'
 license "Public Domain"
 skip_transitive_dependency_licensing true
 
-version("3.33.0") do
-  source url: "https://www.sqlite.org/2020/sqlite-autoconf-3330000.tar.gz",
-         sha256: "106a2c48c7f75a298a7557bcc0d5f4f454e5b43811cc738b7ca294d6956bbb15"
+version("3.40.1") do
+  source url: "https://www.sqlite.org/2022/sqlite-autoconf-3400100.tar.gz",
+         sha256: "2c5dea207fa508d765af1ef620b637dcb06572afa6f01f0815bd5bbf864b33d9"
 end
 
-relative_path "sqlite-autoconf-3330000"
+relative_path "sqlite-autoconf-3400100"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)

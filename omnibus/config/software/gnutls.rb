@@ -15,7 +15,7 @@
 #
 
 name "gnutls"
-default_version "3.6.16"
+default_version "3.7.8"
 
 dependency 'nettle'
 dependency 'gmp'
@@ -25,9 +25,10 @@ license "LGPL-2.1"
 license_file "COPYING.LIB"
 skip_transitive_dependency_licensing true
 
-version("3.6.16") { source sha256: "1b79b381ac283d8b054368b335c408fedcb9b7144e0c07f531e3537d4328f3b3" }
-
-source url: "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.6/gnutls-3.6.16.tar.xz"
+version "3.7.8" do
+  source url: "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.7/gnutls-#{version}.tar.xz",
+         sha256: "c58ad39af0670efe6a8aee5e3a8b2331a1200418b64b7c51977fb396d4617114"
+end
 
 relative_path "#{name}-#{version}"
 

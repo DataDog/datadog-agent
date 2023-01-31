@@ -15,7 +15,7 @@
 #
 
 name "rpm"
-default_version "4.14.1"
+default_version "4.16.1.3"
 
 license "LGPLv2"
 license_file "COPYING"
@@ -29,23 +29,19 @@ dependency "libgcrypt"
 dependency "popt"
 dependency "zstd"
 dependency "sqlite"
-dependency 'libdb'
+dependency "libdb"
 
-version "4.16.0" do
-  source url: "http://ftp.rpm.org/releases/rpm-4.16.x/rpm-4.16.0.tar.bz2",
-         sha256: "ca5974e9da2939afb422598818ef187385061889ba766166c4a3829c5ef8d411"
-end
+# We use rpm 4.16, since rpm 4.17 and upper made LUA an hard requirement.
 
-version "4.14.1" do
-  source url: "http://ftp.rpm.org/releases/rpm-4.14.x/rpm-4.14.1.tar.bz2",
-         sha256: "43f40e2ccc3ca65bd3238f8c9f8399d4957be0878c2e83cba2746d2d0d96793b"
+version "4.16.1.3" do
+  source url: "http://ftp.rpm.org/releases/rpm-4.16.x/rpm-4.16.1.3.tar.bz2",
+         sha256: "513dc7f972b6e7ccfc9fc7f9c01d5310cc56ee853892e4314fa2cad71478e21d"
 end
 
 relative_path "rpm-#{version}"
 
 build do
   patch source: "0002-Set-backend-db-to-sqlite-by-default-in-the-macros.patch"
-  patch source: "disable_md2.patch"
 
   env = with_standard_compiler_flags(with_embedded_path)
 

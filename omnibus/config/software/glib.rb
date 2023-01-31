@@ -15,7 +15,7 @@
 #
 
 name "glib"
-default_version "2.66.1"
+default_version "2.75.2"
 
 license "LGPL-2.1"
 license_file "COPYING"
@@ -25,7 +25,7 @@ dependency "libffi"
 dependency "pcre"
 dependency "elfutils"
 
-version("2.66.1") { source sha256: "5ee680d0b943e47dc1bd53391611a68dca811e2ad635fe0c397db6f250006984" }
+version("2.75.2") { source sha256: "4d5aa6c1c491dfe061fea9ee76e21c66e78ccd99fb0f4ae341c4eea5102bef4c" }
 
 source url: "https://gitlab.gnome.org/GNOME/glib/-/archive/#{version}/glib-#{version}.tar.bz2"
 

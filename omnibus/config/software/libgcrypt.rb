@@ -15,7 +15,7 @@
 #
 
 name "libgcrypt"
-default_version "1.8.6"
+default_version "1.10.1"
 
 license "LGPL-2.1"
 license_file "COPYING.LIB"
@@ -23,7 +23,7 @@ skip_transitive_dependency_licensing true
 
 dependency "libgpg-error"
 
-version("1.8.6") { source sha256: "0cba2700617b99fc33864a0c16b1fa7fdf9781d9ed3509f5d767178e5fd7b975" }
+version("1.10.1") { source sha256: "ef14ae546b0084cd84259f61a55e07a38c3b53afc0f546bffcef2f01baffe9de" }
 
 source url: "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-#{version}.tar.bz2"
 

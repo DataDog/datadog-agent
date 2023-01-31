@@ -17,7 +17,7 @@
 require './lib/cmake.rb'
 
 name "zstd"
-default_version "1.4.5"
+default_version "1.5.2"
 
 license "BSD"
 license_file "LICENSE"
@@ -25,7 +25,7 @@ skip_transitive_dependency_licensing true
 
 dependency "libarchive"
 
-version("1.4.5") { source sha256: "98e91c7c6bf162bf90e4e70fdbc41a8188b9fa8de5ad840c401198014406ce9e" }
+version("1.5.2") { source sha256: "7c42d56fac126929a6a85dbc73ff1db2411d04f104fae9bdea51305663a83fd0" }
 
 source url: "https://github.com/facebook/zstd/releases/download/v#{version}/zstd-#{version}.tar.gz"
 

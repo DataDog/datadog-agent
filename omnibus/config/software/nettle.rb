@@ -15,16 +15,15 @@
 #
 
 name "nettle"
-default_version "3.4.1"
+default_version "3.8.1"
 
 license "LGPL-2.1"
 license_file "COPYING.LIB"
 skip_transitive_dependency_licensing true
 
-version '3.4.1' do
-  source url: 'https://ftp.gnu.org/gnu/nettle/nettle-3.4.1.tar.gz',
-         sha512: '26aefbbe9927e90e28f271e56d2ba876611831222d0e1e1a58bdb75bbd50934fcd84418a4fe47b845f557e60a9786a72a4de2676c930447b104f2256aca7a54f'
-end
+version("3.8.1") { source sha256: "364f3e2b77cd7dcde83fd7c45219c834e54b0c75e428b6f894a23d12dd41cbfe" }
+
+source url: "https://ftp.gnu.org/gnu/nettle/nettle-#{version}.tar.gz"
 
 relative_path "#{name}-#{version}"
 

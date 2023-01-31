@@ -15,13 +15,13 @@
 #
 
 name "libgpg-error"
-default_version "1.39"
+default_version "1.46"
 
 license "LGPL-2.1"
 license_file "COPYING.LIB"
 skip_transitive_dependency_licensing true
 
-version("1.39") { source sha256: "4a836edcae592094ef1c5a4834908f44986ab2b82e0824a0344b49df8cdb298f" }
+version("1.46") { source sha256: "b7e11a64246bbe5ef37748de43b245abd72cfcd53c9ae5e7fc5ca59f1c81268d" }
 
 source url: "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-#{version}.tar.bz2"
 

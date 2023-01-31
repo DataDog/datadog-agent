@@ -15,25 +15,14 @@
 #
 
 name "pcre2"
-default_version "10.41"
+default_version "10.42"
 
 license "LGPLv2"
 skip_transitive_dependency_licensing true
 
-version '10.41' do
-  source url: 'https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.41/pcre2-10.41.tar.bz2',
-         sha512: '328f331a56f152424f6021b37f8dcf660842c55d43ff39f1b49115f0d05ed651d0bbb66b43c0ed61d65022030615768b92ce5e6218a54e4e17152ec473cca68d'
-end
+version("10.42") { source sha256: "8d36cd8cb6ea2a4c2bb358ff6411b0c788633a2a45dabbf1aeb4b701d1b5e840" }
 
-version '10.37' do
-  source url: 'https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.37/pcre2-10.37.tar.bz2',
-         sha512: '69f4bf4736b986e0fc855eedb292efe72a0df2e803bc0e61a6cf47775eed433bb1b2f28d7e641591ef4603d47beb543a64ed0eef9538d00f0746bc3435c143ec'
-end
-
-version '10.10' do
-  source url: 'https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.10/pcre2-10.10.tar.bz2',
-         sha512: 'c012022793cb6e569009590e12aee3ce847064fe09358fe98da9d67f4d150b798a6a92d54b2df31a352a21e79a098aac9ea801d7fa8d37cdcc77b6d0d6bdb5a7'
-end
+source url: "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-#{version}/pcre2-#{version}.tar.bz2"
 
 relative_path "pcre2-#{version}"
 

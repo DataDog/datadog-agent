@@ -15,21 +15,13 @@
 #
 
 name "liblzma"
-if mac_os_x?
-  default_version "5.0.5"
-else
-  default_version "5.2.5"
-end
+default_version "5.4.1"
 
 license "Public-Domain"
 license_file "COPYING"
 skip_transitive_dependency_licensing true
 
-version("5.0.5") { source sha256: "5dcffe6a3726d23d1711a65288de2e215b4960da5092248ce63c99d50093b93a" }
-version("5.2.5") { source sha256: "f6f4910fd033078738bd82bfba4f49219d03b17eb0794eb91efbae419f4aba10" }
-version("5.2.4") { source sha256: "b512f3b726d3b37b6dc4c8570e137b9311e7552e8ccbab4d39d47ce5f4177145" }
-version("5.2.3") { source sha256: "71928b357d0a09a12a4b4c5fafca8c31c19b0e7d3b8ebb19622e96f26dbf28cb" }
-version("5.2.2") { source sha256: "73df4d5d34f0468bd57d09f2d8af363e95ed6cc3a4a86129d2f2c366259902a2" }
+version("5.4.1") { source sha256: "e4b0f81582efa155ccf27bb88275254a429d44968e488fc94b806f2a61cd3e22" }
 
 source url: "http://tukaani.org/xz/xz-#{version}.tar.gz"
 

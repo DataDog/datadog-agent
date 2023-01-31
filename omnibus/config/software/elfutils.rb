@@ -15,7 +15,7 @@
 #
 
 name "elfutils"
-default_version "0.181"
+default_version "0.188"
 
 dependency 'm4'
 dependency 'zlib'
@@ -26,7 +26,7 @@ license "LGPLv3+"
 license_file "COPYING-LGPLV3"
 skip_transitive_dependency_licensing true
 
-version("0.181") { source sha256: "29a6ad7421ec2acfee489bb4a699908281ead2cb63a20a027ce8804a165f0eb3" }
+version("0.188") { source sha256: "fb8b0e8d0802005b9a309c60c1d8de32dd2951b56f0c3a3cb56d21ce01595dff" }
 
 source url: "https://sourceware.org/elfutils/ftp/#{version}/elfutils-#{version}.tar.bz2"
 
