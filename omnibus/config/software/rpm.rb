@@ -15,7 +15,7 @@
 #
 
 name "rpm"
-default_version "4.16.1.3"
+default_version "4.18.0"
 
 license "LGPLv2"
 license_file "COPYING"
@@ -30,19 +30,16 @@ dependency "popt"
 dependency "zstd"
 dependency "sqlite"
 dependency "libdb"
+dependency "lua"
 
-# We use rpm 4.16, since rpm 4.17 and upper made LUA an hard requirement.
-
-version "4.16.1.3" do
-  source url: "http://ftp.rpm.org/releases/rpm-4.16.x/rpm-4.16.1.3.tar.bz2",
-         sha256: "513dc7f972b6e7ccfc9fc7f9c01d5310cc56ee853892e4314fa2cad71478e21d"
+version "4.18.0" do
+  source url: "http://ftp.rpm.org/releases/rpm-4.18.x/rpm-#{version}.tar.bz2",
+         sha256: "2a17152d7187ab30edf2c2fb586463bdf6388de7b5837480955659e5e9054554"
 end
 
 relative_path "rpm-#{version}"
 
 build do
-  patch source: "0002-Set-backend-db-to-sqlite-by-default-in-the-macros.patch"
-
   env = with_standard_compiler_flags(with_embedded_path)
 
   env["CC"] = "/usr/bin/gcc"
@@ -55,10 +52,11 @@ build do
   
   env["SQLITE_CFLAGS"] ="-I#{install_dir}/embedded/include"
   env["SQLITE_LIBS"] ="-L#{install_dir}/embedded/lib -lsqlite3"
+  env["LUA_CFLAGS"] ="-I#{install_dir}/embedded/include"
+  env["LUA_LIBS"] ="-L#{install_dir}/embedded/lib -l:liblua.a -lm"
 
   configure_options = [
     "--enable-sqlite=yes",
-    "--enable-bdb=no",
     "--enable-bdb-ro=yes",
     "--disable-nls",
     "--disable-openmp",
@@ -68,7 +66,6 @@ build do
     "--without-imaevm",
     "--without-cap",
     "--without-acl",
-    "--without-lua",
     "--without-audit",
     "--with-crypto=openssl",
     "--localstatedir=/var", # use /var/lib/rpm database from the system
