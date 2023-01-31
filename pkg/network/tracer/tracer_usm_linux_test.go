@@ -506,7 +506,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		}
 
 		tr := setupTracer(t, cfg)
-		done := make(chan struct{})
 		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
 			input, err := r.ReadBytes(byte('\n'))

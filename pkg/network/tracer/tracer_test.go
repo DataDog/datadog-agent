@@ -230,7 +230,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 		c.Close()
 	})
 	t.Cleanup(server.Shutdown)
-	err = server.Run()
+	err := server.Run()
 	require.NoError(t, err)
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -331,8 +331,7 @@ func TestTCPOverIPv6(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
-
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, cfg)
 
 	ln, err := net.Listen("tcp6", ":0")
 	require.NoError(t, err)
@@ -392,8 +391,7 @@ func TestTCPCollectionDisabled(t *testing.T) {
 	// Enable BPF-based system probe with TCP disabled
 	cfg := testConfig()
 	cfg.CollectTCPConns = false
-
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := NewTCPServer(func(c net.Conn) {
@@ -430,8 +428,7 @@ func TestTCPConnsReported(t *testing.T) {
 	// Setup
 	cfg := testConfig()
 	cfg.CollectTCPConns = true
-
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, cfg)
 
 	processedChan := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
@@ -531,8 +528,7 @@ func TestUDPDisabled(t *testing.T) {
 	// Enable BPF-based system probe with UDP disabled
 	cfg := testConfig()
 	cfg.CollectUDPConns = false
-
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, cfg)
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := &UDPServer{
@@ -597,7 +593,7 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 	cfg.CollectLocalDNS = true
 	cfg.CollectUDPConns = true
 
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, cfg)
 
 	// Connect to local DNS
 	addr, err := net.ResolveUDPAddr("udp", "localhost:53")
@@ -629,9 +625,9 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 	// exclude connections from 127.0.0.1:80
 	cfg := testConfig()
 	// exclude source SSH connections to make this pass in VM
-	config.ExcludedSourceConnections = map[string][]string{"127.0.0.1": {"80"}, "*": {"22"}}
-	config.ExcludedDestinationConnections = map[string][]string{"127.0.0.1": {"tcp 80"}}
-	tr := setupTracer(t, config)
+	cfg.ExcludedSourceConnections = map[string][]string{"127.0.0.1": {"80"}, "*": {"22"}}
+	cfg.ExcludedDestinationConnections = map[string][]string{"127.0.0.1": {"tcp 80"}}
+	tr := setupTracer(t, cfg)
 
 	// Connect to 127.0.0.1:80
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:80")
