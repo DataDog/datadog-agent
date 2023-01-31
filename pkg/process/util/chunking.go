@@ -7,12 +7,15 @@ package util
 
 type WeightAt func(int) int
 
-// PayloadList is an abstract list of payloads subject to chunking
+// PayloadList is a wrapper for payloads subject to chunking
 type PayloadList[T any] struct {
-	Items    []T
+	// The items to chunk
+	Items []T
+	// A function which returns the weight of an item at the given index
 	WeightAt WeightAt
 }
 
+// Len returns the number of items in the list
 func (l *PayloadList[T]) Len() int {
 	return len(l.Items)
 }
@@ -24,18 +27,19 @@ type chunkProps struct {
 }
 
 type AppendToChunk[T any, P any] func(t *T, ps []P)
-
-// type NewChunk[T any] func() T
 type OnAccept[T any] func(t *T)
 
-// ChunkAllocator abstracts management operations for chunk allocation
+// ChunkAllocator manages operations for chunk allocation. The type T is the type of the chunk, and the type P is the
+// type of the payload.
 type ChunkAllocator[T any, P any] struct {
 	props  []chunkProps
 	idx    int
 	chunks []T
 
+	// A function which adds the group of payloads to the chunk
 	AppendToChunk AppendToChunk[T, P]
-	OnAccept      OnAccept[T]
+	// An optional callback that allows for manipulation the chunk when a payload is added
+	OnAccept OnAccept[T]
 }
 
 // TakenSize returns the size allocated to the current chunk
@@ -64,6 +68,7 @@ func (c *ChunkAllocator[T, P]) Next() {
 	c.idx++
 }
 
+// SetLastChunk sets the last chunk in case there is space at end across multiple runs
 func (c *ChunkAllocator[T, P]) SetLastChunk() {
 	c.idx = 0
 	if len(c.chunks) > 1 {
@@ -71,11 +76,12 @@ func (c *ChunkAllocator[T, P]) SetLastChunk() {
 	}
 }
 
-// SetActiveChunk allows for rewinding in the case of multiple runs.
+// SetActiveChunk allows for rewinding in the case of multiple runs
 func (c *ChunkAllocator[T, P]) SetActiveChunk(i int) {
 	c.idx = i
 }
 
+// Accept accepts a group of payloads into the current chunk
 func (c *ChunkAllocator[T, P]) Accept(ps []P, weight int) {
 	if c.idx >= len(c.chunks) {
 		// If we are outside of the range of allocated chunks, allocate a new one
@@ -103,6 +109,7 @@ func (c *ChunkAllocator[T, P]) GetChunks() *[]T {
 // - consider case when the current item exceeds the max allowed weight and create a new chunk at the end (`Append`)
 // this implementation allows for multiple passes through the chunks, which can be useful in cases with different payload types
 // being allocated within chunks
+// See PayloadList and ChunkAllocator for a description of the type params.
 func ChunkPayloadsBySizeAndWeight[T any, P any](l *PayloadList[P], a *ChunkAllocator[T, P], maxChunkSize int, maxChunkWeight int) {
 	start := 0
 	chunkWeight := 0
@@ -156,6 +163,6 @@ func ChunkPayloadsBySizeAndWeight[T any, P any](l *PayloadList[P], a *ChunkAlloc
 	}
 	// Chunk the remainder of payloads
 	if start < l.Len() {
-		a.Accept(l.Items[start:l.Len()], chunkWeight)
+		a.Accept(l.Items[start:], chunkWeight)
 	}
 }
