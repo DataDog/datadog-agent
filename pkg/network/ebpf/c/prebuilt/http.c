@@ -68,12 +68,11 @@ int socket__http2_filter(struct __sk_buff *skb) {
         }
     }
 
-
-    if (is_tcp_termination(&iterations_key.skb_info)) {
-        bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
-        bpf_map_delete_elem(&http2_iterations, &iterations_key);
-        return 0;
-    }
+//    if (is_tcp_termination(&iterations_key.skb_info)) {
+//        bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
+//        bpf_map_delete_elem(&http2_iterations, &iterations_key);
+//        return 0;
+//    }
 
     const __u32 zero = 0;
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
