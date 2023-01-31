@@ -32,7 +32,7 @@ int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void
     }
     //register the connection in our map
     bpf_map_update_elem(&java_tls_connections, connection, &val, BPF_ANY);
-    log_debug("[java-tls-handle_request] handling tls request of size: %d\n", bytes_read)
+    log_debug("[java-tls-handle_request] handling tls request of size: %d\n", bytes_read);
     https_process(connection, data+sizeof(bytes_read), bytes_read, JAVA_TLS);
     return 0;
 }
