@@ -158,8 +158,10 @@ func Close() {
 func updateStats() {
 	start := time.Now()
 	then := time.Now()
+	now := time.Now()
 	ticker := time.NewTicker(15 * time.Second)
-	for now := range ticker.C {
+
+	for {
 		l.Lock()
 		if l.closed {
 			l.Unlock()
@@ -177,7 +179,9 @@ func updateStats() {
 		l.stats["updated_at"] = now.Unix()
 		l.stats["delta_seconds"] = now.Sub(then).Seconds()
 		l.stats["uptime"] = now.Sub(start).String()
-		then = now
 		l.Unlock()
+
+		then = now
+		now = <-ticker.C
 	}
 }
