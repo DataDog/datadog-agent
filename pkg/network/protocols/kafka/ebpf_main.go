@@ -25,8 +25,8 @@ import (
 
 const (
 	//kafkaBatchesMap                 = "kafka_batches"
-	kafkaBatchStateMap              = "kafka_batch_state"
-	kafkaBatchEvents                = "kafka_batch_events"
+	//kafkaBatchStateMap              = "kafka_batch_state"
+	//kafkaBatchEvents                = "kafka_batch_events"
 	kafkaLastTCPSeqPerConnectionMap = "kafka_last_tcp_seq_per_connection"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
