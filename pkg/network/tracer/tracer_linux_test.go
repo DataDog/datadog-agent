@@ -942,7 +942,6 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 
 			_, err = c.Write([]byte("Ping back"))
 			require.NoError(t, err, "error writing back in server")
-			_ = c.Close()
 		},
 	}
 	doneChan := make(chan struct{})
@@ -954,17 +953,14 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 	require.NoError(t, err)
 	conn, err := net.Dial("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err, "error connecting to client")
+	defer conn.Close()
+
 	_, err = conn.Write([]byte("ping"))
 	require.NoError(t, err, "error writing in client")
 
 	bs := make([]byte, 1)
 	_, err = conn.Read(bs)
 	require.NoError(t, err)
-	require.NoError(t, conn.Close(), "error closing client connection")
-
-	doneChan <- struct{}{}
-
-	time.Sleep(time.Second * 1)
 
 	conns := getConnections(t, tr)
 	c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
