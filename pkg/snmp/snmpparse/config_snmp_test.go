@@ -250,7 +250,7 @@ func TestGetSNMPConfigNoAddress(t *testing.T) {
 func TestGetSNMPConfigEmpty(t *testing.T) {
 	//if the snmp configuration is empty
 	IPList := []SNMPConfig{}
-	input := "192.168.6.3"
+	input := "192.168.6.4"
 	Exoutput := SNMPConfig{}
 	assertIP(t, input, IPList, Exoutput)
 
