@@ -73,7 +73,7 @@ func (c *VerticalPodAutoscalerCollector) Metadata() *collectors.CollectorMetadat
 	return c.metadata
 }
 
-// Run triggers the collection process.
+// Run triggers the vpa collection process.
 func (c *VerticalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
 	list, err := c.lister.List(labels.Everything())
 	if err != nil {
