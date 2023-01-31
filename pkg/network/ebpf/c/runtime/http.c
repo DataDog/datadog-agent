@@ -855,9 +855,9 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
 #ifdef COMPILE_RUNTIME
     // ARM64 (RUNTIME)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-    return (void *)BPF_CORE_READ(task, tp_value);
+    return (void *)BPF_CORE_READ(task, thread.tp_value);
 #else
-    return (void *)BPF_CORE_READ(task, uw.tp_value);
+    return (void *)BPF_CORE_READ(task, thread.uw.tp_value);
 #endif
 #else
     // CO-RE ARM64
