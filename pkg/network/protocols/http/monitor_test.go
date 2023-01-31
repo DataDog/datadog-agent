@@ -187,8 +187,6 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 			})
 
 			monitor := newHTTPTestMonitor(t)
-			require.NoError(t, monitor.Start())
-			defer monitor.Stop()
 
 			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
@@ -250,8 +248,6 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 			})
 
 			monitor := newHTTPTestMonitor(t)
-			require.NoError(t, monitor.Start())
-			defer monitor.Stop()
 
 			// Perform a number of random requests
 			req := requestGenerator(t, targetAddr, emptyBody)()
