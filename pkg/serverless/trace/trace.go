@@ -53,7 +53,7 @@ const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
 // lambdaStatsDURLPrefix is the first part of a URL for a call from Statsd
 const lambdaStatsDURLPrefix = "http://127.0.0.1:8125"
 
-// dnsLocalHostPrefix is the first part of a URL from the localhost address for both DNS and TCP traces
+// LocalHosNametPrefix is the first part of a URL from the localhost address for both DNS and TCP traces
 const LocalHosNamePrefix = "127.0.0.1"
 
 // dnsHostNamePrefix is the first part of a URL from the non-routable address for DNS traces.
