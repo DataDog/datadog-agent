@@ -9,11 +9,13 @@
 package kafka
 
 import (
+	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -53,8 +55,16 @@ func NewMonitor(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Mo
 		return nil, fmt.Errorf("error setting up kafka ebpf program: %s", err)
 	}
 
-	if err := mgr.Init(); err != nil {
-		return nil, fmt.Errorf("error initializing kafka ebpf program: %s", err)
+	//if err := mgr.Init(); err != nil {
+	//	return nil, fmt.Errorf("error initializing kafka ebpf program: %s", err)
+	//}
+	err = mgr.Init()
+	err2 := errors.Unwrap(err)
+	err3, ok := errors.Unwrap(err2).(*ebpf.VerifierError)
+	if ok {
+		for _, l := range err3.Log {
+			fmt.Println(l)
+		}
 	}
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: kafkaSocketFilterStub, EBPFFuncName: "socket__kafka_filter_entry", UID: probeUID})
@@ -93,7 +103,7 @@ func (m *Monitor) Start() error {
 
 	var err error
 	m.consumer, err = events.NewConsumer(
-		"http",
+		"kafka",
 		m.ebpfProgram.Manager.Manager,
 		m.process,
 	)
@@ -161,40 +171,27 @@ func (m *Monitor) GetKafkaStats() map[Key]*RequestStats {
 	m.consumer.Sync()
 	m.telemetry.log()
 	return m.statkeeper.GetAndResetAllStats()
-
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	if m.stopped {
-		return nil
-	}
-
-	reply := make(chan MonitorStats, 1)
-	defer close(reply)
-	m.pollRequests <- reply
-	stats := <-reply
-	m.telemetrySnapshot = &stats.telemetry
-	return stats.requestStats
 }
 
-// GetStats returns the telemetry
-func (m *Monitor) GetStats() map[string]interface{} {
-	empty := map[string]interface{}{}
-	if m == nil {
-		return empty
-	}
-
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	if m.stopped {
-		return empty
-	}
-
-	if m.telemetrySnapshot == nil {
-		return empty
-	}
-
-	return m.telemetrySnapshot.report()
-}
+//// GetStats returns the telemetry
+//func (m *Monitor) GetStats() map[string]interface{} {
+//	empty := map[string]interface{}{}
+//	if m == nil {
+//		return empty
+//	}
+//
+//	m.mux.Lock()
+//	defer m.mux.Unlock()
+//	if m.stopped {
+//		return empty
+//	}
+//
+//	if m.telemetrySnapshot == nil {
+//		return empty
+//	}
+//
+//	return m.telemetrySnapshot.report()
+//}
 
 // Stop Kafka monitoring
 func (m *Monitor) Stop() {
@@ -202,17 +199,10 @@ func (m *Monitor) Stop() {
 		return
 	}
 
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	if m.stopped {
-		return
-	}
-
+	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
+	m.consumer.Stop()
 	m.closeFilterFn()
-	close(m.pollRequests)
-	m.eventLoopWG.Wait()
-	m.stopped = true
 }
 
 func (m *Monitor) process(data []byte) {

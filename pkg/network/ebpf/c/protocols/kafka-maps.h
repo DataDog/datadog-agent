@@ -12,18 +12,18 @@
    */
 BPF_HASH_MAP(kafka_last_tcp_seq_per_connection, conn_tuple_t, __u32, 0)
 
-/* This map used for flush complete Kafka batches to userspace */
-BPF_PERF_EVENT_ARRAY_MAP(kafka_batch_events, __u32, 0)
-BPF_PERF_EVENT_ARRAY_MAP(kafka_events, __u32, 0)
+///* This map used for flush complete Kafka batches to userspace */
+//BPF_PERF_EVENT_ARRAY_MAP(kafka_batch_events, __u32, 0)
+//BPF_PERF_EVENT_ARRAY_MAP(kafka_events, __u32, 0)
 
-/*
-  This map stores finished Kafka transactions in batches so they can be consumed by userspace
-  Size is set dynamically during runtime and must be equal to CPUs*KAFKA_BATCH_PAGES
- */
-BPF_HASH_MAP(kafka_batches, kafka_batch_key_t, kafka_batch_t, 0)
-
-/* This map holds one entry per CPU storing state associated to current kafka batch*/
-BPF_PERCPU_ARRAY_MAP(kafka_batch_state, __u32, kafka_batch_state_t, 1)
+///*
+//  This map stores finished Kafka transactions in batches so they can be consumed by userspace
+//  Size is set dynamically during runtime and must be equal to CPUs*KAFKA_BATCH_PAGES
+// */
+//BPF_HASH_MAP(kafka_batches, kafka_batch_key_t, kafka_batch_t, 0)
+//
+///* This map holds one entry per CPU storing state associated to current kafka batch*/
+//BPF_PERCPU_ARRAY_MAP(kafka_batch_state, __u32, kafka_batch_state_t, 1)
 
 BPF_PERCPU_ARRAY_MAP(kafka_heap, __u32, kafka_transaction_t, 1)
 

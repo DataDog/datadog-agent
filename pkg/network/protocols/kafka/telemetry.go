@@ -38,15 +38,15 @@ func newTelemetry() *telemetry {
 	return t
 }
 
-func (t *telemetry) aggregate(transactions []*ebpfKafkaTx, err error) {
-	t.totalHits.Add(int64(len(transactions)))
+//func (t *telemetry) aggregate(transactions []*ebpfKafkaTx, err error) {
+//	t.totalHits.Add(int64(len(transactions)))
+//
+//	if err == errLostBatch {
+//		t.misses.Add(int64(len(transactions)))
+//	}
+//}
 
-	if err == errLostBatch {
-		t.misses.Add(int64(len(transactions)))
-	}
-}
-
-func (t *telemetry) reset() telemetry {
+func (t *telemetry) log() {
 	now := time.Now().Unix()
 	then := t.then.Swap(now)
 
@@ -65,8 +65,6 @@ func (t *telemetry) reset() telemetry {
 		delta.dropped.Load(),
 		float64(delta.dropped.Load())/float64(delta.elapsed.Load()),
 	)
-
-	return *delta
 }
 
 func (t *telemetry) report() map[string]interface{} {
