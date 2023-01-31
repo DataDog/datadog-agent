@@ -15,7 +15,7 @@
 #
 
 name "file"
-default_version "5.39"
+default_version "5.44"
 
 dependency 'zlib'
 dependency 'bzip2'
@@ -25,7 +25,7 @@ license "BSD"
 license_file "COPYING"
 skip_transitive_dependency_licensing true
 
-version("5.39") { source sha256: "f05d286a76d9556243d0cb05814929c2ecf3a5ba07963f8f70bfaaa70517fad1" }
+version("5.44") { source sha256: "3751c7fba8dbc831cb8d7cc8aff21035459b8ce5155ef8b0880a27d028475f3b" }
 
 source url: "http://ftp.astron.com/pub/file/file-#{version}.tar.gz"
 
@@ -33,6 +33,8 @@ relative_path "file-#{version}"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)
+
+  env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
 
   configure_options = []
   configure(*configure_options, env: env)
