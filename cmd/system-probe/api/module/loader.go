@@ -179,7 +179,6 @@ func updateStats() {
 		l.stats["updated_at"] = now.Unix()
 		l.stats["delta_seconds"] = now.Sub(then).Seconds()
 		l.stats["uptime"] = now.Sub(start).String()
-		then = now
 		l.Unlock()
 
 		then = now
