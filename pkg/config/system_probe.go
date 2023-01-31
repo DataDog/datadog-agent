@@ -19,6 +19,7 @@ const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
+	evNS  = "event_monitoring_config"
 
 	defaultConnsMessageBatchSize = 600
 
@@ -188,6 +189,13 @@ func InitSystemProbeConfig(cfg Config) {
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
+
+	// event monitoring
+	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
+
+	// process event monitoring data limits for network tracer
+	cfg.BindEnv(join(evNS, "network_process.max_processes_tracked"))
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)

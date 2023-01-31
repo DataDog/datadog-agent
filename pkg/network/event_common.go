@@ -244,11 +244,15 @@ type ConnectionStats struct {
 	Family           ConnectionFamily
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
-	Tags             uint64
+	StaticTags       uint64
+	Tags             map[string]struct{}
 
 	IntraHost bool
 	IsAssured bool
-	Protocol  ProtocolType
+
+	ContainerID *string
+
+	Protocol ProtocolType
 }
 
 // Via has info about the routing decision for a flow

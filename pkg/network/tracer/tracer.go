@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
@@ -85,6 +86,10 @@ type Tracer struct {
 
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
+
+	processCache *processCache
+
+	timeResolver *TimeResolver
 }
 
 // NewTracer creates a Tracer
@@ -202,6 +207,22 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		connStatsMapSize: atomic.NewInt64(0),
 		lastCheck:        atomic.NewInt64(0),
 		bpfTelemetry:     bpfTelemetry,
+	}
+
+	if config.EnableProcessEventMonitoring {
+		if err = events.Init(); err != nil {
+			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
+		}
+
+		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
+			return nil, fmt.Errorf("could not create process cache; %w", err)
+		}
+
+		events.RegisterHandler(tr.processCache.handleProcessEvent)
+
+		if tr.timeResolver, err = NewTimeResolver(); err != nil {
+			return nil, fmt.Errorf("could not create time resolver: %w", err)
+		}
 	}
 
 	return tr, nil
@@ -327,6 +348,7 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
+	_ = t.timeResolver.Sync()
 	for i := range connections {
 		cs := &connections[i]
 		if t.shouldSkipConnection(cs) {
@@ -340,12 +362,51 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		if cs.IPTranslation != nil {
 			t.conntracker.DeleteTranslation(*cs)
 		}
+
+		t.addProcessInfo(cs)
 	}
 
 	connections = connections[rejected:]
 	t.closedConns.Add(int64(len(connections)))
 	t.skippedConns.Add(int64(rejected))
 	t.state.StoreClosedConnections(connections)
+}
+
+func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
+	if t.processCache == nil {
+		return
+	}
+
+	c.ContainerID = nil
+
+	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
+	p, ok := t.processCache.Get(c.Pid, int64(ts))
+	if !ok {
+		return
+	}
+
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("got process cache entry for pid %d: %+v", c.Pid, p)
+	})
+
+	if c.Tags == nil {
+		c.Tags = make(map[string]struct{})
+	}
+
+	addTag := func(k, v string) {
+		if v == "" {
+			return
+		}
+		c.Tags[k+":"+v] = struct{}{}
+	}
+
+	addTag("env", p.Envs["DD_ENV"])
+	addTag("version", p.Envs["DD_VERSION"])
+	addTag("service", p.Envs["DD_SERVICE"])
+
+	if p.ContainerID != "" {
+		c.ContainerID = &p.ContainerID
+	}
 }
 
 // Stop stops the tracer
@@ -357,6 +418,7 @@ func (t *Tracer) Stop() {
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
+	t.processCache.Stop()
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -513,6 +575,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	active := activeBuffer.Connections()
+	_ = t.timeResolver.Sync()
 	for i := range active {
 		active[i].IPTranslation = t.conntracker.GetTranslationForConn(active[i])
 		// do gateway resolution only on active connections outside
@@ -521,6 +584,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		// since gateway resolution connects to the ec2 metadata
 		// endpoint)
 		t.connVia(&active[i])
+		t.addProcessInfo(&active[i])
 	}
 
 	entryCount := len(active)
@@ -605,6 +669,7 @@ const (
 	kprobesStats
 	stateStats
 	tracerStats
+	processCacheStats
 	bpfMapStats
 	bpfHelperStats
 )
@@ -617,6 +682,7 @@ var allStats = []statsComp{
 	kprobesStats,
 	stateStats,
 	tracerStats,
+	processCacheStats,
 	bpfHelperStats,
 	bpfMapStats,
 	httpStats,
@@ -650,6 +716,8 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
+		case processCacheStats:
+			ret["process_cache"] = t.processCache.GetStats()
 		case bpfMapStats:
 			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry()
 		case bpfHelperStats:
@@ -802,6 +870,15 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil
+}
+
+// DebugDumpProcessCache dumps the process cache
+func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
+	if t.processCache != nil {
+		return t.processCache.Dump()
+	}
+
+	return nil, nil
 }
 
 func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
