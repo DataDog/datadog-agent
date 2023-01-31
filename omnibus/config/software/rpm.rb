@@ -71,6 +71,7 @@ build do
     "--without-lua",
     "--without-audit",
     "--with-crypto=openssl",
+    "--localstatedir=/var", # use /var/lib/rpm database from the system
     "--disable-static",
   ]
   configure(*configure_options, env: env)
