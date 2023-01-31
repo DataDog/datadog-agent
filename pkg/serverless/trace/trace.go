@@ -53,8 +53,8 @@ const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
 // lambdaStatsDURLPrefix is the first part of a URL for a call from Statsd
 const lambdaStatsDURLPrefix = "http://127.0.0.1:8125"
 
-// LocalHosNametPrefix is the first part of a URL from the localhost address for both DNS and TCP traces
-const LocalHosNamePrefix = "127.0.0.1"
+// LocalHostNametPrefix is the first part of a URL from the localhost address for both DNS and TCP traces
+const LocalHostNamePrefix = "127.0.0.1"
 
 // dnsHostNamePrefix is the first part of a URL from the non-routable address for DNS traces.
 const dnsHostNamePrefix = "0.0.0.0"
@@ -152,7 +152,7 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 	// Filter out DNS traces
 
 	if val, ok := span.Meta[dnsAddressMetaKey]; ok {
-		if strings.HasPrefix(val, LocalHosNamePrefix) {
+		if strings.HasPrefix(val, LocalHostNamePrefix) {
 			log.Debugf("Detected DNS span with locahost address %s, removing it", val)
 			return true
 		}
