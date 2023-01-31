@@ -67,10 +67,8 @@ func TestTCPRemoveEntries(t *testing.T) {
 	// Create a dummy TCP Server
 	server := NewTCPServer(func(c net.Conn) {
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
@@ -128,10 +126,8 @@ func TestTCPRetransmit(t *testing.T) {
 		c.Write(genPayload(serverMessageSize))
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
@@ -173,10 +169,8 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
@@ -250,10 +244,8 @@ func TestTCPRTT(t *testing.T) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
 	require.NoError(t, err)
@@ -294,10 +286,8 @@ func TestTCPMiscount(t *testing.T) {
 		}
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 	if err != nil {
@@ -324,7 +314,7 @@ func TestTCPMiscount(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, len(x), n)
 
-	doneChan <- struct{}{}
+	server.Shutdown()
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.True(t, ok)
@@ -347,10 +337,8 @@ func TestConnectionExpirationRegression(t *testing.T) {
 		c.Close()
 		connClosed <- struct{}{}
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
 	require.NoError(t, err)
@@ -399,10 +387,8 @@ func TestConntrackExpiration(t *testing.T) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
 	require.NoError(t, err)
@@ -452,10 +438,8 @@ func TestConntrackDelays(t *testing.T) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
 	require.NoError(t, err)
@@ -484,10 +468,8 @@ func TestTranslationBindingRegression(t *testing.T) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	// Send data to 2.2.2.2 (which should be translated to 1.1.1.1)
 	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
@@ -757,14 +739,13 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	defer test1Ns.Close()
 
 	// run tcp server in test1 net namespace
-	done := make(chan struct{})
 	var server *TCPServer
 	err = util.WithNS(test1Ns, func() error {
 		server = NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
-		return server.Run(done)
+		return server.Run()
 	})
 	require.NoError(t, err)
-	defer close(done)
+	t.Cleanup(server.Shutdown)
 
 	var conn *network.ConnectionStats
 	t.Run("client in root namespace", func(t *testing.T) {
@@ -944,10 +925,8 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 			require.NoError(t, err, "error writing back in server")
 		},
 	}
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	_, port, err := net.SplitHostPort(server.address)
 	require.NoError(t, err)
@@ -1383,10 +1362,8 @@ func TestSendfileRegression(t *testing.T) {
 		rcvd, _ = io.Copy(io.Discard, c)
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
 
 	// Connect to TCP server
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
@@ -1438,10 +1415,8 @@ func TestSendfileError(t *testing.T) {
 		_, _ = io.Copy(io.Discard, c)
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	t.Cleanup(func() { close(doneChan) })
+	require.NoError(t, server.Run())
+	t.Cleanup(server.Shutdown)
 
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
 	require.NoError(t, err)
@@ -1491,12 +1466,10 @@ func TestShortWrite(t *testing.T) {
 		<-read
 		c.Close()
 	})
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
+	require.NoError(t, server.Run())
 	t.Cleanup(func() {
 		close(read)
-		close(doneChan)
+		server.Shutdown()
 	})
 
 	s, err := unix.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, 0)
@@ -1591,9 +1564,8 @@ func TestBlockingReadCounts(t *testing.T) {
 		c.Write([]byte("foo"))
 	})
 
-	done := make(chan struct{})
-	server.Run(done)
-	defer func() { close(done) }()
+	server.Run()
+	t.Cleanup(server.Shutdown)
 
 	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
 	require.NoError(t, err)
@@ -1628,9 +1600,8 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 		c.Close()
 		wg.Done()
 	})
-	doneChan := make(chan struct{})
-	server.Run(doneChan)
-	defer close(doneChan)
+	server.Run()
+	t.Cleanup(server.Shutdown)
 	t.Logf("server address: %s", server.address)
 
 	// create an initial client connection to the server
@@ -1674,7 +1645,6 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 func TestPreexistingConnectionDirection(t *testing.T) {
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
-	doneChan := make(chan struct{})
 
 	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
@@ -1682,8 +1652,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 		_, _ = c.Write(genPayload(serverMessageSize))
 		_ = c.Close()
 	})
-	err := server.Run(doneChan)
-	require.NoError(t, err)
+	require.NoError(t, server.Run())
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 	require.NoError(t, err)
@@ -1714,6 +1683,4 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
-
-	doneChan <- struct{}{}
 }

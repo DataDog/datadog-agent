@@ -1,7 +1,7 @@
 #ifndef __HTTP_HELPERS_H
 #define __HTTP_HELPERS_H
 
-#include "protocol-classification-common.h"
+#include "protocols/classification/common.h"
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
 // a request, where <method> is one of: GET, POST, PUT, DELETE, HEAD, OPTIONS, or PATCH.
