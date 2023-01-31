@@ -45,6 +45,18 @@ var (
 	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
 	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
+
+	tailCalls = []manager.TailCallRoute{
+		{
+			ProgArrayName: string(probes.ClassificationProgsMap),
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
+				EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+				UID:          probeUID,
+			},
+		},
+	}
 )
 
 type kprobeTracer struct {
@@ -166,14 +178,16 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(config, perfHandlerTCP, runtimeTracer)
+	m := newManager(perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
+
+	var undefinedProbes []manager.ProbeIdentificationPair
 
 	var closeProtocolClassifierSocketFilterFn func()
 	if ClassificationSupported(config) {
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
-			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
-			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+			EBPFSection:  string(probes.ProtocolClassifierEntrySocketFilter),
+			EBPFFuncName: mainProbes[probes.ProtocolClassifierEntrySocketFilter],
 			UID:          probeUID,
 		})
 		if socketFilterProbe == nil {
@@ -184,6 +198,9 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
+
+		undefinedProbes = append(undefinedProbes, tailCalls[0].ProbeIdentificationPair)
+		mgrOptions.TailCallRouter = append(mgrOptions.TailCallRouter, tailCalls...)
 	} else {
 		// Kernels < 4.7.0 do not know about the per-cpu array map used
 		// in classification, preventing the program to load even though
@@ -201,7 +218,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	}
 	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	m.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, undefinedProbes)
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
@@ -210,15 +227,26 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 			mgrOptions.ExcludedFunctions = append(mgrOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
+
+	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(tailCalls))
+	for _, tailCall := range tailCalls {
+		tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
+	}
+
 	for probeName, funcName := range enabledProbes {
+		probeIdentifier := manager.ProbeIdentificationPair{
+			EBPFSection:  string(probeName),
+			EBPFFuncName: funcName,
+			UID:          probeUID,
+		}
+		if _, ok := tailCallsIdentifiersSet[probeIdentifier]; ok {
+			// tail calls should be enabled (a.k.a. not excluded) but not activated.
+			continue
+		}
 		mgrOptions.ActivatedProbes = append(
 			mgrOptions.ActivatedProbes,
 			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probeName),
-					EBPFFuncName: funcName,
-					UID:          probeUID,
-				},
+				ProbeIdentificationPair: probeIdentifier,
 			})
 	}
 
