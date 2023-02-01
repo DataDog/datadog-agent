@@ -1025,7 +1025,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false) // to be enabled only in e2e tests
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1142,7 +1143,6 @@ func InitConfig(config Config) {
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.event_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.erpc_dentry_resolution_enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.map_dentry_resolution_enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.dentry_cache_size", 1024)

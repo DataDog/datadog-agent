@@ -30,6 +30,18 @@ var (
 	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
 	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
+
+	tailCalls = []manager.TailCallRoute{
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  probes.ProtocolClassifierSocketFilter,
+				EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+				UID:          probeUID,
+			},
+		},
+	}
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
@@ -90,11 +102,13 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	initManager(m, config, perfHandlerTCP, runtimeTracer)
 
+	var undefinedProbes []manager.ProbeIdentificationPair
+
 	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported(config) {
+	if ClassificationSupported(config) && config.CollectTCPConns {
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
-			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
-			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+			EBPFSection:  probes.ProtocolClassifierEntrySocketFilter,
+			EBPFFuncName: mainProbes[probes.ProtocolClassifierEntrySocketFilter],
 			UID:          probeUID,
 		})
 		if socketFilterProbe == nil {
@@ -105,12 +119,15 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
+
+		undefinedProbes = append(undefinedProbes, tailCalls[0].ProbeIdentificationPair)
+		mgrOptions.TailCallRouter = append(mgrOptions.TailCallRouter, tailCalls...)
 	} else {
 		// Kernels < 4.7.0 do not know about the per-cpu array map used
 		// in classification, preventing the program to load even though
 		// we won't use it. We change the type to a simple array map to
 		// circumvent that.
-		mgrOpts.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+		mgrOpts.MapSpecEditors[probes.ProtocolClassificationBufMap] = manager.MapSpecEditor{
 			Type:       ebpf.Array,
 			EditorFlag: manager.EditType,
 		}
@@ -118,19 +135,30 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
+		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
 			mgrOpts.ExcludedFunctions = append(mgrOpts.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
+
+	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(tailCalls))
+	for _, tailCall := range tailCalls {
+		tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
+	}
+
 	for probeName, funcName := range enabledProbes {
+		probeIdentifier := manager.ProbeIdentificationPair{
+			EBPFSection:  probeName,
+			EBPFFuncName: funcName,
+			UID:          probeUID,
+		}
+		if _, ok := tailCallsIdentifiersSet[probeIdentifier]; ok {
+			// tail calls should be enabled (a.k.a. not excluded) but not activated.
+			continue
+		}
 		mgrOpts.ActivatedProbes = append(
 			mgrOpts.ActivatedProbes,
 			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probeName),
-					EBPFFuncName: funcName,
-					UID:          probeUID,
-				},
+				ProbeIdentificationPair: probeIdentifier,
 			})
 	}
 

@@ -18,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
@@ -46,6 +44,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
@@ -253,6 +253,10 @@ func (p *Probe) Init() error {
 	}
 
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
+	if p.Config.AgentMonitoringEvents {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetSelectorsPerEventType()["*"]...)
+
+	}
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)

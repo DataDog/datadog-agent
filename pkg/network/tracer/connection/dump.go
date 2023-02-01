@@ -35,7 +35,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.TracerStatusMap): // maps/tracer_status (BPF_MAP_TYPE_HASH), key C.__u64, value tracerStatus
+	case probes.TracerStatusMap: // maps/tracer_status (BPF_MAP_TYPE_HASH), key C.__u64, value tracerStatus
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'tracerStatus'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -44,7 +44,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.ConntrackMap): // maps/conntrack (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnTuple
+	case probes.ConntrackMap: // maps/conntrack (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnTuple
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'ConnTuple'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.ConnTuple
@@ -53,7 +53,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.ConntrackTelemetryMap): // maps/conntrack_telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value conntrackTelemetry
+	case probes.ConntrackTelemetryMap: // maps/conntrack_telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value conntrackTelemetry
 		output.WriteString("Map: '" + mapName + "', key: 'C.u32', value: 'conntrackTelemetry'\n")
 		var zero uint64
 		telemetry := &ddebpf.ConntrackTelemetry{}
@@ -62,7 +62,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		}
 		output.WriteString(spew.Sdump(telemetry))
 
-	case string(probes.SockFDLookupArgsMap): // maps/sockfd_lookup_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
+	case probes.SockFDLookupArgsMap: // maps/sockfd_lookup_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -71,7 +71,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.SockByPidFDMap): // maps/sock_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value uintptr // C.struct sock*
+	case probes.SockByPidFDMap: // maps/sock_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value uintptr // C.struct sock*
 		output.WriteString("Map: '" + mapName + "', key: 'C.pid_fd_t', value: 'uintptr // C.struct sock*'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.PIDFD
@@ -80,7 +80,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.PidFDBySockMap): // maps/pid_fd_by_sock (BPF_MAP_TYPE_HASH), key uintptr // C.struct sock*, value C.pid_fd_t
+	case probes.PidFDBySockMap: // maps/pid_fd_by_sock (BPF_MAP_TYPE_HASH), key uintptr // C.struct sock*, value C.pid_fd_t
 		output.WriteString("Map: '" + mapName + "', key: 'uintptr // C.struct sock*', value: 'C.pid_fd_t'\n")
 		iter := currentMap.Iterate()
 		var key uintptr // C.struct sock*
@@ -89,7 +89,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.ConnMap): // maps/conn_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnStatsWithTimestamp
+	case probes.ConnMap: // maps/conn_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnStatsWithTimestamp
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'ConnStatsWithTimestamp'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.ConnTuple
@@ -98,7 +98,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.TCPStatsMap): // maps/tcp_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value TCPStats
+	case probes.TCPStatsMap: // maps/tcp_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value TCPStats
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'TCPStats'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.ConnTuple
@@ -107,7 +107,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.ConnCloseBatchMap): // maps/conn_close_batch (BPF_MAP_TYPE_HASH), key C.__u32, value batch
+	case probes.ConnCloseBatchMap: // maps/conn_close_batch (BPF_MAP_TYPE_HASH), key C.__u32, value batch
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u32', value: 'batch'\n")
 		iter := currentMap.Iterate()
 		var key uint32
@@ -134,7 +134,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.PortBindingsMap): // maps/port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
+	case probes.PortBindingsMap: // maps/port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
 		output.WriteString("Map: '" + mapName + "', key: 'portBindingTuple', value: 'C.__u8'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.PortBinding
@@ -143,7 +143,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.UDPPortBindingsMap): // maps/udp_port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
+	case probes.UDPPortBindingsMap: // maps/udp_port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
 		output.WriteString("Map: '" + mapName + "', key: 'portBindingTuple', value: 'C.__u8'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.PortBinding
@@ -161,7 +161,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.TelemetryMap): // maps/telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value kernelTelemetry
+	case probes.TelemetryMap: // maps/telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value kernelTelemetry
 		output.WriteString("Map: '" + mapName + "', key: 'C.u32', value: 'kernelTelemetry'\n")
 		var zero uint64
 		telemetry := &ddebpf.Telemetry{}
@@ -172,7 +172,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		}
 		output.WriteString(spew.Sdump(telemetry))
 
-	case string(probes.DoSendfileArgsMap): // maps/do_sendfile_args (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.struct sock*
+	case probes.DoSendfileArgsMap: // maps/do_sendfile_args (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.struct sock*
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'uintptr // C.struct sock*'\n")
 		iter := currentMap.Iterate()
 		var key uint64

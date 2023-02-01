@@ -17,6 +17,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -39,6 +40,21 @@ type tcpCloseConsumer struct {
 }
 
 func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
+	connCloseEventMap, _, err := m.GetMap(probes.ConnCloseEventMap)
+	if err != nil {
+		return nil, err
+	}
+	connCloseMap, _, err := m.GetMap(probes.ConnCloseBatchMap)
+	if err != nil {
+		return nil, err
+	}
+
+	numCPUs := int(connCloseEventMap.MaxEntries())
+	batchManager, err := newPerfBatchManager(connCloseMap, numCPUs)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &tcpCloseConsumer{
 		perfHandler:  perfHandler,
 		batchManager: batchManager,
