@@ -519,6 +519,28 @@ func (ccc *CCCache) listOrgs(wg *sync.WaitGroup, orgsMap *map[string]*cfclient.V
 	}()
 }
 
+func (ccc *CCCache) listOrgQuotas(wg *sync.WaitGroup, orgQuotasMap *map[string]*CFOrgQuota) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		orgQuotas, err := ccc.ccAPIClient.ListOrgQuotasByQuery(query)
+		if err != nil {
+			log.Errorf("Failed listing org quotas from cloud controller: %v", err)
+			return
+		}
+		*orgQuotasMap = make(map[string]*CFOrgQuota, len(orgQuotas))
+		for _, orgQuota := range orgQuotas {
+			q := CFOrgQuota{
+				GUID:        orgQuota.Guid,
+				MemoryLimit: orgQuota.MemoryLimit,
+			}
+			(*orgQuotasMap)[orgQuota.Guid] = &q
+		}
+	}()
+}
+
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	var wg sync.WaitGroup
@@ -537,26 +559,8 @@ func (ccc *CCCache) readData() {
 	ccc.listOrgs(&wg, &orgsByGUID)
 
 	// List orgQuotas
-	wg.Add(1)
 	var orgQuotasByGUID map[string]*CFOrgQuota
-	go func() {
-		defer wg.Done()
-		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-		orgQuotas, err := ccc.ccAPIClient.ListOrgQuotasByQuery(query)
-		if err != nil {
-			log.Errorf("Failed listing org quotas from cloud controller: %v", err)
-			return
-		}
-		orgQuotasByGUID = make(map[string]*CFOrgQuota, len(orgQuotas))
-		for _, orgQuota := range orgQuotas {
-			q := CFOrgQuota{
-				GUID:        orgQuota.Guid,
-				MemoryLimit: orgQuota.MemoryLimit,
-			}
-			orgQuotasByGUID[orgQuota.Guid] = &q
-		}
-	}()
+	ccc.listOrgQuotas(&wg, &orgQuotasByGUID)
 
 	// List processes
 	wg.Add(1)
