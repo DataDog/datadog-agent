@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,7 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector())
 
 	return receiver
 }
@@ -1048,7 +1049,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector())
 
 	b.ResetTimer()
 	b.ReportAllocs()

@@ -13,11 +13,13 @@
 package core
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: agent-shared-components
@@ -30,6 +32,8 @@ var Bundle = fxutil.Bundle(
 	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 	log.Module,
 	flare.Module,
+	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
+	sysprobeconfig.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
@@ -38,4 +42,6 @@ var MockBundle = fxutil.Bundle(
 	config.MockModule,
 	fx.Supply(log.Params{}),
 	log.MockModule,
+	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
+	sysprobeconfig.MockModule,
 )

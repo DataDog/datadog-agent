@@ -40,11 +40,11 @@ type tcpCloseConsumer struct {
 }
 
 func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*tcpCloseConsumer, error) {
-	connCloseEventMap, _, err := m.GetMap(string(probes.ConnCloseEventMap))
+	connCloseEventMap, _, err := m.GetMap(probes.ConnCloseEventMap)
 	if err != nil {
 		return nil, err
 	}
-	connCloseMap, _, err := m.GetMap(string(probes.ConnCloseBatchMap))
+	connCloseMap, _, err := m.GetMap(probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, err
 	}

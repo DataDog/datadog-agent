@@ -41,9 +41,12 @@ import (
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
 
+var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
+
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
+	ptraceotlp.UnimplementedGRPCServer
 	wg          sync.WaitGroup      // waits for a graceful shutdown
 	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out         chan<- *Payload     // the outgoing payload channel

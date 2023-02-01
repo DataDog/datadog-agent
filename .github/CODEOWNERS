@@ -180,6 +180,7 @@
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/process @DataDog/processes
 /comp/systray @DataDog/windows-agent
+/comp/core/sysprobeconfig @DataDog/ebpf-platform
 # END COMPONENTS
 
 # pkg

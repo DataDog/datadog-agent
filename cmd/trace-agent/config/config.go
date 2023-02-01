@@ -666,12 +666,14 @@ func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
 	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
 		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
 	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_cpu_percent is not set, setting it to 0")
 		c.MaxCPU = 0
 	}
 
 	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
 		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
 	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
 		c.MaxMemory = 0
 	}
 }

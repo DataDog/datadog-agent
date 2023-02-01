@@ -128,4 +128,5 @@ func TestInject(t *testing.T) {
 		// and testing if the test/plaform give enough permission to do that
 		testInject(t, p)
 	})
+
 }

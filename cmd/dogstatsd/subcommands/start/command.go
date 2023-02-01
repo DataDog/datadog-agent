@@ -13,6 +13,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -31,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 type CLIParams struct {
@@ -166,7 +167,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		return
 	}
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 

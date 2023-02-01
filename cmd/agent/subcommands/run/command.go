@@ -9,16 +9,14 @@ package run
 import (
 	"context"
 	"errors"
+	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
-
-	_ "expvar" // Blank import used because this isn't directly used in this file
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -33,10 +31,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -120,8 +120,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(run,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-				LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
+				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
 			core.Bundle,
 			fx.Supply(dogstatsdServer.Params{
 				Serverless: false,
@@ -151,7 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component, config config.Component, flare flare.Component, cliParams *cliParams, server dogstatsdServer.Component) error {
+func run(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component, cliParams *cliParams) error {
 	defer func() {
 		stopAgent(cliParams, server)
 	}()
@@ -258,7 +259,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 		pkglog.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(pkgconfig.Datadog); err != nil {
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -273,7 +274,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling()
+	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
@@ -309,7 +310,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 		pkglog.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
 	}
 
-	err = manager.ConfigureAutoExit(common.MainCtx)
+	err = manager.ConfigureAutoExit(common.MainCtx, pkgconfig.Datadog)
 	if err != nil {
 		return pkglog.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
@@ -416,7 +417,11 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 		}
 	}
 
-	if err = common.SetupSystemProbeConfig(cliParams.GlobalParams.SysProbeConfFilePath); err != nil {
+	// FIXME: this is necessary to fix windows agent starting as a service, since it is bypassing fx providing
+	// sysprobeconfig via the cobra run command. If this is removed, the system-probe config is not initialized
+	// correctly, and the agent does not correctly determine if system-probe is enabled. Ultimately causing the
+	// system-probe service to not start.
+	if _, err := sysconfig.New(cliParams.SysProbeConfFilePath); err != nil {
 		pkglog.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
 

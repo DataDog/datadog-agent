@@ -6,7 +6,6 @@
 package sbom
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestProcessEvents(t *testing.T) {
@@ -25,37 +26,54 @@ func TestProcessEvents(t *testing.T) {
 	sender.On("SBOM", mock.Anything, mock.Anything).Return()
 	p := newProcessor(sender, 2, 50*time.Millisecond)
 
-	for i := 0; i < 3; i++ {
-		p.processEvents(workloadmeta.EventBundle{
-			Events: []workloadmeta.Event{
-				{
-					Type: workloadmeta.EventTypeSet,
-					Entity: &workloadmeta.ContainerImageMetadata{
-						EntityID: workloadmeta.EntityID{
-							Kind: workloadmeta.KindContainerImageMetadata,
-							ID:   strconv.Itoa(i),
-						},
+	sbomGenerationTime := time.Now()
+
+	p.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					},
+					RepoTags: []string{
+						"datadog/agent:7-rc",
+						"datadog/agent:7.41.1-rc.1",
+						"gcr.io/datadoghq/agent:7-rc",
+						"gcr.io/datadoghq/agent:7.41.1-rc.1",
+						"public.ecr.aws/datadog/agent:7-rc",
+						"public.ecr.aws/datadog/agent:7.41.1-rc.1",
+					},
+					RepoDigests: []string{
+						"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
+					SBOM: &workloadmeta.SBOM{
 						CycloneDXBOM: &cyclonedx.BOM{
 							SpecVersion: cyclonedx.SpecVersion1_4,
 							Version:     42,
 							Components: &[]cyclonedx.Component{
 								{
-									Name: strconv.Itoa(100 * i),
+									Name: "Foo",
 								},
 								{
-									Name: strconv.Itoa(100*i + 1),
+									Name: "Bar",
 								},
 								{
-									Name: strconv.Itoa(100*i + 2),
+									Name: "Baz",
 								},
 							},
 						},
+						GenerationTime:     sbomGenerationTime,
+						GenerationDuration: 10 * time.Second,
 					},
 				},
 			},
-			Ch: make(chan struct{}),
-		})
-	}
+		},
+		Ch: make(chan struct{}),
+	})
 
 	sender.AssertNumberOfCalls(t, "SBOM", 1)
 	sender.AssertSBOM(t, []model.SBOMPayload{
@@ -64,44 +82,56 @@ func TestProcessEvents(t *testing.T) {
 			Source:  &sourceAgent,
 			Entities: []*model.SBOMEntity{
 				{
-					Type:  model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-					Id:    "0",
-					InUse: true,
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Tags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse:              true,
+					GeneratedAt:        timestamppb.New(sbomGenerationTime),
+					GenerationDuration: durationpb.New(10 * time.Second),
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{
 							SpecVersion: "1.4",
 							Version:     pointer.Ptr(int32(42)),
 							Components: []*cyclonedx_v1_4.Component{
 								{
-									Name: "0",
+									Name: "Foo",
 								},
 								{
-									Name: "1",
+									Name: "Bar",
 								},
 								{
-									Name: "2",
+									Name: "Baz",
 								},
 							},
 						},
 					},
 				},
 				{
-					Type:  model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-					Id:    "1",
-					InUse: true,
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Tags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse:              true,
+					GeneratedAt:        timestamppb.New(sbomGenerationTime),
+					GenerationDuration: durationpb.New(10 * time.Second),
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{
 							SpecVersion: "1.4",
 							Version:     pointer.Ptr(int32(42)),
 							Components: []*cyclonedx_v1_4.Component{
 								{
-									Name: "100",
+									Name: "Foo",
 								},
 								{
-									Name: "101",
+									Name: "Bar",
 								},
 								{
-									Name: "102",
+									Name: "Baz",
 								},
 							},
 						},
@@ -120,22 +150,28 @@ func TestProcessEvents(t *testing.T) {
 			Source:  &sourceAgent,
 			Entities: []*model.SBOMEntity{
 				{
-					Type:  model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-					Id:    "2",
-					InUse: true,
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Tags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse:              true,
+					GeneratedAt:        timestamppb.New(sbomGenerationTime),
+					GenerationDuration: durationpb.New(10 * time.Second),
 					Sbom: &model.SBOMEntity_Cyclonedx{
 						Cyclonedx: &cyclonedx_v1_4.Bom{
 							SpecVersion: "1.4",
 							Version:     pointer.Ptr(int32(42)),
 							Components: []*cyclonedx_v1_4.Component{
 								{
-									Name: "200",
+									Name: "Foo",
 								},
 								{
-									Name: "201",
+									Name: "Bar",
 								},
 								{
-									Name: "202",
+									Name: "Baz",
 								},
 							},
 						},

@@ -45,6 +45,18 @@ var (
 	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
 	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
+
+	tailCalls = []manager.TailCallRoute{
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  probes.ProtocolClassifierSocketFilter,
+				EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+				UID:          probeUID,
+			},
+		},
+	}
 )
 
 type kprobeTracer struct {
@@ -117,15 +129,15 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.ConnMap:            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.TCPStatsMap:        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.PortBindingsMap:    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.UDPPortBindingsMap: {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.SockByPidFDMap:     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.PidFDBySockMap:     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 
-			string(probes.ConnectionProtocolMap):             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.ConnectionTupleToSocketSKBConnMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.ConnectionProtocolMap:             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors:           constants,
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
@@ -166,14 +178,16 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(config, perfHandlerTCP, runtimeTracer)
+	m := newManager(perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
+	var undefinedProbes []manager.ProbeIdentificationPair
+
 	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported(config) {
+	if ClassificationSupported(config) && config.CollectTCPConns {
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
-			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
-			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+			EBPFSection:  probes.ProtocolClassifierEntrySocketFilter,
+			EBPFFuncName: mainProbes[probes.ProtocolClassifierEntrySocketFilter],
 			UID:          probeUID,
 		})
 		if socketFilterProbe == nil {
@@ -184,12 +198,15 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
+
+		undefinedProbes = append(undefinedProbes, tailCalls[0].ProbeIdentificationPair)
+		mgrOptions.TailCallRouter = append(mgrOptions.TailCallRouter, tailCalls...)
 	} else {
 		// Kernels < 4.7.0 do not know about the per-cpu array map used
 		// in classification, preventing the program to load even though
 		// we won't use it. We change the type to a simple array map to
 		// circumvent that.
-		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+		mgrOptions.MapSpecEditors[probes.ProtocolClassificationBufMap] = manager.MapSpecEditor{
 			Type:       ebpf.Array,
 			EditorFlag: manager.EditType,
 		}
@@ -201,24 +218,35 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	}
 	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	m.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, undefinedProbes)
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
+		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
 			mgrOptions.ExcludedFunctions = append(mgrOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
+
+	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(tailCalls))
+	for _, tailCall := range tailCalls {
+		tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
+	}
+
 	for probeName, funcName := range enabledProbes {
+		probeIdentifier := manager.ProbeIdentificationPair{
+			EBPFSection:  probeName,
+			EBPFFuncName: funcName,
+			UID:          probeUID,
+		}
+		if _, ok := tailCallsIdentifiersSet[probeIdentifier]; ok {
+			// tail calls should be enabled (a.k.a. not excluded) but not activated.
+			continue
+		}
 		mgrOptions.ActivatedProbes = append(
 			mgrOptions.ActivatedProbes,
 			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probeName),
-					EBPFFuncName: funcName,
-					UID:          probeUID,
-				},
+				ProbeIdentificationPair: probeIdentifier,
 			})
 	}
 
@@ -245,21 +273,21 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		closeProtocolClassifierSocketFilterFn: closeProtocolClassifierSocketFilterFn,
 	}
 
-	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
+	tr.conns, _, err = m.GetMap(probes.ConnMap)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
 	}
 
-	tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
+	tr.tcpStats, _, err = m.GetMap(probes.TCPStatsMap)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
 	}
 
 	if bpfTelemetry != nil {
-		bpfTelemetry.MapErrMap = tr.GetMap(string(probes.MapErrTelemetryMap))
-		bpfTelemetry.HelperErrMap = tr.GetMap(string(probes.HelperErrTelemetryMap))
+		bpfTelemetry.MapErrMap = tr.GetMap(probes.MapErrTelemetryMap)
+		bpfTelemetry.HelperErrMap = tr.GetMap(probes.HelperErrTelemetryMap)
 	}
 
 	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
@@ -306,9 +334,9 @@ func (t *kprobeTracer) Stop() {
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	switch name {
-	case string(probes.SockByPidFDMap):
-	case string(probes.MapErrTelemetryMap):
-	case string(probes.HelperErrTelemetryMap):
+	case probes.SockByPidFDMap:
+	case probes.MapErrTelemetryMap:
+	case probes.HelperErrTelemetryMap:
 	default:
 		return nil
 	}
@@ -438,7 +466,7 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 
 func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	var zero uint64
-	mp, _, err := t.m.GetMap(string(probes.TelemetryMap))
+	mp, _, err := t.m.GetMap(probes.TelemetryMap)
 	if err != nil {
 		log.Warnf("error retrieving telemetry map: %s", err)
 		return map[string]int64{}
@@ -486,7 +514,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
 
-	tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
+	tcpPortMap, _, err := m.GetMap(probes.PortBindingsMap)
 	if err != nil {
 		return fmt.Errorf("failed to get TCP port binding map: %w", err)
 	}
@@ -504,7 +532,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	}
 
-	udpPortMap, _, err := m.GetMap(string(probes.UDPPortBindingsMap))
+	udpPortMap, _, err := m.GetMap(probes.UDPPortBindingsMap)
 	if err != nil {
 		return fmt.Errorf("failed to get UDP port binding map: %w", err)
 	}

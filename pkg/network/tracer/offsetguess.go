@@ -137,7 +137,7 @@ var offsetProbes = map[probes.ProbeName]string{
 
 func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
 	return manager.ProbeIdentificationPair{
-		EBPFSection:  string(name),
+		EBPFSection:  name,
 		EBPFFuncName: offsetProbes[name],
 		UID:          "offset",
 	}
@@ -147,7 +147,7 @@ func newOffsetManager() *manager.Manager {
 	return &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: "connectsock_ipv6"},
-			{Name: string(probes.TracerStatusMap)},
+			{Name: probes.TracerStatusMap},
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
@@ -637,9 +637,9 @@ func flowi6EntryState(status *netebpf.TracerStatus) netebpf.GuessWhat {
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
 func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEditor, error) {
-	mp, _, err := m.GetMap(string(probes.TracerStatusMap))
+	mp, _, err := m.GetMap(probes.TracerStatusMap)
 	if err != nil {
-		return nil, fmt.Errorf("unable to find map %s: %s", string(probes.TracerStatusMap), err)
+		return nil, fmt.Errorf("unable to find map %s: %s", probes.TracerStatusMap, err)
 	}
 
 	// When reading kernel structs at different offsets, don't go over the set threshold

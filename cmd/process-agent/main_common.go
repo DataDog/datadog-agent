@@ -60,7 +60,7 @@ func main() {
 }
 
 func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
-	if err := ddutil.SetupCoreDump(); err != nil {
+	if err := ddutil.SetupCoreDump(ddconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -80,17 +80,13 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		}()
 	}
 
-	// We need to load in the system probe environment variables before we load the config, otherwise an
-	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
-	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
-
 	if err := command.BootstrapConfig(globalParams.ConfFilePath, false); err != nil {
 		_ = log.Critical(err)
 		cleanupAndExit(1)
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(globalParams.SysProbeConfFilePath)
+	syscfg, err := sysconfig.New(globalParams.SysProbeConfFilePath)
 	if err != nil {
 		_ = log.Critical(err)
 		cleanupAndExit(1)
@@ -103,7 +99,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
-	err = manager.ConfigureAutoExit(mainCtx)
+	err = manager.ConfigureAutoExit(mainCtx, ddconfig.Datadog)
 	if err != nil {
 		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		cleanupAndExit(1)

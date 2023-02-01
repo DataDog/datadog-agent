@@ -18,6 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+const (
+	// 100Gbps * 30s = 375GB
+	maxByteCountChange uint64 = 375 << 30
+	// use typical small MTU size, 1300, to get max packet count
+	maxPacketCountChange uint64 = maxByteCountChange / 1300
+)
+
 // ConnectionType will be either TCP or UDP
 type ConnectionType uint8
 
@@ -237,11 +244,15 @@ type ConnectionStats struct {
 	Family           ConnectionFamily
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
-	Tags             uint64
+	StaticTags       uint64
+	Tags             map[string]struct{}
 
 	IntraHost bool
 	IsAssured bool
-	Protocol  ProtocolType
+
+	ContainerID *string
+
+	Protocol ProtocolType
 }
 
 // Via has info about the routing decision for a flow
@@ -432,38 +443,6 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	return buf[:n]
 }
 
-// Sub returns s-other
-func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
-	if s.RecvBytes < other.RecvBytes ||
-		s.RecvPackets < other.RecvPackets ||
-		(s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
-		s.SentBytes < other.SentBytes ||
-		s.SentPackets < other.SentPackets ||
-		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
-		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) {
-		return sc, true
-	}
-
-	sc = StatCounters{
-		RecvBytes:   s.RecvBytes - other.RecvBytes,
-		RecvPackets: s.RecvPackets - other.RecvPackets,
-		SentBytes:   s.SentBytes - other.SentBytes,
-		SentPackets: s.SentPackets - other.SentPackets,
-	}
-
-	if s.Retransmits > 0 {
-		sc.Retransmits = s.Retransmits - other.Retransmits
-	}
-	if s.TCPEstablished > 0 {
-		sc.TCPEstablished = s.TCPEstablished - other.TCPEstablished
-	}
-	if s.TCPClosed > 0 {
-		sc.TCPClosed = s.TCPClosed - other.TCPClosed
-	}
-
-	return sc, false
-}
-
 // Add returns s+other
 func (s StatCounters) Add(other StatCounters) StatCounters {
 	return StatCounters{
@@ -504,4 +483,14 @@ func (s StatCounters) Max(other StatCounters) StatCounters {
 		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
 		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
 	}
+}
+
+// isUnderflow checks if a metric has "underflowed", i.e.
+// the most recent value is less than what was seen
+// previously. We distinguish between an "underflow" and
+// an integer overflow if the change is greater than
+// some preset max value; if the change is greater, then
+// its an underflow
+func isUnderflow(previous, current, maxChange uint64) bool {
+	return current < previous && (current-previous) > maxChange
 }
