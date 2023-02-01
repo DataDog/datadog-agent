@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/internal/tools/proto
 go 1.18
 
 require (
+	github.com/favadi/protoc-go-inject-tag v1.4.0
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.2
 	github.com/grpc-ecosystem/grpc-gateway v1.12.2
@@ -21,6 +22,6 @@ require (
 	golang.org/x/tools v0.0.0-20201022035929-9cf592e881e9 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto v0.0.0-20190927181202-20e1ac93f88c // indirect
-	google.golang.org/protobuf v1.26.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v2 v2.2.3 // indirect
 )
