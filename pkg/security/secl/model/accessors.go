@@ -5,12 +5,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"net"
 	"reflect"
-	"unsafe"
-)
-
-// suppress unused package warning
-var (
-	_ *unsafe.Pointer
 )
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
@@ -3182,10 +3176,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3196,7 +3188,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -3205,10 +3197,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3219,7 +3209,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3228,10 +3218,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3242,7 +3230,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3251,10 +3239,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -3265,7 +3251,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3274,10 +3260,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3288,7 +3272,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -3297,10 +3281,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3311,7 +3293,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -3319,10 +3301,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3333,7 +3313,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3341,10 +3321,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3355,7 +3333,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3363,10 +3341,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3377,7 +3353,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3385,10 +3361,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3399,7 +3373,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3407,10 +3381,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3421,7 +3393,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3430,10 +3402,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3444,7 +3414,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3452,10 +3422,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.egid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3466,7 +3434,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3474,10 +3442,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3488,7 +3454,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3497,10 +3463,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3511,7 +3475,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3520,10 +3484,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3534,7 +3496,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3543,10 +3505,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -3557,7 +3517,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3565,10 +3525,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.euid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3579,7 +3537,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3587,10 +3545,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.euser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3601,7 +3557,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3609,10 +3565,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3628,7 +3582,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3637,10 +3591,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3656,7 +3608,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3664,10 +3616,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3683,7 +3633,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3692,10 +3642,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3711,7 +3659,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3720,10 +3668,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -3739,7 +3685,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3747,10 +3693,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3766,7 +3710,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3774,10 +3718,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3793,7 +3735,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3801,10 +3743,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3820,7 +3760,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3828,10 +3768,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3847,7 +3785,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3857,10 +3795,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3876,7 +3812,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3886,10 +3822,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3900,7 +3834,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3910,10 +3844,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3929,7 +3861,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3939,10 +3871,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3953,7 +3883,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3962,10 +3892,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -3981,7 +3909,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -3989,10 +3917,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4008,7 +3934,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4017,10 +3943,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4036,7 +3960,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4044,10 +3968,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4058,7 +3980,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4066,10 +3988,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4080,7 +4000,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4088,10 +4008,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4102,7 +4020,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4110,10 +4028,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4124,7 +4040,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4132,10 +4048,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4146,7 +4060,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4154,10 +4068,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4168,7 +4080,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4176,10 +4088,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4195,7 +4105,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4204,10 +4114,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4223,7 +4131,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4231,10 +4139,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4250,7 +4156,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4259,10 +4165,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4278,7 +4182,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4287,10 +4191,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -4306,7 +4208,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4314,10 +4216,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4333,7 +4233,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4341,10 +4241,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4360,7 +4258,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4368,10 +4266,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4387,7 +4283,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4395,10 +4291,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4414,7 +4308,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4424,10 +4318,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4443,7 +4335,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4453,10 +4345,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4467,7 +4357,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4477,10 +4367,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4496,7 +4384,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4506,10 +4394,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4520,7 +4406,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4529,10 +4415,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4548,7 +4432,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4556,10 +4440,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4575,7 +4457,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4584,10 +4466,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4603,7 +4483,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4611,10 +4491,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -4625,7 +4503,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4633,10 +4511,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -4647,7 +4523,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4655,10 +4531,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4669,7 +4543,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4677,10 +4551,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4691,7 +4563,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4699,10 +4571,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4713,7 +4583,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4721,10 +4591,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4735,7 +4603,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4743,10 +4611,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -4757,7 +4623,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -4765,10 +4631,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -4779,7 +4643,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6343,10 +6207,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6357,7 +6219,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -6366,10 +6228,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6380,7 +6240,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6389,10 +6249,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6403,7 +6261,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6412,10 +6270,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -6426,7 +6282,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6435,10 +6291,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6449,7 +6303,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -6458,10 +6312,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6472,7 +6324,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -6480,10 +6332,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6494,7 +6344,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6502,10 +6352,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6516,7 +6364,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6524,10 +6372,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6538,7 +6384,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6546,10 +6392,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6560,7 +6404,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6568,10 +6412,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6582,7 +6424,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6591,10 +6433,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6605,7 +6445,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6613,10 +6453,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.egid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6627,7 +6465,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6635,10 +6473,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6649,7 +6485,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6658,10 +6494,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6672,7 +6506,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6681,10 +6515,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6695,7 +6527,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6704,10 +6536,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -6718,7 +6548,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6726,10 +6556,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.euid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6740,7 +6568,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6748,10 +6576,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.euser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6762,7 +6588,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6770,10 +6596,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6789,7 +6613,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6798,10 +6622,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6817,7 +6639,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6825,10 +6647,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6844,7 +6664,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6853,10 +6673,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -6872,7 +6690,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6881,10 +6699,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -6900,7 +6716,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6908,10 +6724,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6927,7 +6741,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6935,10 +6749,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6954,7 +6766,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6962,10 +6774,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -6981,7 +6791,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -6989,10 +6799,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7008,7 +6816,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7018,10 +6826,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7037,7 +6843,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7047,10 +6853,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7061,7 +6865,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7071,10 +6875,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7090,7 +6892,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7100,10 +6902,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7114,7 +6914,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7123,10 +6923,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7142,7 +6940,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7150,10 +6948,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7169,7 +6965,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7178,10 +6974,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7197,7 +6991,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7205,10 +6999,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7219,7 +7011,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7227,10 +7019,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7241,7 +7031,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7249,10 +7039,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7263,7 +7051,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7271,10 +7059,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7285,7 +7071,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7293,10 +7079,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7307,7 +7091,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7315,10 +7099,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7329,7 +7111,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7337,10 +7119,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7356,7 +7136,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7365,10 +7145,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7384,7 +7162,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7392,10 +7170,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7411,7 +7187,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7420,10 +7196,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7439,7 +7213,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7448,10 +7222,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -7467,7 +7239,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7475,10 +7247,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7494,7 +7264,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7502,10 +7272,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7521,7 +7289,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7529,10 +7297,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7548,7 +7314,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7556,10 +7322,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7575,7 +7339,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7585,10 +7349,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7604,7 +7366,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7614,10 +7376,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7628,7 +7388,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7638,10 +7398,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7657,7 +7415,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7667,10 +7425,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7681,7 +7437,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7690,10 +7446,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7709,7 +7463,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7717,10 +7471,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7736,7 +7488,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7745,10 +7497,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7764,7 +7514,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7772,10 +7522,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -7786,7 +7534,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7794,10 +7542,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -7808,7 +7554,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7816,10 +7562,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7830,7 +7574,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7838,10 +7582,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7852,7 +7594,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7860,10 +7602,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7874,7 +7614,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7882,10 +7622,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7896,7 +7634,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7904,10 +7642,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -7918,7 +7654,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -7926,10 +7662,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -7940,7 +7674,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10460,10 +10194,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10474,7 +10206,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -10483,10 +10215,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10497,7 +10227,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10506,10 +10236,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10520,7 +10248,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10529,10 +10257,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -10543,7 +10269,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10552,10 +10278,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10566,7 +10290,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -10575,10 +10299,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10589,7 +10311,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
@@ -10597,10 +10319,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -10611,7 +10331,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10619,10 +10339,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -10633,7 +10351,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10641,10 +10359,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10655,7 +10371,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10663,10 +10379,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10677,7 +10391,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10685,10 +10399,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -10699,7 +10411,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10708,10 +10420,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -10722,7 +10432,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10730,10 +10440,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.egid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -10744,7 +10452,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10752,10 +10460,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10766,7 +10472,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10775,10 +10481,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10789,7 +10493,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10798,10 +10502,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10812,7 +10514,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result...)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10821,10 +10523,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -10835,7 +10535,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10843,10 +10543,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.euid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -10857,7 +10555,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10865,10 +10563,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.euser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10879,7 +10575,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10887,10 +10583,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -10906,7 +10600,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10915,10 +10609,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10934,7 +10626,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10942,10 +10634,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -10961,7 +10651,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10970,10 +10660,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -10989,7 +10677,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -10998,10 +10686,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -11017,7 +10703,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11025,10 +10711,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11044,7 +10728,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11052,10 +10736,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11071,7 +10753,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11079,10 +10761,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11098,7 +10778,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11106,10 +10786,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11125,7 +10803,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11135,10 +10813,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11154,7 +10830,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11164,10 +10840,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11178,7 +10852,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11188,10 +10862,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11207,7 +10879,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11217,10 +10889,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11231,7 +10901,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11240,10 +10910,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11259,7 +10927,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11267,10 +10935,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11286,7 +10952,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11295,10 +10961,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11314,7 +10978,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11322,10 +10986,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11336,7 +10998,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11344,10 +11006,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11358,7 +11018,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11366,10 +11026,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11380,7 +11038,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11388,10 +11046,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11402,7 +11058,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11410,10 +11066,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11424,7 +11078,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11432,10 +11086,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11446,7 +11098,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11454,10 +11106,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11473,7 +11123,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11482,10 +11132,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11501,7 +11149,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11509,10 +11157,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11528,7 +11174,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11537,10 +11183,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11556,7 +11200,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11565,10 +11209,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -11584,7 +11226,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11592,10 +11234,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11611,7 +11251,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11619,10 +11259,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11638,7 +11276,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11646,10 +11284,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11665,7 +11301,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11673,10 +11309,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11692,7 +11326,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11702,10 +11336,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11721,7 +11353,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11731,10 +11363,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11745,7 +11375,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11755,10 +11385,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11774,7 +11402,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11784,10 +11412,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11798,7 +11424,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11807,10 +11433,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11826,7 +11450,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11834,10 +11458,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11853,7 +11475,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11862,10 +11484,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -11881,7 +11501,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11889,10 +11509,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -11903,7 +11521,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11911,10 +11529,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]bool)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
 				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
@@ -11925,7 +11541,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11933,10 +11549,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11947,7 +11561,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11955,10 +11569,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11969,7 +11581,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11977,10 +11589,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -11991,7 +11601,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -11999,10 +11609,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -12013,7 +11621,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -12021,10 +11629,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
@@ -12035,7 +11641,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -12043,10 +11649,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -12057,7 +11661,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					value = iterator.Next()
 				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,

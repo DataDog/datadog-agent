@@ -49,7 +49,7 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFull("")).Methods("GET")
+	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")

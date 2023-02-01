@@ -15,21 +15,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// Config represents an object that can load and store configuration parameters
-// coming from different kind of sources:
-// - defaults
-// - files
-// - environment variables
-// - flags
-type Config interface {
-
-	// API implemented by viper.Viper
-
-	Set(key string, value interface{})
-	SetDefault(key string, value interface{})
-	SetFs(fs afero.Fs)
-	IsSet(key string) bool
-
+// ConfigReader is a subset of Config that only allows reading of configuration
+type ConfigReader interface {
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool
@@ -46,6 +33,45 @@ type Config interface {
 	GetStringMapStringSlice(key string) map[string][]string
 	GetSizeInBytes(key string) uint
 
+	ConfigFileUsed() string
+
+	AllSettings() map[string]interface{}
+	AllSettingsWithoutDefault() map[string]interface{}
+	AllKeys() []string
+
+	IsSet(key string) bool
+
+	// IsKnown returns whether this key is known
+	IsKnown(key string) bool
+
+	// GetKnownKeys returns all the keys that meet at least one of these criteria:
+	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
+	GetKnownKeys() map[string]interface{}
+
+	// GetEnvVars returns a list of the env vars that the config supports.
+	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
+	GetEnvVars() []string
+
+	// IsSectionSet checks if a given section is set by checking if any of
+	// its subkeys is set.
+	IsSectionSet(section string) bool
+}
+
+type ConfigWriter interface {
+	Set(key string, value interface{})
+}
+
+type ConfigReaderWriter interface {
+	ConfigReader
+	ConfigWriter
+}
+
+type ConfigLoader interface {
+	// API implemented by viper.Viper
+
+	SetDefault(key string, value interface{})
+	SetFs(fs afero.Fs)
+
 	SetEnvPrefix(in string)
 	BindEnv(input ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
@@ -60,23 +86,15 @@ type Config interface {
 	MergeConfig(in io.Reader) error
 	MergeConfigOverride(in io.Reader) error
 
-	AllSettings() map[string]interface{}
-	AllSettingsWithoutDefault() map[string]interface{}
-	AllKeys() []string
-
 	AddConfigPath(in string)
 	SetConfigName(in string)
 	SetConfigFile(in string)
 	SetConfigType(in string)
-	ConfigFileUsed() string
 
 	BindPFlag(key string, flag *pflag.Flag) error
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)
-	// GetKnownKeys returns all the keys that meet at least one of these criteria:
-	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
-	GetKnownKeys() map[string]interface{}
 
 	// API not implemented by viper.Viper and that have proven useful for our config usage
 
@@ -86,12 +104,15 @@ type Config interface {
 	// If env is provided, it will override the name of the environment variable used for this
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
+}
 
-	// GetEnvVars returns a list of the env vars that the config supports.
-	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
-	GetEnvVars() []string
-
-	// IsSectionSet checks if a given section is set by checking if any of
-	// its subkeys is set.
-	IsSectionSet(section string) bool
+// Config represents an object that can load and store configuration parameters
+// coming from different kind of sources:
+// - defaults
+// - files
+// - environment variables
+// - flags
+type Config interface {
+	ConfigReaderWriter
+	ConfigLoader
 }
