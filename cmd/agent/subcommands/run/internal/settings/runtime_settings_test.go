@@ -45,7 +45,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		require.Nil(t, err)
 
 		s := DsdStatsRuntimeSetting{
-			server: server,
+			Server: server,
 		}
 
 		// runtime settings set/get underlying implementation
