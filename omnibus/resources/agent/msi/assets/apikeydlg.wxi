@@ -6,11 +6,7 @@
                Text="Back">
           
         <Publish Event="NewDialog" Value="MaintenanceTypeDlg">WixUI_InstallMode = "Repair"</Publish>
-          <?if $(var.IncludeSysprobe) = true ?>
-            <Publish Event="NewDialog" Value="CustomizeDlg">NOT INSTALLED</Publish>
-          <?else ?>
-            <Publish Event="NewDialog" Value="LicenseAgreementDlg">NOT INSTALLED</Publish>
-          <?endif ?>
+        <Publish Event="NewDialog" Value="AllowClosedSourceDlg">NOT INSTALLED</Publish>
       </Control>
       <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes"
                Text="Next">

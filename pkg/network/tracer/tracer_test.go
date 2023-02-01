@@ -33,10 +33,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	syscfg "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -65,6 +67,9 @@ func TestMain(m *testing.M) {
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
 	}
+
+	driver.Init(&syscfg.Config{ClosedSourceAllowed: true})
+
 	os.Exit(m.Run())
 }
 

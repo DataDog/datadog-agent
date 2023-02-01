@@ -101,25 +101,25 @@ def genconfig(
     elif platlist:
         # platform list should be in the form of driver,os,arch,image
         for entry in platlist:
-            driver, os, arch, image = entry.split(",")
+            driver, osv, arch, image = entry.split(",")
             if provider and driver != provider:
                 raise Exit(message=f"Can only use one driver type per config ( {provider} != {driver} )\n", code=1)
 
             provider = driver
             # check to see if we know this one
-            if not platforms.get(os):
+            if not platforms.get(osv):
                 raise Exit(message=f"Unknown OS in {entry}\n", code=4)
 
-            if not platforms[os].get(driver):
+            if not platforms[osv].get(driver):
                 raise Exit(message=f"Unknown driver in {entry}\n", code=5)
 
-            if not platforms[os][driver].get(arch):
+            if not platforms[osv][driver].get(arch):
                 raise Exit(message=f"Unknown architecture in {entry}\n", code=5)
 
-            if not platforms[os][driver][arch].get(image):
+            if not platforms[osv][driver][arch].get(image):
                 raise Exit(message=f"Unknown image in {entry}\n", code=6)
 
-            testplatformslist.append(f"{image},{platforms[os][driver][arch][image]}")
+            testplatformslist.append(f"{image},{platforms[osv][driver][arch][image]}")
 
     print("Using the following test platform(s)\n")
     for logplat in testplatformslist:
@@ -149,6 +149,11 @@ def genconfig(
     env = {}
     if uservars:
         env = load_user_env(ctx, provider, uservars)
+
+    # set KITCHEN_ARCH if it's not set in the user env
+    if not 'KITCHEN_ARCH' in env and not ('KITCHEN_ARCH' in os.environ.keys()):
+            env['KITCHEN_ARCH'] = arch
+
     env['TEST_PLATFORMS'] = testplatforms
 
     if provider == "azure":

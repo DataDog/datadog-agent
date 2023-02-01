@@ -1,3 +1,14 @@
+require 'win32/registry'
+
+def is_windows_service_disabled(service)
+  keypath = "SYSTEM\\CurrentControlSet\\Services\\#{service}"
+  type = 0;
+  Win32::Registry::HKEY_LOCAL_MACHINE.open(keypath) do |reg|
+    type = reg['Start']
+  end
+  return true if type == 4
+  return false
+end 
 shared_examples_for 'a Windows Agent with NPM driver that can start' do
   it 'has system probe service installed' do
     expect(is_windows_service_installed("datadog-system-probe")).to be_truthy
@@ -9,7 +20,7 @@ shared_examples_for 'a Windows Agent with NPM driver that can start' do
     program_files = safe_program_files
     expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
     expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
-    expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
+    expect(File).to exist("#{program_files}\f\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
   end
 
   it 'does not have the driver running on install' do
@@ -27,16 +38,10 @@ shared_examples_for 'a Windows Agent with NPM driver that can start' do
   end
 
 end
-shared_examples_for 'a Windows Agent with no NPM driver installed' do
-  it 'does not have the Windows NPM driver installed' do
-    expect(is_windows_service_installed("ddnpm")).to be_falsey
-  end
-  it 'does not have the Windows NPM driver files installed' do
-    program_files = safe_program_files
-    expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
-    expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
-    expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
-  end
+shared_examples_for 'a Windows Agent with NPM driver disabled' do
+  it 'has the service disabled' do
+    expect(is_windows_service_disabled("ddnpm")).to be_truthy
+  end 
 end
 
 shared_examples_for 'a Windows Agent with NPM driver installed' do
@@ -87,8 +92,34 @@ shared_examples_for 'a Windows Agent with NPM running' do
     File.write(spconf_path, spconfYaml.to_yaml)
 
     expect(is_service_running?("datadog-system-probe")).to be_falsey
-    restart "datadog-agent"
+    #restart "datadog-agent"
+    stop "datadog-agent"
+    sleep 10
+    start "datadog-agent"
+    sleep 20
     expect(is_service_running?("datadogagent")).to be_truthy
     expect(is_service_running?("datadog-system-probe")).to be_truthy
   end
+end
+
+shared_examples_for 'a Windows Agent with closed source enabled' do
+  ena = 0
+  Win32::Registry::HKEY_LOCAL_MACHINE.open('SOFTWARE\DataDog\Datadog Agent') do |reg|
+    ena = reg['AllowClosedSource']
+  end
+  it 'registry value is set to one' do
+    expect(ena).to eq(1)
+  end
+
+end
+
+shared_examples_for 'a Windows Agent with closed source disabled' do
+  ena = 0
+  Win32::Registry::HKEY_LOCAL_MACHINE.open('SOFTWARE\DataDog\Datadog Agent') do |reg|
+    ena = reg['AllowClosedSource']
+  end
+  it 'registry value is set to zero' do
+    expect(ena).to eq(0)
+  end
+
 end

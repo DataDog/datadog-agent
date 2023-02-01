@@ -63,6 +63,51 @@ bool RegKey::setStringValue(const wchar_t *valname, const wchar_t *value)
     return true;
 }
 
+
+bool RegKey::getDWORDValue(const wchar_t *valname, DWORD &val)
+{
+    DWORD dataSize = 0;
+    DWORD type = 0;
+    LSTATUS st = RegQueryValueEx(this->hKeyRoot, valname,
+                                 0, // reserved
+                                 &type,
+                                 NULL, // no data this time
+                                 &dataSize);
+    if (st == ERROR_FILE_NOT_FOUND)
+    {
+        return false;
+    }
+    if (st != 0 && st != ERROR_MORE_DATA)
+    {
+        // should never happen
+        return false;
+    }
+    // retdata indicates buffer size in bytes. 
+    if(dataSize != sizeof(DWORD)){
+        return false;
+    }
+    if(type != REG_DWORD){
+        return false;
+    }
+    DWORD retdata;
+    st = RegQueryValueEx(this->hKeyRoot, valname,
+                         0, // reserved
+                         &type,
+                         (LPBYTE)&retdata, // no data this time
+                         &dataSize);
+    if (st == ERROR_SUCCESS)
+    {
+        val = retdata;
+    }
+    return st == ERROR_SUCCESS ? true : false;
+}
+
+bool RegKey::setDWORDValue(const wchar_t *valname, DWORD value)
+{
+    RegSetValueEx(this->hKeyRoot, valname, 0, REG_DWORD, (const BYTE *)&value,
+                  (DWORD)sizeof(DWORD));
+    return true;
+}
 bool RegKey::deleteSubKey(const wchar_t *keyname)
 {
     return RegDeleteKeyEx(this->hKeyRoot, keyname, 0, 0) == ERROR_SUCCESS ? true : false;

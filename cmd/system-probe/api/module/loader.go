@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,6 +46,8 @@ type loader struct {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
+	driver.Init(cfg)
+
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("module %s disabled", factory.Name)
@@ -80,6 +83,15 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 		log.Infof("module %s started", factory.Name)
 	}
 
+	if !driver.IsNeeded() {
+		// if running, shut it down
+		log.Debug("system-probe module initialization complete, driver not needed, shutting down")
+
+		// shut the driver down and optionally disable it, if closed source isn't allowed anymore
+		if err := driver.ForceStop(); err != nil {
+			log.Warnf("error stopping driver: %s", err)
+		}
+	}
 	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")

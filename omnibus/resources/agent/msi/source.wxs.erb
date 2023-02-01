@@ -79,17 +79,12 @@
     <Property Id="APIKEY" Hidden="yes" />
     <Property Id="SITE" Value="datadoghq.com" />
     <Property Id="FinalizeInstall" Hidden="yes" />
-    <Property Id="NPMFEATURESTATE" />
+    <Property Id="CLOSEDSOURCEACCEPTED" /> <!-- this key is set by the approval dialog-->
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
 
-     <?if $(var.IncludeSysprobe) = true ?>
      <Property Id="SYSPROBE_PRESENT" Value="true" />
-     <?else ?>
-     <Property Id="SYSPROBE_PRESENT" Value="false" />
-     <?endif ?>
-
     <!--
       The following four properties are set to see if the user specified the binary dir or config dir on
       the command line. These properties are loaded before the property is loaded from the registry (below)
@@ -111,7 +106,6 @@
     <SetProperty Id="APPLICATIONDATADIRECTORY_BEFORE_APPSEARCH" Action="SetApplicationDataDirectory_FromCmdline" Value="[APPLICATIONDATADIRECTORY]" Before="AppSearch">APPLICATIONDATADIRECTORY</SetProperty>
     <SetProperty Id="APPLICATIONDATADIRECTORY_BEFORE_APPSEARCH" Action="SetApplicationDataDirectory_NotFromCmdline" Value="[CommonAppDataFolder]Datadog" Before="AppSearch">NOT APPLICATIONDATADIRECTORY</SetProperty>
 
-
     <!--
       The following sets a property (to be used by the custom action).
       the "&" indicates the action state of a feature (so &NPM refers to the NPM _feature_ not the NPM property that might be set on the command line)
@@ -125,9 +119,10 @@
       For more information on this syntax see
       https://www.firegiant.com/wix/tutorial/com-expression-syntax-miscellanea/expression-syntax/
       -->
-    <SetProperty Action="SetNPMOff" Id="NPMFEATURESTATE" Before="SetFinalizeProperty" Value="off" Sequence="execute"><![CDATA[not (&NPM = 3)]]></SetProperty>
+
+    <!--<SetProperty Action="SetNPMOff" Id="NPMFEATURESTATE" Before="SetFinalizeProperty" Value="off" Sequence="execute"><![CDATA[not (&NPM = 3)]]></SetProperty>
     <SetProperty Action="SetNPMOn"  Id="NPMFEATURESTATE" Before="SetFinalizeProperty" Value="on"  Sequence="execute"><![CDATA[(&NPM = 3)]]></SetProperty>
-    <!-- This condition allows the install if
+     This condition allows the install if
         1) the user didn't supply the binary directory on the command line
         2) this is NOT an upgrade
         3) it is an upgrade, but the supplied directory is the same as the originally installed one.
@@ -209,6 +204,9 @@
                       Name="ConfigRoot" />
     </Property>
 
+    <!-- check to see if the npm service is already in DEMAND_START state.  If so, 
+         was installed by previous method, and can infer that closed source was accepted
+         on prior install -->
     <Property Id="DD_FILTER_INSTALLED">
       <RegistrySearch Key="SYSTEM\CurrentControlSet\Services\ddnpm"
                       Root="HKLM"
@@ -216,6 +214,8 @@
                       Id="DDFILTERINSTALLED_REGSEARCH"
                       Name="Start" />
     </Property>
+    
+    
     <DirectoryRef Id="PROJECTLOCATION">
       <Component Id="CleanupMainApplicationFolder" Guid="096249cf-3fe7-4342-a80f-77101ceed5fe">
         <RegistryValue Root="HKLM"
@@ -334,28 +334,25 @@
                         SupportsInformationals="yes"
                         SupportsWarnings="yes"/>
             </Component>
-            <!-- file declaration for sysprobe -->
-            <!-- todo service declaration -->
-            <?if $(var.IncludeSysprobe) = true ?>
               <Directory Id="DRIVER" Name="driver">
-                <Merge Id="ddnpminstall" SourceFile="$(var.BinFiles)\ddnpm.msm" DiskId="1" Language="1033" />
+                <Merge Id="ddnpminstall" SourceFile="$(var.BinFiles)\ddnpm.msm" DiskId="1" Language="1033" >
+                </Merge>
               </Directory>
-              <Component Id="DATADOGSYSPROBESERVICE" Guid="5D41ECDB-B91E-4802-878C-CDBA84721623">
-                <File Id="system_probe.exe"
-                    Name="system-probe.exe"
-                    Vital="yes"
-                    KeyPath="yes"
-                    DiskId="1"
-                    Source="$(var.BinFiles)/system-probe.exe" />
-                <!-- The "Name" field must match the argument to eventlog.Open() -->
-                <util:EventSource Log="Application" Name="datadog-system-probe"
-                      EventMessageFile="[AGENT]system-probe.exe"
-                      SupportsErrors="yes"
-                      SupportsInformationals="yes"
-                      SupportsWarnings="yes"/>
-                </Component>
-            <?endif ?> <!-- include sysprobe -->
-          <?endif ?>
+            <Component Id="DATADOGSYSPROBESERVICE" Guid="5D41ECDB-B91E-4802-878C-CDBA84721623">
+              <File Id="system_probe.exe"
+                  Name="system-probe.exe"
+                  Vital="yes"
+                  KeyPath="yes"
+                  DiskId="1"
+                  Source="$(var.BinFiles)/system-probe.exe" />
+              <!-- The "Name" field must match the argument to eventlog.Open() -->
+              <util:EventSource Log="Application" Name="datadog-system-probe"
+                    EventMessageFile="[AGENT]system-probe.exe"
+                    SupportsErrors="yes"
+                    SupportsInformationals="yes"
+                    SupportsWarnings="yes"/>
+            </Component>
+          <?endif?>
         </Directory>
       </Directory>
     </DirectoryRef>
@@ -391,17 +388,15 @@
             Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
 
-      <?if $(var.IncludeSysprobe) = true ?>
-        <Component Id="system_probe.yaml.example"
-                 Guid="a268622a-0305-4b5d-b08a-2371820f6b3f"
-                 NeverOverwrite="yes"
-                 Permanent="yes">
-          <File Id="system_probe.yaml.example"
-            Name="system-probe.yaml"
-            KeyPath="yes"
-            Source="$(var.EtcFiles)\system-probe.yaml.example"/>
-        </Component>
-      <?endif ?>
+      <Component Id="system_probe.yaml.example"
+                Guid="a268622a-0305-4b5d-b08a-2371820f6b3f"
+                NeverOverwrite="yes"
+                Permanent="yes">
+        <File Id="system_probe.yaml.example"
+          Name="system-probe.yaml"
+          KeyPath="yes"
+          Source="$(var.EtcFiles)\system-probe.yaml.example"/>
+      </Component>
 
 
       <Directory Id="checks.d" Name="checks.d">
@@ -452,7 +447,7 @@
         </Component>
       </Directory>
     </DirectoryRef>
-
+    
     <InstallExecuteSequence>
       <Custom Action='WixCloseApplications' Before='RemoveFiles'> </Custom>
 
@@ -505,26 +500,28 @@
         <?if $(var.IncludePython2) = true ?>
           <ComponentRef Id="MSVCRUNTIME" />
         <?endif ?>
-      <?if $(var.IncludeSysprobe) = true ?>
           <ComponentRef Id="DATADOGSYSPROBESERVICE" />
           <ComponentRef Id="system_probe.yaml.example" />
-      <?endif ?>
-      <Condition Level="1"><![CDATA[1]]></Condition>
-
-      <?if $(var.IncludeSysprobe) = true ?>
-        <!-- don't install by default (indicated by level 100)  Only things with level
-        <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
-        <Feature  Id="NPM"
-                  Level="100"
-                  Title="Network Performance Monitoring"
-                  ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
-                  Absent="allow"
-                  AllowAdvertise="no"
-        >
           <MergeRef Id="ddnpminstall"/>
-          <Condition Level="1"><![CDATA[NPM OR (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
-        </Feature>
-      <?endif ?>
+      <!-- don't install by default (indicated by level 100)  Only things with level
+        <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
+      <Feature  Id="NPM"
+                Level="100"
+                Title="Network Performance Monitoring"
+                ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
+                Absent="allow"
+                AllowAdvertise="no"
+      >
+        <!--  This space intentionally left blank.
+              Starting with 7.44, the npm components are no longer controlled
+              by a feature.  Rather, they're controlled by the new closed 
+              source directive.  However, docs & released management tools 
+              use the ADDLOCAL=NPM; if there's no such feature it errors out
+              Provide an empty feature; the parsing will do the right thing
+              in the custom action
+              -->
+        
+      </Feature>
     </Feature>
 
     <!-- UI Stuff: 100% Omnibus Generated -->
@@ -564,6 +561,7 @@
       <?include Resources\assets\apikeydlg.wxi ?>
       <?include Resources\assets\sitedlg.wxi ?>
       <?include Resources\assets\ddagentuserdlg.wxi ?>
+      <?include Resources\assets\closedsource.wxi ?>
       <DialogRef Id="ErrorDlg" />
       <DialogRef Id="FatalError" />
       <DialogRef Id="FilesInUse" />
@@ -578,17 +576,14 @@
       <DialogRef Id="DDAgentUserDlg"/>
       <DialogRef Id="DDAgentUserInvalidDlg"/>
       <DialogRef Id="LicenseAgreementDlg"/>
-      <?if $(var.IncludeSysprobe) = true ?>
-      <DialogRef Id="CustomizeDlg"/>
-      <?endif ?>
-
+      <DialogRef Id="AllowClosedSourceDlg"/>
       <DialogRef Id="MaintenanceWelcomeDlg"/>
       <DialogRef Id="MaintenanceTypeDlg"/>
       <DialogRef Id="ResumeDlg"/>
       <!-- Order of dialogs should be
            WelcomeDlg
            License Agreement IF NOT UPGRADE
-           Customize IF APPLICABLE
+           Allow open source
            Apikey
            Site
            DDAgentUser
@@ -597,29 +592,24 @@
            -->
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT PREVIOUSFOUND</Publish>
 
-      <?if $(var.IncludeSysprobe) = true ?>
-        <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">PREVIOUSFOUND</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="AllowClosedSourceDlg">PREVIOUSFOUND</Publish>
 
-        <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="AllowClosedSourceDlg">NOT PREVIOUSFOUND</Publish>
+      
+      <Publish Dialog="AllowClosedSourceDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
+      <Publish Dialog="AllowClosedSourceDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">WixUI_InstallMode OR PREVIOUSFOUND OR DATADOGYAMLEXISTS</Publish>
 
-        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
-        <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">WixUI_InstallMode OR PREVIOUSFOUND OR DATADOGYAMLEXISTS</Publish>
+      <Publish Dialog="AllowClosedSourceDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND)</Publish>
+      <Publish Dialog="AllowClosedSourceDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
+      <Publish Dialog="AllowClosedSourceDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg"> WixUI_InstallMode </Publish>
+      
 
-        <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND)</Publish>
-        <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
-        <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg"> WixUI_InstallMode </Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="AllowClosedSourceDlg">(NOT WixUI_InstallMode) AND (PREVIOUSFOUND OR DATADOGYAMLEXISTS)</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="AllowClosedSourceDlg">WixUI_InstallMode = "Change"</Publish>
 
-        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg">(NOT WixUI_InstallMode) AND (PREVIOUSFOUND OR DATADOGYAMLEXISTS)</Publish>
-        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg">WixUI_InstallMode = "Change"</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="AllowClosedSourceDlg">1</Publish>
 
-        <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="CustomizeDlg">1</Publish>
-      <?else ?>
-        <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">PREVIOUSFOUND</Publish>
 
-        <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">(NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
-
-        <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND (PREVIOUSFOUND OR DATADOGYAMLEXISTS)</Publish>
-      <?endif ?>
 
       <!-- if the dialog is displayed, there is only one back from here, which is the welcome -->
       <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg"></Publish>
@@ -627,7 +617,7 @@
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
       <Publish Dialog="SiteDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
 
-      <!-- if the previous installation or the datadog.yaml file exists, implying the API key and Site are known, go back to the CustomizeDlg or LicenseAgreementDlg -->
+      <!-- if the previous installation or the datadog.yaml file exists, implying the API key and Site are known, go back to the AllowClosedSourceDlg or LicenseAgreementDlg -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DDAgentUserDlg">(NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
@@ -690,6 +680,8 @@
             DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]
             SYSPROBE_PRESENT=[SYSPROBE_PRESENT]
             NPMFEATURE=[NPMFEATURESTATE]
+            CLOSEDSOURCE=[ALLOWCLOSEDSOURCE]
+            DDNPM_INSTALLED=[DD_FILTER_INSTALLED]
             ADDLOCAL=[ADDLOCAL]
             APIKEY=[APIKEY]
             TAGS=[TAGS]
