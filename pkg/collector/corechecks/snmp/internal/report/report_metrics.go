@@ -7,6 +7,10 @@ package report
 
 import (
 	"fmt"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -22,6 +26,8 @@ type MetricSender struct {
 	sender           aggregator.Sender
 	hostname         string
 	submittedMetrics int
+	statsdClient     *ddgostatsd.Client
+	prevValues       map[string]float64
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -35,7 +41,25 @@ type MetricSample struct {
 
 // NewMetricSender create a new MetricSender
 func NewMetricSender(sender aggregator.Sender, hostname string) *MetricSender {
-	return &MetricSender{sender: sender, hostname: hostname}
+
+	// Create a statsd Client
+	statsdAddr := os.Getenv("STATSD_URL")
+	statsdHost := pkgconfig.GetBindHost()
+	statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
+
+	statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	log.Infof("Statsd Addr: %s", statsdAddr)
+
+	statsdClient, err := ddgostatsd.New(statsdAddr)
+	if err != nil {
+		log.Errorf("Error creating statsd Client: %s", err)
+	}
+	return &MetricSender{
+		sender:       sender,
+		hostname:     hostname,
+		statsdClient: statsdClient,
+		prevValues:   make(map[string]float64),
+	}
 }
 
 // ReportMetrics reports metrics using Sender
@@ -182,9 +206,20 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	if scaleFactor != 0 {
 		floatValue *= scaleFactor
 	}
+	tagsStr := strings.Join(metricSample.tags, ".")
+
+	if metricFullName == "snmp.ifHCInOctets" {
+		delta := floatValue - ms.prevValues[tagsStr]
+		ms.prevValues[tagsStr] = floatValue
+
+		ms.Distribution(metricFullName, delta, metricSample.tags)
+	}
 
 	switch forcedType {
 	case "gauge":
+		if metricFullName == "snmp.ifHCInOctets" {
+			ms.Distribution(metricFullName, floatValue, metricSample.tags)
+		}
 		ms.Gauge(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
 	case "counter":
@@ -209,6 +244,11 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 // Gauge wraps Sender.Gauge
 func (ms *MetricSender) Gauge(metric string, value float64, tags []string) {
 	ms.sender.Gauge(metric, value, ms.hostname, tags)
+}
+
+// Distribution wraps Sender.Gauge
+func (ms *MetricSender) Distribution(metric string, value float64, tags []string) {
+	ms.statsdClient.Distribution(metric, value, tags, 1.0)
 }
 
 // Rate wraps Sender.Rate
