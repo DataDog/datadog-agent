@@ -53,6 +53,9 @@ const (
 
 	dotnetTracerHomeKey   = "DD_DOTNET_TRACER_HOME"
 	dotnetTracerHomeValue = "/datadog-lib"
+
+	dotnetProfilingLdPreloadKey   = "LD_PRELOAD"
+	dotnetProfilingLdPreloadValue = "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so"
 )
 
 type language string
@@ -236,18 +239,9 @@ func injectLibRequirements(pod *corev1.Pod, ctrName string, envKey string, envVa
 			continue
 		}
 
-		index := envIndex(ctr.Env, envKey)
-		if index < 0 {
-			pod.Spec.Containers[i].Env = append(pod.Spec.Containers[i].Env, corev1.EnvVar{
-				Name:  envKey,
-				Value: envVal(""),
-			})
-		} else {
-			if pod.Spec.Containers[i].Env[index].ValueFrom != nil {
-				return fmt.Errorf("%q is defined via ValueFrom", envKey)
-			}
-
-			pod.Spec.Containers[i].Env[index].Value = envVal(pod.Spec.Containers[i].Env[index].Value)
+		err := setEnvVarWithFunc(&pod.Spec.Containers[i], envKey, envVal)
+		if err != nil {
+			return err
 		}
 
 		volumeAlreadyMounted := false
@@ -290,6 +284,11 @@ func injectLibRequirementsDotnet(pod *corev1.Pod, ctrName string) error {
 		err4 := setEnvVar(&pod.Spec.Containers[i], dotnetTracerHomeKey, dotnetTracerHomeValue)
 		if err4 != nil {
 			return err4
+		}
+
+		err5 := setEnvVarWithFunc(&pod.Spec.Containers[i], dotnetProfilingLdPreloadKey, dotnetProfilingLdPreloadEnvValFunc)
+		if err5 != nil {
+			return err5
 		}
 
 		volumeAlreadyMounted := false
@@ -348,6 +347,25 @@ func setEnvVar(ctr *corev1.Container, envKey string, envValue string) error {
 	return nil
 }
 
+func setEnvVarWithFunc(ctr *corev1.Container, envKey string, envVal envValFunc) error {
+	index := envIndex(ctr.Env, envKey)
+
+	if index < 0 {
+		ctr.Env = append(ctr.Env, corev1.EnvVar{
+			Name:  envKey,
+			Value: envVal(""),
+		})
+	} else {
+		if ctr.Env[index].ValueFrom != nil {
+			return fmt.Errorf("%q is defined via ValueFrom", envKey)
+		}
+
+		ctr.Env[index].Value = envVal(ctr.Env[index].Value)
+	}
+
+	return nil
+}
+
 func injectLibVolume(pod *corev1.Pod) {
 	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
 		Name: volumeName,
@@ -382,4 +400,11 @@ func pythonEnvValFunc(predefinedVal string) string {
 		return pythonPathValue
 	}
 	return fmt.Sprintf("%s:%s", pythonPathValue, predefinedVal)
+}
+
+func dotnetProfilingLdPreloadEnvValFunc(predefinedVal string) string {
+	if predefinedVal == "" {
+		return dotnetProfilingLdPreloadValue
+	}
+	return fmt.Sprintf("%s:%s", dotnetProfilingLdPreloadValue, predefinedVal)
 }
