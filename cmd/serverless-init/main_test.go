@@ -9,9 +9,9 @@
 package main
 
 import (
-	"testing"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"gotest.tools/assert"
+	"testing"
 )
 
 func TestProxyNotLoaded(t *testing.T) {

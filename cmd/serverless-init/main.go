@@ -33,7 +33,7 @@ func main() {
 	}
 
 	// load proxy settings
-	setupProxy();
+	setupProxy()
 
 	cloudService := cloudservice.GetCloudServiceType()
 	tags := cloudService.GetTags()
