@@ -173,6 +173,7 @@ variables:
   USE_CACHING_PROXY_RUBY: "true"
   USE_CACHING_PROXY_PYTHON: "true"
   CLANG_LLVM_VER: 12.0.1
+  RUN_ALL_BUILDS: "true"
 
 #
 # Condition mixins for simplification of rules
