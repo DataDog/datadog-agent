@@ -481,6 +481,25 @@ func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cf
 	}()
 }
 
+func (ccc *CCCache) listSpaces(wg *sync.WaitGroup, spacesMap *map[string]*cfclient.V3Space) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		spaces, err := ccc.ccAPIClient.ListV3SpacesByQuery(query)
+		if err != nil {
+			log.Errorf("Failed listing spaces from cloud controller: %v", err)
+			return
+		}
+		*spacesMap = make(map[string]*cfclient.V3Space, len(spaces))
+		for _, space := range spaces {
+			v3Space := space
+			(*spacesMap)[space.GUID] = &v3Space
+		}
+	}()
+}
+
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	var wg sync.WaitGroup
@@ -491,24 +510,8 @@ func (ccc *CCCache) readData() {
 	ccc.listApplications(&wg, &appsByGUID, &sidecarsByAppGUID)
 
 	// List spaces
-	wg.Add(1)
 	var spacesByGUID map[string]*cfclient.V3Space
-	go func() {
-		defer wg.Done()
-		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-		spaces, err := ccc.ccAPIClient.ListV3SpacesByQuery(query)
-		if err != nil {
-			log.Errorf("Failed listing spaces from cloud controller: %v", err)
-			return
-		}
-		spacesByGUID = make(map[string]*cfclient.V3Space, len(spaces))
-		for _, space := range spaces {
-			v3Space := space
-			spacesByGUID[space.GUID] = &v3Space
-		}
-
-	}()
+	ccc.listSpaces(&wg, &spacesByGUID)
 
 	// List orgs
 	wg.Add(1)
