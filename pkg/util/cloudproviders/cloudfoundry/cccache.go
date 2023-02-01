@@ -90,7 +90,7 @@ type CCCache struct {
 	segmentBySpaceGUID   map[string]*cfclient.IsolationSegment
 	segmentByOrgGUID     map[string]*cfclient.IsolationSegment
 	appsBatchSize        int
-	locksByResource      map[string]*sync.Mutex
+	locksByResource      map[string]*sync.RWMutex
 }
 
 // CCClientI is an interface for a Cloud Foundry Client that queries the Cloud Foundry API
@@ -148,7 +148,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.serveNozzleData = serveNozzleData
 	globalCCCache.sidecarsTags = sidecarsTags
 	globalCCCache.segmentsTags = segmentsTags
-	globalCCCache.locksByResource = make(map[string]*sync.Mutex)
+	globalCCCache.locksByResource = make(map[string]*sync.RWMutex)
 
 	go globalCCCache.start()
 
@@ -190,19 +190,23 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 	if !updatedOnce {
 		return cache[guid], fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 	}
+
 	lid := resourceName + "/" + guid
 
-	ccc.Lock()
+	ccc.RLock()
 	mu, ok := ccc.locksByResource[lid]
-	if !ok {
-		mu = &sync.Mutex{}
-		ccc.locksByResource[lid] = mu
-	}
-	ccc.Unlock()
+	ccc.RUnlock()
 
-	mu.Lock()
-	defer mu.Unlock()
+	if !ok {
+		mu = &sync.RWMutex{}
+		ccc.Lock()
+		ccc.locksByResource[lid] = mu
+		ccc.Unlock()
+	}
+
+	mu.RLock()
 	resource, ok := cache[guid]
+	mu.RUnlock()
 
 	if ok {
 		return resource, nil
@@ -210,6 +214,14 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 
 	if !ccc.refreshCacheOnMiss {
 		return resource, fmt.Errorf("could not find resource '%s' with guid '%s' in cloud controller cache, consider enabling `refreshCacheOnMiss`", resourceName, guid)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	resource, ok = cache[guid]
+	if ok {
+		return resource, nil
 	}
 
 	// fetch the resource from the CAPI
