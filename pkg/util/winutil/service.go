@@ -158,6 +158,50 @@ func ListDependentServices(serviceName string, state enumServiceState) ([]EnumSe
 	return deps, nil
 }
 
+func IsServiceDisabled(serviceName string) (enabled bool, err error) {
+	enabled = false
+
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_CONFIG)
+	if err != nil {
+		return enabled, fmt.Errorf("could not open service %s: %v", serviceName, err)
+	}
+	defer service.Close()
+
+	serviceConfig, err := service.Config()
+	if err != nil {
+		return enabled, fmt.Errorf("could not retrieve config for %s: %v", serviceName, err)
+	}
+	return (serviceConfig.StartType == windows.SERVICE_DISABLED), nil
+}
+
+func IsServiceRunning(serviceName string) (running bool, err error) {
+	running = false
+
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return
+	}
+	defer manager.Disconnect()
+
+	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return running, fmt.Errorf("could not open service %s: %v", serviceName, err)
+	}
+	defer service.Close()
+
+	serviceStatus, err := service.Query()
+	if err != nil {
+		return running, fmt.Errorf("could not retrieve status for %s: %v", serviceName, err)
+	}
+	return (serviceStatus.State == windows.SERVICE_RUNNING), nil
+}
+
 // ServiceStatus reports information pertaining to enumerated services
 // only exported so binary.Read works
 type ServiceStatus struct {
