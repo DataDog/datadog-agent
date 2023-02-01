@@ -16,13 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-<<<<<<< HEAD
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/protocol"
-=======
-	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
->>>>>>> hasan.mahmood/fentry
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/protocol"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -69,7 +64,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	initManager(m, config, perfHandlerTCP, runtimeTracer)
 
-	closeFn, err := protocol.EnableProtocolClassification(config, m, &mgrOpts)
+	closeFn, undefinedProbes, err := protocol.EnableProtocolClassification(config, m, &mgrOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable protocol classification: %w", err)
 	}
@@ -80,34 +75,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		return nil, fmt.Errorf("could not activate ebpf telemetry: %w", err)
 	}
 
-	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
-	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
-			mgrOpts.ExcludedFunctions = append(mgrOpts.ExcludedFunctions, p.EBPFFuncName)
-		}
-	}
-
-	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(tailCalls))
-	for _, tailCall := range tailCalls {
-		tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
-	}
-
-	for probeName, funcName := range enabledProbes {
-		probeIdentifier := manager.ProbeIdentificationPair{
-			EBPFSection:  probeName,
-			EBPFFuncName: funcName,
-			UID:          probeUID,
-		}
-		if _, ok := tailCallsIdentifiersSet[probeIdentifier]; ok {
-			// tail calls should be enabled (a.k.a. not excluded) but not activated.
-			continue
-		}
-		mgrOpts.ActivatedProbes = append(
-			mgrOpts.ActivatedProbes,
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: probeIdentifier,
-			})
-	}
+	probes.ExcludeAndActivateProbes(m, &mgrOpts, enabledProbes)
 
 	if err := m.InitWithOptions(buf, mgrOpts); err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)

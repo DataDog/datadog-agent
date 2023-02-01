@@ -8,6 +8,8 @@
 
 package probes
 
+import manager "github.com/DataDog/ebpf-manager"
+
 // ProbeName stores the name of the kernel probes setup for tracing
 type ProbeName = string
 
@@ -185,3 +187,35 @@ const (
 )
 
 const UID = "net"
+
+func ExcludeAndActivateProbes(m *manager.Manager, mgrOpts *manager.Options, enabledProbes map[ProbeName]string) {
+	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
+	for _, p := range m.Probes {
+		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
+			mgrOpts.ExcludedFunctions = append(mgrOpts.ExcludedFunctions, p.EBPFFuncName)
+		}
+	}
+
+	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(mgrOpts.TailCallRouter))
+	for _, tailCall := range mgrOpts.TailCallRouter {
+		tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
+	}
+
+	for probeName, funcName := range enabledProbes {
+		probeIdentifier := manager.ProbeIdentificationPair{
+			EBPFSection:  probeName,
+			EBPFFuncName: funcName,
+			UID:          UID,
+		}
+		if _, ok := tailCallsIdentifiersSet[probeIdentifier]; ok {
+			// tail calls should be enabled (a.k.a. not excluded) but not activated.
+			continue
+		}
+		mgrOpts.ActivatedProbes = append(
+			mgrOpts.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: probeIdentifier,
+			})
+	}
+
+}

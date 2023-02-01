@@ -68,30 +68,31 @@ const (
 )
 
 var programs = map[string]string{
-	string(probes.NetDevQueue):                    "tracepoint__net__net_dev_queue",
-	string(probes.ProtocolClassifierSocketFilter): "socket__classifier",
-	doSendfileRet:        "do_sendfile_exit", // TODO: available but sockfd_lookup_light not available on some kernels
-	inet6BindRet:         "inet6_bind_exit",
-	inetBindRet:          "inet_bind_exit",
-	inetCskAcceptReturn:  "inet_csk_accept_exit",
-	inetCskListenStop:    "inet_csk_listen_stop_enter",
-	sockFDLookupRet:      "sockfd_lookup_light_exit", // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects do_sendfile and HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
-	tcpRecvMsgReturn:     "tcp_recvmsg_exit",
-	tcpClose:             "tcp_close",
-	tcpCloseReturn:       "tcp_close_exit",
-	tcpConnect:           "tcp_connect",
-	tcpFinishConnect:     "tcp_finish_connect",
-	tcpRetransmit:        "tcp_retransmit_skb",
-	tcpSendMsgReturn:     "tcp_sendmsg_exit",
-	tcpSetState:          "tcp_set_state",
-	udpDestroySock:       "udp_destroy_sock",
-	udpDestroySockReturn: "udp_destroy_sock_exit",
-	udpRecvMsgReturn:     "udp_recvmsg_exit",
-	udpSendMsgReturn:     "udp_sendmsg_exit",
-	udpSendSkb:           "kprobe__udp_send_skb",
-	udpv6RecvMsgReturn:   "udpv6_recvmsg_exit",
-	udpv6SendMsgReturn:   "udpv6_sendmsg_exit",
-	udpv6SendSkb:         "kprobe__udp_v6_send_skb",
+	probes.NetDevQueue:                         "tracepoint__net__net_dev_queue",
+	probes.ProtocolClassifierSocketFilter:      "socket__classifier",
+	probes.ProtocolClassifierEntrySocketFilter: "socket__classifier_entry",
+	doSendfileRet:                              "do_sendfile_exit", // TODO: available but sockfd_lookup_light not available on some kernels
+	inet6BindRet:                               "inet6_bind_exit",
+	inetBindRet:                                "inet_bind_exit",
+	inetCskAcceptReturn:                        "inet_csk_accept_exit",
+	inetCskListenStop:                          "inet_csk_listen_stop_enter",
+	sockFDLookupRet:                            "sockfd_lookup_light_exit", // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects do_sendfile and HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
+	tcpRecvMsgReturn:                           "tcp_recvmsg_exit",
+	tcpClose:                                   "tcp_close",
+	tcpCloseReturn:                             "tcp_close_exit",
+	tcpConnect:                                 "tcp_connect",
+	tcpFinishConnect:                           "tcp_finish_connect",
+	tcpRetransmit:                              "tcp_retransmit_skb",
+	tcpSendMsgReturn:                           "tcp_sendmsg_exit",
+	tcpSetState:                                "tcp_set_state",
+	udpDestroySock:                             "udp_destroy_sock",
+	udpDestroySockReturn:                       "udp_destroy_sock_exit",
+	udpRecvMsgReturn:                           "udp_recvmsg_exit",
+	udpSendMsgReturn:                           "udp_sendmsg_exit",
+	udpSendSkb:                                 "kprobe__udp_send_skb",
+	udpv6RecvMsgReturn:                         "udpv6_recvmsg_exit",
+	udpv6SendMsgReturn:                         "udpv6_sendmsg_exit",
+	udpv6SendSkb:                               "kprobe__udp_v6_send_skb",
 }
 
 func enableProgram(enabled map[string]string, name string) {
@@ -105,6 +106,7 @@ func enabledPrograms(c *config.Config) (map[string]string, error) {
 	enabled := make(map[string]string, 0)
 	if c.CollectTCPConns {
 		if c.ClassificationSupported() {
+			enableProgram(enabled, probes.ProtocolClassifierEntrySocketFilter)
 			enableProgram(enabled, string(probes.ProtocolClassifierSocketFilter))
 			enableProgram(enabled, string(probes.NetDevQueue))
 		}

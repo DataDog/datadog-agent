@@ -20,24 +20,40 @@ import (
 )
 
 var (
-	protocolClassifierSocketFilterFuncName = "socket__classifier"
+	protocolClassifierSocketFilterFuncName      = "socket__classifier"
+	protocolClassifierEntrySocketFilterFuncName = "socket__classifier_entry"
+
+	tailCalls = []manager.TailCallRoute{
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  probes.ProtocolClassifierSocketFilter,
+				EBPFFuncName: protocolClassifierSocketFilterFuncName,
+				UID:          probes.UID,
+			},
+		},
+	}
 )
 
-func EnableProtocolClassification(c *config.Config, m *manager.Manager, mgrOptions *manager.Options) (closeProtocolClassifierSocketFilterFn func(), err error) {
-	if c.ClassificationSupported() {
+func EnableProtocolClassification(c *config.Config, m *manager.Manager, mgrOptions *manager.Options) (closeProtocolClassifierSocketFilterFn func(), undefinedProbes []manager.ProbeIdentificationPair, err error) {
+	if c.ClassificationSupported() && c.CollectTCPConns {
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
-			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
-			EBPFFuncName: protocolClassifierSocketFilterFuncName,
+			EBPFSection:  probes.ProtocolClassifierEntrySocketFilter,
+			EBPFFuncName: protocolClassifierEntrySocketFilterFuncName,
 			UID:          probes.UID,
 		})
 		if socketFilterProbe == nil {
-			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
+			return nil, nil, fmt.Errorf("error retrieving protocol classifier socket filter")
 		}
 
 		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(c, socketFilterProbe)
 		if err != nil {
-			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
+			return nil, nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
+
+		undefinedProbes = append(undefinedProbes, tailCalls[0].ProbeIdentificationPair)
+		mgrOptions.TailCallRouter = append(mgrOptions.TailCallRouter, tailCalls...)
 	} else {
 		// Kernels < 4.7.0 do not know about the per-cpu array map used
 		// in classification, preventing the program to load even though
@@ -49,5 +65,5 @@ func EnableProtocolClassification(c *config.Config, m *manager.Manager, mgrOptio
 		}
 	}
 
-	return closeProtocolClassifierSocketFilterFn, err
+	return closeProtocolClassifierSocketFilterFn, undefinedProbes, err
 }

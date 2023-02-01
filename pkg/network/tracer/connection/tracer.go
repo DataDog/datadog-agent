@@ -141,7 +141,7 @@ func NewTracer(c *config.Config, constants []manager.ConstantEditor, bpfTelemetr
 
 	var tracerType TracerType = EBPFFentry
 	var closeTracerFn func()
-	closeTracerFn, err = fentry.LoadTracer(c, m, mgrOptions, perfHandlerTCP)
+	closeTracerFn, err := fentry.LoadTracer(c, m, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err

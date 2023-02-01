@@ -50,36 +50,20 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 		initManager(m, config, perfHandlerTCP)
 
-		closeFn, err = protocol.EnableProtocolClassification(config, m, &o)
+		var undefinedProbes []manager.ProbeIdentificationPair
+		closeFn, undefinedProbes, err = protocol.EnableProtocolClassification(config, m, &o)
 		if err != nil {
 			return fmt.Errorf("failed to enable protocol classification: %w", err)
 		}
 
-		if err := errtelemetry.ActivateBPFTelemetry(m, nil); err != nil {
+		if err := errtelemetry.ActivateBPFTelemetry(m, undefinedProbes); err != nil {
 			return fmt.Errorf("could not activate ebpf telemetry: %w", err)
 		}
 
 		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
-		mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, telemetryMapKeys...)
+		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
 
-		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
-		for _, p := range m.Probes {
-			if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
-				o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
-			}
-		}
-		for probeName, funcName := range enabledProbes {
-			o.ActivatedProbes = append(
-				o.ActivatedProbes,
-				&manager.ProbeSelector{
-					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFSection:  probeName,
-						EBPFFuncName: funcName,
-						UID:          probes.UID,
-					},
-				})
-		}
-
+		probes.ExcludeAndActivateProbes(m, &o, enabledProbes)
 		return m.InitWithOptions(ar, o)
 	})
 

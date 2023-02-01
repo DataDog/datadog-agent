@@ -4,8 +4,8 @@
 #include "bpf_tracing.h"
 
 #include "tracer.h"
-#include "protocols/protocol-classification-tracer-maps.h"
-#include "protocols/protocol-classification.h"
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -587,6 +587,16 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST);
     }
 
+    return 0;
+}
+
+// This entry point is needed to bypass a memory limit on socket filters.
+// There is a limitation on number of instructions can be attached to a socket filter,
+// as we classify more protocols, we reached that limit, thus we workaround it
+// by using tail call.
+SEC("socket/classifier_entry")
+int socket__classifier_entry(struct __sk_buff *skb) {
+    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_PROG);
     return 0;
 }
 
