@@ -234,6 +234,8 @@ static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_ite
 
 #pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
     for (int iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; ++iteration) {
+        http2_frame_t current_frame = frames_to_process[frame_index];
+
         if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
             break;
         }
@@ -242,17 +244,17 @@ static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_ite
         bpf_skb_load_bytes_with_telemetry(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
         offset += HTTP2_FRAME_HEADER_SIZE;
 
-        if (!read_http2_frame_header2(frame_buf, HTTP2_FRAME_HEADER_SIZE, &frames_to_process[frame_index].header)){
+        if (!read_http2_frame_header2(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame.header)){
             log_debug("[http2] unable to read_http2_frame_header (%d) offset %lu\n", frame_index, offset);
             return -1;
         }
 
-        frame_type = frames_to_process[frame_index].header.type;
-        frame_flags = frames_to_process[frame_index].header.flags;
+        frame_type = current_frame.header.type;
+        frame_flags = current_frame.header.flags;
 
-        frames_to_process[frame_index].offset = offset;
+        current_frame.offset = offset;
 
-        offset += frames_to_process[frame_index].header.length;
+        offset += current_frame.header.length;
 
         // filter frame
         is_end_of_stream = (frame_flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
@@ -522,7 +524,6 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
     } else if (interesting_frames == (__u8)(-1)) {
         return -1;
     }
-
 
     return max_offset;
 }
