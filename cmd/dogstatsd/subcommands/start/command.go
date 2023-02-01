@@ -39,6 +39,12 @@ type CLIParams struct {
 	confPath string
 }
 
+type dogstatsdComponents struct {
+	dogstatsdServer dogstatsdServer.Component
+	dogstatsdStats  *http.Server
+	metaScheduler   *metadata.Scheduler
+}
+
 const (
 	// loggerName is the name of the dogstatsd logger
 	loggerName pkgconfig.LoggerName = "DSD"
@@ -97,14 +103,16 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
-	var metaScheduler *metadata.Scheduler
-	var dogstatsdStats *http.Server
-	defer StopAgent(cancel, server, metaScheduler, dogstatsdStats)
+
+	components := &dogstatsdComponents{
+		dogstatsdServer: server,
+	}
+	defer StopAgent(cancel, components)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunAgent(ctx, cliParams, config, params, server, metaScheduler, dogstatsdStats)
+	err := RunAgent(ctx, cliParams, config, params, components)
 	if err != nil {
 		return err
 	}
@@ -115,20 +123,19 @@ func start(cliParams *CLIParams, config config.Component, params *Params, server
 	return nil
 }
 
-//nolint:staticcheck
-func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component, metaScheduler *metadata.Scheduler, dogstatsdStats *http.Server) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, components *dogstatsdComponents) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
 
 	// go_expvar server
 	port := config.GetInt("dogstatsd_stats_port")
-	dogstatsdStats = &http.Server{
+	components.dogstatsdStats = &http.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 		Handler: http.DefaultServeMux,
 	}
 	go func() {
-		if err := dogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := components.dogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
 		}
 	}()
@@ -201,13 +208,13 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
-	metaScheduler = metadata.NewScheduler(demux) //nolint:staticcheck
-	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
-		metaScheduler.Stop()
+	components.metaScheduler = metadata.NewScheduler(demux) //nolint:staticcheck
+	if err = metadata.SetupMetadataCollection(components.metaScheduler, []string{"host"}); err != nil {
+		components.metaScheduler.Stop()
 		return
 	}
 
-	if err = metadata.SetupInventories(metaScheduler, nil); err != nil {
+	if err = metadata.SetupInventories(components.metaScheduler, nil); err != nil {
 		return
 	}
 
@@ -222,7 +229,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		}
 	}
 
-	err = server.Start(demux)
+	err = components.dogstatsdServer.Start(demux)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
@@ -252,7 +259,7 @@ func handleSignals(stopCh chan struct{}) {
 	}
 }
 
-func StopAgent(cancel context.CancelFunc, server dogstatsdServer.Component, metaScheduler *metadata.Scheduler, dogstatsdStats *http.Server) {
+func StopAgent(cancel context.CancelFunc, components *dogstatsdComponents) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -266,17 +273,17 @@ func StopAgent(cancel context.CancelFunc, server dogstatsdServer.Component, meta
 	cancel()
 
 	// stop metaScheduler and statsd if they are instantiated
-	if metaScheduler != nil {
-		metaScheduler.Stop()
+	if components.metaScheduler != nil {
+		components.metaScheduler.Stop()
 	}
 
-	if dogstatsdStats != nil {
-		if err := dogstatsdStats.Shutdown(context.Background()); err != nil {
+	if components.dogstatsdStats != nil {
+		if err := components.dogstatsdStats.Shutdown(context.Background()); err != nil {
 			log.Errorf("Error shutting down dogstatsd stats server: %s", err)
 		}
 	}
 
-	server.Stop()
+	components.dogstatsdServer.Stop()
 
 	log.Info("See ya!")
 	log.Flush()
