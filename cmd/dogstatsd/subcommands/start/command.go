@@ -35,12 +35,6 @@ import (
 	"go.uber.org/fx"
 )
 
-var (
-	metaScheduler  *metadata.Scheduler
-	statsd         dogstatsdServer.Component
-	dogstatsdStats *http.Server
-)
-
 type CLIParams struct {
 	confPath string
 }
@@ -103,12 +97,14 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
-	defer StopAgent(cancel)
+	var metaScheduler metadata.Scheduler
+	var dogstatsdStats http.Server
+	defer StopAgent(cancel, server, &metaScheduler, &dogstatsdStats)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunAgent(ctx, cliParams, config, params, server)
+	err := RunAgent(ctx, cliParams, config, params, server, &metaScheduler, &dogstatsdStats)
 	if err != nil {
 		return err
 	}
@@ -119,7 +115,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params, server
 	return nil
 }
 
-func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component, metaScheduler *metadata.Scheduler, dogstatsdStats *http.Server) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -225,8 +221,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		}
 	}
 
-	statsd = server
-	err = statsd.Start(demux)
+	err = server.Start(demux)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
@@ -256,7 +251,7 @@ func handleSignals(stopCh chan struct{}) {
 	}
 }
 
-func StopAgent(cancel context.CancelFunc) {
+func StopAgent(cancel context.CancelFunc, server dogstatsdServer.Component, metaScheduler *metadata.Scheduler, dogstatsdStats *http.Server) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -280,9 +275,7 @@ func StopAgent(cancel context.CancelFunc) {
 		}
 	}
 
-	if statsd != nil {
-		statsd.Stop()
-	}
+	server.Stop()
 
 	log.Info("See ya!")
 	log.Flush()

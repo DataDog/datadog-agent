@@ -434,8 +434,8 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		var err error
 		global.DSD = server
+		err := global.DSD.Start(demux)
 		if err != nil {
 			pkglog.Errorf("Could not start dogstatsd: %s", err)
 		} else {
