@@ -16,7 +16,7 @@ import (
 )
 
 func TestNetworkProcessEventMonitoring(t *testing.T) {
-	newConfig()
+	newConfig(t)
 
 	for i, te := range []struct {
 		network, netProcEvents bool
