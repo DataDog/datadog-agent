@@ -28,7 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
+	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
+	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -147,7 +148,19 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
+	})
+
+	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps

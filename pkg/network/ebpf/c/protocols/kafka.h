@@ -69,7 +69,7 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
         log_debug("kafka: already seen this tcp sequence: %lu\n", *last_tcp_seq);
         return false;
     }
-    bpf_map_update_elem(&kafka_last_tcp_seq_per_connection, &kafka->base.tup, &skb_info->tcp_seq, BPF_ANY);
+    bpf_map_update_with_telemetry(kafka_last_tcp_seq_per_connection, &kafka->base.tup, &skb_info->tcp_seq, BPF_ANY);
     return true;
 }
 

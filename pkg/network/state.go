@@ -83,6 +83,7 @@ type State interface {
 type Delta struct {
 	BufferedData
 	HTTP     map[http.Key]*http.RequestStats
+	Kafka    map[kafka.Key]*kafka.RequestStats
 	DNSStats dns.StatsByKeyByNameByType
 }
 
@@ -242,6 +243,7 @@ func (ns *networkState) GetDelta(
 		},
 		HTTP:     client.httpStatsDelta,
 		DNSStats: client.dnsStats,
+		Kafka:    client.kafkaStatsDelta,
 	}
 }
 
