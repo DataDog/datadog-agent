@@ -175,6 +175,10 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		return nil
 	}
 
+	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
+	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
+	pkgconfig.Datadog.Set("container_image_collection.sbom.enabled", "false")
+
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		fmt.Printf("Cannot get hostname, exiting: %v\n", err)

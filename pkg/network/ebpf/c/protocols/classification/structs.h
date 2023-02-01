@@ -2,6 +2,7 @@
 #define __PROTOCOL_CLASSIFICATION_STRUCTS_H
 
 #include <linux/types.h>
+
 #include "tracer.h"
 
 typedef struct {

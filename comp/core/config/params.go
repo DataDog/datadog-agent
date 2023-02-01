@@ -85,9 +85,10 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 }
 
 func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Params {
-	return NewParams(common.DefaultConfPath,
-		WithConfFilePath(configFilePath),
-		WithConfigName("datadog-cluster"))
+	params := NewParams(common.DefaultConfPath, options...)
+	params.confFilePath = configFilePath
+	params.configName = "datadog-cluster"
+	return params
 }
 
 func WithConfigName(name string) func(*Params) {

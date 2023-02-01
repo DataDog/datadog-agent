@@ -1,8 +1,9 @@
 #ifndef __HTTP2_HELPERS_H
 #define __HTTP2_HELPERS_H
 
-#include "http2-defs.h"
 #include "bpf_endian.h"
+
+#include "protocols/http2/defs.h"
 
 // This function checks if the http2 frame header is empty.
 static __always_inline bool is_empty_frame_header(const char *frame) {

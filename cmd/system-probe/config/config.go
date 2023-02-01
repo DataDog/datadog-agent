@@ -194,7 +194,11 @@ func load() (*Config, error) {
 	if cfg.GetBool(key(spNS, "enable_oom_kill")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
-	if cfg.GetBool("runtime_security_config.enabled") || cfg.GetBool("runtime_security_config.fim_enabled") || cfg.GetBool("runtime_security_config.event_monitoring.enabled") {
+
+	if cfg.GetBool("runtime_security_config.enabled") ||
+		cfg.GetBool("runtime_security_config.fim_enabled") ||
+		cfg.GetBool("event_monitoring_config.process.enabled") ||
+		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool("event_monitoring_config.network_process.enabled")) {
 		c.EnabledModules[SecurityRuntimeModule] = struct{}{}
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {

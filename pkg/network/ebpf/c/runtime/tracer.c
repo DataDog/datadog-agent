@@ -4,8 +4,6 @@
 #include "bpf_tracing.h"
 #include "tracer.h"
 
-#include "protocols/protocol-classification-tracer-maps.h"
-#include "protocols/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -17,6 +15,9 @@
 #include "skb.h"
 #include "port.h"
 #include "tcp-recv.h"
+
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"

@@ -2,7 +2,7 @@
 #define __TRACER_EVENTS_H
 
 #include "tracer.h"
-
+#include "ip.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
 #include "tcp_states.h"
@@ -11,6 +11,8 @@
 #include "bpf_helpers.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+
+#include "protocols/classification/tracer-maps.h"
 
 static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;

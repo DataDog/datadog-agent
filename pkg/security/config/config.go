@@ -174,6 +174,12 @@ type Config struct {
 	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
+	// NetworkProcessEventMonitoringEnabled is set to true if `runtime_security_config.event_monitoring.network_process.enabled`
+	// is set to true
+	NetworkProcessEventMonitoringEnabled bool
+	// ProcessEventMonitoringEnabled is set to true if `runtime_security_config.event_monitoring.process.enabled`
+	// is set to true
+	ProcessEventMonitoringEnabled bool
 	// EventMonitoring enables event monitoring. Send events to external consumer.
 	EventMonitoring bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
@@ -206,7 +212,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:                         coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
-		EventMonitoring:                    coreconfig.SystemProbe.GetBool("runtime_security_config.event_monitoring.enabled"),
 		EnableKernelFilters:                coreconfig.SystemProbe.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    coreconfig.SystemProbe.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:                   coreconfig.SystemProbe.GetBool("runtime_security_config.enable_discarders"),
@@ -252,6 +257,9 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RuntimeCompiledConstantsEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 		RuntimeCompiledConstantsIsSet:   coreconfig.SystemProbe.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 
+		NetworkProcessEventMonitoringEnabled: coreconfig.SystemProbe.GetBool("event_monitoring_config.network_process.enabled"),
+		ProcessEventMonitoringEnabled:        coreconfig.SystemProbe.GetBool("event_monitoring_config.process.enabled"),
+
 		// activity dump
 		ActivityDumpEnabled:                   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"),
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
@@ -279,6 +287,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 			return mds * (1 << 10)
 		},
 	}
+
+	c.NetworkProcessEventMonitoringEnabled = c.NetworkProcessEventMonitoringEnabled && cfg.ModuleIsEnabled(config.NetworkTracerModule)
 
 	if err := c.sanitize(); err != nil {
 		return nil, fmt.Errorf("invalid CWS configuration: %w", err)
