@@ -212,7 +212,7 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 		delta := floatValue - ms.prevValues[tagsStr]
 		ms.prevValues[tagsStr] = floatValue
 
-		ms.Distribution(metricFullName, delta, metricSample.tags)
+		ms.Distribution(metricFullName+".distribution", delta, metricSample.tags)
 	}
 
 	switch forcedType {
