@@ -219,7 +219,7 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
     return interesting_headers;
 }
 
-static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process, __u32 *max_offset) {
+static __always_inline __u8 filter_http2_frames(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_frame_t *frames_to_process, __u32 *max_offset) {
     __u32 offset = iterations_key->skb_info.data_off;
     // length cannot be 9
     char frame_buf[10];
@@ -516,7 +516,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
     bpf_memset(frames_to_process->array, 0, HTTP2_MAX_FRAMES_PER_ITERATION * sizeof(http2_frame_t));
 
     __u32 max_offset = 0;
-    __u8 interesting_frames = filter_http2_frames(skb, iterations_key, http2_ctx, frames_to_process->array, &max_offset);
+    __u8 interesting_frames = filter_http2_frames(skb, iterations_key, frames_to_process->array, &max_offset);
     if (interesting_frames > 0) {
         process_relevant_http2_frames(skb, iterations_key, http2_ctx, frames_to_process->array, interesting_frames);
     } else if (interesting_frames == (__u8)(-1)) {
