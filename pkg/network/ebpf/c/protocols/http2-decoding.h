@@ -423,48 +423,8 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
     http2_batch_enqueue(current_stream);
 }
 
-//static __always_inline int find_interesting_headers(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_headers_t *headers_to_process, http2_frame_t *frames_to_process, heap_buffer_t *heap_buffer, __u8 number_of_frames){
-//    __u8 interesting_headers = 0;
-//    struct http2_frame *current_frame_header;
-//
-//#pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
-//    for (__u8 iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; ++iteration) {
-//        if (iteration >= number_of_frames) {
-//            break;
-//        }
-//
-//        current_frame_header = &frames_to_process[iteration].header;
-//        if (current_frame_header->type != kHeadersFrame) {
-//            continue;
-//        }
-//
-//        // headers frame
-//        heap_buffer->size = HTTP2_BUFFER_SIZE < current_frame_header->length ? HTTP2_BUFFER_SIZE : current_frame_header->length;
-//
-//        // read headers payload
-//        read_into_buffer_skb_http2((char*)heap_buffer->fragment, skb, frames_to_process[iteration].offset);
-//
-//        interesting_headers += filter_relevant_headers(iterations_key, http2_ctx, headers_to_process->array, current_frame_header->stream_id, heap_buffer);
-//    }
-//    return interesting_headers;
-//}
-
-static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process, __u8 number_of_frames) {
-    const __u32 zero = 0;
-    heap_buffer_t *heap_buffer = bpf_map_lookup_elem(&http2_heap_buffer, &zero);
-    if (heap_buffer == NULL) {
-        return;
-    }
-    bpf_memset(heap_buffer, 0, sizeof(heap_buffer_t));
-
-    http2_headers_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
-    if (headers_to_process == NULL) {
-        return;
-    }
-    bpf_memset(headers_to_process->array, 0, HTTP2_MAX_HEADERS_COUNT * sizeof(http2_header_t));
-
+static __always_inline int find_interesting_headers(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_headers_t *headers_to_process, http2_frame_t *frames_to_process, heap_buffer_t *heap_buffer, __u8 number_of_frames, struct http2_frame *current_frame_header){
     __u8 interesting_headers = 0;
-    struct http2_frame *current_frame_header;
 
 #pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; ++iteration) {
@@ -485,8 +445,26 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
 
         interesting_headers += filter_relevant_headers(iterations_key, http2_ctx, headers_to_process->array, current_frame_header->stream_id, heap_buffer);
     }
+    return interesting_headers;
+}
 
-//    __u64 interesting_headers = find_interesting_headers(skb, iterations_key, http2_ctx, headers_to_process, frames_to_process, heap_buffer, number_of_frames);
+static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process, __u8 number_of_frames) {
+    const __u32 zero = 0;
+    heap_buffer_t *heap_buffer = bpf_map_lookup_elem(&http2_heap_buffer, &zero);
+    if (heap_buffer == NULL) {
+        return;
+    }
+    bpf_memset(heap_buffer, 0, sizeof(heap_buffer_t));
+
+    http2_headers_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
+    if (headers_to_process == NULL) {
+        return;
+    }
+    bpf_memset(headers_to_process->array, 0, HTTP2_MAX_HEADERS_COUNT * sizeof(http2_header_t));
+
+    struct http2_frame *current_frame_header = NULL;
+
+    __u8 interesting_headers = find_interesting_headers(skb, iterations_key, http2_ctx, headers_to_process, frames_to_process, heap_buffer, number_of_frames, current_frame_header);
 
     // process headers
     process_headers(http2_ctx, headers_to_process->array, interesting_headers);
