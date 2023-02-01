@@ -24,9 +24,6 @@ import (
 )
 
 const (
-	//kafkaBatchesMap                 = "kafka_batches"
-	//kafkaBatchStateMap              = "kafka_batch_state"
-	//kafkaBatchEvents                = "kafka_batch_events"
 	kafkaLastTCPSeqPerConnectionMap = "kafka_last_tcp_seq_per_connection"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
@@ -35,9 +32,6 @@ const (
 	kafkaSocketFilter     = "socket/kafka_filter"
 	kafkaProgsMap         = "kafka_progs"
 
-	// size of the channel containing completed kafka_notification_objects
-	batchNotificationsChanSize = 100
-
 	probeUID = "kafka"
 )
 
@@ -45,8 +39,6 @@ type ebpfProgram struct {
 	*errtelemetry.Manager
 	cfg      *config.Config
 	bytecode bytecode.AssetReader
-
-	//batchCompletionHandler *ddebpf.PerfHandler
 }
 
 var tailCalls = []manager.TailCallRoute{
@@ -66,25 +58,8 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		return nil, err
 	}
 
-	//batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
-		Maps: []*manager.Map{
-			//{Name: kafkaLastTCPSeqPerConnectionMap},
-			//{Name: kafkaBatchesMap},
-			//{Name: kafkaBatchStateMap},
-		},
-		//PerfMaps: []*manager.PerfMap{
-		//	{
-		//		Map: manager.Map{Name: kafkaBatchEvents},
-		//		PerfMapOptions: manager.PerfMapOptions{
-		//			PerfRingBufferSize: 8 * os.Getpagesize(),
-		//			Watermark:          1,
-		//			RecordHandler:      batchCompletionHandler.RecordHandler,
-		//			LostHandler:        batchCompletionHandler.LostHandler,
-		//			RecordGetter:       batchCompletionHandler.RecordGetter,
-		//		},
-		//	},
-		//},
+		Maps: []*manager.Map{},
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -107,7 +82,6 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		Manager:  errtelemetry.NewManager(mgr, bpfTelemetry),
 		bytecode: bc,
 		cfg:      c,
-		//batchCompletionHandler: batchCompletionHandler,
 	}
 
 	return program, nil
@@ -115,11 +89,6 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 
 func (e *ebpfProgram) Init() error {
 	defer e.bytecode.Close()
-
-	//onlineCPUs, err := cpupossible.Get()
-	//if err != nil {
-	//	return fmt.Errorf("couldn't determine number of CPUs: %w", err)
-	//}
 
 	var undefinedProbes []manager.ProbeIdentificationPair
 	for _, tc := range tailCalls {
@@ -145,11 +114,6 @@ func (e *ebpfProgram) Init() error {
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
 			},
-			//kafkaBatchesMap: {
-			//	Type:       ebpf.Hash,
-			//	MaxEntries: uint32(len(onlineCPUs) * KAFKABatchPages),
-			//	EditorFlag: manager.EditMaxEntries,
-			//},
 		},
 		TailCallRouter: tailCalls,
 		ActivatedProbes: []manager.ProbesSelector{
@@ -171,9 +135,8 @@ func (e *ebpfProgram) Init() error {
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
-				// LogSize is the size of the log buffer given to the verifier. Give it a big enough (2 * 1024 * 1024)
-				// value so that all our programs fit. If the verifier ever outputs a `no space left on device` error,
-				// we'll need to increase this value.
+				// LogSize is the size of the log buffer given to the verifier. Give it a big enough value so that all our programs fit.
+				// If the verifier ever outputs a `no space left on device` error,  we'll need to increase this value.
 				LogSize: 10 * 10 * 1024 * 1024,
 			},
 		},
@@ -191,7 +154,6 @@ func (e *ebpfProgram) Start() error {
 
 func (e *ebpfProgram) Close() error {
 	err := e.Stop(manager.CleanAll)
-	//e.batchCompletionHandler.Stop()
 	return err
 }
 

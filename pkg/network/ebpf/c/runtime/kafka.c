@@ -2,7 +2,6 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "ip.h"
-//#include "tags-types.h"
 #include "port_range.h"
 
 #include "protocols/kafka-maps.h"
