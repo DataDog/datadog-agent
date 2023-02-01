@@ -11,24 +11,16 @@ package kafka
 import (
 	"errors"
 	"fmt"
+	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 )
-
-// MonitorStats is used for holding two kinds of stats:
-// * requestsStats which are the kafka data stats
-// * telemetry which are telemetry stats
-type MonitorStats struct {
-	requestStats map[Key]*RequestStats
-	telemetry    telemetry
-}
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -36,8 +28,6 @@ type MonitorStats struct {
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received Kafka transactions;
 type Monitor struct {
-	handler func([]*ebpfKafkaTx)
-
 	consumer       *events.Consumer
 	ebpfProgram    *ebpfProgram
 	telemetry      *telemetry
@@ -77,7 +67,7 @@ func NewMonitor(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Mo
 		return nil, fmt.Errorf("error enabling Kafka traffic inspection: %s", err)
 	}
 
-	telemetry := newTelemetry()
+	telemetry, err := newTelemetry()
 	if err != nil {
 		closeFilterFn()
 		return nil, err
@@ -117,48 +107,6 @@ func (m *Monitor) Start() error {
 	}
 
 	return m.processMonitor.Initialize()
-
-	//m.eventLoopWG.Add(1)
-	//go func() {
-	//	defer m.eventLoopWG.Done()
-	//	for {
-	//		select {
-	//		case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
-	//			if !ok {
-	//				return
-	//			}
-	//
-	//			transactions, err := m.batchManager.GetTransactionsFrom(dataEvent)
-	//			m.process(transactions, err)
-	//			dataEvent.Done()
-	//		case _, ok := <-m.batchCompletionHandler.LostChannel:
-	//			if !ok {
-	//				return
-	//			}
-	//
-	//			m.process(nil, errLostBatch)
-	//		case reply, ok := <-m.pollRequests:
-	//			if !ok {
-	//				return
-	//			}
-	//
-	//			transactions := m.batchManager.GetPendingTransactions()
-	//			m.process(transactions, nil)
-	//
-	//			delta := m.telemetry.reset()
-	//
-	//			// For now, we still want to report the telemetry as it contains more information than what
-	//			// we're extracting via network tracer.
-	//			delta.report()
-	//
-	//			reply <- MonitorStats{
-	//				requestStats: m.statkeeper.GetAndResetAllStats(),
-	//				telemetry:    delta,
-	//			}
-	//		}
-	//	}
-	//}()
-	//return nil
 }
 
 // GetKafkaStats returns a map of Kafka stats stored in the following format:
@@ -173,26 +121,6 @@ func (m *Monitor) GetKafkaStats() map[Key]*RequestStats {
 	return m.statkeeper.GetAndResetAllStats()
 }
 
-//// GetStats returns the telemetry
-//func (m *Monitor) GetStats() map[string]interface{} {
-//	empty := map[string]interface{}{}
-//	if m == nil {
-//		return empty
-//	}
-//
-//	m.mux.Lock()
-//	defer m.mux.Unlock()
-//	if m.stopped {
-//		return empty
-//	}
-//
-//	if m.telemetrySnapshot == nil {
-//		return empty
-//	}
-//
-//	return m.telemetrySnapshot.report()
-//}
-
 // Stop Kafka monitoring
 func (m *Monitor) Stop() {
 	if m == nil {
@@ -206,13 +134,9 @@ func (m *Monitor) Stop() {
 }
 
 func (m *Monitor) process(data []byte) {
-	//m.telemetry.aggregate(tx, err)
-
-	//if m.handler != nil && len(transactions) > 0 {
-	//	m.handler(transactions)
-	//}
 
 	tx := (*ebpfKafkaTx)(unsafe.Pointer(&data[0]))
+	m.telemetry.count(tx)
 	m.statkeeper.Process(tx)
 }
 

@@ -9,64 +9,57 @@
 package kafka
 
 import (
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"time"
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type telemetry struct {
-	then    *atomic.Int64
-	elapsed *atomic.Int64
+	then *atomic.Int64
 
-	totalHits *atomic.Int64
-	misses    *atomic.Int64 // this happens when we can't cope with the rate of events
-	dropped   *atomic.Int64 // this happens when kafkaStatKeeper reaches capacity
+	totalHits *libtelemetry.Metric
+	dropped   *libtelemetry.Metric // this happens when kafkaStatKeeper reaches capacity
 }
 
-func newTelemetry() *telemetry {
+func newTelemetry() (*telemetry, error) {
+	metricGroup := libtelemetry.NewMetricGroup(
+		"usm.kafka",
+		libtelemetry.OptExpvar,
+		libtelemetry.OptMonotonic,
+	)
+
 	t := &telemetry{
-		then:      atomic.NewInt64(time.Now().Unix()),
-		elapsed:   atomic.NewInt64(0),
-		totalHits: atomic.NewInt64(0),
-		misses:    atomic.NewInt64(0),
-		dropped:   atomic.NewInt64(0),
+		then: atomic.NewInt64(time.Now().Unix()),
+
+		// these metrics are also exported as statsd metrics
+		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
+		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
 	}
 
-	return t
+	return t, nil
 }
 
-//func (t *telemetry) aggregate(transactions []*ebpfKafkaTx, err error) {
-//	t.totalHits.Add(int64(len(transactions)))
-//
-//	if err == errLostBatch {
-//		t.misses.Add(int64(len(transactions)))
-//	}
-//}
+func (t *telemetry) count(tx *ebpfKafkaTx) {
+	_ = tx
+	t.totalHits.Add(1)
+}
 
 func (t *telemetry) log() {
 	now := time.Now().Unix()
 	then := t.then.Swap(now)
 
-	delta := newTelemetry()
-	delta.totalHits.Store(t.totalHits.Swap(0))
-	delta.misses.Store(t.misses.Swap(0))
-	delta.dropped.Store(t.dropped.Swap(0))
-	delta.elapsed.Store(now - then)
+	totalRequests := t.totalHits.Delta()
+	dropped := t.dropped.Delta()
+	elapsed := now - then
 
 	log.Debugf(
-		"kafka stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s)",
-		delta.totalHits.Load(),
-		float64(delta.totalHits.Load())/float64(delta.elapsed.Load()),
-		delta.misses.Load(),
-		float64(delta.misses.Load())/float64(delta.elapsed.Load()),
-		delta.dropped.Load(),
-		float64(delta.dropped.Load())/float64(delta.elapsed.Load()),
+		"kafka stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s)",
+		totalRequests,
+		float64(totalRequests)/float64(elapsed),
+		dropped,
+		float64(dropped)/float64(elapsed),
 	)
-}
-
-func (t *telemetry) report() map[string]interface{} {
-	return atomicstats.Report(t)
 }

@@ -10,17 +10,20 @@ package kafka
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"sync"
 )
 
 type kafkaStatKeeper struct {
 	stats      map[Key]*RequestStats
+	statsMutex sync.RWMutex
 	maxEntries int
 	telemetry  *telemetry
 }
 
 func newKafkaStatkeeper(c *config.Config, telemetry *telemetry) *kafkaStatKeeper {
 	return &kafkaStatKeeper{
-		stats:      make(map[Key]*RequestStats),
+		stats: make(map[Key]*RequestStats),
+		// TODO: Change to Kafka
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
 	}
@@ -42,6 +45,8 @@ func (statKeeper *kafkaStatKeeper) add(transaction *ebpfKafkaTx) {
 		},
 		TopicName: transaction.TopicName(),
 	}
+	statKeeper.statsMutex.Lock()
+	defer statKeeper.statsMutex.Unlock()
 	requestStats, ok := statKeeper.stats[key]
 	if !ok {
 		if len(statKeeper.stats) >= statKeeper.maxEntries {
@@ -62,6 +67,8 @@ func (statKeeper *kafkaStatKeeper) add(transaction *ebpfKafkaTx) {
 }
 
 func (statKeeper *kafkaStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+	statKeeper.statsMutex.RLock()
+	defer statKeeper.statsMutex.RUnlock()
 	ret := statKeeper.stats // No deep copy needed since `statKeeper.stats` gets reset
 	statKeeper.stats = make(map[Key]*RequestStats)
 	return ret
