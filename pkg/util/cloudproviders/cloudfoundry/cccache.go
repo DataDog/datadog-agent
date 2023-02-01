@@ -292,6 +292,7 @@ func (ccc *CCCache) fetchProcessesByAppGUID(appGUID string) ([]*cfclient.Process
 	}
 	return res, nil
 }
+
 func (ccc *CCCache) fetchCFApplicationByGUID(guid string) (*CFApplication, error) {
 	// fetch app from the CAPI
 	app, err := ccc.GetApp(guid)
@@ -437,17 +438,11 @@ func (ccc *CCCache) start() {
 	}
 }
 
-func (ccc *CCCache) readData() {
-	log.Debug("Reading data from CC API")
-	var wg sync.WaitGroup
-	var err error
-
-	// List applications
+func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cfclient.V3App, sidecarsMap *map[string][]*CFSidecar) {
 	wg.Add(1)
-	var appsByGUID map[string]*cfclient.V3App
-	var apps []cfclient.V3App
 
-	var sidecarsByAppGUID map[string][]*CFSidecar
+	var apps []cfclient.V3App
+	var err error
 
 	go func() {
 		defer wg.Done()
@@ -458,11 +453,11 @@ func (ccc *CCCache) readData() {
 			log.Errorf("Failed listing apps from cloud controller: %v", err)
 			return
 		}
-		appsByGUID = make(map[string]*cfclient.V3App, len(apps))
-		sidecarsByAppGUID = make(map[string][]*CFSidecar)
+		*appsMap = make(map[string]*cfclient.V3App, len(apps))
+		*sidecarsMap = make(map[string][]*CFSidecar)
 		for _, app := range apps {
 			v3App := app
-			appsByGUID[app.GUID] = &v3App
+			(*appsMap)[app.GUID] = &v3App
 
 			if ccc.sidecarsTags {
 				// list app sidecars
@@ -480,10 +475,20 @@ func (ccc *CCCache) readData() {
 					s := sidecar
 					allSidecars = append(allSidecars, &s)
 				}
-				sidecarsByAppGUID[app.GUID] = allSidecars
+				(*sidecarsMap)[app.GUID] = allSidecars
 			}
 		}
 	}()
+}
+
+func (ccc *CCCache) readData() {
+	log.Debug("Reading data from CC API")
+	var wg sync.WaitGroup
+
+	// List applications
+	var appsByGUID map[string]*cfclient.V3App
+	var sidecarsByAppGUID map[string][]*CFSidecar
+	ccc.listApplications(&wg, &appsByGUID, &sidecarsByAppGUID)
 
 	// List spaces
 	wg.Add(1)
@@ -622,11 +627,11 @@ func (ccc *CCCache) readData() {
 	// prepare CFApplications
 	var cfApplicationsByGUID map[string]*CFApplication
 	if ccc.serveNozzleData {
-		cfApplicationsByGUID = make(map[string]*CFApplication, len(apps))
+		cfApplicationsByGUID = make(map[string]*CFApplication, len(appsByGUID))
 		// Populate cfApplications
-		for _, cfapp := range apps {
+		for _, cfapp := range appsByGUID {
 			updatedApp := CFApplication{}
-			updatedApp.extractDataFromV3App(cfapp)
+			updatedApp.extractDataFromV3App(*cfapp)
 			appGUID := updatedApp.GUID
 			spaceGUID := updatedApp.SpaceGUID
 			processes, exists := processesByAppGUID[appGUID]
