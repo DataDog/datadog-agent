@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -137,23 +136,13 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		return nil, errors.New("failed to detect kernel version")
-	}
-	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	m := &manager.Manager{
 		DumpHandler: dumpMapsHandler,
-		InstructionPatcher: func(m *manager.Manager) error {
-			return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
-		},
 	}
-	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
-	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 
 	var tracerType TracerType = EBPFFentry
 	var closeTracerFn func()
-	closeTracerFn, err = fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+	closeTracerFn, err := fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err

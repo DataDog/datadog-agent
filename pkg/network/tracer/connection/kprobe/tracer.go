@@ -19,6 +19,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -102,6 +103,9 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	initManager(m, config, perfHandlerTCP, runtimeTracer)
 
+	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, telemetryMapKeys...)
+
 	var undefinedProbes []manager.ProbeIdentificationPair
 
 	var closeProtocolClassifierSocketFilterFn func()
@@ -121,7 +125,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		}
 
 		undefinedProbes = append(undefinedProbes, tailCalls[0].ProbeIdentificationPair)
-		mgrOptions.TailCallRouter = append(mgrOptions.TailCallRouter, tailCalls...)
+		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, tailCalls...)
 	} else {
 		// Kernels < 4.7.0 do not know about the per-cpu array map used
 		// in classification, preventing the program to load even though
@@ -131,6 +135,10 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 			Type:       ebpf.Array,
 			EditorFlag: manager.EditType,
 		}
+	}
+
+	if err := errtelemetry.ActivateBPFTelemetry(m, undefinedProbes); err != nil {
+		return nil, fmt.Errorf("could not activate ebpf telemetry: %w", err)
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types

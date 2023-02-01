@@ -17,6 +17,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -48,6 +49,13 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 		initManager(m, config, perfHandlerTCP)
 
+		if err := errtelemetry.ActivateBPFTelemetry(m, nil); err != nil {
+			return fmt.Errorf("could not activate ebpf telemetry: %w", err)
+		}
+
+		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+		mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, telemetryMapKeys...)
+
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {
 			if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
@@ -59,7 +67,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 				o.ActivatedProbes,
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFSection:  string(probeName),
+						EBPFSection:  probeName,
 						EBPFFuncName: funcName,
 						UID:          probeUID,
 					},
