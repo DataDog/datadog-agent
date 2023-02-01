@@ -68,7 +68,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				config.WithConfigLoadSecurityAgent(true),
 				config.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
-				config.WithConfigLoadSysProbe(true))
+				config.WithConfigLoadSysProbe(true),
+				config.WithConfigInvalidOK(true))
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
@@ -177,6 +178,10 @@ func makeFlare(flare flare.Component, log log.Component, config config.Component
 		err     error
 	)
 
+	warnings := config.Warnings()
+	if warnings != nil && warnings.Err != nil {
+		fmt.Fprintln(color.Output, color.YellowString("%v", warnings.Err))
+	}
 	caseID := ""
 	if len(cliParams.args) > 0 {
 		caseID = cliParams.args[0]

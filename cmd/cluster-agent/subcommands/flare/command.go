@@ -59,7 +59,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
+					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true), config.WithConfigInvalidOK(true)),
 					LogParams:    log.LogForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
 				core.Bundle,
@@ -75,6 +75,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
+	warnings := config.Warnings()
+	if warnings != nil && warnings.Err != nil {
+		fmt.Fprintln(color.Output, color.YellowString("%v", warnings.Err))
+	}
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true

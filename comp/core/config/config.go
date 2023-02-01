@@ -35,20 +35,31 @@ type dependencies struct {
 
 func newConfig(deps dependencies) (Component, error) {
 	warnings, err := setupConfig(deps)
+	returnErrFct := func(e error) (Component, error) {
+		if e != nil && deps.Params.configInvalidOK {
+			if warnings == nil {
+				warnings = &config.Warnings{}
+			}
+			warnings.Err = e
+			e = nil
+		}
+		return &cfg{warnings}, e
+	}
+
 	if err != nil {
-		return nil, err
+		return returnErrFct(err)
 	}
 
 	if deps.Params.configLoadSysProbe {
 		_, err := sysconfig.Merge(deps.Params.sysProbeConfFilePath)
 		if err != nil {
-			return &cfg{warnings}, err
+			return returnErrFct(err)
 		}
 	}
 
 	if deps.Params.configLoadSecurityAgent {
 		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
-			return &cfg{warnings}, err
+			return returnErrFct(err)
 		}
 	}
 

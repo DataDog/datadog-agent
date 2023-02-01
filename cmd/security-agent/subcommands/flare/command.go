@@ -50,7 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(requestFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithConfigInvalidOK(true)),
 					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
@@ -65,6 +65,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func requestFlare(log log.Component, config config.Component, params *cliParams) error {
+	warnings := config.Warnings()
+	if warnings != nil && warnings.Err != nil {
+		fmt.Fprintln(color.Output, color.YellowString("%v", warnings.Err))
+	}
 	if params.customerEmail == "" {
 		var err error
 		params.customerEmail, err = input.AskForEmail()
