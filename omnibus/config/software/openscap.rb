@@ -44,6 +44,8 @@ build do
   cmake_options = [
     "-DENABLE_PERL=OFF",
     "-DENABLE_PYTHON3=OFF",
+    "-DGCRYPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
+    "-DGCRYPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libgcrypt.so",
   ]
   cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
 end
