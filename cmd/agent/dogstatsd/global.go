@@ -10,7 +10,7 @@ import (
 )
 
 // DSD is the global dogstatsd instance
-// TODO: (components) This should be removed when all downstream dependencies
-// are migrated to components such that this can be injected instead of a shared
-// global reference.
+// TODO: (components) This is currently only used by JMXFetch.
+// Once core check runners are refactored to not use init hooks,
+// we can remove this global.
 var DSD server.Component

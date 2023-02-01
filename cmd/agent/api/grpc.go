@@ -16,11 +16,11 @@ import (
 	"fmt"
 	"time"
 
-	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -41,6 +41,7 @@ type serverSecure struct {
 	taggerServer       *taggerserver.Server
 	workloadmetaServer *workloadmetaServer.Server
 	configService      *remoteconfig.Service
+	dogstatsdServer    dogstatsdServer.Component
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -76,7 +77,7 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 		return &pb.CaptureTriggerResponse{}, err
 	}
 
-	p, err := global.DSD.Capture(req.GetPath(), d, req.GetCompressed())
+	p, err := s.dogstatsdServer.Capture(req.GetPath(), d, req.GetCompressed())
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
 	}

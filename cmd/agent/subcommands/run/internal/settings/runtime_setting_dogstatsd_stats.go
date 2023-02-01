@@ -8,13 +8,15 @@ package settings
 import (
 	"fmt"
 
-	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // DsdStatsRuntimeSetting wraps operations to change the collection of dogstatsd stats at runtime.
-type DsdStatsRuntimeSetting string
+type DsdStatsRuntimeSetting struct {
+	Server dogstatsdServer.Component
+}
 
 // Description returns the runtime setting's description
 func (s DsdStatsRuntimeSetting) Description() string {
@@ -28,12 +30,12 @@ func (s DsdStatsRuntimeSetting) Hidden() bool {
 
 // Name returns the name of the runtime setting
 func (s DsdStatsRuntimeSetting) Name() string {
-	return string(s)
+	return string("dogstatsd_stats")
 }
 
 // Get returns the current value of the runtime setting
 func (s DsdStatsRuntimeSetting) Get() (interface{}, error) {
-	return global.DSD.IsDebugEnabled(), nil
+	return s.Server.IsDebugEnabled(), nil
 }
 
 // Set changes the value of the runtime setting
@@ -46,9 +48,9 @@ func (s DsdStatsRuntimeSetting) Set(v interface{}) error {
 	}
 
 	if newValue {
-		global.DSD.EnableMetricsStats()
+		s.Server.EnableMetricsStats()
 	} else {
-		global.DSD.DisableMetricsStats()
+		s.Server.DisableMetricsStats()
 	}
 
 	config.Datadog.Set("dogstatsd_metrics_stats_enable", newValue)

@@ -290,7 +290,7 @@ func NewServer(serverless bool) *Server {
 	}
 
 	s := &Server{
-		Started:                 true,
+		Started:                 false,
 		Statistics:              stats,
 		packetsIn:               nil,
 		captureChan:             nil,
@@ -410,6 +410,7 @@ func (s *Server) Start(demultiplexer aggregator.Demultiplexer) error {
 	// ----------------------
 
 	s.handleMessages()
+	s.Started = true
 
 	// start the debug loop
 	// ----------------------

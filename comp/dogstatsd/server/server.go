@@ -37,6 +37,10 @@ func (s *server) Stop() {
 	s.server.Stop()
 }
 
+func (s *server) IsRunning() bool {
+	return s.server.Started
+}
+
 func (s *server) Capture(p string, d time.Duration, compressed bool) (string, error) {
 
 	err := s.server.Capture(p, d, compressed)

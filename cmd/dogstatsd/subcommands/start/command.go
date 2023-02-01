@@ -97,14 +97,14 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
-	var metaScheduler metadata.Scheduler
-	var dogstatsdStats http.Server
-	defer StopAgent(cancel, server, &metaScheduler, &dogstatsdStats)
+	var metaScheduler *metadata.Scheduler
+	var dogstatsdStats *http.Server
+	defer StopAgent(cancel, server, metaScheduler, dogstatsdStats)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunAgent(ctx, cliParams, config, params, server, &metaScheduler, &dogstatsdStats)
+	err := RunAgent(ctx, cliParams, config, params, server, metaScheduler, dogstatsdStats)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
-	metaScheduler = metadata.NewScheduler(demux)
+	*metaScheduler = *metadata.NewScheduler(demux)
 	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
 		return

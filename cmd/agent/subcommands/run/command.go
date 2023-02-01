@@ -153,7 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // This is exported because it also used from the deprecated `agent start` command.
 func run(log log.Component, config config.Component, flare flare.Component, cliParams *cliParams, server dogstatsdServer.Component) error {
 	defer func() {
-		stopAgent(cliParams)
+		stopAgent(cliParams, server)
 	}()
 
 	// prepare go runtime
@@ -268,7 +268,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	}
 
 	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(); err != nil {
+	if err := initRuntimeSettings(server); err != nil {
 		pkglog.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
@@ -352,7 +352,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare); err != nil {
+	if err = api.StartServer(configService, flare, server); err != nil {
 		return pkglog.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -435,7 +435,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
 		global.DSD = server
-		err := global.DSD.Start(demux)
+		err := server.Start(demux)
 		if err != nil {
 			pkglog.Errorf("Could not start dogstatsd: %s", err)
 		} else {
@@ -492,13 +492,8 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	return nil
 }
 
-// StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults() {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}})
-}
-
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams) {
+func stopAgent(cliParams *cliParams, server dogstatsdServer.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -513,9 +508,7 @@ func stopAgent(cliParams *cliParams) {
 			pkglog.Errorf("Error shutting down expvar server: %v", err)
 		}
 	}
-	if global.DSD != nil {
-		global.DSD.Stop()
-	}
+	server.Stop()
 	if common.OTLP != nil {
 		common.OTLP.Stop()
 	}

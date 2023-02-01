@@ -44,7 +44,9 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		require.Nil(t, err)
 
-		s := DsdStatsRuntimeSetting("dogstatsd_stats")
+		s := DsdStatsRuntimeSetting{
+			server: server,
+		}
 
 		// runtime settings set/get underlying implementation
 
@@ -52,7 +54,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		err = s.Set("true")
 		assert.Nil(err)
-		assert.Equal(global.DSD.IsDebugEnabled(), true)
+		assert.Equal(server.IsDebugEnabled(), true)
 		v, err := s.Get()
 		assert.Nil(err)
 		assert.Equal(v, true)
@@ -61,7 +63,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		err = s.Set("false")
 		assert.Nil(err)
-		assert.Equal(global.DSD.IsDebugEnabled(), false)
+		assert.Equal(server.IsDebugEnabled(), false)
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, false)
@@ -70,7 +72,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		err = s.Set(true)
 		assert.Nil(err)
-		assert.Equal(global.DSD.IsDebugEnabled(), true)
+		assert.Equal(server.IsDebugEnabled(), true)
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, true)
@@ -79,14 +81,14 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		err = s.Set(false)
 		assert.Nil(err)
-		assert.Equal(global.DSD.IsDebugEnabled(), false)
+		assert.Equal(server.IsDebugEnabled(), false)
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, false)
 
 		// ensure the getter uses the value from the actual server
 
-		global.DSD.EnableMetricsStats()
+		server.EnableMetricsStats()
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, true)
