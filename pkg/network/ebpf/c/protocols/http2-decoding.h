@@ -448,27 +448,7 @@ static __always_inline int find_interesting_headers(struct __sk_buff *skb, http2
     return interesting_headers;
 }
 
-static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process, __u8 number_of_frames) {
-    const __u32 zero = 0;
-    heap_buffer_t *heap_buffer = bpf_map_lookup_elem(&http2_heap_buffer, &zero);
-    if (heap_buffer == NULL) {
-        return;
-    }
-    bpf_memset(heap_buffer, 0, sizeof(heap_buffer_t));
-
-    http2_headers_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
-    if (headers_to_process == NULL) {
-        return;
-    }
-    bpf_memset(headers_to_process->array, 0, HTTP2_MAX_HEADERS_COUNT * sizeof(http2_header_t));
-
-    struct http2_frame *current_frame_header = NULL;
-
-    __u8 interesting_headers = find_interesting_headers(skb, iterations_key, http2_ctx, headers_to_process, frames_to_process, heap_buffer, number_of_frames, current_frame_header);
-
-    // process headers
-    process_headers(http2_ctx, headers_to_process->array, interesting_headers);
-
+static __always_inline void handle_interesting_headers(http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process, struct http2_frame *current_frame_header, __u8 number_of_frames){
 #pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; iteration++) {
         if (iteration >= number_of_frames) {
@@ -485,6 +465,30 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
             handle_end_of_stream(current_frame_header->type, &http2_ctx->http2_stream_key);
         }
     }
+}
+
+static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_frame_t *frames_to_process, __u8 number_of_frames) {
+    const __u32 zero = 0;
+    struct http2_frame *current_frame_header = NULL;
+
+    heap_buffer_t *heap_buffer = bpf_map_lookup_elem(&http2_heap_buffer, &zero);
+    if (heap_buffer == NULL) {
+        return;
+    }
+    bpf_memset(heap_buffer, 0, sizeof(heap_buffer_t));
+
+    http2_headers_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
+    if (headers_to_process == NULL) {
+        return;
+    }
+    bpf_memset(headers_to_process->array, 0, HTTP2_MAX_HEADERS_COUNT * sizeof(http2_header_t));
+
+    __u8 interesting_headers = find_interesting_headers(skb, iterations_key, http2_ctx, headers_to_process, frames_to_process, heap_buffer, number_of_frames, current_frame_header);
+
+    // process headers
+    process_headers(http2_ctx, headers_to_process->array, interesting_headers);
+
+    handle_interesting_headers(http2_ctx, frames_to_process, current_frame_header, number_of_frames);
 }
 
 static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx) {
