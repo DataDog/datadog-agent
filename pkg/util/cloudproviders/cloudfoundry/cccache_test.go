@@ -34,6 +34,7 @@ func (ccc *CCCache) reset() {
 	ccc.processesByAppGUID = make(map[string][]*cfclient.Process)
 	ccc.cfApplicationsByGUID = make(map[string]*CFApplication)
 	ccc.lastUpdated = time.Time{}
+	ccc.updatedOnce = make(chan struct{})
 }
 
 type testCCClientCounter struct {
