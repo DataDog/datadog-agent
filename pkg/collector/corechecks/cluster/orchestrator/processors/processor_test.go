@@ -215,7 +215,7 @@ func TestChunkOrchestratorMetadataBySizeAndWeight(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			chunks := chunkOrchestratorPayloadsBySizeAndWeight(tc.orchestratorResources, tc.orchestratorYaml, tc.maxChunkSize, tc.maxChunkWeight)
-			assert.Equal(t, tc.expectedChunks, *chunks)
+			assert.Equal(t, tc.expectedChunks, chunks)
 		})
 	}
 }
