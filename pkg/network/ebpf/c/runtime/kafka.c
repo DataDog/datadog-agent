@@ -1,6 +1,10 @@
 #include <linux/kconfig.h>
+
+#include "bpf_tracing.h"
 #include "tracer.h"
-#include "bpf_helpers.h"
+#include "bpf_telemetry.h"
+#include "bpf_builtins.h"
+//#include "bpf_helpers.h"
 #include "ip.h"
 #include "port_range.h"
 
@@ -26,7 +30,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         log_debug("socket__kafka_filter: kafka_transaction state is NULL");
         return 0;
     }
-    __builtin_memset(kafka, 0, sizeof(kafka_transaction_t));
+    bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
 
     if (!read_conn_tuple_skb(skb, &skb_info, &kafka->base.tup)) {
         return 0;

@@ -8,6 +8,7 @@ package network
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"strconv"
 	"sync"
 	"time"
@@ -46,6 +47,7 @@ type State interface {
 		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
 		http map[http.Key]*http.RequestStats,
+		kafka map[kafka.Key]*kafka.RequestStats,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -92,6 +94,7 @@ type telemetry struct {
 	timeSyncCollisions    int64
 	dnsStatsDropped       int64
 	httpStatsDropped      int64
+	kafkaStatsDropped     int64
 	dnsPidCollisions      int64
 }
 
@@ -107,6 +110,7 @@ type client struct {
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
+	kafkaStatsDelta map[kafka.Key]*kafka.RequestStats
 	lastTelemetries map[ConnTelemetryType]int64
 }
 
@@ -149,10 +153,11 @@ type networkState struct {
 	maxClientStats int
 	maxDNSStats    int
 	maxHTTPStats   int
+	maxKafkaStats  int
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int) State {
+func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int) State {
 	return &networkState{
 		clients:        map[string]*client{},
 		telemetry:      telemetry{},
@@ -161,6 +166,7 @@ func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, ma
 		maxClientStats: maxClientStats,
 		maxDNSStats:    maxDNSStats,
 		maxHTTPStats:   maxHTTPStats,
+		maxKafkaStats:  maxKafkaStats,
 	}
 }
 
@@ -201,6 +207,7 @@ func (ns *networkState) GetDelta(
 	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
 	httpStats map[http.Key]*http.RequestStats,
+	kafkaStats map[kafka.Key]*kafka.RequestStats,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
@@ -223,6 +230,9 @@ func (ns *networkState) GetDelta(
 	}
 	if len(httpStats) > 0 {
 		ns.storeHTTPStats(httpStats)
+	}
+	if len(kafkaStats) > 0 {
+		ns.storeKafkaStats(kafkaStats)
 	}
 
 	return Delta{
@@ -469,6 +479,37 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 				client.httpStatsDelta[key] = prevStats
 			} else {
 				client.httpStatsDelta[key] = stats
+			}
+		}
+	}
+}
+
+// storeKafkaStats stores the latest Kafka stats for all clients
+func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStats) {
+	if len(ns.clients) == 1 {
+		for _, client := range ns.clients {
+			if len(client.kafkaStatsDelta) == 0 {
+				// optimization for the common case:
+				// if there is only one client and no previous state, no memory allocation is needed
+				client.kafkaStatsDelta = allStats
+				return
+			}
+		}
+	}
+
+	for key, stats := range allStats {
+		for _, client := range ns.clients {
+			prevStats, ok := client.kafkaStatsDelta[key]
+			if !ok && len(client.kafkaStatsDelta) >= ns.maxKafkaStats {
+				ns.telemetry.kafkaStatsDropped++
+				continue
+			}
+
+			if prevStats != nil {
+				prevStats.CombineWith(stats)
+				client.kafkaStatsDelta[key] = prevStats
+			} else {
+				client.kafkaStatsDelta[key] = stats
 			}
 		}
 	}

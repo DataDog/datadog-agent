@@ -45,10 +45,10 @@ func NewMonitor(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Mo
 		return nil, fmt.Errorf("error setting up kafka ebpf program: %s", err)
 	}
 
-	//if err := mgr.Init(); err != nil {
-	//	return nil, fmt.Errorf("error initializing kafka ebpf program: %s", err)
-	//}
 	err = mgr.Init()
+	if err := mgr.Init(); err != nil {
+		return nil, fmt.Errorf("error initializing kafka ebpf program: %s", err)
+	}
 	err2 := errors.Unwrap(err)
 	err3, ok := errors.Unwrap(err2).(*ebpf.VerifierError)
 	if ok {

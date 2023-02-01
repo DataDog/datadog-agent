@@ -22,9 +22,8 @@ type kafkaStatKeeper struct {
 
 func newKafkaStatkeeper(c *config.Config, telemetry *telemetry) *kafkaStatKeeper {
 	return &kafkaStatKeeper{
-		stats: make(map[Key]*RequestStats),
-		// TODO: Change to Kafka
-		maxEntries: c.MaxHTTPStatsBuffered,
+		stats:      make(map[Key]*RequestStats),
+		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
 	}
 }

@@ -72,7 +72,10 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
-	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
+	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
+	EnableKafkaMonitoring bool
+
+	// EnableHTTPSMonitoring specifies whether the tracer should monitor HTTPS traffic
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
@@ -134,6 +137,10 @@ type Config struct {
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxHTTPStatsBuffered int
+
+	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxKafkaStatsBuffered int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -252,6 +259,7 @@ func New() *Config {
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableKafkaMonitoring: cfg.GetBool(join(netNS, "enable_kafka_monitoring")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
