@@ -34,6 +34,9 @@ func main() {
 
 	// load proxy settings
 	setupProxy()
+	// The datadog-agent requires Load to be called or it could
+	// panic down the line.
+	_, _ = config.Load()
 
 	cloudService := cloudservice.GetCloudServiceType()
 	tags := cloudService.GetTags()
