@@ -36,6 +36,9 @@ func main() {
 	// panic down the line.
 	_, _ = config.Load()
 
+	// load proxy settings
+	setupProxy()
+
 	cloudService := cloudservice.GetCloudServiceType()
 	tags := cloudService.GetTags()
 	origin := cloudService.GetOrigin()
@@ -70,4 +73,8 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)
 	return metricAgent
+}
+
+func setupProxy() {
+	config.LoadProxyFromEnv(config.Datadog)
 }
