@@ -204,9 +204,11 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 }
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
-func StartAgentWithDefaults() error {
+func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
+	var dsdServer dogstatsdServer.Component
 	// run startAgent in an app, so that the log and config components get initialized
-	return fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, server dogstatsdServer.Component) error {
+	err := fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, server dogstatsdServer.Component) error {
+		dsdServer = server
 		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, server)
 	},
 		// no config file path specification in this situation
@@ -219,6 +221,11 @@ func StartAgentWithDefaults() error {
 		}),
 		dogstatsd.Bundle,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+	return dsdServer, nil
 }
 
 // startAgent Initializes the agent process
@@ -495,6 +502,11 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	go startDependentServices()
 
 	return nil
+}
+
+// StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
+func StopAgentWithDefaults(server dogstatsdServer.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server)
 }
 
 // stopAgent Tears down the agent process
