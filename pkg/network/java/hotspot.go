@@ -11,18 +11,21 @@ package java
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Hotspot java has a specific protocol, described here:
@@ -43,6 +46,8 @@ type Hotspot struct {
 	conn  *net.UnixConn
 
 	socketPath string
+	uid        int
+	gid        int
 }
 
 // NewHotspot create an object to connect to a JVM hotspot
@@ -143,14 +148,44 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 	}, nil
 }
 
+func (h *Hotspot) dialunix(raddr *net.UnixAddr, withCredential bool) (*net.UnixConn, error) {
+	// Hotspot reject connection credentials by checking uid/gid of the client calling connect()
+	// via getsockopt(SOL_SOCKET/SO_PEERCRED).
+	// but older hotspot JRE (1.8.0) accept only the same uid/gid and reject root
+	//
+	// For go, during the connect() syscall we don't want to fork() and stay on the same pthread
+	// to avoid side effect (pollution) of set effective uid/gid.
+	if withCredential {
+		runtime.LockOSThread()
+		syscall.ForkLock.Lock()
+		origeuid := syscall.Geteuid()
+		origegid := syscall.Getegid()
+		defer func() {
+			_ = syscall.Seteuid(origeuid)
+			_ = syscall.Setegid(origegid)
+			syscall.ForkLock.Unlock()
+			runtime.UnlockOSThread()
+		}()
+
+		if err := syscall.Setegid(h.gid); err != nil {
+			return nil, err
+		}
+		if err := syscall.Seteuid(h.uid); err != nil {
+			return nil, err
+		}
+	}
+	return net.DialUnix("unix", nil, raddr)
+}
+
 // connect to the previously created hotspot unix socket
 // return close function must be call when finished
-func (h *Hotspot) connect() (close func(), err error) {
+func (h *Hotspot) connect(withCredential bool) (close func(), err error) {
+	h.conn = nil
 	addr, err := net.ResolveUnixAddr("unix", h.socketPath)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := net.DialUnix("unix", nil, addr)
+	conn, err := h.dialunix(addr, withCredential)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +195,11 @@ func (h *Hotspot) connect() (close func(), err error) {
 		return nil, err
 	}
 	h.conn = conn
-	return func() { h.conn.Close() }, nil
+	return func() {
+		if h.conn != nil {
+			h.conn.Close()
+		}
+	}, nil
 }
 
 // parseResponse parse the response from the hotspot command
@@ -197,6 +236,31 @@ func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, 
 //	otherwise the JVM is blocked and waiting for more bytes
 //	This applies only for some command like : 'load agent.so true'
 func (h *Hotspot) command(cmd string, tailingNull bool) error {
+	hasRetried := false
+retry:
+	if err := h.commandWriteRead(cmd, tailingNull); err != nil {
+		// if we receive EPIPE (write) or ECONNRESET (read) from the kernel may from old hotspot JVM
+		// let's retry with credentials, see dialunix() for more info
+		if !hasRetried && (errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)) {
+			log.Debugf("java attach hotspot pid %d/%d old hotspot JVM detected, requires credentials", h.pid, h.nsPid)
+			hasRetried = true
+			h.conn.Close()
+			_, err = h.connect(true) // we don't need to propagate the cleanConn() callback as it's doing the same thing.
+			if err != nil {
+				return err
+			}
+			goto retry
+		}
+		return err
+	}
+	return nil
+}
+
+// commandWriteRead: tailingNull is necessary here to flush command
+//
+//	otherwise the JVM is blocked and waiting for more bytes
+//	This applies only for some command like : 'load agent.so true'
+func (h *Hotspot) commandWriteRead(cmd string, tailingNull bool) error {
 	if _, err := h.conn.Write([]byte{'1', 0}); err != nil { // Protocol version
 		return err
 	}
@@ -297,8 +361,10 @@ func (h *Hotspot) Attach(agentPath string, args string, uid int, gid int) error 
 	}
 	defer agentCleanup()
 
+	h.uid = uid
+	h.gid = gid
 	// connect and ask to load the agent .jar or .so
-	cleanConn, err := h.connect()
+	cleanConn, err := h.connect(false)
 	if err != nil {
 		return err
 	}
@@ -317,5 +383,10 @@ func (h *Hotspot) Attach(agentPath string, args string, uid int, gid int) error 
 			loadCommand += " " + args
 		}
 	}
-	return h.command(loadCommand, !isJar)
+
+	if err := h.command(loadCommand, !isJar); err != nil {
+		log.Debugf("java attach hotspot pid %d/%d command '%s' failed isJar=%v : %s", h.pid, h.nsPid, loadCommand, isJar, err)
+		return err
+	}
+	return nil
 }
