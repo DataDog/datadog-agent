@@ -188,3 +188,11 @@ cscope.out
 
 # Go workspace until we have proper support in the tooling
 go.work*
+
+tools/windows/DatadogAgentInstaller/.vs/
+tools/windows/DatadogAgentInstaller/packages/
+tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
+*.wixobj
+*obj*
+*.g.wxs
+*.DotSettings.user

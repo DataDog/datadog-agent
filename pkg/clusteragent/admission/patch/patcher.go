@@ -65,13 +65,11 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	if err != nil {
 		return fmt.Errorf("failed to encode object: %v", err)
 	}
-	rcIDAnnotKey := fmt.Sprintf(common.RcIDAnnotKeyFormat, req.LibConfig.Language)
-	rcRevAnnotKey := fmt.Sprintf(common.RcRevisionAnnotKeyFormat, req.LibConfig.Language)
 	revision := fmt.Sprint(req.Revision)
 	if deploy.Annotations == nil {
 		deploy.Annotations = make(map[string]string)
 	}
-	if deploy.Annotations[rcIDAnnotKey] == req.ID && deploy.Annotations[rcRevAnnotKey] == revision {
+	if deploy.Annotations[common.RcIDAnnotKey] == req.ID && deploy.Annotations[common.RcRevisionAnnotKey] == revision {
 		log.Infof("Remote Config ID %q with revision %q has already been applied to object %s, skipping", req.ID, revision, req.K8sTarget)
 		return nil
 	}
@@ -86,8 +84,8 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	default:
 		return fmt.Errorf("unknown action %q", req.Action)
 	}
-	deploy.Annotations[rcIDAnnotKey] = req.ID
-	deploy.Annotations[rcRevAnnotKey] = revision
+	deploy.Annotations[common.RcIDAnnotKey] = req.ID
+	deploy.Annotations[common.RcRevisionAnnotKey] = revision
 	newObj, err := json.Marshal(deploy)
 	if err != nil {
 		return fmt.Errorf("failed to encode object: %v", err)

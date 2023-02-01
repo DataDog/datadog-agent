@@ -66,7 +66,7 @@ func GetHostname(hostname **C.char) {
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
 	goHostname, _ := hostnameUtil.Get(context.TODO())
-	goClusterName := clustername.GetClusterName(context.TODO(), goHostname)
+	goClusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
 	*clusterName = TrackedCString(goClusterName)
 }

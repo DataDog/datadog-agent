@@ -66,3 +66,8 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
+
+// DebugDumpProcessCache is not implemented on this OS for Tracer
+func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
+}

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/libnetwork/resolvconf"
+	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -36,7 +36,7 @@ func TestNetworkCIDR(t *testing.T) {
 	}
 
 	// write the rules using the local resolv.conf file
-	resolvFile, err := resolvconf.Get()
+	resolvFile, err := resolvconf.GetSpecific("/etc/resolv.conf")
 	if err != nil {
 		t.Fatal(err)
 	}

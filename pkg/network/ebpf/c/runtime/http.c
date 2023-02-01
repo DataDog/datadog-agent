@@ -9,15 +9,16 @@
 #include "sockfd.h"
 #include "conn-tuple.h"
 #include "port_range.h"
-#include "protocols/http.h"
-#include "protocols/http-buffer.h"
-#include "protocols/https.h"
-#include "protocols/go-tls-types.h"
-#include "protocols/go-tls-goid.h"
-#include "protocols/go-tls-location.h"
-#include "protocols/go-tls-conn.h"
-#include "protocols/tags-types.h"
-#include "protocols/protocol-dispatcher-helpers.h"
+
+#include "protocols/classification/dispatcher-helpers.h"
+#include "protocols/http/http.h"
+#include "protocols/http/buffer.h"
+#include "protocols/tls/https.h"
+#include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/go-tls-goid.h"
+#include "protocols/tls/go-tls-location.h"
+#include "protocols/tls/go-tls-conn.h"
+#include "protocols/tls/tags-types.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -836,7 +837,7 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     https_finish(t);
 
     // Clear the element in the map since this connection is closed
-    bpf_map_delete_elem(&conn_tup_by_tls_conn, &conn_pointer);
+    bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
 
     return 0;
 }

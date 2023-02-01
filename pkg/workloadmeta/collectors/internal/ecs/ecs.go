@@ -51,12 +51,8 @@ func init() {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	if !config.IsFeaturePresent(config.Docker) {
-		return errors.NewDisabled(componentName, "Agent is not running on Docker")
-	}
-
-	if ecsutil.IsFargateInstance(ctx) {
-		return errors.NewDisabled(componentName, "ECS collector is disabled on Fargate")
+	if !config.IsFeaturePresent(config.ECSEC2) {
+		return errors.NewDisabled(componentName, "Agent is not running on ECS EC2")
 	}
 
 	var err error

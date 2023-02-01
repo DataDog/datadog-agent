@@ -52,6 +52,7 @@ platforms:
 <%
     # TEST_PLATFORMS syntax is `short_name1,ami|...`
     ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
 
     windows_platforms = []
     sles15_platforms = []
@@ -88,6 +89,8 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    dd-agent-rspec:
+      enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
     <% end %>
@@ -143,15 +146,6 @@ platforms:
           let i+=${wait};
         done;
   <% end %>
-    # HACK: this is needed to install rexml for system-probe tests without using bundler, which cannot be used for now
-    # (see the explanation in tasks/run-test-kitchen.sh).
-    pre_verify:
-      - local: echo 'Installing rexml gem for the system-probe-test suite'
-      <% if windows %>
-      - remote: C:/opscode/chef/embedded/bin/gem.bat install rexml --install-dir C:/Users/ec2-user/AppData/Local/Temp/verifier/gems
-      <% else %>
-      - remote: /opt/chef/embedded/bin/gem install rexml --install-dir /tmp/verifier/gems
-      <% end %>
   verifier:
     downloads:
       "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz

@@ -572,7 +572,7 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	}
 
 	// resolve fields
-	event.ResolveFields(true)
+	event.ResolveFieldsForAD()
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
@@ -638,6 +638,11 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 			if root.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.resolvers) {
 				return root
 			}
+		}
+
+		// we're about to add a root process node, make sure this root node passes the root node sanitizer
+		if !ad.IsValidRootNode(entry) {
+			return node
 		}
 
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
@@ -808,28 +813,6 @@ func (ad *ActivityDump) resolveTags() error {
 		return fmt.Errorf("failed to resolve %s: %w", ad.DumpMetadata.ContainerID, err)
 	}
 
-	if !ad.countedByLimiter {
-		// check if we should discard this dump based on the manager dump limiter
-		limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
-		if limiterKey == ":" {
-			// wait for the tags
-			return nil
-		}
-
-		counter, ok := ad.adm.dumpLimiter.Get(limiterKey)
-		if !ok {
-			counter = atomic.NewUint64(0)
-			ad.adm.dumpLimiter.Add(limiterKey, counter)
-		}
-
-		if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
-			ad.Finalize(true)
-			ad.adm.removeDump(ad)
-		} else {
-			ad.countedByLimiter = true
-			counter.Add(1)
-		}
-	}
 	return nil
 }
 
@@ -1441,6 +1424,12 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 	}
 
 	return newNode
+}
+
+// IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
+func (ad *ActivityDump) IsValidRootNode(entry *model.ProcessCacheEntry) bool {
+	// TODO: evaluate if the same issue affects other container runtimes
+	return !strings.HasPrefix(entry.FileEvent.BasenameStr, "runc")
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump

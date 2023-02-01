@@ -62,6 +62,8 @@ func createDCAArchive(fb flarehelpers.FlareBuilder, local bool, confSearchPaths 
 	getClusterAgentDiagnose(fb)      //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)
+	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)
+	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)
 
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(fb) //nolint:errcheck
@@ -153,4 +155,24 @@ func getClusterAgentDiagnose(fb flarehelpers.FlareBuilder) error {
 	writer.Flush()
 
 	return fb.AddFile("diagnose.log", b.Bytes())
+}
+
+func getDCATaggerList() ([]byte, error) {
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port"))
+
+	return getTaggerList(taggerListURL)
+}
+
+func getDCAWorkloadList() ([]byte, error) {
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port")))
 }

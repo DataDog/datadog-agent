@@ -127,3 +127,17 @@ func (sf *StructField) GetArrayPrefix() string {
 	}
 	return ""
 }
+
+// GetCacheName returns the cache name
+func (sf *StructField) GetCacheName() string {
+	switch sf.ReturnType {
+	case "string":
+		return "StringCache"
+	case "int":
+		return "IntCache"
+	case "bool":
+		return "BoolCache"
+	default:
+		panic("no cache name defined for this return type")
+	}
+}
