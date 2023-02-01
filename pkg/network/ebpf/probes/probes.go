@@ -8,10 +8,8 @@
 
 package probes
 
-import "fmt"
-
 // ProbeName stores the name of the kernel probes setup for tracing
-type ProbeName string
+type ProbeName = string
 
 const (
 	// InetCskListenStop traces the inet_csk_listen_stop system call (called for both ipv4 and ipv6)
@@ -156,7 +154,7 @@ const (
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
-type BPFMapName string
+type BPFMapName = string
 
 // constants for the map names
 const (
@@ -175,7 +173,6 @@ const (
 	DoSendfileArgsMap                 BPFMapName = "do_sendfile_args"
 	SockByPidFDMap                    BPFMapName = "sock_by_pid_fd"
 	PidFDBySockMap                    BPFMapName = "pid_fd_by_sock"
-	TagsMap                           BPFMapName = "conn_tags"
 	TcpSendMsgArgsMap                 BPFMapName = "tcp_sendmsg_args"
 	IpMakeSkbArgsMap                  BPFMapName = "ip_make_skb_args"
 	MapErrTelemetryMap                BPFMapName = "map_err_telemetry_map"
@@ -186,8 +183,3 @@ const (
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 	ClassificationProgsMap            BPFMapName = "classification_progs"
 )
-
-// SectionName returns the SectionName for the given BPF map
-func (b BPFMapName) SectionName() string {
-	return fmt.Sprintf("maps/%s", b)
-}
