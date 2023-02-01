@@ -90,7 +90,7 @@ type CCCache struct {
 	segmentBySpaceGUID   map[string]*cfclient.IsolationSegment
 	segmentByOrgGUID     map[string]*cfclient.IsolationSegment
 	appsBatchSize        int
-	activeResources      map[string]chan interface{}
+	locksByResource      map[string]*sync.Mutex
 }
 
 // CCClientI is an interface for a Cloud Foundry Client that queries the Cloud Foundry API
@@ -148,7 +148,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.serveNozzleData = serveNozzleData
 	globalCCCache.sidecarsTags = sidecarsTags
 	globalCCCache.segmentsTags = segmentsTags
-	globalCCCache.activeResources = make(map[string]chan interface{})
+	globalCCCache.locksByResource = make(map[string]*sync.Mutex)
 
 	go globalCCCache.start()
 
@@ -184,108 +184,44 @@ func (ccc *CCCache) UpdatedOnce() <-chan struct{} {
 // If not found and refreshOnCacheMiss is enabled, it will use the fetchFn function to fetch the resource from the CAPI
 func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[string]T, fetchFn func(string) (T, error)) (T, error) {
 	ccc.RLock()
-	resource, ok := cache[guid]
+	updatedOnce := !ccc.lastUpdated.IsZero()
 	ccc.RUnlock()
 
+	if !updatedOnce {
+		return cache[guid], fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
+	}
+	lid := resourceName + "/" + guid
+
+	ccc.Lock()
+	mu, ok := ccc.locksByResource[lid]
 	if !ok {
-		if !ccc.refreshCacheOnMiss {
-			return resource, fmt.Errorf("could not find resource '%s' with guid '%s' in cloud controller cache, consider enabling `refreshCacheOnMiss`", resourceName, guid)
-		}
-
-		ccc.RLock()
-		updatedOnce := !ccc.lastUpdated.IsZero()
-		ccc.RUnlock()
-
-		if !updatedOnce {
-			return resource, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
-		}
-
-		// wait in case the resource is currently being fetched
-		ccc.waitForResource(resourceName, guid)
-
-		// check the cache in case the resource was fetched while we were waiting
-		ccc.RLock()
-		resource, ok = cache[guid]
-		ccc.RUnlock()
-
-		if ok {
-			return resource, nil
-		}
-
-		// set the resource as active to prevent other goroutines from fetching it
-		err := ccc.setResourceActive(resourceName, guid)
-		if err != nil {
-			// wait in case the resource is currently being fetched
-			ccc.waitForResource(resourceName, guid)
-
-			// check the cache in case the resource was fetched while we were waiting
-			ccc.RLock()
-			resource, ok := cache[guid]
-			ccc.RUnlock()
-
-			if ok {
-				return resource, nil
-			}
-			return resource, fmt.Errorf("resource '%s' with guid '%s' doesn't exist", resourceName, guid)
-		}
-
-		// unblock other goroutines, the resource is fetched
-		defer ccc.setResourceInactive(resourceName, guid)
-
-		// fetch the resource from the CAPI
-		res, err := fetchFn(guid)
-		if err != nil {
-			return res, err
-		}
-
-		// update cache
-		ccc.Lock()
-		cache[guid] = res
-		ccc.Unlock()
-
-		return res, nil
+		mu = &sync.Mutex{}
+		ccc.locksByResource[lid] = mu
 	}
-	return resource, nil
-}
+	ccc.Unlock()
 
-func (ccc *CCCache) waitForResource(resourceName, guid string) {
-	guid = resourceName + "/" + guid
-	ccc.RLock()
-	ch, ok := ccc.activeResources[guid]
-	ccc.RUnlock()
-	if ok && ch != nil {
-		// wait for the resource to be released
-		<-ch
-	}
-}
+	mu.Lock()
+	defer mu.Unlock()
+	resource, ok := cache[guid]
 
-func (ccc *CCCache) setResourceActive(resourceName, guid string) error {
-	guid = resourceName + "/" + guid
-	ccc.Lock()
-	defer ccc.Unlock()
-	ch, ok := ccc.activeResources[guid]
-
-	// resource is already active
-	if ok && ch != nil {
-		return fmt.Errorf("resource '%s' with guid '%s' is already active", resourceName, guid)
+	if ok {
+		return resource, nil
 	}
 
-	// creating a channel will make consequent reads blocking
-	ccc.activeResources[guid] = make(chan interface{})
-	return nil
-}
-
-func (ccc *CCCache) setResourceInactive(resourceName, guid string) {
-	guid = resourceName + "/" + guid
-	ccc.Lock()
-	ch, ok := ccc.activeResources[guid]
-	defer ccc.Unlock()
-
-	if ok && ch != nil {
-		// release the resource
-		close(ch)
-		delete(ccc.activeResources, guid)
+	if !ccc.refreshCacheOnMiss {
+		return resource, fmt.Errorf("could not find resource '%s' with guid '%s' in cloud controller cache, consider enabling `refreshCacheOnMiss`", resourceName, guid)
 	}
+
+	// fetch the resource from the CAPI
+	fetchedResource, err := fetchFn(guid)
+	if err != nil {
+		return fetchedResource, err
+	}
+
+	// update cache
+	cache[guid] = fetchedResource
+
+	return fetchedResource, nil
 }
 
 // GetOrgs returns all orgs in the cache
