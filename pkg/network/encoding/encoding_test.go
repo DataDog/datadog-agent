@@ -34,16 +34,15 @@ const (
 	tagOpenSSL connTag = 2 // netebpf.OpenSSL
 )
 
-var originalConfig = config.Datadog
-
-func restoreGlobalConfig() {
-	config.Datadog = originalConfig
+func newConfig(t *testing.T) {
+	originalConfig := config.SystemProbe
+	t.Cleanup(func() {
+		config.SystemProbe = originalConfig
+	})
+	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	config.InitSystemProbeConfig(config.SystemProbe)
 }
 
-func newConfig() {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(config.Datadog)
-}
 func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *model.Connections {
 	var dnsByDomain map[int32]*model.DNSStats
 	var dnsByDomainByQuerytype map[int32]*model.DNSStatsByQueryType
@@ -270,9 +269,8 @@ func TestSerialization(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("requesting application/json serialization (no query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/json")
@@ -294,10 +292,9 @@ func TestSerialization(t *testing.T) {
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
-		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/json")
@@ -320,9 +317,8 @@ func TestSerialization(t *testing.T) {
 	})
 
 	t.Run("requesting empty serialization", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("")
@@ -346,9 +342,8 @@ func TestSerialization(t *testing.T) {
 	})
 
 	t.Run("requesting unsupported serialization format", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -402,9 +397,8 @@ func TestSerialization(t *testing.T) {
 	})
 
 	t.Run("requesting application/protobuf serialization (no query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -421,10 +415,9 @@ func TestSerialization(t *testing.T) {
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
-		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 
 		assert := assert.New(t)

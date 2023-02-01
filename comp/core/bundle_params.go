@@ -8,6 +8,7 @@ package core
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 )
 
 // BundleParams defines the parameters for this bundle.
@@ -18,8 +19,10 @@ import (
 // must be called.
 type BundleParams struct {
 	ConfigParams
+	SysprobeConfigParams
 	LogParams
 }
 
 type ConfigParams = config.Params
 type LogParams = log.Params
+type SysprobeConfigParams = sysprobeconfig.Params

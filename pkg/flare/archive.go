@@ -163,7 +163,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 	}
 	addSystemProbePlatformSpecificEntries(fb)
 
-	if config.Datadog.GetBool("system_probe_config.enabled") {
+	if config.SystemProbe.GetBool("system_probe_config.enabled") {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
 	}
 
@@ -296,7 +296,7 @@ func getExpVar(fb flarehelpers.FlareBuilder) error {
 }
 
 func getSystemProbeStats() ([]byte, error) {
-	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeStats := status.GetSystemProbeStats(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
 	if err != nil {
 		return nil, err

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package sysprobeconfig
 
 import (
 	"os"
@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -21,6 +21,8 @@ type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
 	// and uses globals in that package.
 	config.Config
+
+	syscfg *sysconfig.Config
 
 	// warnings are the warnings generated during setup
 	warnings *config.Warnings
@@ -33,33 +35,31 @@ type dependencies struct {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	warnings, err := setupConfig(deps)
+	syscfg, err := setupConfig(deps)
 	if err != nil {
 		return nil, err
 	}
 
-	if deps.Params.configLoadSecurityAgent {
-		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
-			return &cfg{Config: config.Datadog, warnings: warnings}, err
-		}
-	}
-
-	return &cfg{Config: config.Datadog, warnings: warnings}, nil
+	return &cfg{Config: config.SystemProbe, syscfg: syscfg}, nil
 }
 
 func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
+func (c *cfg) Object() *sysconfig.Config {
+	return c.syscfg
+}
+
 func newMock(deps dependencies, t testing.TB) Component {
-	old := config.Datadog
-	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
+	old := config.SystemProbe
+	config.SystemProbe = config.NewConfig("mock", "XXXX", strings.NewReplacer())
 	c := &cfg{
 		warnings: &config.Warnings{},
 	}
 
-	// call InitConfig to set defaults.
-	config.InitConfig(config.Datadog)
+	// call InitSystemProbeConfig to set defaults.
+	config.InitSystemProbeConfig(config.SystemProbe)
 
 	// Viper's `GetXxx` methods read environment variables at the time they are
 	// called, if those names were passed explicitly to BindEnv*(), so we must
@@ -79,7 +79,7 @@ func newMock(deps dependencies, t testing.TB) Component {
 	})
 
 	// swap the existing config back at the end of the test.
-	t.Cleanup(func() { config.Datadog = old })
+	t.Cleanup(func() { config.SystemProbe = old })
 
 	return c
 }
