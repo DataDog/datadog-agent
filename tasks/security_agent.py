@@ -1,10 +1,12 @@
 import datetime
 import errno
 import glob
+import json
 import os
 import re
 import shutil
 import sys
+import tarfile
 import tempfile
 from subprocess import check_output
 
@@ -36,6 +38,9 @@ from .utils import (
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
+CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
+KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
+KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files")
 
 
 @task
@@ -285,6 +290,7 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
+    kitchen=False,
 ):
     build_cws_object_files(
         ctx,
@@ -336,6 +342,10 @@ def build_functional_tests(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+    if kitchen:
+        cmd_build_test2json_files = 'go build -o "{KITCHEN_ARTIFACT_DIR}/test2json" -ldflags="{ldflags}" cmd/test2json'
+        ctx.run(cmd_build_test2json_files.format(**args, KITCHEN_ARTIFACT_DIR=KITCHEN_ARTIFACT_DIR), env=env)
 
 
 @task
@@ -705,29 +715,36 @@ def go_generate_check(ctx):
 
 @task
 def kitchen_prepare(ctx):
-    ci_project_dir = os.environ.get("CI_PROJECT_DIR", ".")
-
+    """
+    Compile test suite for kitchen
+    """
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-    cookbook_files_dir = os.path.join(
-        ci_project_dir, "test", "kitchen", "site-cookbooks", "dd-security-agent-check", "files"
-    )
 
-    testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
+    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "testsuite")
     build_functional_tests(
-        ctx, bundle_ebpf=False, race=True, output=testsuite_out_path, nikos_embedded_path=nikos_embedded_path
+        ctx,
+        bundle_ebpf=False,
+        race=True,
+        output=testsuite_out_path,
+        nikos_embedded_path=nikos_embedded_path,
+        kitchen=True,
     )
-    stresssuite_out_path = os.path.join(cookbook_files_dir, "stresssuite")
+    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "stressuite")
     build_stress_tests(ctx, output=stresssuite_out_path)
 
     # Copy clang binaries
     for bin in ["clang-bpf", "llc-bpf"]:
-        ctx.run(f"cp /tmp/{bin} {cookbook_files_dir}/{bin}")
+        ctx.run(f"cp /tmp/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
 
-    ctx.run(f"cp /tmp/nikos.tar.gz {cookbook_files_dir}/")
+    # Copy gotestsum binary
+    gopath = get_gopath(ctx)
+    ctx.run(f"cp {gopath}/bin/gotestsum {KITCHEN_ARTIFACT_DIR}/")
 
-    ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
+    ctx.run(f"cp /tmp/nikos.tar.gz {KITCHEN_ARTIFACT_DIR}/")
+
+    ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    bytecode_build_dir = os.path.join(ci_project_dir, "pkg", "ebpf", "bytecode", "build")
+    bytecode_build_dir = os.path.join(CI_PROJECT_DIR, "pkg", "ebpf", "bytecode", "build")
 
     ctx.run(f"mkdir -p {ebpf_runtime_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
@@ -753,3 +770,31 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
         args += " -trace"
 
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
+
+
+@task
+def print_failed_tests(_, output_dir):
+    fail_count = 0
+    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
+        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+
+        with tempfile.TemporaryDirectory() as unpack_dir:
+            with tarfile.open(testjson_tgz) as tgz:
+                tgz.extractall(path=unpack_dir)
+
+            for test_json in glob.glob(f"{unpack_dir}/*.json"):
+                bundle, _ = os.path.splitext(os.path.basename(test_json))
+                with open(test_json) as tf:
+                    for line in tf:
+                        json_test = json.loads(line.strip())
+                        if 'Test' in json_test:
+                            name = json_test['Test']
+                            package = json_test['Package']
+                            action = json_test["Action"]
+
+                            if action == "fail":
+                                print(f"FAIL: [{test_platform}] [{bundle}] {package} {name}")
+                                fail_count += 1
+
+    if fail_count > 0:
+        raise Exit(code=1)
