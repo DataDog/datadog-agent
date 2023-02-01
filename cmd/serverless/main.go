@@ -287,8 +287,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	log.Debug("Setting ColdStartSpanCreator on Daemon")
 	serverlessDaemon.SetColdStartSpanCreator(coldStartSpanCreator)
 
-	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
-	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+	lp := &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:            serverlessDaemon.ExtraTags,
 		Demux:                serverlessDaemon.MetricAgent.Demux,
 		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
@@ -296,6 +295,22 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
 		SubProcessor:         httpsecSubProcessor,
 	}
+
+	if httpsecSubProcessor != nil {
+		ta := serverlessDaemon.TraceAgent.Get()
+		modifySpan := ta.ModifySpan
+		ta.ModifySpan = func(span *pb.Span) {
+			if modifySpan != nil {
+				modifySpan(span)
+			}
+			if serverlessDaemon.ExecutionContext.GetCurrentState().LastRequestID == span.Meta["request_id"] {
+				lp.SpanModifier(span)
+			}
+		}
+	}
+
+	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
+	serverlessDaemon.InvocationProcessor = lp
 
 	// start the experimental proxy if enabled
 	_ = proxy.Start(

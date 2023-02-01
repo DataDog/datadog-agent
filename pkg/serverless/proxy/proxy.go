@@ -34,6 +34,7 @@ func Start(proxyHostPort string, originalRuntimeHostPort string, processor invoc
 }
 
 func setup(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) {
+	log.Debugf("runtime api proxy: starting reverse proxy on %s and forwarding to %s", proxyHostPort, originalRuntimeHostPort)
 	proxy := startProxy(originalRuntimeHostPort, processor)
 
 	mux := http.NewServeMux()

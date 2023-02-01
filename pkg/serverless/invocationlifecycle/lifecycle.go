@@ -306,3 +306,18 @@ func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
 	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
 	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID
 }
+
+func (lp *LifecycleProcessor) SpanModifier(s *pb.Span) {
+	lp.GetExecutionInfo().
+		log.Debug("applying lifecycle processor span tags")
+	for k, v := range lp.requestHandler.triggerTags {
+		if _, exists := s.Meta[k]; !exists {
+			s.Meta[k] = v
+		}
+	}
+	for k, v := range lp.requestHandler.triggerMetrics {
+		if _, exists := s.Metrics[k]; !exists {
+			s.Metrics[k] = v
+		}
+	}
+}
