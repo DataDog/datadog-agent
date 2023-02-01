@@ -46,7 +46,7 @@
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-${PACKAGE_ARCH}.tar.gz /tmp/nikos.tar.gz
     - mkdir -p /tmp/nikos
     - tar -xf /tmp/nikos.tar.gz -C /tmp/nikos
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --nikos-path=/tmp/nikos --log-level=debug ${FLAVOR:+--flavor $FLAVOR}
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --nikos-path=/tmp/nikos ${FLAVOR:+--flavor $FLAVOR}
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
