@@ -14,8 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 func TestAssertSketchSeriesEqual(t *testing.T) {

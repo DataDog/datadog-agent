@@ -27,7 +27,6 @@ replace (
 replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
-	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
@@ -45,7 +44,6 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.67
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/quantile v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.43.0-rc.3
@@ -61,6 +59,7 @@ require (
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.10.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8

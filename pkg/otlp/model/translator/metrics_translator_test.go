@@ -27,9 +27,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary"
 )
 
 func TestIsCumulativeMonotonic(t *testing.T) {

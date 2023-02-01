@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationlibrary"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationscope"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 const metricName string = "metric name"
