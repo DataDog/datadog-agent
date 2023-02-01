@@ -305,7 +305,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
 		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
 
-		localInterfaceIDType, localInterfaceID = resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
+		resolvedLocalInterfaceID := resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
 
 		// remEntryUniqueID: The combination of localPortNum and lldpRemIndex is expected to be unique for each entry in
 		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
@@ -330,12 +330,12 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 			},
 			Local: &metadata.TopologyLinkSide{
 				Interface: &metadata.TopologyLinkInterface{
+					DDID:   resolvedLocalInterfaceID,
 					ID:     localInterfaceID,
 					IDType: localInterfaceIDType,
 				},
 				Device: &metadata.TopologyLinkDevice{
-					ID:     deviceID,
-					IDType: metadata.IDTypeNDM,
+					DDID: deviceID,
 				},
 			},
 		}
@@ -344,9 +344,9 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 	return links
 }
 
-func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) (string, string) {
+func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) string {
 	if localInterfaceID == "" {
-		return localInterfaceIDType, localInterfaceID
+		return ""
 	}
 
 	var typesToTry []string
@@ -375,9 +375,9 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 		for key := range matchedIfIndexesMap {
 			matchedIfIndexes = append(matchedIfIndexes, key)
 		}
-		return metadata.IDTypeNDM, deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
+		return deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
 	}
-	return localInterfaceIDType, localInterfaceID
+	return ""
 }
 
 func buildInterfaceIndexByIDType(interfaces []metadata.InterfaceMetadata) map[string]map[string][]int32 {
