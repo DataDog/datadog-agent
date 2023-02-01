@@ -8,14 +8,19 @@ package start
 import (
 	"context"
 	"errors"
+	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
@@ -43,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type cliParams struct {
@@ -138,7 +142,7 @@ var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
 func RunAgent(ctx context.Context, log log.Component, config config.Component, pidfilePath string) (err error) {
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -172,7 +176,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, p
 		return errNoAPIKeyConfigured
 	}
 
-	err = manager.ConfigureAutoExit(ctx)
+	err = manager.ConfigureAutoExit(ctx, config)
 	if err != nil {
 		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		return nil

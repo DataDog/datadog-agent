@@ -16,8 +16,8 @@
 #include <uapi/linux/udp.h>
 
 #include "tracer.h"
-#include "protocols/protocol-classification-tracer-maps.h"
-#include "protocols/protocol-classification.h"
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -30,6 +30,9 @@
 #include "port.h"
 #include "tcp-recv.h"
 
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
+
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
 #endif
@@ -39,6 +42,16 @@
 #endif
 
 #include "sock.h"
+
+// This entry point is needed to bypass a memory limit on socket filters.
+// There is a limitation on number of instructions can be attached to a socket filter,
+// as we classify more protocols, we reached that limit, thus we workaround it
+// by using tail call.
+SEC("socket/classifier_entry")
+int socket__classifier_entry(struct __sk_buff *skb) {
+    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_PROG);
+    return 0;
+}
 
 // The entrypoint for all packets.
 SEC("socket/classifier")

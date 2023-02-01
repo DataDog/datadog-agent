@@ -185,7 +185,7 @@ func (w *soWatcher) Start() {
 		}
 		mmaps, err := proc.MemoryMaps(true)
 		if err != nil {
-			log.Debugf("process %d maps parsing failed %s", pid, err)
+			log.Tracef("process %d maps parsing failed %s", pid, err)
 			return nil
 		}
 
@@ -300,9 +300,9 @@ func (r *soRegistry) Register(root string, libPath string, pid uint32, rule soRu
 	hostLibPath := root + libPath
 	pathID, err := newPathIdentifier(hostLibPath)
 	if err != nil {
-		// short living process can't hit here
+		// short living process can hit here
 		// as we receive the openat() syscall info after receiving the EXIT netlink process
-		log.Debugf("can't create path identifier %s", err)
+		log.Tracef("can't create path identifier %s", err)
 		return
 	}
 

@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -136,19 +135,9 @@ func NewTracer(c *config.Config, constants []manager.ConstantEditor, bpfTelemetr
 		closedChannelSize = c.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		return nil, errors.New("failed to detect kernel version")
-	}
-	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	m := &manager.Manager{
 		DumpHandler: dumpMapsHandler,
-		InstructionPatcher: func(m *manager.Manager) error {
-			return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
-		},
 	}
-	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
-	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 
 	var tracerType TracerType = EBPFFentry
 	var closeTracerFn func()

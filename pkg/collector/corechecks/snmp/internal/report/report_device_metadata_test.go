@@ -553,109 +553,113 @@ func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
 }
 
 func Test_resolveLocalInterface(t *testing.T) {
-	interfaceIndexByIDType := map[string]map[string]int32{
+	interfaceIndexByIDType := map[string]map[string][]int32{
 		"mac_address": {
-			"00:00:00:00:00:01": 1,
-			"00:00:00:00:00:02": 2,
+			"00:00:00:00:00:01": []int32{1},
+			"00:00:00:00:00:02": []int32{2},
+			"00:00:00:00:00:03": []int32{3, 4},
 		},
 		"interface_name": {
-			"eth1": 1,
-			"eth2": 2,
+			"eth1": []int32{1},
+			"eth2": []int32{2},
+			"eth3": []int32{3}, // eth3 is both a name and alias, and reference the same interface
+			"eth4": []int32{4}, // eth4 is both a name and alias, and reference two different interfaces
 		},
 		"interface_alias": {
-			"alias1": 1,
-			"alias2": 2,
+			"alias1": []int32{1},
+			"alias2": []int32{2},
+			"eth3":   []int32{3},
+			"eth4":   []int32{44},
 		},
 		"interface_index": {
-			"1": 1,
-			"2": 2,
+			"1": []int32{1},
+			"2": []int32{2},
 		},
 	}
 	deviceID := "default:1.2.3.4"
 
 	tests := []struct {
-		name           string
-		localIDType    string
-		localID        string
-		expectedIDType string
-		expectedID     string
+		name        string
+		localIDType string
+		localID     string
+		expectedID  string
 	}{
 		{
-			name:           "mac_address",
-			localIDType:    "mac_address",
-			localID:        "00:00:00:00:00:01",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:1",
+			name:        "mac_address",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:01",
+			expectedID:  "default:1.2.3.4:1",
 		},
 		{
-			name:           "interface_name",
-			localIDType:    "interface_name",
-			localID:        "eth2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "mac_address cannot resolve due to multiple results",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:03",
+			expectedID:  "",
 		},
 		{
-			name:           "interface_alias",
-			localIDType:    "interface_alias",
-			localID:        "alias2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_name",
+			localIDType: "interface_name",
+			localID:     "eth2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "mac_address by trying",
-			localIDType:    "",
-			localID:        "00:00:00:00:00:01",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:1",
+			name:        "interface_alias",
+			localIDType: "interface_alias",
+			localID:     "alias2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "interface_name by trying",
-			localIDType:    "",
-			localID:        "eth2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "mac_address by trying",
+			localIDType: "",
+			localID:     "00:00:00:00:00:01",
+			expectedID:  "default:1.2.3.4:1",
 		},
 		{
-			name:           "interface_alias by trying",
-			localIDType:    "",
-			localID:        "alias2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_name by trying",
+			localIDType: "",
+			localID:     "eth2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "interface_alias by trying",
-			localIDType:    "",
-			localID:        "alias2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_alias by trying",
+			localIDType: "",
+			localID:     "alias2",
+			expectedID:  "default:1.2.3.4:2",
 		},
 		{
-			name:           "interface_index by trying",
-			localIDType:    "",
-			localID:        "2",
-			expectedIDType: "ndm",
-			expectedID:     "default:1.2.3.4:2",
+			name:        "interface_alias+interface_name match with same interface should resolve",
+			localIDType: "",
+			localID:     "eth3",
+			expectedID:  "default:1.2.3.4:3",
 		},
 		{
-			name:           "mac_address not found",
-			localIDType:    "mac_address",
-			localID:        "00:00:00:00:00:99",
-			expectedIDType: "mac_address",
-			expectedID:     "00:00:00:00:00:99",
+			name:        "interface_alias+interface_name match with different interface should not resolve",
+			localIDType: "",
+			localID:     "eth4",
+			expectedID:  "",
 		},
 		{
-			name:           "invalid",
-			localIDType:    "invalid_type",
-			localID:        "invalidID",
-			expectedIDType: "invalid_type",
-			expectedID:     "invalidID",
+			name:        "interface_index by trying",
+			localIDType: "",
+			localID:     "2",
+			expectedID:  "default:1.2.3.4:2",
+		},
+		{
+			name:        "mac_address not found",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:99",
+			expectedID:  "",
+		},
+		{
+			name:        "invalid",
+			localIDType: "invalid_type",
+			localID:     "invalidID",
+			expectedID:  "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualIDType, actualID := resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID)
-			assert.Equal(t, tt.expectedIDType, actualIDType)
-			assert.Equal(t, tt.expectedID, actualID)
+			assert.Equal(t, tt.expectedID, resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID))
 		})
 	}
 }
@@ -677,28 +681,38 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 			Name:       "eth2",
 			Alias:      "alias2",
 		},
+		{
+			DeviceID:   "default:1.2.3.4",
+			Index:      3,
+			MacAddress: "00:00:00:00:00:02",
+			Name:       "eth3",
+			Alias:      "alias3",
+		},
 	}
 
 	// Act
 	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 
 	// Assert
-	expectedInterfaceIndexByIDType := map[string]map[string]int32{
+	expectedInterfaceIndexByIDType := map[string]map[string][]int32{
 		"mac_address": {
-			"00:00:00:00:00:01": 1,
-			"00:00:00:00:00:02": 2,
+			"00:00:00:00:00:01": []int32{1},
+			"00:00:00:00:00:02": []int32{2, 3},
 		},
 		"interface_name": {
-			"eth1": 1,
-			"eth2": 2,
+			"eth1": []int32{1},
+			"eth2": []int32{2},
+			"eth3": []int32{3},
 		},
 		"interface_alias": {
-			"alias1": 1,
-			"alias2": 2,
+			"alias1": []int32{1},
+			"alias2": []int32{2},
+			"alias3": []int32{3},
 		},
 		"interface_index": {
-			"1": 1,
-			"2": 2,
+			"1": []int32{1},
+			"2": []int32{2},
+			"3": []int32{3},
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)

@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
-	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/stretchr/testify/assert"
+
+	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
 )
 
 func TestProcessMonitoringDisabled(t *testing.T) {
@@ -44,8 +45,8 @@ func TestProcessMonitoringDisabled(t *testing.T) {
 
 func TestProcessMonitoring(t *testing.T) {
 	test, err := newTestModule(t, nil, nil, testOpts{
-		disableRuntimeSecurity: true,
-		enableEventMonitoring:  true,
+		disableRuntimeSecurity:       true,
+		enableEventMonitoringProcess: true,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -16,12 +16,12 @@
 #include "sock.h"
 #include "sockfd.h"
 #include "port_range.h"
-#include "protocols/http.h"
-#include "protocols/https.h"
-#include "protocols/http-buffer.h"
-#include "protocols/tags-types.h"
-#include "protocols/protocol-dispatcher-helpers.h"
 
+#include "protocols/classification/dispatcher-helpers.h"
+#include "protocols/http/http.h"
+#include "protocols/http/buffer.h"
+#include "protocols/tls/https.h"
+#include "protocols/tls/tags-types.h"
 
 #define SO_SUFFIX_SIZE 3
 

@@ -12,14 +12,14 @@ import (
 	"errors"
 	"fmt"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/protocol"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
@@ -55,6 +55,13 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 			return fmt.Errorf("failed to enable protocol classification: %w", err)
 		}
 
+		if err := errtelemetry.ActivateBPFTelemetry(m, nil); err != nil {
+			return fmt.Errorf("could not activate ebpf telemetry: %w", err)
+		}
+
+		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+		mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, telemetryMapKeys...)
+
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {
 			if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
@@ -66,7 +73,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 				o.ActivatedProbes,
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFSection:  string(probeName),
+						EBPFSection:  probeName,
 						EBPFFuncName: funcName,
 						UID:          probes.UID,
 					},

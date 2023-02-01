@@ -9,7 +9,7 @@
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
 #include "cookie.h"
-#include "protocols/protocol-classification-tracer-maps.h"
+#include "protocols/classification/tracer-maps.h"
 #include "ip.h"
 
 static __always_inline int get_proto(conn_tuple_t *t) {

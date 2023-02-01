@@ -57,7 +57,7 @@ func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error
 			Value: value,
 		}
 
-		evaluator.AppendFieldValues(fieldValue)
+		evaluator.Values.AppendFieldValue(fieldValue)
 	}
 
 	if err := evaluator.Compile(DefaultStringCmpOpts); err != nil {

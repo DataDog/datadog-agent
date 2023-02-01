@@ -7,15 +7,9 @@ package {{.Name}}
 import (
 	"net"
 	"reflect"
-	"unsafe"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-)
-
-// suppress unused package warning
-var (
-	_ *unsafe.Pointer
 )
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
@@ -48,17 +42,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: {{$Field.OpOverrides}},
 			{{- end}}
 			{{- if $Field.Iterator}}
-				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {	
+				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					{{if $Field.Handler}}
 						ev := ctx.Event.(*Event)
 					{{end}}
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
 
-					if ptr := ctx.Cache[field]; ptr != nil {
-						if result := (*[]{{$Field.ReturnType}})(ptr); result != nil {
-							return *result
-						}
+					if result, ok := ctx.{{$Field.GetCacheName}}[field]; ok {
+						return result
 					}
 
 					var results []{{$Field.ReturnType}}
@@ -114,7 +106,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						value = iterator.Next()
 					}
 
-					ctx.Cache[field] = unsafe.Pointer(&results)
+					ctx.{{$Field.GetCacheName}}[field] = results
 
 					return results
 				},
@@ -132,7 +124,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 							return {{$Field.GetDefaultReturnValue}}
 						}
 					{{end}}
-					
+
 					{{- if $Field.Handler}}
 						{{$Ptr := "&"}}
 						{{$Parent := index $.AllFields $Field.Prefix}}

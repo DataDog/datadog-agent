@@ -572,7 +572,7 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	}
 
 	// resolve fields
-	event.ResolveFields(true)
+	event.ResolveFieldsForAD()
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
