@@ -32,6 +32,10 @@ func main() {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	}
 
+	// The datadog-agent requires Load to be called or it could
+	// panic down the line.
+	_, _ = config.Load()
+
 	cloudService := cloudservice.GetCloudServiceType()
 	tags := cloudService.GetTags()
 	origin := cloudService.GetOrigin()
