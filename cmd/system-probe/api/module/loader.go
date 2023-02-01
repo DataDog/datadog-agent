@@ -46,7 +46,9 @@ type loader struct {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
-	driver.Init(cfg)
+	if err := driver.Init(cfg); err != nil {
+		log.Warnf("Failed to load driver subsystem %v", err)
+	}
 
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
