@@ -200,7 +200,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
-	*metaScheduler = *metadata.NewScheduler(demux)
+	metaScheduler = metadata.NewScheduler(demux) //nolint:staticcheck
 	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
 		return
