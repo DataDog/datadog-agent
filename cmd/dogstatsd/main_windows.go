@@ -82,20 +82,22 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cliParams := &start.CLIParams{}
+	components := &start.DogstatsdComponents{}
 
 	err := start.RunDogstatsdFct(
 		cliParams,
 		DefaultConfPath,
 		defaultLogFile,
 		func(config config.Component, params *start.Params, server dogstatsdServer.Component) error {
-			return start.RunAgent(ctx, cliParams, config, params, server)
+			components.DogstatsdServer = server
+			return start.RunAgent(ctx, cliParams, config, params, components)
 		})
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
-		start.StopAgent(cancel)
+		start.StopAgent(cancel, components)
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
@@ -132,7 +134,7 @@ loop:
 	elog.Info(0x40000006, ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	start.StopAgent(cancel)
+	start.StopAgent(cancel, components)
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }
