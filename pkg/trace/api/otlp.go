@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -136,6 +137,31 @@ func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, i
 	}
 }
 
+// knuthFactor represents a large, prime number ideal for Knuth's Multiplicative Hashing.
+// Warning: do not change this number. It is shared with other probabilistic samplers
+// in the agent, the Datadog libraries, and in OpenTelemetry. This ensures consistency
+// in a distributed system.
+const knuthFactor = uint64(1111111111111111111)
+
+// sample returns the sampling priority to apply to a trace with the trace ID tid.
+func (o *OTLPReceiver) sample(tid string) int {
+	perc := o.conf.OTLPReceiver.ProbabilisticSampling
+	if perc <= 0 || perc >= 100 {
+		// use the default sampling priority: assume the user wants to keep the trace
+		// since he has sent it from his SDK and introduced no sampling mechanisms
+		// anywhere else.
+		return sampler.PriorityAutoKeep
+	}
+	// the trace ID (tid) is hashed using Knuth's multiplicative hash
+	hash := tid * knuthFactor
+	if hash < uint64(perc*math.MaxUint64) {
+		// if the hash result falls into the perc percentage of the entire distribution
+		// of possibly trace IDs (uint64), we sample it.
+		return sampler.PriorityAutoKeep
+	}
+	return sampler.PriorityAutoReject
+}
+
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
@@ -229,12 +255,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		ClientComputedStats: rattr[keyStatsComputed] != "",
 	}
 	for k, spans := range tracesByID {
-		prio := int32(sampler.PriorityAutoKeep)
+		var prio int // sampling priority
 		if p, ok := priorityByID[k]; ok {
-			prio = int32(p)
+			prio = p
+		} else {
+			prio = o.sample(traceID)
 		}
 		traceChunks = append(traceChunks, &pb.TraceChunk{
-			Priority: prio,
+			Priority: int32(prio),
 			Spans:    spans,
 		})
 	}

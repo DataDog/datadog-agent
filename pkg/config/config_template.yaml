@@ -3483,6 +3483,18 @@ api_key:
     # span_name_remappings:
     #   <OLD_NAME>: <NEW_NAME>
 
+    ## @param probabilistic_sampler - custom object - optional
+    ## Probabilistic sampler controlling the rate of ingestion. Using this sampler works consistently
+    ## in a distributed system where the sampling rate is shared. Exceptions are made for errors and
+    ## rare traces (if enabled via apm_config.enable_rare_sampler).
+    #
+    # probabilistic_sampler:
+      ## @param sampling_percentage - number - optional - default: 100
+      ## @env DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - number - optional - default: 100
+      ## Percentage of traces to ingest (0 100]. A value of 0 disables sampling and everything is ingested.
+      #
+      # sampling_percentage: 100
+
   ## @param debug - custom object - optional
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation

@@ -73,6 +73,11 @@ type OTLP struct {
 	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
 	// one sent by Datadog cloud integrations.
 	UsePreviewHostnameLogic bool `mapstructure:"-"`
+
+	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
+	// and rare traces (outliers) if "RareSamplerEnabled" is true.
+	// Valid in range (0, 100].
+	ProbabilisticSampling float64
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
