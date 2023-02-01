@@ -115,6 +115,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params, server
 	return nil
 }
 
+//nolint:staticcheck
 func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component, metaScheduler *metadata.Scheduler, dogstatsdStats *http.Server) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
