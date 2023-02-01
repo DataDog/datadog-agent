@@ -500,6 +500,25 @@ func (ccc *CCCache) listSpaces(wg *sync.WaitGroup, spacesMap *map[string]*cfclie
 	}()
 }
 
+func (ccc *CCCache) listOrgs(wg *sync.WaitGroup, orgsMap *map[string]*cfclient.V3Organization) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		orgs, err := ccc.ccAPIClient.ListV3OrganizationsByQuery(query)
+		if err != nil {
+			log.Errorf("Failed listing orgs from cloud controller: %v", err)
+			return
+		}
+		*orgsMap = make(map[string]*cfclient.V3Organization, len(orgs))
+		for _, org := range orgs {
+			v3Org := org
+			(*orgsMap)[org.GUID] = &v3Org
+		}
+	}()
+}
+
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	var wg sync.WaitGroup
@@ -514,23 +533,8 @@ func (ccc *CCCache) readData() {
 	ccc.listSpaces(&wg, &spacesByGUID)
 
 	// List orgs
-	wg.Add(1)
 	var orgsByGUID map[string]*cfclient.V3Organization
-	go func() {
-		defer wg.Done()
-		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-		orgs, err := ccc.ccAPIClient.ListV3OrganizationsByQuery(query)
-		if err != nil {
-			log.Errorf("Failed listing orgs from cloud controller: %v", err)
-			return
-		}
-		orgsByGUID = make(map[string]*cfclient.V3Organization, len(orgs))
-		for _, org := range orgs {
-			v3Org := org
-			orgsByGUID[org.GUID] = &v3Org
-		}
-	}()
+	ccc.listOrgs(&wg, &orgsByGUID)
 
 	// List orgQuotas
 	wg.Add(1)
