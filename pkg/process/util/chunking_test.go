@@ -47,7 +47,7 @@ func (ct *chunkTest) runGroup(id int, chunker *ChunkAllocator[[]*testPayload, *t
 		},
 	}
 
-	chunker.idx = g.start
+	chunker.SetActiveChunk(g.start)
 	ChunkPayloadsBySizeAndWeight(list, chunker, ct.maxChunkSize, ct.maxChunkWeight)
 }
 
