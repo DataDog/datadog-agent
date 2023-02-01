@@ -49,8 +49,14 @@ func main() {
 	metricAgent := setupMetricAgent(tags)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
-	go metricAgent.Flush()
+	go flushMetricsAgent(metricAgent)
 	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
+}
+
+func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
+	for range time.Tick(3 * time.Second) {
+		metricAgent.Flush()
+	}
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
@@ -62,6 +68,7 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
+	config.Datadog.Set("use_v2_api.series", false)
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	delete(tags, "container_id")
