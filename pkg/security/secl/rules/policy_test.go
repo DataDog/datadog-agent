@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+// +build linux
+
 package rules
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -17,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -142,42 +143,6 @@ func TestRuleMerge(t *testing.T) {
 
 	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
 		t.Error("expected rule ID conflict")
-	}
-}
-
-type testVariableProvider struct {
-	vars map[string]map[string]interface{}
-}
-
-func (t *testVariableProvider) GetVariable(name string, value interface{}) (eval.VariableValue, error) {
-	switch value.(type) {
-	case []int:
-		intVar := eval.NewIntArrayVariable(func(ctx *eval.Context) []int {
-			processName := ctx.Event.(*model.Event).ProcessContext.Comm
-			processVars, found := t.vars[processName]
-			if !found {
-				return nil
-			}
-
-			v, found := processVars[name]
-			if !found {
-				return nil
-			}
-
-			i, _ := v.([]int)
-			return i
-		}, func(ctx *eval.Context, value interface{}) error {
-			processName := ctx.Event.(*model.Event).ProcessContext.Comm
-			if _, found := t.vars[processName]; !found {
-				t.vars[processName] = map[string]interface{}{}
-			}
-
-			t.vars[processName][name] = value
-			return nil
-		})
-		return intVar, nil
-	default:
-		return nil, fmt.Errorf("unsupported variable '%s'", name)
 	}
 }
 

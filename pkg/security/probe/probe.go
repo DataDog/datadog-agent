@@ -1209,8 +1209,12 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 	}
 
 	for eventType, report := range ars.Policies {
-		p.ApplyFilterPolicy(eventType, report.Mode, report.Flags)
-		p.SetApprovers(eventType, report.Approvers)
+		if err := p.ApplyFilterPolicy(eventType, report.Mode, report.Flags); err != nil {
+			return nil, err
+		}
+		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := p.FlushDiscarders(); err != nil {
