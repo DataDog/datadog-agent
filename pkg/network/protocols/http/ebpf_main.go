@@ -117,7 +117,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsg),
+					EBPFSection:  probes.TCPSendMsg,
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
@@ -299,7 +299,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		},
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  string(probes.TCPSendMsg),
+				EBPFSection:  probes.TCPSendMsg,
 				EBPFFuncName: "kprobe__tcp_sendmsg",
 				UID:          probeUID,
 			},

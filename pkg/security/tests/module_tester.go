@@ -77,9 +77,14 @@ system_probe_config:
   enable_kernel_header_download: true
   enable_runtime_compiler: true
 
+event_monitoring_config:
+  process:
+    enabled: {{ .EventMonitoringProcessEnabled }}
+  network_process:
+    enabled: {{ .EventMonitoringNetworkEnabled }}
+
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
-  event_monitoring.enabled: {{ .EventMonitoringEnabled }}
   runtime_compilation:
     enabled: true
   remote_tagger: false
@@ -199,7 +204,8 @@ type testOpts struct {
 	envsWithValue                       []string
 	disableAbnormalPathCheck            bool
 	disableRuntimeSecurity              bool
-	enableEventMonitoring               bool
+	enableEventMonitoringProcess        bool
+	enableEventMonitoringNetwork        bool
 }
 
 func (s *stringSlice) String() string {
@@ -230,7 +236,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableEventMonitoring == opts.enableEventMonitoring
+		to.enableEventMonitoringProcess == opts.enableEventMonitoringProcess &&
+		to.enableEventMonitoringNetwork == opts.enableEventMonitoringNetwork
 }
 
 type testModule struct {
@@ -704,7 +711,8 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"LogTags":                             logTags,
 		"EnvsWithValue":                       opts.envsWithValue,
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
-		"EventMonitoringEnabled":              opts.enableEventMonitoring,
+		"EventMonitoringProcessEnabled":       opts.enableEventMonitoringProcess,
+		"EventMonitoringNetworkEnabled":       opts.enableEventMonitoringNetwork,
 	}); err != nil {
 		return nil, err
 	}
@@ -718,6 +726,11 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 	_, err = io.Copy(sysprobeConfig, buffer)
 	if err != nil {
 		return nil, err
+	}
+
+	err = sysconfig.SetupOptionalDatadogConfig()
+	if err != nil {
+		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
 	agentConfig, err := sysconfig.New(sysprobeConfig.Name())

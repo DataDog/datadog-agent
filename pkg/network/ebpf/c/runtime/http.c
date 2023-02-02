@@ -1,18 +1,17 @@
+#include "bpf_tracing.h"
+#include "bpf_builtins.h"
+#include "bpf_telemetry.h"
 
 #include "ktypes.h"
-
 #ifdef COMPILE_RUNTIME
 #include "kconfig.h"
 #endif
 
-#include "bpf_tracing.h"
-#include "bpf_builtins.h"
-#include "bpf_telemetry.h"
 #include "tracer.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "sockfd.h"
-#include "conn-tuple.h"
+#include "sock.h"
 #include "port_range.h"
 
 #include "protocols/classification/dispatcher-helpers.h"

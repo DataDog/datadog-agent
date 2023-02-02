@@ -4,7 +4,6 @@
 #include "bpf_helpers.h"
 #include "telemetry_types.h"
 #include "map-defs.h"
-#include "defs.h"
 
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
@@ -33,7 +32,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 errno_slot &= (T_MAX_ERRNO - 1);                                    \
                 long *target = &entry->err_count[errno_slot];                       \
                 unsigned long add = 1;                                              \
-                /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); 
+                /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1);
                  * This patch point is placed here because the above instruction
                  * fails on the 4.4 verifier. On 4.4 this instruction is replaced
                  * with a nop: r1 = r1 */ \
@@ -80,7 +79,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 if (helper_indx >= 0) {                                                         \
                     long *target = &entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot]; \
                     unsigned long add = 1;                                                      \
-                    /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); 
+                    /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1);
                      * This patch point is placed here because the above instruction
                      * fails on the 4.4 verifier. On 4.4 this instruction is replaced
                      * with a nop: r1 = r1 */         \

@@ -544,7 +544,9 @@ func countRequestOccurrences(allStats map[Key]*RequestStats, req *nethttp.Reques
 }
 
 func newHTTPMonitor(t *testing.T) *Monitor {
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(monitor.Stop)

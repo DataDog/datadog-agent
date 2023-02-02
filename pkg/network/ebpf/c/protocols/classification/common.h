@@ -3,6 +3,7 @@
 
 #include "ktypes.h"
 
+#include "defs.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 

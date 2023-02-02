@@ -8,9 +8,9 @@
 
 #ifdef COMPILE_CORE
 // from uapi/linux/if_ether.h
-#define ETH_HLEN 14
-#define ETH_P_IP 0x0800
-#define ETH_P_IPV6 0x86DD
+#define ETH_HLEN 14 /* Total octets in header. */
+#define ETH_P_IP 0x0800 /* Internet Protocol packet */
+#define ETH_P_IPV6 0x86DD /* IPv6 over bluebook */
 #else
 #include "kconfig.h"
 #include <uapi/linux/if_ether.h>

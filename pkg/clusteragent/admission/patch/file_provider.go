@@ -19,6 +19,7 @@ import (
 // filePatchProvider this is a stub and will be used for e2e testing only
 type filePatchProvider struct {
 	file                  string
+	isLeaderNotif         <-chan struct{}
 	pollInterval          time.Duration
 	subscribers           map[TargetObjKind]chan PatchRequest
 	lastSuccessfulRefresh time.Time
@@ -27,12 +28,13 @@ type filePatchProvider struct {
 
 var _ patchProvider = &filePatchProvider{}
 
-func newfileProvider(clusterName string) *filePatchProvider {
+func newfileProvider(file string, isLeaderNotif <-chan struct{}, clusterName string) *filePatchProvider {
 	return &filePatchProvider{
-		file:         "/etc/datadog-agent/auto-instru.json",
-		pollInterval: 15 * time.Second,
-		subscribers:  make(map[TargetObjKind]chan PatchRequest),
-		clusterName:  clusterName,
+		file:          file,
+		isLeaderNotif: isLeaderNotif,
+		pollInterval:  15 * time.Second,
+		subscribers:   make(map[TargetObjKind]chan PatchRequest),
+		clusterName:   clusterName,
 	}
 }
 
@@ -43,48 +45,52 @@ func (fpp *filePatchProvider) subscribe(kind TargetObjKind) chan PatchRequest {
 }
 
 func (fpp *filePatchProvider) start(stopCh <-chan struct{}) {
+	log.Infof("Starting file patch provider: watching %s", fpp.file)
 	ticker := time.NewTicker(fpp.pollInterval)
 	defer ticker.Stop()
 	for {
 		select {
+		case <-fpp.isLeaderNotif:
+			log.Info("Got a leader notification, polling from file")
+			fpp.process(true)
 		case <-ticker.C:
-			if err := fpp.refresh(); err != nil {
-				log.Errorf(err.Error())
-			}
+			fpp.process(false)
 		case <-stopCh:
-			log.Info("Shutting down patch provider")
+			log.Info("Shutting down file patch provider")
 			return
 		}
 	}
 }
 
-func (fpp *filePatchProvider) refresh() error {
-	requests, err := fpp.poll()
+func (fpp *filePatchProvider) process(forcePoll bool) {
+	requests, err := fpp.poll(forcePoll)
 	if err != nil {
-		return err
+		log.Errorf("Error refreshing patch requests: %v", err)
+		return
 	}
-	log.Debugf("Got %d new patch requests", len(requests))
+	if len(requests) == 0 {
+		return
+	}
+	log.Infof("Got %d updates from local file", len(requests))
 	for _, req := range requests {
 		if err := req.Validate(fpp.clusterName); err != nil {
 			log.Errorf("Skipping invalid patch request: %s", err)
 			continue
 		}
 		if ch, found := fpp.subscribers[req.K8sTarget.Kind]; found {
-			log.Infof("Publishing patch requests for target %s", req.K8sTarget)
+			log.Infof("Publishing patch request for target %s", req.K8sTarget)
 			ch <- req
 		}
 	}
 	fpp.lastSuccessfulRefresh = time.Now()
-	return nil
 }
 
-func (fpp *filePatchProvider) poll() ([]PatchRequest, error) {
+func (fpp *filePatchProvider) poll(forcePoll bool) ([]PatchRequest, error) {
 	info, err := os.Stat(fpp.file)
 	if err != nil {
 		return nil, err
 	}
-	modTime := info.ModTime()
-	if fpp.lastSuccessfulRefresh.After(modTime) {
+	if !forcePoll && fpp.lastSuccessfulRefresh.After(info.ModTime()) {
 		log.Debugf("File %q hasn't changed since the last Successful refresh at %v", fpp.file, fpp.lastSuccessfulRefresh)
 		return []PatchRequest{}, nil
 	}
