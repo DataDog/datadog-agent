@@ -71,6 +71,10 @@ func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
 }
 
+func javaTLSSupported(t *testing.T) bool {
+	return httpsSupported(t) && httpsSupported(t)
+}
+
 func goTLSSupported() bool {
 	cfg := config.New()
 	return runtime.GOARCH == "amd64" && cfg.EnableRuntimeCompiler
@@ -571,6 +575,11 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 // Java Injection and TLS tests
 
 func TestJavaInjection(t *testing.T) {
+
+	if !javaTLSSupported(t) {
+		t.Skip("java TLS platform not supported")
+	}
+
 	log.SetupLogger(seelog.Default, "debug")
 
 	cfg := testConfig()
