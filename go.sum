@@ -1208,8 +1208,8 @@ github.com/ianlancetaylor/cgosymbolizer v0.0.0-20221208003206-eaf69f594683/go.mo
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639 h1:mV02weKRL81bEnm8A0HT1/CAelMQDBuQIfLw8n+d6xI=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
-github.com/iceber/iouring-go v0.0.0-20220511091803-99712053f7ec h1:2GZMXHuaYOUFqvB3MFDsOxtuNTSCVBL+yptA99ASdvU=
-github.com/iceber/iouring-go v0.0.0-20220511091803-99712053f7ec/go.mod h1:LEzdaZarZ5aqROlLIwJ4P7h3+4o71008fSy6wpaEB+s=
+github.com/iceber/iouring-go v0.0.0-20220609112130-b1dc8dd9fbfd h1:UdLfG7nAV9de/1kkx6l9OJD5GdJTzl4HrIa5hfpAnmE=
+github.com/iceber/iouring-go v0.0.0-20220609112130-b1dc8dd9fbfd/go.mod h1:LEzdaZarZ5aqROlLIwJ4P7h3+4o71008fSy6wpaEB+s=
 github.com/imdario/mergo v0.3.5/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/imdario/mergo v0.3.8/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/imdario/mergo v0.3.10/go.mod h1:jmQim1M+e3UYxmgPu/WyfjB3N3VflVyUjjjwH0dnCYA=
