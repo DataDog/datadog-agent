@@ -97,13 +97,22 @@ type DumpMetadata struct {
 // easyjson:json
 type ActivityDump struct {
 	*sync.Mutex
-	state              ActivityDumpStatus
-	adm                *ActivityDumpManager
-	processedCount     map[model.EventType]*atomic.Uint64
-	addedRuntimeCount  map[model.EventType]*atomic.Uint64
-	addedSnapshotCount map[model.EventType]*atomic.Uint64
-	brokenLineageDrop  *atomic.Uint64
-	countedByLimiter   bool
+	state                        ActivityDumpStatus
+	adm                          *ActivityDumpManager
+	processedCount               map[model.EventType]*atomic.Uint64
+	addedRuntimeCount            map[model.EventType]*atomic.Uint64
+	addedSnapshotCount           map[model.EventType]*atomic.Uint64
+	brokenLineageDrop            *atomic.Uint64
+	insertCount                  *atomic.Uint64
+	eventTypeDrop                *atomic.Uint64
+	resolveProcessCacheEntryDrop *atomic.Uint64
+	abnormalPathDrop             *atomic.Uint64
+	entryMatchDrop               *atomic.Uint64
+	validRootNodeDrop            *atomic.Uint64
+	findOrCreateDrop             *atomic.Uint64
+	bindFamilyDrop               *atomic.Uint64
+
+	countedByLimiter bool
 
 	shouldMergePaths bool
 	pathMergedCount  *atomic.Uint64
@@ -146,14 +155,22 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, wai
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
 func NewEmptyActivityDump() *ActivityDump {
 	ad := &ActivityDump{
-		Mutex:              &sync.Mutex{},
-		CookiesNode:        make(map[uint32]*ProcessActivityNode),
-		processedCount:     make(map[model.EventType]*atomic.Uint64),
-		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
-		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
-		brokenLineageDrop:  atomic.NewUint64(0),
-		pathMergedCount:    atomic.NewUint64(0),
-		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
+		Mutex:                        &sync.Mutex{},
+		CookiesNode:                  make(map[uint32]*ProcessActivityNode),
+		processedCount:               make(map[model.EventType]*atomic.Uint64),
+		addedRuntimeCount:            make(map[model.EventType]*atomic.Uint64),
+		addedSnapshotCount:           make(map[model.EventType]*atomic.Uint64),
+		brokenLineageDrop:            atomic.NewUint64(0),
+		insertCount:                  atomic.NewUint64(0),
+		eventTypeDrop:                atomic.NewUint64(0),
+		resolveProcessCacheEntryDrop: atomic.NewUint64(0),
+		abnormalPathDrop:             atomic.NewUint64(0),
+		entryMatchDrop:               atomic.NewUint64(0),
+		validRootNodeDrop:            atomic.NewUint64(0),
+		findOrCreateDrop:             atomic.NewUint64(0),
+		bindFamilyDrop:               atomic.NewUint64(0),
+		pathMergedCount:              atomic.NewUint64(0),
+		StorageRequests:              make(map[config.StorageFormat][]config.StorageRequest),
 	}
 
 	// generate counters
@@ -535,6 +552,8 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	ad.Lock()
 	defer ad.Unlock()
 
+	ad.insertCount.Inc()
+
 	if ad.state != Running {
 		// this activity dump is not running, ignore event
 		return false
@@ -542,6 +561,8 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 
 	// check if this event type is traced
 	if !ad.isEventTypeTraced(event) {
+		// should not happen
+		ad.eventTypeDrop.Inc()
 		return false
 	}
 
@@ -559,6 +580,7 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	// find the node where the event should be inserted
 	entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event)
 	if entry == nil {
+		ad.resolveProcessCacheEntryDrop.Inc()
 		return false
 	}
 	if !entry.HasCompleteLineage() { // check that the process context lineage is complete, otherwise drop it
@@ -568,6 +590,7 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	node := ad.findOrCreateProcessActivityNode(entry, Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
+		ad.findOrCreateDrop.Inc()
 		return false
 	}
 
@@ -601,6 +624,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 	// drop processes with abnormal paths
 	if entry.GetPathResolutionError() != "" {
+		ad.abnormalPathDrop.Inc()
 		return node
 	}
 
@@ -630,6 +654,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// since the parent of the current entry wasn't inserted, we need to know if the current entry needs to be inserted.
 		if !ad.Matches(entry) {
+			ad.entryMatchDrop.Inc()
 			return node
 		}
 
@@ -642,6 +667,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// we're about to add a root process node, make sure this root node passes the root node sanitizer
 		if !ad.IsValidRootNode(entry) {
+			ad.validRootNodeDrop.Inc()
 			return node
 		}
 
@@ -764,6 +790,54 @@ func (ad *ActivityDump) SendStats() error {
 	if value := ad.brokenLineageDrop.Swap(0); value > 0 {
 		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpBrokenLineageDrop, int64(value), nil, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpBrokenLineageDrop, err)
+		}
+	}
+
+	if value := ad.insertCount.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpInsertCount, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpInsertCount, err)
+		}
+	}
+
+	if value := ad.eventTypeDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventTypeDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventTypeDrop, err)
+		}
+	}
+
+	if value := ad.resolveProcessCacheEntryDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpResolveProcessCacheEntryDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpResolveProcessCacheEntryDrop, err)
+		}
+	}
+
+	if value := ad.abnormalPathDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpAbnormalPathDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpAbnormalPathDrop, err)
+		}
+	}
+
+	if value := ad.entryMatchDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEntryMatchDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEntryMatchDrop, err)
+		}
+	}
+
+	if value := ad.validRootNodeDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpValidRootNodeDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpValidRootNodeDrop, err)
+		}
+	}
+
+	if value := ad.findOrCreateDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpFindOrCreateDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpFindOrCreateDrop, err)
+		}
+	}
+
+	if value := ad.bindFamilyDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpBindFamilyDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpBindFamilyDrop, err)
 		}
 	}
 
@@ -1419,7 +1493,7 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(evt) {
+	if sock.InsertBindEvent(ad, evt) {
 		newNode = true
 	}
 
@@ -1692,9 +1766,10 @@ type SocketNode struct {
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
-func (n *SocketNode) InsertBindEvent(evt *model.BindEvent) bool {
+func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent) bool {
 	// ignore non IPv4 / IPv6 bind events for now
 	if evt.AddrFamily != unix.AF_INET && evt.AddrFamily != unix.AF_INET6 {
+		ad.bindFamilyDrop.Inc()
 		return false
 	}
 	evtIP := evt.Addr.IPNet.IP.String()
