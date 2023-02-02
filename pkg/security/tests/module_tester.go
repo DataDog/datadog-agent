@@ -647,7 +647,7 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
+func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, err
@@ -717,7 +717,8 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		return nil, err
 	}
 
-	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	fmt.Printf("testDir: %s\n", testDir)
+	sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
 	if err != nil {
 		return nil, err
 	}
@@ -777,7 +778,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	config, err := genTestConfig(st.root, opts)
+	config, err := genTestConfig(st.root, opts, st.root)
 	if err != nil {
 		return nil, err
 	}
