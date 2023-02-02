@@ -7,7 +7,6 @@ package runner
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/process-agent"
 	"io"
 	"net"
 	"net/http"
@@ -86,7 +85,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/connections", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		apiEps, err := main.getAPIEndpoints()
+		apiEps, err := GetAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, apiEps[0].APIKey, req.headers.Get("DD-Api-Key"))
 
@@ -125,7 +124,7 @@ func TestSendContainerMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/container", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := main.getAPIEndpoints()
+		eps, err := GetAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -162,7 +161,7 @@ func TestSendProcMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/collector", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := main.getAPIEndpoints()
+		eps, err := GetAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -202,7 +201,7 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/discovery", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := main.getAPIEndpoints()
+		eps, err := GetAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -251,7 +250,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := main.getEventsAPIEndpoints()
+		eps, err := getEventsAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -298,7 +297,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		timestamps := make(map[string]struct{})
 		for _, req := range requests {
 			assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-			eps, err := main.getAPIEndpoints()
+			eps, err := GetAPIEndpoints()
 			assert.NoError(t, err)
 			assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 			assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
