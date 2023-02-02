@@ -19,9 +19,6 @@ var (
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
 
-	// MainCtx is the main system-probe context passed to components
-	MainCtx context.Context
-
 	// MainCtxCancel cancels the main system-probe context
 	MainCtxCancel context.CancelFunc
 )

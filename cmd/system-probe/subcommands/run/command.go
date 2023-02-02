@@ -154,7 +154,8 @@ func StartSystemProbeWithDefaults() error {
 // startSystemProbe Initializes the system-probe process
 func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sysprobeconfig.Component) error {
 	var err error
-	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
+	var ctx context.Context
+	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.Object()
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
@@ -194,7 +195,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
 	}
 
-	err = manager.ConfigureAutoExit(common.MainCtx, sysprobeconfig)
+	err = manager.ConfigureAutoExit(ctx, sysprobeconfig)
 	if err != nil {
 		return log.Criticalf("unable to configure auto-exit: %s", err)
 	}
