@@ -6,20 +6,19 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package kprobe
+package connection
 
 import (
 	"sync"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"go.uber.org/atomic"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -39,22 +38,7 @@ type tcpCloseConsumer struct {
 	perfLost     *atomic.Int64
 }
 
-func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*tcpCloseConsumer, error) {
-	connCloseEventMap, _, err := m.GetMap(probes.ConnCloseEventMap)
-	if err != nil {
-		return nil, err
-	}
-	connCloseMap, _, err := m.GetMap(probes.ConnCloseBatchMap)
-	if err != nil {
-		return nil, err
-	}
-
-	numCPUs := int(connCloseEventMap.MaxEntries())
-	batchManager, err := newPerfBatchManager(connCloseMap, numCPUs)
-	if err != nil {
-		return nil, err
-	}
-
+func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
 	c := &tcpCloseConsumer{
 		perfHandler:  perfHandler,
 		batchManager: batchManager,

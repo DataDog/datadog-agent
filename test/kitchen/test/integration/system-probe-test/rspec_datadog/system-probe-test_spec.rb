@@ -121,4 +121,16 @@ describe "system-probe" do
     }
     include_examples "passes", "co-re", env, co_re_tests, true
   end
+
+  context "fentry" do
+    env = {
+      "ECS_FARGATE"=>"true",
+      "DD_ENABLE_CO_RE"=>"true",
+      "DD_ENABLE_RUNTIME_COMPILER"=>"false",
+      "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"
+    }
+    if platform == "ubuntu-22.04" and arch == "x86_64"
+      include_examples "passes", "fentry", env, skip_prebuilt_tests, false
+    end
+  end
 end

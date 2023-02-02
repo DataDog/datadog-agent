@@ -6,19 +6,19 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package kprobe
+package connection
 
 import (
 	"strings"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {

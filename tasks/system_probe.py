@@ -210,9 +210,9 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_co_re_dir = os.path.join(network_c_dir, "co-re")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_co_re_flags = f"-I{network_co_re_dir}"
+    network_co_re_flags = f"-I{network_co_re_dir} -Ipkg/network/ebpf/c"
     network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
-    network_co_re_programs = []
+    network_co_re_programs = ["tracer-fentry"]
 
     for prog in network_programs:
         infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
@@ -327,7 +327,7 @@ def ninja_cgo_type_files(nw, windows):
         in_dir, in_file = os.path.split(f)
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
-        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)}"
+        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
         nw.build(
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],
