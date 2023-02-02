@@ -1898,8 +1898,9 @@ github.com/smira/flag v0.0.0-20170926215700-695ea5e84e76/go.mod h1:KQ5bP0mZypI2q
 github.com/smira/go-aws-auth v0.0.0-20180731211914-8b73995fd8d1/go.mod h1:KKhbssKjyR//TUP31t3ksE2b6oeAw328JzwmFJnzRCw=
 github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d h1:rvtR4+9N2LWPo0UHe6/aHvWpqD9Dhf10P2bfGFht74g=
 github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d/go.mod h1:Jm7yHrROA5tC42gyJ5EwiR8EWp0PUy0qOc4sE7Y8Uzo=
-github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014 h1:tne8XW3soRDJn4DIiqBc4jw+DPashtFMTSC9G0pC3ug=
 github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014/go.mod h1:smSuTvETRIkX95VAIWBdKoGJuUxif7NT7FgbkpVqOiA=
+github.com/smira/go-xz v0.0.0-20220607140411-c2a07d4bedda h1:WWMF6Bz2r8/91uUs4ZYk10zSSflqHDE5Ot3/s1yz+x4=
+github.com/smira/go-xz v0.0.0-20220607140411-c2a07d4bedda/go.mod h1:RdN8UkuBr4amSnXBHKWkn6p1mXqYjHw+Yvxz8gQfU5A=
 github.com/soheilhy/cmux v0.1.4/go.mod h1:IM3LyeVVIOuxMH7sFAkER9+bJ4dT7Ms6E4xg4kGIyLM=
 github.com/soheilhy/cmux v0.1.5 h1:jjzc5WVemNEDTLwv9tlmemhC73tI08BNOIGwBOo10Js=
 github.com/soheilhy/cmux v0.1.5/go.mod h1:T7TcVDs9LWfQgPlPsdngu6I6QIoyIFZDDC6sNE1GqG0=
