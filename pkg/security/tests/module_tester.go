@@ -717,24 +717,36 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		return nil, err
 	}
 
-	fmt.Printf("testDir: %s\n", testDir)
-	sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
+	sysprobeConfigName, err := func() (string, error) {
+		ddConfig, err := os.Create(path.Join(testDir, "datadog.yaml"))
+		if err != nil {
+			return "", err
+		}
+		defer ddConfig.Close()
+
+		fmt.Printf("testDir: %s\n", testDir)
+		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
+		if err != nil {
+			return "", err
+		}
+		defer sysprobeConfig.Close()
+
+		_, err = io.Copy(sysprobeConfig, buffer)
+		if err != nil {
+			return "", err
+		}
+		return sysprobeConfig.Name(), nil
+	}()
 	if err != nil {
 		return nil, err
 	}
-	defer sysprobeConfig.Close()
 
-	_, err = io.Copy(sysprobeConfig, buffer)
-	if err != nil {
-		return nil, err
-	}
-
-	err = sysconfig.SetupOptionalDatadogConfigWithDir(opts.testDir)
+	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir)
 	if err != nil {
 		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
+	agentConfig, err := sysconfig.New(sysprobeConfigName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
