@@ -9,10 +9,8 @@ import (
 	"context"
 	"runtime"
 	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
