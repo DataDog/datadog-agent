@@ -14,7 +14,7 @@
 .kitchen_os_centos_all_non_fips:
   variables:
     KITCHEN_PLATFORM: "centos"
-    KITCHEN_OSVERS: "centos-610,centos-77,rhel-81"
+    KITCHEN_OSVERS: "centos-610,centos-77,rhel-81,rhel-90"
     KITCHEN_CWS_SUPPORTED_OSVERS: "centos-77,rhel-81"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
