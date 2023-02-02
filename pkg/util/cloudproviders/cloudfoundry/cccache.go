@@ -538,7 +538,7 @@ func (ccc *CCCache) listProcesses(wg *sync.WaitGroup, processesMap *map[string][
 			log.Errorf("Failed listing processes from cloud controller: %v", err)
 			return
 		}
-		// Group all processes per app
+		// group all processes per app
 		*processesMap = make(map[string][]*cfclient.Process)
 		for _, process := range processes {
 			v3Process := process
@@ -556,7 +556,6 @@ func (ccc *CCCache) listProcesses(wg *sync.WaitGroup, processesMap *map[string][
 }
 
 func (ccc *CCCache) listIsolationSegments(wg *sync.WaitGroup, segmentBySpaceGUID *map[string]*cfclient.IsolationSegment, segmentByOrgGUID *map[string]*cfclient.IsolationSegment) {
-	// List isolation segments
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -597,20 +596,20 @@ func (ccc *CCCache) prepareCFApplications(appsMap map[string]*cfclient.V3App, pr
 	cfApplicationsByGUID := make(map[string]*CFApplication, len(appsMap))
 
 	for _, cfapp := range appsMap {
-		// Fill app metadata
+		// fill app metadata
 		updatedApp := CFApplication{}
 		updatedApp.extractDataFromV3App(*cfapp)
 		appGUID := updatedApp.GUID
 		spaceGUID := updatedApp.SpaceGUID
 
-		// Fill processes
+		// fill processes
 		if processes, exists := processesMap[appGUID]; exists {
 			updatedApp.extractDataFromV3Process(processes)
 		} else {
 			log.Infof("could not fetch processes info for app guid %s", appGUID)
 		}
 
-		// Fill space then org data. Order matters for labels and annotations.
+		// fill space then org data. Order matters for labels and annotations.
 		if space, exists := spacesMap[spaceGUID]; exists {
 			updatedApp.extractDataFromV3Space(space)
 		} else {
@@ -624,12 +623,11 @@ func (ccc *CCCache) prepareCFApplications(appsMap map[string]*cfclient.V3App, pr
 			log.Infof("could not fetch org info for org guid %s", orgGUID)
 		}
 
-		// Fill sidecars
+		// fill sidecars
 		for _, sidecar := range sidecarsMap[appGUID] {
 			updatedApp.Sidecars = append(updatedApp.Sidecars, *sidecar)
 		}
 
-		// Update cfapp
 		cfApplicationsByGUID[appGUID] = &updatedApp
 	}
 	return cfApplicationsByGUID
@@ -653,44 +651,44 @@ func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	var wg sync.WaitGroup
 
-	// List applications
+	// list applications
 	var appsByGUID map[string]*cfclient.V3App
 	var sidecarsByAppGUID map[string][]*CFSidecar
 	ccc.listApplications(&wg, &appsByGUID, &sidecarsByAppGUID)
 
-	// List spaces
+	// list spaces
 	var spacesByGUID map[string]*cfclient.V3Space
 	ccc.listSpaces(&wg, &spacesByGUID)
 
-	// List orgs
+	// list orgs
 	var orgsByGUID map[string]*cfclient.V3Organization
 	ccc.listOrgs(&wg, &orgsByGUID)
 
-	// List orgQuotas
+	// list orgQuotas
 	var orgQuotasByGUID map[string]*CFOrgQuota
 	ccc.listOrgQuotas(&wg, &orgQuotasByGUID)
 
-	// List processes
+	// list processes
 	var processesByAppGUID map[string][]*cfclient.Process
 	ccc.listProcesses(&wg, &processesByAppGUID)
 
-	// List isolation segments
+	// list isolation segments
 	var segmentBySpaceGUID map[string]*cfclient.IsolationSegment
 	var segmentByOrgGUID map[string]*cfclient.IsolationSegment
 	if ccc.segmentsTags {
 		ccc.listIsolationSegments(&wg, &segmentBySpaceGUID, &segmentByOrgGUID)
 	}
 
-	// Wait for resources acquisition
+	// wait for resources acquisition
 	wg.Wait()
 
-	// Prepare CFApplications for the nozzle
+	// prepare CFApplications for the nozzle
 	var cfApplicationsByGUID map[string]*CFApplication
 	if ccc.serveNozzleData {
 		cfApplicationsByGUID = ccc.prepareCFApplications(appsByGUID, processesByAppGUID, spacesByGUID, orgsByGUID, sidecarsByAppGUID)
 	}
 
-	// Put new data in cache
+	// put new data in cache
 	ccc.Lock()
 	defer ccc.Unlock()
 
