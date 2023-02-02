@@ -626,7 +626,6 @@ var _ Entity = &ECSTask{}
 type ContainerImageMetadata struct {
 	EntityID
 	EntityMeta
-	Registry     string
 	ShortName    string
 	RepoTags     []string
 	RepoDigests  []string
@@ -687,7 +686,6 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
 	_, _ = fmt.Fprint(&sb, i.EntityMeta.String(verbose))
 
-	_, _ = fmt.Fprintln(&sb, "Short name:", i.ShortName)
 	_, _ = fmt.Fprintln(&sb, "Repo tags:", i.RepoTags)
 	_, _ = fmt.Fprintln(&sb, "Repo digests:", i.RepoDigests)
 
