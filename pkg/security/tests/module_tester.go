@@ -728,7 +728,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		return nil, err
 	}
 
-	err = sysconfig.SetupOptionalDatadogConfig()
+	err = sysconfig.SetupOptionalDatadogConfigWithDir(opts.testDir)
 	if err != nil {
 		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
