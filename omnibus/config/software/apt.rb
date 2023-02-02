@@ -54,7 +54,4 @@ build do
   ]
   cmake(*cmake_options, env: env)
 
-  configure_options = [
-    "--disable-static"
-  ]
 end
