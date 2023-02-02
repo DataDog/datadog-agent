@@ -267,7 +267,6 @@ func TestCCCache_GetProcesses(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-// TODO: unrelax constraints, change all assertions of type GreaterOrEqual 2 to EqualValues 1
 func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
