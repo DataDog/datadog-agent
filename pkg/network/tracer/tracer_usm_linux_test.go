@@ -72,7 +72,7 @@ func httpsSupported(t *testing.T) bool {
 }
 
 func javaTLSSupported(t *testing.T) bool {
-	return httpsSupported(t) && httpsSupported(t)
+	return httpSupported(t) && httpsSupported(t)
 }
 
 func goTLSSupported() bool {
