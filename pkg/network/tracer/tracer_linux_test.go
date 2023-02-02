@@ -1548,7 +1548,7 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 	cfg := config.New()
 	cfg.AttachKprobesWithKprobeEventsABI = true
 
-	_ = setupTracer(t, cfg)
+	tr := setupTracer(t, cfg)
 
 	if tr.ebpfTracer.Type() == connection.EBPFFentry {
 		t.Skip("skipped on Fargate")
