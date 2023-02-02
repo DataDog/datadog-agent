@@ -320,54 +320,85 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{$FieldName := $Field.Name | printf "ev.%s"}}
 		case "{{$Name}}":
 			{{- $Field | NewField $.AllFields}}
-		{{- if eq $Field.OrigType "string"}}
 			{{if $Field.IsLength}}
 				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
 			{{else}}
-			str, ok := value.(string)
-			if !ok {
-				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
-			}
-			{{- if $Field.IsArray}}
-				{{$FieldName}} = append({{$FieldName}}, str)
-			{{else}}
-				{{$FieldName}} = str
+			{{- if eq $Field.OrigType "string"}}
+				{{- if $Field.IsArray}}
+					switch rv := value.(type) {
+						case string:
+							{{$FieldName}} = append({{$FieldName}}, rv)
+						case []string:
+							{{$FieldName}} = append({{$FieldName}}, rv...)
+						default:
+							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+					}
+				{{else}}
+					rv, ok := value.(string)
+					if !ok {
+						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+					}
+					{{$FieldName}} = rv
+				{{end}}
+				return nil
+			{{else if eq $Field.BasicType "int"}}
+				{{- if $Field.IsArray}}
+					switch rv := value.(type) {
+						case int:
+							{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(rv))
+						case []int:
+							for _, i := range rv {
+								{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(i))
+							}
+						default:
+							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+					}
+				{{else}}
+					rv, ok := value.(int)
+					if !ok {
+						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+					}
+					{{$FieldName}} = {{$Field.OrigType}}(rv)
+				{{end}}
+				return nil
+			{{else if eq $Field.BasicType "bool"}}
+				{{- if $Field.IsArray}}
+					switch rv := value.(type) {
+						case bool:
+							{{$FieldName}} = append({{$FieldName}}, rv)
+						case []bool:
+							{{$FieldName}} = append({{$FieldName}}, rv...)
+						default:
+							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+					}
+				{{else}}
+					rv, ok := value.(bool)
+					if !ok {
+						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+					}
+					{{$FieldName}} = rv
+				{{end}}
+				return nil
+			{{else if eq $Field.BasicType "net.IPNet"}}
+				{{- if $Field.IsArray}}
+					switch rv := value.(type) {
+						case net.IPNet:
+							{{$FieldName}} = append({{$FieldName}}, rv)
+						case []net.IPNet:
+							{{$FieldName}} = append({{$FieldName}}, rv...)
+						default:
+							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+					}
+				{{else}}
+					rv, ok := value.(net.IPNet)
+					if !ok {
+						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+					}
+					{{$FieldName}} = rv
+				{{end}}
+				return nil
 			{{end}}
-			return nil
 			{{end}}
-		{{else if eq $Field.BasicType "int"}}
-			{{if $Field.IsLength}}
-				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
-			{{else}}
-			v, ok := value.(int)
-			if !ok {
-				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
-			}
-			{{- if $Field.IsArray}}
-				{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(v))
-			{{else}}
-				{{$FieldName}} = {{$Field.OrigType}}(v)
-			{{end}}
-			return nil
-			{{end}}
-		{{else if eq $Field.BasicType "bool"}}
-			var ok bool
-			if {{$FieldName}}, ok = value.(bool); !ok {
-				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
-			}
-			return nil
-        {{else if eq $Field.BasicType "net.IPNet"}}
-            v, ok := value.(net.IPNet)
-            if !ok {
-                return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
-            }
-			{{- if $Field.IsArray}}
-                {{$FieldName}} = append({{$FieldName}}, v)
-            {{else}}
-                {{$FieldName}} = v
-            {{end}}
-			return nil
-		{{end}}
 		{{end}}
 		}
 
