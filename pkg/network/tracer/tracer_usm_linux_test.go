@@ -636,6 +636,8 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
 				testfile := ctx.extras["testfile"].(string)
 				_, err := os.Stat(testfile)
 				require.NoError(t, err)
