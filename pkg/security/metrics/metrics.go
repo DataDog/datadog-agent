@@ -148,6 +148,9 @@ var (
 	// MetricProcessResolverEnvsSize is the name of the metric used to report the number of envs size
 	// Tags: -
 	MetricProcessResolverEnvsSize = newRuntimeMetric(".process_resolver.envs.size")
+	// MetricProcessEventBrokenLineage is the name of the metric used to report a broken lineage
+	// Tags: -
+	MetricProcessEventBrokenLineage = newRuntimeMetric(".process_resolver.event_broken_lineage")
 
 	// Mount resolver metrics
 

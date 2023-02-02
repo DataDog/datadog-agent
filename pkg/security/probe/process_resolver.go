@@ -121,6 +121,7 @@ type ProcessResolver struct {
 	argsSize       *atomic.Int64
 	envsTruncated  *atomic.Int64
 	envsSize       *atomic.Int64
+	brokenLineage  *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *model.ArgsEnvsCacheEntry]
@@ -277,6 +278,10 @@ func (p *ProcessResolver) NewProcessCacheEntry(pidContext model.PIDContext) *mod
 	return entry
 }
 
+func (p *ProcessResolver) countBrokenLineage() {
+	p.brokenLineage.Inc()
+}
+
 // SendStats sends process resolver metrics
 func (p *ProcessResolver) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
@@ -340,6 +345,12 @@ func (p *ProcessResolver) SendStats() error {
 	if count := p.envsSize.Swap(0); count > 0 {
 		if err := p.statsdClient.Count(metrics.MetricProcessResolverEnvsSize, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("failed to send envs size metric: %w", err)
+		}
+	}
+
+	if count := p.brokenLineage.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessEventBrokenLineage, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver broken lineage metric: %w", err)
 		}
 	}
 
@@ -1317,6 +1328,7 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		argsSize:       atomic.NewInt64(0),
 		envsTruncated:  atomic.NewInt64(0),
 		envsSize:       atomic.NewInt64(0),
+		brokenLineage:  atomic.NewInt64(0),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
