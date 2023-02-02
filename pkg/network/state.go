@@ -125,6 +125,7 @@ func (c *client) Reset(active map[uint32]*ConnectionStats) {
 	c.closedConnectionsKeys = make(map[uint32]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
+	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
@@ -529,6 +530,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		closedConnectionsKeys: make(map[uint32]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
 		httpStatsDelta:        map[http.Key]*http.RequestStats{},
+		kafkaStatsDelta:       map[kafka.Key]*kafka.RequestStats{},
 		lastTelemetries:       make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
