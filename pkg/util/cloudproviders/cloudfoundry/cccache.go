@@ -607,6 +607,48 @@ func (ccc *CCCache) listIsolationSegments(wg *sync.WaitGroup, segmentBySpaceGUID
 	}()
 }
 
+func (ccc *CCCache) prepareCFApplications(appsMap map[string]*cfclient.V3App, processesMap map[string][]*cfclient.Process, spacesMap map[string]*cfclient.V3Space, orgsMap map[string]*cfclient.V3Organization, sidecarsMap map[string][]*CFSidecar) map[string]*CFApplication {
+	cfApplicationsByGUID := make(map[string]*CFApplication, len(appsMap))
+
+	for _, cfapp := range appsMap {
+		// Fill app metadata
+		updatedApp := CFApplication{}
+		updatedApp.extractDataFromV3App(*cfapp)
+		appGUID := updatedApp.GUID
+		spaceGUID := updatedApp.SpaceGUID
+
+		// Fill processes
+		if processes, exists := processesMap[appGUID]; exists {
+			updatedApp.extractDataFromV3Process(processes)
+		} else {
+			log.Infof("could not fetch processes info for app guid %s", appGUID)
+		}
+
+		// Fill space then org data. Order matters for labels and annotations.
+		if space, exists := spacesMap[spaceGUID]; exists {
+			updatedApp.extractDataFromV3Space(space)
+		} else {
+			log.Infof("could not fetch space info for space guid %s", spaceGUID)
+		}
+
+		orgGUID := updatedApp.OrgGUID
+		if org, exists := orgsMap[orgGUID]; exists {
+			updatedApp.extractDataFromV3Org(org)
+		} else {
+			log.Infof("could not fetch org info for org guid %s", orgGUID)
+		}
+
+		// Fill sidecars
+		for _, sidecar := range sidecarsMap[appGUID] {
+			updatedApp.Sidecars = append(updatedApp.Sidecars, *sidecar)
+		}
+
+		// Update cfapp
+		cfApplicationsByGUID[appGUID] = &updatedApp
+	}
+	return cfApplicationsByGUID
+}
+
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	var wg sync.WaitGroup
@@ -635,52 +677,20 @@ func (ccc *CCCache) readData() {
 	// List isolation segments
 	var segmentBySpaceGUID map[string]*cfclient.IsolationSegment
 	var segmentByOrgGUID map[string]*cfclient.IsolationSegment
-
 	if ccc.segmentsTags {
 		ccc.listIsolationSegments(&wg, &segmentBySpaceGUID, &segmentByOrgGUID)
 	}
 
-	// wait for resources acquisition
+	// Wait for resources acquisition
 	wg.Wait()
 
-	// prepare CFApplications
+	// Prepare CFApplications for the nozzle
 	var cfApplicationsByGUID map[string]*CFApplication
 	if ccc.serveNozzleData {
-		cfApplicationsByGUID = make(map[string]*CFApplication, len(appsByGUID))
-		// Populate cfApplications
-		for _, cfapp := range appsByGUID {
-			updatedApp := CFApplication{}
-			updatedApp.extractDataFromV3App(*cfapp)
-			appGUID := updatedApp.GUID
-			spaceGUID := updatedApp.SpaceGUID
-			processes, exists := processesByAppGUID[appGUID]
-			if exists {
-				updatedApp.extractDataFromV3Process(processes)
-			} else {
-				log.Infof("could not fetch processes info for app guid %s", appGUID)
-			}
-			// Fill space then org data. Order matters for labels and annotations.
-			space, exists := spacesByGUID[spaceGUID]
-			if exists {
-				updatedApp.extractDataFromV3Space(space)
-			} else {
-				log.Infof("could not fetch space info for space guid %s", spaceGUID)
-			}
-			orgGUID := updatedApp.OrgGUID
-			org, exists := orgsByGUID[orgGUID]
-			if exists {
-				updatedApp.extractDataFromV3Org(org)
-			} else {
-				log.Infof("could not fetch org info for org guid %s", orgGUID)
-			}
-			for _, sidecar := range sidecarsByAppGUID[appGUID] {
-				updatedApp.Sidecars = append(updatedApp.Sidecars, *sidecar)
-			}
-			cfApplicationsByGUID[appGUID] = &updatedApp
-		}
+		cfApplicationsByGUID = ccc.prepareCFApplications(appsByGUID, processesByAppGUID, spacesByGUID, orgsByGUID, sidecarsByAppGUID)
 	}
 
-	// put new data in cache
+	// Put new data in cache
 	ccc.Lock()
 	defer ccc.Unlock()
 
