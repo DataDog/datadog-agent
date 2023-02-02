@@ -341,7 +341,7 @@ func TestFileCheck(t *testing.T) {
 				Transform: `h.file_process_flag("--config-file")`,
 			},
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "dockerd", []string{"dockerd", "--config-file=/etc/docker/daemon.json"}),
+				42: processutils.NewCheckedFakeProcess(42, "dockerd", []string{"dockerd", "--config-file=/etc/docker/daemon.json"}, nil),
 			},
 			module: fmt.Sprintf(objectModule, `file.content["experimental"] == false`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
@@ -426,7 +426,7 @@ func TestFileCheck(t *testing.T) {
 			},
 			expectError: errors.New(`failed to resolve path`),
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "dockerd", []string{"dockerd", "--config-file=/etc/docker/daemon.json"}),
+				42: processutils.NewCheckedFakeProcess(42, "dockerd", []string{"dockerd", "--config-file=/etc/docker/daemon.json"}, nil),
 			},
 		},
 		{

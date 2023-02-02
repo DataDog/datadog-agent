@@ -60,7 +60,7 @@ func TestResolveValueFrom(t *testing.T) {
 			setup: func(t *testing.T) {
 				processutils.Fetcher = func() (processutils.Processes, error) {
 					return processutils.Processes{
-						42: processutils.NewCheckedFakeProcess(42, "buddy", []string{"--path=/home/root/hiya-buddy.txt"}),
+						42: processutils.NewCheckedFakeProcess(42, "buddy", []string{"--path=/home/root/hiya-buddy.txt"}, nil),
 					}, nil
 				}
 			},
@@ -82,7 +82,7 @@ func TestResolveValueFrom(t *testing.T) {
 			setup: func(t *testing.T) {
 				processutils.Fetcher = func() (processutils.Processes, error) {
 					return processutils.Processes{
-						42: processutils.NewCheckedFakeProcess(42, "buddy", nil),
+						42: processutils.NewCheckedFakeProcess(42, "buddy", nil, nil),
 					}, nil
 				}
 			},
