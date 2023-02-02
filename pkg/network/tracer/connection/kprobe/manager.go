@@ -15,7 +15,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
@@ -26,40 +25,41 @@ const (
 )
 
 var mainProbes = map[probes.ProbeName]string{
-	probes.NetDevQueue:                    "tracepoint__net__net_dev_queue",
-	probes.ProtocolClassifierSocketFilter: "socket__classifier",
-	probes.TCPSendMsg:                     "kprobe__tcp_sendmsg",
-	probes.TCPSendMsgReturn:               "kretprobe__tcp_sendmsg",
-	probes.TCPRecvMsg:                     "kprobe__tcp_recvmsg",
-	probes.TCPRecvMsgReturn:               "kretprobe__tcp_recvmsg",
-	probes.TCPReadSock:                    "kprobe__tcp_read_sock",
-	probes.TCPReadSockReturn:              "kretprobe__tcp_read_sock",
-	probes.TCPClose:                       "kprobe__tcp_close",
-	probes.TCPCloseReturn:                 "kretprobe__tcp_close",
-	probes.TCPConnect:                     "kprobe__tcp_connect",
-	probes.TCPFinishConnect:               "kprobe__tcp_finish_connect",
-	probes.TCPSetState:                    "kprobe__tcp_set_state",
-	probes.IPMakeSkb:                      "kprobe__ip_make_skb",
-	probes.IPMakeSkbReturn:                "kretprobe__ip_make_skb",
-	probes.IP6MakeSkb:                     "kprobe__ip6_make_skb",
-	probes.IP6MakeSkbReturn:               "kretprobe__ip6_make_skb",
-	probes.UDPRecvMsg:                     "kprobe__udp_recvmsg",
-	probes.UDPRecvMsgReturn:               "kretprobe__udp_recvmsg",
-	probes.UDPv6RecvMsg:                   "kprobe__udpv6_recvmsg",
-	probes.UDPv6RecvMsgReturn:             "kretprobe__udpv6_recvmsg",
-	probes.TCPRetransmit:                  "kprobe__tcp_retransmit_skb",
-	probes.InetCskAcceptReturn:            "kretprobe__inet_csk_accept",
-	probes.InetCskListenStop:              "kprobe__inet_csk_listen_stop",
-	probes.UDPDestroySock:                 "kprobe__udp_destroy_sock",
-	probes.UDPDestroySockReturn:           "kretprobe__udp_destroy_sock",
-	probes.InetBind:                       "kprobe__inet_bind",
-	probes.Inet6Bind:                      "kprobe__inet6_bind",
-	probes.InetBindRet:                    "kretprobe__inet_bind",
-	probes.Inet6BindRet:                   "kretprobe__inet6_bind",
-	probes.SockFDLookup:                   "kprobe__sockfd_lookup_light",
-	probes.SockFDLookupRet:                "kretprobe__sockfd_lookup_light",
-	probes.DoSendfile:                     "kprobe__do_sendfile",
-	probes.DoSendfileRet:                  "kretprobe__do_sendfile",
+	probes.NetDevQueue:                         "tracepoint__net__net_dev_queue",
+	probes.ProtocolClassifierEntrySocketFilter: "socket__classifier_entry",
+	probes.ProtocolClassifierSocketFilter:      "socket__classifier",
+	probes.TCPSendMsg:                          "kprobe__tcp_sendmsg",
+	probes.TCPSendMsgReturn:                    "kretprobe__tcp_sendmsg",
+	probes.TCPRecvMsg:                          "kprobe__tcp_recvmsg",
+	probes.TCPRecvMsgReturn:                    "kretprobe__tcp_recvmsg",
+	probes.TCPReadSock:                         "kprobe__tcp_read_sock",
+	probes.TCPReadSockReturn:                   "kretprobe__tcp_read_sock",
+	probes.TCPClose:                            "kprobe__tcp_close",
+	probes.TCPCloseReturn:                      "kretprobe__tcp_close",
+	probes.TCPConnect:                          "kprobe__tcp_connect",
+	probes.TCPFinishConnect:                    "kprobe__tcp_finish_connect",
+	probes.TCPSetState:                         "kprobe__tcp_set_state",
+	probes.IPMakeSkb:                           "kprobe__ip_make_skb",
+	probes.IPMakeSkbReturn:                     "kretprobe__ip_make_skb",
+	probes.IP6MakeSkb:                          "kprobe__ip6_make_skb",
+	probes.IP6MakeSkbReturn:                    "kretprobe__ip6_make_skb",
+	probes.UDPRecvMsg:                          "kprobe__udp_recvmsg",
+	probes.UDPRecvMsgReturn:                    "kretprobe__udp_recvmsg",
+	probes.UDPv6RecvMsg:                        "kprobe__udpv6_recvmsg",
+	probes.UDPv6RecvMsgReturn:                  "kretprobe__udpv6_recvmsg",
+	probes.TCPRetransmit:                       "kprobe__tcp_retransmit_skb",
+	probes.InetCskAcceptReturn:                 "kretprobe__inet_csk_accept",
+	probes.InetCskListenStop:                   "kprobe__inet_csk_listen_stop",
+	probes.UDPDestroySock:                      "kprobe__udp_destroy_sock",
+	probes.UDPDestroySockReturn:                "kretprobe__udp_destroy_sock",
+	probes.InetBind:                            "kprobe__inet_bind",
+	probes.Inet6Bind:                           "kprobe__inet6_bind",
+	probes.InetBindRet:                         "kretprobe__inet_bind",
+	probes.Inet6BindRet:                        "kretprobe__inet6_bind",
+	probes.SockFDLookup:                        "kprobe__sockfd_lookup_light",
+	probes.SockFDLookupRet:                     "kretprobe__sockfd_lookup_light",
+	probes.DoSendfile:                          "kprobe__do_sendfile",
+	probes.DoSendfileRet:                       "kretprobe__do_sendfile",
 }
 
 var altProbes = map[probes.ProbeName]string{
@@ -74,7 +74,7 @@ var altProbes = map[probes.ProbeName]string{
 	probes.UnderscoredSKBFreeDatagramLocked: "kprobe____skb_free_datagram_locked",
 }
 
-func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
@@ -96,6 +96,7 @@ func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeT
 			{Name: string(probes.MapErrTelemetryMap)},
 			{Name: string(probes.HelperErrTelemetryMap)},
 			{Name: string(probes.TcpRecvMsgArgsMap)},
+			{Name: string(probes.ClassificationProgsMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{

@@ -27,7 +27,9 @@ const (
 	// TCPv6ConnectReturn traces the return value for the v6 connect() system call
 	TCPv6ConnectReturn ProbeName = "kretprobe/tcp_v6_connect"
 
-	// ProtocolClassifierSocketFilter runs a classifier algorithm as a socket filer
+	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
+	ProtocolClassifierEntrySocketFilter ProbeName = "socket/classifier_entry"
+	// ProtocolClassifierSocketFilter runs a classifier algorithm as a socket filter
 	ProtocolClassifierSocketFilter ProbeName = "socket/classifier"
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
@@ -62,7 +64,7 @@ const (
 	// TCPRecvMsgPre410 traces the tcp_recvmsg() system call on kernels prior to 4.1.0. This is created because
 	// we need to load a different kprobe implementation
 	TCPRecvMsgPre410 ProbeName = "kprobe/tcp_recvmsg/pre_4_1_0"
-	// TCPRecvMsgreturn traces the return for the tcp_recvmsg() kernel function
+	// TCPRecvMsgReturn traces the return for the tcp_recvmsg() kernel function
 	TCPRecvMsgReturn ProbeName = "kretprobe/tcp_recvmsg"
 	// TCPReadSock traces the tcp_read_sock() kernel function
 	TCPReadSock ProbeName = "kprobe/tcp_read_sock"
@@ -137,7 +139,7 @@ const (
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
 
-	// ConntrackFillInfo is the probe for for dumping existing conntrack entries
+	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeName = "kprobe/ctnetlink_fill_info"
 
 	// SockFDLookup is the kprobe used for mapping socket FDs to kernel sock structs
@@ -182,6 +184,7 @@ const (
 	ProtocolClassificationBufMap      BPFMapName = "classification_buf"
 	ConnectionProtocolMap             BPFMapName = "connection_protocol"
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
+	ClassificationProgsMap            BPFMapName = "classification_progs"
 )
 
 // SectionName returns the SectionName for the given BPF map
