@@ -569,6 +569,44 @@ func (ccc *CCCache) listProcesses(wg *sync.WaitGroup, processesMap *map[string][
 	}()
 }
 
+func (ccc *CCCache) listIsolationSegments(wg *sync.WaitGroup, segmentBySpaceGUID *map[string]*cfclient.IsolationSegment, segmentByOrgGUID *map[string]*cfclient.IsolationSegment) {
+	// List isolation segments
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		segments, err := ccc.ccAPIClient.ListIsolationSegmentsByQuery(query)
+		if err != nil {
+			log.Errorf("Failed listing isolation segments from cloud controller: %v", err)
+			return
+		}
+		*segmentBySpaceGUID = make(map[string]*cfclient.IsolationSegment)
+		*segmentByOrgGUID = make(map[string]*cfclient.IsolationSegment)
+		for _, segment := range segments {
+			s := segment
+			spaceGUID, err := ccc.ccAPIClient.GetIsolationSegmentSpaceGUID(segment.GUID)
+			if err == nil {
+				if spaceGUID != "" {
+					(*segmentBySpaceGUID)[spaceGUID] = &s
+				}
+			} else {
+				log.Errorf("Failed listing isolation segment space for segment %s: %v", segment.Name, err)
+			}
+
+			orgGUID, err := ccc.ccAPIClient.GetIsolationSegmentOrganizationGUID(segment.GUID)
+			if err == nil {
+				if orgGUID != "" {
+					(*segmentByOrgGUID)[orgGUID] = &s
+				}
+			} else {
+				log.Errorf("Failed listing isolation segment organization for segment %s: %v", segment.Name, err)
+			}
+
+		}
+	}()
+}
+
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	var wg sync.WaitGroup
@@ -594,46 +632,12 @@ func (ccc *CCCache) readData() {
 	var processesByAppGUID map[string][]*cfclient.Process
 	ccc.listProcesses(&wg, &processesByAppGUID)
 
+	// List isolation segments
 	var segmentBySpaceGUID map[string]*cfclient.IsolationSegment
 	var segmentByOrgGUID map[string]*cfclient.IsolationSegment
 
 	if ccc.segmentsTags {
-		// List isolation segments
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-			query := url.Values{}
-			query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-			segments, err := ccc.ccAPIClient.ListIsolationSegmentsByQuery(query)
-			if err != nil {
-				log.Errorf("Failed listing isolation segments from cloud controller: %v", err)
-				return
-			}
-			segmentBySpaceGUID = make(map[string]*cfclient.IsolationSegment)
-			segmentByOrgGUID = make(map[string]*cfclient.IsolationSegment)
-			for _, segment := range segments {
-				s := segment
-				spaceGUID, err := ccc.ccAPIClient.GetIsolationSegmentSpaceGUID(segment.GUID)
-				if err == nil {
-					if spaceGUID != "" {
-						segmentBySpaceGUID[spaceGUID] = &s
-					}
-				} else {
-					log.Errorf("Failed listing isolation segment space for segment %s: %v", segment.Name, err)
-				}
-
-				orgGUID, err := ccc.ccAPIClient.GetIsolationSegmentOrganizationGUID(segment.GUID)
-				if err == nil {
-					if orgGUID != "" {
-						segmentByOrgGUID[orgGUID] = &s
-					}
-				} else {
-					log.Errorf("Failed listing isolation segment organization for segment %s: %v", segment.Name, err)
-				}
-
-			}
-		}()
+		ccc.listIsolationSegments(&wg, &segmentBySpaceGUID, &segmentByOrgGUID)
 	}
 
 	// wait for resources acquisition
