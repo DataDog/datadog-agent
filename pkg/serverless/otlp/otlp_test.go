@@ -44,6 +44,11 @@ func TestMain(m *testing.M) {
 func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert := assert.New(t)
 
+	// ensure internal otlp trace endpoint is always started on new port
+	tracePort, err := testutil.FindTCPPort()
+	assert.Nil(err)
+	t.Setenv("DD_OTLP_CONFIG_TRACES_INTERNAL_PORT", strconv.Itoa(tracePort))
+
 	grpcEndpoint, httpEndpoint := "localhost:4317", "localhost:4318"
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT", httpEndpoint)
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", grpcEndpoint)
@@ -79,7 +84,7 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 		otlptracehttp.WithEndpoint(httpEndpoint),
 		otlptracehttp.WithInsecure(),
 	)
-	err := testServerlessOTLPAgentReceivesTraces(httpClient, traceChan)
+	err = testServerlessOTLPAgentReceivesTraces(httpClient, traceChan)
 	assert.Nil(err)
 
 	// test grpc traces
