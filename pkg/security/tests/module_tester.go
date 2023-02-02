@@ -718,6 +718,12 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 	}
 
 	sysprobeConfigName, err := func() (string, error) {
+		ddConfig, err := os.Create(path.Join(testDir, "datadog.yaml"))
+		if err != nil {
+			return "", err
+		}
+		defer ddConfig.Close()
+
 		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
 		if err != nil {
 			return "", err
