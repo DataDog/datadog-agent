@@ -246,7 +246,7 @@ func (ms *MetricSender) Gauge(metric string, value float64, tags []string) {
 func (ms *MetricSender) Distribution(metric string, value float64, tags []string) {
 	err := ms.statsdClient.Distribution(metric, value, tags, 1.0)
 	if err != nil {
-		log.Debugf("error submitting distribution metric (metric=%s, value=%d, tags=%s): %s", metric, value, tags, err)
+		log.Debugf("error submitting distribution metric (metric=%s, value=%.2f, tags=%s): %s", metric, value, tags, err)
 	}
 }
 
