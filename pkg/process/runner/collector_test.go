@@ -15,10 +15,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	processmocks "github.com/DataDog/datadog-agent/cmd/process-agent/mocks"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
+	processmocks "github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
@@ -161,7 +161,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
 	assert.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
-	c.submitter = submitter
+	c.Submitter = submitter
 
 	standardOption := &checks.RunOptions{
 		RunStandard: true,
