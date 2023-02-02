@@ -23,7 +23,6 @@ func RunJavaVersion(t *testing.T, version string, class string) {
 	dir, _ := testutil.CurDir()
 	env := []string{
 		"IMAGE_VERSION=" + version,
-		"TESTDATA_DIR=" + dir + "/../testdata",
 		"ENTRYCLASS=" + class,
 	}
 	protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, regexp.MustCompile("loading TestAgentLoaded.agentmain.*"))
