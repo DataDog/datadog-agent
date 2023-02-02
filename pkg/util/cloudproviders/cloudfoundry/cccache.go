@@ -275,76 +275,6 @@ func (ccc *CCCache) GetCFApplications() ([]*CFApplication, error) {
 	return cfapps, nil
 }
 
-func (ccc *CCCache) fetchProcessesByAppGUID(appGUID string) ([]*cfclient.Process, error) {
-	query := url.Values{}
-	query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-
-	// fetch processes from the CAPI
-	processes, err := ccc.ccAPIClient.ListProcessByAppGUID(query, appGUID)
-	if err != nil {
-		return nil, err
-	}
-
-	// convert to array of pointers
-	res := make([]*cfclient.Process, 0, len(processes))
-	for _, process := range processes {
-		res = append(res, &process)
-	}
-	return res, nil
-}
-
-func (ccc *CCCache) fetchCFApplicationByGUID(guid string) (*CFApplication, error) {
-	// fetch app from the CAPI
-	app, err := ccc.GetApp(guid)
-	if err != nil {
-		return nil, err
-	}
-
-	// fill app data
-	cfapp := CFApplication{}
-	cfapp.extractDataFromV3App(*app)
-
-	// extract GUIDs
-	appGUID := cfapp.GUID
-	spaceGUID := cfapp.SpaceGUID
-	orgGUID := cfapp.OrgGUID
-
-	// fill processes data
-	processes, err := ccc.GetProcesses(appGUID)
-	if err != nil {
-		log.Info(err)
-	} else {
-		cfapp.extractDataFromV3Process(processes)
-	}
-
-	// fill space then org data. Order matters for labels and annotations.
-	space, err := ccc.GetSpace(spaceGUID)
-	if err != nil {
-		log.Info(err)
-	} else {
-		cfapp.extractDataFromV3Space(space)
-	}
-
-	// fill org data
-	org, err := ccc.GetOrg(orgGUID)
-	if err != nil {
-		log.Info(err)
-	} else {
-		cfapp.extractDataFromV3Org(org)
-	}
-
-	// fill sidecars data
-	sidecars, err := ccc.GetSidecars(appGUID)
-	if err != nil {
-		log.Info(err)
-	} else {
-		for _, sidecar := range sidecars {
-			cfapp.Sidecars = append(cfapp.Sidecars, *sidecar)
-		}
-	}
-	return &cfapp, nil
-}
-
 // GetProcesses returns all processes for the given app guid in the cache
 func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 	processes, err := getResource(ccc, "Processes", appGUID, ccc.processesByAppGUID, ccc.fetchProcessesByAppGUID)
@@ -424,18 +354,74 @@ func (ccc *CCCache) GetIsolationSegmentForOrg(guid string) (*cfclient.IsolationS
 	return segment, nil
 }
 
-func (ccc *CCCache) start() {
-	ccc.readData()
-	dataRefreshTicker := time.NewTicker(ccc.pollInterval)
-	for {
-		select {
-		case <-dataRefreshTicker.C:
-			ccc.readData()
-		case <-ccc.cancelContext.Done():
-			dataRefreshTicker.Stop()
-			return
+func (ccc *CCCache) fetchProcessesByAppGUID(appGUID string) ([]*cfclient.Process, error) {
+	query := url.Values{}
+	query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+
+	// fetch processes from the CAPI
+	processes, err := ccc.ccAPIClient.ListProcessByAppGUID(query, appGUID)
+	if err != nil {
+		return nil, err
+	}
+
+	// convert to array of pointers
+	res := make([]*cfclient.Process, 0, len(processes))
+	for _, process := range processes {
+		res = append(res, &process)
+	}
+	return res, nil
+}
+
+func (ccc *CCCache) fetchCFApplicationByGUID(guid string) (*CFApplication, error) {
+	// fetch app from the CAPI
+	app, err := ccc.GetApp(guid)
+	if err != nil {
+		return nil, err
+	}
+
+	// fill app data
+	cfapp := CFApplication{}
+	cfapp.extractDataFromV3App(*app)
+
+	// extract GUIDs
+	appGUID := cfapp.GUID
+	spaceGUID := cfapp.SpaceGUID
+	orgGUID := cfapp.OrgGUID
+
+	// fill processes data
+	processes, err := ccc.GetProcesses(appGUID)
+	if err != nil {
+		log.Info(err)
+	} else {
+		cfapp.extractDataFromV3Process(processes)
+	}
+
+	// fill space then org data. Order matters for labels and annotations.
+	space, err := ccc.GetSpace(spaceGUID)
+	if err != nil {
+		log.Info(err)
+	} else {
+		cfapp.extractDataFromV3Space(space)
+	}
+
+	// fill org data
+	org, err := ccc.GetOrg(orgGUID)
+	if err != nil {
+		log.Info(err)
+	} else {
+		cfapp.extractDataFromV3Org(org)
+	}
+
+	// fill sidecars data
+	sidecars, err := ccc.GetSidecars(appGUID)
+	if err != nil {
+		log.Info(err)
+	} else {
+		for _, sidecar := range sidecars {
+			cfapp.Sidecars = append(cfapp.Sidecars, *sidecar)
 		}
 	}
+	return &cfapp, nil
 }
 
 func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cfclient.V3App, sidecarsMap *map[string][]*CFSidecar) {
@@ -647,6 +633,20 @@ func (ccc *CCCache) prepareCFApplications(appsMap map[string]*cfclient.V3App, pr
 		cfApplicationsByGUID[appGUID] = &updatedApp
 	}
 	return cfApplicationsByGUID
+}
+
+func (ccc *CCCache) start() {
+	ccc.readData()
+	dataRefreshTicker := time.NewTicker(ccc.pollInterval)
+	for {
+		select {
+		case <-dataRefreshTicker.C:
+			ccc.readData()
+		case <-ccc.cancelContext.Done():
+			dataRefreshTicker.Stop()
+			return
+		}
+	}
 }
 
 func (ccc *CCCache) readData() {
