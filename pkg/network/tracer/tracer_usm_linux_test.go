@@ -536,6 +536,10 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		}
 		defer tr.Stop()
 
+		if tr.ebpfTracer.Type() == connection.EBPFFentry {
+			t.Skip("protocol classification not supported for fentry tracer")
+		}
+
 		initTracerState(t, tr)
 		require.NoError(t, err)
 		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {

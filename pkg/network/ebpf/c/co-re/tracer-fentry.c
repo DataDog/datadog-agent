@@ -15,7 +15,6 @@
 #include "ipv6.h"
 #include "port.h"
 #include "sock.h"
-#include "skb.h"
 #include "tcp-recv.h"
 
 #define MSG_PEEK 2
