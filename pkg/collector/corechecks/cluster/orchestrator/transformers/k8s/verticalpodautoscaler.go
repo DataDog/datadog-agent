@@ -122,10 +122,10 @@ func extractVerticalPodAutoscalerStatus(s *v1.VerticalPodAutoscalerStatus) *mode
 
 // extractContainerRecommendations converts Kuberentes Recommendations to our protobuf model
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L245
-func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*model.ContainerRecommendations {
-	recs := []*model.ContainerRecommendations{}
+func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*model.ContainerRecommendation {
+	recs := []*model.ContainerRecommendation{}
 	for _, r := range cr {
-		rec := model.ContainerRecommendations{
+		rec := model.ContainerRecommendation{
 			ContainerName:  r.ContainerName,
 			Target:         extractResourceList(&r.Target),
 			LowerBound:     extractResourceList(&r.LowerBound),
@@ -139,10 +139,10 @@ func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*m
 
 // extractContainerConditions converts Kuberentes Conditions to our protobuf model
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L295
-func extractContainerConditions(cr []v1.VerticalPodAutoscalerCondition) []*model.ContainerConditions {
-	con := []*model.ContainerConditions{}
+func extractContainerConditions(cr []v1.VerticalPodAutoscalerCondition) []*model.VPACondition {
+	con := []*model.VPACondition{}
 	for _, r := range cr {
-		rec := model.ContainerConditions{
+		rec := model.VPACondition{
 			ConditionType:      string(r.Type),
 			ConditionStatus:    string(r.Status),
 			LastTransitionTime: r.LastTransitionTime.Unix(),

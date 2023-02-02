@@ -102,9 +102,11 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 					},
 					Conditions: []v1.VerticalPodAutoscalerCondition{
 						{
-							Type:               v1.RecommendationProvided,
+							Type:               v1.NoPodsMatched,
 							Status:             corev1.ConditionTrue,
 							LastTransitionTime: exampleTime,
+							Reason:             "NoPodsMatched",
+							Message:            "No pods match this VPA object",
 						},
 					},
 				},
@@ -147,7 +149,7 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 				},
 				Status: &model.VerticalPodAutoscalerStatus{
 					LastRecommendedDate: exampleTime.Unix(),
-					Recommendations: []*model.ContainerRecommendations{
+					Recommendations: []*model.ContainerRecommendation{
 						{
 							ContainerName: "TestContainer",
 							Target: &model.ResourceList{
@@ -170,6 +172,15 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 									"cpu": float64(4),
 								},
 							},
+						},
+					},
+					Conditions: []*model.VPACondition{
+						{
+							ConditionType:      "NoPodsMatched",
+							ConditionStatus:    "True",
+							LastTransitionTime: exampleTime.Unix(),
+							Reason:             "NoPodsMatched",
+							Message:            "No pods match this VPA object",
 						},
 					},
 				},
