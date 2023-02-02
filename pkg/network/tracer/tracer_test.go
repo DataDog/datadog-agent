@@ -34,6 +34,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -51,7 +52,7 @@ var (
 // Some tests try to detect if they're running on Fargate. We'll get a panic
 // when checking that if the auto-detected features have not been initialized.
 func init() {
-	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
+	coreConfig.DetectFeatures()
 }
 
 func TestMain(m *testing.M) {
@@ -488,6 +489,8 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	err := server.Run(doneChan, clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(func() { close(doneChan) })
+
+	initTracerState(t, tr)
 
 	// Connect to server
 	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
@@ -1213,7 +1216,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
-	conn, err := net.ListenUDP("udp", nil)
+	conn, err := net.ListenUDP("udp4", nil)
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")
@@ -1438,6 +1441,10 @@ func testConfig() *config.Config {
 	cfg := config.New()
 	if os.Getenv("BPF_DEBUG") != "" {
 		cfg.BPFDebug = true
+	}
+	if ddconfig.IsECSFargate() {
+		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
 	}
 	return cfg
 }

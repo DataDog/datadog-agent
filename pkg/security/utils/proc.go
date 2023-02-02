@@ -97,27 +97,27 @@ func (path *NetNSPath) GetProcessNetworkNamespace() (uint32, error) {
 
 // CgroupTaskPath returns the path to the cgroup file of a pid in /proc
 func CgroupTaskPath(tgid, pid uint32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/task/%d/cgroup", tgid, pid))
+	return util.HostProc(strconv.FormatUint(uint64(tgid), 10), "task", strconv.FormatUint(uint64(pid), 10), "cgroup")
 }
 
 // ProcExePath returns the path to the exe file of a pid in /proc
 func ProcExePath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
+	return util.HostProc(strconv.FormatUint(uint64(pid), 10), "exe")
 }
 
 // StatusPath returns the path to the status file of a pid in /proc
 func StatusPath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/status", pid))
+	return util.HostProc(strconv.FormatInt(int64(pid), 10), "status")
 }
 
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
-	return filepath.Join(util.HostProc(), "modules")
+	return util.HostProc("modules")
 }
 
 // RootPath returns the path to the root folder of a pid in /proc
 func RootPath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
+	return util.HostProc(strconv.FormatInt(int64(pid), 10), "root")
 }
 
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process

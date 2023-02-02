@@ -1,7 +1,7 @@
 #ifndef __GO_TLS_GOID_H
 #define __GO_TLS_GOID_H
 
-#include <linux/kconfig.h>
+#include "kconfig.h"
 #include <linux/sched.h>
 
 #include "bpf_helpers.h"

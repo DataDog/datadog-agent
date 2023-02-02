@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -1346,6 +1347,11 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 func TestSendfileRegression(t *testing.T) {
 	// Start tracer
 	tr := setupTracer(t, testConfig())
+
+	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+		t.Skip("sendfile not yet supported on fentry tracer/Fargate")
+	}
+
 	// Create temporary file
 	tmpfile, err := os.CreateTemp("", "sendfile_source")
 	require.NoError(t, err)
@@ -1543,6 +1549,11 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 	cfg.AttachKprobesWithKprobeEventsABI = true
 
 	_ = setupTracer(t, cfg)
+
+	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+		t.Skip("skipped on Fargate")
+	}
+
 	cmd := []string{"curl", "-k", "-o/dev/null", "facebook.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
 

@@ -129,7 +129,8 @@ const (
 
 // Process describes a process resource
 type Process struct {
-	Name string `yaml:"name"`
+	Name string   `yaml:"name"`
+	Envs []string `yaml:"envs,omitempty"`
 }
 
 // Fields & functions available for KubernetesResource
