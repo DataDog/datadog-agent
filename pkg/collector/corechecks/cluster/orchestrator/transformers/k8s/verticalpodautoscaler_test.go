@@ -102,6 +102,11 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 					},
 					Conditions: []v1.VerticalPodAutoscalerCondition{
 						{
+							Type:               v1.RecommendationProvided,
+							Status:             corev1.ConditionTrue,
+							LastTransitionTime: exampleTime,
+						},
+						{
 							Type:               v1.NoPodsMatched,
 							Status:             corev1.ConditionTrue,
 							LastTransitionTime: exampleTime,
@@ -175,6 +180,11 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 						},
 					},
 					Conditions: []*model.VPACondition{
+						{
+							ConditionType:      "RecommendationProvided",
+							ConditionStatus:    "True",
+							LastTransitionTime: exampleTime.Unix(),
+						},
 						{
 							ConditionType:      "NoPodsMatched",
 							ConditionStatus:    "True",
