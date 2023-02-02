@@ -14,6 +14,7 @@
 #include "ip.h"
 #include "ipv6.h"
 #include "port.h"
+#include "skb.h"
 #include "sock.h"
 #include "tcp-recv.h"
 

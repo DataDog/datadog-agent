@@ -34,7 +34,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -1531,10 +1530,6 @@ func testConfig() *config.Config {
 	cfg := config.New()
 	if os.Getenv("BPF_DEBUG") != "" {
 		cfg.BPFDebug = true
-	}
-	if ddconfig.IsECSFargate() {
-		// protocol classification not yet supported on fargate
-		cfg.ProtocolClassificationEnabled = false
 	}
 	return cfg
 }
