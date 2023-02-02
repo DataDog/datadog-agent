@@ -2,9 +2,10 @@ package runner
 
 import (
 	"fmt"
+	"net/url"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"net/url"
 )
 
 func GetAPIEndpoints() (eps []apicfg.Endpoint, err error) {

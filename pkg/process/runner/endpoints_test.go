@@ -1,11 +1,12 @@
 package runner
 
 import (
+	"net/url"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/stretchr/testify/assert"
-	"net/url"
-	"testing"
 )
 
 func mkurl(rawurl string) *url.URL {

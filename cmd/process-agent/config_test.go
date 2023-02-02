@@ -6,7 +6,6 @@
 package main
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/runner"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +13,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
@@ -236,7 +236,7 @@ func TestDisableRealTime(t *testing.T) {
 
 			c, err := runner.NewCollector(nil, &checks.HostInfo{}, enabledChecks)
 			assert.NoError(err)
-			assert.Equal(!tc.disableRealtime, c.runRealTime)
+			assert.Equal(!tc.disableRealtime, c.RunRealTime())
 		})
 	}
 }

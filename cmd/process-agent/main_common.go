@@ -8,8 +8,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -27,7 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
