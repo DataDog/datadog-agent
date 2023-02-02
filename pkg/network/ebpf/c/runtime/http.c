@@ -59,7 +59,7 @@ int socket__http_filter(struct __sk_buff *skb) {
     }
     normalize_tuple(&http.tup);
 
-    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
+    read_into_buffer_skb((char *)http.request_fragment, skb, skb_info.data_off);
     http_process(&http, &skb_info, NO_TAGS);
     return 0;
 }
