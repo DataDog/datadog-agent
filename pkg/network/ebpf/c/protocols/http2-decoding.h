@@ -85,8 +85,7 @@ static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iteratio
 
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
     if (index < MAX_INTERESTING_STATIC_TABLE_INDEX) {
-        static_table_entry_t* static_value = bpf_map_lookup_elem(&http2_static_table, &index);
-        if (static_value == NULL) {
+        if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
             return 0;
         }
         headers_to_process->index = index;
@@ -103,8 +102,7 @@ static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iteratio
     http2_ctx->dynamic_index.index = global_counter - (index - MAX_STATIC_TABLE_INDEX);
 
     log_debug("[http2] global counter %llu; index %lu; final %lu", global_counter, index, http2_ctx->dynamic_index.index);
-    dynamic_table_entry_t *dynamic_value_new = bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index);
-    if (dynamic_value_new == NULL) {
+    if (bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index) == NULL) {
         return 0;
     }
     log_debug("[http2] found dynamic value at %d for stream %lu", http2_ctx->dynamic_index.index, stream_id);
@@ -133,8 +131,7 @@ static __always_inline __u8 parse_field_literal(http2_iterations_key_t *iteratio
 
     if (index < MAX_STATIC_TABLE_INDEX) {
         // TODO, if index != 0, that's weird.
-        static_table_entry_t *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
-        if (static_value == NULL) {
+        if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
             str_len = 0;
             if (!read_var_int(heap_buffer, 6, &str_len)) {
                 return 0;
