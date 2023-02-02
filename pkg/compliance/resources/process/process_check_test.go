@@ -121,7 +121,7 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -151,8 +151,8 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc2", []string{"arg1", "--path=foo"}),
-				43: processutils.NewCheckedFakeProcess(43, "proc3", []string{"arg1", "--path=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc2", []string{"arg1", "--path=foo"}, nil),
+				43: processutils.NewCheckedFakeProcess(43, "proc3", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReport: &compliance.Report{
 				Passed:    false,
@@ -176,7 +176,7 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--paths=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--paths=foo"}, nil),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -216,7 +216,7 @@ func TestProcessCheckCache(t *testing.T) {
 		},
 		module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 		processes: processutils.Processes{
-			42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, nil),
 		},
 		expectReport: &compliance.Report{
 			Passed: true,

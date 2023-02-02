@@ -53,6 +53,10 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 		exe := mp.Exe()
 		cmdLine := mp.CmdlineSlice()
 		flagValues := processutils.ParseProcessCmdLine(cmdLine)
+		envs, err := mp.EnvsMap(res.Process.Envs)
+		if err != nil {
+			return nil, err
+		}
 
 		instance := eval.NewInstance(
 			eval.VarMap{
@@ -71,6 +75,7 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 				"cmdLine": cmdLine,
 				"flags":   flagValues,
 				"pid":     mp.Pid(),
+				"envs":    envs,
 			},
 		)
 		instances = append(instances, resources.NewResolvedInstance(instance, strconv.Itoa(int(mp.Pid())), "process"))

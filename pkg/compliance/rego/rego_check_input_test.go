@@ -110,6 +110,7 @@ func TestRegoInputCheck(t *testing.T) {
 					ResourceCommon: compliance.ResourceCommon{
 						Process: &compliance.Process{
 							Name: "proc1",
+							Envs: []string{"FOO"},
 						},
 					},
 					TagName: "processes",
@@ -117,7 +118,7 @@ func TestRegoInputCheck(t *testing.T) {
 				},
 			},
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, []string{"FOO=foo", "BAR=bar"}),
 			},
 			expectedInput: `
 				{
@@ -127,7 +128,8 @@ func TestRegoInputCheck(t *testing.T) {
 						"input": {
 							"processes": {
 								"process": {
-									"name": "proc1"
+									"name": "proc1",
+									"envs": ["FOO"]
 								},
 								"tag": "processes",
 								"type": "array"
@@ -140,6 +142,9 @@ func TestRegoInputCheck(t *testing.T) {
 								"arg1",
 								"--path=foo"
 							],
+							"envs": {
+								"FOO": "foo"
+							},
 							"exe": "",
 							"flags": {
 								"--path": "foo",

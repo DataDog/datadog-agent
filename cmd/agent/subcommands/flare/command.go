@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
@@ -66,15 +67,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.WithSecurityAgentConfigFilePaths([]string{
 					path.Join(common.DefaultConfPath, "security-agent.yaml"),
 				}),
-				config.WithConfigLoadSecurityAgent(true),
-				config.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
-				config.WithConfigLoadSysProbe(true))
+				config.WithConfigLoadSecurityAgent(true))
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config,
-					LogParams:    log.LogForOneShot("CORE", "off", false),
+					ConfigParams:         config,
+					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					LogParams:            log.LogForOneShot("CORE", "off", false),
 				}),
 				core.Bundle,
 			)
@@ -171,7 +171,7 @@ func serviceProfileCollector(service string, portConfig string, seconds int) age
 	}
 }
 
-func makeFlare(flare flare.Component, log log.Component, config config.Component, cliParams *cliParams) error {
+func makeFlare(flare flare.Component, log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	var (
 		profile pkgflare.ProfileData
 		err     error

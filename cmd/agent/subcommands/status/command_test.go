@@ -26,7 +26,6 @@ func TestStatusCommand(t *testing.T) {
 			require.Equal(t, []string{}, cliParams.args)
 			require.Equal(t, true, cliParams.jsonStatus)
 			require.Equal(t, false, coreParams.ConfigLoadSecrets())
-			require.Equal(t, true, coreParams.ConfigLoadSysProbe())
 		})
 }
 
@@ -40,6 +39,5 @@ func TestComponentStatusCommand(t *testing.T) {
 			require.Equal(t, []string{"abc"}, cliParams.args)
 			require.Equal(t, false, cliParams.jsonStatus)
 			require.Equal(t, false, coreParams.ConfigLoadSecrets())
-			require.Equal(t, false, coreParams.ConfigLoadSysProbe())
 		})
 }

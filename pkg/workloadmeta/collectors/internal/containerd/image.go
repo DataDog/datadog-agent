@@ -184,13 +184,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	}
 
 	imageName := img.Name()
-	registry := ""
-	shortName := ""
-	if parsedImg, err := workloadmeta.NewContainerImage(imageName); err == nil {
-		registry = parsedImg.Registry
-		shortName = parsedImg.ShortName
-	}
-
 	imageID := manifest.Config.Digest.String()
 
 	existingBOM := bom
@@ -211,7 +204,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	if err == nil {
 		if strings.Contains(imageName, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
 			imageName = existingImg.Name
-			shortName = existingImg.ShortName
 		}
 
 		if existingBOM == nil && existingImg.SBOM != nil {
@@ -262,8 +254,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			Namespace: namespace,
 			Labels:    img.Labels(),
 		},
-		Registry:     registry,
-		ShortName:    shortName,
 		RepoTags:     c.repoTags[imageID],
 		RepoDigests:  repoDigests,
 		MediaType:    manifest.MediaType,

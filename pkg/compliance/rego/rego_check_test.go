@@ -132,7 +132,7 @@ func TestRegoCheck(t *testing.T) {
 				},
 			},
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 		},
 		{
@@ -176,7 +176,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: compliance.Reports{
 				{
@@ -230,7 +230,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: compliance.Reports{
 				{
@@ -275,7 +275,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: compliance.Reports{
 				{
@@ -318,7 +318,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: nil,
 		},

@@ -51,8 +51,9 @@ type StructField struct {
 	Weight              int64
 	CommentText         string
 	OpOverrides         string
-	Constants           string
 	Check               string
+	Alias               string
+	AliasPrefix         string
 }
 
 // GetEvaluatorType returns the evaluator type name
@@ -126,4 +127,18 @@ func (sf *StructField) GetArrayPrefix() string {
 		return "[]"
 	}
 	return ""
+}
+
+// GetCacheName returns the cache name
+func (sf *StructField) GetCacheName() string {
+	switch sf.ReturnType {
+	case "string":
+		return "StringCache"
+	case "int":
+		return "IntCache"
+	case "bool":
+		return "BoolCache"
+	default:
+		panic("no cache name defined for this return type")
+	}
 }
