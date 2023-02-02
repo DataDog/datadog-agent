@@ -73,7 +73,7 @@ require (
 	github.com/Microsoft/hcsshim v0.9.6
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/participle v0.7.1
-	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+	github.com/alecthomas/repr v0.2.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/aquasecurity/trivy v0.34.0
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
