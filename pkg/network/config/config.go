@@ -99,6 +99,9 @@ type Config struct {
 	// Currently Windows only
 	HTTPMaxRequestFragment int64
 
+	// JavaAgentArgs arguments pass through injected USM agent
+	JavaAgentArgs string
+
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
 	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
@@ -220,8 +223,7 @@ func join(pieces ...string) string {
 
 // New creates a config for the network tracer
 func New() *Config {
-	cfg := ddconfig.Datadog
-	ddconfig.InitSystemProbeConfig(cfg)
+	cfg := ddconfig.SystemProbe
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),
@@ -291,6 +293,7 @@ func New() *Config {
 
 		// Service Monitoring
 		EnableJavaTLSSupport: cfg.GetBool(join(smNS, "enable_java_tls_support")),
+		JavaAgentArgs:        cfg.GetString(join(smNS, "java_agent_args")),
 		EnableGoTLSSupport:   cfg.GetBool(join(smNS, "enable_go_tls_support")),
 	}
 

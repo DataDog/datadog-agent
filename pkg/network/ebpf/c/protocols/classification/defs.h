@@ -1,7 +1,7 @@
 #ifndef __PROTOCOL_CLASSIFICATION_DEFS_H
 #define __PROTOCOL_CLASSIFICATION_DEFS_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 #include "protocols/amqp/defs.h"
 #include "protocols/http/classification-defs.h"

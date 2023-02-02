@@ -17,13 +17,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func newConfig() {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(config.Datadog)
+func newConfig(t *testing.T) {
+	originalConfig := config.SystemProbe
+	t.Cleanup(func() {
+		config.SystemProbe = originalConfig
+	})
+	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	config.InitSystemProbeConfig(config.SystemProbe)
 }
 
 func TestRuntimeSecurityLoad(t *testing.T) {
-	newConfig()
+	newConfig(t)
 
 	for i, tc := range []struct {
 		cws, fim, process_events, network_events bool
