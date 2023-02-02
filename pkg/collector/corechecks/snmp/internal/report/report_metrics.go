@@ -9,7 +9,6 @@ import (
 	"fmt"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -43,11 +42,9 @@ type MetricSample struct {
 func NewMetricSender(sender aggregator.Sender, hostname string) *MetricSender {
 
 	// Create a statsd Client
-	statsdAddr := os.Getenv("STATSD_URL")
 	statsdHost := pkgconfig.GetBindHost()
 	statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
-
-	statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
 	log.Infof("Statsd Addr: %s", statsdAddr)
 
 	statsdClient, err := ddgostatsd.New(statsdAddr)
