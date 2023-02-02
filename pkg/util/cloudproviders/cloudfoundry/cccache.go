@@ -541,6 +541,34 @@ func (ccc *CCCache) listOrgQuotas(wg *sync.WaitGroup, orgQuotasMap *map[string]*
 	}()
 }
 
+func (ccc *CCCache) listProcesses(wg *sync.WaitGroup, processesMap *map[string][]*cfclient.Process) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		processes, err := ccc.ccAPIClient.ListAllProcessesByQuery(query)
+		if err != nil {
+			log.Errorf("Failed listing processes from cloud controller: %v", err)
+			return
+		}
+		// Group all processes per app
+		*processesMap = make(map[string][]*cfclient.Process)
+		for _, process := range processes {
+			v3Process := process
+			parts := strings.Split(v3Process.Links.App.Href, "/")
+			appGUID := parts[len(parts)-1]
+			appProcesses, exists := (*processesMap)[appGUID]
+			if exists {
+				appProcesses = append(appProcesses, &v3Process)
+			} else {
+				appProcesses = []*cfclient.Process{&v3Process}
+			}
+			(*processesMap)[appGUID] = appProcesses
+		}
+	}()
+}
+
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	var wg sync.WaitGroup
@@ -563,32 +591,8 @@ func (ccc *CCCache) readData() {
 	ccc.listOrgQuotas(&wg, &orgQuotasByGUID)
 
 	// List processes
-	wg.Add(1)
 	var processesByAppGUID map[string][]*cfclient.Process
-	go func() {
-		defer wg.Done()
-		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-		processes, err := ccc.ccAPIClient.ListAllProcessesByQuery(query)
-		if err != nil {
-			log.Errorf("Failed listing processes from cloud controller: %v", err)
-			return
-		}
-		// Group all processes per app
-		processesByAppGUID = make(map[string][]*cfclient.Process)
-		for _, process := range processes {
-			v3Process := process
-			parts := strings.Split(v3Process.Links.App.Href, "/")
-			appGUID := parts[len(parts)-1]
-			appProcesses, exists := processesByAppGUID[appGUID]
-			if exists {
-				appProcesses = append(appProcesses, &v3Process)
-			} else {
-				appProcesses = []*cfclient.Process{&v3Process}
-			}
-			processesByAppGUID[appGUID] = appProcesses
-		}
-	}()
+	ccc.listProcesses(&wg, &processesByAppGUID)
 
 	var segmentBySpaceGUID map[string]*cfclient.IsolationSegment
 	var segmentByOrgGUID map[string]*cfclient.IsolationSegment
