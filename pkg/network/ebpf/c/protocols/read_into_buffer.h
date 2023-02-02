@@ -12,9 +12,9 @@
 
 // The method is used to read the data buffer from the TCP segment data up to `total_size` bytes.
 #define READ_INTO_BUFFER(name, total_size, blk_size)                                                                \
-    static __always_inline void read_into_buffer_##name(char *buffer, struct __sk_buff *skb, skb_info_t *info) {    \
-        u64 offset = (u64)info->data_off;                                                                           \
-        const u32 len = (total_size) < (skb->len - info->data_off) ? info->data_off + (total_size) : skb->len;      \
+    static __always_inline void read_into_buffer_##name(char *buffer, struct __sk_buff *skb, u32 initial_offset) {  \
+        u64 offset = (u64)initial_offset;                                                                           \
+        const u32 len = (total_size) < (skb->len - initial_offset) ? initial_offset + (total_size) : skb->len;      \
         unsigned i = 0;                                                                                             \
                                                                                                                     \
     _Pragma( STRINGIFY(unroll(total_size/blk_size)) )                                                               \

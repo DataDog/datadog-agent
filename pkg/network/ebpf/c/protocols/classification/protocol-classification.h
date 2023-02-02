@@ -102,7 +102,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 
