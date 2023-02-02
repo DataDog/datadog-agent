@@ -7,6 +7,7 @@ package testutil
 
 import (
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -52,9 +53,5 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 }
 
 func (ps *PatternScanner) PrintLogs(t *testing.T) {
-	logs := ""
-	for _, str := range ps.buffers {
-		logs += str
-	}
-	t.Log(logs)
+	t.Log(strings.Join(ps.buffers, ""))
 }
