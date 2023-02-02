@@ -1362,6 +1362,10 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
 
+    # Java tests have dynamic images in docker-compose.yml
+    for image in ["openjdk:21-oraclelinux8"]:
+        images.add(image)
+
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
