@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package runner
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/process-agent"
 	"strconv"
 	"testing"
 	"time"
@@ -58,7 +59,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
 
-			c, err := NewSubmitter(testHostName, nil)
+			c, err := NewSubmitter(main.testHostName, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
 			assert.Equal(t, tc.expectedQueueSize, c.podResults.MaxSize())
@@ -106,7 +107,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
 
-			c, err := NewSubmitter(testHostName, nil)
+			c, err := NewSubmitter(main.testHostName, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -153,7 +154,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
 
-			s, err := NewSubmitter(testHostName, nil)
+			s, err := NewSubmitter(main.testHostName, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
 			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
@@ -163,7 +164,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 }
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
-	submitter, err := NewSubmitter(testHostName, nil)
+	submitter, err := NewSubmitter(main.testHostName, nil)
 	assert.NoError(t, err)
 
 	now := time.Now()
@@ -185,7 +186,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
+				headers.HostHeader:           main.testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -201,7 +202,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
+				headers.HostHeader:           main.testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -216,7 +217,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
+				headers.HostHeader:           main.testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "2",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -231,7 +232,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
+				headers.HostHeader:           main.testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "5",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -242,7 +243,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			message: &model.CollectorProcDiscovery{},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
+				headers.HostHeader:           main.testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "0",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -253,7 +254,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			message: &model.CollectorProcEvent{},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:        strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:             testHostName,
+				headers.HostHeader:             main.testHostName,
 				headers.ProcessVersionHeader:   agentVersion.GetNumber(),
 				headers.ContainerCountHeader:   "0",
 				headers.ContentTypeHeader:      headers.ProtobufContentType,
@@ -281,7 +282,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 }
 
 func Test_getRequestID(t *testing.T) {
-	s, err := NewSubmitter(testHostName, nil)
+	s, err := NewSubmitter(main.testHostName, nil)
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)

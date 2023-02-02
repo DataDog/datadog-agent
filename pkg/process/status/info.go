@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package status
 
 import (
 	"bufio"
 	"encoding/json"
 	"expvar"
 	"fmt"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"html/template"
 	"io"
 	"net/http"
@@ -123,7 +124,7 @@ func publishDockerSocket() interface{} {
 	return infoDockerSocket
 }
 
-func updateDockerSocket(path string) {
+func UpdateDockerSocket(path string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
 	infoDockerSocket = path
@@ -135,7 +136,7 @@ func publishLastCollectTime() interface{} {
 	return infoLastCollectTime
 }
 
-func updateLastCollectTime(t time.Time) {
+func UpdateLastCollectTime(t time.Time) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
 	infoLastCollectTime = t.Format("2006-01-02 15:04:05")
@@ -153,7 +154,7 @@ func publishBool(v bool) expvar.Func {
 	}
 }
 
-func updateProcContainerCount(msgs []model.MessageBody) {
+func UpdateProcContainerCount(msgs []model.MessageBody) {
 	var procCount, containerCount int
 	for _, m := range msgs {
 		switch msg := m.(type) {
@@ -169,33 +170,33 @@ func updateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount.Store(int64(containerCount))
 }
 
-type queueStats struct {
-	processQueueSize      int
-	rtProcessQueueSize    int
-	connectionsQueueSize  int
-	eventQueueSize        int
-	podQueueSize          int
-	processQueueBytes     int64
-	rtProcessQueueBytes   int64
-	connectionsQueueBytes int64
-	eventQueueBytes       int64
-	podQueueBytes         int64
+type QueueStats struct {
+	ProcessQueueSize      int
+	RtProcessQueueSize    int
+	ConnectionsQueueSize  int
+	EventQueueSize        int
+	PodQueueSize          int
+	ProcessQueueBytes     int64
+	RtProcessQueueBytes   int64
+	ConnectionsQueueBytes int64
+	EventQueueBytes       int64
+	PodQueueBytes         int64
 }
 
-func updateQueueStats(stats *queueStats) {
-	infoProcessQueueSize.Store(int64(stats.processQueueSize))
-	infoRTProcessQueueSize.Store(int64(stats.rtProcessQueueSize))
-	infoConnectionsQueueSize.Store(int64(stats.connectionsQueueSize))
-	infoEventQueueSize.Store(int64(stats.eventQueueSize))
-	infoPodQueueSize.Store(int64(stats.podQueueSize))
-	infoProcessQueueBytes.Store(stats.processQueueBytes)
-	infoRTProcessQueueBytes.Store(stats.rtProcessQueueBytes)
-	infoConnectionsQueueBytes.Store(stats.connectionsQueueBytes)
-	infoEventQueueBytes.Store(stats.eventQueueBytes)
-	infoPodQueueBytes.Store(stats.podQueueBytes)
+func UpdateQueueStats(stats *QueueStats) {
+	infoProcessQueueSize.Store(int64(stats.ProcessQueueSize))
+	infoRTProcessQueueSize.Store(int64(stats.RtProcessQueueSize))
+	infoConnectionsQueueSize.Store(int64(stats.ConnectionsQueueSize))
+	infoEventQueueSize.Store(int64(stats.EventQueueSize))
+	infoPodQueueSize.Store(int64(stats.PodQueueSize))
+	infoProcessQueueBytes.Store(stats.ProcessQueueBytes)
+	infoRTProcessQueueBytes.Store(stats.RtProcessQueueBytes)
+	infoConnectionsQueueBytes.Store(stats.ConnectionsQueueBytes)
+	infoEventQueueBytes.Store(stats.EventQueueBytes)
+	infoPodQueueBytes.Store(stats.PodQueueBytes)
 }
 
-func updateEnabledChecks(enabledChecks []string) {
+func UpdateEnabledChecks(enabledChecks []string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
 	infoEnabledChecks = enabledChecks
@@ -239,12 +240,13 @@ func publishContainerID() interface{} {
 	return containerID
 }
 
-func publishEndpoints() interface{} {
-	eps, err := getAPIEndpoints()
-	if err != nil {
-		return err
+func publishEndpoints(eps []apicfg.Endpoint) func() interface{} {
+	return func() interface{} {
+		return getEndpointsInfo(eps)
 	}
+}
 
+func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
 	endpointsInfo := make(map[string][]string)
 
 	// obfuscate the api keys
@@ -259,7 +261,7 @@ func publishEndpoints() interface{} {
 	return endpointsInfo
 }
 
-func updateDropCheckPayloads(drops []string) {
+func UpdateDropCheckPayloads(drops []string) {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
 
@@ -308,7 +310,7 @@ type StatusInfo struct {
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
-func initInfo(hostname string, processModuleEnabled bool) error {
+func InitInfo(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) error {
 	var err error
 
 	funcMap := template.FuncMap{
@@ -341,9 +343,9 @@ func initInfo(hostname string, processModuleEnabled bool) error {
 		expvar.Publish("pod_queue_bytes", publishInt(&infoPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
 		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
-		expvar.Publish("endpoints", expvar.Func(publishEndpoints))
+		expvar.Publish("endpoints", expvar.Func(publishEndpoints(eps)))
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
-		expvar.Publish("system_probe_process_module_enabled", expvar.Func(publishBool(processModuleEnabled)))
+		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {

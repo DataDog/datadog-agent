@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package status
 
 import (
 	"bytes"
@@ -122,7 +122,7 @@ func TestInfo(t *testing.T) {
 	assert.NotNil(server)
 	defer server.Close()
 
-	err := initInfo("ubuntu-1404.vagrantup.com", true)
+	err := InitInfo("ubuntu-1404.vagrantup.com", true)
 	assert.NoError(err)
 	var buf bytes.Buffer
 	err = Info(&buf, server.URL+expVarPath)
@@ -151,7 +151,7 @@ func TestNotRunning(t *testing.T) {
 	assert.NotNil(server)
 	defer server.Close()
 
-	err := initInfo("host", false)
+	err := InitInfo("host", false)
 	assert.NoError(err)
 	var buf bytes.Buffer
 	// we are going to use a different port so we got
@@ -179,7 +179,7 @@ func TestError(t *testing.T) {
 	assert.NotNil(server)
 	defer server.Close()
 
-	err := initInfo("host", false)
+	err := InitInfo("host", false)
 	assert.NoError(err)
 	var buf bytes.Buffer
 	// same port but a 404 response
