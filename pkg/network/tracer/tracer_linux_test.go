@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -1428,6 +1429,10 @@ func TestSendfileRegression(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
+	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+		t.Skip("sendfile not yet supported on fentry tracer/Fargate")
+	}
+
 	// Create temporary file
 	tmpfile, err := os.CreateTemp("", "sendfile_source")
 	require.NoError(t, err)
@@ -1637,6 +1642,10 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
+
+	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+		t.Skip("skipped on Fargate")
+	}
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "facebook.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
