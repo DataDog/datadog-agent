@@ -718,7 +718,6 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 	}
 
 	sysprobeConfigName, err := func() (string, error) {
-		fmt.Printf("testDir: %s\n", testDir)
 		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
 		if err != nil {
 			return "", err
