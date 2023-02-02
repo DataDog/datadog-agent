@@ -183,29 +183,34 @@ func (ccc *CCCache) UpdatedOnce() <-chan struct{} {
 // getResource looks up the given resourceName/GUID in the CCCache
 // If not found and refreshOnCacheMiss is enabled, it will use the fetchFn function to fetch the resource from the CAPI
 func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[string]T, fetchFn func(string) (T, error)) (T, error) {
+	var resource T
+
+	// check if the cccache is still warming up
 	ccc.RLock()
 	updatedOnce := !ccc.lastUpdated.IsZero()
 	ccc.RUnlock()
 
 	if !updatedOnce {
-		return cache[guid], fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
+		return resource, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 	}
 
-	lid := resourceName + "/" + guid
+	// get lock for the resourceName/guid
+	lockID := resourceName + "/" + guid
 
 	ccc.RLock()
-	mu, ok := ccc.locksByResource[lid]
+	mu, ok := ccc.locksByResource[lockID]
 	ccc.RUnlock()
 
 	if !ok {
 		mu = &sync.RWMutex{}
 		ccc.Lock()
-		ccc.locksByResource[lid] = mu
+		ccc.locksByResource[lockID] = mu
 		ccc.Unlock()
 	}
 
+	// check cache
 	mu.RLock()
-	resource, ok := cache[guid]
+	resource, ok = cache[guid]
 	mu.RUnlock()
 
 	if ok {
@@ -219,6 +224,7 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 	mu.Lock()
 	defer mu.Unlock()
 
+	// check cache again in case it was updated when the resource was locked
 	resource, ok = cache[guid]
 	if ok {
 		return resource, nil
