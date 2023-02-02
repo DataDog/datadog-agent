@@ -51,8 +51,9 @@ type StructField struct {
 	Weight              int64
 	CommentText         string
 	OpOverrides         string
-	Constants           string
 	Check               string
+	Alias               string
+	AliasPrefix         string
 }
 
 // GetEvaluatorType returns the evaluator type name
