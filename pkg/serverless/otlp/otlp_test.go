@@ -11,6 +11,8 @@ package otlp
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -23,8 +25,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMain(m *testing.M) {
+	// ensure trace agent is always started on a free port
+	if port, err := testutil.FindTCPPort(); err == nil {
+		os.Setenv("DD_RECEIVER_PORT", strconv.Itoa(port))
+	}
+	// ensure dogstatsd is always started on a free port
+	if port, err := testutil.FindTCPPort(); err == nil {
+		os.Setenv("DD_DOGSTATSD_PORT", strconv.Itoa(port))
+	}
+	os.Exit(m.Run())
+}
 
 func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert := assert.New(t)
