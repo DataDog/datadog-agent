@@ -211,7 +211,6 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	if metricFullName == "snmp.ifHCInOctets" {
 		delta := floatValue - ms.prevValues[tagsStr]
 		ms.prevValues[tagsStr] = floatValue
-
 		ms.Distribution(metricFullName+".distribution", delta, metricSample.tags)
 	}
 
@@ -248,7 +247,10 @@ func (ms *MetricSender) Gauge(metric string, value float64, tags []string) {
 
 // Distribution wraps Sender.Gauge
 func (ms *MetricSender) Distribution(metric string, value float64, tags []string) {
-	ms.statsdClient.Distribution(metric, value, tags, 1.0)
+	err := ms.statsdClient.Distribution(metric, value, tags, 1.0)
+	if err != nil {
+		log.Debugf("error submitting distribution metric (metric=%s, value=%d, tags=%s): %s", metric, value, tags, err)
+	}
 }
 
 // Rate wraps Sender.Rate
