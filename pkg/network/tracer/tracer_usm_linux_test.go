@@ -601,8 +601,6 @@ func TestJavaInjection(t *testing.T) {
 	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
 	// attributes to the `extras` map.
 	type testContext struct {
-		// A channel to mark goroutines (like servers) to halt.
-		done chan struct{}
 		// A dynamic map that allows extending the context easily between phases of the test.
 		extras map[string]interface{}
 	}
@@ -647,7 +645,6 @@ func TestJavaInjection(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.context.done = make(chan struct{})
 			if tt.teardown != nil {
 				t.Cleanup(func() {
 					tt.teardown(t, tt.context)
