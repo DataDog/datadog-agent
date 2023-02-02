@@ -224,7 +224,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 
 	eps, err := runner.GetAPIEndpoints()
 	if err != nil {
-		log.Criticalf("Failed to initalize Api Endpoints: %s", err.Error())
+		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
 	err = status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
 	if err != nil {
