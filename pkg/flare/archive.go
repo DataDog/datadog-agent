@@ -212,7 +212,7 @@ func getVersionHistory(fb flarehelpers.FlareBuilder) {
 
 func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
 	for name, data := range pdata {
-		fb.AddFile(filepath.Join("profiles", name), data)
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
 	}
 }
 
