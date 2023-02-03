@@ -166,7 +166,7 @@ class ModuleResult(abc.ABC):
         self.result_type = "generic"
 
     def failure_string(self, flavor):
-        return color_message(f"Module {self.result_type} {self.path} failed ({flavor.name} flavor)\n", "red")
+        return color_message(f"{self.result_type} for module {self.path} failed ({flavor.name} flavor)\n", "red")
 
     @abc.abstractmethod
     def get_failure(self, flavor):  # noqa: U100
@@ -181,7 +181,7 @@ class ModuleResult(abc.ABC):
 class ModuleLintResult(ModuleResult):
     def __init__(self, path):
         super().__init__(path)
-        self.result_type = "lint"
+        self.result_type = "Linters"
         # Results of failed lint calls
         self.lint_outputs = []
 
@@ -202,7 +202,7 @@ class ModuleLintResult(ModuleResult):
 class ModuleTestResult(ModuleResult):
     def __init__(self, path):
         super().__init__(path)
-        self.result_type = "test"
+        self.result_type = "Tests"
         # Path to the result.json file output by gotestsum (should always be present)
         self.result_json_path = None
         # Path to the junit file output by gotestsum (only present if specified in inv test)
@@ -250,7 +250,7 @@ class ModuleTestResult(ModuleResult):
                             failed_tests[package].remove(name)
 
             if failed_packages:
-                failure_string += "Failed tests:\n"
+                failure_string += "Test failures:\n"
                 for package in sorted(failed_packages):
                     tests = failed_tests.get(package, set())
                     if not tests:
