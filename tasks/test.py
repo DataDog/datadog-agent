@@ -420,14 +420,13 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
 
     success = True
     for phase in module_results.keys():
-        for flavor in module_results[phase]:
-            for module_results in module_results[phase][flavor].values():
-                for module_result in module_results:
-                    if module_result is not None:
-                        module_failed, failure_string = module_result.get_failure(flavor)
-                        success = success and (not module_failed)
-                        if module_failed:
-                            print(failure_string)
+        for flavor in module_results[phase].keys():
+            for module_result in module_results[phase][flavor]:
+                if module_result is not None:
+                    module_failed, failure_string = module_result.get_failure(flavor)
+                    success = success and (not module_failed)
+                    if module_failed:
+                        print(failure_string)
     
     return success
 
@@ -487,7 +486,7 @@ def test(
     # Optionally run linters first
 
     if run_linters:
-        modules_results_per_phase["lint"] = run_lint_go(ctx, module, targets, flavors)
+        modules_results_per_phase["lint"] = run_lint_go(ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch)
 
     # Process input arguments
 
@@ -501,7 +500,6 @@ def test(
     }
 
     timeout = int(timeout)
-    modules_test_results_per_flavor = {flavor: [] for flavor in flavors}
 
     # Lint
 
@@ -675,10 +673,22 @@ def lint_go(
         inv lint-go --module=.
     """
 
-    modules_lint_results_per_flavor = run_lint_go(ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch)
+    # Format:
+    # {
+    #     "phase1": {
+    #         "flavor1": [module_result1, module_result2],
+    #         "flavor2": [module_result3, module_result4],
+    #     }
+    # }
+    modules_results_per_phase = defaultdict(dict)
 
+    modules_results_per_phase["lint"] = run_lint_go(ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch)
 
+    success = process_module_results(modules_results_per_phase)
 
+    if not success:
+        # Exit if any of the modules failed on any phase
+        raise Exit(code=1)
 
 @task(iterable=['flavors'])
 def codecov(
