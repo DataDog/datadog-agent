@@ -42,6 +42,24 @@ func TestGetInstanceIDFromDMI(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestGetInstanceIDFromDMIFargate(t *testing.T) {
+	setupDMIForEC2(t)
+	defer config.ClearFeatures()
+
+	// We test for both ECS and EKS
+
+	config.SetFeature(config.ECSFargate)
+
+	_, err := getInstanceIDFromDMI()
+	assert.Error(t, err)
+
+	config.ClearFeatures()
+	config.SetFeature(config.EKSFargate)
+
+	_, err = getInstanceIDFromDMI()
+	assert.Error(t, err)
+}
+
 func TestIsEC2UUID(t *testing.T) {
 	// no UUID
 	dmi.SetupMock(t, "", "", "", "")
