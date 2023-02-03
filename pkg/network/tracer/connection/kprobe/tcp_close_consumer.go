@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	perfReceivedStat = "perf_recv"
-	perfLostStat     = "perf_lost"
+	perfReceivedStat = "closed_conn_polling_received"
+	perfLostStat     = "closed_conn_polling_lost"
 )
 
 type tcpCloseConsumer struct {

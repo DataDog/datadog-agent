@@ -15,7 +15,6 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -28,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
@@ -70,16 +68,16 @@ type kprobeTracer struct {
 }
 
 type tracerTelemetry struct {
-	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
-	udpConns4, udpConns6 *atomic.Int64 `stats:""`
+	tcpConns4, tcpConns6 telemetry.StatGaugeWrapper `stats:""`
+	udpConns4, udpConns6 telemetry.StatGaugeWrapper `stats:""`
 }
 
 func newTracerTelemetry() tracerTelemetry {
 	return tracerTelemetry{
-		tcpConns4: atomic.NewInt64(0),
-		udpConns4: atomic.NewInt64(0),
-		tcpConns6: atomic.NewInt64(0),
-		udpConns6: atomic.NewInt64(0),
+		tcpConns4: telemetry.NewStatGaugeWrapper("kprobetracer", "tcp_conns_4", []string{}, ""),
+		udpConns4: telemetry.NewStatGaugeWrapper("kprobetracer", "udp_conns_4", []string{}, ""),
+		tcpConns6: telemetry.NewStatGaugeWrapper("kprobetracer", "tcp_conns_6", []string{}, ""),
+		udpConns6: telemetry.NewStatGaugeWrapper("kprobetracer", "udp_conns_6", []string{}, ""),
 	}
 }
 
@@ -100,7 +98,7 @@ func ClassificationSupported(config *config.Config) bool {
 }
 
 // New creates a new tracer
-func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (connection.Tracer, error) {
+func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *telemetry.EBPFTelemetry) (connection.Tracer, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if config.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
@@ -202,7 +200,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	}
 	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	m.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		return telemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
@@ -223,7 +221,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 			})
 	}
 
-	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+	telemetryMapKeys := telemetry.BuildTelemetryKeys(m)
 
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 	err = m.InitWithOptions(buf, mgrOptions)
@@ -352,10 +350,10 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 }
 
 func (t *tracerTelemetry) assign(other tracerTelemetry) {
-	t.tcpConns4.Store(other.tcpConns4.Load())
-	t.tcpConns6.Store(other.tcpConns6.Load())
-	t.udpConns4.Store(other.udpConns4.Load())
-	t.udpConns6.Store(other.udpConns6.Load())
+	t.tcpConns4.Set(other.tcpConns4.Load())
+	t.tcpConns6.Set(other.tcpConns6.Load())
+	t.udpConns4.Set(other.udpConns4.Load())
+	t.udpConns6.Set(other.udpConns6.Load())
 }
 
 func (t *tracerTelemetry) addConnection(conn *network.ConnectionStats) {

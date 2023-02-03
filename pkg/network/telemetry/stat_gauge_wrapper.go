@@ -20,6 +20,11 @@ func (sgw *StatGaugeWrapper) Inc() {
 	sgw.gauge.Inc()
 }
 
+func (sgw *StatGaugeWrapper) Dec() {
+	sgw.stat.Dec()
+	sgw.gauge.Dec()
+}
+
 func (sgw *StatGaugeWrapper) Add(v int64) {
 	sgw.stat.Add(v)
 	sgw.gauge.Add(float64(v))
@@ -35,13 +40,6 @@ func (sgw *StatGaugeWrapper) Load() int64 {
 	sgw.gauge.Set(float64(stat))
 	return stat
 }
-
-// func NewStatGaugeWrapper(gauge telemetry.Gauge) StatGaugeWrapper {
-// 	return StatGaugeWrapper{
-// 		stat:  atomic.NewInt64(0),
-// 		gauge: gauge,
-// 	}
-// }
 
 func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) StatGaugeWrapper {
 	return StatGaugeWrapper{
