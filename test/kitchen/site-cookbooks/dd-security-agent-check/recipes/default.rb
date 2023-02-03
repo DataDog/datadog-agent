@@ -11,6 +11,14 @@ directory wrk_dir do
   recursive true
 end
 
+if node[:platform] == "amazon" and node[:platform_version] == "2022"
+  execute "increase /tmp size" do
+    command "mount -o remount,size=10G /tmp/"
+    live_stream true
+    action :run
+  end
+end
+
 file "#{wrk_dir}/cws_platform" do
   content node[:cws_platform].to_s || ""
   mode 644
@@ -59,14 +67,6 @@ end
 cookbook_file "#{wrk_dir}/nikos.tar.gz" do
   source "nikos.tar.gz"
   mode '755'
-end
-
-if node[:platform] == "amazon" and node[:platform_version] == "2022"
-  execute "increase /tmp size" do
-    command "mount -o remount,size=5G /tmp/"
-    live_stream true
-    action :run
-  end
 end
 
 execute "Extract nikos.tar.gz" do

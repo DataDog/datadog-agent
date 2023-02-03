@@ -43,7 +43,7 @@ static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
-static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
+__maybe_unused static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
     conn_tuple_t skb_tup = {0};
 

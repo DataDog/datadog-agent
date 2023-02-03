@@ -475,14 +475,7 @@ func checkPoliciesInner(dir string) error {
 		return err
 	}
 
-	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
-	if err != nil {
-		return err
-	}
-
-	rsa := sprobe.NewRuleSetApplier(cfg, nil)
-
-	report, err := rsa.Apply(ruleSet, approvers)
+	report, err := sprobe.NewApplyRuleSetReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}

@@ -1201,6 +1201,33 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	return nil
 }
 
+// ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
+	ars, err := NewApplyRuleSetReport(p.Config, rs)
+	if err != nil {
+		return nil, err
+	}
+
+	for eventType, report := range ars.Policies {
+		if err := p.ApplyFilterPolicy(eventType, report.Mode, report.Flags); err != nil {
+			return nil, err
+		}
+		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := p.FlushDiscarders(); err != nil {
+		return nil, fmt.Errorf("failed to flush discarders: %w", err)
+	}
+
+	if err := p.SelectProbes(rs.GetEventTypes()); err != nil {
+		return nil, fmt.Errorf("failed to select probes: %w", err)
+	}
+
+	return ars, nil
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()

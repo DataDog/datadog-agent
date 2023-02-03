@@ -33,6 +33,7 @@
 #include "port.h"
 #include "sock.h"
 #include "skb.h"
+#include "offsets.h"
 
 // This entry point is needed to bypass a memory limit on socket filters.
 // There is a limitation on number of instructions can be attached to a socket filter,
