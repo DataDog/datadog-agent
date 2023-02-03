@@ -58,14 +58,14 @@ Orchestrator Explorer
       Last Run: (Hits: {{$element.CacheHits}} Miss: {{$element.CacheMiss}}) | Total: (Hits: {{$element.TotalHits}} Miss: {{$element.TotalMiss}})
 {{end}}
 {{- if .ManifestCollection }}
-  ===========
+  =====================
   Manifest Buffer Stats
-  ===========
+  =====================
   Buffer Flushed : {{.BufferFlushed}} times
   Last Time Flushed Manifests : {{.ManifestsFlushedLastTime}}
-  ==================================================
+  ==============================
   Manifests Flushed Per Resource
-  ==================================================
+  ==============================
   {{- range $name, $metric := .ManifestBuffer }}
     {{$name}} : {{$metric}}
   {{- end }}
