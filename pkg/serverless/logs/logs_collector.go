@@ -94,6 +94,13 @@ func (lc *LambdaLogsCollector) Start() {
 			for messages := range lc.In {
 				lc.processLogMessages(messages)
 			}
+			// Store the execution context if an out of memory is detected
+			if lc.outOfMemory {
+				err := lc.executionContext.SaveCurrentExecutionContext()
+				if err != nil {
+					log.Debugf("Unable to save the current state. Failed with error: %s", err)
+				}
+			}
 		}()
 	})
 }
