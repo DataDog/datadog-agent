@@ -90,7 +90,7 @@ type CCCache struct {
 	segmentBySpaceGUID   map[string]*cfclient.IsolationSegment
 	segmentByOrgGUID     map[string]*cfclient.IsolationSegment
 	appsBatchSize        int
-	locksByResourceGUID  map[string]*sync.RWMutex
+	locksByGUID          map[string]*sync.RWMutex
 }
 
 // CCClientI is an interface for a Cloud Foundry Client that queries the Cloud Foundry API
@@ -148,7 +148,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.serveNozzleData = serveNozzleData
 	globalCCCache.sidecarsTags = sidecarsTags
 	globalCCCache.segmentsTags = segmentsTags
-	globalCCCache.locksByResourceGUID = make(map[string]*sync.RWMutex)
+	globalCCCache.locksByGUID = make(map[string]*sync.RWMutex)
 
 	go globalCCCache.start()
 
@@ -187,13 +187,13 @@ func (ccc *CCCache) getLockForResource(resourceName, guid string) *sync.RWMutex 
 	lockID := resourceName + "/" + guid
 
 	ccc.RLock()
-	mu, ok := ccc.locksByResourceGUID[lockID]
+	mu, ok := ccc.locksByGUID[lockID]
 	ccc.RUnlock()
 
 	if !ok {
 		mu = &sync.RWMutex{}
 		ccc.Lock()
-		ccc.locksByResourceGUID[lockID] = mu
+		ccc.locksByGUID[lockID] = mu
 		ccc.Unlock()
 	}
 	return mu
