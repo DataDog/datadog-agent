@@ -8,6 +8,7 @@ require './lib/cmake.rb'
 name 'apt'
 default_version '2.5.5'
 
+dependency 'bzip2'
 dependency 'gnutls'
 dependency 'liblz4'
 dependency 'liblzma'
