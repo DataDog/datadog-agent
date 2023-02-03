@@ -43,6 +43,42 @@ func TestPOSTPayloads(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, response.Code, "unexpected code")
 	})
 
+	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
+		fi := NewFakeIntake()
+		defer fi.server.Close()
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/foo", nil)
+
+		assert.NoError(t, err, "Error creating GET request")
+		response := httptest.NewRecorder()
+
+		fi.getPayloads(response, request)
+		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+
+		expectedResponse := getPayloadResponse{
+			Payloads: [][]byte{},
+		}
+		actualResponse := getPayloadResponse{}
+		body, err := io.ReadAll(response.Body)
+		assert.NoError(t, err, "Error reading response")
+		json.Unmarshal(body, &actualResponse)
+
+		assert.Equal(t, expectedResponse, actualResponse, "unexpected response")
+	})
+
+	t.Run("should not accept GET requests on /fakeintake/payloads route without endpoint query parameter", func(t *testing.T) {
+		fi := NewFakeIntake()
+		defer fi.server.Close()
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads", nil)
+
+		assert.NoError(t, err, "Error creating GET request")
+		response := httptest.NewRecorder()
+
+		fi.getPayloads(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code, "unexpected code")
+	})
+
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
 		fi := NewFakeIntake()
 		defer fi.server.Close()
@@ -62,7 +98,7 @@ func TestPOSTPayloads(t *testing.T) {
 		postResponse = httptest.NewRecorder()
 		fi.postPayload(postResponse, request)
 
-		request, err = http.NewRequest(http.MethodGet, "/fakeintake/payloads/api/v2/series", nil)
+		request, err = http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/series", nil)
 		assert.NoError(t, err, "Error creating GET request")
 		getResponse := httptest.NewRecorder()
 

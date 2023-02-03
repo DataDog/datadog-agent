@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -123,7 +122,15 @@ type getPayloadResponse struct {
 
 func (fi *FakeIntake) getPayloads(w http.ResponseWriter, req *http.Request) {
 	fmt.Println("Handling GetPayload request")
-	route := strings.TrimPrefix(req.URL.Path, "/fakeintake/payloads")
+	routes := req.URL.Query()["endpoint"]
+	if len(routes) == 0 {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("missing endpoint query parameter"))
+		return
+	}
+	// we could support multiple endpoints in the future
+	route := routes[0]
 	payloads := fi.safeGetPayloads(route)
 
 	// build response
@@ -135,6 +142,7 @@ func (fi *FakeIntake) getPayloads(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
+		return
 	}
 
 	// send response
