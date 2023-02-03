@@ -30,7 +30,7 @@ build do
   env["PKG_CONFIG_PATH"] = "#{install_dir}/embedded/lib/pkgconfig"
   env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
   env["CXX"] = "/opt/gcc-10.4.0/bin/g++"
-  env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
+  env["CXXFLAGS"] += " -static-libstdc++ -std=c++11"
   patch source: "no_doc.patch", env: env
   patch source: "disable_arch_check.patch", env: env
   patch source: "disable_systemd.patch", env: env
