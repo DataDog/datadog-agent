@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -34,11 +36,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type connTag = uint64
@@ -199,19 +200,18 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 					}
 					linked, _ := exec.Command(ldd, fetch).Output()
 
-					foundSSLLib := false
+					var prefechLibs []string
 					for _, lib := range tlsLibs {
 						libSSLPath := lib.FindString(string(linked))
 						if _, err := os.Stat(libSSLPath); err == nil {
-							foundSSLLib = true
-							break
+							prefechLibs = append(prefechLibs, libSSLPath)
 						}
 					}
-					if !foundSSLLib {
+					if len(prefechLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
 
-					testHTTPSLibrary(t, test.fetchCmd)
+					testHTTPSLibrary(t, test.fetchCmd, prefechLibs)
 
 				})
 			}
@@ -219,7 +219,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -230,9 +230,12 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	err = tr.RegisterClient("1")
 	require.NoError(t, err)
 
-	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
-	exec.Command(fetchCmd[0]).Run()
-	time.Sleep(2 * time.Second)
+	// not ideal but, short process are hard to catch
+	for _, lib := range prefechLibs {
+		f, _ := os.Open(lib)
+		defer f.Close()
+	}
+	time.Sleep(time.Second)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
@@ -535,9 +538,12 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		}
 		defer tr.Stop()
 
+		if tr.ebpfTracer.Type() == connection.EBPFFentry {
+			t.Skip("protocol classification not supported for fentry tracer")
+		}
+
 		initTracerState(t, tr)
 		require.NoError(t, err)
-		done := make(chan struct{})
 		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
 			input, err := r.ReadBytes(byte('\n'))
@@ -546,7 +552,8 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 			}
 			c.Close()
 		})
-		require.NoError(t, HTTPServer.Run(done))
+		t.Cleanup(HTTPServer.Shutdown)
+		require.NoError(t, HTTPServer.Run())
 		_, port, err := net.SplitHostPort(HTTPServer.address)
 		require.NoError(t, err)
 		targetAddr := net.JoinHostPort(targetHost, port)
@@ -568,7 +575,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 
 		client.CloseIdleConnections()
 		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP)
-		close(done)
+		HTTPServer.Shutdown()
 
 		time.Sleep(2 * time.Second)
 
@@ -590,6 +597,11 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 // GoTLS test
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
+	cfg := testConfig()
+	if !cfg.EnableRuntimeCompiler {
+		t.Skip("GoTLS not supported when runtime compiler is disabled")
+	}
+
 	clientBin := buildGoTLSClientBin(t)
 
 	if !goTLSSupported() {
@@ -627,7 +639,6 @@ func testHTTPGoTLSCaptureNewProcess(clientBin string) func(t *testing.T) {
 		cfg.EnableGoTLSSupport = true
 		cfg.EnableHTTPMonitoring = true
 		cfg.EnableHTTPSMonitoring = true
-		cfg.EnableRuntimeCompiler = true
 
 		tr, err := NewTracer(cfg)
 		require.NoError(t, err)

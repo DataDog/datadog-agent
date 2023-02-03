@@ -572,7 +572,7 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	}
 
 	// resolve fields
-	event.ResolveFields(true)
+	event.ResolveFieldsForAD()
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
@@ -813,28 +813,6 @@ func (ad *ActivityDump) resolveTags() error {
 		return fmt.Errorf("failed to resolve %s: %w", ad.DumpMetadata.ContainerID, err)
 	}
 
-	if !ad.countedByLimiter {
-		// check if we should discard this dump based on the manager dump limiter
-		limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
-		if limiterKey == ":" {
-			// wait for the tags
-			return nil
-		}
-
-		counter, ok := ad.adm.dumpLimiter.Get(limiterKey)
-		if !ok {
-			counter = atomic.NewUint64(0)
-			ad.adm.dumpLimiter.Add(limiterKey, counter)
-		}
-
-		if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
-			ad.Finalize(true)
-			ad.adm.removeDump(ad)
-		} else {
-			ad.countedByLimiter = true
-			counter.Add(1)
-		}
-	}
 	return nil
 }
 
