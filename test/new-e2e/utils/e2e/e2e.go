@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/crypto/ssh"
@@ -133,23 +134,24 @@ func (c *Suite) add(namespace string, key string, value string) {
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite) TearDownSuite() {
 	if suite.fullStackName != "" {
-		var err error
-		if suite.destroyEnv {
-			err = infra.GetStackManager().DeleteStack(suite.ctx, suite.envName, suite.stackName)
-		}
-
-		if !suite.destroyEnv || err != nil {
-			stars := strings.Repeat("*", 50)
-			thisFolder := "A_FOLDER_CONTAINING_PULUMI.YAML"
-			if _, thisFile, _, ok := runtime.Caller(0); ok {
-				thisFolder = filepath.Dir(thisFile)
-			}
-
-			command := fmt.Sprintf("pulumi destroy -C %v --remove  -s %v", thisFolder, suite.fullStackName)
-			fmt.Fprintf(os.Stderr, "\n%v\nYour environment was not destroyed.\nTo destroy it, run `%v`.\n%v", stars, command, stars)
-		}
-		suite.require.NoError(err)
+		return
 	}
+	var err error
+	if suite.destroyEnv {
+		err = infra.GetStackManager().DeleteStack(suite.ctx, suite.envName, suite.stackName)
+	}
+
+	if !suite.destroyEnv || err != nil {
+		stars := strings.Repeat("*", 50)
+		thisFolder := "A_FOLDER_CONTAINING_PULUMI.YAML"
+		if _, thisFile, _, ok := runtime.Caller(0); ok {
+			thisFolder = filepath.Dir(thisFile)
+		}
+
+		command := fmt.Sprintf("pulumi destroy -C %v --remove  -s %v", thisFolder, suite.fullStackName)
+		fmt.Fprintf(os.Stderr, "\n%v\nYour environment was not destroyed.\nTo destroy it, run `%v`.\n%v", stars, command, stars)
+	}
+	suite.require.NoError(err)
 }
 
 // Client provides a client to interact with the environment.
