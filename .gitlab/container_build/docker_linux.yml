@@ -131,6 +131,8 @@ single_machine_performance-push-main-sha:
   stage: container_build
   rules:
     - !reference [.on_main_a7]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
   needs:
     - docker_build_agent7
   script:
