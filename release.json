@@ -1,8 +1,8 @@
 {
     "base_branch": "main",
     "last_stable": {
-        "6": "6.40.0",
-        "7": "7.40.0"
+        "6": "6.42.0",
+        "7": "7.42.0"
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
@@ -29,28 +29,28 @@
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "release-a6": {
-        "INTEGRATIONS_CORE_VERSION": "7.42.0-rc.3",
-        "OMNIBUS_SOFTWARE_VERSION": "7.42.0-rc.1",
-        "OMNIBUS_RUBY_VERSION": "7.42.0-rc.1",
+        "INTEGRATIONS_CORE_VERSION": "7.43.0-rc.3",
+        "OMNIBUS_SOFTWARE_VERSION": "7.43.0-rc.1",
+        "OMNIBUS_RUBY_VERSION": "7.43.0-rc.1",
         "JMXFETCH_VERSION": "0.47.2",
         "JMXFETCH_HASH": "92f9c744fe00c13c6401829b9eb50f44c5843ae9d1a14f7618531bdf0187e44f",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.43.0",
-        "MACOS_BUILD_VERSION": "6.42.0-rc.1",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.43.1",
+        "MACOS_BUILD_VERSION": "6.43.0-rc.1",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
-        "WINDOWS_DDNPM_VERSION": "2.1.1",
-        "WINDOWS_DDNPM_SHASUM": "f52d4db27715e32008c5903393d0bc990ceb134f269fa10e76d08b3659587731"
+        "WINDOWS_DDNPM_VERSION": "2.3.0",
+        "WINDOWS_DDNPM_SHASUM": "36f28fabf3c3466d48265920c9c05ac25d04b9a812c1c3cbdf3933e2bec50233"
     },
     "release-a7": {
-        "INTEGRATIONS_CORE_VERSION": "7.42.0-rc.3",
-        "OMNIBUS_SOFTWARE_VERSION": "7.42.0-rc.1",
-        "OMNIBUS_RUBY_VERSION": "7.42.0-rc.1",
+        "INTEGRATIONS_CORE_VERSION": "7.43.0-rc.3",
+        "OMNIBUS_SOFTWARE_VERSION": "7.43.0-rc.1",
+        "OMNIBUS_RUBY_VERSION": "7.43.0-rc.1",
         "JMXFETCH_VERSION": "0.47.2",
         "JMXFETCH_HASH": "92f9c744fe00c13c6401829b9eb50f44c5843ae9d1a14f7618531bdf0187e44f",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.43.0",
-        "MACOS_BUILD_VERSION": "7.42.0-rc.1",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.43.1",
+        "MACOS_BUILD_VERSION": "7.43.0-rc.1",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
-        "WINDOWS_DDNPM_VERSION": "2.1.1",
-        "WINDOWS_DDNPM_SHASUM": "f52d4db27715e32008c5903393d0bc990ceb134f269fa10e76d08b3659587731"
+        "WINDOWS_DDNPM_VERSION": "2.3.0",
+        "WINDOWS_DDNPM_SHASUM": "36f28fabf3c3466d48265920c9c05ac25d04b9a812c1c3cbdf3933e2bec50233"
     },
     "dca-1.17.0": {
         "SECURITY_AGENT_POLICIES_VERSION": "v0.18.6"

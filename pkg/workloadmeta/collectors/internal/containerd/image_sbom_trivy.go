@@ -17,6 +17,8 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 // scan buffer needs to be very large as we cannot block containerd collector
@@ -24,13 +26,18 @@ const (
 	imagesToScanBufferSize = 5000
 )
 
+func sbomCollectionIsEnabled() bool {
+	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
+}
+
 func (c *collector) startSBOMCollection() error {
 	if !sbomCollectionIsEnabled() {
 		return nil
 	}
 
 	var err error
-	trivyConfiguration, err := trivy.DefaultCollectorConfig()
+	enabledAnalyzers := config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
+	trivyConfiguration, err := trivy.DefaultCollectorConfig(enabledAnalyzers)
 	if err != nil {
 		return fmt.Errorf("error initializing trivy client: %w", err)
 	}
@@ -65,7 +72,7 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespa
 		return nil
 	}
 
-	if storedImage.CycloneDXBOM != nil {
+	if storedImage.SBOM != nil {
 		// BOM already stored. Can happen when the same image ID is referenced
 		// with different names.
 		log.Debugf("Image: %s/%s (id %s) SBOM already available", imageToScan.namespace, imageToScan.image.Name(), imageToScan.imageID)
@@ -73,26 +80,37 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespa
 	}
 
 	scanFunc := c.trivyClient.ScanContainerdImage
-	if config.Datadog.GetBool("workloadmeta.image_metadata_collection.collect_sboms_use_mount") {
+	if config.Datadog.GetBool("container_image_collection.sbom.use_mount") {
 		scanFunc = c.trivyClient.ScanContainerdImageFromFilesystem
 	}
 
-	bom, err := scanFunc(ctx, storedImage, imageToScan.image)
+	tStartScan := time.Now()
+	cycloneDXBOM, err := scanFunc(ctx, storedImage, imageToScan.image)
 	if err != nil {
 		return err
+	}
+
+	scanDuration := time.Since(tStartScan)
+
+	telemetry.SBOMGenerationDuration.Observe(scanDuration.Seconds())
+
+	sbom := workloadmeta.SBOM{
+		CycloneDXBOM:       cycloneDXBOM,
+		GenerationTime:     tStartScan,
+		GenerationDuration: scanDuration,
 	}
 
 	time.Sleep(timeBetweenScans())
 
 	// Updating workloadmeta entities directly is not thread-safe, that's why we
 	// generate an update event here instead.
-	return c.handleImageCreateOrUpdate(ctx, imageToScan.namespace, storedImage.Name, bom)
+	return c.handleImageCreateOrUpdate(ctx, imageToScan.namespace, storedImage.Name, &sbom)
 }
 
 func scanningTimeout() time.Duration {
-	return time.Duration(config.Datadog.GetInt("workloadmeta.image_metadata_collection.collect_sboms_scan_timeout")) * time.Second
+	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_timeout")) * time.Second
 }
 
 func timeBetweenScans() time.Duration {
-	return time.Duration(config.Datadog.GetInt("workloadmeta.image_metadata_collection.collect_sboms_scan_interval")) * time.Second
+	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_interval")) * time.Second
 }

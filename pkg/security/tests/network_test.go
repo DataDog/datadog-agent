@@ -36,7 +36,7 @@ func TestNetworkCIDR(t *testing.T) {
 	}
 
 	// write the rules using the local resolv.conf file
-	resolvFile, err := resolvconf.Get()
+	resolvFile, err := resolvconf.GetSpecific("/etc/resolv.conf")
 	if err != nil {
 		t.Fatal(err)
 	}

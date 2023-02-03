@@ -11,6 +11,7 @@ package http
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -35,6 +36,8 @@ const (
 	protocolDispatcherSocketFilterSection  = "socket/protocol_dispatcher"
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
+	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
+	connectionStatesMap                    = "connection_states"
 
 	httpSocketFilter = "socket/http_filter"
 
@@ -49,7 +52,6 @@ const (
 type ebpfProgram struct {
 	*errtelemetry.Manager
 	cfg             *config.Config
-	bytecode        bytecode.AssetReader
 	offsets         []manager.ConstantEditor
 	subprograms     []subprogram
 	probesResolvers []probeResolver
@@ -101,11 +103,6 @@ var tailCalls = []manager.TailCallRoute{
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
-	bc, err := getBytecode(c)
-	if err != nil {
-		return nil, err
-	}
-
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
@@ -115,11 +112,12 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
+			{Name: connectionStatesMap},
 		},
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsg),
+					EBPFSection:  probes.TCPSendMsg,
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
@@ -162,7 +160,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	}
 	program := &ebpfProgram{
 		Manager:         errtelemetry.NewManager(mgr, bpfTelemetry),
-		bytecode:        bc,
 		cfg:             c,
 		offsets:         offsets,
 		subprograms:     subprograms,
@@ -174,9 +171,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 func (e *ebpfProgram) Init() error {
 	var undefinedProbes []manager.ProbeIdentificationPair
-
-	defer e.bytecode.Close()
-
 	for _, tc := range tailCalls {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
@@ -193,64 +187,26 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureManager(e.Manager)
 	}
 
-	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if e.cfg.AttachKprobesWithKprobeEventsABI {
-		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.EnableCORE {
+		assetName := getAssetName("http", e.cfg.BPFDebug)
+		err := ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+		if err == nil {
+			return nil
+		}
+		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+			return handleInitError(fmt.Errorf("co-re load failed: %w", err))
+		}
+
+		log.Errorf("co-re load failed: %s. attempting fallback.", err)
 	}
 
-	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapSpecEditors: map[string]manager.MapSpecEditor{
-			httpInFlightMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				EditorFlag: manager.EditMaxEntries,
-			},
-		},
-		TailCallRouter: tailCalls,
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  protocolDispatcherSocketFilterSection,
-					EBPFFuncName: protocolDispatcherSocketFilterFunction,
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsg),
-					EBPFFuncName: "kprobe__tcp_sendmsg",
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/net/netif_receive_skb",
-					EBPFFuncName: "tracepoint__net__netif_receive_skb",
-					UID:          probeUID,
-				},
-			},
-		},
-		ConstantEditors:           e.offsets,
-		DefaultKprobeAttachMethod: kprobeAttachMethod,
-	}
-
-	for _, s := range e.subprograms {
-		s.ConfigureOptions(&options)
-	}
-
-	// configure event stream
-	events.Configure("http", e.Manager.Manager, &options)
-
-	err := e.InitWithOptions(e.bytecode, options)
+	buf, err := getBytecode(e.cfg)
 	if err != nil {
 		return err
 	}
+	defer buf.Close()
 
-	return nil
+	return e.init(buf, manager.Options{})
 }
 
 func (e *ebpfProgram) Start() error {
@@ -303,6 +259,73 @@ func (e *ebpfProgram) setupMapCleaner() {
 	e.mapCleaner = httpMapCleaner
 }
 
+func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
+
+	options.RLimit = &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
+	}
+
+	options.MapSpecEditors = map[string]manager.MapSpecEditor{
+		httpInFlightMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		connectionStatesMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		dispatcherConnectionProtocolMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
+	}
+
+	options.TailCallRouter = tailCalls
+	options.ActivatedProbes = []manager.ProbesSelector{
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  protocolDispatcherSocketFilterSection,
+				EBPFFuncName: protocolDispatcherSocketFilterFunction,
+				UID:          probeUID,
+			},
+		},
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  probes.TCPSendMsg,
+				EBPFFuncName: "kprobe__tcp_sendmsg",
+				UID:          probeUID,
+			},
+		},
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/net/netif_receive_skb",
+				EBPFFuncName: "tracepoint__net__netif_receive_skb",
+				UID:          probeUID,
+			},
+		},
+	}
+	options.ConstantEditors = e.offsets
+	options.DefaultKprobeAttachMethod = kprobeAttachMethod
+	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
+
+	for _, s := range e.subprograms {
+		s.ConfigureOptions(&options)
+	}
+
+	// configure event stream
+	events.Configure("http", e.Manager.Manager, &options)
+
+	return e.InitWithOptions(buf, options)
+}
+
 func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
 	if c.EnableRuntimeCompiler {
 		bc, err = getRuntimeCompiledHTTP(c)
@@ -322,4 +345,23 @@ func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
 	}
 
 	return
+}
+
+func getAssetName(module string, debug bool) string {
+	if debug {
+		return fmt.Sprintf("%s-debug.o", module)
+	}
+
+	return fmt.Sprintf("%s.o", module)
+}
+
+// wrap certain errors as `ErrNotSupported` so CO-RE tests skipped accordingly
+func handleInitError(err error) error {
+	if strings.Contains(err.Error(), "kernel without BTF support") ||
+		strings.Contains(err.Error(), "could not find BTF data on host") {
+		return &ErrNotSupported{
+			fmt.Errorf("co-re not supported on this host: %w", err),
+		}
+	}
+	return err
 }

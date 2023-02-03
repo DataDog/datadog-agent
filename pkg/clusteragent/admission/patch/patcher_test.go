@@ -55,8 +55,8 @@ func TestPatchDeployment(t *testing.T) {
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest"}`)
-	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.id"], "id")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.rev"], "123")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "123")
 
 	// Patch again to disable lib injection (aka revert)
 	req.Action = DisableConfig
@@ -69,8 +69,8 @@ func TestPatchDeployment(t *testing.T) {
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "false")
 	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.version")
 	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.config.v1")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.id"], "id")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.rev"], "1234")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "1234")
 
 	// Apply a new patch with a new config
 	req.Action = EnableConfig
@@ -84,6 +84,6 @@ func TestPatchDeployment(t *testing.T) {
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest","tracing_tags":["k1:v1","k2:v2"]}`)
-	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.id"], "id")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.rev"], "12345")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "12345")
 }

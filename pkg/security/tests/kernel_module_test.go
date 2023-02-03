@@ -169,7 +169,7 @@ func TestLoadModule(t *testing.T) {
 			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
 			assert.Equal(t, event.Async, false)
 
-			event.ResolveFields(false)
+			event.ResolveFields()
 			assert.Equal(t, "", event.LoadModule.File.PathnameStr, "shouldn't get a path")
 
 			test.validateLoadModuleNoFileSchema(t, event)

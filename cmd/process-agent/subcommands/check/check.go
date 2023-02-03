@@ -85,16 +85,12 @@ func runCheckCmd(cliParams *cliParams) error {
 	// Override the disable_file_logging setting so that the check command doesn't dump so much noise into the log file.
 	ddconfig.Datadog.Set("disable_file_logging", true)
 
-	// We need to load in the system probe environment variables before we load the config, otherwise an
-	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
-	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
-
 	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(cliParams.SysProbeConfFilePath)
+	syscfg, err := sysconfig.New(cliParams.SysProbeConfFilePath)
 	if err != nil {
 		return log.Critical(err)
 	}
@@ -220,9 +216,15 @@ func runCheck(cliParams *cliParams, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	msgs := result.Payloads()
-	if options != nil && options.RunRealtime {
+	var msgs []process.MessageBody
+
+	switch {
+	case result == nil:
+		break
+	case options != nil && options.RunRealtime:
 		msgs = result.RealtimePayloads()
+	default:
+		msgs = result.Payloads()
 	}
 
 	return printResults(cliParams.checkName, msgs, cliParams.checkOutputJSON)
