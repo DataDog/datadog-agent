@@ -16,14 +16,12 @@ COPY *.go ./
 RUN go build -o /build
 
 ## Deploy
-FROM gcr.io/distroless/base-debian10
+FROM ubuntu:22.04
 
 WORKDIR /
 
 COPY --from=build /build /fakeintake
 
 EXPOSE 5000
-
-USER nonroot:nonroot
 
 ENTRYPOINT ["/fakeintake"]
