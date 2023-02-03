@@ -141,11 +141,11 @@ func TestProcessCheck(t *testing.T) {
 }
 
 func TestConnectionsCheck(t *testing.T) {
-	cfg := config.Mock(t)
-	cfg.Set("system_probe_config.enabled", true)
+	syscfg := config.MockSystemProbe(t)
+	syscfg.Set("system_probe_config.enabled", true)
 
 	t.Run("enabled", func(t *testing.T) {
-		cfg.Set("network_config.enabled", true)
+		syscfg.Set("network_config.enabled", true)
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
@@ -154,7 +154,7 @@ func TestConnectionsCheck(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
-		cfg.Set("network_config.enabled", false)
+		syscfg.Set("network_config.enabled", false)
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 

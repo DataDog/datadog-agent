@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -76,6 +77,8 @@ type HTTPReceiver struct {
 	statsProcessor      StatsProcessor
 	containerIDProvider IDProvider
 
+	telemetryCollector telemetry.TelemetryCollector
+
 	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
@@ -86,7 +89,7 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.TelemetryCollector) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -100,6 +103,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		conf:                conf,
 		dynConf:             dynConf,
 		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
+
+		telemetryCollector: telemetryCollector,
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -158,12 +163,14 @@ func (r *HTTPReceiver) Start() {
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	ln, err := r.listenTCP(addr)
 	if err != nil {
+		r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 		killProcess("Error creating tcp listener: %v", err)
 	}
 	go func() {
 		defer watchdog.LogOnPanic()
 		if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
+			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 		}
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
@@ -171,12 +178,14 @@ func (r *HTTPReceiver) Start() {
 	if path := r.conf.ReceiverSocket; path != "" {
 		ln, err := r.listenUnix(path)
 		if err != nil {
+			r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
 			killProcess("Error creating UDS listener: %v", err)
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
 			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 				log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
 			}
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
@@ -188,12 +197,14 @@ func (r *HTTPReceiver) Start() {
 		secdec := r.conf.PipeSecurityDescriptor
 		ln, err := listenPipe(pipepath, secdec, bufferSize)
 		if err != nil {
+			r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
 			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 				log.Errorf("Could not start Windows Pipes server: %v. Windows Pipes receiver disabled.", err)
+				r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			}
 		}()
 		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)

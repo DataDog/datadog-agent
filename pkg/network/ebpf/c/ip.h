@@ -1,15 +1,9 @@
 #ifndef __IP_H
 #define __IP_H
 
-#include "kconfig.h"
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
 #include "bpf_endian.h"
-
-#include <uapi/linux/if_ether.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/udp.h>
 
 // from uapi/linux/tcp.h
 struct __tcphdr {
@@ -35,6 +29,12 @@ struct __tcphdr {
 // from uapi/linux/in.h
 #define __IPPROTO_TCP 6
 #define __IPPROTO_UDP 17
+
+#ifdef COMPILE_CORE
+#define ETH_HLEN 14 /* Total octets in header. */
+#define ETH_P_IP 0x0800 /* Internet Protocol packet */
+#define ETH_P_IPV6 0x86DD /* IPv6 over bluebook */
+#endif
 
 static __always_inline void read_ipv6_skb(struct __sk_buff *skb, __u64 off, __u64 *addr_l, __u64 *addr_h) {
     *addr_h |= (__u64)load_word(skb, off) << 32;

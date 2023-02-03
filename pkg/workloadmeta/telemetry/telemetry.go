@@ -86,4 +86,15 @@ var (
 		"Number of errors on the remote workloadmeta server while streaming events",
 		commonOpts,
 	)
+
+	// SBOMGenerationDuration measures the time that it takes to generate SBOMs
+	// in seconds.
+	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
+		subsystem,
+		"sbom_generation_duration",
+		[]string{},
+		"SBOM generation duration (in seconds)",
+		[]float64{10, 30, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600},
+		commonOpts,
+	)
 )

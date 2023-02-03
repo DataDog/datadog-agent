@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -84,7 +85,7 @@ func TestProcess(t *testing.T) {
 			Repl: "...",
 		}}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -112,7 +113,7 @@ func TestProcess(t *testing.T) {
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -160,7 +161,7 @@ func TestProcess(t *testing.T) {
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -210,7 +211,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -261,7 +262,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
@@ -293,7 +294,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
@@ -317,7 +318,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		testDiscardFunction := func(span *pb.Span) bool {
@@ -360,7 +361,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		chunk1 := testutil.TraceChunkWithSpan(testutil.RandomSpan())
@@ -601,7 +602,7 @@ func TestConcentratorInput(t *testing.T) {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
 			cfg.RareSamplerEnabled = true
-			agent := NewAgent(context.TODO(), cfg)
+			agent := NewAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
 
@@ -625,7 +626,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	t.Run("onNotTop", func(t *testing.T) {
@@ -775,7 +776,7 @@ func TestClientComputedStats(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 	tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
 		Service:  "something &&<@# that should be a metric!",
@@ -1034,7 +1035,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		TraceWriter:       &writer.TraceWriter{In: writerChan},
 		conf:              cfg,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt)
+	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt, telemetry.NewNoopCollector())
 	now := time.Now()
 	smallKeptSpan := &pb.Span{
 		TraceID:  1,
@@ -1277,7 +1278,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	defer wg.Wait()
 	defer cancelFunc()
 
-	ta := NewAgent(ctx, c)
+	ta := NewAgent(ctx, c, telemetry.NewNoopCollector())
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1334,7 +1335,7 @@ func benchThroughput(file string) func(*testing.B) {
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		http.DefaultServeMux = &http.ServeMux{}
-		agnt := NewAgent(ctx, cfg)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancelFunc()
 
 		// start the agent without the trace and stats writers; we will be draining
@@ -1626,7 +1627,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	agnt := NewAgent(ctx, cfg)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	span := testutil.RandomSpan()
@@ -1923,7 +1924,7 @@ func TestSpanSampling(t *testing.T) {
 			cfg.RareSamplerEnabled = false
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			traceAgent := NewAgent(ctx, cfg)
+			traceAgent := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 			traceAgent.Process(&api.Payload{
 				// The payload might get modified in-place, so first deep copy it so
 				// that we have the original for comparison later.
@@ -1944,7 +1945,7 @@ func TestSetRootSpanTagsInAzureAppServices(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.InAzureAppServices = true
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	span := &pb.Span{}

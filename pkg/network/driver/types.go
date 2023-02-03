@@ -84,6 +84,11 @@ type ConnTupleType C.struct__ConnTupleType
 type HttpMethodType C.enum__HttpMethodType
 type ClassificationSettings C.struct__ClassificationConfigurationSettings
 
+type TcpConnectionStatus C.enum__ConnectionStatus
+
+const (
+	TcpStatusEstablished = C.CONN_STAT_ESTABLISHED
+)
 const (
 	HttpTransactionTypeSize        = C.sizeof_struct__HttpTransactionType
 	HttpSettingsTypeSize           = C.sizeof_struct__HttpConfigurationSettings
