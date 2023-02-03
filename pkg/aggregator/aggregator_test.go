@@ -36,7 +36,6 @@ var checkID1 check.ID = "1"
 var checkID2 check.ID = "2"
 
 const defaultHostname = "hostname"
-const altDefaultHostname = "althostname"
 
 func init() {
 	initF()

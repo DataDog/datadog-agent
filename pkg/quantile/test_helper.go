@@ -35,7 +35,7 @@ func SketchesApproxEqual(exp, act *Sketch, e float64) bool {
 		return false
 	}
 
-	if exp.Basic.Cnt != exp.Basic.Cnt {
+	if exp.Basic.Cnt != act.Basic.Cnt {
 		return false
 	}
 
@@ -58,8 +58,4 @@ func SketchesApproxEqual(exp, act *Sketch, e float64) bool {
 	}
 
 	return true
-}
-
-type tHelper interface {
-	Helper()
 }

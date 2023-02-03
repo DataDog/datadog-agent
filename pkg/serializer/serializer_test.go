@@ -238,13 +238,6 @@ func TestSendV1Events(t *testing.T) {
 	f.AssertExpectations(t)
 }
 
-type testPayloadMutipleValues struct {
-	testPayload
-	count int
-}
-
-func (p *testPayloadMutipleValues) Len() int { return p.count }
-
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	config.Datadog.Set("enable_events_stream_payload_serialization", true)
 	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
