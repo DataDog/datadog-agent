@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -67,7 +68,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct {
 }
 
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (*dogstatsd.Server, error) {
+func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
 	return nil, fmt.Errorf("error")
 }
 
