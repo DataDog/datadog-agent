@@ -37,6 +37,7 @@ type LambdaLogsCollector struct {
 	In                     chan []LambdaLogAPIMessage
 	lastRequestID          string
 	coldstartRequestID     string
+	outOfMemory            bool
 	out                    chan<- *logConfig.ChannelMessage
 	demux                  aggregator.Demultiplexer
 	extraTags              *Tags
@@ -187,8 +188,8 @@ func (lc *LambdaLogsCollector) processMessage(
 
 	if lc.enhancedMetricsEnabled {
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, lc.lastRequestID == lc.coldstartRequestID)
-		if message.logType == logTypeFunction {
-			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, lc.demux)
+		if message.logType == logTypeFunction && !lc.outOfMemory {
+			lc.outOfMemory = serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, lc.demux)
 		}
 		if message.logType == logTypePlatformReport {
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{

@@ -109,15 +109,17 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 	})
 }
 
-// GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics from a LogTypeFunction message
-func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, demux aggregator.Demultiplexer) {
+// GenerateEnhancedMetricsFromFunctionLog attempts to generate enhanced metrics from a LogTypeFunction message if an Out of Memory log is detected
+func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, demux aggregator.Demultiplexer) bool {
+	isOutOfMemory := false
 	for _, substring := range getOutOfMemorySubstrings() {
-		if strings.Contains(logString, substring) {
+		if isOutOfMemory = strings.Contains(logString, substring); isOutOfMemory {
 			SendOutOfMemoryEnhancedMetric(tags, time, demux)
 			SendErrorsEnhancedMetric(tags, time, demux)
-			return
+			break
 		}
 	}
+	return isOutOfMemory
 }
 
 // GenerateEnhancedMetricsFromReportLogArgs provides the arguments required for
