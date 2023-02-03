@@ -276,6 +276,13 @@ func (r *RequestStats) HalfAllCounts() {
 	for i := 0; i < NumStatusClasses; i++ {
 		if r.data[i] != nil {
 			r.data[i].Count = r.data[i].Count / 2
+			// temporary fix until we can remove this altogether.
+			// blindly halving all counts doesn't take into account we might not have
+			// both ends, either because (a) it's https via etw or (b) the request
+			// might come in between the kernel flush & etw flush.
+			if r.data[i].Count == 0 {
+				r.data[i].Count = 1
+			}
 		}
 	}
 }
