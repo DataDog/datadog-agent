@@ -90,7 +90,7 @@ type CCCache struct {
 	segmentBySpaceGUID   map[string]*cfclient.IsolationSegment
 	segmentByOrgGUID     map[string]*cfclient.IsolationSegment
 	appsBatchSize        int
-	locksByResource      map[string]*sync.RWMutex
+	locksByResourceGUID  map[string]*sync.RWMutex
 }
 
 // CCClientI is an interface for a Cloud Foundry Client that queries the Cloud Foundry API
@@ -148,7 +148,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.serveNozzleData = serveNozzleData
 	globalCCCache.sidecarsTags = sidecarsTags
 	globalCCCache.segmentsTags = segmentsTags
-	globalCCCache.locksByResource = make(map[string]*sync.RWMutex)
+	globalCCCache.locksByResourceGUID = make(map[string]*sync.RWMutex)
 
 	go globalCCCache.start()
 
@@ -180,6 +180,25 @@ func (ccc *CCCache) UpdatedOnce() <-chan struct{} {
 	return ccc.updatedOnce
 }
 
+func (ccc *CCCache) getLockForResource(resourceName, guid string) *sync.RWMutex {
+	// Note: even though `guid` is globally unique, in our case we have a collision between two resources
+	// cfclient.V3App and CFapplications since they represent the same underlying resource
+	// we need to use a lockID in the form `resourceName/guid` to prevent deadlocks
+	lockID := resourceName + "/" + guid
+
+	ccc.RLock()
+	mu, ok := ccc.locksByResourceGUID[lockID]
+	ccc.RUnlock()
+
+	if !ok {
+		mu = &sync.RWMutex{}
+		ccc.Lock()
+		ccc.locksByResourceGUID[lockID] = mu
+		ccc.Unlock()
+	}
+	return mu
+}
+
 // getResource looks up the given resourceName/GUID in the CCCache
 // If not found and refreshOnCacheMiss is enabled, it will use the fetchFn function to fetch the resource from the CAPI
 func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[string]T, fetchFn func(string) (T, error)) (T, error) {
@@ -194,24 +213,12 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 		return resource, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 	}
 
-	// get lock for the resourceName/guid
-	lockID := resourceName + "/" + guid
-
-	ccc.RLock()
-	mu, ok := ccc.locksByResource[lockID]
-	ccc.RUnlock()
-
-	if !ok {
-		mu = &sync.RWMutex{}
-		ccc.Lock()
-		ccc.locksByResource[lockID] = mu
-		ccc.Unlock()
-	}
+	resourceLock := ccc.getLockForResource(resourceName, guid)
 
 	// check cache
-	mu.RLock()
-	resource, ok = cache[guid]
-	mu.RUnlock()
+	resourceLock.RLock()
+	resource, ok := cache[guid]
+	resourceLock.RUnlock()
 
 	if ok {
 		return resource, nil
@@ -221,8 +228,8 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 		return resource, fmt.Errorf("could not find resource '%s' with guid '%s' in cloud controller cache, consider enabling `refreshCacheOnMiss`", resourceName, guid)
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
+	resourceLock.Lock()
+	defer resourceLock.Unlock()
 
 	// check cache again in case it was updated when the resource was locked
 	resource, ok = cache[guid]
