@@ -20,7 +20,7 @@ type RuleFilterEvent struct {
 type RuleFilterModel struct {
 }
 
-func NewRuleFilterModel() *RuleFilterModel {
+func NewRuleFilterModel(kv *kernel.Version) *RuleFilterModel {
 	return &RuleFilterModel{}
 }
 
