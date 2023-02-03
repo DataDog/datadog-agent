@@ -469,6 +469,8 @@ def test(
 
     If no module or target is set the tests are run against all modules and targets.
 
+    Can also run linters on the same modules / targets, if the --run-linters option is passed.
+
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
@@ -613,7 +615,9 @@ def test(
 
     success = process_module_results(modules_results_per_phase)
 
-    if not success:
+    if success:
+        print(color_message("All tests passed", "green"))
+    else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
 
@@ -686,7 +690,9 @@ def lint_go(
 
     success = process_module_results(modules_results_per_phase)
 
-    if not success:
+    if success:
+        print(color_message("All linters passed", "green"))
+    else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
 
