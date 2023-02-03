@@ -59,7 +59,7 @@ func TestFormatTrace(t *testing.T) {
 	}
 	result := formatTrace(testTrace)[0]
 
-	assert.Equal(5001, len(result.Resource))
+	assert.Equal(5000, len(result.Resource))
 	assert.NotEqual("Non-parsable SQL query", result.Resource)
 	assert.NotContains(result.Resource, "42")
 	assert.Contains(result.Resource, "SELECT name FROM people WHERE age = ?")
