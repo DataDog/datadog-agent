@@ -185,7 +185,7 @@ func (suite *Suite) createEnv(fct func(ctx *pulumi.Context) (*vm.VM, error)) (*s
 	suite.require.Equal(suite.fullStackName, stack.Name())
 	user, ip, err := getConnection(stackOutput)
 	if err != nil {
-		return nil, fmt.Errorf("your environment doesn't have a valid virtual machine: %v", err)
+		return nil, fmt.Errorf("error connecting to your environment: %v", err)
 	}
 
 	client, _, err := clients.GetSSHClient(user, fmt.Sprintf("%s:%d", ip, 22), suite.sshKey, 2*time.Second, 5)
