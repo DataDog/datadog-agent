@@ -69,7 +69,7 @@ docker buildx create --use desktop-linux
 2. Build a new multi-arch image using `buildx`. This will allow the container to run on both MacOS M1 (arm64) and Linux (amd64).
 
 ```bash
-docker buildx build --push --platform linux/arm/v7,linux/arm64/v8,linux/amd64 --tag <repo_name>/fake-intake:<tag> .
+docker buildx build --push --platform linux/arm64/v8,linux/amd64 --tag <repo_name>/fake-intake:<tag> .
 ```
 
 ## API
