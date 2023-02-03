@@ -88,11 +88,9 @@ describe "security-agent" do
 
   case cws_platform
   when "host"
-    describe 'functional test running directly on host' do
-      it 'successfully runs' do
-        env = {}
-        include_examples "passes", "host", env
-      end
+    context 'functional tests running directly on host' do
+      env = {}
+      include_examples "passes", "host", env
     end
   when "docker"
     describe 'functional test running inside a container' do
