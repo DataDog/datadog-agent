@@ -31,10 +31,10 @@ import (
 // for the purpose of then attaching eBPF uprobes to these locations.
 // This is needed because uretprobes don't work well with Go.
 // See the following links for more info:
-// - https://github.com/iovisor/bcc/issues/1320
-// - https://github.com/iovisor/bcc/issues/1320#issuecomment-407927542
-//   (which describes how this approach works as a workaround)
-// - https://github.com/golang/go/issues/22008
+//   - https://github.com/iovisor/bcc/issues/1320
+//   - https://github.com/iovisor/bcc/issues/1320#issuecomment-407927542
+//     (which describes how this approach works as a workaround)
+//   - https://github.com/golang/go/issues/22008
 func ScanFunction(textSection *elf.Section, sym elf.Symbol, functionOffset uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
 	// Determine the offset in the section that the function starts at
 	lowPC := sym.Value

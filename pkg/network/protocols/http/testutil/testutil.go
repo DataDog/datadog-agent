@@ -44,9 +44,8 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 		statusCode := StatusFromPath(req.URL.Path)
 		w.WriteHeader(statusCode)
 
-		reqBody, _ := io.ReadAll(req.Body)
 		defer req.Body.Close()
-		w.Write(reqBody)
+		io.Copy(w, req.Body)
 	}
 
 	srv := &http.Server{

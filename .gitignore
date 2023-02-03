@@ -45,6 +45,9 @@ Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
 pkg/status/template.go
 
+# gotestsum-generated files
+module_test_output.json
+
 # jetbrains IDE directory
 /.idea/
 
@@ -109,6 +112,12 @@ system-probe-msg.h
 **/.ninja_deps
 *.ninja
 pkg/ebpf/bytecode/build/**/*.d
+pkg/ebpf/bytecode/runtime/conntrack.go
+pkg/ebpf/bytecode/runtime/http.go
+pkg/ebpf/bytecode/runtime/oom-kill.go
+pkg/ebpf/bytecode/runtime/runtime-security.go
+pkg/ebpf/bytecode/runtime/tcp-queue-length.go
+pkg/ebpf/bytecode/runtime/tracer.go
 pkg/security/tests/syscall_tester/**/*.d
 
 # dsd artifacts
@@ -176,3 +185,14 @@ TAGS
 
 # cscope
 cscope.out
+
+# Go workspace until we have proper support in the tooling
+go.work*
+
+tools/windows/DatadogAgentInstaller/.vs/
+tools/windows/DatadogAgentInstaller/packages/
+tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
+*.wixobj
+*obj*
+*.g.wxs
+*.DotSettings.user

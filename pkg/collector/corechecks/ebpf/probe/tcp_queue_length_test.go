@@ -47,7 +47,6 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 	}
 
 	cfg := ebpf.NewConfig()
-
 	tcpTracer, err := NewTCPQueueLengthTracer(cfg)
 	if err != nil {
 		t.Fatal(err)

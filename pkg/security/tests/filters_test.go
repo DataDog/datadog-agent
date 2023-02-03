@@ -206,7 +206,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		}
 		return syscall.Close(fd)
 	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
-		e := event.(*probe.Event)
+		e := event.(*model.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}
@@ -226,7 +226,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *probe.Event) bool {
+	}, func(event *model.Event) bool {
 		return event.GetType() == "open" &&
 			event.SavedByActivityDumps &&
 			event.Open.File.Inode == getInode(t, testFile)
@@ -340,7 +340,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 
 			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
 			return err
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 
@@ -373,7 +373,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 	}))
@@ -637,7 +637,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 		}
 		return syscall.Close(fd)
 	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
-		e := event.(*probe.Event)
+		e := event.(*model.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}

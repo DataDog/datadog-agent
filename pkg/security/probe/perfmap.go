@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/ebpf/perf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -83,6 +84,18 @@ func (m *OrderedPerfMap) Pause() error {
 // Resume the event stream.
 func (m *OrderedPerfMap) Resume() error {
 	return m.perfMap.Resume()
+}
+
+// ExtractEventInfo extracts cpu and timestamp from the raw data event
+func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
+	if len(record.RawSample) < 16 {
+		return QuickInfo{}, model.ErrNotEnoughData
+	}
+
+	return QuickInfo{
+		cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
+		timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+	}, nil
 }
 
 // NewOrderedPerfMap returned a new ordered perf map.

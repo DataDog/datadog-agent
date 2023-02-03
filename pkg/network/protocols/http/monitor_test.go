@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -39,6 +40,16 @@ var (
 	emptyBody = []byte(nil)
 )
 
+func newHTTPTestMonitor(t *testing.T) *Monitor {
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	t.Cleanup(monitor.Stop)
+	return monitor
+}
+
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -53,10 +64,7 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
+	monitor := newHTTPTestMonitor(t)
 
 	client := nethttp.Client{}
 
@@ -96,10 +104,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
+	monitor := newHTTPTestMonitor(t)
 
 	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
 	wg := sync.WaitGroup{}
@@ -181,10 +186,7 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 				EnableKeepAlives: true,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil, nil)
-			require.NoError(t, err)
-			require.NoError(t, monitor.Start())
-			defer monitor.Stop()
+			monitor := newHTTPTestMonitor(t)
 
 			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
@@ -245,10 +247,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 				SlowResponse: slowResponseTimeout,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil, nil)
-			require.NoError(t, err)
-			require.NoError(t, monitor.Start())
-			defer monitor.Stop()
+			monitor := newHTTPTestMonitor(t)
 
 			// Perform a number of random requests
 			req := requestGenerator(t, targetAddr, emptyBody)()
@@ -319,11 +318,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 	})
 	defer srvDoneFn()
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPTestMonitor(t)
 
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
 	for i := 0; i < 100; i++ {
@@ -343,11 +338,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 func TestRSTPacketRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPTestMonitor(t)
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -382,11 +373,7 @@ func TestRSTPacketRegression(t *testing.T) {
 func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPTestMonitor(t)
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -467,11 +454,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPTestMonitor(t)
 
 	// Perform a number of random requests
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
@@ -493,9 +476,11 @@ var (
 
 func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
 	var (
-		random = rand.New(rand.NewSource(time.Now().Unix()))
-		idx    = 0
-		client = new(nethttp.Client)
+		random  = rand.New(rand.NewSource(time.Now().Unix()))
+		idx     = 0
+		client  = new(nethttp.Client)
+		reqBuf  = make([]byte, 0, len(reqBody))
+		respBuf = make([]byte, 512)
 	)
 
 	return func() *nethttp.Request {
@@ -504,8 +489,14 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 		var body io.Reader
 		var finalBody []byte
 		if len(reqBody) > 0 {
-			finalBody = append([]byte(strings.Repeat(" ", idx)), reqBody...)
+			finalBody = reqBuf[:0]
+			finalBody = append(finalBody, []byte(strings.Repeat(" ", idx))...)
+			finalBody = append(finalBody, reqBody...)
 			body = bytes.NewReader(finalBody)
+
+			// save resized-buffer
+			reqBuf = finalBody
+
 			method = httpMethodsWithBody[random.Intn(len(httpMethodsWithBody))]
 		} else {
 			method = httpMethods[random.Intn(len(httpMethods))]
@@ -520,11 +511,18 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 			return req
 		}
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		if len(reqBody) > 0 {
-			respBody, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, finalBody, respBody)
+			for {
+				n, err := resp.Body.Read(respBuf)
+				require.True(t, n <= len(finalBody))
+				require.Equal(t, respBuf[:n], finalBody[:n])
+				if err != nil {
+					assert.Equal(t, io.EOF, err)
+					break
+				}
+				finalBody = finalBody[n:]
+			}
 		}
 		return req
 	}

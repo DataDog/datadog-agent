@@ -6,11 +6,13 @@
 package log
 
 import (
+	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/fx"
 )
 
 // logger implements the component
@@ -19,7 +21,7 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
-func newLogger(params Params, config config.Component) (Component, error) {
+func newLogger(lc fx.Lifecycle, params Params, config config.Component) (Component, error) {
 	if params.logLevelFn == nil {
 		return nil, errors.New("must call one of core.BundleParams.LogForOneShot or LogForDaemon")
 	}
@@ -34,7 +36,14 @@ func newLogger(params Params, config config.Component) (Component, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &logger{}, nil
+
+	logger := &logger{}
+	lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		logger.Flush()
+		return nil
+	}})
+
+	return logger, nil
 }
 
 // Trace implements Component#Trace.

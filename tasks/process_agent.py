@@ -122,10 +122,13 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             core_agent_dest = "/dev/null"
 
         ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
+        ctx.run(f"mkdir {docker_context}/co-re")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c")
+        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        ctx.run(f"cp pkg/network/java/agent-usm.jar {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -154,6 +157,7 @@ def gen_mocks(ctx):
     """
 
     interfaces = {
+        "./cmd/process-agent": ["Submitter"],
         "./pkg/process/checks": ["Check", "CheckWithRealTime"],
         "./pkg/process/net": ["SysProbeUtil"],
         "./pkg/process/procutil": ["Probe"],

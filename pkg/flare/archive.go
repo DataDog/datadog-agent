@@ -149,7 +149,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 		fb.AddFileFromFunc("status.log", status.GetAndFormatStatus)
 		fb.AddFileFromFunc("config-check.log", getConfigCheck)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)
-		fb.AddFileFromFunc("workload-list.log", getWorkloadList)
+		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList)
 
 		getProcessChecks(fb, config.GetProcessAPIAddressPort)
@@ -157,10 +157,13 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	fb.RegisterDirPerm(config.Datadog.GetString("system_probe_config.bpf_dir"))
+	systemProbeConfigBPFDir := config.Datadog.GetString("system_probe_config.bpf_dir")
+	if systemProbeConfigBPFDir != "" {
+		fb.RegisterDirPerm(systemProbeConfigBPFDir)
+	}
 	addSystemProbePlatformSpecificEntries(fb)
 
-	if config.Datadog.GetBool("system_probe_config.enabled") {
+	if config.SystemProbe.GetBool("system_probe_config.enabled") {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
 	}
 
@@ -204,17 +207,17 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 }
 
 func getVersionHistory(fb flarehelpers.FlareBuilder) {
-	fb.CopyFileTo(config.Datadog.GetString("run_path"), "version-history.json")
+	fb.CopyFile(filepath.Join(config.Datadog.GetString("run_path"), "version-history.json"))
 }
 
 func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
 	for name, data := range pdata {
-		fb.AddFile(filepath.Join("profiles", name), data)
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
 	}
 }
 
 func getRegistryJSON(fb flarehelpers.FlareBuilder) {
-	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path")))
+	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json"))
 }
 
 func getMetadataV5() ([]byte, error) {
@@ -293,7 +296,7 @@ func getExpVar(fb flarehelpers.FlareBuilder) error {
 }
 
 func getSystemProbeStats() ([]byte, error) {
-	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeStats := status.GetSystemProbeStats(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
 	if err != nil {
 		return nil, err
@@ -317,7 +320,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 	for prefix, filePath := range confSearchPaths {
-		fb.CopyDirTo(filePath, prefix, func(path string) bool {
+		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool {
 			// ignore .example file
 			if filepath.Ext(path) == ".example" {
 				return false
@@ -337,7 +340,7 @@ func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 		confDir := filepath.Dir(mainConfpath)
 
 		// zip up the config file that was actually used, if one exists
-		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog-agent.yaml"))
+		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog.yaml"))
 
 		// figure out system-probe file path based on main config path, and use best effort to include
 		// system-probe.yaml to the flare
@@ -447,17 +450,19 @@ func getTaggerList(remoteURL string) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func getWorkloadList() ([]byte, error) {
+func getAgentWorkloadList() ([]byte, error) {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return nil, err
 	}
 
-	workloadListURL := fmt.Sprintf("https://%v:%v/agent/workload-list/verbose", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cmd_port")))
+}
 
+func getWorkloadList(url string) ([]byte, error) {
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, workloadListURL, apiutil.LeaveConnectionOpen)
+	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}

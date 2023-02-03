@@ -6,18 +6,24 @@
 package amqp
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/streadway/amqp"
+	"net"
+	"net/http"
 	"sync"
+
+	"github.com/streadway/amqp"
 )
 
 type Options struct {
 	ServerAddress string
 	Username      string
 	Password      string
+	Dialer        *net.Dialer
 }
 
 type Client struct {
+	opts           Options
 	PublishConn    *amqp.Connection
 	PublishChannel *amqp.Channel
 	ConsumeConn    *amqp.Connection
@@ -25,17 +31,20 @@ type Client struct {
 }
 
 func NewClient(opts Options) (*Client, error) {
-	user := opts.Username
-	if user == "" {
-		user = User
+	if opts.Username == "" {
+		opts.Username = User
 	}
 
-	pass := opts.Password
-	if pass == "" {
-		pass = Pass
+	if opts.Password == "" {
+		opts.Password = Pass
 	}
 
-	publishConn, err := amqp.Dial(fmt.Sprintf("amqp://%s:%s@%s/", user, pass, opts.ServerAddress))
+	dialOptions := amqp.Config{}
+	if opts.Dialer != nil {
+		dialOptions.Dial = opts.Dialer.Dial
+	}
+
+	publishConn, err := amqp.DialConfig(fmt.Sprintf("amqp://%s:%s@%s/", opts.Username, opts.Password, opts.ServerAddress), dialOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +52,7 @@ func NewClient(opts Options) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	consumeConn, err := amqp.Dial(fmt.Sprintf("amqp://%s:%s@%s/", user, pass, opts.ServerAddress))
+	consumeConn, err := amqp.DialConfig(fmt.Sprintf("amqp://%s:%s@%s/", opts.Username, opts.Password, opts.ServerAddress), dialOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -52,11 +61,43 @@ func NewClient(opts Options) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
+		opts:           opts,
 		PublishConn:    publishConn,
 		PublishChannel: publishCh,
 		ConsumeConn:    consumeConn,
 		ConsumeChannel: consumeCh,
 	}, nil
+}
+
+type Queue struct {
+	Name string
+}
+
+func (c *Client) DeleteQueues() error {
+	host, _, _ := net.SplitHostPort(c.opts.ServerAddress)
+	manager := fmt.Sprintf("http://%s:15672/api/queues/", host)
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", manager, nil)
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(c.opts.Username, c.opts.Password)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	queues := make([]Queue, 0)
+	if err := json.NewDecoder(resp.Body).Decode(&queues); err != nil {
+		return err
+	}
+
+	for _, queue := range queues {
+		_, _ = c.PublishChannel.QueueDelete(queue.Name, false, false, false)
+	}
+
+	return nil
 }
 
 func (c *Client) Terminate() {

@@ -62,6 +62,8 @@ const (
 	K8sCRD
 	// K8sCR represents a Kubernetes CR
 	K8sCR
+	// K8sVerticalPodAutoscaler represents a Kubernetes VerticalPod Autoscaler
+	K8sVerticalPodAutoscaler
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -88,6 +90,7 @@ func NodeTypes() []NodeType {
 		K8sNamespace,
 		K8sCR,
 		K8sCRD,
+		K8sVerticalPodAutoscaler,
 	}
 }
 
@@ -135,6 +138,8 @@ func (n NodeType) String() string {
 		return "CustomResourceDefinition"
 	case K8sCR:
 		return "CustomResource"
+	case K8sVerticalPodAutoscaler:
+		return "VerticalPodAutoscaler"
 	case K8sUnsetType:
 		return "UnsetType"
 	default:
@@ -167,6 +172,7 @@ func (n NodeType) Orchestrator() string {
 		K8sCRD,
 		K8sCR,
 		K8sNamespace,
+		K8sVerticalPodAutoscaler,
 		K8sUnsetType:
 		return "k8s"
 	default:

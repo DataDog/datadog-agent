@@ -23,11 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
-	probe             *Probe
+	manager           *manager.Manager
 	MountResolver     *resolvers.MountResolver
 	ContainerResolver *resolvers.ContainerResolver
 	TimeResolver      *resolvers.TimeResolver
@@ -37,6 +38,7 @@ type Resolvers struct {
 	ProcessResolver   *ProcessResolver
 	NamespaceResolver *NamespaceResolver
 	CgroupsResolver   *resolvers.CgroupsResolver
+	TCResolver        *resolvers.TCResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -71,8 +73,16 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	tcResolver := resolvers.NewTCResolver(config)
+
+	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
+		probe.scrubber, NewProcessResolverOpts(probe.Config.EnvsWithValue))
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
-		probe:             probe,
+		manager:           probe.Manager,
 		MountResolver:     mountResolver,
 		ContainerResolver: &resolvers.ContainerResolver{},
 		TimeResolver:      timeResolver,
@@ -81,14 +91,11 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
 		CgroupsResolver:   cgroupsResolver,
+		TCResolver:        tcResolver,
+		ProcessResolver:   processResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
-		probe.scrubber, resolvers, NewProcessResolverOpts(probe.Config.EnvsWithValue))
-	if err != nil {
-		return nil, err
-	}
-	resolvers.ProcessResolver = processResolver
+	resolvers.ProcessResolver.resolvers = resolvers
 
 	return resolvers, nil
 }
@@ -134,22 +141,6 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PID
 	}
 
 	return pathStr, err
-}
-
-// ResolveFileFieldsUser resolves the user id of the file to a username
-func (r *Resolvers) ResolveFileFieldsUser(e *model.FileFields) string {
-	if len(e.User) == 0 {
-		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
-	}
-	return e.User
-}
-
-// ResolveFileFieldsGroup resolves the group id of the file to a group name
-func (r *Resolvers) ResolveFileFieldsGroup(e *model.FileFields) string {
-	if len(e.Group) == 0 {
-		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
-	}
-	return e.Group
 }
 
 // ResolveCredentialsUser resolves the user id of the process to a username
@@ -211,7 +202,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.DentryResolver.Start(r.probe.Manager); err != nil {
+	if err := r.DentryResolver.Start(r.manager); err != nil {
 		return err
 	}
 
@@ -227,7 +218,7 @@ func (r *Resolvers) Snapshot() error {
 	r.ProcessResolver.SetState(snapshotted)
 	r.NamespaceResolver.SetState(snapshotted)
 
-	selinuxStatusMap, err := managerhelper.Map(r.probe.Manager, "selinux_enforce_status")
+	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {
 		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}

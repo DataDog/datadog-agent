@@ -34,33 +34,33 @@ func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
 
 func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
 	return &provider.ContainerCPUStats{
-		Total:            pointer.UIntToFloatPtr(cpuStats.CPUUsage.TotalUsage),
-		System:           pointer.UIntToFloatPtr(cpuStats.CPUUsage.UsageInKernelmode),
-		User:             pointer.UIntToFloatPtr(cpuStats.CPUUsage.UsageInUsermode),
-		ThrottledPeriods: pointer.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledPeriods),
-		ThrottledTime:    pointer.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledTime),
+		Total:            pointer.Ptr(float64(cpuStats.CPUUsage.TotalUsage)),
+		System:           pointer.Ptr(float64(cpuStats.CPUUsage.UsageInKernelmode)),
+		User:             pointer.Ptr(float64(cpuStats.CPUUsage.UsageInUsermode)),
+		ThrottledPeriods: pointer.Ptr(float64(cpuStats.ThrottlingData.ThrottledPeriods)),
+		ThrottledTime:    pointer.Ptr(float64(cpuStats.ThrottlingData.ThrottledTime)),
 	}
 }
 
 func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
 	containerMemStats := &provider.ContainerMemStats{
-		UsageTotal: pointer.UIntToFloatPtr(memStats.Usage),
-		Limit:      pointer.UIntToFloatPtr(memStats.Limit),
-		OOMEvents:  pointer.UIntToFloatPtr(memStats.Failcnt),
+		UsageTotal: pointer.Ptr(float64(memStats.Usage)),
+		Limit:      pointer.Ptr(float64(memStats.Limit)),
+		OOMEvents:  pointer.Ptr(float64(memStats.Failcnt)),
 	}
 
 	if rss, found := memStats.Stats["rss"]; found {
-		containerMemStats.RSS = pointer.UIntToFloatPtr(rss)
+		containerMemStats.RSS = pointer.Ptr(float64(rss))
 	}
 
 	if cache, found := memStats.Stats["cache"]; found {
-		containerMemStats.Cache = pointer.UIntToFloatPtr(cache)
+		containerMemStats.Cache = pointer.Ptr(float64(cache))
 	}
 
 	// `kernel_stack` and `slab`, which are used to compute `KernelMemory` are available only with cgroup v2
 	if kernelStack, found := memStats.Stats["kernel_stack"]; found {
 		if slab, found := memStats.Stats["slab"]; found {
-			containerMemStats.KernelMemory = pointer.UIntToFloatPtr(kernelStack + slab)
+			containerMemStats.KernelMemory = pointer.Ptr(float64(kernelStack + slab))
 		}
 	}
 
@@ -69,10 +69,10 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 
 func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 	containerIOStats := provider.ContainerIOStats{
-		ReadBytes:       pointer.Float64Ptr(0),
-		WriteBytes:      pointer.Float64Ptr(0),
-		ReadOperations:  pointer.Float64Ptr(0),
-		WriteOperations: pointer.Float64Ptr(0),
+		ReadBytes:       pointer.Ptr(0.0),
+		WriteBytes:      pointer.Ptr(0.0),
+		ReadOperations:  pointer.Ptr(0.0),
+		WriteOperations: pointer.Ptr(0.0),
 		Devices:         make(map[string]provider.DeviceIOStats),
 	}
 
@@ -92,10 +92,10 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadBytes = pointer.UIntToFloatPtr(blkioStatEntry.Value)
+			device.ReadBytes = pointer.Ptr(float64(blkioStatEntry.Value))
 			*containerIOStats.ReadBytes += *device.ReadBytes
 		case "Write":
-			device.WriteBytes = pointer.UIntToFloatPtr(blkioStatEntry.Value)
+			device.WriteBytes = pointer.Ptr(float64(blkioStatEntry.Value))
 			*containerIOStats.WriteBytes += *device.WriteBytes
 		}
 
@@ -114,10 +114,10 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadOperations = pointer.UIntToFloatPtr(blkioStatEntry.Value)
+			device.ReadOperations = pointer.Ptr(float64(blkioStatEntry.Value))
 			*containerIOStats.ReadOperations += *device.ReadOperations
 		case "Write":
-			device.WriteOperations = pointer.UIntToFloatPtr(blkioStatEntry.Value)
+			device.WriteOperations = pointer.Ptr(float64(blkioStatEntry.Value))
 			*containerIOStats.WriteOperations += *device.WriteOperations
 		}
 
@@ -131,8 +131,8 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 func convertPIDStats(pidStats *types.PidsStats) *provider.ContainerPIDStats {
 	return &provider.ContainerPIDStats{
-		ThreadCount: pointer.UIntToFloatPtr(pidStats.Current),
-		ThreadLimit: pointer.UIntToFloatPtr(pidStats.Limit),
+		ThreadCount: pointer.Ptr(float64(pidStats.Current)),
+		ThreadLimit: pointer.Ptr(float64(pidStats.Limit)),
 	}
 }
 

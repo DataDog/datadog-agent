@@ -35,4 +35,5 @@ type Event interface {
 // EventSender defines an event sender
 type EventSender interface {
 	SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string)
+	SendProcessEventData(data []byte)
 }

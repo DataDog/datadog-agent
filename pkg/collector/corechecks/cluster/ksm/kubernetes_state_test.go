@@ -1107,7 +1107,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
-			kubeStateMetricsSCheck.clusterName = tt.args.clusterName
+			kubeStateMetricsSCheck.clusterNameRFC1123 = tt.args.clusterName
 			labelJoiner := newLabelJoiner(tt.config.LabelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
 				labelJoiner.insertFamily(metricFam)
@@ -1417,14 +1417,15 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername"},
 		},
 	}
+
+	mockConfig := config.Mock(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
 
 			k := &KSMCheck{
-				instance:    tt.fields.instance,
-				clusterName: tt.fields.clusterName,
-				agentConfig: mockConfig,
+				instance:            tt.fields.instance,
+				clusterNameTagValue: tt.fields.clusterName,
+				agentConfig:         mockConfig,
 			}
 
 			tt.loadFunc(mockConfig)

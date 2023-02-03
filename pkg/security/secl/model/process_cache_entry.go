@@ -40,23 +40,29 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	parent.Retain()
 }
 
-// GetNextAncestorNoFork returns the first ancestor that is not a fork entry
-func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
-	if pc.Ancestor == nil {
-		return nil
-	}
-
+// GetNextAncestorBinary returns the first ancestor with a different binary
+func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
+	current := pc
 	ancestor := pc.Ancestor
-	for ancestor.Ancestor != nil {
-		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime.IsZero()) && ancestor.Tid == ancestor.Ancestor.Tid {
-			// this is a fork entry, move on to the next ancestor
-			ancestor = ancestor.Ancestor
-		} else {
-			break
+	for ancestor != nil {
+		if current.Inode != ancestor.Inode {
+			return ancestor
 		}
+		current = ancestor
+		ancestor = ancestor.Ancestor
 	}
+	return nil
+}
 
-	return ancestor
+// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
+func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+	for pc != nil {
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
 }
 
 // Exit a process
@@ -126,6 +132,11 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
+func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+}
+
 // ArgsEnvs raw value for args and envs
 type ArgsEnvs struct {
 	ID        uint32
@@ -169,6 +180,15 @@ func (p *ArgsEnvsCacheEntry) forceReleaseAll() {
 
 		entry = next
 	}
+}
+
+// Init the head of the list
+func (p *ArgsEnvsCacheEntry) Init(event *ArgsEnvsEvent) {
+	p.Size = event.ArgsEnvs.Size
+	p.ValuesRaw = make([]byte, p.Size)
+	copy(p.ValuesRaw, event.ArgsEnvs.ValuesRaw[:])
+
+	p.TotalSize = uint64(p.Size)
 }
 
 // Append an entry to the list

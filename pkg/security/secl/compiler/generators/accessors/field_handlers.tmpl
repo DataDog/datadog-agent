@@ -1,0 +1,105 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
+{{range .BuildTags }}// {{.}}{{end}}
+
+// Code generated - DO NOT EDIT.
+
+package {{.Name}}
+
+// ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
+func (ev *Event) ResolveFields() {
+    ev.resolveFields(false)
+}
+
+// ResolveFieldsForAD resolves all the fields associate to the event type. Context fields are automatically resolved.
+func (ev *Event) ResolveFieldsForAD() {
+    ev.resolveFields(true)
+}
+
+func (ev *Event) resolveFields(forADs bool) {
+    {{ $uniqueResolvers := dict }}
+    // resolve context fields that are not related to any event type
+    {{- range $Key, $Field := .Fields}}
+        {{- if and (eq $Field.Event "*") }}
+            {{ $resolver := $Field | GetFieldHandler $.AllFields }}
+            {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
+                {{$Checks := $Field | GetChecks $.AllFields}}
+                {{if $Checks}}
+                    {{ $CheckStr := "" }}
+                    {{range $Check := $Checks}}
+                        {{$Check = $Check | printf "ev.%s()"}}
+                        {{if $CheckStr}}
+                            {{$CheckStr = $Check | printf "%s && %s" $CheckStr}}
+                        {{else}}
+                            {{$CheckStr = $Check}}
+                        {{end}}
+                    {{end}}
+
+                    if {{$CheckStr}} {
+                        {{ $resolver | FieldADPrint $Field }}
+                        {{ $_ := set $uniqueResolvers $resolver "" }}
+                    }
+                {{else}}
+                    {{ $resolver := $Field | GetFieldHandler $.AllFields }}
+                    {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
+                        {{ $resolver | FieldADPrint $Field }}
+                        {{ $_ := set $uniqueResolvers $resolver "" }}
+                    {{end}}
+                {{end}}
+            {{end}}
+        {{- end -}}
+    {{end}}
+
+    // resolve event specific fields
+    switch ev.GetEventType().String() {
+    {{- range $Name, $EventType := .EventTypes}}
+        {{- if (ne $Name "*") }}
+        case "{{$Name}}":
+            {{- range $Key, $FieldName := $EventType.Fields }}
+                {{- $Field := index $.Fields $FieldName }}
+                {{ $resolver := $Field | GetFieldHandler $.AllFields }}
+                {{ if ne $resolver "" }}
+                    {{$Checks := $Field | GetChecks $.AllFields}}
+                    {{if $Checks}}
+                        {{ $CheckStr := "" }}
+                        {{range $Check := $Checks}}
+                            {{$Check = $Check | printf "ev.%s()"}}
+                            {{if $CheckStr}}
+                                {{$CheckStr = $Check | printf "%s && %s" $CheckStr}}
+                            {{else}}
+                                {{$CheckStr = $Check}}
+                            {{end}}
+                        {{end}}
+
+                        if {{$CheckStr}} {
+                            {{ $resolver | FieldADPrint $Field }}
+                        }
+                    {{else}}
+                        {{ $resolver | FieldADPrint $Field }}
+                    {{end}}
+                {{end}}
+            {{end}}
+        {{- end}}
+    {{end}}
+    }
+}
+
+type FieldHandlers interface {
+    {{$Handlers := .Fields | GetHandlers}}
+    {{range $Proto, $Impl := $Handlers}}
+        {{$Proto}}
+    {{end}}
+
+    // custom handlers not tied to any fields
+    ExtraFieldHandlers
+}
+
+type DefaultFieldHandlers struct {}
+
+{{$Handlers := .Fields | GetHandlers}}
+{{range $Proto, $Impl := $Handlers}}
+        func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
+{{end}}

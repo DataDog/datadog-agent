@@ -56,4 +56,8 @@ var (
 	OrchestratorManifestEndpoint = transaction.Endpoint{Route: "/api/v2/orchmanif", Name: "orchmanifest"}
 	// ContainerLifecycleEndpoint is an event platform endpoint used to send container lifecycle events
 	ContainerLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/contlcycle", Name: "contlcycle"}
+	// ContainerImageEndpoint is an event platform endpoint used to send container images
+	ContainerImageEndpoint = transaction.Endpoint{Route: "/api/v2/contimage", Name: "contimage"}
+	// SBOMEndpoint is an event platform endpoint used to send SBOM
+	SBOMEndpoint = transaction.Endpoint{Route: "/api/v2/sbom", Name: "sbom"}
 )

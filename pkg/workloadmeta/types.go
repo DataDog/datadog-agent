@@ -8,11 +8,13 @@ package workloadmeta
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
-	"github.com/opencontainers/image-spec/specs-go/v1"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -77,6 +79,10 @@ type Store interface {
 	// ListImages returns metadata about all known images, equivalent to all
 	// entities with kind KindContainerImageMetadata.
 	ListImages() []*ContainerImageMetadata
+
+	// GetImage returns metadata about a container image. It fetches the entity
+	// with kind KindContainerImageMetadata and the given ID.
+	GetImage(id string) (*ContainerImageMetadata, error)
 
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.
@@ -266,6 +272,7 @@ type ContainerImage struct {
 	ID        string
 	RawName   string
 	Name      string
+	Registry  string
 	ShortName string
 	Tag       string
 }
@@ -277,7 +284,7 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 		Name:    imageName,
 	}
 
-	name, shortName, tag, err := containers.SplitImageName(imageName)
+	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}
@@ -287,6 +294,7 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 	}
 
 	image.Name = name
+	image.Registry = registry
 	image.ShortName = shortName
 	image.Tag = tag
 
@@ -629,6 +637,7 @@ type ContainerImageMetadata struct {
 	Architecture string
 	Variant      string
 	Layers       []ContainerImageLayer
+	SBOM         *SBOM
 }
 
 // ContainerImageLayer represents a layer of a container image
@@ -638,6 +647,13 @@ type ContainerImageLayer struct {
 	SizeBytes int64
 	URLs      []string
 	History   v1.History
+}
+
+// SBOM represents the Software Bill Of Materials (SBOM) of a container
+type SBOM struct {
+	CycloneDXBOM       *cyclonedx.BOM
+	GenerationTime     time.Time
+	GenerationDuration time.Duration
 }
 
 // GetID implements Entity#GetID.
@@ -671,7 +687,6 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
 	_, _ = fmt.Fprint(&sb, i.EntityMeta.String(verbose))
 
-	_, _ = fmt.Fprintln(&sb, "Short name:", i.ShortName)
 	_, _ = fmt.Fprintln(&sb, "Repo tags:", i.RepoTags)
 	_, _ = fmt.Fprintln(&sb, "Repo digests:", i.RepoDigests)
 
@@ -683,11 +698,15 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
+		if i.SBOM != nil {
+			_, _ = fmt.Fprintf(&sb, "SBOM: stored. Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+		} else {
+			_, _ = fmt.Fprintln(&sb, "SBOM: not stored")
+		}
+
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
 		for _, layer := range i.Layers {
-			if layer.SizeBytes != 0 { // Skip layers that have a history command associated but are empty
-				_, _ = fmt.Fprintln(&sb, layer)
-			}
+			_, _ = fmt.Fprintln(&sb, layer)
 		}
 	}
 
@@ -703,10 +722,17 @@ func (layer ContainerImageLayer) String() string {
 	_, _ = fmt.Fprintln(&sb, "Size in bytes:", layer.SizeBytes)
 	_, _ = fmt.Fprintln(&sb, "URLs:", layer.URLs)
 
-	// layer.History is not included here because it's way too verbose (includes
-	// the command in the Dockerfile that generated the layer).
+	printHistory(&sb, layer.History)
 
 	return sb.String()
+}
+
+func printHistory(out io.Writer, history v1.History) {
+	_, _ = fmt.Fprintln(out, "History:")
+	_, _ = fmt.Fprintln(out, "- createdAt:", history.Created)
+	_, _ = fmt.Fprintln(out, "- createdBy:", history.CreatedBy)
+	_, _ = fmt.Fprintln(out, "- comment:", history.Comment)
+	_, _ = fmt.Fprintln(out, "- emptyLayer:", history.EmptyLayer)
 }
 
 var _ Entity = &ContainerImageMetadata{}

@@ -1975,7 +1975,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(in *jl
 			continue
 		}
 		switch key {
-		case "mountpoint":
+		case "mp":
 			if in.IsNull() {
 				in.Skip()
 				out.MountPoint = nil
@@ -1985,7 +1985,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(in *jl
 				}
 				(*out.MountPoint).UnmarshalEasyJSON(in)
 			}
-		case "source":
+		case "root":
 			if in.IsNull() {
 				in.Skip()
 				out.Root = nil
@@ -2007,13 +2007,13 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(in *jl
 			out.Device = uint32(in.Uint32())
 		case "fs_type":
 			out.FSType = string(in.String())
-		case "mountpoint_path":
+		case "mountpoint.path":
 			out.MountPointPath = string(in.String())
-		case "mountsource_path":
+		case "source.path":
 			out.MountSourcePath = string(in.String())
-		case "mountpoint_path_error":
+		case "mountpoint.path_error":
 			out.MountPointPathResolutionError = string(in.String())
-		case "mountsource_path_error":
+		case "source.path_error":
 			out.MountSourcePathResolutionError = string(in.String())
 		default:
 			in.SkipRecursive()
@@ -2030,13 +2030,13 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(out *j
 	first := true
 	_ = first
 	if in.MountPoint != nil {
-		const prefix string = ",\"mountpoint\":"
+		const prefix string = ",\"mp\":"
 		first = false
 		out.RawString(prefix[1:])
 		(*in.MountPoint).MarshalEasyJSON(out)
 	}
 	if in.Root != nil {
-		const prefix string = ",\"source\":"
+		const prefix string = ",\"root\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -2081,22 +2081,22 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(out *j
 		out.String(string(in.FSType))
 	}
 	if in.MountPointPath != "" {
-		const prefix string = ",\"mountpoint_path\":"
+		const prefix string = ",\"mountpoint.path\":"
 		out.RawString(prefix)
 		out.String(string(in.MountPointPath))
 	}
 	if in.MountSourcePath != "" {
-		const prefix string = ",\"mountsource_path\":"
+		const prefix string = ",\"source.path\":"
 		out.RawString(prefix)
 		out.String(string(in.MountSourcePath))
 	}
 	if in.MountPointPathResolutionError != "" {
-		const prefix string = ",\"mountpoint_path_error\":"
+		const prefix string = ",\"mountpoint.path_error\":"
 		out.RawString(prefix)
 		out.String(string(in.MountPointPathResolutionError))
 	}
 	if in.MountSourcePathResolutionError != "" {
-		const prefix string = ",\"mountsource_path_error\":"
+		const prefix string = ",\"source.path_error\":"
 		out.RawString(prefix)
 		out.String(string(in.MountSourcePathResolutionError))
 	}

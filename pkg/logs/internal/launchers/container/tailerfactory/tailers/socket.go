@@ -149,7 +149,17 @@ func (t *DockerSocketTailer) run(
 		case <-t.ctx.Done():
 			// the launcher has requested that the tailer stop
 			if inner != nil {
+				// Ensure any pending errors are cleared when we try to stop the tailer. Since erroredContainerID
+				// is unbuffered, any pending writes to this channel could cause a deadlock as the tailers stop
+				// condition is managed in the same goroutine in dockerTailerPkg.
+				go func() {
+					for range erroredContainerID {
+					}
+				}()
 				stopTailer(inner)
+				if erroredContainerID != nil {
+					close(erroredContainerID)
+				}
 			}
 			return
 

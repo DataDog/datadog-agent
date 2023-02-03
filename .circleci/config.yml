@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1189
+      - image: datadog/datadog-agent-runner-circle:go1195
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -100,7 +100,7 @@ jobs:
 
   unit_tests:
     <<: *job_template
-    resource_class: large
+    resource_class: xlarge
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps

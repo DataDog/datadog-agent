@@ -13,11 +13,15 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
+	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.opentelemetry.io/collector/service"
 	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -37,24 +41,24 @@ var (
 )
 
 func getComponents(s serializer.MetricSerializer) (
-	component.Factories,
+	otelcol.Factories,
 	error,
 ) {
 	var errs []error
 
-	extensions, err := component.MakeExtensionFactoryMap()
+	extensions, err := extension.MakeFactoryMap()
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	receivers, err := component.MakeReceiverFactoryMap(
+	receivers, err := receiver.MakeFactoryMap(
 		otlpreceiver.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	exporters, err := component.MakeExporterFactoryMap(
+	exporters, err := exporter.MakeFactoryMap(
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s),
 		loggingexporter.NewFactory(),
@@ -63,14 +67,14 @@ func getComponents(s serializer.MetricSerializer) (
 		errs = append(errs, err)
 	}
 
-	processors, err := component.MakeProcessorFactoryMap(
+	processors, err := processor.MakeFactoryMap(
 		batchprocessor.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	factories := component.Factories{
+	factories := otelcol.Factories{
 		Extensions: extensions,
 		Receivers:  receivers,
 		Processors: processors,
@@ -132,7 +136,7 @@ func (p *PipelineConfig) shouldSetLoggingSection() bool {
 
 // Pipeline is an OTLP pipeline.
 type Pipeline struct {
-	col *service.Collector
+	col *otelcol.Collector
 }
 
 // CollectorStatus is the status struct for an OTLP pipeline's collector
@@ -164,7 +168,7 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 		return nil, fmt.Errorf("failed to build configuration provider: %w", err)
 	}
 
-	col, err := service.New(service.CollectorSettings{
+	col, err := otelcol.NewCollector(otelcol.CollectorSettings{
 		Factories:               factories,
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,

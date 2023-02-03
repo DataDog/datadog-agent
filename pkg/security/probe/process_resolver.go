@@ -20,7 +20,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -161,11 +160,7 @@ func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
 // GetFrom returns a new entry with value from the given entry
 func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
 	entry := a.Get()
-
-	entry.Size = event.ArgsEnvs.Size
-	entry.ValuesRaw = make([]byte, entry.Size)
-	copy(entry.ValuesRaw, event.ArgsEnvs.ValuesRaw[:])
-
+	entry.Init(event)
 	return entry
 }
 
@@ -442,13 +437,13 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	p.SetProcessUsersGroups(entry)
 
 	// args and envs
+	entry.ArgsEntry = &model.ArgsEntry{}
 	if len(filledProc.Cmdline) > 0 {
-		entry.ArgsEntry = &model.ArgsEntry{}
 		entry.ArgsEntry.SetValues(filledProc.Cmdline)
 	}
 
+	entry.EnvsEntry = &model.EnvsEntry{}
 	if envs, err := utils.EnvVars(proc.Pid); err == nil {
-		entry.EnvsEntry = &model.EnvsEntry{}
 		entry.EnvsEntry.SetValues(envs)
 	}
 
@@ -559,7 +554,7 @@ func (p *ProcessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
 
 	parent := p.entryCache[entry.PPid]
 	if parent == nil && entry.PPid >= 1 {
-		parent = p.resolve(entry.PPid, entry.PPid)
+		parent = p.resolve(entry.PPid, entry.PPid, entry.Inode)
 	}
 
 	if parent != nil {
@@ -608,15 +603,15 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) Resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.resolve(pid, tid)
+	return p.resolve(pid, tid, inode)
 }
 
-func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
-	if entry := p.resolveFromCache(pid, tid); entry != nil {
+func (p *ProcessResolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+	if entry := p.resolveFromCache(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
 	}
@@ -710,15 +705,22 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 }
 
 // ResolveFromCache resolves cache entry from the cache
-func (p *ProcessResolver) ResolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) ResolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-	return p.resolveFromCache(pid, tid)
+	return p.resolveFromCache(pid, tid, inode)
 }
 
-func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	entry, exists := p.entryCache[pid]
 	if !exists {
+		return nil
+	}
+
+	// Compare inode to ensure that the cache is up-to-date.
+	// Be sure to compare with the file inode and not the pidcontext which can be empty
+	// if the entry originates from procfs.
+	if inode != 0 && inode != entry.Process.FileEvent.Inode {
 		return nil
 	}
 
@@ -857,16 +859,16 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 	if entry != nil {
 		// consider kworker processes with 0 as ppid
 		entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
-	}
 
-	ppid = uint32(filledProc.Ppid)
+		ppid = uint32(filledProc.Ppid)
 
-	parent := p.resolveFromProcfs(ppid, maxDepth-1)
-	if inserted && entry != nil && parent != nil {
-		if parent.Equals(entry) {
-			entry.SetParentOfForkChild(parent)
-		} else {
-			entry.SetAncestor(parent)
+		parent := p.resolveFromProcfs(ppid, maxDepth-1)
+		if inserted && parent != nil {
+			if parent.Equals(entry) {
+				entry.SetParentOfForkChild(parent)
+			} else {
+				entry.SetAncestor(parent)
+			}
 		}
 	}
 
@@ -1012,7 +1014,7 @@ func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 }
 
 // UpdateUID updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateUID(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1022,16 +1024,16 @@ func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
 	entry := p.entryCache[pid]
 	if entry != nil {
 		entry.Credentials.UID = e.SetUID.UID
-		entry.Credentials.User = e.ResolveSetuidUser(&e.SetUID)
+		entry.Credentials.User = e.FieldHandlers.ResolveSetuidUser(e, &e.SetUID)
 		entry.Credentials.EUID = e.SetUID.EUID
-		entry.Credentials.EUser = e.ResolveSetuidEUser(&e.SetUID)
+		entry.Credentials.EUser = e.FieldHandlers.ResolveSetuidEUser(e, &e.SetUID)
 		entry.Credentials.FSUID = e.SetUID.FSUID
-		entry.Credentials.FSUser = e.ResolveSetuidFSUser(&e.SetUID)
+		entry.Credentials.FSUser = e.FieldHandlers.ResolveSetuidFSUser(e, &e.SetUID)
 	}
 }
 
 // UpdateGID updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateGID(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1041,16 +1043,16 @@ func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
 	entry := p.entryCache[pid]
 	if entry != nil {
 		entry.Credentials.GID = e.SetGID.GID
-		entry.Credentials.Group = e.ResolveSetgidGroup(&e.SetGID)
+		entry.Credentials.Group = e.FieldHandlers.ResolveSetgidGroup(e, &e.SetGID)
 		entry.Credentials.EGID = e.SetGID.EGID
-		entry.Credentials.EGroup = e.ResolveSetgidEGroup(&e.SetGID)
+		entry.Credentials.EGroup = e.FieldHandlers.ResolveSetgidEGroup(e, &e.SetGID)
 		entry.Credentials.FSGID = e.SetGID.FSGID
-		entry.Credentials.FSGroup = e.ResolveSetgidFSGroup(&e.SetGID)
+		entry.Credentials.FSGroup = e.FieldHandlers.ResolveSetgidFSGroup(e, &e.SetGID)
 	}
 }
 
 // UpdateCapset updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateCapset(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateCapset(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1276,10 +1278,10 @@ func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // NewProcessVariables returns a provider for variables attached to a process cache entry
-func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) unsafe.Pointer) rules.VariableProvider {
-	var variables *eval.ScopedVariables
-	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
-		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
+func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *model.ProcessCacheEntry) rules.VariableProvider {
+	var variables *eval.ScopedVariables[*model.ProcessCacheEntry]
+	variables = eval.NewScopedVariables(scoper, func(key *model.ProcessCacheEntry) {
+		key.SetReleaseCallback(func() {
 			variables.ReleaseVariable(key)
 		})
 	})
@@ -1289,7 +1291,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *procutil.DataScrubber, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	scrubber *procutil.DataScrubber, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1300,7 +1302,6 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		config:         config,
 		statsdClient:   statsdClient,
 		scrubber:       scrubber,
-		resolvers:      resolvers,
 		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,

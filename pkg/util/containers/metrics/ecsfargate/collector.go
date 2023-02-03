@@ -190,10 +190,10 @@ func convertNetworkStats(ecsStats *v2.ContainerStats) *provider.ContainerNetwork
 	var totalPacketsRcvd, totalPacketsSent, totalBytesRcvd, totalBytesSent uint64
 	for iface, statsPerInterface := range ecsStats.Networks {
 		iStats := provider.InterfaceNetStats{
-			BytesSent:   pointer.UIntToFloatPtr(statsPerInterface.TxBytes),
-			PacketsSent: pointer.UIntToFloatPtr(statsPerInterface.TxPackets),
-			BytesRcvd:   pointer.UIntToFloatPtr(statsPerInterface.RxBytes),
-			PacketsRcvd: pointer.UIntToFloatPtr(statsPerInterface.RxPackets),
+			BytesSent:   pointer.Ptr(float64(statsPerInterface.TxBytes)),
+			PacketsSent: pointer.Ptr(float64(statsPerInterface.TxPackets)),
+			BytesRcvd:   pointer.Ptr(float64(statsPerInterface.RxBytes)),
+			PacketsRcvd: pointer.Ptr(float64(statsPerInterface.RxPackets)),
 		}
 		stats.Interfaces[iface] = iStats
 
@@ -203,10 +203,10 @@ func convertNetworkStats(ecsStats *v2.ContainerStats) *provider.ContainerNetwork
 		totalBytesSent += statsPerInterface.TxBytes
 	}
 
-	stats.PacketsRcvd = pointer.UIntToFloatPtr(totalPacketsRcvd)
-	stats.PacketsSent = pointer.UIntToFloatPtr(totalPacketsSent)
-	stats.BytesRcvd = pointer.UIntToFloatPtr(totalBytesRcvd)
-	stats.BytesSent = pointer.UIntToFloatPtr(totalBytesSent)
+	stats.PacketsRcvd = pointer.Ptr(float64(totalPacketsRcvd))
+	stats.PacketsSent = pointer.Ptr(float64(totalPacketsSent))
+	stats.BytesRcvd = pointer.Ptr(float64(totalBytesRcvd))
+	stats.BytesSent = pointer.Ptr(float64(totalBytesSent))
 
 	return stats
 }
@@ -217,9 +217,9 @@ func convertCPUStats(cpuStats *v2.CPUStats) *provider.ContainerCPUStats {
 	}
 
 	return &provider.ContainerCPUStats{
-		Total:  pointer.UIntToFloatPtr(cpuStats.Usage.Total),
-		System: pointer.UIntToFloatPtr(cpuStats.Usage.Kernelmode),
-		User:   pointer.UIntToFloatPtr(cpuStats.Usage.Usermode),
+		Total:  pointer.Ptr(float64(cpuStats.Usage.Total)),
+		System: pointer.Ptr(float64(cpuStats.Usage.Kernelmode)),
+		User:   pointer.Ptr(float64(cpuStats.Usage.Usermode)),
 	}
 }
 
@@ -229,13 +229,13 @@ func convertMemoryStats(memStats *v2.MemStats) *provider.ContainerMemStats {
 	}
 
 	cMemStats := &provider.ContainerMemStats{
-		UsageTotal: pointer.UIntToFloatPtr(memStats.Usage),
-		RSS:        pointer.UIntToFloatPtr(memStats.Details.RSS),
-		Cache:      pointer.UIntToFloatPtr(memStats.Details.Cache),
+		UsageTotal: pointer.Ptr(float64(memStats.Usage)),
+		RSS:        pointer.Ptr(float64(memStats.Details.RSS)),
+		Cache:      pointer.Ptr(float64(memStats.Details.Cache)),
 	}
 
 	if memStats.Limit > 0 && memStats.Limit < ecsUnsetMemoryLimit {
-		cMemStats.Limit = pointer.UIntToFloatPtr(memStats.Limit)
+		cMemStats.Limit = pointer.Ptr(float64(memStats.Limit))
 	}
 
 	return cMemStats
@@ -271,10 +271,10 @@ func convertIOStats(ioStats *v2.IOStats) *provider.ContainerIOStats {
 	}
 
 	return &provider.ContainerIOStats{
-		ReadBytes:       pointer.UIntToFloatPtr(readBytes),
-		WriteBytes:      pointer.UIntToFloatPtr(writeBytes),
-		ReadOperations:  pointer.UIntToFloatPtr(readOp),
-		WriteOperations: pointer.UIntToFloatPtr(writeOp),
+		ReadBytes:       pointer.Ptr(float64(readBytes)),
+		WriteBytes:      pointer.Ptr(float64(writeBytes)),
+		ReadOperations:  pointer.Ptr(float64(readOp)),
+		WriteOperations: pointer.Ptr(float64(writeOp)),
 	}
 }
 
@@ -282,11 +282,11 @@ func fillFromSpec(containerStats *provider.ContainerStats, taskSpec *v2.Task) {
 	// Handling Task CPU/Memory Limit (cannot be empty, mandatory on ECS Fargate)
 	taskCPULimit := taskSpec.Limits[cpuKey]
 	if taskCPULimit != 0 && containerStats.CPU != nil {
-		containerStats.CPU.Limit = pointer.Float64Ptr(taskCPULimit * 100) // vCPU to percentage (0-N00%)
+		containerStats.CPU.Limit = pointer.Ptr(taskCPULimit * 100) // vCPU to percentage (0-N00%)
 	}
 
 	taskMemoryLimit := taskSpec.Limits[memoryKey]
 	if taskMemoryLimit != 0 && containerStats.Memory != nil && containerStats.Memory.Limit == nil {
-		containerStats.Memory.Limit = pointer.Float64Ptr(taskMemoryLimit * 1024 * 1024) // Megabytes to bytes
+		containerStats.Memory.Limit = pointer.Ptr(taskMemoryLimit * 1024 * 1024) // Megabytes to bytes
 	}
 }

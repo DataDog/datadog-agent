@@ -67,6 +67,9 @@ const (
 
 	// DefaultProcessEventsCheckInterval is the default interval used by the process_events check
 	DefaultProcessEventsCheckInterval = 10 * time.Second
+
+	// DefaultProcessDiscoveryHintFrequency is the default frequency in terms of number of checks which we send a process discovery hint
+	DefaultProcessDiscoveryHintFrequency = 60
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -175,6 +178,8 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
+
+	procBindEnvAndSetDefault(config, "process_config.process_discovery.hint_frequency", DefaultProcessDiscoveryHintFrequency)
 
 	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
 
