@@ -68,7 +68,7 @@ func httpsSupported(t *testing.T) bool {
 
 func goTLSSupported() bool {
 	cfg := config.New()
-	return runtime.GOARCH == "amd64" && (cfg.EnableRuntimeCompiler || cfg.EnableCORE)
+	return runtime.GOARCH == "amd64" && cfg.EnableRuntimeCompiler
 }
 
 func classificationSupported(config *config.Config) bool {
