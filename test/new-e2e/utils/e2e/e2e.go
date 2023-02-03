@@ -70,6 +70,7 @@ type Suite struct {
 	suite.Suite
 	configMap auto.ConfigMap
 	require   *require.Assertions
+	assert    *assert.Assertions
 	sshKey    string
 }
 
@@ -106,6 +107,8 @@ func NewSuite(envName string, stackName string, options ...func(*Suite)) Suite {
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite) SetupTest() {
 	suite.require = require.New(suite.T())
+	suite.assert = assert.New(suite.T())
+
 	credentialsManager := credentials.NewManager()
 	apiKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.dev.apikey")
 	suite.require.NoError(err)
