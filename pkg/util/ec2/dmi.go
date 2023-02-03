@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/google/uuid"
 )
 
@@ -26,6 +27,11 @@ func isBoardVendorEC2() bool {
 // On AWS Nitro instances dmi information contains the instanceID for the host. We check that the board vendor is
 // EC2 and that the board_asset_tag match an instanceID format before using it
 func getInstanceIDFromDMI() (string, error) {
+	// we don't want to collect anything on Fargate
+	if fargate.IsFargateInstance() {
+		return "", fmt.Errorf("host alias detection through DMI is disabled on Fargate")
+	}
+
 	if !config.Datadog.GetBool("ec2_use_dmi") {
 		return "", fmt.Errorf("'ec2_use_dmi' is disabled")
 	}
