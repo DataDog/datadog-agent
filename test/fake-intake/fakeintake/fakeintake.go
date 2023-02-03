@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -128,15 +127,18 @@ func (fi *FakeIntake) getPayloads(w http.ResponseWriter, req *http.Request) {
 	payloads := fi.safeGetPayloads(route)
 
 	// build response
-	w.WriteHeader(http.StatusAccepted)
-	w.Header().Set("Content-Type", "application/json")
 	resp := getPayloadResponse{
 		Payloads: payloads,
 	}
 	jsonResp, err := json.Marshal(resp)
 	if err != nil {
-		log.Fatalf("Error happened in JSON marshal. Err: %#v", err)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
 	}
+
+	// send response
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonResp)
 }
 

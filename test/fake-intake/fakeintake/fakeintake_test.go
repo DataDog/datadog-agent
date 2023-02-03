@@ -68,6 +68,8 @@ func TestPOSTPayloads(t *testing.T) {
 
 		fi.getPayloads(getResponse, request)
 
+		assert.Equal(t, http.StatusOK, getResponse.Code)
+
 		expectedGETResponse := getPayloadResponse{
 			Payloads: [][]byte{
 				[]byte("totoro|5|tag:valid,owner:pducolin"),
