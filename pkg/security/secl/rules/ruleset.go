@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // MacroID represents the ID of a macro
@@ -434,7 +435,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, rs.eventCtor(), fieldCaps)
+	return GetApprovers(bucket.rules, model.NewDefaultEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
