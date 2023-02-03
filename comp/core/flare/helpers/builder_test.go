@@ -134,6 +134,17 @@ func TestAddFile(t *testing.T) {
 	assertFileContent(t, fb, "api_key: \"********\"", "test/AddFile_scrubbed_api_key")
 }
 
+func TestAddFileWithoutScrubbing(t *testing.T) {
+	fb := getNewBuilder(t)
+	defer fb.clean()
+
+	fb.AddFileWithoutScrubbing(FromSlash("test/AddFile"), []byte("some data"))
+	assertFileContent(t, fb, "some data", "test/AddFile")
+
+	fb.AddFileWithoutScrubbing(FromSlash("test/AddFile_scrubbed_api_key"), []byte("api_key : 123456789006789009"))
+	assertFileContent(t, fb, "api_key: \"123456789006789009\"", "test/AddFile_scrubbed_api_key")
+}
+
 // Test that writeScrubbedFile actually scrubs third-party API keys.
 func TestRedactingOtherServicesApiKey(t *testing.T) {
 	fb := getNewBuilder(t)

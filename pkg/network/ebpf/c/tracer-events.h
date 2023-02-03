@@ -1,18 +1,16 @@
 #ifndef __TRACER_EVENTS_H
 #define __TRACER_EVENTS_H
 
-#include "tracer.h"
-#include "ip.h"
-#include "tracer-maps.h"
-#include "tracer-telemetry.h"
-#include "tcp_states.h"
-#include "cookie.h"
-
 #include "bpf_helpers.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 
+#include "tracer.h"
+#include "tracer-maps.h"
+#include "tracer-telemetry.h"
+#include "cookie.h"
 #include "protocols/classification/tracer-maps.h"
+#include "ip.h"
 
 static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
@@ -117,7 +115,7 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
     }
 }
 
-static __always_inline void flush_conn_close_if_full(struct pt_regs *ctx) {
+static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (!batch_ptr) {

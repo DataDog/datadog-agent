@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package kprobe
+package connection
 
 import (
 	"fmt"
@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -39,7 +41,7 @@ type perfBatchManager struct {
 	expiredStateInterval time.Duration
 }
 
-// newPerfBatchManager returns a new `perfBatchManager` and initializes the
+// newPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
 func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, error) {
 	if batchMap == nil {
@@ -165,4 +167,24 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 			}
 		}
 	}
+}
+
+func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
+	connCloseEventMap, _, err := mgr.GetMap(string(probes.ConnCloseEventMap))
+	if err != nil {
+		return nil, err
+	}
+
+	connCloseMap, _, err := mgr.GetMap(string(probes.ConnCloseBatchMap))
+	if err != nil {
+		return nil, err
+	}
+
+	numCPUs := int(connCloseEventMap.MaxEntries())
+	batchMgr, err := newPerfBatchManager(connCloseMap, numCPUs)
+	if err != nil {
+		return nil, err
+	}
+
+	return batchMgr, nil
 }

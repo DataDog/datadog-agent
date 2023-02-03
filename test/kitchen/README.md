@@ -16,7 +16,12 @@ Non-bundled dependencies:
  - [Bundler](http://bundler.io/)
 
 Then install bundled gem dependencies:
- ` bundle install --path ./Gemfile.local`
+```
+bundle config set --local path '.'
+bundle config set --local gemfile './Gemfile.local'
+```
+
+`bundle install`
 
 Note: you might run into an error building the `nio4r` native extensions. You
 should be able to get around that by setting the build cflags for the gem

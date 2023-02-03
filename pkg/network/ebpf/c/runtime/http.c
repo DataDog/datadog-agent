@@ -1,13 +1,18 @@
-#include <linux/kconfig.h>
-
 #include "bpf_tracing.h"
-#include "tracer.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+
+#include "kconfig.h"
+#include <uapi/linux/if_ether.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
+
+#include "tracer.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "sockfd.h"
-#include "conn-tuple.h"
+#include "sock.h"
 #include "port_range.h"
 
 #include "protocols/classification/dispatcher-helpers.h"

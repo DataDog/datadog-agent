@@ -6,13 +6,15 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package kprobe
+package connection
 
 import (
 	"testing"
 	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -70,8 +72,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 }
 
 func TestGetPendingConns(t *testing.T) {
-	manager, doneFn := newTestBatchManager(t)
-	defer doneFn()
+	manager := newTestBatchManager(t)
 
 	batch := new(netebpf.Batch)
 	batch.Id = 0
@@ -125,8 +126,7 @@ func TestGetPendingConns(t *testing.T) {
 }
 
 func TestPerfBatchStateCleanup(t *testing.T) {
-	manager, doneFn := newTestBatchManager(t)
-	defer doneFn()
+	manager := newTestBatchManager(t)
 	manager.expiredStateInterval = 100 * time.Millisecond
 
 	batch := new(netebpf.Batch)
@@ -162,14 +162,18 @@ func newEmptyBatchManager() *perfBatchManager {
 	return &p
 }
 
-func newTestBatchManager(t *testing.T) (*perfBatchManager, func()) {
-	ctr, err := New(testConfig(), nil, nil)
+func newTestBatchManager(t *testing.T) *perfBatchManager {
+	rlimit.RemoveMemlock()
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  netebpf.SizeofBatch,
+		MaxEntries: 1024,
+	})
 	require.NoError(t, err)
+	t.Cleanup(func() { m.Close() })
 
-	tr := ctr.(*kprobeTracer)
-	// do not start tracer, so we don't pick up on any connections outside the test
-
-	manager := tr.closeConsumer.batchManager
-	doneFn := func() { tr.Stop() }
-	return manager, doneFn
+	mgr, err := newPerfBatchManager(m, numTestCPUs)
+	require.NoError(t, err)
+	return mgr
 }
