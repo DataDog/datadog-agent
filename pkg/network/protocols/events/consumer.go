@@ -41,10 +41,11 @@ type Consumer struct {
 	stopped     bool
 
 	// telemetry
-	then        time.Time
-	eventsCount *telemetry.Metric
-	missesCount *telemetry.Metric
-	batchSize   *atomic.Int64
+	then             time.Time
+	eventsCount      *telemetry.Metric
+	missesCount      *telemetry.Metric
+	kernelDropsCount *telemetry.Metric
+	batchSize        *atomic.Int64
 }
 
 // NewConsumer instantiates a new event Consumer
@@ -86,6 +87,7 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 
 	eventsCount := metricGroup.NewMetric("events_captured")
 	missesCount := metricGroup.NewMetric("events_missed")
+	kernelDropsCount := metricGroup.NewMetric("kernel_dropped_events")
 
 	return &Consumer{
 		proto:       proto,
@@ -96,9 +98,10 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 		batchReader: batchReader,
 
 		// telemetry
-		eventsCount: eventsCount,
-		missesCount: missesCount,
-		batchSize:   atomic.NewInt64(0),
+		eventsCount:      eventsCount,
+		missesCount:      missesCount,
+		kernelDropsCount: kernelDropsCount,
+		batchSize:        atomic.NewInt64(0),
 	}, nil
 }
 
@@ -179,6 +182,7 @@ func (c *Consumer) process(cpu int, b *batch, syncing bool) {
 	// telemetry stuff
 	c.batchSize.Store(int64(b.Cap))
 	c.eventsCount.Add(int64(end - begin))
+	c.kernelDropsCount.Add(int64(b.Dropped_events))
 
 	iter := newIterator(b, begin, end)
 	for data := iter.Next(); data != nil; data = iter.Next() {

@@ -52,6 +52,7 @@
                 }                                                                       \
                                                                                         \
                 _LOG(name, "batch flushed: cpu: %d idx: %d", key.cpu, batch->idx);      \
+                batch->dropped_events = 0;                                              \
                 batch->len = 0;                                                         \
                 batch_state->idx_to_flush++;                                            \
             }                                                                           \
@@ -74,6 +75,7 @@
         executing often enough and/or that BATCH_PAGES_PER_CPU is not large
         enough */                                                                       \
         if (name##_batch_full(batch)) {                                                 \
+            batch->dropped_events++;                                                    \
             _LOG(name, "enqueue error: dropping event because batch is full.",          \
                  bpf_get_smp_processor_id(), batch->idx);                               \
             return;                                                                     \
