@@ -37,7 +37,7 @@ func NewFakeIntake() *FakeIntake {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", fi.postPayload)
-	mux.HandleFunc("/fake/payloads/", fi.getPayloads)
+	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
 
 	fi.server = http.Server{
 		Addr:    ":5000",
@@ -123,7 +123,7 @@ type getPayloadResponse struct {
 
 func (fi *FakeIntake) getPayloads(w http.ResponseWriter, req *http.Request) {
 	fmt.Println("Handling GetPayload request")
-	route := strings.TrimPrefix(req.URL.Path, "/fake/payloads")
+	route := strings.TrimPrefix(req.URL.Path, "/fakeintake/payloads")
 	payloads := fi.safeGetPayloads(route)
 
 	// build response

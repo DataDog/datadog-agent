@@ -62,7 +62,7 @@ func TestPOSTPayloads(t *testing.T) {
 		postResponse = httptest.NewRecorder()
 		fi.postPayload(postResponse, request)
 
-		request, err = http.NewRequest(http.MethodGet, "/fake/payloads/api/v2/series", nil)
+		request, err = http.NewRequest(http.MethodGet, "/fakeintake/payloads/api/v2/series", nil)
 		assert.NoError(t, err, "Error creating GET request")
 		getResponse := httptest.NewRecorder()
 
