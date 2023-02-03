@@ -45,6 +45,9 @@ type Component interface {
 
 	// UdsListenerRunning returns true if the uds listener is running
 	UdsListenerRunning() bool
+
+	// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
+	ServerlessFlush()
 }
 
 // Mock implements mock-specific methods.

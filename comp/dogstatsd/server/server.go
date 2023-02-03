@@ -25,6 +25,11 @@ type server struct {
 	server *dogstatsd.Server
 }
 
+// TODO: (components) - remove once serverless is an FX app
+func NewServerlessServer() Component {
+	return &server{server: dogstatsd.NewServer(true)}
+}
+
 func newServer(deps dependencies) Component {
 	return &server{server: dogstatsd.NewServer(deps.Params.Serverless)}
 }
@@ -76,4 +81,8 @@ func (s *server) DisableMetricsStats() {
 
 func (s *server) UdsListenerRunning() bool {
 	return s.server.UdsListenerRunning
+}
+
+func (s *server) ServerlessFlush() {
+	s.server.ServerlessFlush()
 }
