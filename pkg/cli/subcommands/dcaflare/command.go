@@ -2,20 +2,12 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
-//go:build !windows && clusterchecks
-// +build !windows,clusterchecks
-
-// Package flare implements 'cluster-agent-cloudfoundry flare'.
-
-package flare
+package dcaflare
 
 import (
 	"bytes"
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -35,8 +27,17 @@ type cliParams struct {
 	send   bool
 }
 
+type GlobalParams struct {
+	ConfFilePath string
+}
+
+const (
+	LoggerName      = "CLUSTER"
+	DefaultLogLevel = "off"
+)
+
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
 	cmd := &cobra.Command{
@@ -56,12 +57,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return err
 				}
 			}
+			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+					LogParams:    log.LogForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
 				core.Bundle,
 			)
@@ -72,7 +74,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().BoolVarP(&cliParams.send, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	cmd.SetArgs([]string{"caseID"})
 
-	return []*cobra.Command{cmd}
+	return cmd
 }
 
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
