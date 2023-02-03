@@ -17,7 +17,8 @@ runtime_compiled_tests = Array.[](
 )
 
 co_re_tests = Array.[](
-  "pkg/collector/corechecks/ebpf/probe"
+  "pkg/collector/corechecks/ebpf/probe",
+  "pkg/network/protocols/http"
 )
 
 print KernelOut.format(`cat /etc/os-release`)
@@ -117,7 +118,8 @@ describe "system-probe" do
     env = {
       "DD_ENABLE_CO_RE"=>"true",
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
-      "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"
+      "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false",
+      "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false"
     }
     include_examples "passes", "co-re", env, co_re_tests, true
   end

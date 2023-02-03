@@ -1,8 +1,7 @@
 #ifndef __GO_TLS_TYPES_H
 #define __GO_TLS_TYPES_H
 
-#include <linux/types.h>
-#include <linux/limits.h>
+#include "ktypes.h"
 
 typedef struct {
     __s64 stack_offset;
