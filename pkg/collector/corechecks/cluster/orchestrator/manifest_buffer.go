@@ -160,11 +160,11 @@ func setManifestStats(manifests []interface{}) {
 	bufferFlushedTotal.Add(1)
 	// Number of manifests flushed per resource in total
 	for _, m := range manifests {
-		nodeTye := orchestrator.NodeType(m.(*model.Manifest).Type)
-		if _, ok := bufferedManifest[nodeTye]; !ok {
-			bufferedManifest[nodeTye] = &expvar.Int{}
-			bufferExpVars.Set(nodeTye.String(), bufferedManifest[nodeTye])
+		nodeType := orchestrator.NodeType(m.(*model.Manifest).Type)
+		if _, ok := bufferedManifest[nodeType]; !ok {
+			bufferedManifest[nodeType] = &expvar.Int{}
+			bufferExpVars.Set(nodeType.String(), bufferedManifest[nodeType])
 		}
-		bufferedManifest[nodeTye].Add(1)
+		bufferedManifest[nodeType].Add(1)
 	}
 }
