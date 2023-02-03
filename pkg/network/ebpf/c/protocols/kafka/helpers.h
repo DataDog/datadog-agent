@@ -26,7 +26,7 @@ static int16_t read_big_endian_int16(const char* buf);
         if(remaining_length < (space)) {                                                            \
             return (ret);                                                                           \
         }                                                                                           \
-        remaining_length = (s64)CLASSIFICATION_MAX_BUFFER - (s64)kafka_context->offset - 1;         \
+        remaining_length = (s64)sizeof(kafka_context->buffer) - (s64)kafka_context->offset - 1;     \
         if(remaining_length < (space)) {                                                            \
             return (ret);                                                                           \
         }                                                                                           \
@@ -36,6 +36,7 @@ static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_LENGTH);
 
     kafka_context_t kafka_context;
+    bpf_memset(&kafka_context, 0, sizeof(kafka_context));
     kafka_context.buffer = buf;
     kafka_context.buffer_size = MIN(buf_size, CLASSIFICATION_MAX_BUFFER);
     fill_kafka_header(&kafka_context);
@@ -105,6 +106,8 @@ static __always_inline bool is_kafka_request_header(kafka_context_t* kafka_conte
         if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {
             continue;
         }
+
+        return false;
     }
 
 //    if (kafka_header->client_id_size > 0) {
