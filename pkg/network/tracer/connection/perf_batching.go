@@ -170,12 +170,12 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 }
 
 func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
-	connCloseEventMap, _, err := mgr.GetMap(string(probes.ConnCloseEventMap))
+	connCloseEventMap, _, err := mgr.GetMap(probes.ConnCloseEventMap)
 	if err != nil {
 		return nil, err
 	}
 
-	connCloseMap, _, err := mgr.GetMap(string(probes.ConnCloseBatchMap))
+	connCloseMap, _, err := mgr.GetMap(probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, err
 	}

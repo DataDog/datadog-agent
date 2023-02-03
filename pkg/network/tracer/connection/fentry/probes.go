@@ -107,8 +107,8 @@ func enabledPrograms(c *config.Config) (map[string]string, error) {
 	if c.CollectTCPConns {
 		if c.ClassificationSupported() {
 			enableProgram(enabled, probes.ProtocolClassifierEntrySocketFilter)
-			enableProgram(enabled, string(probes.ProtocolClassifierSocketFilter))
-			enableProgram(enabled, string(probes.NetDevQueue))
+			enableProgram(enabled, probes.ProtocolClassifierSocketFilter)
+			enableProgram(enabled, probes.NetDevQueue)
 		}
 
 		enableProgram(enabled, tcpSendMsgReturn)

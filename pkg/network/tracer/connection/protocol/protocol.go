@@ -59,7 +59,7 @@ func EnableProtocolClassification(c *config.Config, m *manager.Manager, mgrOptio
 		// in classification, preventing the program to load even though
 		// we won't use it. We change the type to a simple array map to
 		// circumvent that.
-		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+		mgrOptions.MapSpecEditors[probes.ProtocolClassificationBufMap] = manager.MapSpecEditor{
 			Type:       ebpf.Array,
 			EditorFlag: manager.EditType,
 		}

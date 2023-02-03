@@ -571,7 +571,7 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         return 0;
     }
 
-    if (!(skb_tup.metadata&CONN_TYPE_TCP)) {
+    if (!(skb_tup.metadata & CONN_TYPE_TCP)) {
         return 0;
     }
 
