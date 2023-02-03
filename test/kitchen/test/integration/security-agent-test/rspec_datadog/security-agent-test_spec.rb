@@ -16,6 +16,22 @@ platform = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
 
 cws_platform = File.read('/tmp/security-agent/cws_platform').strip
 
+def check_output(output, wait_thr, tag="")
+  test_failures = []
+
+  output.each_line do |line|
+    striped_line = line.strip
+    puts KernelOut.format(striped_line, tag)
+    test_failures << KernelOut.format(striped_line, tag) if line =~ GOLANG_TEST_FAILURE
+  end
+
+  if test_failures.empty? && !wait_thr.value.success?
+    test_failures << KernelOut.format("Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured.", tag)
+  end
+
+  test_failures
+end
+
 shared_examples "passes" do |bundle, env|
   after :context do
     print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
