@@ -260,6 +260,13 @@ func (r *RequestStats) HalfAllCounts() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.Count = stats.Count / 2
+			// temporary fix until we can remove this altogether.
+			// blindly halving all counts doesn't take into account we might not have
+			// both ends, either because (a) it's https via etw or (b) the request
+			// might come in between the kernel flush & etw flush.
+			if stats.Count == 0 {
+				stats.Count = 1
+			}
 		}
 	}
 }
