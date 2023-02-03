@@ -696,7 +696,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestFilteredByTags(t *testing.T) {
-	for _, tt := range []struct {
+	for _, tt := range []*struct {
 		require []*config.Tag
 		reject  []*config.Tag
 		span    pb.Span

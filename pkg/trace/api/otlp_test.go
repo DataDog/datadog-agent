@@ -546,7 +546,7 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("status2Error", func(t *testing.T) {
-		for _, tt := range []struct {
+		for _, tt := range []*struct {
 			status ptrace.StatusCode
 			msg    string
 			events ptrace.SpanEventSlice

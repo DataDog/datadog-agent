@@ -265,7 +265,7 @@ func TestSQLResourceWithoutQuery(t *testing.T) {
 
 func TestSQLResourceWithError(t *testing.T) {
 	assert := assert.New(t)
-	testCases := []struct {
+	testCases := []*struct {
 		span pb.Span
 	}{
 		{
