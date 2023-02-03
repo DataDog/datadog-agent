@@ -168,7 +168,7 @@ build_tags = {
         "trace-agent": TRACE_AGENT_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS,
-        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS),
+        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
     },
     AgentFlavor.heroku: {
