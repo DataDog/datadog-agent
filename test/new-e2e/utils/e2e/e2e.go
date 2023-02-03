@@ -99,6 +99,9 @@ func NewSuite(envName string, stackName string, options ...func(*Suite)) Suite {
 
 // SetupTest method is run before each test in the suite.
 // This function is called by [testify Suite].
+// Note: Having initialization code in this function allows `NewSuite` to not
+// return an error in order to write a single line for
+// `suite.Run(t, &vmSuite{Suite: e2e.NewSuite("aws/sandbox", "my-test")})`
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite) SetupTest() {
