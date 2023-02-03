@@ -142,3 +142,16 @@ print("==== Payloads ====")
 for payload in data["payloads"]:
     print(base64.b64decode(payload))
 ```
+
+## Development in VSCode
+
+This is a sub-module within `datadog-agent`. VSCode will complain about the multiple `go.mod` files. While waiting for a full repo migration to go workspaces, create a go workspace file and add `test/fake-intake` to workspaces
+
+```bash
+go work init
+go work use . ./test/fake-intake
+```
+
+> **Note**
+> `go.work` file is currently ignored in `datadog-agent`
+
