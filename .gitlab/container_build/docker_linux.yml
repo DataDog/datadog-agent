@@ -142,7 +142,7 @@ single_machine_performance-push-main-sha:
     - aws configure set aws_access_key_id $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key-id --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
     - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
     - aws configure set region us-west-2 --profile single-machine-performance
-    - aws s3 sync --profile single-machine-performance --only-show-errors .main_sha s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/latest_main_sha
+    - aws s3 cp --profile single-machine-performance --only-show-errors .main_sha s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/latest_main_sha
 
 single_machine_performance-amd64-a7:
   extends: .docker_publish_job_definition
