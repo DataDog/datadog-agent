@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPOSTPayloads(t *testing.T) {
+func TestFakeIntake(t *testing.T) {
 	t.Run("should accept payloads on any route", func(t *testing.T) {
 		fi := NewFakeIntake()
 		defer fi.server.Close()
@@ -25,22 +25,22 @@ func TestPOSTPayloads(t *testing.T) {
 		assert.NoError(t, err, "Error creating POST request")
 		response := httptest.NewRecorder()
 
-		fi.postPayload(response, request)
+		fi.handleDatadogRequest(response, request)
 
 		assert.Equal(t, http.StatusAccepted, response.Code, "unexpected code")
 	})
 
-	t.Run("should not accept GET requests on any route", func(t *testing.T) {
+	t.Run("should accept GET requests on any other route", func(t *testing.T) {
 		fi := NewFakeIntake()
 		defer fi.server.Close()
 
-		request, err := http.NewRequest(http.MethodGet, "/api/v2/series", nil)
+		request, err := http.NewRequest(http.MethodGet, "/api/v1/validate", nil)
 		assert.NoError(t, err, "Error creating GET request")
 		response := httptest.NewRecorder()
 
-		fi.postPayload(response, request)
+		fi.handleDatadogRequest(response, request)
 
-		assert.Equal(t, http.StatusBadRequest, response.Code, "unexpected code")
+		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 	})
 
 	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
@@ -86,17 +86,17 @@ func TestPOSTPayloads(t *testing.T) {
 		request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		assert.NoError(t, err, "Error creating POST request")
 		postResponse := httptest.NewRecorder()
-		fi.postPayload(postResponse, request)
+		fi.handleDatadogRequest(postResponse, request)
 
 		request, err = http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|7|tag:valid,owner:pducolin"))
 		assert.NoError(t, err, "Error creating POST request")
 		postResponse = httptest.NewRecorder()
-		fi.postPayload(postResponse, request)
+		fi.handleDatadogRequest(postResponse, request)
 
 		request, err = http.NewRequest(http.MethodPost, "/api/v2/logs", strings.NewReader("I am just a poor log"))
 		assert.NoError(t, err, "Error creating POST request")
 		postResponse = httptest.NewRecorder()
-		fi.postPayload(postResponse, request)
+		fi.handleDatadogRequest(postResponse, request)
 
 		request, err = http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/series", nil)
 		assert.NoError(t, err, "Error creating GET request")
