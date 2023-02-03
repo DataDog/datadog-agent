@@ -96,15 +96,25 @@ func (fi *FakeIntake) postPayload(w http.ResponseWriter, req *http.Request) {
 
 func writePostPayloadResponse(w http.ResponseWriter, errors []string) {
 	// build response
-	w.WriteHeader(http.StatusAccepted)
-	w.Header().Set("Content-Type", "application/json")
 	resp := postPayloadResponse{
 		Errors: errors,
 	}
 	jsonResp, err := json.Marshal(resp)
+
 	if err != nil {
-		log.Fatalf("Error happened in JSON marshal. Err: %#v", err)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
 	}
+
+	statusCode := http.StatusAccepted
+	if len(errors) > 0 {
+		statusCode = http.StatusBadRequest
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
 	w.Write(jsonResp)
 }
 
