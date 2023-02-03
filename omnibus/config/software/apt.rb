@@ -27,7 +27,7 @@ relative_path "apt-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  env["PKG_CONFIG_PATH"] = "/opt/datadog-agent/embedded/lib/pkgconfig"
+  env["PKG_CONFIG_PATH"] = "#{install_dir}/embedded/lib/pkgconfig"
   env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
   env["CXX"] = "/opt/gcc-10.4.0/bin/g++"
   env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
@@ -45,13 +45,13 @@ build do
     "-DCMAKE_INSTALL_FULL_SYSCONFDIR:PATH=/etc",
     "-DBUILD_STATIC_LIBS=OFF",
     "-DCONF_DIR:PATH=/etc/apt",
-    "-DCACHE_DIR:PATH=/opt/datadog-agent/run",
+    "-DCACHE_DIR:PATH=#{install_dir}/run",
     "-DSTATE_DIR:PATH=/var/lib/apt",
     "-DWITH_DOC=OFF",
     "-DUSE_NLS=OFF",
     "-DWITH_TESTS=OFF",
-    "-DLZMA_LIBRARIES:FILEPATH=/opt/datadog-agent/embedded/lib/liblzma.so",
-    "-DGCRYPT_LIBRARIES:FILEPATH=/opt/datadog-agent/embedded/lib/libgcrypt.so",
+    "-DLZMA_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/liblzma.so",
+    "-DGCRYPT_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libgcrypt.so",
   ]
   cmake(*cmake_options, env: env)
 
