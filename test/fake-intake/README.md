@@ -32,7 +32,7 @@ go build
 
 ```yaml
 # datadog.yaml
-DD_DD_URL: "http://localhost:5000"
+DD_DD_URL: "http://localhost:8080"
 ```
 
 ### Docker
@@ -53,7 +53,7 @@ docker compose up
 
 ```yaml
 # datadog.yaml
-DD_DD_URL: "http://localhost:5000"
+DD_DD_URL: "http://localhost:8080"
 ```
 
 ## How to build
@@ -119,7 +119,7 @@ import requests
 import json
 
 data = "totoro|25|owner:kiki"
-response = requests.post("http://localhost:5000/api/v2/series", data)
+response = requests.post("http://localhost:8080/api/v2/series", data)
 
 json_content = response.content.decode('utf8')
 
@@ -130,7 +130,7 @@ import base64
 import requests
 import json
 
-response = requests.get("http://localhost:5000/fake/payloads/api/v2/series")
+response = requests.get("http://localhost:8080/fake/payloads/api/v2/series")
 
 json_content = response.content.decode('utf8')
 

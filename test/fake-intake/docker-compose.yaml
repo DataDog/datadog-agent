@@ -3,6 +3,6 @@ services:
   fake-datadog:
     build: .
     ports:
-      - "5000:5000"
+      - "8080:8080"
     container_name: fake-datadog
 

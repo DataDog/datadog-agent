@@ -39,7 +39,7 @@ func NewFakeIntake() *FakeIntake {
 	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
 
 	fi.server = http.Server{
-		Addr:    ":5000",
+		Addr:    ":8080",
 		Handler: mux,
 	}
 
