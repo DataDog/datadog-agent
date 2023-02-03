@@ -158,7 +158,7 @@ func TestGetWorkloadList(t *testing.T) {
 
 	setupIPCAddress(t, s.URL)
 
-	content, err := getWorkloadList()
+	content, err := getAgentWorkloadList()
 	require.NoError(t, err)
 
 	assert.Contains(t, string(content), "kind_id")

@@ -53,6 +53,7 @@ func getConnections() map[string]string {
 // GetKubeletConnectionInfo returns a dict containing url and credentials to connect to the kubelet.
 // The dict is empty if the kubelet was not detected. The call to kubeutil is cached for 5 minutes.
 // See the documentation of kubelet.GetRawConnectionInfo for dict contents.
+//
 //export GetKubeletConnectionInfo
 func GetKubeletConnectionInfo(payload **C.char) {
 	var creds string

@@ -9,7 +9,9 @@
 package http
 
 import (
+	"errors"
 	"fmt"
+	"syscall"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -21,6 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+)
+
+var (
+	startupError error
 )
 
 // Monitor is responsible for:
@@ -38,31 +44,44 @@ type Monitor struct {
 	closeFilterFn func()
 }
 
+func setStartupErrorAndReturn(err error) error {
+	if err != nil {
+		err = fmt.Errorf("could not instantiate http monitor: %w", err)
+		startupError = err
+	}
+
+	return err
+}
+
 // NewMonitor returns a new Monitor instance
 func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
+	if !c.EnableHTTPMonitoring {
+		return nil, setStartupErrorAndReturn(fmt.Errorf("http monitoring is disabled"))
+	}
+
 	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
-		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
+		return nil, setStartupErrorAndReturn(fmt.Errorf("error setting up http ebpf program: %s", err))
 	}
 
 	if err := mgr.Init(); err != nil {
-		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
+		return nil, setStartupErrorAndReturn(fmt.Errorf("error initializing http ebpf program: %s", err))
 	}
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: protocolDispatcherSocketFilterSection, EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
 	if filter == nil {
-		return nil, fmt.Errorf("error retrieving socket filter")
+		return nil, setStartupErrorAndReturn(fmt.Errorf("error retrieving socket filter"))
 	}
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
-		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
+		return nil, setStartupErrorAndReturn(fmt.Errorf("error enabling HTTP traffic inspection: %s", err))
 	}
 
 	telemetry, err := newTelemetry()
 	if err != nil {
 		closeFilterFn()
-		return nil, err
+		return nil, setStartupErrorAndReturn(err)
 	}
 
 	statkeeper := newHTTPStatkeeper(c, telemetry)
@@ -84,6 +103,20 @@ func (m *Monitor) Start() error {
 	}
 
 	var err error
+
+	defer func() {
+		if err != nil {
+			if errors.Is(err, syscall.ENOMEM) {
+				err = fmt.Errorf("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+			}
+
+			if err != nil {
+				err = fmt.Errorf("could not enable http monitoring: %s", err)
+			}
+			startupError = err
+		}
+	}()
+
 	m.consumer, err = events.NewConsumer(
 		"http",
 		m.ebpfProgram.Manager.Manager,
@@ -94,11 +127,25 @@ func (m *Monitor) Start() error {
 	}
 	m.consumer.Start()
 
-	if err := m.ebpfProgram.Start(); err != nil {
+	err = m.ebpfProgram.Start()
+	if err != nil {
 		return err
 	}
 
-	return m.processMonitor.Initialize()
+	// Need to explicitly save the error in `err` so the defer function could save the startup error.
+	err = m.processMonitor.Initialize()
+	return err
+}
+
+func (m *Monitor) GetUSMStats() map[string]interface{} {
+	if m == nil {
+		return map[string]interface{}{
+			"Error": startupError.Error(),
+		}
+	}
+	return map[string]interface{}{
+		"last_check": m.telemetry.then,
+	}
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:

@@ -10,9 +10,9 @@ package http
 
 /*
 #include "../../ebpf/c/tracer.h"
-#include "../../ebpf/c/protocols/tags-types.h"
-#include "../../ebpf/c/protocols/http-types.h"
-#include "../../ebpf/c/protocols/protocol-classification-defs.h"
+#include "../../ebpf/c/protocols/tls/tags-types.h"
+#include "../../ebpf/c/protocols/http/types.h"
+#include "../../ebpf/c/protocols/classification/defs.h"
 */
 import "C"
 
@@ -28,15 +28,15 @@ type ProtocolType C.protocol_t
 
 // Add tests to TestProtocolValue
 const (
-	ProtocolUnknown ProtocolType = C.PROTOCOL_UNKNOWN
-	ProtocolHTTP    ProtocolType = C.PROTOCOL_HTTP
-	ProtocolHTTP2   ProtocolType = C.PROTOCOL_HTTP2
-	ProtocolTLS     ProtocolType = C.PROTOCOL_TLS
-	ProtocolMONGO   ProtocolType = C.PROTOCOL_MONGO
+	ProtocolUnknown  ProtocolType = C.PROTOCOL_UNKNOWN
+	ProtocolHTTP     ProtocolType = C.PROTOCOL_HTTP
+	ProtocolHTTP2    ProtocolType = C.PROTOCOL_HTTP2
+	ProtocolTLS      ProtocolType = C.PROTOCOL_TLS
+	ProtocolMONGO    ProtocolType = C.PROTOCOL_MONGO
 	ProtocolPostgres ProtocolType = C.PROTOCOL_POSTGRES
-	ProtocolAMQP    ProtocolType = C.PROTOCOL_AMQP
-	ProtocolRedis   ProtocolType = C.PROTOCOL_REDIS
-	ProtocolMax     ProtocolType = C.MAX_PROTOCOLS
+	ProtocolAMQP     ProtocolType = C.PROTOCOL_AMQP
+	ProtocolRedis    ProtocolType = C.PROTOCOL_REDIS
+	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
 )
 
 const (

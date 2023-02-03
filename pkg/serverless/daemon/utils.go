@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const LocalTestEnvVar = "DD_LOCAL_TEST"
+
 // waitWithTimeout waits for a WaitGroup with a specified max timeout.
 // Returns true if waiting timed out.
 func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {

@@ -26,6 +26,7 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
 
 	cmd.Stdout = patternScanner
+	cmd.Stderr = patternScanner
 	cmd.Env = append(cmd.Env, env...)
 	go func() {
 		require.NoErrorf(t, cmd.Run(), "could not start %s with docker-compose", serverName)

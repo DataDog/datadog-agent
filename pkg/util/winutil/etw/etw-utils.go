@@ -34,6 +34,7 @@ const EPOCH_DIFFERENCE_SECS uint64 = 116444736000000000
 
 // Copied from github.com\DataDog\datadog-agent\pkg\network\http\http_stats.go
 // Note: cannot refer to it due to package circularity
+//
 //nolint:deadcode
 const (
 	methodUnknown uint32 = iota
@@ -48,6 +49,7 @@ const (
 )
 
 // From HTTP_VERB enumeration (http.h)
+//
 //nolint:deadcode
 const (
 	httpVerbUnparsed uint32 = iota
@@ -201,7 +203,9 @@ func bytesIndexOfDoubleZero(data []byte) int {
 }
 
 // From
-//    datadog-agent\pkg\util\winutil\winstrings.go
+//
+//	datadog-agent\pkg\util\winutil\winstrings.go
+//
 // ConvertWindowsString converts a windows c-string
 // into a go string.  Even though the input is array
 // of uint8, the underlying data is expected to be
