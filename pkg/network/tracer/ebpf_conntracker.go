@@ -53,11 +53,6 @@ type ebpfConntrackerStats struct {
 	nanoSecondsPerUnregister telemetry.Gauge
 }
 
-type statGaugeWrapper struct {
-	stat  *atomic.Int64
-	gauge telemetry.Gauge
-}
-
 func newEbpfConntrackerStats() ebpfConntrackerStats {
 	return ebpfConntrackerStats{
 		gets:                     atomic.NewInt64(0),
