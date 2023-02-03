@@ -345,6 +345,10 @@ struct perf_map_stats_t {
     u64 lost;
 };
 
+struct ring_buffer_stats_t {
+    u64 usage;
+};
+
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .max_entries = 0,
@@ -356,6 +360,20 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     .value_size = sizeof(struct perf_map_stats_t),
     .max_entries = EVENT_MAX,
 };
+
+struct bpf_map_def SEC("maps/events_ringbuf_stats") events_ringbuf_stats = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 1,
+};
+
+void __attribute__((always_inline)) store_ring_buffer_stats() {
+    int zero = 0;
+    struct ring_buffer_stats_t *stats = bpf_map_lookup_elem(&events_ringbuf_stats, &zero);
+    if (stats)
+        stats->usage = bpf_ringbuf_query(&events, 0);
+}
 
 void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
     struct kevent_t *header = kernel_event;
@@ -369,6 +387,7 @@ void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 even
     int perf_ret;
     if (use_ring_buffer) {
         perf_ret = bpf_ringbuf_output(&events, kernel_event, kernel_event_size, 0);
+        store_ring_buffer_stats();
     } else {
         perf_ret = bpf_perf_event_output(ctx, &events, header->cpu, kernel_event, kernel_event_size);
     }
