@@ -44,7 +44,8 @@ type ebpfHttp2Tx struct {
 	Path_size             uint8
 	Request_end_of_stream bool
 	Pad_cgo_0             [3]byte
-	Request_path          [32]uint8
+	Request_path          [10]uint8
+	Pad_cgo_1             [6]byte
 }
 
 type libPath struct {

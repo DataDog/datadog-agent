@@ -71,14 +71,12 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     if (is_tcp_termination(&iterations_key.skb_info)) {
         bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
-        bpf_map_delete_elem(&http2_iterations, &iterations_key);
-        return 0;
+        goto delete_iteration;
     }
 
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
-        bpf_map_delete_elem(&http2_iterations, &iterations_key);
-        return -1;
+        goto delete_iteration;
     }
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
     http2_ctx->http2_stream_key.tup = iterations_key.tup;
@@ -89,21 +87,20 @@ int socket__http2_filter(struct __sk_buff *skb) {
     __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
 
     if (read_size <= 0) {
-        bpf_map_delete_elem(&http2_iterations, &iterations_key);
-        return 0;
+        goto delete_iteration;
     }
     if (iterations_key.skb_info.data_off + read_size >= skb->len) {
-        bpf_map_delete_elem(&http2_iterations, &iterations_key);
-        return 0;
+        goto delete_iteration;
     }
 
     tail_call_state->iteration += 1;
     tail_call_state->offset += read_size;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
         bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
-    } else {
-        bpf_map_delete_elem(&http2_iterations, &iterations_key);
     }
+
+delete_iteration:
+    bpf_map_delete_elem(&http2_iterations, &iterations_key);
 
     return 0;
 }

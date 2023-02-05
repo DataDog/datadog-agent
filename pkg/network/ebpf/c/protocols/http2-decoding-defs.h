@@ -15,7 +15,7 @@
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_PATH_LEN 32
+#define HTTP2_MAX_PATH_LEN 10
 
 #define MAX_INTERESTING_STATIC_TABLE_INDEX 15
 #define MAX_STATIC_TABLE_INDEX 61
@@ -53,7 +53,7 @@ typedef struct {
 } static_table_entry_t;
 
 typedef struct {
-    char buffer[32] __attribute__ ((aligned (8)));
+    char buffer[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
     __u8 string_len;
 } dynamic_table_entry_t;
 

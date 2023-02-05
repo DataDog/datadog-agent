@@ -84,7 +84,7 @@ static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iteratio
     }
 
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
-    if (index < MAX_INTERESTING_STATIC_TABLE_INDEX) {
+    if (index < MAX_STATIC_TABLE_INDEX) {
         if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
             return 0;
         }
@@ -92,8 +92,6 @@ static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iteratio
         headers_to_process->stream_id = stream_id;
         headers_to_process->type = kStaticHeader;
         return 1;
-    } else if (index <= MAX_STATIC_TABLE_INDEX) {
-        return 0;
     }
 
     __u64 global_counter = get_dynamic_counter(&iterations_key->tup);
