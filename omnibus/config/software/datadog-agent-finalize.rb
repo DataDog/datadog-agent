@@ -198,6 +198,7 @@ build do
             strip_exclude("*dns*")
             strip_exclude("*oom-kill*")
             strip_exclude("*tcp-queue-length*")
+            strip_exclude("*kafka*")
         end
 
         if osx?

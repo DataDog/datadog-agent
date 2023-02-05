@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"math"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -136,6 +137,11 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 		config.EnableHTTPMonitoring = false
 		config.EnableHTTPSMonitoring = false
+	}
+	kafkaSupported := currKernelVersion >= kafka.MinimumKernelVersion
+	if !kafkaSupported && config.EnableKafkaMonitoring {
+		log.Warnf("kafka monitoring is explicitly enabled, but the kernel version (%v) is not supported, disabling kafka monitoring", currKernelVersion)
+		config.EnableKafkaMonitoring = false
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
@@ -481,7 +487,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicConnsClosed:      t.closedConns.Load(),
 	}
 
-	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats)
+	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats, kafkaStats)
 	if err != nil {
 		return nil
 	}
@@ -678,6 +684,7 @@ const (
 	processCacheStats
 	bpfMapStats
 	bpfHelperStats
+	kafkaStats
 )
 
 var allStats = []statsComp{
@@ -730,6 +737,8 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
 		case httpStats:
 			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats()
+		case kafkaStats:
+			ret["kafka"] = t.kafkaMonitor.GetKafkaStats()
 		}
 	}
 
