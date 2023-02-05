@@ -20,7 +20,7 @@
 #define MAX_INTERESTING_STATIC_TABLE_INDEX 15
 #define MAX_STATIC_TABLE_INDEX 61
 
-// This determines the size of the payload fragment that is captured for each HTTP request
+// This determines the size of the payload fragment that is captured for each HTTP2 request
 #define HTTP2_BUFFER_SIZE (8 * 20)
 
 #define HTTP2_END_OF_STREAM 0x1

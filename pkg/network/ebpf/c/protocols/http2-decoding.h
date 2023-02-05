@@ -482,7 +482,6 @@ static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb,
 
     __u8 interesting_headers = find_interesting_headers(skb, iterations_key, http2_ctx, headers_to_process, frames_to_process, heap_buffer, number_of_frames, current_frame_header);
 
-    // process headers
     process_headers(http2_ctx, headers_to_process->array, interesting_headers);
 
     handle_interesting_headers(http2_ctx, frames_to_process, current_frame_header, number_of_frames);

@@ -52,6 +52,7 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
+    const __u32 zero = 0;
     http2_iterations_key_t iterations_key;
     bpf_memset(&iterations_key, 0, sizeof(http2_iterations_key_t));
     if (!read_conn_tuple_skb(skb, &iterations_key.skb_info, &iterations_key.tup)) {
@@ -74,7 +75,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
 //        return 0;
 //    }
 
-    const __u32 zero = 0;
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
         bpf_map_delete_elem(&http2_iterations, &iterations_key);
