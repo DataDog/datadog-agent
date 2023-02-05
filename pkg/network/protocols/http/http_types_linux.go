@@ -44,8 +44,8 @@ type ebpfHttp2Tx struct {
 	Path_size             uint8
 	Request_end_of_stream bool
 	Pad_cgo_0             [3]byte
-	Request_path          [10]uint8
-	Pad_cgo_1             [6]byte
+	Request_path          [30]uint8
+	Pad_cgo_1             [2]byte
 }
 
 type libPath struct {
@@ -70,7 +70,7 @@ const (
 
 const (
 	HTTPBufferSize  = 0xa0
-	HTTP2BufferSize = 0xa0
+	HTTP2BufferSize = 0x80
 
 	libPathMaxSize = 0x78
 )

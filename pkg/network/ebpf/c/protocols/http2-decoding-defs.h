@@ -15,13 +15,13 @@
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_PATH_LEN 10
+#define HTTP2_MAX_PATH_LEN 30
 
 #define MAX_INTERESTING_STATIC_TABLE_INDEX 15
 #define MAX_STATIC_TABLE_INDEX 61
 
 // This determines the size of the payload fragment that is captured for each HTTP2 request
-#define HTTP2_BUFFER_SIZE (8 * 20)
+#define HTTP2_BUFFER_SIZE (8 * 16)
 
 #define HTTP2_END_OF_STREAM 0x1
 
