@@ -461,7 +461,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
-	github.com/pierrec/lz4/v4 v4.1.15 // indirect
+	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/common v0.39.0 // indirect
@@ -564,9 +564,15 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/segmentio/kafka-go v0.4.29
+require (
+	github.com/twmb/franz-go v1.11.6
+	github.com/twmb/franz-go/pkg/kadm v1.7.0
+)
 
-require gonum.org/v1/gonum v0.12.0 // indirect
+require (
+	github.com/twmb/franz-go/pkg/kmsg v1.3.0 // indirect
+	gonum.org/v1/gonum v0.12.0 // indirect
+)
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 

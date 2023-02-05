@@ -14,11 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/segmentio/kafka-go"
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kversion"
 )
 
 func skipTestIfKernelNotSupported(t *testing.T) {
@@ -43,56 +44,56 @@ func TestSanity(t *testing.T) {
 	require.NoError(t, err)
 	defer monitor.Stop()
 
-	// Assuming a kafka cluster is up and running
-
-	// to produce/consume messages
-	topic := "HelloKafka"
-	partition := 0
-
-	myDialer := kafka.DefaultDialer
-	myDialer.ClientID = "test-client-id"
-
-	conn, err := myDialer.DialLeader(context.Background(), "tcp", "127.0.0.1:9092", topic, partition)
-	require.NoError(t, err)
-
-	err = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	require.NoError(t, err)
-	_, err = conn.WriteMessages(
-		kafka.Message{Value: []byte("one!")},
+	topicName := "franz-kafka"
+	seeds := []string{"localhost:9092"}
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(seeds...),
+		kgo.DefaultProduceTopic(topicName),
+		//kgo.ConsumerGroup("my-group-identifier"),
+		kgo.ConsumeTopics(topicName),
+		kgo.MaxVersions(kversion.V1_0_0()),
 	)
 	require.NoError(t, err)
-	require.NoError(t, conn.Close())
-
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:   []string{"127.0.0.1:9092"},
-		Topic:     topic,
-		Partition: 0,
-		MinBytes:  10e3, // 10KB
-		MaxBytes:  10e6, // 10MB
-	})
-	err = r.SetOffset(0)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	err = client.Ping(ctxTimeout)
+	cancel()
+	defer client.Close()
 	require.NoError(t, err)
 
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
+	// Create the topic
+	adminClient := kadm.NewClient(client)
+	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	_, err = adminClient.CreateTopics(ctxTimeout, 1, 1, nil, topicName)
+	cancel()
+	require.NoError(t, err)
 
-	for {
-		m, err := r.ReadMessage(ctxTimeout)
-		if err != nil {
-			break
-		}
-		fmt.Printf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
+	record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	err = client.ProduceSync(ctxTimeout, record).FirstErr()
+	cancel()
+	require.NoError(t, err, "record had a produce error while synchronously producing")
+
+	//ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	fetches := client.PollFetches(nil)
+	//cancel()
+	errs := fetches.Errors()
+	for _, err := range errs {
+		t.Errorf("PollFetches error: %+v", err)
+		t.FailNow()
 	}
-	require.NoError(t, r.Close())
+
+	// Wait for the kafka monitor to process the Kafka traffic
+	time.Sleep(time.Second * 2)
 
 	kafkaStats := monitor.GetKafkaStats()
 	// We expect 2 occurrences for each connection as we are working with a docker for now
 	require.Equal(t, 4, len(kafkaStats))
 	for _, kafkaStat := range kafkaStats {
 		// When the ctxTimeout is configured with 10 seconds, we get 2 fetches from this client
-		kafkaStatIsOK := kafkaStat.Data[ProduceAPIKey].Count == 1 || kafkaStat.Data[FetchAPIKey].Count == 2
-		// TODO: need to add the kafka_seen_before so we won't get too much requests
-		require.True(t, kafkaStatIsOK)
+		produceRequestsCount := kafkaStat.Data[ProduceAPIKey].Count
+		fetchRequestsCount := kafkaStat.Data[FetchAPIKey].Count
+		kafkaStatIsOK := produceRequestsCount == 1 || fetchRequestsCount == 1
+		require.True(t, kafkaStatIsOK, "Number of produce requests: %d, number of fetch requests: %d", produceRequestsCount, fetchRequestsCount)
 	}
 }
 
