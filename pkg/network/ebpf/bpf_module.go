@@ -49,3 +49,7 @@ func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "offset-guess", debug)
 }
+
+func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "tracer-fentry", debug)
+}

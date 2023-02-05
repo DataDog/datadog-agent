@@ -127,6 +127,23 @@ docker_build_agent7:
     TEST_IMG: "true"
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
+single_machine_performance-push-main-sha:
+  stage: container_build
+  rules:
+    - !reference [.on_main_a7]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
+  needs:
+    - docker_build_agent7
+  script:
+    - echo -n ${CI_COMMIT_SHA} > .main_sha
+    - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
+    - SMP_AGENT_TEAM_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-agent-team-id --with-decryption --query "Parameter.Value" --out text)
+    - aws configure set aws_access_key_id $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key-id --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
+    - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
+    - aws configure set region us-west-2 --profile single-machine-performance
+    - aws s3 cp --profile single-machine-performance --only-show-errors .main_sha s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/latest_main_sha
+
 single_machine_performance-amd64-a7:
   extends: .docker_publish_job_definition
   stage: container_build

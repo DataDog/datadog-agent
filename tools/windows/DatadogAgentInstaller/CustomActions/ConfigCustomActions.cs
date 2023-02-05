@@ -339,9 +339,15 @@ namespace Datadog.CustomActions
         private static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
+            var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
 
             try
             {
+                if (File.Exists(datadogYaml))
+                {
+                    session.Log($"{datadogYaml} exists, not modifying it.");
+                    return ActionResult.Success;
+                }
                 string yaml;
                 using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml.example")))
                 {
@@ -350,7 +356,7 @@ namespace Datadog.CustomActions
 
                 yaml = ReplaceProperties(yaml, session);
 
-                using (var output = new StreamWriter(Path.Combine(configFolder, "datadog.yaml")))
+                using (var output = new StreamWriter(datadogYaml))
                 {
                     output.Write(yaml);
                 }

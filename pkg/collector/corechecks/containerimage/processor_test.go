@@ -35,8 +35,6 @@ func TestProcessEvents(t *testing.T) {
 						Kind: workloadmeta.KindContainerImageMetadata,
 						ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
 					},
-					Registry:  "registry guessed by workloadmeta is ignored",
-					ShortName: "short name guessed by workloadmeta is ignored",
 					RepoTags: []string{
 						"datadog/agent:7-rc",
 						"datadog/agent:7.41.1-rc.1",
