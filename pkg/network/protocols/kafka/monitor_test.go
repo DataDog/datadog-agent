@@ -11,7 +11,6 @@ package kafka
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -32,8 +31,9 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 
 // This test loads the Kafka binary, produce and fetch kafka messages and verifies that we capture them
 func TestSanity(t *testing.T) {
-	t.Skip("We cannot set up a Kafka cluster in the test environment because of dockerhub rate limiter")
 	skipTestIfKernelNotSupported(t)
+
+	RunKafkaServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
 	cfg.BPFDebug = true
@@ -46,7 +46,7 @@ func TestSanity(t *testing.T) {
 	// Assuming a kafka cluster is up and running
 
 	// to produce/consume messages
-	topic := strings.Repeat("t", 50)
+	topic := "HelloKafka"
 	partition := 0
 
 	myDialer := kafka.DefaultDialer

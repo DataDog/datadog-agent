@@ -22,7 +22,7 @@ import (
 func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp) {
 	t.Helper()
 
-	cmd := exec.Command("docker-compose", "-f", dockerPath, "up")
+	cmd := exec.Command("docker", "compose", "-f", dockerPath, "up")
 	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
 
 	cmd.Stdout = patternScanner
@@ -33,7 +33,7 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 	}()
 
 	t.Cleanup(func() {
-		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
+		c := exec.Command("docker", "compose", "-f", dockerPath, "down", "--remove-orphans")
 		c.Env = append(c.Env, env...)
 		_ = c.Run()
 	})
