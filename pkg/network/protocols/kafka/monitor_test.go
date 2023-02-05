@@ -73,9 +73,7 @@ func TestSanity(t *testing.T) {
 	cancel()
 	require.NoError(t, err, "record had a produce error while synchronously producing")
 
-	//ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
 	fetches := client.PollFetches(nil)
-	//cancel()
 	errs := fetches.Errors()
 	for _, err := range errs {
 		t.Errorf("PollFetches error: %+v", err)
