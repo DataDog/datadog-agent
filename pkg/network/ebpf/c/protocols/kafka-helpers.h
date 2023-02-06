@@ -7,42 +7,10 @@
 static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka_transaction);
 static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_transaction);
 static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t *kafka_transaction);
-
-static __inline int32_t read_big_endian_int32(const char* buf) {
-    int32_t *val = (int32_t*)buf;
-    return bpf_ntohl(*val);
-}
-
-static __inline int16_t read_big_endian_int16(const char* buf) {
-    int16_t *val = (int16_t*)buf;
-    return bpf_ntohs(*val);
-}
-
-static __inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, int32_t* result) {
-    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
-    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
-    barrier();
-    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
-    if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
-        return false;
-    }
-    *result = read_big_endian_int32(current_offset);
-    kafka_transaction->base.current_offset_in_request_fragment += 4;
-    return true;
-}
-
-static __inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, int16_t* result) {
-    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
-    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
-    barrier();
-    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
-    if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
-        return false;
-    }
-    *result = read_big_endian_int16(current_offset);
-    kafka_transaction->base.current_offset_in_request_fragment += 2;
-    return true;
-}
+static __always_inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, int16_t* result);
+static __always_inline int16_t read_big_endian_int16(const char* buf);
+static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, int32_t* result);
+static __always_inline int32_t read_big_endian_int32(const char* buf);
 
 // Checking if the buffer represents kafka message
 static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_transaction) {
@@ -261,6 +229,42 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
         return false;
     }
     return true;
+}
+
+static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, int32_t* result) {
+    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
+    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
+    barrier();
+    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
+    if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
+        return false;
+    }
+    *result = read_big_endian_int32(current_offset);
+    kafka_transaction->base.current_offset_in_request_fragment += 4;
+    return true;
+}
+
+static __always_inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, int16_t* result) {
+    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
+    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
+    barrier();
+    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
+    if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
+        return false;
+    }
+    *result = read_big_endian_int16(current_offset);
+    kafka_transaction->base.current_offset_in_request_fragment += 2;
+    return true;
+}
+
+static __always_inline int32_t read_big_endian_int32(const char* buf) {
+    int32_t *val = (int32_t*)buf;
+    return bpf_ntohl(*val);
+}
+
+static __always_inline int16_t read_big_endian_int16(const char* buf) {
+    int16_t *val = (int16_t*)buf;
+    return bpf_ntohs(*val);
 }
 
 #endif
