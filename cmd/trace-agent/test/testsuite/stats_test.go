@@ -34,7 +34,7 @@ func TestClientStats(t *testing.T) {
 			}
 			defer r.KillAgent()
 
-			if err := r.PostMsgpack("/v0.6/stats", &tt.In); err != nil {
+			if err := r.PostMsgpack("/v0.6/stats", tt.In); err != nil {
 				t.Fatal(err)
 			}
 			timeout := time.After(3 * time.Second)
@@ -52,6 +52,7 @@ func TestClientStats(t *testing.T) {
 					if len(res) < len(tt.Out) {
 						continue
 					}
+          assert.Equalf(t, len(res), len(tt.Out), "res had so many elements: %d\ntt has:%d", len(res), len(tt.Out))
 					assert.ElementsMatch(t, res, tt.Out)
 					return
 				case <-timeout:
