@@ -64,18 +64,15 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     }
     kafka_transaction->base.correlation_id = correlation_id;
 
-    const int16_t MINIMUM_API_VERSION_FOR_CLIENT_ID = 1;
-    if (request_api_version >= MINIMUM_API_VERSION_FOR_CLIENT_ID) {
-        int16_t client_id_size = 0;
-        if (!kafka_read_big_endian_int16(kafka_transaction, &client_id_size)) {
-            return false;
-        }
-        if (client_id_size < 0) {
-            return false;
-        }
-        kafka_transaction->base.current_offset_in_request_fragment += client_id_size;
-        log_debug("kafka: client_id_size: %d\n", client_id_size);
+    int16_t client_id_size = 0;
+    if (!kafka_read_big_endian_int16(kafka_transaction, &client_id_size)) {
+        return false;
     }
+    if (client_id_size < 0) {
+        return false;
+    }
+    kafka_transaction->base.current_offset_in_request_fragment += client_id_size;
+    log_debug("kafka: client_id_size: %d\n", client_id_size);
     return true;
 }
 
