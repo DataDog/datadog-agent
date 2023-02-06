@@ -82,21 +82,54 @@ func TestLoadConfigShouldBeFast(t *testing.T) {
 }
 
 func TestFilterSpanFromLambdaLibraryOrRuntime(t *testing.T) {
-	spanFromLambdaLibrary := pb.Span{
+	httpSpanFromLambdaLibrary := pb.Span{
 		Meta: map[string]string{
 			"http.url": "http://127.0.0.1:8124/lambda/flush",
 		},
 	}
 
-	spanFromLambdaRuntime := pb.Span{
+	httpSpanFromLambdaRuntime := pb.Span{
 		Meta: map[string]string{
 			"http.url": "http://127.0.0.1:9001/2018-06-01/runtime/invocation/fee394a9-b9a4-4602-853e-a48bb663caa3/response",
 		},
 	}
 
-	spanFromStatsD := pb.Span{
+	httpSpanFromStatsD := pb.Span{
 		Meta: map[string]string{
 			"http.url": "http://127.0.0.1:8125/",
+		},
+	}
+
+	tcpSpanFromLambdaLibrary := pb.Span{
+		Meta: map[string]string{
+			"tcp.remote.host": "127.0.0.1",
+			"tcp.remote.port": "8124",
+		},
+	}
+
+	tcpSpanFromLambdaRuntime := pb.Span{
+		Meta: map[string]string{
+			"tcp.remote.host": "127.0.0.1",
+			"tcp.remote.port": "9001",
+		},
+	}
+
+	tcpSpanFromStatsD := pb.Span{
+		Meta: map[string]string{
+			"tcp.remote.host": "127.0.0.1",
+			"tcp.remote.port": "8125",
+		},
+	}
+
+	dnsSpanFromLocaHhostAddress := pb.Span{
+		Meta: map[string]string{
+			"dns.address": "127.0.0.1",
+		},
+	}
+
+	dnsSpanFromNonRoutableAddress := pb.Span{
+		Meta: map[string]string{
+			"dns.address": "0.0.0.0",
 		},
 	}
 
@@ -106,8 +139,13 @@ func TestFilterSpanFromLambdaLibraryOrRuntime(t *testing.T) {
 		},
 	}
 
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaLibrary))
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaRuntime))
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromStatsD))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&httpSpanFromLambdaLibrary))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&httpSpanFromLambdaRuntime))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&httpSpanFromStatsD))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&tcpSpanFromLambdaLibrary))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&tcpSpanFromLambdaRuntime))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&tcpSpanFromStatsD))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&dnsSpanFromLocaHhostAddress))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&dnsSpanFromNonRoutableAddress))
 	assert.False(t, filterSpanFromLambdaLibraryOrRuntime(&legitimateSpan))
 }
