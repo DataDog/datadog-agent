@@ -71,8 +71,33 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     if (client_id_size < 0) {
         return false;
     }
-    kafka_transaction->base.current_offset_in_request_fragment += client_id_size;
     log_debug("kafka: client_id_size: %d\n", client_id_size);
+
+    const char* client_id_starting_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
+    char ch = 0;
+#pragma unroll(CLIENT_ID_SIZE_TO_VALIDATE)
+    for (unsigned i = 0; i < CLIENT_ID_SIZE_TO_VALIDATE; i++) {
+        if (i >= client_id_size) {
+            break;
+        }
+        if (client_id_starting_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
+            break;
+        }
+        log_debug("kafka: char: %d\n", client_id_starting_offset[i]);
+
+        ch = client_id_starting_offset[i];
+        if (ch == 0) {
+            return false;
+        }
+        // Assuming no UTF-8 characters in the client id as we didn't see any such so far
+        if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {
+            continue;
+        }
+
+        return false;
+    }
+    kafka_transaction->base.current_offset_in_request_fragment += client_id_size;
+
     return true;
 }
 
@@ -82,7 +107,7 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
         return false;
     }
 
-    log_debug("kafka: current_offset: %d\n", kafka_transaction->base.current_offset_in_request_fragment);
+//    log_debug("kafka: current_offset: %d\n", kafka_transaction->base.current_offset_in_request_fragment);
     if (kafka_transaction->base.current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
         return false;
     }

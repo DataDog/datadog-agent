@@ -46,14 +46,14 @@ func NewMonitor(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Mo
 	}
 
 	if err := mgr.Init(); err != nil {
-		return nil, fmt.Errorf("error initializing kafka ebpf program: %s", err)
-	}
-	err2 := errors.Unwrap(err)
-	err3, ok := errors.Unwrap(err2).(*ebpf.VerifierError)
-	if ok {
-		for _, l := range err3.Log {
-			fmt.Println(l)
+		err2 := errors.Unwrap(err)
+		err3, ok := errors.Unwrap(err2).(*ebpf.VerifierError)
+		if ok {
+			for _, l := range err3.Log {
+				fmt.Println(l)
+			}
 		}
+		return nil, fmt.Errorf("error initializing kafka ebpf program: %s", err)
 	}
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: kafkaSocketFilterStub, EBPFFuncName: "socket__kafka_filter_entry", UID: probeUID})

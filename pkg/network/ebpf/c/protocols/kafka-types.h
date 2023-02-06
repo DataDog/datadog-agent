@@ -29,6 +29,8 @@
 
 #define KAFKA_PROG 0
 
+#define CLIENT_ID_SIZE_TO_VALIDATE 10
+
 typedef enum
 {
     KAFKA_PRODUCE = 0,
