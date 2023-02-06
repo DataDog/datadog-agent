@@ -1608,6 +1608,27 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "kubernetes_io_network_bandwidth",
+			args: args{
+				name: "kube_pod_container_resource_requests",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "kubernetes_io_network_bandwidth",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.network_bandwidth_requested",
+				val:      2,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "no resource label",
 			args: args{
 				name: "kube_pod_container_resource_requests",
@@ -1682,6 +1703,27 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 			},
 			expected: &metricsExpected{
 				name:     "kubernetes_state.container.cpu_limit",
+				val:      2,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "kubernetes_io_network_bandwidth",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "kubernetes_io_network_bandwidth",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.network_bandwidth_limit",
 				val:      2,
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -1810,6 +1852,27 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "kubernetes_io_network_bandwidth",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 64,
+					Labels: map[string]string{
+						"resource": "kubernetes_io_network_bandwidth",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.network_bandwidth_allocatable",
+				val:      64,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "no resource label",
 			args: args{
 				name: "kube_node_status_allocatable",
@@ -1927,6 +1990,27 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 			expected: &metricsExpected{
 				name:     "kubernetes_state.node.ephemeral_storage_capacity",
 				val:      129,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "kubernetes_io_network_bandwidth",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 64,
+					Labels: map[string]string{
+						"resource": "kubernetes_io_network_bandwidth",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.network_bandwidth_capacity",
+				val:      64,
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
 			},

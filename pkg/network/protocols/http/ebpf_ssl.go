@@ -318,7 +318,7 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		options.MapEditors = make(map[string]*ebpf.Map)
 	}
 
-	options.MapEditors[string(probes.SockByPidFDMap)] = o.sockFDMap
+	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
 func (o *sslProgram) Start() {
