@@ -46,7 +46,8 @@ func (d *DockerUtil) openEventChannel(ctx context.Context, since, until time.Tim
 // It can return nil, nil if the event is filtered out, one should check for nil pointers before using the event.
 func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Message, filter *containers.Filter) (*ContainerEvent, error) {
 	// Type filtering
-	if msg.Type != "container" {
+	// Filtering out prune events as well as they don't have a container name
+	if msg.Type != "container" || msg.Action == "prune" {
 		return nil, nil
 	}
 

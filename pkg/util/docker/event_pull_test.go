@@ -56,6 +56,15 @@ func TestProcessContainerEvent(t *testing.T) {
 			err:   nil,
 		},
 		{
+			// Ignore prune events
+			source: events.Message{
+				Type:   "container",
+				Action: "prune",
+			},
+			event: nil,
+			err:   nil,
+		},
+		{
 			// Error if container name not found
 			source: events.Message{
 				Type: "container",
