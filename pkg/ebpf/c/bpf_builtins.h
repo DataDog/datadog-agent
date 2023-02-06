@@ -42,7 +42,7 @@ static __always_inline void __bpf_memzero(void *d, __u64 len)
     	len -= 1;
     }
 
-	switch (len) {
+    switch (len) {
     case 512:          __it_set(d, 64);
     case 504: jmp_504: __it_set(d, 64);
     case 496: jmp_496: __it_set(d, 64);
