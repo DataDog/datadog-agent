@@ -77,7 +77,7 @@ func qualifiedType(module *common.Module, kind string) string {
 }
 
 // handleBasic adds fields of "basic" type to list of exposed SECL fields of the module
-func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) *common.StructField {
+func handleBasic(module *common.Module, name, alias, aliasPrefix, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string, containerStructName string) *common.StructField {
 	if verbose {
 		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s, isArray: %v\n", name, kind, alias, isArray)
 	}
@@ -93,7 +93,9 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 		Iterator:    iterator,
 		CommentText: commentText,
 		OpOverrides: opOverrides,
-		Constants:   constants,
+		Struct:      containerStructName,
+		Alias:       alias,
+		AliasPrefix: aliasPrefix,
 	}
 
 	if _, ok := module.EventTypes[event]; !ok {
@@ -103,7 +105,7 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 	return module.Fields[alias]
 }
 
-func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, constants string, commentText string, field seclField) error {
+func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string, field seclField) error {
 	if verbose {
 		fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 	}
@@ -114,9 +116,9 @@ func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, 
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, constants, commentText)
+		handleBasic(module, name, alias, aliasPrefix, fieldType, event, iterator, isArray, opOverride, commentText, field.containerStructName)
 		if field.lengthField {
-			field := handleBasic(module, name+".length", alias+".length", "int", event, iterator, isArray, opOverride, constants, commentText)
+			field := handleBasic(module, name+".length", alias+".length", alias, "int", event, iterator, isArray, opOverride, doc.SECLDocForLength, "string")
 			field.IsLength = true
 			field.OrigType = "int"
 		}
@@ -181,6 +183,7 @@ type seclField struct {
 	weight                 int64
 	check                  string
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
+	containerStructName    string
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -271,7 +274,6 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 					}
 
 					var opOverrides string
-					var constants string
 					var fields []seclField
 					fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
@@ -290,14 +292,13 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 									if field.name == "-" {
 										continue FIELD
 									}
+									field.containerStructName = typeSpec.Name.Name
 
 									fields = append(fields, field)
 								}
 
 							case "op_override":
 								opOverrides = tag.Value()
-							case "constants":
-								constants = tag.Value()
 							}
 						}
 					} else {
@@ -323,7 +324,6 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							OrigType:      qualifiedType(module, fieldType),
 							IsOrigTypePtr: isPointer,
 							IsArray:       isArray,
-							Constants:     constants,
 							Check:         seclField.check,
 						}
 
@@ -338,7 +338,6 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								Weight:              seclField.weight,
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
-								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
 								SkipADResolution:    seclField.skipADResolution,
 								Check:               seclField.check,
@@ -356,7 +355,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								Prefix:              prefix,
 								Name:                prefixedFieldName,
 								BasicType:           origTypeToBasicType(fieldType),
-								Struct:              typeSpec.Name.Name,
+								Struct:              seclField.containerStructName,
 								Handler:             handler,
 								ReturnType:          origTypeToBasicType(fieldType),
 								Event:               event,
@@ -366,11 +365,12 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								Weight:              seclField.weight,
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
-								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
 								SkipADResolution:    seclField.skipADResolution,
 								IsOrigTypePtr:       isPointer,
 								Check:               seclField.check,
+								Alias:               alias,
+								AliasPrefix:         aliasPrefix,
 							}
 
 							if seclField.lengthField {
@@ -380,8 +380,11 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								lengthField.OrigType = "int"
 								lengthField.BasicType = "int"
 								lengthField.ReturnType = "int"
-								module.Fields[fieldBasenameSECLNormalized+".length"] = &lengthField
-								lengthField.CommentText = "Length of '" + fieldBasenameSECLNormalized + "' string"
+								lengthField.Struct = "string"
+								lengthField.AliasPrefix = fieldBasenameSECLNormalized
+								lengthField.Alias = fieldBasenameSECLNormalized + ".length"
+								lengthField.CommentText = doc.SECLDocForLength
+								module.Fields[lengthField.Alias] = &lengthField
 							}
 
 							if _, ok = module.EventTypes[event]; !ok {
@@ -397,7 +400,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						dejavu[fieldBasename] = true
 
 						if len(fieldType) != 0 {
-							if err := handleField(module, astFile, fieldBasename, fieldBasenameSECLNormalized, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, isArray, opOverrides, constants, fieldCommentText, seclField); err != nil {
+							if err := handleField(module, astFile, fieldBasename, fieldBasenameSECLNormalized, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, isArray, opOverrides, fieldCommentText, seclField); err != nil {
 								log.Print(err)
 							}
 

@@ -170,7 +170,7 @@ func (fi *FakeIntake) getPayloads(w http.ResponseWriter, req *http.Request) {
 	// send response
 	writeHttpResponse(w, httpResponse{
 		contentType: "application/json",
-		statusCode:  http.StatusAccepted,
+		statusCode:  http.StatusOK,
 		body:        jsonResp,
 	})
 }
