@@ -136,8 +136,10 @@ func getWindowsEventLogs(fb flarehelpers.FlareBuilder) error {
 			err = errExport
 		}
 	}
-
-	return log.Errorf("Could not export Windows event logs: %s", err)
+	if err != nil {
+		return log.Errorf("Could not export Windows event logs: %v", err)
+	}
+	return nil
 }
 
 // exportWindowsEventLog exports one event log file to the temporary location.

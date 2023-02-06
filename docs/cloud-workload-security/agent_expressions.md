@@ -162,219 +162,219 @@ Examples:
 
 The *file.rights* attribute can now be used in addition to *file.mode*. *file.mode* can hold values set by the kernel, while the *file.rights* only holds the values set by the user. These rights may be more familiar because they are in the `chmod` commands.
 
-## Event types
+## Event attributes
 
 ### Common to all event types
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `async` | bool | True if the syscall was asynchronous |  |
-| `container.id` | string | ID of the container |  |
-| `container.tags` | string | Tags of the container |  |
-| `network.destination.ip` | IP/CIDR | IP address |  |
-| `network.destination.port` | int | Port number |  |
-| `network.device.ifindex` | int | interface ifindex |  |
-| `network.device.ifname` | string | interface ifname |  |
-| `network.l3_protocol` | int | l3 protocol of the network packet | L3 protocols |
-| `network.l4_protocol` | int | l4 protocol of the network packet | L4 protocols |
-| `network.size` | int | size in bytes of the network packet |  |
-| `network.source.ip` | IP/CIDR | IP address |  |
-| `network.source.port` | int | Port number |  |
-| `process.ancestors.args` | string | Arguments of the process (as a string) |  |
-| `process.ancestors.args_flags` | string | Arguments of the process (as an array) |  |
-| `process.ancestors.args_options` | string | Arguments of the process (as an array) |  |
-| `process.ancestors.args_truncated` | bool | Indicator of arguments truncation |  |
-| `process.ancestors.argv` | string | Arguments of the process (as an array) |  |
-| `process.ancestors.argv0` | string | First argument of the process |  |
-| `process.ancestors.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `process.ancestors.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `process.ancestors.comm` | string | Comm attribute of the process |  |
-| `process.ancestors.container.id` | string | Container ID |  |
-| `process.ancestors.cookie` | int | Cookie of the process |  |
-| `process.ancestors.created_at` | int | Timestamp of the creation of the process |  |
-| `process.ancestors.egid` | int | Effective GID of the process |  |
-| `process.ancestors.egroup` | string | Effective group of the process |  |
-| `process.ancestors.envp` | string | Environment variables of the process |  |
-| `process.ancestors.envs` | string | Environment variable names of the process |  |
-| `process.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `process.ancestors.euid` | int | Effective UID of the process |  |
-| `process.ancestors.euser` | string | Effective user of the process |  |
-| `process.ancestors.file.change_time` | int | Change time of the file |  |
-| `process.ancestors.file.filesystem` | string | File's filesystem |  |
-| `process.ancestors.file.gid` | int | GID of the file's owner |  |
-| `process.ancestors.file.group` | string | Group of the file's owner |  |
-| `process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `process.ancestors.file.inode` | int | Inode of the file |  |
-| `process.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `process.ancestors.file.modification_time` | int | Modification time of the file |  |
-| `process.ancestors.file.mount_id` | int | Mount ID of the file |  |
-| `process.ancestors.file.name` | string | File's basename |  |
-| `process.ancestors.file.name.length` | int | Length of 'process.ancestors.file.name' string |  |
-| `process.ancestors.file.path` | string | File's path |  |
-| `process.ancestors.file.path.length` | int | Length of 'process.ancestors.file.path' string |  |
-| `process.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `process.ancestors.file.uid` | int | UID of the file's owner |  |
-| `process.ancestors.file.user` | string | User of the file's owner |  |
-| `process.ancestors.fsgid` | int | FileSystem-gid of the process |  |
-| `process.ancestors.fsgroup` | string | FileSystem-group of the process |  |
-| `process.ancestors.fsuid` | int | FileSystem-uid of the process |  |
-| `process.ancestors.fsuser` | string | FileSystem-user of the process |  |
-| `process.ancestors.gid` | int | GID of the process |  |
-| `process.ancestors.group` | string | Group of the process |  |
-| `process.ancestors.interpreter.file.change_time` | int | Change time of the file |  |
-| `process.ancestors.interpreter.file.filesystem` | string | File's filesystem |  |
-| `process.ancestors.interpreter.file.gid` | int | GID of the file's owner |  |
-| `process.ancestors.interpreter.file.group` | string | Group of the file's owner |  |
-| `process.ancestors.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `process.ancestors.interpreter.file.inode` | int | Inode of the file |  |
-| `process.ancestors.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `process.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `process.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `process.ancestors.interpreter.file.name` | string | File's basename |  |
-| `process.ancestors.interpreter.file.name.length` | int | Length of 'process.ancestors.interpreter.file.name' string |  |
-| `process.ancestors.interpreter.file.path` | string | File's path |  |
-| `process.ancestors.interpreter.file.path.length` | int | Length of 'process.ancestors.interpreter.file.path' string |  |
-| `process.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `process.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
-| `process.ancestors.interpreter.file.user` | string | User of the file's owner |  |
-| `process.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `process.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `process.ancestors.ppid` | int | Parent process ID |  |
-| `process.ancestors.tid` | int | Thread ID of the thread |  |
-| `process.ancestors.tty_name` | string | Name of the TTY associated with the process |  |
-| `process.ancestors.uid` | int | UID of the process |  |
-| `process.ancestors.user` | string | User of the process |  |
-| `process.args` | string | Arguments of the process (as a string) |  |
-| `process.args_flags` | string | Arguments of the process (as an array) |  |
-| `process.args_options` | string | Arguments of the process (as an array) |  |
-| `process.args_truncated` | bool | Indicator of arguments truncation |  |
-| `process.argv` | string | Arguments of the process (as an array) |  |
-| `process.argv0` | string | First argument of the process |  |
-| `process.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `process.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `process.comm` | string | Comm attribute of the process |  |
-| `process.container.id` | string | Container ID |  |
-| `process.cookie` | int | Cookie of the process |  |
-| `process.created_at` | int | Timestamp of the creation of the process |  |
-| `process.egid` | int | Effective GID of the process |  |
-| `process.egroup` | string | Effective group of the process |  |
-| `process.envp` | string | Environment variables of the process |  |
-| `process.envs` | string | Environment variable names of the process |  |
-| `process.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `process.euid` | int | Effective UID of the process |  |
-| `process.euser` | string | Effective user of the process |  |
-| `process.file.change_time` | int | Change time of the file |  |
-| `process.file.filesystem` | string | File's filesystem |  |
-| `process.file.gid` | int | GID of the file's owner |  |
-| `process.file.group` | string | Group of the file's owner |  |
-| `process.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `process.file.inode` | int | Inode of the file |  |
-| `process.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `process.file.modification_time` | int | Modification time of the file |  |
-| `process.file.mount_id` | int | Mount ID of the file |  |
-| `process.file.name` | string | File's basename |  |
-| `process.file.name.length` | int | Length of 'process.file.name' string |  |
-| `process.file.path` | string | File's path |  |
-| `process.file.path.length` | int | Length of 'process.file.path' string |  |
-| `process.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `process.file.uid` | int | UID of the file's owner |  |
-| `process.file.user` | string | User of the file's owner |  |
-| `process.fsgid` | int | FileSystem-gid of the process |  |
-| `process.fsgroup` | string | FileSystem-group of the process |  |
-| `process.fsuid` | int | FileSystem-uid of the process |  |
-| `process.fsuser` | string | FileSystem-user of the process |  |
-| `process.gid` | int | GID of the process |  |
-| `process.group` | string | Group of the process |  |
-| `process.interpreter.file.change_time` | int | Change time of the file |  |
-| `process.interpreter.file.filesystem` | string | File's filesystem |  |
-| `process.interpreter.file.gid` | int | GID of the file's owner |  |
-| `process.interpreter.file.group` | string | Group of the file's owner |  |
-| `process.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `process.interpreter.file.inode` | int | Inode of the file |  |
-| `process.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `process.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `process.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `process.interpreter.file.name` | string | File's basename |  |
-| `process.interpreter.file.name.length` | int | Length of 'process.interpreter.file.name' string |  |
-| `process.interpreter.file.path` | string | File's path |  |
-| `process.interpreter.file.path.length` | int | Length of 'process.interpreter.file.path' string |  |
-| `process.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `process.interpreter.file.uid` | int | UID of the file's owner |  |
-| `process.interpreter.file.user` | string | User of the file's owner |  |
-| `process.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `process.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `process.parent.args` | string | Arguments of the process (as a string) |  |
-| `process.parent.args_flags` | string | Arguments of the process (as an array) |  |
-| `process.parent.args_options` | string | Arguments of the process (as an array) |  |
-| `process.parent.args_truncated` | bool | Indicator of arguments truncation |  |
-| `process.parent.argv` | string | Arguments of the process (as an array) |  |
-| `process.parent.argv0` | string | First argument of the process |  |
-| `process.parent.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `process.parent.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `process.parent.comm` | string | Comm attribute of the process |  |
-| `process.parent.container.id` | string | Container ID |  |
-| `process.parent.cookie` | int | Cookie of the process |  |
-| `process.parent.created_at` | int | Timestamp of the creation of the process |  |
-| `process.parent.egid` | int | Effective GID of the process |  |
-| `process.parent.egroup` | string | Effective group of the process |  |
-| `process.parent.envp` | string | Environment variables of the process |  |
-| `process.parent.envs` | string | Environment variable names of the process |  |
-| `process.parent.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `process.parent.euid` | int | Effective UID of the process |  |
-| `process.parent.euser` | string | Effective user of the process |  |
-| `process.parent.file.change_time` | int | Change time of the file |  |
-| `process.parent.file.filesystem` | string | File's filesystem |  |
-| `process.parent.file.gid` | int | GID of the file's owner |  |
-| `process.parent.file.group` | string | Group of the file's owner |  |
-| `process.parent.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `process.parent.file.inode` | int | Inode of the file |  |
-| `process.parent.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `process.parent.file.modification_time` | int | Modification time of the file |  |
-| `process.parent.file.mount_id` | int | Mount ID of the file |  |
-| `process.parent.file.name` | string | File's basename |  |
-| `process.parent.file.name.length` | int | Length of 'process.parent.file.name' string |  |
-| `process.parent.file.path` | string | File's path |  |
-| `process.parent.file.path.length` | int | Length of 'process.parent.file.path' string |  |
-| `process.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `process.parent.file.uid` | int | UID of the file's owner |  |
-| `process.parent.file.user` | string | User of the file's owner |  |
-| `process.parent.fsgid` | int | FileSystem-gid of the process |  |
-| `process.parent.fsgroup` | string | FileSystem-group of the process |  |
-| `process.parent.fsuid` | int | FileSystem-uid of the process |  |
-| `process.parent.fsuser` | string | FileSystem-user of the process |  |
-| `process.parent.gid` | int | GID of the process |  |
-| `process.parent.group` | string | Group of the process |  |
-| `process.parent.interpreter.file.change_time` | int | Change time of the file |  |
-| `process.parent.interpreter.file.filesystem` | string | File's filesystem |  |
-| `process.parent.interpreter.file.gid` | int | GID of the file's owner |  |
-| `process.parent.interpreter.file.group` | string | Group of the file's owner |  |
-| `process.parent.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `process.parent.interpreter.file.inode` | int | Inode of the file |  |
-| `process.parent.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `process.parent.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `process.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `process.parent.interpreter.file.name` | string | File's basename |  |
-| `process.parent.interpreter.file.name.length` | int | Length of 'process.parent.interpreter.file.name' string |  |
-| `process.parent.interpreter.file.path` | string | File's path |  |
-| `process.parent.interpreter.file.path.length` | int | Length of 'process.parent.interpreter.file.path' string |  |
-| `process.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `process.parent.interpreter.file.uid` | int | UID of the file's owner |  |
-| `process.parent.interpreter.file.user` | string | User of the file's owner |  |
-| `process.parent.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `process.parent.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `process.parent.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `process.parent.ppid` | int | Parent process ID |  |
-| `process.parent.tid` | int | Thread ID of the thread |  |
-| `process.parent.tty_name` | string | Name of the TTY associated with the process |  |
-| `process.parent.uid` | int | UID of the process |  |
-| `process.parent.user` | string | User of the process |  |
-| `process.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `process.ppid` | int | Parent process ID |  |
-| `process.tid` | int | Thread ID of the thread |  |
-| `process.tty_name` | string | Name of the TTY associated with the process |  |
-| `process.uid` | int | UID of the process |  |
-| `process.user` | string | User of the process |  |
+| Property | Definition |
+| -------- | ------------- |
+| [`async`](#async-doc) | True if the syscall was asynchronous |
+| [`container.id`](#container-id-doc) | ID of the container |
+| [`container.tags`](#container-tags-doc) | Tags of the container |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | l3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | l4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`process.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`process.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`process.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`process.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`process.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`process.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`process.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`process.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`process.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.ancestors.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`process.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`process.ancestors.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.ancestors.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`process.ancestors.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`process.ancestors.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`process.ancestors.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`process.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`process.ancestors.group`](#common-credentials-group-doc) | Group of the process |
+| [`process.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`process.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.ancestors.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`process.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`process.ancestors.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`process.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`process.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`process.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`process.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`process.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`process.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`process.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`process.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`process.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`process.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`process.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`process.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`process.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`process.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`process.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`process.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`process.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`process.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`process.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`process.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`process.group`](#common-credentials-group-doc) | Group of the process |
+| [`process.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`process.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`process.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`process.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`process.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`process.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`process.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`process.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`process.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`process.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`process.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`process.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`process.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`process.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.parent.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`process.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.parent.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`process.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`process.parent.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`process.parent.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.parent.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`process.parent.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`process.parent.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`process.parent.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`process.parent.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`process.parent.group`](#common-credentials-group-doc) | Group of the process |
+| [`process.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`process.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.parent.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`process.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`process.parent.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`process.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`process.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`process.parent.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`process.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`process.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`process.user`](#common-credentials-user-doc) | User of the process |
 
 ### Event `bind`
 
@@ -382,369 +382,369 @@ _This event type is experimental and may change in the future._
 
 A bind was executed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `bind.addr.family` | int | Address family |  |
-| `bind.addr.ip` | IP/CIDR | IP address |  |
-| `bind.addr.port` | int | Port number |  |
-| `bind.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`bind.addr.family`](#bind-addr-family-doc) | Address family |
+| [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`bind.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `bpf`
 
 A BPF command was executed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `bpf.cmd` | int | BPF command name | BPF commands |
-| `bpf.map.name` | string | Name of the eBPF map (added in 7.35) |  |
-| `bpf.map.type` | int | Type of the eBPF map | BPF map types |
-| `bpf.prog.attach_type` | int | Attach type of the eBPF program | BPF attach types |
-| `bpf.prog.helpers` | int | eBPF helpers used by the eBPF program (added in 7.35) | BPF helper functions |
-| `bpf.prog.name` | string | Name of the eBPF program (added in 7.35) |  |
-| `bpf.prog.tag` | string | Hash (sha1) of the eBPF program (added in 7.35) |  |
-| `bpf.prog.type` | int | Type of the eBPF program | BPF program types |
-| `bpf.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`bpf.cmd`](#bpf-cmd-doc) | BPF command name |
+| [`bpf.map.name`](#bpf-map-name-doc) | Name of the eBPF map (added in 7.35) |
+| [`bpf.map.type`](#bpf-map-type-doc) | Type of the eBPF map |
+| [`bpf.prog.attach_type`](#bpf-prog-attach_type-doc) | Attach type of the eBPF program |
+| [`bpf.prog.helpers`](#bpf-prog-helpers-doc) | eBPF helpers used by the eBPF program (added in 7.35) |
+| [`bpf.prog.name`](#bpf-prog-name-doc) | Name of the eBPF program (added in 7.35) |
+| [`bpf.prog.tag`](#bpf-prog-tag-doc) | Hash (sha1) of the eBPF program (added in 7.35) |
+| [`bpf.prog.type`](#bpf-prog-type-doc) | Type of the eBPF program |
+| [`bpf.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `capset`
 
 A process changed its capacity set
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `capset.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `capset.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`capset.cap_effective`](#capset-cap_effective-doc) | Effective capability set of the process |
+| [`capset.cap_permitted`](#capset-cap_permitted-doc) | Permitted capability set of the process |
 
 ### Event `chmod`
 
 A file’s permissions were changed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `chmod.file.change_time` | int | Change time of the file |  |
-| `chmod.file.destination.mode` | int | New mode/rights of the chmod-ed file | Chmod mode constants |
-| `chmod.file.destination.rights` | int | New mode/rights of the chmod-ed file | Chmod mode constants |
-| `chmod.file.filesystem` | string | File's filesystem |  |
-| `chmod.file.gid` | int | GID of the file's owner |  |
-| `chmod.file.group` | string | Group of the file's owner |  |
-| `chmod.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `chmod.file.inode` | int | Inode of the file |  |
-| `chmod.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `chmod.file.modification_time` | int | Modification time of the file |  |
-| `chmod.file.mount_id` | int | Mount ID of the file |  |
-| `chmod.file.name` | string | File's basename |  |
-| `chmod.file.name.length` | int | Length of 'chmod.file.name' string |  |
-| `chmod.file.path` | string | File's path |  |
-| `chmod.file.path.length` | int | Length of 'chmod.file.path' string |  |
-| `chmod.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `chmod.file.uid` | int | UID of the file's owner |  |
-| `chmod.file.user` | string | User of the file's owner |  |
-| `chmod.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`chmod.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`chmod.file.destination.mode`](#chmod-file-destination-mode-doc) | New mode of the chmod-ed file |
+| [`chmod.file.destination.rights`](#chmod-file-destination-rights-doc) | New rights of the chmod-ed file |
+| [`chmod.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`chmod.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`chmod.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`chmod.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`chmod.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`chmod.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`chmod.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`chmod.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`chmod.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`chmod.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chmod.file.path`](#common-fileevent-path-doc) | File's path |
+| [`chmod.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chmod.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`chmod.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`chmod.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`chmod.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `chown`
 
 A file’s owner was changed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `chown.file.change_time` | int | Change time of the file |  |
-| `chown.file.destination.gid` | int | New GID of the chown-ed file's owner |  |
-| `chown.file.destination.group` | string | New group of the chown-ed file's owner |  |
-| `chown.file.destination.uid` | int | New UID of the chown-ed file's owner |  |
-| `chown.file.destination.user` | string | New user of the chown-ed file's owner |  |
-| `chown.file.filesystem` | string | File's filesystem |  |
-| `chown.file.gid` | int | GID of the file's owner |  |
-| `chown.file.group` | string | Group of the file's owner |  |
-| `chown.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `chown.file.inode` | int | Inode of the file |  |
-| `chown.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `chown.file.modification_time` | int | Modification time of the file |  |
-| `chown.file.mount_id` | int | Mount ID of the file |  |
-| `chown.file.name` | string | File's basename |  |
-| `chown.file.name.length` | int | Length of 'chown.file.name' string |  |
-| `chown.file.path` | string | File's path |  |
-| `chown.file.path.length` | int | Length of 'chown.file.path' string |  |
-| `chown.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `chown.file.uid` | int | UID of the file's owner |  |
-| `chown.file.user` | string | User of the file's owner |  |
-| `chown.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`chown.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`chown.file.destination.gid`](#chown-file-destination-gid-doc) | New GID of the chown-ed file's owner |
+| [`chown.file.destination.group`](#chown-file-destination-group-doc) | New group of the chown-ed file's owner |
+| [`chown.file.destination.uid`](#chown-file-destination-uid-doc) | New UID of the chown-ed file's owner |
+| [`chown.file.destination.user`](#chown-file-destination-user-doc) | New user of the chown-ed file's owner |
+| [`chown.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`chown.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`chown.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`chown.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`chown.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`chown.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`chown.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`chown.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`chown.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`chown.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chown.file.path`](#common-fileevent-path-doc) | File's path |
+| [`chown.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chown.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`chown.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`chown.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`chown.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `dns`
 
 A DNS request was sent
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `dns.id` | int | [Experimental] the DNS request ID |  |
-| `dns.question.class` | int | the class looked up by the DNS question | DNS qclasses |
-| `dns.question.count` | int | the total count of questions in the DNS request |  |
-| `dns.question.length` | int | the total DNS request size in bytes |  |
-| `dns.question.name` | string | the queried domain name |  |
-| `dns.question.name.length` | int | the queried domain name |  |
-| `dns.question.type` | int | a two octet code which specifies the DNS question type | DNS qtypes |
+| Property | Definition |
+| -------- | ------------- |
+| [`dns.id`](#dns-id-doc) | [Experimental] the DNS request ID |
+| [`dns.question.class`](#dns-question-class-doc) | the class looked up by the DNS question |
+| [`dns.question.count`](#dns-question-count-doc) | the total count of questions in the DNS request |
+| [`dns.question.length`](#dns-question-length-doc) | the total DNS request size in bytes |
+| [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
+| [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 
 ### Event `exec`
 
 A process was executed or forked
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `exec.args` | string | Arguments of the process (as a string) |  |
-| `exec.args_flags` | string | Arguments of the process (as an array) |  |
-| `exec.args_options` | string | Arguments of the process (as an array) |  |
-| `exec.args_truncated` | bool | Indicator of arguments truncation |  |
-| `exec.argv` | string | Arguments of the process (as an array) |  |
-| `exec.argv0` | string | First argument of the process |  |
-| `exec.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `exec.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `exec.comm` | string | Comm attribute of the process |  |
-| `exec.container.id` | string | Container ID |  |
-| `exec.cookie` | int | Cookie of the process |  |
-| `exec.created_at` | int | Timestamp of the creation of the process |  |
-| `exec.egid` | int | Effective GID of the process |  |
-| `exec.egroup` | string | Effective group of the process |  |
-| `exec.envp` | string | Environment variables of the process |  |
-| `exec.envs` | string | Environment variable names of the process |  |
-| `exec.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `exec.euid` | int | Effective UID of the process |  |
-| `exec.euser` | string | Effective user of the process |  |
-| `exec.file.change_time` | int | Change time of the file |  |
-| `exec.file.filesystem` | string | File's filesystem |  |
-| `exec.file.gid` | int | GID of the file's owner |  |
-| `exec.file.group` | string | Group of the file's owner |  |
-| `exec.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `exec.file.inode` | int | Inode of the file |  |
-| `exec.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `exec.file.modification_time` | int | Modification time of the file |  |
-| `exec.file.mount_id` | int | Mount ID of the file |  |
-| `exec.file.name` | string | File's basename |  |
-| `exec.file.name.length` | int | Length of 'exec.file.name' string |  |
-| `exec.file.path` | string | File's path |  |
-| `exec.file.path.length` | int | Length of 'exec.file.path' string |  |
-| `exec.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `exec.file.uid` | int | UID of the file's owner |  |
-| `exec.file.user` | string | User of the file's owner |  |
-| `exec.fsgid` | int | FileSystem-gid of the process |  |
-| `exec.fsgroup` | string | FileSystem-group of the process |  |
-| `exec.fsuid` | int | FileSystem-uid of the process |  |
-| `exec.fsuser` | string | FileSystem-user of the process |  |
-| `exec.gid` | int | GID of the process |  |
-| `exec.group` | string | Group of the process |  |
-| `exec.interpreter.file.change_time` | int | Change time of the file |  |
-| `exec.interpreter.file.filesystem` | string | File's filesystem |  |
-| `exec.interpreter.file.gid` | int | GID of the file's owner |  |
-| `exec.interpreter.file.group` | string | Group of the file's owner |  |
-| `exec.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `exec.interpreter.file.inode` | int | Inode of the file |  |
-| `exec.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `exec.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `exec.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `exec.interpreter.file.name` | string | File's basename |  |
-| `exec.interpreter.file.name.length` | int | Length of 'exec.interpreter.file.name' string |  |
-| `exec.interpreter.file.path` | string | File's path |  |
-| `exec.interpreter.file.path.length` | int | Length of 'exec.interpreter.file.path' string |  |
-| `exec.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `exec.interpreter.file.uid` | int | UID of the file's owner |  |
-| `exec.interpreter.file.user` | string | User of the file's owner |  |
-| `exec.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `exec.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `exec.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `exec.ppid` | int | Parent process ID |  |
-| `exec.tid` | int | Thread ID of the thread |  |
-| `exec.tty_name` | string | Name of the TTY associated with the process |  |
-| `exec.uid` | int | UID of the process |  |
-| `exec.user` | string | User of the process |  |
+| Property | Definition |
+| -------- | ------------- |
+| [`exec.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`exec.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`exec.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`exec.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`exec.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`exec.container.id`](#common-process-container-id-doc) | Container ID |
+| [`exec.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`exec.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`exec.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`exec.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`exec.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`exec.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`exec.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`exec.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`exec.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`exec.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`exec.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exec.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`exec.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`exec.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`exec.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`exec.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`exec.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.path`](#common-fileevent-path-doc) | File's path |
+| [`exec.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`exec.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`exec.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exec.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`exec.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`exec.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`exec.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`exec.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`exec.group`](#common-credentials-group-doc) | Group of the process |
+| [`exec.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`exec.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`exec.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`exec.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exec.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`exec.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`exec.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`exec.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`exec.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`exec.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`exec.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`exec.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`exec.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`exec.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`exec.user`](#common-credentials-user-doc) | User of the process |
 
 ### Event `exit`
 
 A process was terminated
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `exit.args` | string | Arguments of the process (as a string) |  |
-| `exit.args_flags` | string | Arguments of the process (as an array) |  |
-| `exit.args_options` | string | Arguments of the process (as an array) |  |
-| `exit.args_truncated` | bool | Indicator of arguments truncation |  |
-| `exit.argv` | string | Arguments of the process (as an array) |  |
-| `exit.argv0` | string | First argument of the process |  |
-| `exit.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `exit.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `exit.cause` | int | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |  |
-| `exit.code` | int | Exit code of the process or number of the signal that caused the process to terminate |  |
-| `exit.comm` | string | Comm attribute of the process |  |
-| `exit.container.id` | string | Container ID |  |
-| `exit.cookie` | int | Cookie of the process |  |
-| `exit.created_at` | int | Timestamp of the creation of the process |  |
-| `exit.egid` | int | Effective GID of the process |  |
-| `exit.egroup` | string | Effective group of the process |  |
-| `exit.envp` | string | Environment variables of the process |  |
-| `exit.envs` | string | Environment variable names of the process |  |
-| `exit.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `exit.euid` | int | Effective UID of the process |  |
-| `exit.euser` | string | Effective user of the process |  |
-| `exit.file.change_time` | int | Change time of the file |  |
-| `exit.file.filesystem` | string | File's filesystem |  |
-| `exit.file.gid` | int | GID of the file's owner |  |
-| `exit.file.group` | string | Group of the file's owner |  |
-| `exit.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `exit.file.inode` | int | Inode of the file |  |
-| `exit.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `exit.file.modification_time` | int | Modification time of the file |  |
-| `exit.file.mount_id` | int | Mount ID of the file |  |
-| `exit.file.name` | string | File's basename |  |
-| `exit.file.name.length` | int | Length of 'exit.file.name' string |  |
-| `exit.file.path` | string | File's path |  |
-| `exit.file.path.length` | int | Length of 'exit.file.path' string |  |
-| `exit.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `exit.file.uid` | int | UID of the file's owner |  |
-| `exit.file.user` | string | User of the file's owner |  |
-| `exit.fsgid` | int | FileSystem-gid of the process |  |
-| `exit.fsgroup` | string | FileSystem-group of the process |  |
-| `exit.fsuid` | int | FileSystem-uid of the process |  |
-| `exit.fsuser` | string | FileSystem-user of the process |  |
-| `exit.gid` | int | GID of the process |  |
-| `exit.group` | string | Group of the process |  |
-| `exit.interpreter.file.change_time` | int | Change time of the file |  |
-| `exit.interpreter.file.filesystem` | string | File's filesystem |  |
-| `exit.interpreter.file.gid` | int | GID of the file's owner |  |
-| `exit.interpreter.file.group` | string | Group of the file's owner |  |
-| `exit.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `exit.interpreter.file.inode` | int | Inode of the file |  |
-| `exit.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `exit.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `exit.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `exit.interpreter.file.name` | string | File's basename |  |
-| `exit.interpreter.file.name.length` | int | Length of 'exit.interpreter.file.name' string |  |
-| `exit.interpreter.file.path` | string | File's path |  |
-| `exit.interpreter.file.path.length` | int | Length of 'exit.interpreter.file.path' string |  |
-| `exit.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `exit.interpreter.file.uid` | int | UID of the file's owner |  |
-| `exit.interpreter.file.user` | string | User of the file's owner |  |
-| `exit.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `exit.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `exit.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `exit.ppid` | int | Parent process ID |  |
-| `exit.tid` | int | Thread ID of the thread |  |
-| `exit.tty_name` | string | Name of the TTY associated with the process |  |
-| `exit.uid` | int | UID of the process |  |
-| `exit.user` | string | User of the process |  |
+| Property | Definition |
+| -------- | ------------- |
+| [`exit.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`exit.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`exit.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`exit.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`exit.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`exit.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
+| [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
+| [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`exit.container.id`](#common-process-container-id-doc) | Container ID |
+| [`exit.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`exit.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`exit.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`exit.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`exit.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`exit.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`exit.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`exit.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`exit.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`exit.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`exit.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exit.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`exit.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`exit.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`exit.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`exit.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`exit.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.path`](#common-fileevent-path-doc) | File's path |
+| [`exit.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`exit.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`exit.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exit.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`exit.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`exit.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`exit.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`exit.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`exit.group`](#common-credentials-group-doc) | Group of the process |
+| [`exit.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`exit.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`exit.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`exit.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exit.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`exit.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`exit.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`exit.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`exit.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`exit.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`exit.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`exit.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`exit.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`exit.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exit.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`exit.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exit.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`exit.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`exit.user`](#common-credentials-user-doc) | User of the process |
 
 ### Event `link`
 
 Create a new name/alias for a file
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `link.file.change_time` | int | Change time of the file |  |
-| `link.file.destination.change_time` | int | Change time of the file |  |
-| `link.file.destination.filesystem` | string | File's filesystem |  |
-| `link.file.destination.gid` | int | GID of the file's owner |  |
-| `link.file.destination.group` | string | Group of the file's owner |  |
-| `link.file.destination.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `link.file.destination.inode` | int | Inode of the file |  |
-| `link.file.destination.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `link.file.destination.modification_time` | int | Modification time of the file |  |
-| `link.file.destination.mount_id` | int | Mount ID of the file |  |
-| `link.file.destination.name` | string | File's basename |  |
-| `link.file.destination.name.length` | int | Length of 'link.file.destination.name' string |  |
-| `link.file.destination.path` | string | File's path |  |
-| `link.file.destination.path.length` | int | Length of 'link.file.destination.path' string |  |
-| `link.file.destination.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `link.file.destination.uid` | int | UID of the file's owner |  |
-| `link.file.destination.user` | string | User of the file's owner |  |
-| `link.file.filesystem` | string | File's filesystem |  |
-| `link.file.gid` | int | GID of the file's owner |  |
-| `link.file.group` | string | Group of the file's owner |  |
-| `link.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `link.file.inode` | int | Inode of the file |  |
-| `link.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `link.file.modification_time` | int | Modification time of the file |  |
-| `link.file.mount_id` | int | Mount ID of the file |  |
-| `link.file.name` | string | File's basename |  |
-| `link.file.name.length` | int | Length of 'link.file.name' string |  |
-| `link.file.path` | string | File's path |  |
-| `link.file.path.length` | int | Length of 'link.file.path' string |  |
-| `link.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `link.file.uid` | int | UID of the file's owner |  |
-| `link.file.user` | string | User of the file's owner |  |
-| `link.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`link.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`link.file.destination.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`link.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`link.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`link.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`link.file.destination.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`link.file.destination.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`link.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`link.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`link.file.destination.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`link.file.destination.name`](#common-fileevent-name-doc) | File's basename |
+| [`link.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.destination.path`](#common-fileevent-path-doc) | File's path |
+| [`link.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`link.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`link.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`link.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`link.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`link.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`link.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`link.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`link.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`link.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`link.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`link.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`link.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.path`](#common-fileevent-path-doc) | File's path |
+| [`link.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`link.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`link.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`link.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `load_module`
 
 A new kernel module was loaded
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `load_module.file.change_time` | int | Change time of the file |  |
-| `load_module.file.filesystem` | string | File's filesystem |  |
-| `load_module.file.gid` | int | GID of the file's owner |  |
-| `load_module.file.group` | string | Group of the file's owner |  |
-| `load_module.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `load_module.file.inode` | int | Inode of the file |  |
-| `load_module.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `load_module.file.modification_time` | int | Modification time of the file |  |
-| `load_module.file.mount_id` | int | Mount ID of the file |  |
-| `load_module.file.name` | string | File's basename |  |
-| `load_module.file.name.length` | int | Length of 'load_module.file.name' string |  |
-| `load_module.file.path` | string | File's path |  |
-| `load_module.file.path.length` | int | Length of 'load_module.file.path' string |  |
-| `load_module.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `load_module.file.uid` | int | UID of the file's owner |  |
-| `load_module.file.user` | string | User of the file's owner |  |
-| `load_module.loaded_from_memory` | bool | Indicates if the kernel module was loaded from memory |  |
-| `load_module.name` | string | Name of the new kernel module |  |
-| `load_module.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`load_module.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`load_module.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`load_module.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`load_module.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`load_module.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`load_module.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`load_module.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`load_module.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`load_module.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`load_module.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`load_module.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`load_module.file.path`](#common-fileevent-path-doc) | File's path |
+| [`load_module.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`load_module.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`load_module.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`load_module.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`load_module.loaded_from_memory`](#load_module-loaded_from_memory-doc) | Indicates if the kernel module was loaded from memory |
+| [`load_module.name`](#load_module-name-doc) | Name of the new kernel module |
+| [`load_module.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `mkdir`
 
 A directory was created
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `mkdir.file.change_time` | int | Change time of the file |  |
-| `mkdir.file.destination.mode` | int | Mode/rights of the new directory | Chmod mode constants |
-| `mkdir.file.destination.rights` | int | Mode/rights of the new directory | Chmod mode constants |
-| `mkdir.file.filesystem` | string | File's filesystem |  |
-| `mkdir.file.gid` | int | GID of the file's owner |  |
-| `mkdir.file.group` | string | Group of the file's owner |  |
-| `mkdir.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `mkdir.file.inode` | int | Inode of the file |  |
-| `mkdir.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `mkdir.file.modification_time` | int | Modification time of the file |  |
-| `mkdir.file.mount_id` | int | Mount ID of the file |  |
-| `mkdir.file.name` | string | File's basename |  |
-| `mkdir.file.name.length` | int | Length of 'mkdir.file.name' string |  |
-| `mkdir.file.path` | string | File's path |  |
-| `mkdir.file.path.length` | int | Length of 'mkdir.file.path' string |  |
-| `mkdir.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `mkdir.file.uid` | int | UID of the file's owner |  |
-| `mkdir.file.user` | string | User of the file's owner |  |
-| `mkdir.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`mkdir.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`mkdir.file.destination.mode`](#mkdir-file-destination-mode-doc) | Mode of the new directory |
+| [`mkdir.file.destination.rights`](#mkdir-file-destination-rights-doc) | Rights of the new directory |
+| [`mkdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`mkdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`mkdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`mkdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`mkdir.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`mkdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`mkdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`mkdir.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`mkdir.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`mkdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mkdir.file.path`](#common-fileevent-path-doc) | File's path |
+| [`mkdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mkdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`mkdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`mkdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`mkdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `mmap`
 
 A mmap command was executed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `mmap.file.change_time` | int | Change time of the file |  |
-| `mmap.file.filesystem` | string | File's filesystem |  |
-| `mmap.file.gid` | int | GID of the file's owner |  |
-| `mmap.file.group` | string | Group of the file's owner |  |
-| `mmap.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `mmap.file.inode` | int | Inode of the file |  |
-| `mmap.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `mmap.file.modification_time` | int | Modification time of the file |  |
-| `mmap.file.mount_id` | int | Mount ID of the file |  |
-| `mmap.file.name` | string | File's basename |  |
-| `mmap.file.name.length` | int | Length of 'mmap.file.name' string |  |
-| `mmap.file.path` | string | File's path |  |
-| `mmap.file.path.length` | int | Length of 'mmap.file.path' string |  |
-| `mmap.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `mmap.file.uid` | int | UID of the file's owner |  |
-| `mmap.file.user` | string | User of the file's owner |  |
-| `mmap.flags` | int | memory segment flags | MMap flags |
-| `mmap.protection` | int | memory segment protection | Protection constants |
-| `mmap.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`mmap.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`mmap.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`mmap.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`mmap.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`mmap.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`mmap.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`mmap.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`mmap.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`mmap.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`mmap.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`mmap.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mmap.file.path`](#common-fileevent-path-doc) | File's path |
+| [`mmap.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mmap.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`mmap.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`mmap.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`mmap.flags`](#mmap-flags-doc) | memory segment flags |
+| [`mmap.protection`](#mmap-protection-doc) | memory segment protection |
+| [`mmap.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `mount`
 
@@ -752,702 +752,1833 @@ _This event type is experimental and may change in the future._
 
 A filesystem was mounted
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `mount.fs_type` | string | Type of the mounted file system |  |
-| `mount.mountpoint.path` | string | Path of the mount point |  |
-| `mount.retval` | int | Return value of the syscall | Error Constants |
-| `mount.source.path` | string | Source path of a bind mount |  |
+| Property | Definition |
+| -------- | ------------- |
+| [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
+| [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
+| [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
 
 ### Event `mprotect`
 
 A mprotect command was executed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `mprotect.req_protection` | int | new memory segment protection | Virtual Memory flags |
-| `mprotect.retval` | int | Return value of the syscall | Error Constants |
-| `mprotect.vm_protection` | int | initial memory segment protection | Virtual Memory flags |
+| Property | Definition |
+| -------- | ------------- |
+| [`mprotect.req_protection`](#mprotect-req_protection-doc) | new memory segment protection |
+| [`mprotect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`mprotect.vm_protection`](#mprotect-vm_protection-doc) | initial memory segment protection |
 
 ### Event `open`
 
 A file was opened
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `open.file.change_time` | int | Change time of the file |  |
-| `open.file.destination.mode` | int | Mode of the created file | Chmod mode constants |
-| `open.file.filesystem` | string | File's filesystem |  |
-| `open.file.gid` | int | GID of the file's owner |  |
-| `open.file.group` | string | Group of the file's owner |  |
-| `open.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `open.file.inode` | int | Inode of the file |  |
-| `open.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `open.file.modification_time` | int | Modification time of the file |  |
-| `open.file.mount_id` | int | Mount ID of the file |  |
-| `open.file.name` | string | File's basename |  |
-| `open.file.name.length` | int | Length of 'open.file.name' string |  |
-| `open.file.path` | string | File's path |  |
-| `open.file.path.length` | int | Length of 'open.file.path' string |  |
-| `open.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `open.file.uid` | int | UID of the file's owner |  |
-| `open.file.user` | string | User of the file's owner |  |
-| `open.flags` | int | Flags used when opening the file | Open flags |
-| `open.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`open.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`open.file.destination.mode`](#open-file-destination-mode-doc) | Mode of the created file |
+| [`open.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`open.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`open.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`open.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`open.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`open.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`open.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`open.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`open.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`open.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.file.path`](#common-fileevent-path-doc) | File's path |
+| [`open.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`open.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`open.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`open.flags`](#open-flags-doc) | Flags used when opening the file |
+| [`open.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `ptrace`
 
 A ptrace command was executed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `ptrace.request` | int | ptrace request | Ptrace constants |
-| `ptrace.retval` | int | Return value of the syscall | Error Constants |
-| `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |  |
-| `ptrace.tracee.ancestors.args_flags` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.ancestors.args_options` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.ancestors.args_truncated` | bool | Indicator of arguments truncation |  |
-| `ptrace.tracee.ancestors.argv` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.ancestors.argv0` | string | First argument of the process |  |
-| `ptrace.tracee.ancestors.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `ptrace.tracee.ancestors.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `ptrace.tracee.ancestors.comm` | string | Comm attribute of the process |  |
-| `ptrace.tracee.ancestors.container.id` | string | Container ID |  |
-| `ptrace.tracee.ancestors.cookie` | int | Cookie of the process |  |
-| `ptrace.tracee.ancestors.created_at` | int | Timestamp of the creation of the process |  |
-| `ptrace.tracee.ancestors.egid` | int | Effective GID of the process |  |
-| `ptrace.tracee.ancestors.egroup` | string | Effective group of the process |  |
-| `ptrace.tracee.ancestors.envp` | string | Environment variables of the process |  |
-| `ptrace.tracee.ancestors.envs` | string | Environment variable names of the process |  |
-| `ptrace.tracee.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |  |
-| `ptrace.tracee.ancestors.euser` | string | Effective user of the process |  |
-| `ptrace.tracee.ancestors.file.change_time` | int | Change time of the file |  |
-| `ptrace.tracee.ancestors.file.filesystem` | string | File's filesystem |  |
-| `ptrace.tracee.ancestors.file.gid` | int | GID of the file's owner |  |
-| `ptrace.tracee.ancestors.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `ptrace.tracee.ancestors.file.inode` | int | Inode of the file |  |
-| `ptrace.tracee.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.ancestors.file.modification_time` | int | Modification time of the file |  |
-| `ptrace.tracee.ancestors.file.mount_id` | int | Mount ID of the file |  |
-| `ptrace.tracee.ancestors.file.name` | string | File's basename |  |
-| `ptrace.tracee.ancestors.file.name.length` | int | Length of 'ptrace.tracee.ancestors.file.name' string |  |
-| `ptrace.tracee.ancestors.file.path` | string | File's path |  |
-| `ptrace.tracee.ancestors.file.path.length` | int | Length of 'ptrace.tracee.ancestors.file.path' string |  |
-| `ptrace.tracee.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.ancestors.file.uid` | int | UID of the file's owner |  |
-| `ptrace.tracee.ancestors.file.user` | string | User of the file's owner |  |
-| `ptrace.tracee.ancestors.fsgid` | int | FileSystem-gid of the process |  |
-| `ptrace.tracee.ancestors.fsgroup` | string | FileSystem-group of the process |  |
-| `ptrace.tracee.ancestors.fsuid` | int | FileSystem-uid of the process |  |
-| `ptrace.tracee.ancestors.fsuser` | string | FileSystem-user of the process |  |
-| `ptrace.tracee.ancestors.gid` | int | GID of the process |  |
-| `ptrace.tracee.ancestors.group` | string | Group of the process |  |
-| `ptrace.tracee.ancestors.interpreter.file.change_time` | int | Change time of the file |  |
-| `ptrace.tracee.ancestors.interpreter.file.filesystem` | string | File's filesystem |  |
-| `ptrace.tracee.ancestors.interpreter.file.gid` | int | GID of the file's owner |  |
-| `ptrace.tracee.ancestors.interpreter.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.ancestors.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `ptrace.tracee.ancestors.interpreter.file.inode` | int | Inode of the file |  |
-| `ptrace.tracee.ancestors.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `ptrace.tracee.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `ptrace.tracee.ancestors.interpreter.file.name` | string | File's basename |  |
-| `ptrace.tracee.ancestors.interpreter.file.name.length` | int | Length of 'ptrace.tracee.ancestors.interpreter.file.name' string |  |
-| `ptrace.tracee.ancestors.interpreter.file.path` | string | File's path |  |
-| `ptrace.tracee.ancestors.interpreter.file.path.length` | int | Length of 'ptrace.tracee.ancestors.interpreter.file.path' string |  |
-| `ptrace.tracee.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
-| `ptrace.tracee.ancestors.interpreter.file.user` | string | User of the file's owner |  |
-| `ptrace.tracee.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `ptrace.tracee.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `ptrace.tracee.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `ptrace.tracee.ancestors.ppid` | int | Parent process ID |  |
-| `ptrace.tracee.ancestors.tid` | int | Thread ID of the thread |  |
-| `ptrace.tracee.ancestors.tty_name` | string | Name of the TTY associated with the process |  |
-| `ptrace.tracee.ancestors.uid` | int | UID of the process |  |
-| `ptrace.tracee.ancestors.user` | string | User of the process |  |
-| `ptrace.tracee.args` | string | Arguments of the process (as a string) |  |
-| `ptrace.tracee.args_flags` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.args_options` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.args_truncated` | bool | Indicator of arguments truncation |  |
-| `ptrace.tracee.argv` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.argv0` | string | First argument of the process |  |
-| `ptrace.tracee.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `ptrace.tracee.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `ptrace.tracee.comm` | string | Comm attribute of the process |  |
-| `ptrace.tracee.container.id` | string | Container ID |  |
-| `ptrace.tracee.cookie` | int | Cookie of the process |  |
-| `ptrace.tracee.created_at` | int | Timestamp of the creation of the process |  |
-| `ptrace.tracee.egid` | int | Effective GID of the process |  |
-| `ptrace.tracee.egroup` | string | Effective group of the process |  |
-| `ptrace.tracee.envp` | string | Environment variables of the process |  |
-| `ptrace.tracee.envs` | string | Environment variable names of the process |  |
-| `ptrace.tracee.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `ptrace.tracee.euid` | int | Effective UID of the process |  |
-| `ptrace.tracee.euser` | string | Effective user of the process |  |
-| `ptrace.tracee.file.change_time` | int | Change time of the file |  |
-| `ptrace.tracee.file.filesystem` | string | File's filesystem |  |
-| `ptrace.tracee.file.gid` | int | GID of the file's owner |  |
-| `ptrace.tracee.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `ptrace.tracee.file.inode` | int | Inode of the file |  |
-| `ptrace.tracee.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.file.modification_time` | int | Modification time of the file |  |
-| `ptrace.tracee.file.mount_id` | int | Mount ID of the file |  |
-| `ptrace.tracee.file.name` | string | File's basename |  |
-| `ptrace.tracee.file.name.length` | int | Length of 'ptrace.tracee.file.name' string |  |
-| `ptrace.tracee.file.path` | string | File's path |  |
-| `ptrace.tracee.file.path.length` | int | Length of 'ptrace.tracee.file.path' string |  |
-| `ptrace.tracee.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.file.uid` | int | UID of the file's owner |  |
-| `ptrace.tracee.file.user` | string | User of the file's owner |  |
-| `ptrace.tracee.fsgid` | int | FileSystem-gid of the process |  |
-| `ptrace.tracee.fsgroup` | string | FileSystem-group of the process |  |
-| `ptrace.tracee.fsuid` | int | FileSystem-uid of the process |  |
-| `ptrace.tracee.fsuser` | string | FileSystem-user of the process |  |
-| `ptrace.tracee.gid` | int | GID of the process |  |
-| `ptrace.tracee.group` | string | Group of the process |  |
-| `ptrace.tracee.interpreter.file.change_time` | int | Change time of the file |  |
-| `ptrace.tracee.interpreter.file.filesystem` | string | File's filesystem |  |
-| `ptrace.tracee.interpreter.file.gid` | int | GID of the file's owner |  |
-| `ptrace.tracee.interpreter.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `ptrace.tracee.interpreter.file.inode` | int | Inode of the file |  |
-| `ptrace.tracee.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `ptrace.tracee.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `ptrace.tracee.interpreter.file.name` | string | File's basename |  |
-| `ptrace.tracee.interpreter.file.name.length` | int | Length of 'ptrace.tracee.interpreter.file.name' string |  |
-| `ptrace.tracee.interpreter.file.path` | string | File's path |  |
-| `ptrace.tracee.interpreter.file.path.length` | int | Length of 'ptrace.tracee.interpreter.file.path' string |  |
-| `ptrace.tracee.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.interpreter.file.uid` | int | UID of the file's owner |  |
-| `ptrace.tracee.interpreter.file.user` | string | User of the file's owner |  |
-| `ptrace.tracee.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `ptrace.tracee.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `ptrace.tracee.parent.args` | string | Arguments of the process (as a string) |  |
-| `ptrace.tracee.parent.args_flags` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.parent.args_options` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.parent.args_truncated` | bool | Indicator of arguments truncation |  |
-| `ptrace.tracee.parent.argv` | string | Arguments of the process (as an array) |  |
-| `ptrace.tracee.parent.argv0` | string | First argument of the process |  |
-| `ptrace.tracee.parent.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `ptrace.tracee.parent.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `ptrace.tracee.parent.comm` | string | Comm attribute of the process |  |
-| `ptrace.tracee.parent.container.id` | string | Container ID |  |
-| `ptrace.tracee.parent.cookie` | int | Cookie of the process |  |
-| `ptrace.tracee.parent.created_at` | int | Timestamp of the creation of the process |  |
-| `ptrace.tracee.parent.egid` | int | Effective GID of the process |  |
-| `ptrace.tracee.parent.egroup` | string | Effective group of the process |  |
-| `ptrace.tracee.parent.envp` | string | Environment variables of the process |  |
-| `ptrace.tracee.parent.envs` | string | Environment variable names of the process |  |
-| `ptrace.tracee.parent.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `ptrace.tracee.parent.euid` | int | Effective UID of the process |  |
-| `ptrace.tracee.parent.euser` | string | Effective user of the process |  |
-| `ptrace.tracee.parent.file.change_time` | int | Change time of the file |  |
-| `ptrace.tracee.parent.file.filesystem` | string | File's filesystem |  |
-| `ptrace.tracee.parent.file.gid` | int | GID of the file's owner |  |
-| `ptrace.tracee.parent.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.parent.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `ptrace.tracee.parent.file.inode` | int | Inode of the file |  |
-| `ptrace.tracee.parent.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.parent.file.modification_time` | int | Modification time of the file |  |
-| `ptrace.tracee.parent.file.mount_id` | int | Mount ID of the file |  |
-| `ptrace.tracee.parent.file.name` | string | File's basename |  |
-| `ptrace.tracee.parent.file.name.length` | int | Length of 'ptrace.tracee.parent.file.name' string |  |
-| `ptrace.tracee.parent.file.path` | string | File's path |  |
-| `ptrace.tracee.parent.file.path.length` | int | Length of 'ptrace.tracee.parent.file.path' string |  |
-| `ptrace.tracee.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.parent.file.uid` | int | UID of the file's owner |  |
-| `ptrace.tracee.parent.file.user` | string | User of the file's owner |  |
-| `ptrace.tracee.parent.fsgid` | int | FileSystem-gid of the process |  |
-| `ptrace.tracee.parent.fsgroup` | string | FileSystem-group of the process |  |
-| `ptrace.tracee.parent.fsuid` | int | FileSystem-uid of the process |  |
-| `ptrace.tracee.parent.fsuser` | string | FileSystem-user of the process |  |
-| `ptrace.tracee.parent.gid` | int | GID of the process |  |
-| `ptrace.tracee.parent.group` | string | Group of the process |  |
-| `ptrace.tracee.parent.interpreter.file.change_time` | int | Change time of the file |  |
-| `ptrace.tracee.parent.interpreter.file.filesystem` | string | File's filesystem |  |
-| `ptrace.tracee.parent.interpreter.file.gid` | int | GID of the file's owner |  |
-| `ptrace.tracee.parent.interpreter.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.parent.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `ptrace.tracee.parent.interpreter.file.inode` | int | Inode of the file |  |
-| `ptrace.tracee.parent.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.parent.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `ptrace.tracee.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `ptrace.tracee.parent.interpreter.file.name` | string | File's basename |  |
-| `ptrace.tracee.parent.interpreter.file.name.length` | int | Length of 'ptrace.tracee.parent.interpreter.file.name' string |  |
-| `ptrace.tracee.parent.interpreter.file.path` | string | File's path |  |
-| `ptrace.tracee.parent.interpreter.file.path.length` | int | Length of 'ptrace.tracee.parent.interpreter.file.path' string |  |
-| `ptrace.tracee.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `ptrace.tracee.parent.interpreter.file.uid` | int | UID of the file's owner |  |
-| `ptrace.tracee.parent.interpreter.file.user` | string | User of the file's owner |  |
-| `ptrace.tracee.parent.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `ptrace.tracee.parent.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `ptrace.tracee.parent.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `ptrace.tracee.parent.ppid` | int | Parent process ID |  |
-| `ptrace.tracee.parent.tid` | int | Thread ID of the thread |  |
-| `ptrace.tracee.parent.tty_name` | string | Name of the TTY associated with the process |  |
-| `ptrace.tracee.parent.uid` | int | UID of the process |  |
-| `ptrace.tracee.parent.user` | string | User of the process |  |
-| `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `ptrace.tracee.ppid` | int | Parent process ID |  |
-| `ptrace.tracee.tid` | int | Thread ID of the thread |  |
-| `ptrace.tracee.tty_name` | string | Name of the TTY associated with the process |  |
-| `ptrace.tracee.uid` | int | UID of the process |  |
-| `ptrace.tracee.user` | string | User of the process |  |
+| Property | Definition |
+| -------- | ------------- |
+| [`ptrace.request`](#ptrace-request-doc) | ptrace request |
+| [`ptrace.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`ptrace.tracee.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`ptrace.tracee.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`ptrace.tracee.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`ptrace.tracee.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`ptrace.tracee.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`ptrace.tracee.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`ptrace.tracee.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`ptrace.tracee.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`ptrace.tracee.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`ptrace.tracee.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`ptrace.tracee.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`ptrace.tracee.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.ancestors.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`ptrace.tracee.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`ptrace.tracee.ancestors.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.ancestors.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`ptrace.tracee.ancestors.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`ptrace.tracee.ancestors.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`ptrace.tracee.ancestors.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`ptrace.tracee.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`ptrace.tracee.ancestors.group`](#common-credentials-group-doc) | Group of the process |
+| [`ptrace.tracee.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.ancestors.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`ptrace.tracee.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`ptrace.tracee.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`ptrace.tracee.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`ptrace.tracee.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`ptrace.tracee.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`ptrace.tracee.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`ptrace.tracee.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`ptrace.tracee.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`ptrace.tracee.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`ptrace.tracee.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`ptrace.tracee.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`ptrace.tracee.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`ptrace.tracee.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`ptrace.tracee.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`ptrace.tracee.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`ptrace.tracee.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`ptrace.tracee.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`ptrace.tracee.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`ptrace.tracee.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`ptrace.tracee.group`](#common-credentials-group-doc) | Group of the process |
+| [`ptrace.tracee.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`ptrace.tracee.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`ptrace.tracee.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`ptrace.tracee.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`ptrace.tracee.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`ptrace.tracee.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`ptrace.tracee.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`ptrace.tracee.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`ptrace.tracee.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`ptrace.tracee.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`ptrace.tracee.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`ptrace.tracee.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`ptrace.tracee.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`ptrace.tracee.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.parent.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`ptrace.tracee.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.parent.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`ptrace.tracee.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`ptrace.tracee.parent.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.parent.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`ptrace.tracee.parent.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`ptrace.tracee.parent.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`ptrace.tracee.parent.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`ptrace.tracee.parent.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`ptrace.tracee.parent.group`](#common-credentials-group-doc) | Group of the process |
+| [`ptrace.tracee.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`ptrace.tracee.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.parent.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`ptrace.tracee.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`ptrace.tracee.parent.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`ptrace.tracee.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`ptrace.tracee.parent.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`ptrace.tracee.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`ptrace.tracee.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`ptrace.tracee.user`](#common-credentials-user-doc) | User of the process |
 
 ### Event `removexattr`
 
 Remove extended attributes
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `removexattr.file.change_time` | int | Change time of the file |  |
-| `removexattr.file.destination.name` | string | Name of the extended attribute |  |
-| `removexattr.file.destination.namespace` | string | Namespace of the extended attribute |  |
-| `removexattr.file.filesystem` | string | File's filesystem |  |
-| `removexattr.file.gid` | int | GID of the file's owner |  |
-| `removexattr.file.group` | string | Group of the file's owner |  |
-| `removexattr.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `removexattr.file.inode` | int | Inode of the file |  |
-| `removexattr.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `removexattr.file.modification_time` | int | Modification time of the file |  |
-| `removexattr.file.mount_id` | int | Mount ID of the file |  |
-| `removexattr.file.name` | string | File's basename |  |
-| `removexattr.file.name.length` | int | Length of 'removexattr.file.name' string |  |
-| `removexattr.file.path` | string | File's path |  |
-| `removexattr.file.path.length` | int | Length of 'removexattr.file.path' string |  |
-| `removexattr.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `removexattr.file.uid` | int | UID of the file's owner |  |
-| `removexattr.file.user` | string | User of the file's owner |  |
-| `removexattr.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`removexattr.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`removexattr.file.destination.name`](#common-setxattrevent-file-destination-name-doc) | Name of the extended attribute |
+| [`removexattr.file.destination.namespace`](#common-setxattrevent-file-destination-namespace-doc) | Namespace of the extended attribute |
+| [`removexattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`removexattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`removexattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`removexattr.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`removexattr.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`removexattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`removexattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`removexattr.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`removexattr.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`removexattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`removexattr.file.path`](#common-fileevent-path-doc) | File's path |
+| [`removexattr.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`removexattr.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`removexattr.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`removexattr.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`removexattr.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `rename`
 
 A file/directory was renamed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `rename.file.change_time` | int | Change time of the file |  |
-| `rename.file.destination.change_time` | int | Change time of the file |  |
-| `rename.file.destination.filesystem` | string | File's filesystem |  |
-| `rename.file.destination.gid` | int | GID of the file's owner |  |
-| `rename.file.destination.group` | string | Group of the file's owner |  |
-| `rename.file.destination.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `rename.file.destination.inode` | int | Inode of the file |  |
-| `rename.file.destination.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `rename.file.destination.modification_time` | int | Modification time of the file |  |
-| `rename.file.destination.mount_id` | int | Mount ID of the file |  |
-| `rename.file.destination.name` | string | File's basename |  |
-| `rename.file.destination.name.length` | int | Length of 'rename.file.destination.name' string |  |
-| `rename.file.destination.path` | string | File's path |  |
-| `rename.file.destination.path.length` | int | Length of 'rename.file.destination.path' string |  |
-| `rename.file.destination.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `rename.file.destination.uid` | int | UID of the file's owner |  |
-| `rename.file.destination.user` | string | User of the file's owner |  |
-| `rename.file.filesystem` | string | File's filesystem |  |
-| `rename.file.gid` | int | GID of the file's owner |  |
-| `rename.file.group` | string | Group of the file's owner |  |
-| `rename.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `rename.file.inode` | int | Inode of the file |  |
-| `rename.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `rename.file.modification_time` | int | Modification time of the file |  |
-| `rename.file.mount_id` | int | Mount ID of the file |  |
-| `rename.file.name` | string | File's basename |  |
-| `rename.file.name.length` | int | Length of 'rename.file.name' string |  |
-| `rename.file.path` | string | File's path |  |
-| `rename.file.path.length` | int | Length of 'rename.file.path' string |  |
-| `rename.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `rename.file.uid` | int | UID of the file's owner |  |
-| `rename.file.user` | string | User of the file's owner |  |
-| `rename.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`rename.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`rename.file.destination.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`rename.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`rename.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`rename.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rename.file.destination.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`rename.file.destination.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`rename.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`rename.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`rename.file.destination.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`rename.file.destination.name`](#common-fileevent-name-doc) | File's basename |
+| [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.path`](#common-fileevent-path-doc) | File's path |
+| [`rename.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`rename.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`rename.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`rename.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`rename.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`rename.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rename.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`rename.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`rename.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`rename.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`rename.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`rename.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.path`](#common-fileevent-path-doc) | File's path |
+| [`rename.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`rename.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`rename.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`rename.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `rmdir`
 
 A directory was removed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `rmdir.file.change_time` | int | Change time of the file |  |
-| `rmdir.file.filesystem` | string | File's filesystem |  |
-| `rmdir.file.gid` | int | GID of the file's owner |  |
-| `rmdir.file.group` | string | Group of the file's owner |  |
-| `rmdir.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `rmdir.file.inode` | int | Inode of the file |  |
-| `rmdir.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `rmdir.file.modification_time` | int | Modification time of the file |  |
-| `rmdir.file.mount_id` | int | Mount ID of the file |  |
-| `rmdir.file.name` | string | File's basename |  |
-| `rmdir.file.name.length` | int | Length of 'rmdir.file.name' string |  |
-| `rmdir.file.path` | string | File's path |  |
-| `rmdir.file.path.length` | int | Length of 'rmdir.file.path' string |  |
-| `rmdir.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `rmdir.file.uid` | int | UID of the file's owner |  |
-| `rmdir.file.user` | string | User of the file's owner |  |
-| `rmdir.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`rmdir.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`rmdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`rmdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`rmdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rmdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`rmdir.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`rmdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`rmdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`rmdir.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`rmdir.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`rmdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rmdir.file.path`](#common-fileevent-path-doc) | File's path |
+| [`rmdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rmdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`rmdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`rmdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`rmdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `selinux`
 
 An SELinux operation was run
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `selinux.bool.name` | string | SELinux boolean name |  |
-| `selinux.bool.state` | string | SELinux boolean new value |  |
-| `selinux.bool_commit.state` | bool | Indicator of a SELinux boolean commit operation |  |
-| `selinux.enforce.status` | string | SELinux enforcement status (one of "enforcing", "permissive", "disabled"") |  |
+| Property | Definition |
+| -------- | ------------- |
+| [`selinux.bool.name`](#selinux-bool-name-doc) | SELinux boolean name |
+| [`selinux.bool.state`](#selinux-bool-state-doc) | SELinux boolean new value |
+| [`selinux.bool_commit.state`](#selinux-bool_commit-state-doc) | Indicator of a SELinux boolean commit operation |
+| [`selinux.enforce.status`](#selinux-enforce-status-doc) | SELinux enforcement status (one of "enforcing", "permissive", "disabled") |
 
 ### Event `setgid`
 
 A process changed its effective gid
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `setgid.egid` | int | New effective GID of the process |  |
-| `setgid.egroup` | string | New effective group of the process |  |
-| `setgid.fsgid` | int | New FileSystem GID of the process |  |
-| `setgid.fsgroup` | string | New FileSystem group of the process |  |
-| `setgid.gid` | int | New GID of the process |  |
-| `setgid.group` | string | New group of the process |  |
+| Property | Definition |
+| -------- | ------------- |
+| [`setgid.egid`](#setgid-egid-doc) | New effective GID of the process |
+| [`setgid.egroup`](#setgid-egroup-doc) | New effective group of the process |
+| [`setgid.fsgid`](#setgid-fsgid-doc) | New FileSystem GID of the process |
+| [`setgid.fsgroup`](#setgid-fsgroup-doc) | New FileSystem group of the process |
+| [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
+| [`setgid.group`](#setgid-group-doc) | New group of the process |
 
 ### Event `setuid`
 
 A process changed its effective uid
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `setuid.euid` | int | New effective UID of the process |  |
-| `setuid.euser` | string | New effective user of the process |  |
-| `setuid.fsuid` | int | New FileSystem UID of the process |  |
-| `setuid.fsuser` | string | New FileSystem user of the process |  |
-| `setuid.uid` | int | New UID of the process |  |
-| `setuid.user` | string | New user of the process |  |
+| Property | Definition |
+| -------- | ------------- |
+| [`setuid.euid`](#setuid-euid-doc) | New effective UID of the process |
+| [`setuid.euser`](#setuid-euser-doc) | New effective user of the process |
+| [`setuid.fsuid`](#setuid-fsuid-doc) | New FileSystem UID of the process |
+| [`setuid.fsuser`](#setuid-fsuser-doc) | New FileSystem user of the process |
+| [`setuid.uid`](#setuid-uid-doc) | New UID of the process |
+| [`setuid.user`](#setuid-user-doc) | New user of the process |
 
 ### Event `setxattr`
 
 Set exteneded attributes
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `setxattr.file.change_time` | int | Change time of the file |  |
-| `setxattr.file.destination.name` | string | Name of the extended attribute |  |
-| `setxattr.file.destination.namespace` | string | Namespace of the extended attribute |  |
-| `setxattr.file.filesystem` | string | File's filesystem |  |
-| `setxattr.file.gid` | int | GID of the file's owner |  |
-| `setxattr.file.group` | string | Group of the file's owner |  |
-| `setxattr.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `setxattr.file.inode` | int | Inode of the file |  |
-| `setxattr.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `setxattr.file.modification_time` | int | Modification time of the file |  |
-| `setxattr.file.mount_id` | int | Mount ID of the file |  |
-| `setxattr.file.name` | string | File's basename |  |
-| `setxattr.file.name.length` | int | Length of 'setxattr.file.name' string |  |
-| `setxattr.file.path` | string | File's path |  |
-| `setxattr.file.path.length` | int | Length of 'setxattr.file.path' string |  |
-| `setxattr.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `setxattr.file.uid` | int | UID of the file's owner |  |
-| `setxattr.file.user` | string | User of the file's owner |  |
-| `setxattr.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`setxattr.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`setxattr.file.destination.name`](#common-setxattrevent-file-destination-name-doc) | Name of the extended attribute |
+| [`setxattr.file.destination.namespace`](#common-setxattrevent-file-destination-namespace-doc) | Namespace of the extended attribute |
+| [`setxattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`setxattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`setxattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`setxattr.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`setxattr.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`setxattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`setxattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`setxattr.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`setxattr.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`setxattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`setxattr.file.path`](#common-fileevent-path-doc) | File's path |
+| [`setxattr.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`setxattr.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`setxattr.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`setxattr.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`setxattr.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `signal`
 
 A signal was sent
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `signal.pid` | int | Target PID |  |
-| `signal.retval` | int | Return value of the syscall | Error Constants |
-| `signal.target.ancestors.args` | string | Arguments of the process (as a string) |  |
-| `signal.target.ancestors.args_flags` | string | Arguments of the process (as an array) |  |
-| `signal.target.ancestors.args_options` | string | Arguments of the process (as an array) |  |
-| `signal.target.ancestors.args_truncated` | bool | Indicator of arguments truncation |  |
-| `signal.target.ancestors.argv` | string | Arguments of the process (as an array) |  |
-| `signal.target.ancestors.argv0` | string | First argument of the process |  |
-| `signal.target.ancestors.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `signal.target.ancestors.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `signal.target.ancestors.comm` | string | Comm attribute of the process |  |
-| `signal.target.ancestors.container.id` | string | Container ID |  |
-| `signal.target.ancestors.cookie` | int | Cookie of the process |  |
-| `signal.target.ancestors.created_at` | int | Timestamp of the creation of the process |  |
-| `signal.target.ancestors.egid` | int | Effective GID of the process |  |
-| `signal.target.ancestors.egroup` | string | Effective group of the process |  |
-| `signal.target.ancestors.envp` | string | Environment variables of the process |  |
-| `signal.target.ancestors.envs` | string | Environment variable names of the process |  |
-| `signal.target.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `signal.target.ancestors.euid` | int | Effective UID of the process |  |
-| `signal.target.ancestors.euser` | string | Effective user of the process |  |
-| `signal.target.ancestors.file.change_time` | int | Change time of the file |  |
-| `signal.target.ancestors.file.filesystem` | string | File's filesystem |  |
-| `signal.target.ancestors.file.gid` | int | GID of the file's owner |  |
-| `signal.target.ancestors.file.group` | string | Group of the file's owner |  |
-| `signal.target.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `signal.target.ancestors.file.inode` | int | Inode of the file |  |
-| `signal.target.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.ancestors.file.modification_time` | int | Modification time of the file |  |
-| `signal.target.ancestors.file.mount_id` | int | Mount ID of the file |  |
-| `signal.target.ancestors.file.name` | string | File's basename |  |
-| `signal.target.ancestors.file.name.length` | int | Length of 'signal.target.ancestors.file.name' string |  |
-| `signal.target.ancestors.file.path` | string | File's path |  |
-| `signal.target.ancestors.file.path.length` | int | Length of 'signal.target.ancestors.file.path' string |  |
-| `signal.target.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.ancestors.file.uid` | int | UID of the file's owner |  |
-| `signal.target.ancestors.file.user` | string | User of the file's owner |  |
-| `signal.target.ancestors.fsgid` | int | FileSystem-gid of the process |  |
-| `signal.target.ancestors.fsgroup` | string | FileSystem-group of the process |  |
-| `signal.target.ancestors.fsuid` | int | FileSystem-uid of the process |  |
-| `signal.target.ancestors.fsuser` | string | FileSystem-user of the process |  |
-| `signal.target.ancestors.gid` | int | GID of the process |  |
-| `signal.target.ancestors.group` | string | Group of the process |  |
-| `signal.target.ancestors.interpreter.file.change_time` | int | Change time of the file |  |
-| `signal.target.ancestors.interpreter.file.filesystem` | string | File's filesystem |  |
-| `signal.target.ancestors.interpreter.file.gid` | int | GID of the file's owner |  |
-| `signal.target.ancestors.interpreter.file.group` | string | Group of the file's owner |  |
-| `signal.target.ancestors.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `signal.target.ancestors.interpreter.file.inode` | int | Inode of the file |  |
-| `signal.target.ancestors.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `signal.target.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `signal.target.ancestors.interpreter.file.name` | string | File's basename |  |
-| `signal.target.ancestors.interpreter.file.name.length` | int | Length of 'signal.target.ancestors.interpreter.file.name' string |  |
-| `signal.target.ancestors.interpreter.file.path` | string | File's path |  |
-| `signal.target.ancestors.interpreter.file.path.length` | int | Length of 'signal.target.ancestors.interpreter.file.path' string |  |
-| `signal.target.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
-| `signal.target.ancestors.interpreter.file.user` | string | User of the file's owner |  |
-| `signal.target.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `signal.target.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `signal.target.ancestors.ppid` | int | Parent process ID |  |
-| `signal.target.ancestors.tid` | int | Thread ID of the thread |  |
-| `signal.target.ancestors.tty_name` | string | Name of the TTY associated with the process |  |
-| `signal.target.ancestors.uid` | int | UID of the process |  |
-| `signal.target.ancestors.user` | string | User of the process |  |
-| `signal.target.args` | string | Arguments of the process (as a string) |  |
-| `signal.target.args_flags` | string | Arguments of the process (as an array) |  |
-| `signal.target.args_options` | string | Arguments of the process (as an array) |  |
-| `signal.target.args_truncated` | bool | Indicator of arguments truncation |  |
-| `signal.target.argv` | string | Arguments of the process (as an array) |  |
-| `signal.target.argv0` | string | First argument of the process |  |
-| `signal.target.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `signal.target.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `signal.target.comm` | string | Comm attribute of the process |  |
-| `signal.target.container.id` | string | Container ID |  |
-| `signal.target.cookie` | int | Cookie of the process |  |
-| `signal.target.created_at` | int | Timestamp of the creation of the process |  |
-| `signal.target.egid` | int | Effective GID of the process |  |
-| `signal.target.egroup` | string | Effective group of the process |  |
-| `signal.target.envp` | string | Environment variables of the process |  |
-| `signal.target.envs` | string | Environment variable names of the process |  |
-| `signal.target.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `signal.target.euid` | int | Effective UID of the process |  |
-| `signal.target.euser` | string | Effective user of the process |  |
-| `signal.target.file.change_time` | int | Change time of the file |  |
-| `signal.target.file.filesystem` | string | File's filesystem |  |
-| `signal.target.file.gid` | int | GID of the file's owner |  |
-| `signal.target.file.group` | string | Group of the file's owner |  |
-| `signal.target.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `signal.target.file.inode` | int | Inode of the file |  |
-| `signal.target.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.file.modification_time` | int | Modification time of the file |  |
-| `signal.target.file.mount_id` | int | Mount ID of the file |  |
-| `signal.target.file.name` | string | File's basename |  |
-| `signal.target.file.name.length` | int | Length of 'signal.target.file.name' string |  |
-| `signal.target.file.path` | string | File's path |  |
-| `signal.target.file.path.length` | int | Length of 'signal.target.file.path' string |  |
-| `signal.target.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.file.uid` | int | UID of the file's owner |  |
-| `signal.target.file.user` | string | User of the file's owner |  |
-| `signal.target.fsgid` | int | FileSystem-gid of the process |  |
-| `signal.target.fsgroup` | string | FileSystem-group of the process |  |
-| `signal.target.fsuid` | int | FileSystem-uid of the process |  |
-| `signal.target.fsuser` | string | FileSystem-user of the process |  |
-| `signal.target.gid` | int | GID of the process |  |
-| `signal.target.group` | string | Group of the process |  |
-| `signal.target.interpreter.file.change_time` | int | Change time of the file |  |
-| `signal.target.interpreter.file.filesystem` | string | File's filesystem |  |
-| `signal.target.interpreter.file.gid` | int | GID of the file's owner |  |
-| `signal.target.interpreter.file.group` | string | Group of the file's owner |  |
-| `signal.target.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `signal.target.interpreter.file.inode` | int | Inode of the file |  |
-| `signal.target.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `signal.target.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `signal.target.interpreter.file.name` | string | File's basename |  |
-| `signal.target.interpreter.file.name.length` | int | Length of 'signal.target.interpreter.file.name' string |  |
-| `signal.target.interpreter.file.path` | string | File's path |  |
-| `signal.target.interpreter.file.path.length` | int | Length of 'signal.target.interpreter.file.path' string |  |
-| `signal.target.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.interpreter.file.uid` | int | UID of the file's owner |  |
-| `signal.target.interpreter.file.user` | string | User of the file's owner |  |
-| `signal.target.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `signal.target.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `signal.target.parent.args` | string | Arguments of the process (as a string) |  |
-| `signal.target.parent.args_flags` | string | Arguments of the process (as an array) |  |
-| `signal.target.parent.args_options` | string | Arguments of the process (as an array) |  |
-| `signal.target.parent.args_truncated` | bool | Indicator of arguments truncation |  |
-| `signal.target.parent.argv` | string | Arguments of the process (as an array) |  |
-| `signal.target.parent.argv0` | string | First argument of the process |  |
-| `signal.target.parent.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
-| `signal.target.parent.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
-| `signal.target.parent.comm` | string | Comm attribute of the process |  |
-| `signal.target.parent.container.id` | string | Container ID |  |
-| `signal.target.parent.cookie` | int | Cookie of the process |  |
-| `signal.target.parent.created_at` | int | Timestamp of the creation of the process |  |
-| `signal.target.parent.egid` | int | Effective GID of the process |  |
-| `signal.target.parent.egroup` | string | Effective group of the process |  |
-| `signal.target.parent.envp` | string | Environment variables of the process |  |
-| `signal.target.parent.envs` | string | Environment variable names of the process |  |
-| `signal.target.parent.envs_truncated` | bool | Indicator of environment variables truncation |  |
-| `signal.target.parent.euid` | int | Effective UID of the process |  |
-| `signal.target.parent.euser` | string | Effective user of the process |  |
-| `signal.target.parent.file.change_time` | int | Change time of the file |  |
-| `signal.target.parent.file.filesystem` | string | File's filesystem |  |
-| `signal.target.parent.file.gid` | int | GID of the file's owner |  |
-| `signal.target.parent.file.group` | string | Group of the file's owner |  |
-| `signal.target.parent.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `signal.target.parent.file.inode` | int | Inode of the file |  |
-| `signal.target.parent.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.parent.file.modification_time` | int | Modification time of the file |  |
-| `signal.target.parent.file.mount_id` | int | Mount ID of the file |  |
-| `signal.target.parent.file.name` | string | File's basename |  |
-| `signal.target.parent.file.name.length` | int | Length of 'signal.target.parent.file.name' string |  |
-| `signal.target.parent.file.path` | string | File's path |  |
-| `signal.target.parent.file.path.length` | int | Length of 'signal.target.parent.file.path' string |  |
-| `signal.target.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.parent.file.uid` | int | UID of the file's owner |  |
-| `signal.target.parent.file.user` | string | User of the file's owner |  |
-| `signal.target.parent.fsgid` | int | FileSystem-gid of the process |  |
-| `signal.target.parent.fsgroup` | string | FileSystem-group of the process |  |
-| `signal.target.parent.fsuid` | int | FileSystem-uid of the process |  |
-| `signal.target.parent.fsuser` | string | FileSystem-user of the process |  |
-| `signal.target.parent.gid` | int | GID of the process |  |
-| `signal.target.parent.group` | string | Group of the process |  |
-| `signal.target.parent.interpreter.file.change_time` | int | Change time of the file |  |
-| `signal.target.parent.interpreter.file.filesystem` | string | File's filesystem |  |
-| `signal.target.parent.interpreter.file.gid` | int | GID of the file's owner |  |
-| `signal.target.parent.interpreter.file.group` | string | Group of the file's owner |  |
-| `signal.target.parent.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `signal.target.parent.interpreter.file.inode` | int | Inode of the file |  |
-| `signal.target.parent.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.parent.interpreter.file.modification_time` | int | Modification time of the file |  |
-| `signal.target.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
-| `signal.target.parent.interpreter.file.name` | string | File's basename |  |
-| `signal.target.parent.interpreter.file.name.length` | int | Length of 'signal.target.parent.interpreter.file.name' string |  |
-| `signal.target.parent.interpreter.file.path` | string | File's path |  |
-| `signal.target.parent.interpreter.file.path.length` | int | Length of 'signal.target.parent.interpreter.file.path' string |  |
-| `signal.target.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `signal.target.parent.interpreter.file.uid` | int | UID of the file's owner |  |
-| `signal.target.parent.interpreter.file.user` | string | User of the file's owner |  |
-| `signal.target.parent.is_kworker` | bool | Indicates whether the process is a kworker |  |
-| `signal.target.parent.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
-| `signal.target.parent.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `signal.target.parent.ppid` | int | Parent process ID |  |
-| `signal.target.parent.tid` | int | Thread ID of the thread |  |
-| `signal.target.parent.tty_name` | string | Name of the TTY associated with the process |  |
-| `signal.target.parent.uid` | int | UID of the process |  |
-| `signal.target.parent.user` | string | User of the process |  |
-| `signal.target.pid` | int | Process ID of the process (also called thread group ID) |  |
-| `signal.target.ppid` | int | Parent process ID |  |
-| `signal.target.tid` | int | Thread ID of the thread |  |
-| `signal.target.tty_name` | string | Name of the TTY associated with the process |  |
-| `signal.target.uid` | int | UID of the process |  |
-| `signal.target.user` | string | User of the process |  |
-| `signal.type` | int | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) | Signal constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`signal.pid`](#signal-pid-doc) | Target PID |
+| [`signal.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`signal.target.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`signal.target.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`signal.target.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`signal.target.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`signal.target.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`signal.target.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`signal.target.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`signal.target.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`signal.target.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`signal.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`signal.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`signal.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.ancestors.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`signal.target.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`signal.target.ancestors.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.ancestors.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`signal.target.ancestors.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`signal.target.ancestors.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`signal.target.ancestors.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`signal.target.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`signal.target.ancestors.group`](#common-credentials-group-doc) | Group of the process |
+| [`signal.target.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`signal.target.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.ancestors.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`signal.target.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`signal.target.ancestors.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`signal.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`signal.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`signal.target.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`signal.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`signal.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`signal.target.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`signal.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`signal.target.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`signal.target.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`signal.target.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`signal.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`signal.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`signal.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`signal.target.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`signal.target.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`signal.target.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`signal.target.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`signal.target.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`signal.target.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`signal.target.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`signal.target.group`](#common-credentials-group-doc) | Group of the process |
+| [`signal.target.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`signal.target.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`signal.target.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`signal.target.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`signal.target.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`signal.target.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`signal.target.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`signal.target.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`signal.target.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`signal.target.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
+| [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`signal.target.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`signal.target.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`signal.target.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`signal.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`signal.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`signal.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.parent.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`signal.target.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`signal.target.parent.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.parent.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`signal.target.parent.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`signal.target.parent.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`signal.target.parent.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`signal.target.parent.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`signal.target.parent.group`](#common-credentials-group-doc) | Group of the process |
+| [`signal.target.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`signal.target.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.parent.interpreter.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`signal.target.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`signal.target.parent.interpreter.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`signal.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`signal.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`signal.target.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`signal.target.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`signal.target.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.type`](#signal-type-doc) | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
 
 ### Event `splice`
 
 A splice command was executed
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `splice.file.change_time` | int | Change time of the file |  |
-| `splice.file.filesystem` | string | File's filesystem |  |
-| `splice.file.gid` | int | GID of the file's owner |  |
-| `splice.file.group` | string | Group of the file's owner |  |
-| `splice.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `splice.file.inode` | int | Inode of the file |  |
-| `splice.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `splice.file.modification_time` | int | Modification time of the file |  |
-| `splice.file.mount_id` | int | Mount ID of the file |  |
-| `splice.file.name` | string | File's basename |  |
-| `splice.file.name.length` | int | Length of 'splice.file.name' string |  |
-| `splice.file.path` | string | File's path |  |
-| `splice.file.path.length` | int | Length of 'splice.file.path' string |  |
-| `splice.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `splice.file.uid` | int | UID of the file's owner |  |
-| `splice.file.user` | string | User of the file's owner |  |
-| `splice.pipe_entry_flag` | int | Entry flag of the "fd_out" pipe passed to the splice syscall | Pipe buffer flags |
-| `splice.pipe_exit_flag` | int | Exit flag of the "fd_out" pipe passed to the splice syscall | Pipe buffer flags |
-| `splice.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`splice.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`splice.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`splice.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`splice.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`splice.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`splice.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`splice.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`splice.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`splice.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`splice.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`splice.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`splice.file.path`](#common-fileevent-path-doc) | File's path |
+| [`splice.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`splice.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`splice.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`splice.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`splice.pipe_entry_flag`](#splice-pipe_entry_flag-doc) | Entry flag of the "fd_out" pipe passed to the splice syscall |
+| [`splice.pipe_exit_flag`](#splice-pipe_exit_flag-doc) | Exit flag of the "fd_out" pipe passed to the splice syscall |
+| [`splice.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `unlink`
 
 A file was deleted
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `unlink.file.change_time` | int | Change time of the file |  |
-| `unlink.file.filesystem` | string | File's filesystem |  |
-| `unlink.file.gid` | int | GID of the file's owner |  |
-| `unlink.file.group` | string | Group of the file's owner |  |
-| `unlink.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `unlink.file.inode` | int | Inode of the file |  |
-| `unlink.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `unlink.file.modification_time` | int | Modification time of the file |  |
-| `unlink.file.mount_id` | int | Mount ID of the file |  |
-| `unlink.file.name` | string | File's basename |  |
-| `unlink.file.name.length` | int | Length of 'unlink.file.name' string |  |
-| `unlink.file.path` | string | File's path |  |
-| `unlink.file.path.length` | int | Length of 'unlink.file.path' string |  |
-| `unlink.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `unlink.file.uid` | int | UID of the file's owner |  |
-| `unlink.file.user` | string | User of the file's owner |  |
-| `unlink.flags` | int |  | Unlink flags |
-| `unlink.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`unlink.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`unlink.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`unlink.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`unlink.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`unlink.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`unlink.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`unlink.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`unlink.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`unlink.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`unlink.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`unlink.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`unlink.file.path`](#common-fileevent-path-doc) | File's path |
+| [`unlink.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`unlink.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`unlink.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`unlink.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`unlink.flags`](#unlink-flags-doc) | Flags of the unlink syscall |
+| [`unlink.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `unload_module`
 
 A kernel module was deleted
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `unload_module.name` | string | Name of the kernel module that was deleted |  |
-| `unload_module.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`unload_module.name`](#unload_module-name-doc) | Name of the kernel module that was deleted |
+| [`unload_module.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `utimes`
 
 Change file access/modification times
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
-| `utimes.file.change_time` | int | Change time of the file |  |
-| `utimes.file.filesystem` | string | File's filesystem |  |
-| `utimes.file.gid` | int | GID of the file's owner |  |
-| `utimes.file.group` | string | Group of the file's owner |  |
-| `utimes.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
-| `utimes.file.inode` | int | Inode of the file |  |
-| `utimes.file.mode` | int | Mode/rights of the file | Chmod mode constants |
-| `utimes.file.modification_time` | int | Modification time of the file |  |
-| `utimes.file.mount_id` | int | Mount ID of the file |  |
-| `utimes.file.name` | string | File's basename |  |
-| `utimes.file.name.length` | int | Length of 'utimes.file.name' string |  |
-| `utimes.file.path` | string | File's path |  |
-| `utimes.file.path.length` | int | Length of 'utimes.file.path' string |  |
-| `utimes.file.rights` | int | Mode/rights of the file | Chmod mode constants |
-| `utimes.file.uid` | int | UID of the file's owner |  |
-| `utimes.file.user` | string | User of the file's owner |  |
-| `utimes.retval` | int | Return value of the syscall | Error Constants |
+| Property | Definition |
+| -------- | ------------- |
+| [`utimes.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
+| [`utimes.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`utimes.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`utimes.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`utimes.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`utimes.file.inode`](#common-filefields-inode-doc) | Inode of the file |
+| [`utimes.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`utimes.file.modification_time`](#common-filefields-modification_time-doc) | Modification time of the file |
+| [`utimes.file.mount_id`](#common-filefields-mount_id-doc) | Mount ID of the file |
+| [`utimes.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`utimes.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`utimes.file.path`](#common-fileevent-path-doc) | File's path |
+| [`utimes.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`utimes.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`utimes.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`utimes.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`utimes.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+
+## Attributes documentation
+
+
+### `*.args` {#common-process-args-doc}
+Type: string
+
+Definition: Arguments of the process (as a string, excluding argv0)
+
+`*.args` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"
+{{< /code-block >}}
+
+Matches any process with these exact arguments.
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.args =~ "* -F * http*"
+{{< /code-block >}}
+
+Matches any process that has the "-F" argument anywhere before an argument starting with "http".
+
+### `*.args_flags` {#common-process-args_flags-doc}
+Type: string
+
+Definition: Flags in the process arguments
+
+`*.args_flags` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.args_flags in ["s"] && exec.args_flags in ["V"]
+{{< /code-block >}}
+
+Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".
+
+### `*.args_options` {#common-process-args_options-doc}
+Type: string
+
+Definition: Argument of the process as options
+
+`*.args_options` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.args_options in ["p=0-1024"]
+{{< /code-block >}}
+
+Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.
+
+### `*.args_truncated` {#common-process-args_truncated-doc}
+Type: bool
+
+Definition: Indicator of arguments truncation
+
+`*.args_truncated` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.argv` {#common-process-argv-doc}
+Type: string
+
+Definition: Arguments of the process (as an array, excluding argv0)
+
+`*.argv` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.argv in ["127.0.0.1"]
+{{< /code-block >}}
+
+Matches any process that has this IP address as one of its arguments.
+
+### `*.argv0` {#common-process-argv0-doc}
+Type: string
+
+Definition: First argument of the process
+
+`*.argv0` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.cap_effective` {#common-credentials-cap_effective-doc}
+Type: int
+
+Definition: Effective capability set of the process
+
+`*.cap_effective` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.cap_permitted` {#common-credentials-cap_permitted-doc}
+Type: int
+
+Definition: Permitted capability set of the process
+
+`*.cap_permitted` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.change_time` {#common-filefields-change_time-doc}
+Type: int
+
+Definition: Change time of the file
+
+`*.change_time` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.comm` {#common-process-comm-doc}
+Type: string
+
+Definition: Comm attribute of the process
+
+`*.comm` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.container.id` {#common-process-container-id-doc}
+Type: string
+
+Definition: Container ID
+
+`*.container.id` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.cookie` {#common-process-cookie-doc}
+Type: int
+
+Definition: Cookie of the process
+
+`*.cookie` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.created_at` {#common-process-created_at-doc}
+Type: int
+
+Definition: Timestamp of the creation of the process
+
+`*.created_at` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.egid` {#common-credentials-egid-doc}
+Type: int
+
+Definition: Effective GID of the process
+
+`*.egid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.egroup` {#common-credentials-egroup-doc}
+Type: string
+
+Definition: Effective group of the process
+
+`*.egroup` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.envp` {#common-process-envp-doc}
+Type: string
+
+Definition: Environment variables of the process
+
+`*.envp` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.envs` {#common-process-envs-doc}
+Type: string
+
+Definition: Environment variable names of the process
+
+`*.envs` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.envs_truncated` {#common-process-envs_truncated-doc}
+Type: bool
+
+Definition: Indicator of environment variables truncation
+
+`*.envs_truncated` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.euid` {#common-credentials-euid-doc}
+Type: int
+
+Definition: Effective UID of the process
+
+`*.euid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.euser` {#common-credentials-euser-doc}
+Type: string
+
+Definition: Effective user of the process
+
+`*.euser` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.file.destination.name` {#common-setxattrevent-file-destination-name-doc}
+Type: string
+
+Definition: Name of the extended attribute
+
+`*.file.destination.name` has 2 possible prefixes:
+`removexattr` `setxattr`
+
+
+### `*.file.destination.namespace` {#common-setxattrevent-file-destination-namespace-doc}
+Type: string
+
+Definition: Namespace of the extended attribute
+
+`*.file.destination.namespace` has 2 possible prefixes:
+`removexattr` `setxattr`
+
+
+### `*.filesystem` {#common-fileevent-filesystem-doc}
+Type: string
+
+Definition: File's filesystem
+
+`*.filesystem` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.fsgid` {#common-credentials-fsgid-doc}
+Type: int
+
+Definition: FileSystem-gid of the process
+
+`*.fsgid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.fsgroup` {#common-credentials-fsgroup-doc}
+Type: string
+
+Definition: FileSystem-group of the process
+
+`*.fsgroup` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.fsuid` {#common-credentials-fsuid-doc}
+Type: int
+
+Definition: FileSystem-uid of the process
+
+`*.fsuid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.fsuser` {#common-credentials-fsuser-doc}
+Type: string
+
+Definition: FileSystem-user of the process
+
+`*.fsuser` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.gid` {#common-credentials-gid-doc}
+Type: int
+
+Definition: GID of the process
+
+`*.gid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.gid` {#common-filefields-gid-doc}
+Type: int
+
+Definition: GID of the file's owner
+
+`*.gid` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.group` {#common-credentials-group-doc}
+Type: string
+
+Definition: Group of the process
+
+`*.group` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.group` {#common-filefields-group-doc}
+Type: string
+
+Definition: Group of the file's owner
+
+`*.group` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.in_upper_layer` {#common-filefields-in_upper_layer-doc}
+Type: bool
+
+Definition: Indicator of the file layer, for example, in an OverlayFS
+
+`*.in_upper_layer` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.inode` {#common-filefields-inode-doc}
+Type: int
+
+Definition: Inode of the file
+
+`*.inode` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.ip` {#common-ipportcontext-ip-doc}
+Type: IP/CIDR
+
+Definition: IP address
+
+`*.ip` has 3 possible prefixes:
+`bind.addr` `network.destination` `network.source`
+
+
+### `*.is_kworker` {#common-pidcontext-is_kworker-doc}
+Type: bool
+
+Definition: Indicates whether the process is a kworker
+
+`*.is_kworker` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.is_thread` {#common-process-is_thread-doc}
+Type: bool
+
+Definition: Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
+
+`*.is_thread` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.length` {#common-string-length-doc}
+Type: int
+
+Definition: Length of the corresponding string
+
+`*.length` has 77 possible prefixes:
+`chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `open.file.name` `open.file.path` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+
+
+### `*.mode` {#common-filefields-mode-doc}
+Type: int
+
+Definition: Mode of the file
+
+`*.mode` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.modification_time` {#common-filefields-modification_time-doc}
+Type: int
+
+Definition: Modification time of the file
+
+`*.modification_time` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.mount_id` {#common-filefields-mount_id-doc}
+Type: int
+
+Definition: Mount ID of the file
+
+`*.mount_id` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.name` {#common-fileevent-name-doc}
+Type: string
+
+Definition: File's basename
+
+`*.name` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.file.name == "apt"
+{{< /code-block >}}
+
+Matches the execution of any file named apt.
+
+### `*.path` {#common-fileevent-path-doc}
+Type: string
+
+Definition: File's path
+
+`*.path` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.file.path == "/usr/bin/apt"
+{{< /code-block >}}
+
+Matches the execution of the file located at /usr/bin/apt
+
+Example:
+
+{{< code-block lang="javascript" >}}
+open.file.path == "/etc/passwd"
+{{< /code-block >}}
+
+Matches any process opening the /etc/passwd file.
+
+### `*.pid` {#common-pidcontext-pid-doc}
+Type: int
+
+Definition: Process ID of the process (also called thread group ID)
+
+`*.pid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.port` {#common-ipportcontext-port-doc}
+Type: int
+
+Definition: Port number
+
+`*.port` has 3 possible prefixes:
+`bind.addr` `network.destination` `network.source`
+
+
+### `*.ppid` {#common-process-ppid-doc}
+Type: int
+
+Definition: Parent process ID
+
+`*.ppid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.retval` {#common-syscallevent-retval-doc}
+Type: int
+
+Definition: Return value of the syscall
+
+`*.retval` has 21 possible prefixes:
+`bind` `bpf` `chmod` `chown` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+
+Constants: [Error constants](#error-constants)
+
+
+
+### `*.rights` {#common-filefields-rights-doc}
+Type: int
+
+Definition: Rights of the file
+
+`*.rights` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+Constants: [Chmod mode constants](#chmod-mode-constants)
+
+
+
+### `*.tid` {#common-pidcontext-tid-doc}
+Type: int
+
+Definition: Thread ID of the thread
+
+`*.tid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.tty_name` {#common-process-tty_name-doc}
+Type: string
+
+Definition: Name of the TTY associated with the process
+
+`*.tty_name` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.uid` {#common-credentials-uid-doc}
+Type: int
+
+Definition: UID of the process
+
+`*.uid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.uid` {#common-filefields-uid-doc}
+Type: int
+
+Definition: UID of the file's owner
+
+`*.uid` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.user` {#common-credentials-user-doc}
+Type: string
+
+Definition: User of the process
+
+`*.user` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+process.user == "root"
+{{< /code-block >}}
+
+Constrain an event to be triggered by a process running as the root user.
+
+### `*.user` {#common-filefields-user-doc}
+Type: string
+
+Definition: User of the file's owner
+
+`*.user` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `async` {#async-doc}
+Type: bool
+
+Definition: True if the syscall was asynchronous
+
+
+
+### `bind.addr.family` {#bind-addr-family-doc}
+Type: int
+
+Definition: Address family
+
+
+
+### `bpf.cmd` {#bpf-cmd-doc}
+Type: int
+
+Definition: BPF command name
+
+
+Constants: [BPF commands](#bpf-commands)
+
+
+
+### `bpf.map.name` {#bpf-map-name-doc}
+Type: string
+
+Definition: Name of the eBPF map (added in 7.35)
+
+
+
+### `bpf.map.type` {#bpf-map-type-doc}
+Type: int
+
+Definition: Type of the eBPF map
+
+
+Constants: [BPF map types](#bpf-map-types)
+
+
+
+### `bpf.prog.attach_type` {#bpf-prog-attach_type-doc}
+Type: int
+
+Definition: Attach type of the eBPF program
+
+
+Constants: [BPF attach types](#bpf-attach-types)
+
+
+
+### `bpf.prog.helpers` {#bpf-prog-helpers-doc}
+Type: int
+
+Definition: eBPF helpers used by the eBPF program (added in 7.35)
+
+
+Constants: [BPF helper functions](#bpf-helper-functions)
+
+
+
+### `bpf.prog.name` {#bpf-prog-name-doc}
+Type: string
+
+Definition: Name of the eBPF program (added in 7.35)
+
+
+
+### `bpf.prog.tag` {#bpf-prog-tag-doc}
+Type: string
+
+Definition: Hash (sha1) of the eBPF program (added in 7.35)
+
+
+
+### `bpf.prog.type` {#bpf-prog-type-doc}
+Type: int
+
+Definition: Type of the eBPF program
+
+
+Constants: [BPF program types](#bpf-program-types)
+
+
+
+### `capset.cap_effective` {#capset-cap_effective-doc}
+Type: int
+
+Definition: Effective capability set of the process
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `capset.cap_permitted` {#capset-cap_permitted-doc}
+Type: int
+
+Definition: Permitted capability set of the process
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `chmod.file.destination.mode` {#chmod-file-destination-mode-doc}
+Type: int
+
+Definition: New mode of the chmod-ed file
+
+
+Constants: [Chmod mode constants](#chmod-mode-constants)
+
+
+
+### `chmod.file.destination.rights` {#chmod-file-destination-rights-doc}
+Type: int
+
+Definition: New rights of the chmod-ed file
+
+
+Constants: [Chmod mode constants](#chmod-mode-constants)
+
+
+
+### `chown.file.destination.gid` {#chown-file-destination-gid-doc}
+Type: int
+
+Definition: New GID of the chown-ed file's owner
+
+
+
+### `chown.file.destination.group` {#chown-file-destination-group-doc}
+Type: string
+
+Definition: New group of the chown-ed file's owner
+
+
+
+### `chown.file.destination.uid` {#chown-file-destination-uid-doc}
+Type: int
+
+Definition: New UID of the chown-ed file's owner
+
+
+
+### `chown.file.destination.user` {#chown-file-destination-user-doc}
+Type: string
+
+Definition: New user of the chown-ed file's owner
+
+
+
+### `container.id` {#container-id-doc}
+Type: string
+
+Definition: ID of the container
+
+
+
+### `container.tags` {#container-tags-doc}
+Type: string
+
+Definition: Tags of the container
+
+
+
+### `dns.id` {#dns-id-doc}
+Type: int
+
+Definition: [Experimental] the DNS request ID
+
+
+
+### `dns.question.class` {#dns-question-class-doc}
+Type: int
+
+Definition: the class looked up by the DNS question
+
+
+Constants: [DNS qclasses](#dns-qclasses)
+
+
+
+### `dns.question.count` {#dns-question-count-doc}
+Type: int
+
+Definition: the total count of questions in the DNS request
+
+
+
+### `dns.question.length` {#dns-question-length-doc}
+Type: int
+
+Definition: the total DNS request size in bytes
+
+
+
+### `dns.question.name` {#dns-question-name-doc}
+Type: string
+
+Definition: the queried domain name
+
+
+
+### `dns.question.type` {#dns-question-type-doc}
+Type: int
+
+Definition: a two octet code which specifies the DNS question type
+
+
+Constants: [DNS qtypes](#dns-qtypes)
+
+
+
+### `exit.cause` {#exit-cause-doc}
+Type: int
+
+Definition: Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)
+
+
+
+### `exit.code` {#exit-code-doc}
+Type: int
+
+Definition: Exit code of the process or number of the signal that caused the process to terminate
+
+
+
+### `load_module.loaded_from_memory` {#load_module-loaded_from_memory-doc}
+Type: bool
+
+Definition: Indicates if the kernel module was loaded from memory
+
+
+
+### `load_module.name` {#load_module-name-doc}
+Type: string
+
+Definition: Name of the new kernel module
+
+
+
+### `mkdir.file.destination.mode` {#mkdir-file-destination-mode-doc}
+Type: int
+
+Definition: Mode of the new directory
+
+
+Constants: [Chmod mode constants](#chmod-mode-constants)
+
+
+
+### `mkdir.file.destination.rights` {#mkdir-file-destination-rights-doc}
+Type: int
+
+Definition: Rights of the new directory
+
+
+Constants: [Chmod mode constants](#chmod-mode-constants)
+
+
+
+### `mmap.flags` {#mmap-flags-doc}
+Type: int
+
+Definition: memory segment flags
+
+
+Constants: [MMap flags](#mmap-flags)
+
+
+
+### `mmap.protection` {#mmap-protection-doc}
+Type: int
+
+Definition: memory segment protection
+
+
+Constants: [Protection constants](#protection-constants)
+
+
+
+### `mount.fs_type` {#mount-fs_type-doc}
+Type: string
+
+Definition: Type of the mounted file system
+
+
+
+### `mount.mountpoint.path` {#mount-mountpoint-path-doc}
+Type: string
+
+Definition: Path of the mount point
+
+
+
+### `mount.source.path` {#mount-source-path-doc}
+Type: string
+
+Definition: Source path of a bind mount
+
+
+
+### `mprotect.req_protection` {#mprotect-req_protection-doc}
+Type: int
+
+Definition: new memory segment protection
+
+
+Constants: [Virtual Memory flags](#virtual-memory-flags)
+
+
+
+### `mprotect.vm_protection` {#mprotect-vm_protection-doc}
+Type: int
+
+Definition: initial memory segment protection
+
+
+Constants: [Virtual Memory flags](#virtual-memory-flags)
+
+
+
+### `network.device.ifindex` {#network-device-ifindex-doc}
+Type: int
+
+Definition: interface ifindex
+
+
+
+### `network.device.ifname` {#network-device-ifname-doc}
+Type: string
+
+Definition: interface ifname
+
+
+
+### `network.l3_protocol` {#network-l3_protocol-doc}
+Type: int
+
+Definition: l3 protocol of the network packet
+
+
+Constants: [L3 protocols](#l3-protocols)
+
+
+
+### `network.l4_protocol` {#network-l4_protocol-doc}
+Type: int
+
+Definition: l4 protocol of the network packet
+
+
+Constants: [L4 protocols](#l4-protocols)
+
+
+
+### `network.size` {#network-size-doc}
+Type: int
+
+Definition: size in bytes of the network packet
+
+
+
+### `open.file.destination.mode` {#open-file-destination-mode-doc}
+Type: int
+
+Definition: Mode of the created file
+
+
+Constants: [Chmod mode constants](#chmod-mode-constants)
+
+
+
+### `open.flags` {#open-flags-doc}
+Type: int
+
+Definition: Flags used when opening the file
+
+
+Constants: [Open flags](#open-flags)
+
+
+
+### `ptrace.request` {#ptrace-request-doc}
+Type: int
+
+Definition: ptrace request
+
+
+Constants: [Ptrace constants](#ptrace-constants)
+
+
+
+### `selinux.bool.name` {#selinux-bool-name-doc}
+Type: string
+
+Definition: SELinux boolean name
+
+
+
+### `selinux.bool.state` {#selinux-bool-state-doc}
+Type: string
+
+Definition: SELinux boolean new value
+
+
+
+### `selinux.bool_commit.state` {#selinux-bool_commit-state-doc}
+Type: bool
+
+Definition: Indicator of a SELinux boolean commit operation
+
+
+
+### `selinux.enforce.status` {#selinux-enforce-status-doc}
+Type: string
+
+Definition: SELinux enforcement status (one of "enforcing", "permissive", "disabled")
+
+
+
+### `setgid.egid` {#setgid-egid-doc}
+Type: int
+
+Definition: New effective GID of the process
+
+
+
+### `setgid.egroup` {#setgid-egroup-doc}
+Type: string
+
+Definition: New effective group of the process
+
+
+
+### `setgid.fsgid` {#setgid-fsgid-doc}
+Type: int
+
+Definition: New FileSystem GID of the process
+
+
+
+### `setgid.fsgroup` {#setgid-fsgroup-doc}
+Type: string
+
+Definition: New FileSystem group of the process
+
+
+
+### `setgid.gid` {#setgid-gid-doc}
+Type: int
+
+Definition: New GID of the process
+
+
+
+### `setgid.group` {#setgid-group-doc}
+Type: string
+
+Definition: New group of the process
+
+
+
+### `setuid.euid` {#setuid-euid-doc}
+Type: int
+
+Definition: New effective UID of the process
+
+
+
+### `setuid.euser` {#setuid-euser-doc}
+Type: string
+
+Definition: New effective user of the process
+
+
+
+### `setuid.fsuid` {#setuid-fsuid-doc}
+Type: int
+
+Definition: New FileSystem UID of the process
+
+
+
+### `setuid.fsuser` {#setuid-fsuser-doc}
+Type: string
+
+Definition: New FileSystem user of the process
+
+
+
+### `setuid.uid` {#setuid-uid-doc}
+Type: int
+
+Definition: New UID of the process
+
+
+
+### `setuid.user` {#setuid-user-doc}
+Type: string
+
+Definition: New user of the process
+
+
+
+### `signal.pid` {#signal-pid-doc}
+Type: int
+
+Definition: Target PID
+
+
+
+### `signal.type` {#signal-type-doc}
+Type: int
+
+Definition: Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+
+
+Constants: [Signal constants](#signal-constants)
+
+
+
+### `splice.pipe_entry_flag` {#splice-pipe_entry_flag-doc}
+Type: int
+
+Definition: Entry flag of the "fd_out" pipe passed to the splice syscall
+
+
+Constants: [Pipe buffer flags](#pipe-buffer-flags)
+
+
+
+### `splice.pipe_exit_flag` {#splice-pipe_exit_flag-doc}
+Type: int
+
+Definition: Exit flag of the "fd_out" pipe passed to the splice syscall
+
+
+Constants: [Pipe buffer flags](#pipe-buffer-flags)
+
+
+
+### `unlink.flags` {#unlink-flags-doc}
+Type: int
+
+Definition: Flags of the unlink syscall
+
+
+Constants: [Unlink flags](#unlink-flags)
+
+
+
+### `unload_module.name` {#unload_module-name-doc}
+Type: string
+
+Definition: Name of the kernel module that was deleted
+
 
 
 ## Constants
 
 Constants are used to improve the readability of your rules. Some constants are common to all architectures, others are specific to some architectures.
 
-### `BPF attach types`
-
+### `BPF attach types` {#bpf-attach-types}
 BPF attach types are the supported eBPF program attach types.
 
 | Name | Architectures |
@@ -1492,8 +2623,7 @@ BPF attach types are the supported eBPF program attach types.
 | `BPF_XDP` | all |
 | `BPF_SK_SKB_VERDICT` | all |
 
-### `BPF commands`
-
+### `BPF commands` {#bpf-commands}
 BPF commands are used to specify a command to a bpf syscall.
 
 | Name | Architectures |
@@ -1536,8 +2666,7 @@ BPF commands are used to specify a command to a bpf syscall.
 | `BPF_LINK_DETACH` | all |
 | `BPF_PROG_BIND_MAP` | all |
 
-### `BPF helper functions`
-
+### `BPF helper functions` {#bpf-helper-functions}
 BPF helper functions are the supported BPF helper functions.
 
 | Name | Architectures |
@@ -1709,8 +2838,7 @@ BPF helper functions are the supported BPF helper functions.
 | `BPF_FOR_EACH_MAP_ELEM` | all |
 | `BPF_SNPRINTF` | all |
 
-### `BPF map types`
-
+### `BPF map types` {#bpf-map-types}
 BPF map types are the supported eBPF map types.
 
 | Name | Architectures |
@@ -1746,8 +2874,7 @@ BPF map types are the supported eBPF map types.
 | `BPF_MAP_TYPE_INODE_STORAGE` | all |
 | `BPF_MAP_TYPE_TASK_STORAGE` | all |
 
-### `BPF program types`
-
+### `BPF program types` {#bpf-program-types}
 BPF program types are the supported eBPF program types.
 
 | Name | Architectures |
@@ -1784,8 +2911,7 @@ BPF program types are the supported eBPF program types.
 | `BPF_PROG_TYPE_LSM` | all |
 | `BPF_PROG_TYPE_SK_LOOKUP` | all |
 
-### `Chmod mode constants`
-
+### `Chmod mode constants` {#chmod-mode-constants}
 Chmod mode constants are the supported modes for the chmod syscall.
 
 | Name | Architectures |
@@ -1814,8 +2940,7 @@ Chmod mode constants are the supported modes for the chmod syscall.
 | `S_IXOTH` | all |
 | `S_IXUSR` | all |
 
-### `DNS qclasses`
-
+### `DNS qclasses` {#dns-qclasses}
 DNS qclasses are the supported DNS query classes.
 
 | Name | Architectures |
@@ -1827,8 +2952,7 @@ DNS qclasses are the supported DNS query classes.
 | `CLASS_NONE` | all |
 | `CLASS_ANY` | all |
 
-### `DNS qtypes`
-
+### `DNS qtypes` {#dns-qtypes}
 DNS qtypes are the supported DNS query types.
 
 | Name | Architectures |
@@ -1918,9 +3042,8 @@ DNS qtypes are the supported DNS query types.
 | `DLV` | all |
 | `Reserved` | all |
 
-### `Error Constants`
-
-Error Constants are the supported error constants.
+### `Error constants` {#error-constants}
+Error constants are the supported error constants.
 
 | Name | Architectures |
 | ---- |---------------|
@@ -2058,8 +3181,7 @@ Error Constants are the supported error constants.
 | `EXDEV` | all |
 | `EXFULL` | all |
 
-### `Kernel Capability constants`
-
+### `Kernel Capability constants` {#kernel-capability-constants}
 Kernel Capability constants are the supported Linux Kernel Capability.
 
 | Name | Architectures |
@@ -2107,8 +3229,7 @@ Kernel Capability constants are the supported Linux Kernel Capability.
 | `CAP_SYS_TTY_CONFIG` | all |
 | `CAP_WAKE_ALARM` | all |
 
-### `L3 protocols`
-
+### `L3 protocols` {#l3-protocols}
 L3 protocols are the supported Layer 3 protocols.
 
 | Name | Architectures |
@@ -2204,8 +3325,7 @@ L3 protocols are the supported Layer 3 protocols.
 | `ETH_P_XDSA` | all |
 | `ETH_P_MAP` | all |
 
-### `L4 protocols`
-
+### `L4 protocols` {#l4-protocols}
 L4 protocols are the supported Layer 4 protocols.
 
 | Name | Architectures |
@@ -2238,8 +3358,7 @@ L4 protocols are the supported Layer 4 protocols.
 | `IP_PROTO_MPLS` | all |
 | `IP_PROTO_RAW` | all |
 
-### `MMap flags`
-
+### `MMap flags` {#mmap-flags}
 MMap flags are the supported flags for the mmap syscall.
 
 | Name | Architectures |
@@ -2277,8 +3396,7 @@ MMap flags are the supported flags for the mmap syscall.
 | `MAP_HUGE_16GB` | all |
 | `MAP_32BIT` | amd64 |
 
-### `Network Address Family constants`
-
+### `Network Address Family constants` {#network-address-family-constants}
 Network Address Family constants are the supported network address families.
 
 | Name | Architectures |
@@ -2333,8 +3451,7 @@ Network Address Family constants are the supported network address families.
 | `AF_XDP` | all |
 | `AF_MAX` | all |
 
-### `Open flags`
-
+### `Open flags` {#open-flags}
 Open flags are the supported flags for the open syscall.
 
 | Name | Architectures |
@@ -2361,8 +3478,7 @@ Open flags are the supported flags for the open syscall.
 | `O_NONBLOCK` | all |
 | `O_RSYNC` | all |
 
-### `Pipe buffer flags`
-
+### `Pipe buffer flags` {#pipe-buffer-flags}
 Pipe buffer flags are the supported flags for a pipe buffer.
 
 | Name | Architectures |
@@ -2375,8 +3491,7 @@ Pipe buffer flags are the supported flags for a pipe buffer.
 | `PIPE_BUF_FLAG_WHOLE` | all |
 | `PIPE_BUF_FLAG_LOSS` | all |
 
-### `Protection constants`
-
+### `Protection constants` {#protection-constants}
 Protection constants are the supported protections for the mmap syscall.
 
 | Name | Architectures |
@@ -2388,8 +3503,7 @@ Protection constants are the supported protections for the mmap syscall.
 | `PROT_GROWSDOWN` | all |
 | `PROT_GROWSUP` | all |
 
-### `Ptrace constants`
-
+### `Ptrace constants` {#ptrace-constants}
 Ptrace constants are the supported ptrace commands for the ptrace syscall.
 
 | Name | Architectures |
@@ -2448,8 +3562,7 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_PEEKMTETAGS` | arm64 |
 | `PTRACE_POKEMTETAGS` | arm64 |
 
-### `SecL constants`
-
+### `SecL constants` {#secl-constants}
 SecL constants are the supported generic SecL constants.
 
 | Name | Architectures |
@@ -2457,8 +3570,7 @@ SecL constants are the supported generic SecL constants.
 | `true` | all |
 | `false` | all |
 
-### `Signal constants`
-
+### `Signal constants` {#signal-constants}
 Signal constants are the supported signals for the kill syscall.
 
 | Name | Architectures |
@@ -2497,16 +3609,14 @@ Signal constants are the supported signals for the kill syscall.
 | `SIGPWR` | all |
 | `SIGSYS` | all |
 
-### `Unlink flags`
-
+### `Unlink flags` {#unlink-flags}
 Unlink flags are the supported flags for the unlink syscall.
 
 | Name | Architectures |
 | ---- |---------------|
 | `AT_REMOVEDIR` | all |
 
-### `Virtual Memory flags`
-
+### `Virtual Memory flags` {#virtual-memory-flags}
 Virtual Memory flags define the protection of a virtual memory segment.
 
 | Name | Architectures |

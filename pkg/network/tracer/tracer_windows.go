@@ -267,6 +267,11 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// DebugDumpProcessCache is not implemented on this OS for Tracer
+func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
+}
+
 func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
 		return nil

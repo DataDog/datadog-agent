@@ -260,8 +260,8 @@ func publishEndpoints() interface{} {
 }
 
 func updateDropCheckPayloads(drops []string) {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
+	infoMutex.Lock()
+	defer infoMutex.Unlock()
 
 	infoDropCheckPayloads = make([]string, len(drops))
 	copy(infoDropCheckPayloads, drops)

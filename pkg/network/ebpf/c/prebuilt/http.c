@@ -1,20 +1,27 @@
 #include "kconfig.h"
-
 #include "bpf_tracing.h"
-#include "tracer.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+
+#include <net/sock.h>
+#include <uapi/linux/if_ether.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
+
+#include "tracer.h"
 #include "ip.h"
 #include "ipv6.h"
+#include "conn-tuple.h"
 #include "sock.h"
 #include "sockfd.h"
 #include "port_range.h"
-#include "protocols/http.h"
-#include "protocols/https.h"
-#include "protocols/http-buffer.h"
-#include "protocols/tags-types.h"
-#include "protocols/protocol-dispatcher-helpers.h"
 
+#include "protocols/classification/dispatcher-helpers.h"
+#include "protocols/http/http.h"
+#include "protocols/http/buffer.h"
+#include "protocols/tls/https.h"
+#include "protocols/tls/tags-types.h"
 
 #define SO_SUFFIX_SIZE 3
 
