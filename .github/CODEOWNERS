@@ -179,6 +179,7 @@
 /comp/core @DataDog/agent-shared-components
 /comp/process @DataDog/processes
 /comp/systray @DataDog/windows-agent
+/comp/core/sysprobeconfig @DataDog/ebpf-platform
 # END COMPONENTS
 
 # pkg

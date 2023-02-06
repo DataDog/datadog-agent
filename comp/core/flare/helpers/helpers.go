@@ -37,6 +37,15 @@ type FlareBuilder interface {
 	// 'content' is automatically scrubbed of any sensitive informations before being added to the flare.
 	AddFile(destFile string, content []byte) error
 
+	// AddFileWithoutScrubbing creates a new file in the flare with the content.
+	//
+	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
+	// automatically be created.
+	//
+	// 'content' is NOT scrubbed of any sensitive informations before being added to the flare.
+	// Can be used for binary files that mustn’t be corrupted, like pprof profiles for ex.
+	AddFileWithoutScrubbing(destFile string, content []byte) error
+
 	// AddFileFromFunc creates a new file in the flare with the content returned by the callback.
 	//
 	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
