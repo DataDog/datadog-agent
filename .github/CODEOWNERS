@@ -368,6 +368,7 @@
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
+/test/fake-intake/                      @DataDog/agent-e2e-testing
 /test/new-e2e/                          @DataDog/agent-e2e-testing
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
