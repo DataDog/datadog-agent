@@ -128,7 +128,7 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -158,8 +158,8 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc2", []string{"arg1", "--path=foo"}, []string{}, ""),
-				processutils.NewProcessMetadata(43, time.Now().UnixMilli(), "proc3", []string{"arg1", "--path=foo"}, []string{}, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc2", []string{"arg1", "--path=foo"}, []string{}),
+				processutils.NewProcessMetadata(43, time.Now().UnixMilli(), "proc3", []string{"arg1", "--path=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed:    false,
@@ -183,7 +183,7 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--paths=foo"}, []string{}, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--paths=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -223,7 +223,7 @@ func TestProcessCheckCache(t *testing.T) {
 		},
 		module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 		processes: processutils.Processes{
-			processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}, ""),
+			processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}),
 		},
 		expectReport: &compliance.Report{
 			Passed: true,
