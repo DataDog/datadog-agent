@@ -39,7 +39,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.SocketDNSFilter),
+					EBPFSection:  probes.SocketDNSFilter,
 					EBPFFuncName: funcName,
 					UID:          probeUID,
 				},
@@ -77,7 +77,7 @@ func (e *ebpfProgram) Init() error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.SocketDNSFilter),
+					EBPFSection:  probes.SocketDNSFilter,
 					EBPFFuncName: funcName,
 					UID:          probeUID,
 				},

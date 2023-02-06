@@ -180,10 +180,13 @@ func (fb *builder) AddFileFromFunc(destFile string, cb func() ([]byte, error)) e
 	return fb.AddFile(destFile, content)
 }
 
-func (fb *builder) AddFile(destFile string, content []byte) error {
-	content, err := fb.scrubber.ScrubBytes(content)
-	if err != nil {
-		return fb.logError("error scrubbing content for '%s': %s", destFile, err)
+func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) error {
+	if shouldScrub {
+		var err error
+		content, err = fb.scrubber.ScrubBytes(content)
+		if err != nil {
+			return fb.logError("error scrubbing content for '%s': %s", destFile, err)
+		}
 	}
 
 	f, err := fb.PrepareFilePath(destFile)
@@ -195,6 +198,14 @@ func (fb *builder) AddFile(destFile string, content []byte) error {
 		return fb.logError("error writing data to '%s': %s", destFile, err)
 	}
 	return nil
+}
+
+func (fb *builder) AddFile(destFile string, content []byte) error {
+	return fb.addFile(true, destFile, content)
+}
+
+func (fb *builder) AddFileWithoutScrubbing(destFile string, content []byte) error {
+	return fb.addFile(false, destFile, content)
 }
 
 func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string) error {

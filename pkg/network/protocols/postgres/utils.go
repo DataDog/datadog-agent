@@ -54,11 +54,6 @@ func ConnectAndGetDB(t *testing.T, serverAddr string, extras map[string]interfac
 	pg := GetPGHandle(t, serverAddr)
 	db := bun.NewDB(pg, pgdialect.New())
 
-	// Cleanup test tables
-	t.Cleanup(func() {
-		_, _ = db.NewDropTable().Model((*DummyTable)(nil)).Exec(ctx)
-	})
-
 	if extras != nil {
 		extras["ctx"] = ctx
 		extras["db"] = db

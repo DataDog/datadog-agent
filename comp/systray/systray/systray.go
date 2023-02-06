@@ -72,6 +72,7 @@ type menuItem struct {
 }
 
 const (
+	RSRC_MAIN_ICON        = 1
 	launchGraceTime       = 2
 	eventname             = "ddtray-event"
 	cmdTextStartService   = "StartService"
@@ -173,19 +174,20 @@ func windowRoutine(s *systray) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	defer stopSystray(s)
 	defer s.routineWaitGroup.Done()
 
 	// We need either a walk.MainWindow or a walk.Dialog for their message loop.
 	mw, err := walk.NewMainWindow()
 	if err != nil {
-		s.log.Errorf("Failed to create main window %v", err)
+		s.log.Errorf("Failed to create main window: %v", err)
 		return
 	}
 	defer mw.Dispose()
 
 	ni, err := createNotifyIcon(s, mw)
 	if err != nil {
-		s.log.Errorf("Failed to create notification tray icon %v", err)
+		s.log.Errorf("Failed to create notification tray icon: %v", err)
 		return
 	}
 	defer ni.Dispose()
@@ -242,6 +244,44 @@ func acquireProcessSingleton(eventname string) (windows.Handle, error) {
 	return h, nil
 }
 
+func loadIconFromResource(log log.Component, iconID int) (*walk.Icon, error) {
+	icon, err := walk.NewIconFromResourceId(iconID)
+	if err == nil {
+		return icon, nil
+	}
+	log.Warnf("Failed to load icon: %v", err)
+
+	// NOTE: Windows 7/2008r2 issue only
+	//       walk.NewIconFromResource eventually calls comctl32.LoadIconWithScaleDown, which due to an
+	//       issue in lxn/win cannot be called on Windows 7/2008r2. This issue presents oddly because
+	//       lxn/win will return 0 and no error when it fails to find/load the function, so the function call
+	//       appears as if it is failing without cause. The function is missing because lxn/win uses
+	//       windows.NewLazySystemDLL to load comctl32 which forces the system32 DLL to be loaded instead of
+	//       the side-by-side (SxS) DLL specified in the manifest.
+	//
+	//       We can manually load and call LoadIconWithScaleDown, but when we do
+	//           if we pass 96x96 (lxn/walk default), the icon comes out bad from scaling
+	//           if we pass 16x16 (windows tray icon size), the notifyIcon.ShowCustomMessge icon is too small.
+	//       Windows 10/2019 seem to not have either of these issues.
+	//
+	//       Previous versions of lxn/walk called LoadImage instead and it worked okay, so fallback to that.
+	hIcon := win.LoadImage(
+		win.GetModuleHandle(nil),
+		win.MAKEINTRESOURCE(uintptr(iconID)),
+		win.IMAGE_ICON,
+		0, // width
+		0, // height
+		win.LR_DEFAULTSIZE,
+	)
+	if hIcon == 0 {
+		gle := win.GetLastError()
+		return nil, fmt.Errorf("Failed to load fallback icon: %x (%d)", gle, gle)
+	}
+
+	icon, err = walk.NewIconFromHICON(win.HICON(hIcon))
+	return icon, err
+}
+
 // this function must be called from and the NotifyIcon used from a single thread locked goroutine
 // https://github.com/lxn/walk/issues/601
 func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err error) {
@@ -251,7 +291,7 @@ func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err
 		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if err != nil && ni != nil {
 			ni.Dispose()
 			ni = nil
 		}
@@ -259,17 +299,19 @@ func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err
 
 	// Set the icon and a tool tip text.
 	// 1 is the ID of the MAIN_ICON in systray.rc
-	icon, err := walk.NewIconFromResourceId(1)
+	icon, err := loadIconFromResource(s.log, RSRC_MAIN_ICON)
 	if err != nil {
-		s.log.Warnf("Failed to load icon %v", err)
+		s.log.Warnf("%v, last chance fallback to standard question mark icon.", err)
+		// Fallback to a question mark icon
+		icon = walk.IconQuestion()
 	}
 	if err := ni.SetIcon(icon); err != nil {
-		s.log.Warnf("Failed to set icon %v", err)
+		return nil, fmt.Errorf("Failed to set icon: %v", err)
 	}
 
 	// Set mouseover tooltip
 	if err := ni.SetToolTip("Click for info or use the context menu to exit."); err != nil {
-		s.log.Warnf("Failed to set tooltip text %v", err)
+		s.log.Warnf("Failed to set tooltip text: %v", err)
 	}
 
 	// When the left mouse button is pressed, bring up our balloon.
@@ -289,12 +331,12 @@ func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err
 		} else {
 			action = walk.NewAction()
 			if err := action.SetText(item.label); err != nil {
-				s.log.Warnf("Failed to set text for item %s %v", item.label, err)
+				s.log.Warnf("Failed to set text for item %s: %v", item.label, err)
 				continue
 			}
 			err = action.SetEnabled(item.enabled)
 			if err != nil {
-				s.log.Warnf("Failed to set enabled for item %s %v", item.label, err)
+				s.log.Warnf("Failed to set enabled for item %s: %v", item.label, err)
 				continue
 			}
 			if item.handler != nil {
@@ -320,6 +362,13 @@ func showCustomMessage(notifyIcon *walk.NotifyIcon, message string) {
 	if err := notifyIcon.ShowCustom("Datadog Agent Manager", message, nil); err != nil {
 		pkglog.Warnf("Failed to show custom message %v", err)
 	}
+}
+
+func stopSystray(s *systray) {
+	// TODO: This will shutdown the entire fx app, how do we stop just this component?
+	//       Stopping just this componenent is not strictly needed at the moment because
+	//       it is only used in the standalone ddtray.exe executable.
+	triggerShutdown(s)
 }
 
 func triggerShutdown(s *systray) {

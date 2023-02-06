@@ -25,7 +25,7 @@ func init() {
 
 var (
 	debugCommand = &cobra.Command{
-		Use:   "debug [state]",
+		Use:   "debug [module] [state]",
 		Short: "Print the runtime state of a running system-probe",
 		Long:  ``,
 		Args:  cobra.MinimumNArgs(1),
@@ -39,8 +39,15 @@ func debugRuntime(_ *cobra.Command, args []string) error {
 		return err
 	}
 
+	var path string
+	if len(args) == 1 {
+		path = fmt.Sprintf("http://localhost/debug/%s", args[0])
+	} else {
+		path = fmt.Sprintf("http://localhost/%s/debug/%s", args[0], args[1])
+	}
+
 	// TODO rather than allowing arbitrary query params, use cobra flags
-	r, err := util.DoGet(c, "http://localhost/debug/"+args[0], util.CloseConnection)
+	r, err := util.DoGet(c, path, util.CloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
