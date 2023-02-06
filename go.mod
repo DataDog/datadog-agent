@@ -73,7 +73,7 @@ require (
 	github.com/Microsoft/hcsshim v0.9.6
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/participle v0.7.1
-	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+	github.com/alecthomas/repr v0.2.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/aquasecurity/trivy v0.34.0
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
@@ -132,7 +132,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
-	github.com/iceber/iouring-go v0.0.0-20220511091803-99712053f7ec
+	github.com/iceber/iouring-go v0.0.0-20220609112130-b1dc8dd9fbfd
 	github.com/imdario/mergo v0.3.13
 	github.com/invopop/jsonschema v0.7.0
 	github.com/iovisor/gobpf v0.2.0
@@ -172,7 +172,7 @@ require (
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sirupsen/logrus v1.9.0
 	github.com/skydive-project/go-debouncer v1.0.0
-	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014
+	github.com/smira/go-xz v0.0.0-20220607140411-c2a07d4bedda
 	github.com/spf13/afero v1.9.3
 	github.com/spf13/cast v1.5.0
 	github.com/spf13/cobra v1.6.1
@@ -210,12 +210,12 @@ require (
 	go.uber.org/zap v1.24.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
-	golang.org/x/exp v0.0.0-20221114191408-850992195362
+	golang.org/x/exp v0.0.0-20230202163644-54bba9f4231b
 	golang.org/x/net v0.5.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.4.0
 	golang.org/x/text v0.6.0
-	golang.org/x/time v0.1.0
+	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.5.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6
