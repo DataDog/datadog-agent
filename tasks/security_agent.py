@@ -290,7 +290,6 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
-    kitchen=False,
 ):
     build_cws_object_files(
         ctx,
@@ -342,10 +341,6 @@ def build_functional_tests(
     }
 
     ctx.run(cmd.format(**args), env=env)
-
-    if kitchen:
-        cmd_build_test2json_files = 'go build -o "{KITCHEN_ARTIFACT_DIR}/test2json" -ldflags="{ldflags}" cmd/test2json'
-        ctx.run(cmd_build_test2json_files.format(**args, KITCHEN_ARTIFACT_DIR=KITCHEN_ARTIFACT_DIR), env=env)
 
 
 @task
@@ -714,10 +709,15 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx):
+def kitchen_prepare(ctx, local=False):
     """
     Compile test suite for kitchen
     """
+
+    # Clean up previous build
+    if os.path.exists(KITCHEN_ARTIFACT_DIR):
+        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
 
     testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "testsuite")
@@ -734,13 +734,18 @@ def kitchen_prepare(ctx):
 
     # Copy clang binaries
     for bin in ["clang-bpf", "llc-bpf"]:
-        ctx.run(f"cp /tmp/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
 
     # Copy gotestsum binary
     gopath = get_gopath(ctx)
     ctx.run(f"cp {gopath}/bin/gotestsum {KITCHEN_ARTIFACT_DIR}/")
 
-    ctx.run(f"cp /tmp/nikos.tar.gz {KITCHEN_ARTIFACT_DIR}/")
+    # Build test2json binary
+    ctx.run(f"go build -o {KITCHEN_ARTIFACT_DIR}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
+
+    # Copy nikos zip file
+    if not local:
+        ctx.run(f"cp /tmp/nikos.tar.gz {KITCHEN_ARTIFACT_DIR}/")
 
     ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")

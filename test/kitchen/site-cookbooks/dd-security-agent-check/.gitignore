@@ -17,7 +17,7 @@ bin/*
 files/clang-bpf
 files/llc-bpf
 files/ebpf_bytecode/*
-files/testsuite
-files/stresssuite
+files/tests/testsuite
+files/tests/stresssuite
 files/gotestsum
 files/test2json
