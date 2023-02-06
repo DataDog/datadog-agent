@@ -83,7 +83,6 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         if (client_id_starting_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
             break;
         }
-        log_debug("kafka: char: %d\n", client_id_starting_offset[i]);
 
         ch = client_id_starting_offset[i];
         if (ch == 0) {
