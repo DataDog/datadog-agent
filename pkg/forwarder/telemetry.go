@@ -7,7 +7,8 @@ package forwarder
 
 import (
 	"expvar"
-	agentModel "github.com/DataDog/agent-payload/v5/process"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
@@ -17,7 +18,7 @@ import (
 )
 
 var (
-	transactionsIntakeOrchestrator = map[agentModel.K8SResource]*expvar.Int{}
+	transactionsIntakeOrchestrator = map[model.K8SResource]*expvar.Int{}
 
 	highPriorityQueueFull            = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
@@ -84,7 +85,7 @@ func initOrchestratorExpVars() {
 }
 
 func bumpOrchestratorPayload(nodeType int) {
-	e, ok := transactionsIntakeOrchestrator[agentModel.K8SResource(nodeType)]
+	e, ok := transactionsIntakeOrchestrator[model.K8SResource(nodeType)]
 	if !ok {
 		log.Errorf("Unknown NodeType %v, cannot bump expvar", nodeType)
 		return

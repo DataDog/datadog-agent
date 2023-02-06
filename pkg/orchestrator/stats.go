@@ -6,8 +6,9 @@
 package orchestrator
 
 import (
-	agentModel "github.com/DataDog/agent-payload/v5/process"
 	"path"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 var (
@@ -23,11 +24,11 @@ type CheckStats struct {
 	// CacheMiss contains the number of cache miss/send Data for a agentModel.K8SResources per run.
 	CacheMiss int
 
-	agentModel.K8SResource
+	model.K8SResource
 }
 
 // BuildStatsKey builds a orchestrator statsKey prefixed key.
-func BuildStatsKey(nodeType agentModel.K8SResource) string {
+func BuildStatsKey(nodeType model.K8SResource) string {
 	keys := append([]string{statsKey}, nodeType.String())
 	return path.Join(keys...)
 }

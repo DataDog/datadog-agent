@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
-	agentModel "github.com/DataDog/agent-payload/v5/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/atomic"
 	"k8s.io/client-go/tools/cache"
 )
@@ -78,7 +78,7 @@ type CollectorMetadata struct {
 	IsStable                  bool
 	SupportsManifestBuffering bool
 	Name                      string
-	NodeType                  agentModel.K8SResource
+	NodeType                  model.K8SResource
 	Version                   string
 }
 

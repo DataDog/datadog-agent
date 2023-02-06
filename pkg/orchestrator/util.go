@@ -6,8 +6,9 @@
 package orchestrator
 
 import (
-	agentModel "github.com/DataDog/agent-payload/v5/process"
 	"strings"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -16,11 +17,11 @@ import (
 var CheckName = "orchestrator"
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
-func NodeTypes() []agentModel.K8SResource {
-	resources := make([]agentModel.K8SResource, 0, len(agentModel.K8SResource_value))
-	for _, v := range agentModel.K8SResource_value {
-		r := agentModel.K8SResource(v)
-		if r != agentModel.K8SResource_K8SRESOURCE_UNSPECIFIED {
+func NodeTypes() []model.K8SResource {
+	resources := make([]model.K8SResource, 0, len(model.K8SResource_value))
+	for _, v := range model.K8SResource_value {
+		r := model.K8SResource(v)
+		if r != model.K8SResource_K8SRESOURCE_UNSPECIFIED {
 			resources = append(resources, r)
 		}
 	}
@@ -28,8 +29,8 @@ func NodeTypes() []agentModel.K8SResource {
 }
 
 // Orchestrator returns the orchestrator name for a node type.
-func Orchestrator(n agentModel.K8SResource) string {
-	if name, ok := agentModel.K8SResource_name[int32(n)]; ok && name != agentModel.K8SResource_K8SRESOURCE_UNSPECIFIED.String() {
+func Orchestrator(n model.K8SResource) string {
+	if name, ok := model.K8SResource_name[int32(n)]; ok && name != model.K8SResource_K8SRESOURCE_UNSPECIFIED.String() {
 		return "k8s"
 	}
 	log.Errorf("Unknown NodeType %v", n)
@@ -38,7 +39,7 @@ func Orchestrator(n agentModel.K8SResource) string {
 }
 
 // TelemetryTags return tags used for telemetry.
-func TelemetryTags(n agentModel.K8SResource) []string {
+func TelemetryTags(n model.K8SResource) []string {
 	if n.String() == "" {
 		log.Errorf("Unknown NodeType %v", n)
 		return []string{"unknown", "unknown"}
@@ -47,7 +48,7 @@ func TelemetryTags(n agentModel.K8SResource) []string {
 	return tags
 }
 
-func getTelemetryTags(n agentModel.K8SResource) []string {
+func getTelemetryTags(n model.K8SResource) []string {
 	return []string{
 		Orchestrator(n),
 		strings.ToLower(n.String()),
@@ -55,7 +56,7 @@ func getTelemetryTags(n agentModel.K8SResource) []string {
 }
 
 // SetCacheStats sets the cache stats for each resource
-func SetCacheStats(resourceListLen int, resourceMsgLen int, nodeType agentModel.K8SResource) {
+func SetCacheStats(resourceListLen int, resourceMsgLen int, nodeType model.K8SResource) {
 	stats := CheckStats{
 		CacheHits:   resourceListLen - resourceMsgLen,
 		CacheMiss:   resourceMsgLen,

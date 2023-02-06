@@ -7,7 +7,7 @@ package orchestrator
 
 import (
 	"expvar"
-	agentModel "github.com/DataDog/agent-payload/v5/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -30,11 +30,11 @@ const (
 var (
 	// cache hit
 	cacheExpVars = expvar.NewMap("orchestrator-cache")
-	cacheHits    = map[agentModel.K8SResource]*expvar.Int{}
+	cacheHits    = map[model.K8SResource]*expvar.Int{}
 
 	// cache miss, send to backend
 	sendExpVars = expvar.NewMap("orchestrator-sends")
-	cacheMiss   = map[agentModel.K8SResource]*expvar.Int{}
+	cacheMiss   = map[model.K8SResource]*expvar.Int{}
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
@@ -56,7 +56,7 @@ func init() {
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
 // It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 // 0 == defaultDuration
-func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType agentModel.K8SResource) bool {
+func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType model.K8SResource) bool {
 	cacheKey := string(uid)
 	value, hit := KubernetesResourceCache.Get(cacheKey)
 
@@ -74,7 +74,7 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType agen
 	}
 }
 
-func incCacheHit(nodeType agentModel.K8SResource) {
+func incCacheHit(nodeType model.K8SResource) {
 	if nodeType.String() == "" {
 		log.Errorf("Unknown NodeType %v will not update cache hits", nodeType)
 		return
@@ -84,7 +84,7 @@ func incCacheHit(nodeType agentModel.K8SResource) {
 	tlmCacheHits.Inc(TelemetryTags(nodeType)...)
 }
 
-func incCacheMiss(nodeType agentModel.K8SResource) {
+func incCacheMiss(nodeType model.K8SResource) {
 	if nodeType.String() == "" {
 		log.Errorf("Unknown NodeType %v will not update cache misses", nodeType)
 		return
