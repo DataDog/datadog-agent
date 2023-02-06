@@ -152,7 +152,7 @@ jobs:
 
   go_linting:
     <<: *job_template
-    resource_class: large
+    resource_class: xlarge
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
