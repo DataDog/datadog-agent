@@ -102,6 +102,8 @@ core,github.com/DataDog/nikos/rpm/dnf,MIT,"Copyright (c) 2020-present Datadog, I
 core,github.com/DataDog/nikos/types,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/utils,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/wsl,MIT,"Copyright (c) 2020-present Datadog, Inc"
+core,github.com/DataDog/opentelemetry-mapping-go/pkg/quantile,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
+core,github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
