@@ -23,7 +23,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -105,10 +104,6 @@ const (
 `
 )
 
-func publishSystemProbeProcessModuleEnabled() interface{} {
-	return checks.Process.SysprobeProcessModuleEnabled
-}
-
 func publishUptime() interface{} {
 	return int(time.Since(infoStart) / time.Second)
 }
@@ -149,6 +144,12 @@ func updateLastCollectTime(t time.Time) {
 func publishInt(i *atomic.Int64) expvar.Func {
 	return func() any {
 		return i.Load()
+	}
+}
+
+func publishBool(v bool) expvar.Func {
+	return func() any {
+		return v
 	}
 }
 
@@ -259,8 +260,8 @@ func publishEndpoints() interface{} {
 }
 
 func updateDropCheckPayloads(drops []string) {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
+	infoMutex.Lock()
+	defer infoMutex.Unlock()
 
 	infoDropCheckPayloads = make([]string, len(drops))
 	copy(infoDropCheckPayloads, drops)
@@ -307,7 +308,7 @@ type StatusInfo struct {
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
-func initInfo(hostname string) error {
+func initInfo(hostname string, processModuleEnabled bool) error {
 	var err error
 
 	funcMap := template.FuncMap{
@@ -342,7 +343,7 @@ func initInfo(hostname string) error {
 		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints))
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
-		expvar.Publish("system_probe_process_module_enabled", expvar.Func(publishSystemProbeProcessModuleEnabled))
+		expvar.Publish("system_probe_process_module_enabled", expvar.Func(publishBool(processModuleEnabled)))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {

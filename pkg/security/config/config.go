@@ -97,6 +97,24 @@ type EventMonitorConfig struct {
 	LogPatterns []string
 	// LogTags tags to be used by the logger for trace level
 	LogTags []string
+	// NetworkEnabled defines if the network probes should be activated
+	NetworkEnabled bool
+	// NetworkLazyInterfacePrefixes is the list of interfaces prefix that aren't explicitly deleted by the container
+	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
+	// agent detect when a network namespace should be purged from all caches.
+	NetworkLazyInterfacePrefixes []string
+	// NetworkClassifierPriority defines the priority at which CWS should insert its TC classifiers.
+	NetworkClassifierPriority uint16
+	// NetworkClassifierHandle defines the handle at which CWS should insert its TC classifiers.
+	NetworkClassifierHandle uint16
+}
+
+type ProcessEventMonitoringConfig struct {
+	Enabled bool
+}
+
+type NetworkProcessEventMonitoringConfig struct {
+	Enabled bool
 }
 
 type CWSConfig struct {
@@ -165,19 +183,12 @@ type CWSConfig struct {
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
+	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
+	ActivityDumpMaxDumpCountPerWorkload int
+
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
 	ActivityDumpMaxDumpSize func() int
-	// NetworkEnabled defines if the network probes should be activated
-	NetworkEnabled bool
-	// NetworkLazyInterfacePrefixes is the list of interfaces prefix that aren't explicitly deleted by the container
-	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
-	// agent detect when a network namespace should be purged from all caches.
-	NetworkLazyInterfacePrefixes []string
-	// NetworkClassifierPriority defines the priority at which CWS should insert its TC classifiers.
-	NetworkClassifierPriority uint16
-	// NetworkClassifierHandle defines the handle at which CWS should insert its TC classifiers.
-	NetworkClassifierHandle uint16
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool
 }
@@ -186,6 +197,8 @@ type CWSConfig struct {
 type Config struct {
 	EventMonitorConfig
 	CWSConfig
+	ProcessEventMonitoringConfig
+	NetworkProcessEventMonitoringConfig
 }
 
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -209,78 +222,87 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 	c := &Config{
 		EventMonitorConfig: EventMonitorConfig{
 			Config:                             *ebpf.NewConfig(),
-			EventMonitoring:                    coreconfig.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"),
-			EnableKernelFilters:                coreconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
-			EnableApprovers:                    coreconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
-			EnableDiscarders:                   coreconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
-			FlushDiscarderWindow:               coreconfig.Datadog.GetInt("runtime_security_config.flush_discarder_window"),
-			SocketPath:                         coreconfig.Datadog.GetString("runtime_security_config.socket"),
-			PIDCacheSize:                       coreconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
-			LoadControllerEventsCountThreshold: int64(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
-			LoadControllerDiscarderTimeout:     time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
-			LoadControllerControlPeriod:        time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
-			StatsPollingInterval:               time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
-			StatsTagsCardinality:               coreconfig.Datadog.GetString("runtime_security_config.events_stats.tags_cardinality"),
+			EnableKernelFilters:                coreconfig.SystemProbe.GetBool("runtime_security_config.enable_kernel_filters"),
+			EnableApprovers:                    coreconfig.SystemProbe.GetBool("runtime_security_config.enable_approvers"),
+			EnableDiscarders:                   coreconfig.SystemProbe.GetBool("runtime_security_config.enable_discarders"),
+			FlushDiscarderWindow:               coreconfig.SystemProbe.GetInt("runtime_security_config.flush_discarder_window"),
+			SocketPath:                         coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
+			PIDCacheSize:                       coreconfig.SystemProbe.GetInt("runtime_security_config.pid_cache_size"),
+			LoadControllerEventsCountThreshold: int64(coreconfig.SystemProbe.GetInt("runtime_security_config.load_controller.events_count_threshold")),
+			LoadControllerDiscarderTimeout:     time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
+			LoadControllerControlPeriod:        time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
+			StatsPollingInterval:               time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
+			StatsTagsCardinality:               coreconfig.SystemProbe.GetString("runtime_security_config.events_stats.tags_cardinality"),
 			StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
-			AgentMonitoringEvents:              coreconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
-			CustomSensitiveWords:               coreconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
-			ERPCDentryResolutionEnabled:        coreconfig.Datadog.GetBool("runtime_security_config.erpc_dentry_resolution_enabled"),
-			MapDentryResolutionEnabled:         coreconfig.Datadog.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
-			DentryCacheSize:                    coreconfig.Datadog.GetInt("runtime_security_config.dentry_cache_size"),
-			RemoteTaggerEnabled:                coreconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
-			LogPatterns:                        coreconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
-			LogTags:                            coreconfig.Datadog.GetStringSlice("runtime_security_config.log_tags"),
-			RuntimeMonitor:                     coreconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
-			EventStreamUseRingBuffer:           coreconfig.Datadog.GetBool("runtime_security_config.event_stream.use_ring_buffer"),
-			EventStreamBufferSize:              coreconfig.Datadog.GetInt("runtime_security_config.event_stream.buffer_size"),
-			EnvsWithValue:                      coreconfig.Datadog.GetStringSlice("runtime_security_config.envs_with_value"),
+			AgentMonitoringEvents:              coreconfig.SystemProbe.GetBool("runtime_security_config.agent_monitoring_events"),
+			CustomSensitiveWords:               coreconfig.SystemProbe.GetStringSlice("runtime_security_config.custom_sensitive_words"),
+			ERPCDentryResolutionEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.erpc_dentry_resolution_enabled"),
+			MapDentryResolutionEnabled:         coreconfig.SystemProbe.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
+			DentryCacheSize:                    coreconfig.SystemProbe.GetInt("runtime_security_config.dentry_cache_size"),
+			RemoteTaggerEnabled:                coreconfig.SystemProbe.GetBool("runtime_security_config.remote_tagger"),
+			LogPatterns:                        coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_patterns"),
+			LogTags:                            coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_tags"),
+			RuntimeMonitor:                     coreconfig.SystemProbe.GetBool("runtime_security_config.runtime_monitor.enabled"),
+			NetworkEnabled:                     coreconfig.SystemProbe.GetBool("runtime_security_config.network.enabled"),
+			NetworkLazyInterfacePrefixes:       coreconfig.SystemProbe.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
+			NetworkClassifierPriority:          uint16(coreconfig.SystemProbe.GetInt("runtime_security_config.network.classifier_priority")),
+			NetworkClassifierHandle:            uint16(coreconfig.SystemProbe.GetInt("runtime_security_config.network.classifier_handle")),
+			EventStreamUseRingBuffer:           coreconfig.SystemProbe.GetBool("runtime_security_config.event_stream.use_ring_buffer"),
+			EventStreamBufferSize:              coreconfig.SystemProbe.GetInt("runtime_security_config.event_stream.buffer_size"),
+			EnvsWithValue:                      coreconfig.SystemProbe.GetStringSlice("runtime_security_config.envs_with_value"),
 			// runtime compilation
-			RuntimeCompilationEnabled:       coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
-			RuntimeCompiledConstantsEnabled: coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
-			RuntimeCompiledConstantsIsSet:   coreconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
+			RuntimeCompilationEnabled:       coreconfig.SystemProbe.GetBool("runtime_security_config.runtime_compilation.enabled"),
+			RuntimeCompiledConstantsEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
+			RuntimeCompiledConstantsIsSet:   coreconfig.SystemProbe.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 		},
 		CWSConfig: CWSConfig{
-			RuntimeEnabled:               coreconfig.Datadog.GetBool("runtime_security_config.enabled"),
-			FIMEnabled:                   coreconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
-			EventServerBurst:             coreconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
-			EventServerRate:              coreconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
-			EventServerRetention:         coreconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
-			SelfTestEnabled:              coreconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
-			SelfTestSendReport:           coreconfig.Datadog.GetBool("runtime_security_config.self_test.send_report"),
-			NetworkEnabled:               coreconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
-			NetworkLazyInterfacePrefixes: coreconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
-			NetworkClassifierPriority:    uint16(coreconfig.Datadog.GetInt("runtime_security_config.network.classifier_priority")),
-			NetworkClassifierHandle:      uint16(coreconfig.Datadog.GetInt("runtime_security_config.network.classifier_handle")),
-			RemoteConfigurationEnabled:   coreconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
+			RuntimeEnabled:             coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
+			FIMEnabled:                 coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+			SelfTestEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
+			SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
+			RemoteConfigurationEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"),
+
+			EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
+			EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
+			EventServerRetention: coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.retention"),
+
 			// policy & ruleset
-			PoliciesDir:          coreconfig.Datadog.GetString("runtime_security_config.policies.dir"),
-			WatchPoliciesDir:     coreconfig.Datadog.GetBool("runtime_security_config.policies.watch_dir"),
-			PolicyMonitorEnabled: coreconfig.Datadog.GetBool("runtime_security_config.policies.monitor.enabled"),
+			PoliciesDir:          coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
+			WatchPoliciesDir:     coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
+			PolicyMonitorEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.enabled"),
 			// activity dump
-			ActivityDumpEnabled:                   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
-			ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
-			ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
-			ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
-			ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
-			ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-			ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
-			ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
-			ActivityDumpRateLimiter:               coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.rate_limiter"),
-			ActivityDumpCgroupWaitListTimeout:     time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_timeout")) * time.Minute,
-			ActivityDumpCgroupDifferentiateArgs:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
-			ActivityDumpLocalStorageDirectory:     coreconfig.Datadog.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
-			ActivityDumpLocalStorageMaxDumpsCount: coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
-			ActivityDumpLocalStorageCompression:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
-			ActivityDumpRemoteStorageCompression:  coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
-			ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
+			ActivityDumpEnabled:                   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"),
+			ActivityDumpCleanupPeriod:             time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
+			ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
+			ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
+			ActivityDumpPathMergeEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
+			ActivityDumpTracedCgroupsCount:        coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
+			ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
+			ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
+			ActivityDumpRateLimiter:               coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.rate_limiter"),
+			ActivityDumpCgroupWaitListTimeout:     time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_timeout")) * time.Minute,
+			ActivityDumpCgroupDifferentiateArgs:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
+			ActivityDumpLocalStorageDirectory:     coreconfig.SystemProbe.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
+			ActivityDumpLocalStorageMaxDumpsCount: coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
+			ActivityDumpLocalStorageCompression:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
+			ActivityDumpRemoteStorageCompression:  coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
+			ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
+			ActivityDumpMaxDumpCountPerWorkload:   coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
 			// activity dump dynamic fields
 			ActivityDumpMaxDumpSize: func() int {
-				mds := coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size")
+				mds := coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_size")
 				if mds < MinMaxDumSize {
 					mds = MinMaxDumSize
 				}
 				return mds * (1 << 10)
 			},
+		},
+		ProcessEventMonitoringConfig: ProcessEventMonitoringConfig{
+			Enabled: coreconfig.SystemProbe.GetBool("event_monitoring_config.process.enabled"),
+		},
+
+		NetworkProcessEventMonitoringConfig: NetworkProcessEventMonitoringConfig{
+			Enabled: coreconfig.SystemProbe.GetBool("event_monitoring_config.network_process.enabled") && cfg.ModuleIsEnabled(config.NetworkTracerModule),
 		},
 	}
 
@@ -391,14 +413,14 @@ func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
 		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
 	}
 
-	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
+	if formats := coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
 		var err error
 		c.ActivityDumpLocalStorageFormats, err = ParseStorageFormats(formats)
 		if err != nil {
 			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
 		}
 	}
-	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
+	if formats := coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
 		var err error
 		c.ActivityDumpRemoteStorageFormats, err = ParseStorageFormats(formats)
 		if err != nil {

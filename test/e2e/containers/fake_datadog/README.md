@@ -216,13 +216,13 @@ services:
 - `DD_DD_URL` overrides the URL for metric submission
 - `DD_USE_V2_API_SERIES` force using v1 APIs
 
-1. Run `docker compose up` passing datadog agent compose, agent extra compose and fake datadog compose
+2. Run `docker compose up` passing datadog agent compose, agent extra compose and fake datadog compose
 
 ```bash
 docker compose up -f "${PATH_TO_AGENT_COMPOSE}.yaml" -f "fake-datadog.yaml" -f "agent-docker-compose-extra.yaml"
 ```
 
-1. Query `datadog` on `mongo` service, reachable from host at `localhost:27017` and from another container at `mongo:27017`
+3. Query `datadog` on `mongo` service, reachable from host at `localhost:27017` and from another container at `mongo:27017`
 
 ##### VM
 
@@ -232,7 +232,7 @@ docker compose up -f "${PATH_TO_AGENT_COMPOSE}.yaml" -f "fake-datadog.yaml" -f "
 docker compose up -f "fake-datadog.yaml"
 ```
 
-1. Configure the agent to send requests to `fake-datadog` using `V1` endpoint passing following environment variables
+2. Configure the agent to send requests to `fake-datadog` using `V1` endpoint passing following environment variables
 
 ```txt
 DD_DD_URL="http://fake-datadog"

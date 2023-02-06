@@ -61,8 +61,9 @@ func TestDefaults(t *testing.T) {
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{
-		"enabled":  true,
-		"interval": 4 * time.Hour,
+		"enabled":        true,
+		"hint_frequency": 60,
+		"interval":       4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
 }
 
@@ -906,7 +907,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := setupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	_, err := load(conf, "datadog_secrets.yaml", true)
+	_, err := LoadDatadogCustom(conf, "datadog_secrets.yaml", true)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{
@@ -1159,6 +1160,13 @@ network_devices:
   metadata:
     dd_url: somehost:1234
 
+orchestrator_explorer:
+    orchestrator_dd_url: https://somehost:1234
+
+runtime_security_config:
+    endpoints:
+        logs_dd_url: somehost:1234
+
 proxy:
   http: http://localhost:1234
   https: https://localhost:1234
@@ -1173,6 +1181,8 @@ proxy:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, false, testConfig)
 	assert.Equal(t, false, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.NotNil(t, GetProxies())
 	// reseting proxies
 	proxies = nil
@@ -1195,6 +1205,8 @@ fips:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
 	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.Nil(t, GetProxies())
 
 	datadogYamlFips = datadogYaml + `
@@ -1216,6 +1228,8 @@ fips:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
 	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
 	assert.Nil(t, GetProxies())
 
@@ -1241,6 +1255,9 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.dd_url"))
 		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.dd_url"))
 		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
+		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+
 	} else {
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.apm_dd_url"))
@@ -1252,6 +1269,8 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
 	}
 }
 

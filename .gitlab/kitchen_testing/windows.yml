@@ -41,6 +41,17 @@
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
+# Base test for Next Gen installer - only difference with the standard one
+# is that we override the WINDOWS_AGENT_FILE name.
+.kitchen_test_ng_windows_installer:
+  extends:
+    - .kitchen_test_windows_installer
+  script:
+    - export WINDOWS_AGENT_FILE=datadog-agent-$(cd ../.. && inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-2-x86_64
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
+    - echo $WINDOWS_AGENT_FILE
+    - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
+
 .kitchen_test_windows_npm_driver:
   extends:
     - .kitchen_azure_x64
@@ -75,6 +86,12 @@
 
 # Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------
+
+.kitchen_test_ng_windows_installer_agent:
+  extends:
+    - .kitchen_test_ng_windows_installer
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
 
 .kitchen_test_windows_installer_agent:
   extends:
@@ -129,11 +146,21 @@ kitchen_windows_installer_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
     - .kitchen_test_windows_installer_agent
+    
+kitchen_windows_ng_installer_agent-a6:
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_ng_windows_installer_agent
 
 kitchen_windows_installer_agent-a7:
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_agent
+
+kitchen_windows_ng_installer_agent-a7:
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_ng_windows_installer_agent
 
 kitchen_windows_chef_agent-a6:
   extends:

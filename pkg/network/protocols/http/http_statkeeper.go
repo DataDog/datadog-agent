@@ -89,7 +89,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 		return
 	}
 
-	if Method(tx.RequestMethod()) == MethodUnknown {
+	if tx.Method() == MethodUnknown {
 		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
@@ -123,14 +123,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 
 func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 	return Key{
-		KeyTuple: KeyTuple{
-			SrcIPHigh: tx.SrcIPHigh(),
-			SrcIPLow:  tx.SrcIPLow(),
-			SrcPort:   tx.SrcPort(),
-			DstIPHigh: tx.DstIPHigh(),
-			DstIPLow:  tx.DstIPLow(),
-			DstPort:   tx.DstPort(),
-		},
+		KeyTuple: tx.ConnTuple(),
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,

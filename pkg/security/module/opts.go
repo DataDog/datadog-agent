@@ -15,6 +15,7 @@ import (
 // TODO Split this
 // Opts define module options
 type Opts struct {
-	StatsdClient statsd.ClientInterface
-	EventSender  EventSender
+	StatsdClient       statsd.ClientInterface
+	EventSender        EventSender
+	DontDiscardRuntime bool
 }

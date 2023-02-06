@@ -2025,6 +2025,12 @@ func TestProcessResolution(t *testing.T) {
 		}
 		pid := uint32(value.(int))
 
+		value, err = event.GetFieldValue("process.file.inode")
+		if err != nil {
+			t.Errorf("not able to get pid")
+		}
+		inode := uint64(value.(int))
+
 		resolvers := test.probe.GetResolvers()
 
 		// compare only few fields as the hierarchy fields(pointers, etc) are modified by the resolution function calls
@@ -2038,7 +2044,7 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
 		}
 
-		cacheEntry := resolvers.ProcessResolver.ResolveFromCache(pid, pid)
+		cacheEntry := resolvers.ProcessResolver.ResolveFromCache(pid, pid, inode)
 		if cacheEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}

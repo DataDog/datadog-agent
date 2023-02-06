@@ -78,9 +78,14 @@ system_probe_config:
   enable_kernel_header_download: true
   enable_runtime_compiler: true
 
+event_monitoring_config:
+  process:
+    enabled: {{ .EventMonitoringProcessEnabled }}
+  network_process:
+    enabled: {{ .EventMonitoringNetworkEnabled }}
+
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
-  event_monitoring.enabled: {{ .EventMonitoringEnabled }}
   runtime_compilation:
     enabled: true
   remote_tagger: false
@@ -200,7 +205,8 @@ type testOpts struct {
 	envsWithValue                       []string
 	disableAbnormalPathCheck            bool
 	disableRuntimeSecurity              bool
-	enableEventMonitoring               bool
+	enableEventMonitoringProcess        bool
+	enableEventMonitoringNetwork        bool
 }
 
 func (s *stringSlice) String() string {
@@ -231,7 +237,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableEventMonitoring == opts.enableEventMonitoring
+		to.enableEventMonitoringProcess == opts.enableEventMonitoringProcess &&
+		to.enableEventMonitoringNetwork == opts.enableEventMonitoringNetwork
 }
 
 type testModule struct {
@@ -706,7 +713,8 @@ func genTestConfig(dir string, opts testOpts) (*sysconfig.Config, *config.Config
 		"LogTags":                             logTags,
 		"EnvsWithValue":                       opts.envsWithValue,
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
-		"EventMonitoringEnabled":              opts.enableEventMonitoring,
+		"EventMonitoringProcessEnabled":       opts.enableEventMonitoringProcess,
+		"EventMonitoringNetworkEnabled":       opts.enableEventMonitoringNetwork,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -720,6 +728,11 @@ func genTestConfig(dir string, opts testOpts) (*sysconfig.Config, *config.Config
 	_, err = io.Copy(sysProbeConfigPath, buffer)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	err = sysconfig.SetupOptionalDatadogConfig()
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
 	sysProbeConfig, err := sysconfig.New(sysProbeConfigPath.Name())
@@ -824,7 +837,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	probe, err := sprobe.NewProbe(config, statsdClient)
+	probe, err := sprobe.NewProbe(config, sprobe.Opts{StatsdClient: statsdClient})
 	if err != nil {
 		return nil, err
 	}
@@ -1657,7 +1670,6 @@ func TestMain(m *testing.M) {
 }
 
 func init() {
-	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")

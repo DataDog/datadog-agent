@@ -58,9 +58,9 @@ type pullRequest struct {
 // head points to the oldest event in the buffer, where data should be consumed from
 // tail points to the node where the next event will be inserted into
 // head = tail if
-//		* the store is empty, in which case the underlying ringNode doesn't have any data
-// 		* the store is full. Subsequent Push operations override the data pointed by head and move both head and tail
-//		to the next position
+//   - the store is empty, in which case the underlying ringNode doesn't have any data
+//   - the store is full. Subsequent Push operations override the data pointed by head and move both head and tail
+//     to the next position
 type RingStore struct {
 	head   int
 	tail   int

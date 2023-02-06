@@ -21,6 +21,7 @@
 .kitchen_scenario_ubuntu_a6_x64:
   variables:
     KITCHEN_OSVERS: "ubuntu-14-04,ubuntu-16-04,ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
     DEFAULT_KITCHEN_OSVERS: "ubuntu-22-04"
   extends:
     - .kitchen_agent_a6
@@ -31,6 +32,7 @@
 .kitchen_scenario_ubuntu_a7_x64:
   variables:
     KITCHEN_OSVERS: "ubuntu-14-04,ubuntu-16-04,ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
     DEFAULT_KITCHEN_OSVERS: "ubuntu-22-04"
   extends:
     - .kitchen_agent_a7
@@ -41,6 +43,7 @@
 .kitchen_scenario_ubuntu_a6_arm64:
   variables:
     KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "ubuntu-18-04,ubuntu-20-04"
     DEFAULT_KITCHEN_OSVERS: "ubuntu-20-04"
   extends:
     - .kitchen_agent_a6
@@ -51,6 +54,7 @@
 .kitchen_scenario_ubuntu_a7_arm64:
   variables:
     KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "ubuntu-18-04,ubuntu-20-04"
     DEFAULT_KITCHEN_OSVERS: "ubuntu-20-04"
   extends:
     - .kitchen_agent_a7
@@ -63,11 +67,13 @@
 
 kitchen_ubuntu_install_script_agent-a6_x64:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a6_x64
     - .kitchen_test_install_script_agent
 
 kitchen_ubuntu_install_script_agent-a6_arm64:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a6_arm64
     - .kitchen_test_install_script_agent
 
@@ -76,6 +82,7 @@ kitchen_ubuntu_install_script_agent-a7_x64:
   rules:
     !reference [.on_default_kitchen_tests_a7]
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a7_x64
     - .kitchen_test_install_script_agent
 
@@ -83,6 +90,7 @@ kitchen_ubuntu_install_script_agent-a7_arm64:
   rules:
     !reference [.on_all_kitchen_builds_a7]
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a7_arm64
     - .kitchen_test_install_script_agent
 
@@ -101,6 +109,7 @@ kitchen_ubuntu_install_script_dogstatsd-a7:
 
 kitchen_ubuntu_step_by_step_agent-a6_x64:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a6_x64
     - .kitchen_test_step_by_step_agent
   rules:
@@ -108,6 +117,7 @@ kitchen_ubuntu_step_by_step_agent-a6_x64:
 
 kitchen_ubuntu_step_by_step_agent-a6_arm64:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a6_arm64
     - .kitchen_test_step_by_step_agent
   rules:
@@ -115,6 +125,7 @@ kitchen_ubuntu_step_by_step_agent-a6_arm64:
 
 kitchen_ubuntu_step_by_step_agent-a7_x64:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a7_x64
     - .kitchen_test_step_by_step_agent
   rules:
@@ -122,6 +133,7 @@ kitchen_ubuntu_step_by_step_agent-a7_x64:
 
 kitchen_ubuntu_step_by_step_agent-a7_arm64:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a7_arm64
     - .kitchen_test_step_by_step_agent
   rules:
@@ -139,16 +151,19 @@ kitchen_ubuntu_upgrade5_agent-a7:
 
 kitchen_ubuntu_upgrade6_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a6_x64
     - .kitchen_test_upgrade6_agent
 
 kitchen_ubuntu_upgrade6_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a7_x64
     - .kitchen_test_upgrade6_agent
 
 kitchen_ubuntu_upgrade7_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_ubuntu_a7_x64
     - .kitchen_test_upgrade7_agent
 

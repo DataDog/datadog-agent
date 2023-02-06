@@ -26,9 +26,8 @@ import (
 
 const (
 	// Shared config
-	initContainerName = "datadog-lib-init"
-	volumeName        = "datadog-auto-instrumentation"
-	mountPath         = "/datadog-lib"
+	volumeName = "datadog-auto-instrumentation"
+	mountPath  = "/datadog-lib"
 
 	// Java config
 	javaToolOptionsKey   = "JAVA_TOOL_OPTIONS"
@@ -49,11 +48,15 @@ const (
 	java   language = "java"
 	js     language = "js"
 	python language = "python"
+
+	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
+	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
+	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
+	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 )
 
 var (
-	customLibAnnotationKeyFormat = "admission.datadoghq.com/%s-lib.custom-image"
-	supportedLanguages           = []language{java, js, python}
+	supportedLanguages = []language{java, js, python}
 )
 
 // InjectAutoInstrumentation injects APM libraries into pods
@@ -61,91 +64,143 @@ func InjectAutoInstrumentation(rawPod []byte, ns string, dc dynamic.Interface) (
 	return mutate(rawPod, ns, injectAutoInstrumentation, dc)
 }
 
+func initContainerName(lang language) string {
+	return fmt.Sprintf("datadog-lib-%s-init", lang)
+}
+
 func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	if pod == nil {
 		return errors.New("cannot inject lib into nil pod")
 	}
 
-	if containsInitContainer(pod, initContainerName) {
-		// The admission can be reinvocated for the same pod
-		// Fast return if we injected the library already
-		log.Debugf("Init container %q already exists in pod %q", initContainerName, podString(pod))
+	for _, lang := range supportedLanguages {
+		if containsInitContainer(pod, initContainerName(lang)) {
+			// The admission can be reinvocated for the same pod
+			// Fast return if we injected the library already
+			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), podString(pod))
+			return nil
+		}
+	}
+
+	libsToInject := extractLibInfo(pod, config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry"))
+	if len(libsToInject) == 0 {
 		return nil
 	}
 
-	language, image, shouldInject := extractLibInfo(pod, config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry"))
-	if !shouldInject {
-		return nil
-	}
+	return injectAutoInstruConfig(pod, libsToInject)
+}
 
-	return injectAutoInstruConfig(pod, language, image)
+type libInfo struct {
+	ctrName string // empty means all containers
+	lang    language
+	image   string
 }
 
 // extractLibInfo returns the language, the image,
 // and a boolean indicating whether the library should be injected into the pod
-func extractLibInfo(pod *corev1.Pod, containerRegistry string) (language, string, bool) {
+func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
+	libInfoList := []libInfo{}
 	podAnnotations := pod.GetAnnotations()
 	for _, lang := range supportedLanguages {
 		customLibAnnotation := strings.ToLower(fmt.Sprintf(customLibAnnotationKeyFormat, lang))
 		if image, found := podAnnotations[customLibAnnotation]; found {
-			return lang, image, true
+			libInfoList = append(libInfoList, libInfo{
+				lang:  lang,
+				image: image,
+			})
 		}
 
-		libVersionAnnotation := strings.ToLower(fmt.Sprintf(common.LibVersionAnnotKeyFormat, lang))
+		libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, lang))
 		if version, found := podAnnotations[libVersionAnnotation]; found {
 			image := fmt.Sprintf("%s/dd-lib-%s-init:%s", containerRegistry, lang, version)
-			return lang, image, true
+			libInfoList = append(libInfoList, libInfo{
+				lang:  lang,
+				image: image,
+			})
+		}
+
+		for _, ctr := range pod.Spec.Containers {
+			customLibAnnotation := strings.ToLower(fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr.Name, lang))
+			if image, found := podAnnotations[customLibAnnotation]; found {
+				libInfoList = append(libInfoList, libInfo{
+					ctrName: ctr.Name,
+					lang:    lang,
+					image:   image,
+				})
+			}
+
+			libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr.Name, lang))
+			if version, found := podAnnotations[libVersionAnnotation]; found {
+				image := fmt.Sprintf("%s/dd-lib-%s-init:%s", containerRegistry, lang, version)
+				libInfoList = append(libInfoList, libInfo{
+					ctrName: ctr.Name,
+					lang:    lang,
+					image:   image,
+				})
+			}
+		}
+
+	}
+
+	return libInfoList
+}
+
+func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
+	var lastError error
+
+	initContainerToInject := make(map[language]string)
+
+	for _, lib := range libsToInject {
+		injected := false
+		langStr := string(lib.lang)
+		defer func() {
+			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected))
+		}()
+
+		var err error
+		switch lib.lang {
+		case java:
+			err = injectLibRequirements(pod, lib.ctrName, javaToolOptionsKey, javaEnvValFunc)
+		case js:
+			err = injectLibRequirements(pod, lib.ctrName, nodeOptionsKey, jsEnvValFunc)
+		case python:
+			err = injectLibRequirements(pod, lib.ctrName, pythonPathKey, pythonEnvValFunc)
+		default:
+			metrics.LibInjectionErrors.Inc(langStr)
+			lastError = fmt.Errorf("language %q is not supported. Supported languages are %v", lib.lang, supportedLanguages)
+			continue
+		}
+
+		if err != nil {
+			metrics.LibInjectionErrors.Inc(langStr)
+			lastError = err
+		}
+
+		initContainerToInject[lib.lang] = lib.image
+
+		injected = true
+	}
+
+	for lang, image := range initContainerToInject {
+		injectLibInitContainer(pod, image, lang)
+		err := injectLibConfig(pod, lang)
+		if err != nil {
+			metrics.LibInjectionErrors.Inc(string(lang))
+			lastError = err
 		}
 	}
 
-	return "", "", false
-}
-
-func injectAutoInstruConfig(pod *corev1.Pod, lang language, image string) error {
-	injected := false
-	langStr := string(lang)
-	defer func() {
-		metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected))
-	}()
-
-	var langEnvKey string
-	var langEnvFunc envValFunc
-	switch lang {
-	case java:
-		langEnvKey = javaToolOptionsKey
-		langEnvFunc = javaEnvValFunc
-	case js:
-		langEnvKey = nodeOptionsKey
-		langEnvFunc = jsEnvValFunc
-	case python:
-		langEnvKey = pythonPathKey
-		langEnvFunc = pythonEnvValFunc
-	default:
-		metrics.LibInjectionErrors.Inc(langStr)
-		return fmt.Errorf("language %q is not supported. Supported languages are %v", lang, supportedLanguages)
-	}
-	injectLibInitContainer(pod, image)
-	err := injectLibRequirements(pod, langEnvKey, langEnvFunc)
-	if err != nil {
-		metrics.LibInjectionErrors.Inc(langStr)
-		return err
-	}
-	err = injectLibConfig(pod, lang)
-	if err != nil {
-		metrics.LibInjectionErrors.Inc(langStr)
-		return err
-	}
 	injectLibVolume(pod)
-	injected = true
 
-	return nil
+	return lastError
 }
 
-func injectLibInitContainer(pod *corev1.Pod, image string) {
-	log.Debugf("Injecting init container named %q with image %q into pod %s", initContainerName, image, podString(pod))
+func injectLibInitContainer(pod *corev1.Pod, image string, lang language) {
+	initCtrName := initContainerName(lang)
+	log.Debugf("Injecting init container named %q with image %q into pod %s", initCtrName, image, podString(pod))
 	pod.Spec.InitContainers = append([]corev1.Container{
 		{
-			Name:    initContainerName,
+			Name:    initCtrName,
 			Image:   image,
 			Command: []string{"sh", "copy-lib.sh", mountPath},
 			VolumeMounts: []corev1.VolumeMount{
@@ -159,8 +214,12 @@ func injectLibInitContainer(pod *corev1.Pod, image string) {
 }
 
 // injectLibRequirements injects the minimal config requirements to enable instrumentation
-func injectLibRequirements(pod *corev1.Pod, envKey string, envVal envValFunc) error {
+func injectLibRequirements(pod *corev1.Pod, ctrName string, envKey string, envVal envValFunc) error {
 	for i, ctr := range pod.Spec.Containers {
+		if ctrName != "" && ctrName != ctr.Name {
+			continue
+		}
+
 		index := envIndex(ctr.Env, envKey)
 		if index < 0 {
 			pod.Spec.Containers[i].Env = append(pod.Spec.Containers[i].Env, corev1.EnvVar{
@@ -175,7 +234,16 @@ func injectLibRequirements(pod *corev1.Pod, envKey string, envVal envValFunc) er
 			pod.Spec.Containers[i].Env[index].Value = envVal(pod.Spec.Containers[i].Env[index].Value)
 		}
 
-		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{Name: volumeName, MountPath: mountPath})
+		volumeAlreadyMounted := false
+		for _, vol := range pod.Spec.Containers[i].VolumeMounts {
+			if vol.Name == volumeName {
+				volumeAlreadyMounted = true
+				break
+			}
+		}
+		if !volumeAlreadyMounted {
+			pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{Name: volumeName, MountPath: mountPath})
+		}
 	}
 
 	return nil

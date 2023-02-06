@@ -172,6 +172,8 @@ func (m *EventMonitor) Close() {
 // SendStats send stats
 func (m *EventMonitor) SendStats() {
 	// TODO
+	/*	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+		_ = m.StatsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)*/
 }
 
 // GetStats returns statistics about the module
@@ -209,7 +211,7 @@ func NewEventMonitor(sysProbeConfig *sysconfig.Config) (*EventMonitor, error) {
 		return nil, err
 	}
 
-	probe, err := probe.NewProbe(config, statsdClient)
+	probe, err := probe.NewProbe(config, probe.Opts{StatsdClient: statsdClient})
 	if err != nil {
 		return nil, err
 	}

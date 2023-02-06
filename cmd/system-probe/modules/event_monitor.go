@@ -16,11 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
-//DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
-)
-
 // EventMonitpr - Event monitor Factory
 var EventMonitpr = module.Factory{
 	Name:             config.SecurityRuntimeModule,

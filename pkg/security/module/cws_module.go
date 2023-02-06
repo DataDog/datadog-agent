@@ -23,8 +23,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/event_monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -39,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // CWSModule represents the system-probe module for the runtime security agent
@@ -232,7 +231,7 @@ func (c *CWSModule) Start() error {
 	return nil
 }
 
-func (c *CWSModule) displayReport(report *probe.Report) {
+func (c *CWSModule) displayApplyRuleSetReport(report *probe.ApplyRuleSetReport) {
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 }
@@ -348,41 +347,14 @@ func (c *CWSModule) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoa
 	c.reloading.Store(true)
 	defer c.reloading.Store(false)
 
-	rsa := probe.NewRuleSetApplier(c.config, c.probe)
-
 	// load policies
 	c.policyLoader.SetProviders(policyProviders)
 
-	approverRuleSet, loadApproversErrs := c.getApproverRuleset(policyProviders)
-	// non fatal error, just log
-	if loadApproversErrs != nil {
-		logLoadingErrors("error while loading policies for approvers: %+v", loadApproversErrs)
-	}
-
-	approvers, err := approverRuleSet.GetApprovers(probe.GetCapababilities())
-	if err != nil {
-		return err
-	}
-
-	opts := c.newRuleOpts()
-	opts.
-		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-			"process": func() rules.VariableProvider {
-				scoper := func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer(ctx.Event.(*model.Event).ProcessCacheEntry)
-				}
-				return c.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
-			},
-		})
-
-	evalOpts := c.newEvalOpts()
-	evalOpts.WithVariables(model.SECLVariables)
-
 	// standard ruleset
-	ruleSet := c.probe.NewRuleSet(&opts, &evalOpts)
+	ruleSet := c.probe.NewRuleSet()
 
 	loadErrs := ruleSet.LoadPolicies(c.policyLoader, c.policyOpts)
-	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {
+	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
 
@@ -393,17 +365,18 @@ func (c *CWSModule) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoa
 
 	// notify listeners
 	if c.rulesLoaded != nil {
-		c.rulesLoaded(ruleSet, loadApproversErrs)
+		c.rulesLoaded(ruleSet, loadErrs)
 	}
 
 	// add module as listener for ruleset events
 	ruleSet.AddListener(c)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(ruleSet, approvers)
+	report, err := c.probe.ApplyRuleSet(ruleSet)
 	if err != nil {
 		return err
 	}
+	c.displayApplyRuleSetReport(report)
 
 	// set the rate limiters
 	c.rateLimiter.Apply(ruleSet, events.AllCustomRuleIDs())
@@ -415,11 +388,9 @@ func (c *CWSModule) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoa
 
 	c.apiServer.Apply(ruleIDs)
 
-	c.displayReport(report)
-
 	if sendLoadedReport {
-		ReportRuleSetLoaded(c.eventSender, c.statsdClient, ruleSet, loadApproversErrs)
-		c.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
+		ReportRuleSetLoaded(c.eventSender, c.statsdClient, ruleSet, loadErrs)
+		c.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
 	}
 
 	return nil
@@ -581,11 +552,6 @@ func (c *CWSModule) statsSender() {
 				_ = c.statsdClient.Gauge(metrics.MetricSecurityAgentRuntimeRunning, 1, tags, 1)
 			} else if c.config.FIMEnabled {
 				_ = c.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
-			}
-
-			// Event monitoring may run independently of CWS products
-			if c.config.EventMonitoring {
-				_ = c.statsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)
 			}
 		case <-c.ctx.Done():
 			return

@@ -35,22 +35,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
 
+const (
+	defaultTimeout = 30 * time.Second
+)
+
 // testContext shares the context of a given test.
 // It contains common variable used by all tests, and allows extending the context dynamically by setting more
 // attributes to the `extras` map.
 type testContext struct {
 	// The address of the server to listen on.
 	serverAddress string
-	serverPort    string
+	// The port to listen on.
+	serverPort string
 	// The address for the client to communicate with.
 	targetAddress string
-	// optional - A custom dialer to set the ip/port/socket attributes for the client.
-	clientDialer     *net.Dialer
-	expectedProtocol network.ProtocolType
-	// A channel to mark goroutines (like servers) to halt.
-	done chan struct{}
 	// A dynamic map that allows extending the context easily between phases of the test.
 	extras map[string]interface{}
+}
+
+// protocolClassificationAttributes holds all attributes a single protocol classification test should have.
+type protocolClassificationAttributes struct {
+	// The name of the test.
+	name string
+	// Specific test context, allows to share states among different phases of the test.
+	context testContext
+	// Allows to decide on runtime if we should skip the test or not.
+	skipCallback func(t *testing.T, ctx testContext)
+	// Allows to do any preparation without traffic being captured by the tracer.
+	preTracerSetup func(t *testing.T, ctx testContext)
+	// All traffic here will be captured by the tracer.
+	postTracerSetup func(t *testing.T, ctx testContext)
+	// A validation method ensure the test succeeded.
+	validation func(t *testing.T, ctx testContext, tr *Tracer)
+	// Cleaning test resources if needed.
+	teardown func(t *testing.T, ctx testContext)
 }
 
 func setupTracer(t *testing.T, cfg *config.Config) *Tracer {
@@ -71,120 +89,748 @@ func setupTracer(t *testing.T, cfg *config.Config) *Tracer {
 	return tr
 }
 
-func validateProtocolConnection(t *testing.T, ctx testContext, tr *Tracer) {
-	waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, ctx.expectedProtocol)
-}
-
-func defaultTeardown(_ *testing.T, ctx testContext) {
-	close(ctx.done)
+func validateProtocolConnection(expectedProtocol network.ProtocolType) func(t *testing.T, ctx testContext, tr *Tracer) {
+	return func(t *testing.T, ctx testContext, tr *Tracer) {
+		waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, expectedProtocol)
+	}
 }
 
 // skipIfNotLinux skips the test if we are not on a linux machine
-func skipIfNotLinux(ctx testContext) (bool, string) {
+func skipIfNotLinux(t *testing.T, _ testContext) {
 	if runtime.GOOS != "linux" {
-		return true, "test is supported on linux machine only"
+		t.Skip("test is supported on linux machine only")
 	}
-
-	return false, ""
 }
 
 // skipIfUsingNAT skips the test if we have a NAT rules applied.
-func skipIfUsingNAT(ctx testContext) (bool, string) {
+func skipIfUsingNAT(t *testing.T, ctx testContext) {
 	if ctx.targetAddress != ctx.serverAddress {
-		return true, "test is not supported when NAT is applied"
+		t.Skip("test is not supported when NAT is applied")
 	}
-
-	return false, ""
 }
 
 // composeSkips skips if one of the given filters is matched.
-func composeSkips(filters ...func(ctx testContext) (bool, string)) func(ctx testContext) (bool, string) {
-	return func(ctx testContext) (bool, string) {
-		for _, filter := range filters {
-			if skip, err := filter(ctx); skip {
-				return skip, err
-			}
+func composeSkips(skippers ...func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
+	return func(t *testing.T, ctx testContext) {
+		for _, skipFunction := range skippers {
+			skipFunction(t, ctx)
 		}
-
-		return false, ""
 	}
 }
 
+const (
+	postgresPort = "5432"
+	mongoPort    = "27017"
+	redisPort    = "6379"
+	amqpPort     = "5672"
+	httpPort     = "8080"
+	tcpPort      = "9999"
+	http2Port    = "9090"
+)
+
 func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	tests := []struct {
+		name     string
+		testFunc func(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string)
+	}{
+		{
+			name:     "postgres",
+			testFunc: testPostgresProtocolClassification,
+		},
+		{
+			name:     "mongo",
+			testFunc: testMongoProtocolClassification,
+		},
+		{
+			name:     "redis",
+			testFunc: testRedisProtocolClassification,
+		},
+		{
+			name:     "amqp",
+			testFunc: testAMQPProtocolClassification,
+		},
+		{
+			name:     "http",
+			testFunc: testHTTPProtocolClassification,
+		},
+		{
+			name:     "http2",
+			testFunc: testHTTP2ProtocolClassification,
+		},
+		{
+			name:     "edge cases",
+			testFunc: testEdgeCasesProtocolClassification,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.testFunc(t, cfg, clientHost, targetHost, serverHost)
+		})
+	}
+}
+
+func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    postgresPort,
+		targetAddress: targetHost,
+	})
+
+	if clientHost != "127.0.0.1" {
+		t.Skip("postgres tests are not supported DNat")
+	}
+
+	postgresTeardown := func(t *testing.T, ctx testContext) {
+		db := ctx.extras["db"].(*bun.DB)
+		defer db.Close()
+		taskCtx := ctx.extras["ctx"].(context.Context)
+		_, _ = db.NewDropTable().Model((*pgutils.DummyTable)(nil)).Exec(taskCtx)
+	}
+
+	// Setting one instance of postgres server for all tests.
+	serverAddress := net.JoinHostPort(serverHost, postgresPort)
+	targetAddress := net.JoinHostPort(targetHost, postgresPort)
+	pgutils.RunPostgresServer(t, serverHost, postgresPort)
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "postgres - connect",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pg := pgutils.GetPGHandle(t, ctx.serverAddress)
+				conn, err := pg.Conn(context.Background())
+				require.NoError(t, err)
+				defer conn.Close()
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - insert",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - delete",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunDeleteQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - select",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunSelectQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - update",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunUpdateQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - drop",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunDropQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - alter",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunAlterQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+		{
+			// Test that we classify long queries that would be
+			// splitted between multiple packets correctly
+			name: "postgres - long query",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				db := ctx.extras["db"].(*bun.DB)
+				taskCtx := ctx.extras["ctx"].(context.Context)
+
+				// This will fail but it should make a query and be classified
+				_, _ = db.NewInsert().Model(&pgutils.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(taskCtx)
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+		{
+			// Test that we classify long queries that would be
+			// splitted between multiple packets correctly
+			name: "postgres - long response",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				for i := int64(1); i < 200; i++ {
+					pgutils.RunInsertQuery(t, i, ctx.extras)
+				}
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunSelectQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(network.ProtocolPostgres),
+			teardown:   postgresTeardown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, cfg)
+		})
+	}
+}
+
+func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    mongoPort,
+		targetAddress: targetHost,
+	})
+
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
-			IP:   net.ParseIP(clientHost),
-			Port: 0,
+			IP: net.ParseIP(clientHost),
 		},
 	}
 
-	tests := []struct {
-		name            string
-		context         testContext
-		shouldSkip      func(ctx testContext) (bool, string)
-		preTracerSetup  func(t *testing.T, ctx testContext)
-		postTracerSetup func(t *testing.T, ctx testContext)
-		validation      func(t *testing.T, ctx testContext, tr *Tracer)
-		teardown        func(t *testing.T, ctx testContext)
-	}{
-		{
-			name: "tcp client without sending data",
-			context: testContext{
-				serverPort:       "8080",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolUnknown,
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
-					c.Close()
-				})
-				require.NoError(t, server.Run(ctx.done))
-				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
-				c, err := ctx.clientDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
-				cancel()
-				require.NoError(t, err)
-				defer c.Close()
-			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "tcp client with sending random data",
-			context: testContext{
-				serverPort:       "8080",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolUnknown,
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
-					r := bufio.NewReader(c)
-					input, err := r.ReadBytes(byte('\n'))
-					if err == nil {
-						c.Write(input)
-					}
-					c.Close()
-				})
-				require.NoError(t, server.Run(ctx.done))
+	mongoTeardown := func(t *testing.T, ctx testContext) {
+		client := ctx.extras["client"].(*protocolsmongo.Client)
+		require.NoError(t, client.DeleteDatabases())
+		defer client.Stop()
+	}
 
-				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
-				c, err := ctx.clientDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
-				cancel()
-				require.NoError(t, err)
-				defer c.Close()
-				c.Write([]byte("hello\n"))
-				io.ReadAll(c)
+	// Setting one instance of mongo server for all tests.
+	serverAddress := net.JoinHostPort(serverHost, mongoPort)
+	targetAddress := net.JoinHostPort(targetHost, mongoPort)
+	protocolsmongo.RunMongoServer(t, serverHost, mongoPort)
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "classify by connect",
+			context: testContext{
+				serverPort:    mongoPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
 			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
+					ServerAddress: ctx.targetAddress,
+					ClientDialer:  defaultDialer,
+				})
+				require.NoError(t, err)
+				client.Stop()
+			},
+			validation: validateProtocolConnection(network.ProtocolMongo),
 		},
+		{
+			name: "classify by collection creation",
+			context: testContext{
+				serverPort:    mongoPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
+					ServerAddress: ctx.targetAddress,
+					ClientDialer:  defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*protocolsmongo.Client)
+				db := client.C.Database("test")
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				require.NoError(t, db.CreateCollection(timedContext, "collection"))
+			},
+			validation: validateProtocolConnection(network.ProtocolMongo),
+			teardown:   mongoTeardown,
+		},
+		{
+			name: "classify by insertion",
+			context: testContext{
+				serverPort:    mongoPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
+					ServerAddress: ctx.targetAddress,
+					ClientDialer:  defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				db := client.C.Database("test")
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				require.NoError(t, db.CreateCollection(timedContext, "collection"))
+				ctx.extras["collection"] = db.Collection("collection")
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				collection := ctx.extras["collection"].(*mongo.Collection)
+				input := map[string]string{"test": "test"}
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				_, err := collection.InsertOne(timedContext, input)
+				require.NoError(t, err)
+			},
+			validation: validateProtocolConnection(network.ProtocolMongo),
+			teardown:   mongoTeardown,
+		},
+		{
+			name: "classify by find",
+			context: testContext{
+				serverPort:    mongoPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
+					ServerAddress: ctx.targetAddress,
+					ClientDialer:  defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				db := client.C.Database("test")
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				require.NoError(t, db.CreateCollection(timedContext, "collection"))
+				cancel()
+				collection := db.Collection("collection")
+				ctx.extras["input"] = map[string]string{"test": "test"}
+				timedContext, cancel = context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				_, err = collection.InsertOne(timedContext, ctx.extras["input"])
+				require.NoError(t, err)
+
+				ctx.extras["collection"] = db.Collection("collection")
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				collection := ctx.extras["collection"].(*mongo.Collection)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				res := collection.FindOne(timedContext, bson.M{"test": "test"})
+				require.NoError(t, res.Err())
+				var output map[string]string
+				require.NoError(t, res.Decode(&output))
+				delete(output, "_id")
+				require.EqualValues(t, output, ctx.extras["input"])
+			},
+			validation: validateProtocolConnection(network.ProtocolMongo),
+			teardown:   mongoTeardown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, cfg)
+		})
+	}
+}
+
+func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    redisPort,
+		targetAddress: targetHost,
+	})
+
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	redisTeardown := func(t *testing.T, ctx testContext) {
+		redis.NewClient(ctx.serverAddress, defaultDialer)
+		client := ctx.extras["client"].(*redis2.Client)
+		timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+		require.NoError(t, client.FlushDB(timedContext).Err())
+	}
+
+	// Setting one instance of redis server for all tests.
+	serverAddress := net.JoinHostPort(serverHost, redisPort)
+	targetAddress := net.JoinHostPort(targetHost, redisPort)
+	redis.RunRedisServer(t, serverHost, redisPort)
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "set",
+			context: testContext{
+				serverPort:    redisPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client := redis.NewClient(ctx.targetAddress, defaultDialer)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				client.Ping(timedContext)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*redis2.Client)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				client.Set(timedContext, "key", "value", time.Minute)
+			},
+			teardown:   redisTeardown,
+			validation: validateProtocolConnection(network.ProtocolRedis),
+		},
+		{
+			name: "get",
+			context: testContext{
+				serverPort:    redisPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client := redis.NewClient(ctx.targetAddress, defaultDialer)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				client.Set(timedContext, "key", "value", time.Minute)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*redis2.Client)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				res := client.Get(timedContext, "key")
+				val, err := res.Result()
+				require.NoError(t, err)
+				require.Equal(t, "value", val)
+			},
+			teardown:   redisTeardown,
+			validation: validateProtocolConnection(network.ProtocolRedis),
+		},
+		{
+			name: "get unknown key",
+			context: testContext{
+				serverPort:    redisPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client := redis.NewClient(ctx.targetAddress, defaultDialer)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				client.Ping(timedContext)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*redis2.Client)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				res := client.Get(timedContext, "unknown")
+				require.Error(t, res.Err())
+			},
+			teardown:   redisTeardown,
+			validation: validateProtocolConnection(network.ProtocolRedis),
+		},
+		{
+			name: "err response",
+			context: testContext{
+				serverPort:    redisPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				conn, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
+				require.NoError(t, err)
+				_, err = conn.Write([]byte("+dummy\r\n"))
+				require.NoError(t, err)
+			},
+			validation: validateProtocolConnection(network.ProtocolRedis),
+		},
+		{
+			name: "client id",
+			context: testContext{
+				serverPort:    redisPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client := redis.NewClient(ctx.targetAddress, defaultDialer)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				client.Ping(timedContext)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*redis2.Client)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				res := client.ClientID(timedContext)
+				require.NoError(t, res.Err())
+			},
+			teardown:   redisTeardown,
+			validation: validateProtocolConnection(network.ProtocolRedis),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, cfg)
+		})
+	}
+}
+
+func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    amqpPort,
+		targetAddress: targetHost,
+	})
+
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	amqpTeardown := func(t *testing.T, ctx testContext) {
+		client := ctx.extras["client"].(*amqp.Client)
+		defer client.Terminate()
+
+		require.NoError(t, client.DeleteQueues())
+	}
+
+	// Setting one instance of amqp server for all tests.
+	serverAddress := net.JoinHostPort(serverHost, amqpPort)
+	targetAddress := net.JoinHostPort(targetHost, amqpPort)
+	amqp.RunAmqpServer(t, serverHost, amqpPort)
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "connect",
+			context: testContext{
+				serverPort:    amqpPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := amqp.NewClient(amqp.Options{
+					ServerAddress: ctx.serverAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			teardown:   amqpTeardown,
+			validation: validateProtocolConnection(network.ProtocolAMQP),
+		},
+		{
+			name: "declare channel",
+			context: testContext{
+				serverPort:    amqpPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := amqp.NewClient(amqp.Options{
+					ServerAddress: ctx.serverAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
+			},
+			teardown:   amqpTeardown,
+			validation: validateProtocolConnection(network.ProtocolUnknown),
+		},
+		{
+			name: "publish",
+			context: testContext{
+				serverPort:    amqpPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := amqp.NewClient(amqp.Options{
+					ServerAddress: ctx.serverAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				require.NoError(t, client.Publish("test", "my msg"))
+			},
+			teardown:   amqpTeardown,
+			validation: validateProtocolConnection(network.ProtocolAMQP),
+		},
+		{
+			name: "consume",
+			context: testContext{
+				serverPort:    amqpPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := amqp.NewClient(amqp.Options{
+					ServerAddress: ctx.serverAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
+				require.NoError(t, client.DeclareQueue("test", client.ConsumeChannel))
+				require.NoError(t, client.Publish("test", "my msg"))
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				res, err := client.Consume("test", 1)
+				require.NoError(t, err)
+				require.Equal(t, []string{"my msg"}, res)
+			},
+			teardown:   amqpTeardown,
+			validation: validateProtocolConnection(network.ProtocolAMQP),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, cfg)
+		})
+	}
+}
+
+func testHTTPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	serverAddress := net.JoinHostPort(serverHost, httpPort)
+	targetAddress := net.JoinHostPort(targetHost, httpPort)
+	tests := []protocolClassificationAttributes{
 		{
 			name: "tcp client with sending HTTP request",
 			context: testContext{
-				serverPort:       "8080",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolHTTP,
+				serverPort:    httpPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			preTracerSetup: func(t *testing.T, ctx testContext) {
 				ln, err := net.Listen("tcp", ctx.serverAddress)
 				require.NoError(t, err)
 
@@ -201,14 +847,13 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				go func() {
 					_ = srv.Serve(ln)
 				}()
-				go func() {
-					<-ctx.done
-					srv.Shutdown(context.Background())
-				}()
 
+				ctx.extras["server"] = srv
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
-						DialContext: ctx.clientDialer.DialContext,
+						DialContext: defaultDialer.DialContext,
 					},
 				}
 				resp, err := client.Get("http://" + ctx.targetAddress + "/test")
@@ -216,192 +861,186 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
+			teardown: func(t *testing.T, ctx testContext) {
+				srv := ctx.extras["server"].(*nethttp.Server)
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				_ = srv.Shutdown(timedContext)
+			},
+			validation: validateProtocolConnection(network.ProtocolHTTP),
 		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, cfg)
+		})
+	}
+}
+
+func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP:   net.ParseIP(clientHost),
+			Port: 0,
+		},
+	}
+
+	serverAddress := net.JoinHostPort(serverHost, http2Port)
+	targetAddress := net.JoinHostPort(targetHost, http2Port)
+
+	server, err := grpc.NewServer(serverAddress)
+	require.NoError(t, err)
+	server.Run()
+	t.Cleanup(server.Stop)
+
+	tests := []protocolClassificationAttributes{
 		{
 			name: "http2 traffic using gRPC - unary call",
 			context: testContext{
-				serverPort:       "8080",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolHTTP2,
+				serverPort:    http2Port,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				server, err := grpc.NewServer(ctx.serverAddress)
-				require.NoError(t, err)
-				server.Run()
-				go func() {
-					<-ctx.done
-					server.Stop()
-				}()
-
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
-					CustomDialer: ctx.clientDialer,
+					CustomDialer: defaultDialer,
 				})
 				require.NoError(t, err)
 				defer c.Close()
-				require.NoError(t, c.HandleUnary(context.Background(), "test"))
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				require.NoError(t, c.HandleUnary(timedContext, "test"))
 			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
+			validation: validateProtocolConnection(network.ProtocolHTTP2),
 		},
 		{
 			name: "http2 traffic using gRPC - stream call",
 			context: testContext{
-				serverPort:       "8080",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolHTTP2,
+				serverPort:    http2Port,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				server, err := grpc.NewServer(ctx.serverAddress)
-				require.NoError(t, err)
-				server.Run()
-				go func() {
-					<-ctx.done
-					server.Stop()
-				}()
-
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
-					CustomDialer: ctx.clientDialer,
+					CustomDialer: defaultDialer,
 				})
 				require.NoError(t, err)
 				defer c.Close()
-				require.NoError(t, c.HandleStream(context.Background(), 5))
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				require.NoError(t, c.HandleStream(timedContext, 5))
 			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
+			validation: validateProtocolConnection(network.ProtocolHTTP2),
 		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, cfg)
+		})
+	}
+}
+
+func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	teardown := func(t *testing.T, ctx testContext) {
+		server, ok := ctx.extras["server"].(*TCPServer)
+		if ok {
+			server.Shutdown()
+			// Giving time for the port to be free again.
+			time.Sleep(time.Second)
+		}
+	}
+
+	tests := []protocolClassificationAttributes{
 		{
-			name: "amqp connect",
+			name: "tcp client without sending data",
 			context: testContext{
-				serverPort:       "5672",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolAMQP,
+				serverPort:    tcpPort,
+				serverAddress: net.JoinHostPort(serverHost, tcpPort),
+				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				amqp.RunAmqpServer(t, host, port)
+				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+					c.Close()
+				})
+				ctx.extras["server"] = server
+				require.NoError(t, server.Run())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-				})
+				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				c, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
-				defer client.Terminate()
+				defer c.Close()
 			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			validation: validateProtocolConnection,
+			teardown:   teardown,
+			validation: validateProtocolConnection(network.ProtocolUnknown),
 		},
 		{
-			name: "amqp declare channel",
+			name: "tcp client with sending random data",
 			context: testContext{
-				serverPort:       "5672",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolUnknown,
-				extras:           make(map[string]interface{}),
+				serverPort:    tcpPort,
+				serverAddress: net.JoinHostPort(serverHost, tcpPort),
+				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				amqp.RunAmqpServer(t, host, port)
-
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
+				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+					defer c.Close()
+					r := bufio.NewReader(c)
+					input, err := r.ReadBytes(byte('\n'))
+					if err == nil {
+						c.Write(input)
+					}
 				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
+				ctx.extras["server"] = server
+				require.NoError(t, server.Run())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*amqp.Client)
-				defer client.Terminate()
-
-				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "amqp publish",
-			context: testContext{
-				serverPort:       "5672",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolAMQP,
-				extras:           make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				amqp.RunAmqpServer(t, host, port)
-
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-				})
+				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				c, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
-				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
-				ctx.extras["client"] = client
+				defer c.Close()
+				c.Write([]byte("hello\n"))
+				io.ReadAll(c)
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*amqp.Client)
-				defer client.Terminate()
-
-				require.NoError(t, client.Publish("test", "my msg"))
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "amqp consume",
-			context: testContext{
-				serverPort:       "5672",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolAMQP,
-				extras:           make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				amqp.RunAmqpServer(t, host, port)
-
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-				})
-				require.NoError(t, err)
-				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
-				require.NoError(t, client.DeclareQueue("test", client.ConsumeChannel))
-				require.NoError(t, client.Publish("test", "my msg"))
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*amqp.Client)
-				defer client.Terminate()
-
-				res, err := client.Consume("test", 1)
-				require.NoError(t, err)
-				require.Equal(t, []string{"my msg"}, res)
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			validation: validateProtocolConnection,
+			teardown:   teardown,
+			validation: validateProtocolConnection(network.ProtocolUnknown),
 		},
 		{
 			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection
 			// with the first protocol we've found.
 			name: "mixed protocols",
 			context: testContext{
-				serverPort:       "8080",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolHTTP,
+				serverPort:    tcpPort,
+				serverAddress: net.JoinHostPort(serverHost, tcpPort),
+				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				extras:        map[string]interface{}{},
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			preTracerSetup: func(t *testing.T, ctx testContext) {
 				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+					defer c.Close()
+
 					r := bufio.NewReader(c)
 					input, err := r.ReadBytes(byte('\n'))
 					if err == nil {
 						c.Write(input)
 					}
-					c.Close()
 				})
-				require.NoError(t, server.Run(ctx.done))
-
+				ctx.extras["server"] = server
+				require.NoError(t, server.Run())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
-				c, err := ctx.clientDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
-				cancel()
+				defer cancel()
+				c, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("GET /200/foobar HTTP/1.1\n"))
@@ -410,486 +1049,33 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
 				io.ReadAll(c)
 			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "redis set",
-			context: testContext{
-				serverPort:       "6379",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolRedis,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				redis.RunRedisServer(t, host, port)
-
-				client := redis.NewClient(ctx.targetAddress, ctx.clientDialer)
-				client.Ping(context.Background())
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*redis2.Client)
-				client.Set(context.Background(), "key", "value", time.Minute)
-			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "redis get",
-			context: testContext{
-				serverPort:       "6379",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolRedis,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				redis.RunRedisServer(t, host, port)
-
-				client := redis.NewClient(ctx.targetAddress, ctx.clientDialer)
-				client.Set(context.Background(), "key", "value", time.Minute)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*redis2.Client)
-				res := client.Get(context.Background(), "key")
-				val, err := res.Result()
-				require.NoError(t, err)
-				require.Equal(t, "value", val)
-			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "redis get unknown key",
-			context: testContext{
-				serverPort:       "6379",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolRedis,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				redis.RunRedisServer(t, host, port)
-
-				client := redis.NewClient(ctx.targetAddress, ctx.clientDialer)
-				client.Ping(context.Background())
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*redis2.Client)
-				res := client.Get(context.Background(), "unknown")
-				require.Error(t, res.Err())
-			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "redis err response",
-			context: testContext{
-				serverPort:       "6379",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolRedis,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				redis.RunRedisServer(t, host, port)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				conn, err := ctx.clientDialer.DialContext(context.Background(), "tcp", ctx.targetAddress)
-				require.NoError(t, err)
-				_, err = conn.Write([]byte("+dummy\r\n"))
-				require.NoError(t, err)
-			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "redis client id",
-			context: testContext{
-				serverPort:       "6379",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolRedis,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				redis.RunRedisServer(t, host, port)
-
-				client := redis.NewClient(ctx.targetAddress, ctx.clientDialer)
-				client.Ping(context.Background())
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*redis2.Client)
-				res := client.ClientID(context.Background())
-				require.NoError(t, res.Err())
-			},
-			teardown:   defaultTeardown,
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "mongo - classify by connect",
-			context: testContext{
-				serverPort:       "27017",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolMongo,
-				extras:           make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				protocolsmongo.RunMongoServer(t, host, port)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
-					ServerAddress: ctx.targetAddress,
-					ClientDialer:  ctx.clientDialer,
-				})
-				require.NoError(t, err)
-				client.Stop()
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "mongo - classify by collection creation",
-			context: testContext{
-				serverPort:       "27017",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolMongo,
-				extras:           make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				protocolsmongo.RunMongoServer(t, host, port)
-
-				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
-					ServerAddress: ctx.targetAddress,
-					ClientDialer:  ctx.clientDialer,
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*protocolsmongo.Client)
-				db := client.C.Database("test")
-				require.NoError(t, db.CreateCollection(context.Background(), "collection"))
-			},
-			teardown: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*protocolsmongo.Client)
-				client.Stop()
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "mongo - classify by insertion",
-			context: testContext{
-				serverPort:       "27017",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolMongo,
-				extras:           make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				protocolsmongo.RunMongoServer(t, host, port)
-
-				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
-					ServerAddress: ctx.targetAddress,
-					ClientDialer:  ctx.clientDialer,
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				db := client.C.Database("test")
-				require.NoError(t, db.CreateCollection(context.Background(), "collection"))
-				ctx.extras["collection"] = db.Collection("collection")
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				collection := ctx.extras["collection"].(*mongo.Collection)
-				input := map[string]string{"test": "test"}
-				_, err := collection.InsertOne(context.Background(), input)
-				require.NoError(t, err)
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			teardown: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*protocolsmongo.Client)
-				client.Stop()
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "mongo - classify by find",
-			context: testContext{
-				serverPort:       "27017",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolMongo,
-				extras:           make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				host, port, _ := net.SplitHostPort(ctx.serverAddress)
-				protocolsmongo.RunMongoServer(t, host, port)
-
-				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
-					ServerAddress: ctx.targetAddress,
-					ClientDialer:  ctx.clientDialer,
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				db := client.C.Database("test")
-				require.NoError(t, db.CreateCollection(context.Background(), "collection"))
-
-				collection := db.Collection("collection")
-				ctx.extras["input"] = map[string]string{"test": "test"}
-				_, err = collection.InsertOne(context.Background(), ctx.extras["input"])
-				require.NoError(t, err)
-
-				ctx.extras["collection"] = db.Collection("collection")
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				collection := ctx.extras["collection"].(*mongo.Collection)
-				res := collection.FindOne(context.Background(), bson.M{"test": "test"})
-				require.NoError(t, res.Err())
-				var output map[string]string
-				require.NoError(t, res.Decode(&output))
-				delete(output, "_id")
-				require.EqualValues(t, output, ctx.extras["input"])
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			teardown: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*protocolsmongo.Client)
-				client.Stop()
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "postgres - connect",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pg := pgutils.GetPGHandle(t, ctx.serverAddress)
-				conn, err := pg.Conn(context.Background())
-				require.NoError(t, err)
-				defer conn.Close()
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "postgres - insert",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunInsertQuery(t, 1, ctx.extras)
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "postgres - delete",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, 1, ctx.extras)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunDeleteQuery(t, ctx.extras)
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "postgres - select",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunSelectQuery(t, ctx.extras)
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "postgres - update",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, 1, ctx.extras)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunUpdateQuery(t, ctx.extras)
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "postgres - drop",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, 1, ctx.extras)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunDropQuery(t, ctx.extras)
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			name: "postgres - alter",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunAlterQuery(t, ctx.extras)
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			// Test that we classify long queries that would be
-			// splitted between multiple packets correctly
-			name: "postgres - long query",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				db := ctx.extras["db"].(*bun.DB)
-				taskCtx := ctx.extras["ctx"].(context.Context)
-
-				// This will fail but it should make a query and be classified
-				_, _ = db.NewInsert().Model(&pgutils.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(taskCtx)
-			},
-			validation: validateProtocolConnection,
-		},
-		{
-			// Test that we classify long queries that would be
-			// splitted between multiple packets correctly
-			name: "postgres - long response",
-			context: testContext{
-				serverPort:       "5432",
-				clientDialer:     defaultDialer,
-				expectedProtocol: network.ProtocolPostgres,
-				extras:           make(map[string]interface{}),
-			},
-			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgresServer(t, addr, port)
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-				for i := int64(1); i < 200; i++ {
-					pgutils.RunInsertQuery(t, i, ctx.extras)
-				}
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunSelectQuery(t, ctx.extras)
-			},
-			validation: validateProtocolConnection,
+			teardown:   teardown,
+			validation: validateProtocolConnection(network.ProtocolHTTP),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.context.serverAddress = net.JoinHostPort(serverHost, tt.context.serverPort)
-			tt.context.targetAddress = net.JoinHostPort(targetHost, tt.context.serverPort)
-
-			if tt.shouldSkip != nil {
-				if skip, msg := tt.shouldSkip(tt.context); skip {
-					t.Skip(msg)
-				}
-			}
-
-			tt.context.done = make(chan struct{})
-			if tt.teardown != nil {
-				t.Cleanup(func() {
-					tt.teardown(t, tt.context)
-				})
-			}
-			if tt.preTracerSetup != nil {
-				tt.preTracerSetup(t, tt.context)
-			}
-			tr := setupTracer(t, cfg)
-			tt.postTracerSetup(t, tt.context)
-			tt.validation(t, tt.context, tr)
+			testProtocolClassificationInner(t, tt, cfg)
 		})
 	}
+}
+
+func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, cfg *config.Config) {
+	if params.skipCallback != nil {
+		params.skipCallback(t, params.context)
+	}
+
+	if params.teardown != nil {
+		t.Cleanup(func() {
+			params.teardown(t, params.context)
+		})
+	}
+	if params.preTracerSetup != nil {
+		params.preTracerSetup(t, params.context)
+	}
+	tr := setupTracer(t, cfg)
+	params.postTracerSetup(t, params.context)
+	params.validation(t, params.context, tr)
 }
 
 func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {

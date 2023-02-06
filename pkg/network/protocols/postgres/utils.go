@@ -9,7 +9,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -17,7 +16,7 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-// Define a table schema, so that Bun can generates queries for it.
+// DummyTable defines a table schema, so that `bun` module can generate queries for it.
 type DummyTable struct {
 	bun.BaseModel `bun:"table:dummy,alias:d"`
 
@@ -25,14 +24,13 @@ type DummyTable struct {
 	Foo string
 }
 
-var dummyModel *DummyTable = &DummyTable{ID: 1, Foo: "bar"}
+var dummyModel = &DummyTable{ID: 1, Foo: "bar"}
 
 // GetPGHandle returns a handle on the test Postgres DB. This does not initiate
 // a connection
 func GetPGHandle(t *testing.T, serverAddr string) *sql.DB {
 	t.Helper()
 
-	time.Sleep(5 * time.Second)
 	pg := sql.OpenDB(pgdriver.NewConnector(
 		pgdriver.WithNetwork("tcp"),
 		pgdriver.WithAddr(serverAddr),
@@ -46,7 +44,7 @@ func GetPGHandle(t *testing.T, serverAddr string) *sql.DB {
 }
 
 // ConnectAndGetDB initiates a connection to the database, get a handle on the
-// test db, and register cleanup handlers for the test. Finally it saves the db
+// test db, and register cleanup handlers for the test. Finally, it saves the db
 // handle and task context in the provided extras map.
 func ConnectAndGetDB(t *testing.T, serverAddr string, extras map[string]interface{}) {
 	t.Helper()
@@ -55,11 +53,6 @@ func ConnectAndGetDB(t *testing.T, serverAddr string, extras map[string]interfac
 
 	pg := GetPGHandle(t, serverAddr)
 	db := bun.NewDB(pg, pgdialect.New())
-
-	// Cleanup test tables
-	t.Cleanup(func() {
-		_, _ = db.NewDropTable().Model((*DummyTable)(nil)).Exec(ctx)
-	})
 
 	if extras != nil {
 		extras["ctx"] = ctx
@@ -132,9 +125,9 @@ func RunUpdateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
 
-	new := *dummyModel
-	new.Foo = "baz"
+	newModel := *dummyModel
+	newModel.Foo = "baz"
 
-	_, err := db.NewUpdate().Model(&new).WherePK().Exec(ctx)
+	_, err := db.NewUpdate().Model(&newModel).WherePK().Exec(ctx)
 	require.NoError(t, err)
 }

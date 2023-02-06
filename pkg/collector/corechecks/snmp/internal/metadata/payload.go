@@ -24,11 +24,6 @@ const (
 type IDType string
 
 const (
-	// IDTypeNDM is used as IDType value for topology data
-	// to indicate the ID uses NDM internal type
-	// e.g. interfaceID of `ndm` type is in this format: `<NAMESPACE>:<DEVICE_IP>:<INTERFACE_INDEX>`
-	IDTypeNDM = "ndm"
-
 	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
 	IDTypeMacAddress = "mac_address"
 )
@@ -89,14 +84,17 @@ type IPAddressMetadata struct {
 
 // TopologyLinkDevice contain device link data
 type TopologyLinkDevice struct {
+	DDID        string `json:"dd_id,omitempty"`
 	ID          string `json:"id,omitempty"`
 	IDType      string `json:"id_type,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
+	IPAddress   string `json:"ip_address,omitempty"`
 }
 
 // TopologyLinkInterface contain interface link data
 type TopologyLinkInterface struct {
+	DDID        string `json:"dd_id,omitempty"`
 	ID          string `json:"id"`
 	IDType      string `json:"id_type,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -110,6 +108,8 @@ type TopologyLinkSide struct {
 
 // TopologyLinkMetadata contains topology interface to interface links metadata
 type TopologyLinkMetadata struct {
-	Local  *TopologyLinkSide `json:"local,omitempty"`
-	Remote *TopologyLinkSide `json:"remote,omitempty"`
+	ID         string            `json:"id"`
+	SourceType string            `json:"source_type"`
+	Local      *TopologyLinkSide `json:"local"`
+	Remote     *TopologyLinkSide `json:"remote"`
 }

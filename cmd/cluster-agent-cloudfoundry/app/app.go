@@ -24,9 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/commands"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	clustercheckscmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaconfigcheck"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -98,8 +99,18 @@ func init() {
 	// attach the commands to the root
 	ClusterAgentCmd.AddCommand(runCmd)
 	ClusterAgentCmd.AddCommand(versionCmd)
-	ClusterAgentCmd.AddCommand(commands.GetClusterChecksCobraCmd(&flagNoColor, &confPath, loggerName))
-	ClusterAgentCmd.AddCommand(commands.GetConfigCheckCobraCmd(&flagNoColor, &confPath, loggerName))
+
+	ClusterAgentCmd.AddCommand(clustercheckscmd.MakeCommand(func() clustercheckscmd.GlobalParams {
+		return clustercheckscmd.GlobalParams{
+			ConfFilePath: confPath,
+		}
+	}))
+
+	ClusterAgentCmd.AddCommand(dcaconfigcheck.MakeCommand(func() dcaconfigcheck.GlobalParams {
+		return dcaconfigcheck.GlobalParams{
+			ConfFilePath: confPath,
+		}
+	}))
 
 	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")

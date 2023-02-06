@@ -75,7 +75,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Connections.Name(),
+		name: checks.ConnectionsCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -114,7 +114,7 @@ func TestSendContainerMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Container.Name(),
+		name: checks.ContainerCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -151,7 +151,7 @@ func TestSendProcMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.Name(),
+		name: checks.ProcessCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -191,7 +191,7 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.ProcessDiscovery.Name(),
+		name: checks.DiscoveryCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -240,7 +240,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.ProcessEvents.Name(),
+		name: checks.ProcessEventsCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -284,7 +284,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.Name(),
+		name: checks.ProcessCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -323,7 +323,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.RealTimeName(),
+		name: checks.RTProcessCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -371,6 +371,7 @@ func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 
 	ddcfg := ddconfig.Mock(t)
 	ddcfg.Set("orchestrator_explorer.enabled", true)
+	ddcfg.Set("orchestrator_explorer.manifest_collection.enabled", false)
 
 	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *Collector, ep *mockEndpoint) {
 
@@ -401,7 +402,7 @@ func getPodCheckMessage(t *testing.T) (string, checks.Check) {
 	pd = append(pd, m, mm)
 
 	check := &testCheck{
-		name: checks.Pod.Name(),
+		name: checks.PodCheckName,
 		data: [][]process.MessageBody{pd},
 	}
 	return clusterID, check
@@ -454,7 +455,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.RealTimeName(),
+		name: checks.RTProcessCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -484,7 +485,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Process.RealTimeName(),
+		name: checks.RTProcessCheckName,
 		data: [][]process.MessageBody{{m1}, {m2}},
 	}
 
@@ -521,7 +522,7 @@ func TestMultipleAPIKeys(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.Connections.Name(),
+		name: checks.ConnectionsCheckName,
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -602,7 +603,15 @@ func (t *testCheck) Name() string {
 	return t.name
 }
 
-func (t *testCheck) RealTime() bool {
+func (t *testCheck) IsEnabled() bool {
+	return true
+}
+
+func (t *testCheck) SupportsRunOptions() bool {
+	return false
+}
+
+func (t *testCheck) Realtime() bool {
 	return false
 }
 
@@ -610,13 +619,13 @@ func (t *testCheck) ShouldSaveLastRun() bool {
 	return false
 }
 
-func (t *testCheck) Run(_ int32) ([]process.MessageBody, error) {
+func (t *testCheck) Run(_ func() int32, _ *checks.RunOptions) (checks.RunResult, error) {
 	if len(t.data) > 0 {
-		result := t.data[0]
+		result := checks.StandardRunResult(t.data[0])
 		t.data = t.data[1:]
 		return result, nil
 	}
-	return nil, nil
+	return checks.StandardRunResult{}, nil
 }
 
 func (t *testCheck) Cleanup() {}
