@@ -9,12 +9,10 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"go.uber.org/fx"
 
 	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -22,6 +20,7 @@ import (
 type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
 	// and uses globals in that package.
+	config.Config
 
 	// warnings are the warnings generated during setup
 	warnings *config.Warnings
@@ -50,88 +49,15 @@ func newConfig(deps dependencies) (Component, error) {
 		return returnErrFct(err)
 	}
 
-	if deps.Params.configLoadSysProbe {
-		_, err := sysconfig.Merge(deps.Params.sysProbeConfFilePath)
-		if err != nil {
-			return returnErrFct(err)
-		}
-	}
-
 	if deps.Params.configLoadSecurityAgent {
 		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
-			return returnErrFct(err)
+			return &cfg{Config: config.Datadog, warnings: warnings}, err
 		}
 	}
 
-	return &cfg{warnings}, nil
+	return &cfg{Config: config.Datadog, warnings: warnings}, nil
 }
 
-func (c *cfg) IsSet(key string) bool {
-	return config.Datadog.IsSet(key)
-}
-func (c *cfg) Get(key string) interface{} {
-	return config.Datadog.Get(key)
-}
-func (c *cfg) GetString(key string) string {
-	return config.Datadog.GetString(key)
-}
-func (c *cfg) GetBool(key string) bool {
-	return config.Datadog.GetBool(key)
-}
-func (c *cfg) GetInt(key string) int {
-	return config.Datadog.GetInt(key)
-}
-func (c *cfg) GetInt32(key string) int32 {
-	return config.Datadog.GetInt32(key)
-}
-func (c *cfg) GetInt64(key string) int64 {
-	return config.Datadog.GetInt64(key)
-}
-func (c *cfg) GetFloat64(key string) float64 {
-	return config.Datadog.GetFloat64(key)
-}
-func (c *cfg) GetTime(key string) time.Time {
-	return config.Datadog.GetTime(key)
-}
-func (c *cfg) GetDuration(key string) time.Duration {
-	return config.Datadog.GetDuration(key)
-}
-func (c *cfg) GetStringSlice(key string) []string {
-	return config.Datadog.GetStringSlice(key)
-}
-func (c *cfg) GetFloat64SliceE(key string) ([]float64, error) {
-	return config.Datadog.GetFloat64SliceE(key)
-}
-func (c *cfg) GetStringMap(key string) map[string]interface{} {
-	return config.Datadog.GetStringMap(key)
-}
-func (c *cfg) GetStringMapString(key string) map[string]string {
-	return config.Datadog.GetStringMapString(key)
-}
-func (c *cfg) GetStringMapStringSlice(key string) map[string][]string {
-	return config.Datadog.GetStringMapStringSlice(key)
-}
-func (c *cfg) GetSizeInBytes(key string) uint {
-	return config.Datadog.GetSizeInBytes(key)
-}
-func (c *cfg) AllSettings() map[string]interface{} {
-	return config.Datadog.AllSettings()
-}
-func (c *cfg) AllSettingsWithoutDefault() map[string]interface{} {
-	return config.Datadog.AllSettingsWithoutDefault()
-}
-func (c *cfg) AllKeys() []string {
-	return config.Datadog.AllKeys()
-}
-func (c *cfg) GetKnownKeys() map[string]interface{} {
-	return config.Datadog.GetKnownKeys()
-}
-func (c *cfg) GetEnvVars() []string {
-	return config.Datadog.GetEnvVars()
-}
-func (c *cfg) IsSectionSet(section string) bool {
-	return config.Datadog.IsSectionSet(section)
-}
 func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
@@ -167,8 +93,4 @@ func newMock(deps dependencies, t testing.TB) Component {
 	t.Cleanup(func() { config.Datadog = old })
 
 	return c
-}
-
-func (c *cfg) Set(key string, value interface{}) {
-	config.Datadog.Set(key, value)
 }

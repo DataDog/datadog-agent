@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -57,6 +58,7 @@ type Agent struct {
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
+	TelemetryCollector    telemetry.TelemetryCollector
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -81,7 +83,7 @@ type Agent struct {
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
@@ -100,17 +102,17 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		RareSampler:           sampler.NewRareSampler(conf),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
 		EventProcessor:        newEventProcessor(conf),
-		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
+		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector),
 		obfuscator:            obfuscate.NewObfuscator(oconf),
 		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
-	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler)
+	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector)
 	return agnt
 }
 

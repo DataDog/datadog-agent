@@ -728,6 +728,11 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		return nil, err
 	}
 
+	err = sysconfig.SetupOptionalDatadogConfig()
+	if err != nil {
+		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
+	}
+
 	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -1154,7 +1159,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1162,10 +1167,8 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if len(eventType) > 0 {
-			if event.GetEventType() != eventType[0] {
-				return
-			}
+		if event.GetEventType() != eventType {
+			return
 		}
 
 		select {

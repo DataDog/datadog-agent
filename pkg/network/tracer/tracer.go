@@ -20,8 +20,6 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -36,12 +34,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -164,7 +162,8 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	if usmSupported {
 		bpfTelemetry = telemetry.NewEBPFTelemetry()
 	}
-	ebpfTracer, err := kprobe.New(config, constantEditors, bpfTelemetry)
+
+	ebpfTracer, err := connection.NewTracer(config, constantEditors, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -238,6 +237,7 @@ func (tr *Tracer) start() error {
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
+		tr.Stop()
 		return fmt.Errorf("could not start reverse dns monitor: %w", err)
 	}
 
@@ -309,7 +309,7 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	}
 
 	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
+		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
 			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
@@ -883,7 +883,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 
 func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
 	// Shared with the HTTP program
-	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
+	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 
 	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
 	if err != nil {

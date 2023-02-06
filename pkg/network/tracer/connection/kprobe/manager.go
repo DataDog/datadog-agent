@@ -15,6 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
@@ -74,48 +75,45 @@ var altProbes = map[probes.ProbeName]string{
 	probes.UnderscoredSKBFreeDatagramLocked: "kprobe____skb_free_datagram_locked",
 }
 
-func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
-	mgr := &manager.Manager{
-		Maps: []*manager.Map{
-			{Name: string(probes.ConnMap)},
-			{Name: string(probes.TCPStatsMap)},
-			{Name: string(probes.TCPConnectSockPidMap)},
-			{Name: string(probes.ConnCloseBatchMap)},
-			{Name: "udp_recv_sock"},
-			{Name: "udpv6_recv_sock"},
-			{Name: string(probes.PortBindingsMap)},
-			{Name: string(probes.UDPPortBindingsMap)},
-			{Name: "pending_bind"},
-			{Name: string(probes.TelemetryMap)},
-			{Name: string(probes.SockByPidFDMap)},
-			{Name: string(probes.PidFDBySockMap)},
-			{Name: string(probes.SockFDLookupArgsMap)},
-			{Name: string(probes.DoSendfileArgsMap)},
-			{Name: string(probes.TcpSendMsgArgsMap)},
-			{Name: string(probes.IpMakeSkbArgsMap)},
-			{Name: string(probes.MapErrTelemetryMap)},
-			{Name: string(probes.HelperErrTelemetryMap)},
-			{Name: string(probes.TcpRecvMsgArgsMap)},
-			{Name: string(probes.ClassificationProgsMap)},
-		},
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{Name: string(probes.ConnCloseEventMap)},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      closedHandler.RecordHandler,
-					LostHandler:        closedHandler.LostHandler,
-					RecordGetter:       closedHandler.RecordGetter,
-				},
+func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) {
+	mgr.Maps = []*manager.Map{
+		{Name: probes.ConnMap},
+		{Name: probes.TCPStatsMap},
+		{Name: probes.TCPConnectSockPidMap},
+		{Name: probes.ConnCloseBatchMap},
+		{Name: "udp_recv_sock"},
+		{Name: "udpv6_recv_sock"},
+		{Name: probes.PortBindingsMap},
+		{Name: probes.UDPPortBindingsMap},
+		{Name: "pending_bind"},
+		{Name: probes.TelemetryMap},
+		{Name: probes.SockByPidFDMap},
+		{Name: probes.PidFDBySockMap},
+		{Name: probes.SockFDLookupArgsMap},
+		{Name: probes.DoSendfileArgsMap},
+		{Name: probes.TcpSendMsgArgsMap},
+		{Name: probes.IpMakeSkbArgsMap},
+		{Name: probes.MapErrTelemetryMap},
+		{Name: probes.HelperErrTelemetryMap},
+		{Name: probes.TcpRecvMsgArgsMap},
+		{Name: probes.ClassificationProgsMap},
+	}
+	mgr.PerfMaps = []*manager.PerfMap{
+		{
+			Map: manager.Map{Name: probes.ConnCloseEventMap},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: 8 * os.Getpagesize(),
+				Watermark:          1,
+				RecordHandler:      closedHandler.RecordHandler,
+				LostHandler:        closedHandler.LostHandler,
+				RecordGetter:       closedHandler.RecordGetter,
 			},
 		},
 	}
-
 	for probeName, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  string(probeName),
+				EBPFSection:  probeName,
 				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
@@ -128,23 +126,21 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 
 	if runtimeTracer {
 		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBFreeDatagramLocked), EBPFFuncName: altProbes[probes.SKBFreeDatagramLocked], UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UnderscoredSKBFreeDatagramLocked), EBPFFuncName: altProbes[probes.UnderscoredSKBFreeDatagramLocked], UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBConsumeUDP), EBPFFuncName: altProbes[probes.SKBConsumeUDP], UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.SKBFreeDatagramLocked, EBPFFuncName: altProbes[probes.SKBFreeDatagramLocked], UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.UnderscoredSKBFreeDatagramLocked, EBPFFuncName: altProbes[probes.UnderscoredSKBFreeDatagramLocked], UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.SKBConsumeUDP, EBPFFuncName: altProbes[probes.SKBConsumeUDP], UID: probeUID}},
 		)
 	} else {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 		// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt
 		// tracer.
 		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRetransmitPre470), EBPFFuncName: altProbes[probes.TCPRetransmitPre470], UID: probeUID}, MatchFuncName: "^tcp_retransmit_skb$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.IP6MakeSkbPre470), EBPFFuncName: altProbes[probes.IP6MakeSkbPre470], UID: probeUID}, MatchFuncName: "^ip6_make_skb$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPRecvMsgPre410), EBPFFuncName: altProbes[probes.UDPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^udp_recvmsg$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPv6RecvMsgPre410), EBPFFuncName: altProbes[probes.UDPv6RecvMsgPre410], UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgPre410), EBPFFuncName: altProbes[probes.TCPSendMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_sendmsg$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRecvMsgPre410), EBPFFuncName: altProbes[probes.TCPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.TCPRetransmitPre470, EBPFFuncName: altProbes[probes.TCPRetransmitPre470], UID: probeUID}, MatchFuncName: "^tcp_retransmit_skb$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.IP6MakeSkbPre470, EBPFFuncName: altProbes[probes.IP6MakeSkbPre470], UID: probeUID}, MatchFuncName: "^ip6_make_skb$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.UDPRecvMsgPre410, EBPFFuncName: altProbes[probes.UDPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^udp_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.UDPv6RecvMsgPre410, EBPFFuncName: altProbes[probes.UDPv6RecvMsgPre410], UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.TCPSendMsgPre410, EBPFFuncName: altProbes[probes.TCPSendMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_sendmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.TCPRecvMsgPre410, EBPFFuncName: altProbes[probes.TCPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_recvmsg$"},
 		)
 	}
-
-	return mgr
 }

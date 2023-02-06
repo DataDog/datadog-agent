@@ -1,8 +1,7 @@
 #ifndef __PROTOCOL_CLASSIFICATION_STRUCTS_H
 #define __PROTOCOL_CLASSIFICATION_STRUCTS_H
 
-#include <linux/types.h>
-
+#include "ktypes.h"
 #include "tracer.h"
 
 typedef struct {
