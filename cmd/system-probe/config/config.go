@@ -239,7 +239,15 @@ func (c Config) ModuleIsEnabled(modName ModuleName) bool {
 
 // SetupOptionalDatadogConfig loads the datadog.yaml config file but will not fail on a missing file
 func SetupOptionalDatadogConfig() error {
-	aconfig.Datadog.AddConfigPath(defaultConfigDir)
+	return SetupOptionalDatadogConfigWithDir(defaultConfigDir, "")
+}
+
+// SetupOptionalDatadogConfig loads the datadog.yaml config file from a given config directory but will not fail on a missing file
+func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
+	aconfig.Datadog.AddConfigPath(configDir)
+	if configFile != "" {
+		aconfig.Datadog.SetConfigFile(configFile)
+	}
 	// load the configuration
 	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", true)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
