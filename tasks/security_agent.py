@@ -41,7 +41,7 @@ BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files")
-
+STRESS_TEST_SUITE = "stresssuite"
 
 @task
 def build(
@@ -351,7 +351,7 @@ def build_functional_tests(
 @task
 def build_stress_tests(
     ctx,
-    output='pkg/security/tests/stresssuite',
+    output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
     arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
@@ -377,7 +377,7 @@ def stress_tests(
     verbose=False,
     arch=CURRENT_ARCH,
     major_version='7',
-    output='pkg/security/tests/stresssuite',
+    output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
@@ -729,7 +729,7 @@ def kitchen_prepare(ctx):
         nikos_embedded_path=nikos_embedded_path,
         kitchen=True,
     )
-    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "stressuite")
+    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, STRESS_TEST_SUITE)
     build_stress_tests(ctx, output=stresssuite_out_path)
 
     # Copy clang binaries
