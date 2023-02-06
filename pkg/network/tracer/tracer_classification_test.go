@@ -71,24 +71,6 @@ type protocolClassificationAttributes struct {
 	teardown func(t *testing.T, ctx testContext)
 }
 
-func setupTracer(t *testing.T, cfg *config.Config) *Tracer {
-	tr, err := NewTracer(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		tr.Stop()
-	})
-
-	initTracerState(t, tr)
-	require.NoError(t, err)
-
-	// Giving the tracer time to run
-	time.Sleep(time.Second)
-
-	return tr
-}
-
 func validateProtocolConnection(expectedProtocol network.ProtocolType) func(t *testing.T, ctx testContext, tr *Tracer) {
 	return func(t *testing.T, ctx testContext, tr *Tracer) {
 		waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, expectedProtocol)
