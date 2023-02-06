@@ -32,8 +32,8 @@ func init() {
 
 // Config holds the container_lifecycle check configuration
 type Config struct {
-	chunkSize    int `yaml:"chunk_size"`
-	pollInterval int `yaml:"poll_interval_seconds"`
+	ChunkSize    int `yaml:"chunk_size"`
+	PollInterval int `yaml:"poll_interval_seconds"`
 }
 
 // Parse parses the container_lifecycle check config and set default values
@@ -73,15 +73,15 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		return err
 	}
 
-	if c.instance.chunkSize <= 0 || c.instance.chunkSize > maxChunkSize {
-		c.instance.chunkSize = maxChunkSize
+	if c.instance.ChunkSize <= 0 || c.instance.ChunkSize > maxChunkSize {
+		c.instance.ChunkSize = maxChunkSize
 	}
 
-	if c.instance.pollInterval <= 0 {
-		c.instance.pollInterval = defaultPollInterval
+	if c.instance.PollInterval <= 0 {
+		c.instance.PollInterval = defaultPollInterval
 	}
 
-	c.processor = newProcessor(sender, c.instance.chunkSize)
+	c.processor = newProcessor(sender, c.instance.ChunkSize)
 
 	return nil
 }
@@ -111,7 +111,7 @@ func (c *Check) Run() error {
 		),
 	)
 
-	pollInterval := time.Duration(c.instance.pollInterval) * time.Second
+	pollInterval := time.Duration(c.instance.PollInterval) * time.Second
 
 	processorCtx, stopProcessor := context.WithCancel(context.Background())
 	c.processor.start(processorCtx, pollInterval)

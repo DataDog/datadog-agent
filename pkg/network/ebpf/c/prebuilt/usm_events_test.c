@@ -1,9 +1,11 @@
 #include "kconfig.h"
-#include <linux/types.h>
-#include <uapi/linux/ptrace.h>
-
+#include "ktypes.h"
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
+
+#include <uapi/linux/ptrace.h>
+
+#include "defs.h"
 #include "map-defs.h"
 #include "protocols/events.h"
 

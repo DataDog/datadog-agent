@@ -132,6 +132,11 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
+func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+}
+
 // ArgsEnvs raw value for args and envs
 type ArgsEnvs struct {
 	ID        uint32
@@ -175,6 +180,15 @@ func (p *ArgsEnvsCacheEntry) forceReleaseAll() {
 
 		entry = next
 	}
+}
+
+// Init the head of the list
+func (p *ArgsEnvsCacheEntry) Init(event *ArgsEnvsEvent) {
+	p.Size = event.ArgsEnvs.Size
+	p.ValuesRaw = make([]byte, p.Size)
+	copy(p.ValuesRaw, event.ArgsEnvs.ValuesRaw[:])
+
+	p.TotalSize = uint64(p.Size)
 }
 
 // Append an entry to the list

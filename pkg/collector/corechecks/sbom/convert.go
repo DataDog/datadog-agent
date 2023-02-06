@@ -13,6 +13,7 @@ import (
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -847,6 +848,10 @@ func convertTimestamp(in string) *timestamppb.Timestamp {
 	} else {
 		return timestamppb.New(ts)
 	}
+}
+
+func convertDuration(in time.Duration) *durationpb.Duration {
+	return durationpb.New(in)
 }
 
 func convertTool(in *cyclonedx.Tool) *cyclonedx_v1_4.Tool {

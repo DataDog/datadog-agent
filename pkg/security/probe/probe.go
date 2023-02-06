@@ -18,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
@@ -46,6 +44,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
@@ -710,10 +710,14 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve tracee process context
-		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0)
-		if cacheEntry != nil {
-			event.PTrace.Tracee = &cacheEntry.ProcessContext
+		var pce *model.ProcessCacheEntry
+		if event.PTrace.PID > 0 { // pid can be 0 for a PTRACE_TRACEME request
+			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0)
 		}
+		if pce == nil {
+			pce = model.NewEmptyProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+		}
+		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
 		if _, err = event.MMap.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
@@ -751,10 +755,14 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve target process context
-		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0)
-		if cacheEntry != nil {
-			event.Signal.Target = &cacheEntry.ProcessContext
+		var pce *model.ProcessCacheEntry
+		if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
+			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0)
 		}
+		if pce == nil {
+			pce = model.NewEmptyProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+		}
+		event.Signal.Target = &pce.ProcessContext
 	case model.SpliceEventType:
 		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1187,6 +1195,33 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	return nil
+}
+
+// ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
+	ars, err := NewApplyRuleSetReport(p.Config, rs)
+	if err != nil {
+		return nil, err
+	}
+
+	for eventType, report := range ars.Policies {
+		if err := p.ApplyFilterPolicy(eventType, report.Mode, report.Flags); err != nil {
+			return nil, err
+		}
+		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := p.FlushDiscarders(); err != nil {
+		return nil, fmt.Errorf("failed to flush discarders: %w", err)
+	}
+
+	if err := p.SelectProbes(rs.GetEventTypes()); err != nil {
+		return nil, fmt.Errorf("failed to select probes: %w", err)
+	}
+
+	return ars, nil
 }
 
 // NewProbe instantiates a new runtime security agent probe

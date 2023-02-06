@@ -47,3 +47,4 @@ const (
 )
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+const SizeofBatch = C.sizeof_batch_t

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -68,7 +69,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanCh
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			s.ta = agent.NewAgent(context, tc)
+			s.ta = agent.NewAgent(context, tc, telemetry.NewNoopCollector())
 			s.spanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,
