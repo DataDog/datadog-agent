@@ -19,8 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
-	"google.golang.org/protobuf/proto"
 	"github.com/tinylib/msgp/msgp"
+	"google.golang.org/protobuf/proto"
 )
 
 // defaultBackendAddress is the default listening address for the fake
