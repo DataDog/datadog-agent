@@ -24,6 +24,13 @@ Package flare implements a component to generate flares from the agent.
 
 Package log implements a component to handle logging internal to the agent.
 
+### [comp/core/sysprobeconfig](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/sysprobeconfig)
+
+*Datadog Team*: ebpf-platform
+
+Package sysprobeconfig implements a component to handle system-probe configuration.  This
+component temporarily wraps pkg/config.
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 
 *Datadog Team*: processes

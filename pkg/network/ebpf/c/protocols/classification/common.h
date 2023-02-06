@@ -1,15 +1,11 @@
 #ifndef __PROTOCOL_CLASSIFICATION_COMMON_H
 #define __PROTOCOL_CLASSIFICATION_COMMON_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
+#include "defs.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
-
-// Patch to support old kernels that don't contain bpf_skb_load_bytes, by adding a dummy implementation to bypass runtime compilation.
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
-long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u32 len) {return 0;}
-#endif
 
 #define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size) \
     do {                                                                  \

@@ -368,15 +368,35 @@ func (s *Service) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetC
 	}
 
 	if !s.clients.active(request.Client) {
+		// Trigger a bypass to directly get configurations from the agent.
+		// This will timeout to avoid blocking the tracer if:
+		// - The previous request is still pending
+		// - The triggered request takes too long
+
 		s.clients.seen(request.Client)
 		s.Unlock()
+
 		response := make(chan struct{})
-		s.newActiveClients.requests <- response
+		bypassStart := time.Now()
+
+		// Timeout in case the previous request is still pending
+		// and we can't request another one
+		select {
+		case s.newActiveClients.requests <- response:
+		case <-time.After(newClientBlockTTL):
+			// No need to add telemetry here, it'll be done in the second
+			// timeout case that will automatically be triggered
+		}
+
+		partialNewClientBlockTTL := newClientBlockTTL - time.Since(bypassStart)
+
+		// Timeout if the response is taking too long
 		select {
 		case <-response:
-		case <-time.After(newClientBlockTTL):
+		case <-time.After(partialNewClientBlockTTL):
 			telemetry.CacheBypassTimeout.Inc()
 		}
+
 		s.Lock()
 	}
 
