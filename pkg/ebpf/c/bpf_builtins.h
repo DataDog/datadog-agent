@@ -37,10 +37,10 @@ static __always_inline void __bpf_memzero(void *d, __u64 len)
 
 	d += len;
 
-	if (len > 1 && len % 2 == 1) {
+    if (len > 1 && len % 2 == 1) {
         __it_set(d, 8);
-		len -= 1;
-	}
+    	len -= 1;
+    }
 
 	switch (len) {
     case 512:          __it_set(d, 64);
