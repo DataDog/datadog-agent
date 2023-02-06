@@ -167,7 +167,7 @@ namespace WixSetup.Datadog
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;
             project.LocalizationFile = "localization-en-us.wxl";
-            project.OutFileName = $"datadog-agent-{_agentVersion.PackageVersion}-{_agentVersion.Version.Revision}-x86_64";
+            project.OutFileName = $"datadog-agent-{_agentVersion.PackageVersion}-ng-x86_64";
             project.DigitalSignature = _agentSignature.Signature;
 
             // clear default media as we will add it via MediaTemplate
