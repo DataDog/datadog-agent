@@ -717,30 +717,30 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		return nil, err
 	}
 
-	sysprobeConfigName, err := func() (string, error) {
+	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
 		ddConfig, err := os.OpenFile(path.Join(testDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		defer ddConfig.Close()
 
 		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		defer sysprobeConfig.Close()
 
 		_, err = io.Copy(sysprobeConfig, buffer)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		return sysprobeConfig.Name(), nil
+		return ddConfig.Name(), sysprobeConfig.Name(), nil
 	}()
 	if err != nil {
 		return nil, err
 	}
 
-	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir)
+	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
