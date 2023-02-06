@@ -21,7 +21,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
-	go GenerateEnhancedMetricsFromFunctionLog("JavaScript heap out of memory", reportLogTime, tags, demux)
+	isOOM := GenerateEnhancedMetricsFromFunctionLog("JavaScript heap out of memory", reportLogTime, tags, demux)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, generatedMetrics, 2, "two enhanced metrics should have been generated")
@@ -41,6 +41,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}})
+	assert.True(t, isOOM)
 }
 
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
@@ -48,11 +49,12 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
-	go GenerateEnhancedMetricsFromFunctionLog("Task timed out after 30.03 seconds", time.Now(), tags, demux)
+	isOOM := GenerateEnhancedMetricsFromFunctionLog("Task timed out after 30.03 seconds", time.Now(), tags, demux)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
+	assert.False(t, isOOM)
 }
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {

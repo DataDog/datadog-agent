@@ -98,7 +98,7 @@ func (lc *LambdaLogsCollector) Start() {
 			if lc.outOfMemory {
 				err := lc.executionContext.SaveCurrentExecutionContext()
 				if err != nil {
-					log.Debugf("Unable to save the current state. Failed with error: %s", err)
+					log.Warnf("Unable to save the current state. Failed with: %s", err)
 				}
 			}
 		}()
