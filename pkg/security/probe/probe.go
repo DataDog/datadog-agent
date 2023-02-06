@@ -270,10 +270,6 @@ func (p *Probe) Init() error {
 	}
 
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
-	if p.Config.AgentMonitoringEvents {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetSelectorsPerEventType()["*"]...)
-
-	}
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -984,10 +980,10 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	eventTypes = append(eventTypes, ruleEventTypes...)
 	for eventType, handlers := range p.eventHandlers {
-		if eventType == int(model.MaxKernelEventType) {
-			break
-		}
 		if len(handlers) == 0 {
+			continue
+		}
+		if slices.Contains(eventTypes, model.EventType(eventType).String()) {
 			continue
 		}
 		if eventType != int(model.UnknownEventType) && eventType != int(model.MaxAllEventType) {
@@ -1021,7 +1017,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	}
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
-	// Add syscall monitor probes
+	// ActivityDumps
 	if p.Config.ActivityDumpEnabled {
 		for _, e := range p.Config.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
@@ -1180,8 +1176,8 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet() *rules.RuleSet {
-	ruleOpts, evalOpts := rules.NewEvalOpts(p.Opts.EventTypeEnabled)
+func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
+	ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
 
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)

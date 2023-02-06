@@ -6,11 +6,13 @@
 package event_monitor
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -23,10 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	statsdPoolSize = 64
 )
 
 var (
@@ -44,9 +42,12 @@ type EventMonitor struct {
 	GRPCServer   *grpc.Server
 
 	// internals
-	eventModules []EventModule
-	netListener  net.Listener
-	wg           sync.WaitGroup
+	ctx           context.Context
+	cancelFnc     context.CancelFunc
+	sendStatsChan chan chan bool
+	eventModules  []EventModule
+	netListener   net.Listener
+	wg            sync.WaitGroup
 	// TODO should be remove after migration to a common section
 	secconfig *config.Config
 }
@@ -144,6 +145,9 @@ func (m *EventMonitor) Start() error {
 		}
 	}
 
+	m.wg.Add(1)
+	go m.statsSender()
+
 	return nil
 }
 
@@ -163,6 +167,7 @@ func (m *EventMonitor) Close() {
 		os.Remove(m.secconfig.SocketPath)
 	}
 
+	m.cancelFnc()
 	m.wg.Wait()
 
 	// all the go routines should be stopped now we can safely call close the probe and remove the eBPF programs
@@ -171,9 +176,34 @@ func (m *EventMonitor) Close() {
 
 // SendStats send stats
 func (m *EventMonitor) SendStats() {
-	// TODO
-	/*	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
-		_ = m.StatsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)*/
+	ackChan := make(chan bool, 1)
+	m.sendStatsChan <- ackChan
+	<-ackChan
+}
+
+func (m *EventMonitor) sendStats() {
+	if err := m.Probe.SendStats(); err != nil {
+		seclog.Debugf("failed to send probe stats: %s", err)
+	}
+}
+
+func (m *EventMonitor) statsSender() {
+	defer m.wg.Done()
+
+	statsTicker := time.NewTicker(m.secconfig.StatsPollingInterval)
+	defer statsTicker.Stop()
+
+	for {
+		select {
+		case ackChan := <-m.sendStatsChan:
+			m.sendStats()
+			ackChan <- true
+		case <-statsTicker.C:
+			m.sendStats()
+		case <-m.ctx.Done():
+			return
+		}
+	}
 }
 
 // GetStats returns statistics about the module
@@ -189,38 +219,29 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 	return debug
 }
 
-func getStatdClient(config *config.Config) (statsd.ClientInterface, error) {
-	statsdAddr := os.Getenv("STATSD_URL")
-	if statsdAddr == "" {
-		statsdAddr = config.StatsdAddr
-	}
-
-	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
-}
-
 // NewModule instantiates a runtime security system-probe module
-func NewEventMonitor(sysProbeConfig *sysconfig.Config) (*EventMonitor, error) {
-	// TODO move probe config parameter to a common place
-	config, err := config.NewConfig(sysProbeConfig)
+func NewEventMonitor(sysProbeConfig *sysconfig.Config, statsdClient statsd.ClientInterface, probeOpts probe.Opts) (*EventMonitor, error) {
+	secconfig, err := config.NewConfig(sysProbeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("invalid event monitoring configuration: %w", err)
 	}
 
-	statsdClient, err := getStatdClient(config)
+	probe, err := probe.NewProbe(secconfig, probeOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	probe, err := probe.NewProbe(config, probe.Opts{StatsdClient: statsdClient})
-	if err != nil {
-		return nil, err
-	}
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	return &EventMonitor{
 		Config:       sysProbeConfig,
 		Probe:        probe,
 		StatsdClient: statsdClient,
 		GRPCServer:   grpc.NewServer(),
-		secconfig:    config,
+
+		ctx:           ctx,
+		cancelFnc:     cancelFnc,
+		sendStatsChan: make(chan chan bool, 1),
+		secconfig:     secconfig,
 	}, nil
 }

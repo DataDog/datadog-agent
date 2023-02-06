@@ -18,7 +18,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -299,44 +298,6 @@ func (c *CWSModule) ReloadPolicies() error {
 	return c.LoadPolicies(c.policyProviders, true)
 }
 
-func (c *CWSModule) newRuleOpts() (opts rules.Opts) {
-	opts.
-		WithSupportedDiscarders(probe.SupportedDiscarders).
-		WithEventTypeEnabled(c.getEventTypeEnabled()).
-		WithReservedRuleIDs(events.AllCustomRuleIDs()).
-		WithLogger(seclog.DefaultLogger)
-	return
-}
-
-func (c *CWSModule) newEvalOpts() (evalOpts eval.Opts) {
-	evalOpts.
-		WithConstants(model.SECLConstants).
-		WithLegacyFields(model.SECLLegacyFields)
-	return evalOpts
-}
-
-func (c *CWSModule) getApproverRuleset(policyProviders []rules.PolicyProvider) (*rules.RuleSet, *multierror.Error) {
-	evalOpts := c.newEvalOpts()
-	evalOpts.WithVariables(model.SECLVariables)
-
-	opts := c.newRuleOpts()
-	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-		"process": func() rules.VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-				return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
-			}, nil)
-		},
-	})
-
-	// approver ruleset
-	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
-
-	// load policies
-	loadApproversErrs := approverRuleSet.LoadPolicies(c.policyLoader, c.policyOpts)
-
-	return approverRuleSet, loadApproversErrs
-}
-
 // LoadPolicies loads the policies
 func (c *CWSModule) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
@@ -351,7 +312,7 @@ func (c *CWSModule) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoa
 	c.policyLoader.SetProviders(policyProviders)
 
 	// standard ruleset
-	ruleSet := c.probe.NewRuleSet()
+	ruleSet := c.probe.NewRuleSet(c.getEventTypeEnabled())
 
 	loadErrs := ruleSet.LoadPolicies(c.policyLoader, c.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
@@ -415,7 +376,6 @@ func (c *CWSModule) Stop() {
 	}
 
 	c.cancelFnc()
-
 	c.wg.Wait()
 }
 
@@ -512,9 +472,6 @@ func (c *CWSModule) SendStats() {
 }
 
 func (c *CWSModule) sendStats() {
-	if err := c.probe.SendStats(); err != nil {
-		seclog.Debugf("failed to send probe stats: %s", err)
-	}
 	if err := c.rateLimiter.SendStats(); err != nil {
 		seclog.Debugf("failed to send rate limiter stats: %s", err)
 	}
@@ -557,11 +514,6 @@ func (c *CWSModule) statsSender() {
 			return
 		}
 	}
-}
-
-// GetProbe returns the module's probe
-func (c *CWSModule) GetProbe() *probe.Probe {
-	return c.probe
 }
 
 // GetRuleSet returns the set of loaded rules

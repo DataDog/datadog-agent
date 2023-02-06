@@ -200,7 +200,7 @@ func load() (*Config, error) {
 		cfg.GetBool("runtime_security_config.fim_enabled") ||
 		cfg.GetBool("event_monitoring_config.process.enabled") ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool("event_monitoring_config.network_process.enabled")) {
-		c.EnabledModules[SecurityRuntimeModule] = struct{}{}
+		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}

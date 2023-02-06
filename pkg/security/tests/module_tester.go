@@ -837,12 +837,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	probe, err := sprobe.NewProbe(config, sprobe.Opts{StatsdClient: statsdClient})
-	if err != nil {
-		return nil, err
-	}
-
-	testMod.eventMonitor, err = event_monitor.NewEventMonitor(sysProbeConfig)
+	testMod.eventMonitor, err = event_monitor.NewEventMonitor(sysProbeConfig, statsdClient, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
 	if err != nil {
 		return nil, err
 	}
@@ -854,7 +849,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	testMod.eventMonitor.RegisterEventModule(cws)
 
 	testMod.cws = cws
-	testMod.probe = probe
+	testMod.probe = testMod.eventMonitor.Probe
 
 	var loadErr *multierror.Error
 	testMod.cws.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
@@ -874,7 +869,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !probe.IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.eventMonitor.Probe.IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
 
