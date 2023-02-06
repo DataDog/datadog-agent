@@ -201,6 +201,14 @@ func init() {
 	InitSystemProbeConfig(SystemProbe)
 }
 
+func NSKey(namespace, key string) string {
+	if namespace == "" {
+		return key
+	}
+
+	return namespace + "." + key
+}
+
 // InitConfig initializes the config defaults on a config
 func InitConfig(config pkgconfigmodel.Config) {
 	// Agent
@@ -261,6 +269,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
+	config.BindEnvAndSetDefault("go_memlimit_pct", 0.95)
+	config.BindEnvAndSetDefault("go_dynamic_memlimit_interval_seconds", 1)
 
 	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
@@ -1166,6 +1176,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
 	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
+	config.BindEnvAndSetDefault("security_agent.go_memlimit_pct", 0.95)
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -2056,4 +2067,9 @@ func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[st
 	}
 
 	return allowMap
+}
+
+// IsPythonMemoryMonitoringEnabled returns if python memory monitoring is enabled
+func IsPythonMemoryMonitoringEnabled() bool {
+	return Datadog.GetBool("telemetry.enabled") && Datadog.GetBool("telemetry.python_memory")
 }

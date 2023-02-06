@@ -51,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -129,6 +130,14 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 
 	// Starting Cluster Agent sequence
 	// Initialization order is important for multiple reasons, see comments
+
+	// Set memory limit
+	go func() {
+		err := runtime.RunMemoryLimiterFromConfig(mainCtx, "")
+		if err != nil {
+			log.Infof("Running memory limiter failed with: %v", err)
+		}
+	}()
 
 	if err := util.SetupCoreDump(config); err != nil {
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)

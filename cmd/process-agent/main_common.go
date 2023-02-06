@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -281,8 +282,12 @@ func initMisc(deps miscDeps) error {
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(startCtx context.Context) error {
+			err := runtime.RunMemoryLimiterFromConfig(appCtx, "process_config")
+			if err != nil {
+				log.Infof("Running memory limiter failed with: %v", err)
+			}
 
-			err := tagger.Init(startCtx)
+			err = tagger.Init(startCtx)
 			if err != nil {
 				log.Errorf("failed to start the tagger: %s", err)
 			}

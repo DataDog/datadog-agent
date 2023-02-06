@@ -559,6 +559,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.DDAgentBin = core.GetString("apm_config.dd_agent_bin")
 	}
 
+	if core.IsSet("apm_config.go_memlimit_pct") {
+		c.GoMemLimitPct = core.GetFloat64("apm_config.go_memlimit_pct")
+	}
+
 	if err := loadDeprecatedValues(c); err != nil {
 		return err
 	}

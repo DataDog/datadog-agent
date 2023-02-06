@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	pkgruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -107,7 +108,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				collectors.GetCatalog(),
 				workloadmeta.Module(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
-
 					catalog := workloadmeta.NodeAgent
 
 					if config.GetBool("security_agent.remote_workloadmeta") {
@@ -185,14 +185,24 @@ var (
 	expvarServer *http.Server
 )
 
-var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
-var errNoAPIKeyConfigured = errors.New("no API key configured")
+var (
+	errAllComponentsDisabled = errors.New("all security-agent component are disabled")
+	errNoAPIKeyConfigured    = errors.New("no API key configured")
+)
 
 // RunAgent initialized resources and starts API server
 func RunAgent(ctx context.Context, log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
+
+	// Set memory limit
+	go func() {
+		err := pkgruntime.RunMemoryLimiterFromConfig(ctx, "security_agent")
+		if err != nil {
+			log.Infof("Running memory limiter failed with: %v", err)
+		}
+	}()
 
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)

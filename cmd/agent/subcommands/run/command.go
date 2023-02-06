@@ -11,7 +11,6 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -19,6 +18,8 @@ import (
 	"runtime"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -227,9 +228,6 @@ func run(log log.Component,
 		stopAgent(cliParams, server, demultiplexer, agentAPI)
 	}()
 
-	// prepare go runtime
-	ddruntime.SetMaxProcs()
-
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -330,7 +328,6 @@ func getSharedFxOption() fx.Option {
 		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
-
 					// create and setup the Autoconfig instance
 					common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
@@ -386,7 +383,6 @@ func startAgent(
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 ) error {
-
 	var err error
 
 	// Setup logger
@@ -452,8 +448,17 @@ func startAgent(
 		}
 	}()
 
-	// Setup healthcheck port
 	ctx, _ := pkgcommon.GetMainCtxCancel()
+	// prepare go runtime (procs, memory)
+	ddruntime.SetMaxProcs()
+	go func() {
+		err := ddruntime.RunMemoryLimiterFromConfig(ctx, "")
+		if err != nil {
+			pkglog.Infof("Running memory limiter failed with: %v", err)
+		}
+	}()
+
+	// Setup healthcheck port
 	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
 		err := healthprobe.Serve(ctx, healthPort)
