@@ -12,7 +12,7 @@ if node['platform_family'] != 'windows'
     recursive true
   end
 
-  cookbook_file "#{wrk_dir}/stresssuite" do
+  cookbook_file "#{wrk_dir}/tests/stresssuite" do
     source "stresssuite"
     mode '755'
   end

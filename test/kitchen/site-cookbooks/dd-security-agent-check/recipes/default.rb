@@ -7,8 +7,13 @@
 
 wrk_dir = '/tmp/security-agent'
 
-directory wrk_dir do
+directory "#{wrk_dir}/tests" do
   recursive true
+end
+
+cookbook_file "#{wrk_dir}/tests/testsuite" do
+  source "tests/testsuite"
+  mode '755'
 end
 
 if node[:platform] == "amazon" and node[:platform_version] == "2022"
@@ -29,11 +34,6 @@ remote_directory "#{wrk_dir}/ebpf_bytecode" do
   sensitive true
   files_owner 'root'
   owner 'root'
-end
-
-cookbook_file "#{wrk_dir}/testsuite" do
-  source "testsuite"
-  mode '755'
 end
 
 directory "/opt/datadog-agent/embedded/bin" do
@@ -68,7 +68,6 @@ cookbook_file "#{wrk_dir}/nikos.tar.gz" do
   source "nikos.tar.gz"
   mode '755'
 end
-
 
 directory "/go/bin" do
   recursive true

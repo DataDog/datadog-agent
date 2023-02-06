@@ -38,25 +38,25 @@ shared_examples "passes" do |bundle, env|
   end
 
   Dir.glob('/tmp/security-agent/**/testsuite').each do |f|
-    pkg = f.delete_prefix('/tmp/security-agent/').delete_suffix('/testsuite')
-
     base_env = {
       "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
       "GOVERSION"=>"unknown"
     }
-    junitfile = pkg.gsub("/","-") + ".xml"
+    junitfile = "#{bundle}.xml"
 
-    it "#{pkg} tests" do |ex|
+    it "tests" do |ex|
       Dir.chdir(File.dirname(f)) do
         xmlpath = "/tmp/junit/#{bundle}/#{junitfile}"
         cmd = ["sudo", "-E",
           "/go/bin/gotestsum",
           "--format", "dots",
           "--junitfile", xmlpath,
-          "--jsonfile", "/tmp/pkgjson/#{bundle}/#{pkg.gsub("/","-")}.json",
+          "--jsonfile", "/tmp/pkgjson/#{bundle}.json",
           "--raw-command", "--",
-          "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1"
+          "/go/bin/test2json", "-t", f, "-test.v", "-test.count=1"
         ]
+
+        puts cmd
 
         final_env = base_env.merge(env)
         Open3.popen2e(final_env, *cmd) do |_, output, wait_thr|
@@ -66,7 +66,7 @@ shared_examples "passes" do |bundle, env|
         end
 
         xmldoc = REXML::Document.new(File.read(xmlpath))
-        REXML::XPath.each(xmldoc, "//testsuites/testsuite/properties") do |props|
+        REXML::XPath.each(xmldoc, "//testsuite/properties") do |props|
           props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
           props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
           props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })

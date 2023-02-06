@@ -720,16 +720,15 @@ def kitchen_prepare(ctx, local=False):
 
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
 
-    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "testsuite")
+    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "testsuite")
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
         race=True,
         output=testsuite_out_path,
         nikos_embedded_path=nikos_embedded_path,
-        kitchen=True,
     )
-    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, STRESS_TEST_SUITE)
+    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
     build_stress_tests(ctx, output=stresssuite_out_path)
 
     # Copy clang binaries
