@@ -206,6 +206,10 @@ func (c *Config) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
+func (c *Config) IsEventMonitoringEnabled() bool {
+	return c.NetworkProcessEventMonitoringEnabled || c.ProcessEventMonitoringEnabled
+}
+
 func setEnv() {
 	if coreconfig.IsContainerized() && util.PathExists("/host") {
 		if v := os.Getenv("HOST_PROC"); v == "" {
