@@ -35,7 +35,6 @@ func (c *Check) Run() error {
 	}
 	sender.Gauge("oracle.helloworld", 10, "", nil)
 	sender.Commit()
-
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
