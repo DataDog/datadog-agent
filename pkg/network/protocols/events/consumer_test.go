@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -40,8 +41,11 @@ func TestConsumer(t *testing.T) {
 	program, err := newEBPFProgram(c)
 	require.NoError(t, err)
 
+	var mux sync.Mutex
 	result := make(map[uint64]int)
 	callback := func(b []byte) {
+		mux.Lock()
+		defer mux.Unlock()
 		// each event is just a uint64
 		n := binary.LittleEndian.Uint64(b)
 		result[n] = +1

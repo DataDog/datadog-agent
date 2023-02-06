@@ -47,7 +47,7 @@ func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 			SupportsManifestBuffering: true,
 			Name:                      "verticalpodautoscalers",
 			NodeType:                  model.K8SResource_VERTICALPODAUTOSCALER,
-			Version:                   "v1",
+			Version:                   "autoscaling.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.VerticalPodAutoscalerHandlers)),
 	}
@@ -72,7 +72,7 @@ func (c *VerticalPodAutoscalerCollector) Metadata() *collectors.CollectorMetadat
 	return c.metadata
 }
 
-// Run triggers the collection process.
+// Run triggers the vpa collection process.
 func (c *VerticalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
 	list, err := c.lister.List(labels.Everything())
 	if err != nil {

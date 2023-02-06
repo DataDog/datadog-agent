@@ -44,6 +44,10 @@ func NewProcessCheck() Check {
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
+const (
+	ProcessDiscoveryHint int32 = 1 << iota // 1
+)
+
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
@@ -80,6 +84,9 @@ type ProcessCheck struct {
 	maxBatchSize  int
 	maxBatchBytes int
 
+	checkCount uint32
+	skipAmount uint32
+
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 }
@@ -101,6 +108,14 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 
 	p.maxBatchSize = getMaxBatchSize()
 	p.maxBatchBytes = getMaxBatchBytes()
+
+	p.skipAmount = uint32(ddconfig.Datadog.GetInt32("process_config.process_discovery.hint_frequency"))
+	if p.skipAmount == 0 {
+		log.Warnf("process_config.process_discovery.hint_frequency must be greater than 0. using default value %d",
+			ddconfig.DefaultProcessDiscoveryHintFrequency)
+		ddconfig.Datadog.Set("process_config.process_discovery.hint_frequency", ddconfig.DefaultProcessDiscoveryHintFrequency)
+		p.skipAmount = ddconfig.DefaultProcessDiscoveryHintFrequency
+	}
 
 	initScrubber(p.scrubber)
 
@@ -217,9 +232,12 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return CombinedRunResult{}, nil
 	}
 
+	collectorProcHints := p.generateHints()
+	p.checkCount++
+
 	connsRates := p.getLastConnRates()
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates)
-	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -267,6 +285,16 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	return result, nil
 }
 
+func (p *ProcessCheck) generateHints() int32 {
+	var hints int32
+
+	if p.checkCount%p.skipAmount == 0 {
+		log.Tracef("generated a process discovery hint on check #%d", p.checkCount)
+		hints |= ProcessDiscoveryHint
+	}
+	return hints
+}
+
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 	stats := map[int32]*procutil.Stats{}
 	for pid, proc := range procs {
@@ -301,18 +329,21 @@ func createProcCtrMessages(
 	maxBatchWeight int,
 	groupID int32,
 	networkID string,
+	hints int32,
 ) ([]model.MessageBody, int, int) {
 	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxBatchWeight)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
 	// also count containers and processes
-	messages := make([]model.MessageBody, 0, len(collectorProcs))
-	for _, m := range collectorProcs {
-		m.GroupSize = int32(len(collectorProcs))
+	messages := make([]model.MessageBody, 0, len(*collectorProcs))
+	for idx := range *collectorProcs {
+		m := &(*collectorProcs)[idx]
+		m.GroupSize = int32(len(*collectorProcs))
 		m.HostName = hostInfo.HostName
 		m.NetworkId = networkID
 		m.Info = hostInfo.SystemInfo
 		m.GroupId = groupID
 		m.ContainerHostType = hostInfo.ContainerHostType
+		m.Hints = &model.CollectorProc_HintMask{HintMask: hints}
 
 		messages = append(messages, m)
 	}
@@ -327,8 +358,12 @@ func chunkProcessesAndContainers(
 	containers []*model.Container,
 	maxChunkSize int,
 	maxChunkWeight int,
-) ([]*model.CollectorProc, int, int) {
-	chunker := &collectorProcChunker{}
+) (*[]model.CollectorProc, int, int) {
+	chunker := &util.ChunkAllocator[model.CollectorProc, *model.Process]{
+		AppendToChunk: func(c *model.CollectorProc, ps []*model.Process) {
+			c.Processes = append(c.Processes, ps...)
+		},
+	}
 
 	totalProcs := len(procsByCtr[emptyCtrID])
 
@@ -341,7 +376,7 @@ func chunkProcessesAndContainers(
 
 		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
-	return chunker.collectorProcs, totalProcs, totalContainers
+	return chunker.GetChunks(), totalProcs, totalContainers
 }
 
 // fmtProcesses goes through each process, converts them to process object and group them by containers

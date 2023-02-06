@@ -149,7 +149,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 		fb.AddFileFromFunc("status.log", status.GetAndFormatStatus)
 		fb.AddFileFromFunc("config-check.log", getConfigCheck)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)
-		fb.AddFileFromFunc("workload-list.log", getWorkloadList)
+		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList)
 
 		getProcessChecks(fb, config.GetProcessAPIAddressPort)
@@ -163,7 +163,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 	}
 	addSystemProbePlatformSpecificEntries(fb)
 
-	if config.Datadog.GetBool("system_probe_config.enabled") {
+	if config.SystemProbe.GetBool("system_probe_config.enabled") {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
 	}
 
@@ -212,7 +212,7 @@ func getVersionHistory(fb flarehelpers.FlareBuilder) {
 
 func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
 	for name, data := range pdata {
-		fb.AddFile(filepath.Join("profiles", name), data)
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
 	}
 }
 
@@ -296,7 +296,7 @@ func getExpVar(fb flarehelpers.FlareBuilder) error {
 }
 
 func getSystemProbeStats() ([]byte, error) {
-	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeStats := status.GetSystemProbeStats(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
 	if err != nil {
 		return nil, err
@@ -450,17 +450,19 @@ func getTaggerList(remoteURL string) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func getWorkloadList() ([]byte, error) {
+func getAgentWorkloadList() ([]byte, error) {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return nil, err
 	}
 
-	workloadListURL := fmt.Sprintf("https://%v:%v/agent/workload-list/verbose", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cmd_port")))
+}
 
+func getWorkloadList(url string) ([]byte, error) {
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, workloadListURL, apiutil.LeaveConnectionOpen)
+	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}

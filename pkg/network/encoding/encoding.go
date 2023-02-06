@@ -63,8 +63,8 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 func modelConnections(conns *network.Connections) *model.Connections {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
-			NpmEnabled: config.Datadog.GetBool("network_config.enabled"),
-			TsmEnabled: config.Datadog.GetBool("service_monitoring_config.enabled"),
+			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
+			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
 		}
 	})
 

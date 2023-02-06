@@ -27,6 +27,7 @@ var (
 	transactionsRetried              = expvar.Int{}
 	transactionsRetriedByEndpoint    = expvar.Map{}
 	transactionsRetryQueueSize       = expvar.Int{}
+	transactionsOrchestratorManifest = expvar.Int{}
 
 	tlmTxInputBytes = telemetry.NewCounter("transactions", "input_bytes",
 		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
@@ -79,6 +80,7 @@ func initOrchestratorExpVars() {
 		transactionsIntakeOrchestrator[nodeType] = &expvar.Int{}
 		transaction.TransactionsExpvars.Set(nodeType.String(), transactionsIntakeOrchestrator[nodeType])
 	}
+	transaction.TransactionsExpvars.Set("OrchestratorManifest", &transactionsOrchestratorManifest)
 }
 
 func bumpOrchestratorPayload(nodeType int) {

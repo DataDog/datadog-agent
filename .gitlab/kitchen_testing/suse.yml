@@ -13,6 +13,7 @@
   variables:
     KITCHEN_PLATFORM: "suse"
     KITCHEN_OSVERS: "sles-12,sles-15"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
     DEFAULT_KITCHEN_OSVERS: "sles-15"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
@@ -40,6 +41,7 @@
 
 kitchen_suse_install_script_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_suse_a6
     - .kitchen_test_install_script_agent
 
@@ -48,6 +50,7 @@ kitchen_suse_install_script_agent-a7:
   rules:
     !reference [.on_default_kitchen_tests_a7]
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_suse_a7
     - .kitchen_test_install_script_agent
 
@@ -66,6 +69,7 @@ kitchen_suse_install_script_dogstatsd-a7:
 
 kitchen_suse_step_by_step_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_suse_a6
     - .kitchen_test_step_by_step_agent
   rules:
@@ -73,6 +77,7 @@ kitchen_suse_step_by_step_agent-a6:
 
 kitchen_suse_step_by_step_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_suse_a7
     - .kitchen_test_step_by_step_agent
   rules:
@@ -94,16 +99,19 @@ kitchen_suse_step_by_step_agent-a7:
 
 kitchen_suse_upgrade6_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_suse_a6
     - .kitchen_test_upgrade6_agent
 
 kitchen_suse_upgrade6_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_suse_a7
     - .kitchen_test_upgrade6_agent
 
 kitchen_suse_upgrade7_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_suse_a7
     - .kitchen_test_upgrade7_agent
 

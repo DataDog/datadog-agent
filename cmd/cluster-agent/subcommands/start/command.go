@@ -100,7 +100,7 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	// Starting Cluster Agent sequence
 	// Initialization order is important for multiple reasons, see comments
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(config); err != nil {
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -110,7 +110,7 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling()
+	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
 	if !pkgconfig.Datadog.IsSet("api_key") {
 		return fmt.Errorf("no API key configured, exiting")
@@ -145,7 +145,8 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	// Initialize remote configuration
 	var rcClient *remote.Client
 	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
-		rcClient, err := initializeRemoteConfig(mainCtx)
+		var err error
+		rcClient, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
@@ -223,7 +224,7 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 		}
 	}
 
-	clusterName := clustername.GetClusterName(context.TODO(), hname)
+	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	if pkgconfig.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster,

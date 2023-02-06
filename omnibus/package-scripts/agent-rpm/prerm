@@ -94,6 +94,20 @@ remove_version_history()
     fi
 }
 
+remove_sysprobe_files()
+{
+    for file in run/runtime-security-registry.json run/sysprobe.sock run/system-probe.pid
+    do
+        if [ -e "$INSTALL_DIR/$file" ]; then
+            rm "$INSTALL_DIR/$file" || true
+        fi
+    done
+
+    if [ -d "$INSTALL_DIR/run" ]; then
+        rmdir "$INSTALL_DIR/run" || true
+    fi
+}
+
 stop_agent
 deregister_agent
 
@@ -103,6 +117,7 @@ case "$*" in
         remove_custom_integrations
         remove_py_compiled_files
         remove_version_history
+        remove_sysprobe_files
     ;;
     1)
         # We're upgrading.

@@ -11,6 +11,8 @@ package cgroups
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -56,37 +58,37 @@ func TestCgroupV2IOStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Empty(t, cmp.Diff(IOStats{
-		ReadBytes:       uint64Ptr(557056),
-		WriteBytes:      uint64Ptr(23247798272),
-		ReadOperations:  uint64Ptr(12),
-		WriteOperations: uint64Ptr(5489880),
+		ReadBytes:       pointer.Ptr(uint64(557056)),
+		WriteBytes:      pointer.Ptr(uint64(23247798272)),
+		ReadOperations:  pointer.Ptr(uint64(12)),
+		WriteOperations: pointer.Ptr(uint64(5489880)),
 		Devices: map[string]DeviceIOStats{
 			"259:0": {
-				ReadBytes:       uint64Ptr(278528),
-				WriteBytes:      uint64Ptr(11623899136),
-				ReadOperations:  uint64Ptr(6),
-				WriteOperations: uint64Ptr(2744940),
+				ReadBytes:       pointer.Ptr(uint64(278528)),
+				WriteBytes:      pointer.Ptr(uint64(11623899136)),
+				ReadOperations:  pointer.Ptr(uint64(6)),
+				WriteOperations: pointer.Ptr(uint64(2744940)),
 			},
 			"8:16": {
-				ReadBytes:            uint64Ptr(278528),
-				WriteBytes:           uint64Ptr(11623899136),
-				ReadOperations:       uint64Ptr(6),
-				WriteOperations:      uint64Ptr(2744940),
-				ReadBytesLimit:       uint64Ptr(2097152),
-				WriteOperationsLimit: uint64Ptr(120),
+				ReadBytes:            pointer.Ptr(uint64(278528)),
+				WriteBytes:           pointer.Ptr(uint64(11623899136)),
+				ReadOperations:       pointer.Ptr(uint64(6)),
+				WriteOperations:      pointer.Ptr(uint64(2744940)),
+				ReadBytesLimit:       pointer.Ptr(uint64(2097152)),
+				WriteOperationsLimit: pointer.Ptr(uint64(120)),
 			},
 		},
 		PSISome: PSIStats{
-			Avg10:  float64Ptr(0),
-			Avg60:  float64Ptr(0),
-			Avg300: float64Ptr(0),
-			Total:  uint64Ptr(0),
+			Avg10:  pointer.Ptr(0.0),
+			Avg60:  pointer.Ptr(0.0),
+			Avg300: pointer.Ptr(0.0),
+			Total:  pointer.Ptr(uint64(0)),
 		},
 		PSIFull: PSIStats{
-			Avg10:  float64Ptr(0),
-			Avg60:  float64Ptr(0),
-			Avg300: float64Ptr(0),
-			Total:  uint64Ptr(0),
+			Avg10:  pointer.Ptr(0.0),
+			Avg60:  pointer.Ptr(0.0),
+			Avg300: pointer.Ptr(0.0),
+			Total:  pointer.Ptr(uint64(0)),
 		},
 	}, *stats))
 
@@ -100,16 +102,16 @@ func TestCgroupV2IOStats(t *testing.T) {
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Empty(t, cmp.Diff(IOStats{
 		PSISome: PSIStats{
-			Avg10:  float64Ptr(0),
-			Avg60:  float64Ptr(0),
-			Avg300: float64Ptr(0),
-			Total:  uint64Ptr(0),
+			Avg10:  pointer.Ptr(0.0),
+			Avg60:  pointer.Ptr(0.0),
+			Avg300: pointer.Ptr(0.0),
+			Total:  pointer.Ptr(uint64(0)),
 		},
 		PSIFull: PSIStats{
-			Avg10:  float64Ptr(0),
-			Avg60:  float64Ptr(0),
-			Avg300: float64Ptr(0),
-			Total:  uint64Ptr(0),
+			Avg10:  pointer.Ptr(0.0),
+			Avg60:  pointer.Ptr(0.0),
+			Avg300: pointer.Ptr(0.0),
+			Total:  pointer.Ptr(uint64(0)),
 		},
 	}, *stats))
 }

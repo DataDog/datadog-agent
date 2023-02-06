@@ -14,6 +14,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/content"
@@ -22,49 +25,106 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/gogo/protobuf/proto"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const imageTopicPrefix = "/images/"
 
-// Events from containerd contain an image name, but not IDs. When a delete
-// event arrives it'll contain a name, but we won't be able to access the ID
-// because the image is already gone, that's why we need to keep the IDs =>
-// names relationships.
+// We cannot get all the information that we need from a single call to
+// containerd. This type stores the information that we need to know about the
+// images that we have already processed.
+//
+// Things to take into account:
+//
+// - Events from containerd only include an image name, and it does not always
+// correspond to an image ID. When a delete event arrives it'll contain a name,
+// but we won't be able to access the ID because the image is already gone,
+// that's why we need to keep the IDs => names relationships.
+//
+// - An image ID can be referenced by multiple names.
+//
+// - A name can have multiple formats:
+//   - image ID: starts with "sha256:"
+//   - repo digest. They contain "@sha256:". Example: gcr.io/datadoghq/agent@sha256:3a19076bfee70900a600b8e3ee2cc30d5101d1d3d2b33654f1a316e596eaa4e0
+//   - repo tag. Example: gcr.io/datadoghq/agent:7
 type knownImages struct {
-	// Store IDs and names in both directions for efficient access
-	idsByName map[string]string              // map name => ID
-	namesByID map[string]map[string]struct{} // map ID => set of names
+	// Store IDs and names in both directions for efficient access.
+	idsByName       map[string]string              // map name => ID
+	namesByID       map[string]map[string]struct{} // map ID => set of names
+	repoTagsByID    map[string]map[string]struct{} // map ID => set of repo tags
+	repoDigestsByID map[string]map[string]struct{} // map ID => set of repo digests
 }
 
 func newKnownImages() *knownImages {
 	return &knownImages{
-		idsByName: make(map[string]string),
-		namesByID: make(map[string]map[string]struct{}),
+		idsByName:       make(map[string]string),
+		namesByID:       make(map[string]map[string]struct{}),
+		repoTagsByID:    make(map[string]map[string]struct{}),
+		repoDigestsByID: make(map[string]map[string]struct{}),
 	}
 }
 
-func (images *knownImages) addAssociation(imageName string, imageID string) {
+func (images *knownImages) addReference(imageName string, imageID string) {
+	previousIDReferenced, found := images.idsByName[imageName]
+	if found && previousIDReferenced != imageID {
+		images.deleteReference(imageName, previousIDReferenced)
+	}
+
 	images.idsByName[imageName] = imageID
 
 	if images.namesByID[imageID] == nil {
 		images.namesByID[imageID] = make(map[string]struct{})
 	}
 	images.namesByID[imageID][imageName] = struct{}{}
-}
 
-func (images *knownImages) deleteAssociation(imageName string, imageID string) {
-	delete(images.idsByName, imageName)
-
-	if images.namesByID[imageID] == nil {
+	if isAnImageID(imageName) {
 		return
 	}
 
-	delete(images.namesByID[imageID], imageName)
-	if len(images.namesByID[imageID]) == 0 {
-		delete(images.namesByID, imageID)
+	if isARepoDigest(imageName) {
+		if images.repoDigestsByID[imageID] == nil {
+			images.repoDigestsByID[imageID] = make(map[string]struct{})
+		}
+		images.repoDigestsByID[imageID][imageName] = struct{}{}
+		return
+	}
+
+	// The name is not an image ID or a repo digest, so it has to be a repo tag
+	if images.repoTagsByID[imageID] == nil {
+		images.repoTagsByID[imageID] = make(map[string]struct{})
+	}
+	images.repoTagsByID[imageID][imageName] = struct{}{}
+	return
+}
+
+func (images *knownImages) deleteReference(imageName string, imageID string) {
+	delete(images.idsByName, imageName)
+
+	if images.namesByID[imageID] != nil {
+		delete(images.namesByID[imageID], imageName)
+	}
+
+	if isAnImageID(imageName) {
+		return
+	}
+
+	if isARepoDigest(imageName) {
+		if images.repoDigestsByID[imageID] == nil {
+			return
+		}
+		delete(images.repoDigestsByID[imageID], imageName)
+		if len(images.repoDigestsByID[imageID]) == 0 {
+			delete(images.repoDigestsByID, imageID)
+		}
+		return
+	}
+
+	// The name is not an image ID or a repo digest, so it has to be a repo tag
+	if images.repoTagsByID[imageID] == nil {
+		return
+	}
+	delete(images.repoTagsByID[imageID], imageName)
+	if len(images.repoTagsByID[imageID]) == 0 {
+		delete(images.repoTagsByID, imageID)
 	}
 }
 
@@ -73,12 +133,42 @@ func (images *knownImages) getImageID(imageName string) (string, bool) {
 	return id, found
 }
 
-func (images *knownImages) isReferenced(imageID string) bool {
-	return len(images.namesByID[imageID]) > 0
+func (images *knownImages) getRepoTags(imageID string) []string {
+	var res []string
+	for repoTag := range images.repoTagsByID[imageID] {
+		res = append(res, repoTag)
+	}
+	return res
+}
+
+func (images *knownImages) getRepoDigests(imageID string) []string {
+	var res []string
+	for repoDigest := range images.repoDigestsByID[imageID] {
+		res = append(res, repoDigest)
+	}
+	return res
+}
+
+// returns any of the existing references for the imageID. Returns empty if the
+// ID is not referenced.
+func (images *knownImages) getAReference(imageID string) string {
+	for ref := range images.namesByID[imageID] {
+		return ref
+	}
+
+	return ""
 }
 
 func isImageTopic(topic string) bool {
 	return strings.HasPrefix(topic, imageTopicPrefix)
+}
+
+func isAnImageID(imageName string) bool {
+	return strings.HasPrefix(imageName, "sha256")
+}
+
+func isARepoDigest(imageName string) bool {
+	return strings.Contains(imageName, "@sha256:")
 }
 
 func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
@@ -89,7 +179,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
-		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name)
+		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name, nil)
 
 	case imageUpdateTopic:
 		event := &events.ImageUpdate{}
@@ -97,25 +187,32 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
-		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name)
+		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name, nil)
 
 	case imageDeletionTopic:
+		c.handleImagesMut.Lock()
+
 		event := &events.ImageDelete{}
 		if err := proto.Unmarshal(containerdEvent.Event.Value, event); err != nil {
+			c.handleImagesMut.Unlock()
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
 		imageID, found := c.knownImages.getImageID(event.Name)
 		if !found {
+			c.handleImagesMut.Unlock()
 			return nil
 		}
 
-		c.knownImages.deleteAssociation(event.Name, imageID)
+		c.knownImages.deleteReference(event.Name, imageID)
 
-		if c.knownImages.isReferenced(imageID) {
-			// Image is still referenced by a different name. Don't delete the
-			// image, but update its repo tags.
-			return c.deleteRepoTagOfImage(ctx, containerdEvent.Namespace, imageID, event.Name)
+		if ref := c.knownImages.getAReference(imageID); ref != "" {
+			// Image is still referenced by a different name, so don't delete
+			// the image, but we need to update its repo tags and digest tags.
+			// Updating workloadmeta entities directly is not thread-safe,
+			// that's why we generate an update event here.
+			c.handleImagesMut.Unlock()
+			return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, ref, nil)
 		}
 
 		c.store.Notify([]workloadmeta.CollectorEvent{
@@ -131,22 +228,26 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 			},
 		})
 
+		c.handleImagesMut.Unlock()
 		return nil
 	default:
 		return fmt.Errorf("unknown containerd image event topic %s, ignoring", containerdEvent.Topic)
 	}
 }
 
-func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace string, imageName string) error {
+func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace string, imageName string, bom *workloadmeta.SBOM) error {
 	img, err := c.containerdClient.Image(namespace, imageName)
 	if err != nil {
 		return fmt.Errorf("error getting image: %w", err)
 	}
 
-	return c.notifyEventForImage(ctx, namespace, img)
+	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image) error {
+func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, bom *workloadmeta.SBOM) error {
+	c.handleImagesMut.Lock()
+	defer c.handleImagesMut.Unlock()
+
 	ctxWithNamespace := namespaces.WithNamespace(ctx, namespace)
 
 	manifest, err := images.Manifest(ctxWithNamespace, img.ContentStore(), img.Target(), img.Platform())
@@ -168,18 +269,11 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	}
 
 	imageName := img.Name()
-	registry := ""
-	shortName := ""
-	parsedImg, err := workloadmeta.NewContainerImage(imageName)
-	if err == nil {
-		// Don't set a short name. We know that some images handled here contain
-		// "sha256" in the name, and those don't have a short name.
-	} else {
-		registry = parsedImg.Registry
-		shortName = parsedImg.ShortName
-	}
-
 	imageID := manifest.Config.Digest.String()
+
+	c.knownImages.addReference(imageName, imageID)
+
+	existingBOM := bom
 
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
@@ -197,26 +291,10 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	if err == nil {
 		if strings.Contains(imageName, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
 			imageName = existingImg.Name
-			shortName = existingImg.ShortName
-		}
-	}
-
-	var repoDigests []string
-	if strings.Contains(imageName, "@sha256:") {
-		repoDigests = append(repoDigests, imageName)
-	} else {
-		repoDigests = append(repoDigests, imageName+"@"+img.Target().Digest.String())
-
-		repoTagAlreadyPresent := false
-		for _, repoTag := range c.repoTags[imageID] {
-			if repoTag == imageName {
-				repoTagAlreadyPresent = true
-				break
-			}
 		}
 
-		if !repoTagAlreadyPresent {
-			c.repoTags[imageID] = append(c.repoTags[imageID], imageName)
+		if existingBOM == nil && existingImg.SBOM != nil {
+			existingBOM = existingImg.SBOM
 		}
 	}
 
@@ -244,10 +322,8 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			Namespace: namespace,
 			Labels:    img.Labels(),
 		},
-		Registry:     registry,
-		ShortName:    shortName,
-		RepoTags:     c.repoTags[imageID],
-		RepoDigests:  repoDigests,
+		RepoTags:     c.knownImages.getRepoTags(imageID),
+		RepoDigests:  c.knownImages.getRepoDigests(imageID),
 		MediaType:    manifest.MediaType,
 		SizeBytes:    totalSizeBytes,
 		OS:           os,
@@ -255,6 +331,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		Architecture: architecture,
 		Variant:      variant,
 		Layers:       layers,
+		SBOM:         existingBOM,
 	}
 
 	c.store.Notify([]workloadmeta.CollectorEvent{
@@ -265,41 +342,12 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		},
 	})
 
-	return c.updateKnownImages(ctx, namespace, imageName, imageID)
-}
-
-// Updates the map with the image name => image ID relationships and also the repo tags
-func (c *collector) updateKnownImages(ctx context.Context, namespace string, imageName string, newImageID string) error {
-	oldImageID, found := c.knownImages.getImageID(imageName)
-	c.knownImages.addAssociation(imageName, newImageID)
-
-	// If the image name is already pointing to an ID, we need to delete the name from
-	// the repo tags of the image with that ID.
-	if found && newImageID != oldImageID {
-		c.knownImages.deleteAssociation(imageName, oldImageID)
-		return c.deleteRepoTagOfImage(ctx, namespace, oldImageID, imageName)
-	}
-
-	return nil
-}
-
-func (c *collector) deleteRepoTagOfImage(ctx context.Context, namespace string, imageID string, repoTagToDelete string) error {
-	repoTagDeleted := false
-
-	for i, repoTag := range c.repoTags[imageID] {
-		if repoTag == repoTagToDelete {
-			c.repoTags[imageID] = append(c.repoTags[imageID][:i], c.repoTags[imageID][i+1:]...)
-			repoTagDeleted = true
-			break
-		}
-	}
-
-	if repoTagDeleted && len(c.repoTags[imageID]) > 0 {
-		// We need to notify to workloadmeta that the image has changed.
-		// Updating workloadmeta entities directly is not thread-safe, that's
-		// why we generate an update event here instead.
-		if err := c.handleImageCreateOrUpdate(ctx, namespace, c.repoTags[imageID][len(c.repoTags[imageID])-1]); err != nil {
-			return err
+	if existingBOM == nil && sbomCollectionIsEnabled() {
+		// Notify image scanner
+		c.imagesToScan <- namespacedImage{
+			namespace: namespace,
+			image:     img,
+			imageID:   imageID,
 		}
 	}
 
