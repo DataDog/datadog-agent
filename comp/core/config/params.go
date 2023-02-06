@@ -113,12 +113,6 @@ func WithConfigInvalidOK(v bool) func(*Params) {
 	}
 }
 
-func WithConfigLoadSysProbe(v bool) func(*Params) {
-	return func(b *Params) {
-		b.configLoadSysProbe = v
-	}
-}
-
 func WithSecurityAgentConfigFilePaths(securityAgentConfigFilePaths []string) func(*Params) {
 	return func(b *Params) {
 		b.securityAgentConfigFilePaths = securityAgentConfigFilePaths

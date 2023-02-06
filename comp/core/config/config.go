@@ -42,7 +42,7 @@ func newConfig(deps dependencies) (Component, error) {
 			warnings.Err = e
 			e = nil
 		}
-		return &cfg{warnings}, e
+		return &cfg{Config: config.Datadog, warnings: warnings}, e
 	}
 
 	if err != nil {
@@ -51,7 +51,7 @@ func newConfig(deps dependencies) (Component, error) {
 
 	if deps.Params.configLoadSecurityAgent {
 		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
-			return &cfg{Config: config.Datadog, warnings: warnings}, err
+			returnErrFct(err)
 		}
 	}
 
