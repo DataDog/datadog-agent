@@ -1419,8 +1419,6 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 	// Force ignore the system probe env vars because
 	// we don't want to have warning about unused env vars when loading both core and
 	// sysprobe config
-	// On processes other than system-probe this is a no-op since `SystemProbe` is never
-	// initialized
 	for _, key := range SystemProbe.GetEnvVars() {
 		knownVars[key] = struct{}{}
 	}
