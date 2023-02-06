@@ -52,7 +52,7 @@ func TestClientStats(t *testing.T) {
 					if len(res) < len(tt.Out) {
 						continue
 					}
-          assert.Equalf(t, len(res), len(tt.Out), "res had so many elements: %d\ntt has:%d", len(res), len(tt.Out))
+					assert.Equalf(t, len(res), len(tt.Out), "res had so many elements: %d\ntt has:%d", len(res), len(tt.Out))
 					assert.ElementsMatch(t, res, tt.Out)
 					return
 				case <-timeout:
