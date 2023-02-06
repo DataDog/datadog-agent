@@ -30,7 +30,7 @@ type FakeIntake struct {
 }
 
 // NewFakeIntake creates a new fake intake and starts it on localhost:5000
-func NewFakeIntake() *FakeIntake {
+func NewFakeIntake(port int) *FakeIntake {
 	fi := &FakeIntake{
 		mu:           sync.RWMutex{},
 		payloadStore: map[string][]payload{},
@@ -41,7 +41,7 @@ func NewFakeIntake() *FakeIntake {
 	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
 
 	fi.server = http.Server{
-		Addr:    ":8080",
+		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
 	}
 

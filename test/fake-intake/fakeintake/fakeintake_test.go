@@ -16,9 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testFakeIntakePort = 8081
+
 func TestFakeIntake(t *testing.T) {
 	t.Run("should accept payloads on any route", func(t *testing.T) {
-		fi := NewFakeIntake()
+		fi := NewFakeIntake(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
@@ -31,7 +33,7 @@ func TestFakeIntake(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on any other route", func(t *testing.T) {
-		fi := NewFakeIntake()
+		fi := NewFakeIntake(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodGet, "/api/v1/validate", nil)
@@ -44,7 +46,7 @@ func TestFakeIntake(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
-		fi := NewFakeIntake()
+		fi := NewFakeIntake(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/foo", nil)
@@ -67,7 +69,7 @@ func TestFakeIntake(t *testing.T) {
 	})
 
 	t.Run("should not accept GET requests on /fakeintake/payloads route without endpoint query parameter", func(t *testing.T) {
-		fi := NewFakeIntake()
+		fi := NewFakeIntake(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads", nil)
@@ -80,7 +82,7 @@ func TestFakeIntake(t *testing.T) {
 	})
 
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
-		fi := NewFakeIntake()
+		fi := NewFakeIntake(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
