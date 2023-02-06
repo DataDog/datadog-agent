@@ -93,6 +93,7 @@ type collector struct {
 	// Map of image ID => array of repo tags
 	repoTags map[string][]string
 
+	// SBOM Scanning
 	trivyClient  trivy.Collector // nolint: unused
 	imagesToScan chan namespacedImage
 }
@@ -126,7 +127,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	if err = c.startSBOMCollection(); err != nil {
+	if err = c.startSBOMCollection(ctx); err != nil {
 		return err
 	}
 
