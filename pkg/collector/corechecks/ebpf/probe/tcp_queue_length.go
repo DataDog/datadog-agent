@@ -63,10 +63,10 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 
 func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*TCPQueueLengthTracer, error) {
 	probes := []*manager.Probe{
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_recvmsg", EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_recvmsg", EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_sendmsg", EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_sendmsg", EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
 	}
 
 	maps := []*manager.Map{
