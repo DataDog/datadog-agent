@@ -1390,6 +1390,7 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_SERVERLESS_APPSEC_ENABLED": {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
+		"DD_SYSTEM_PROBE_BPF_DIR":   {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
