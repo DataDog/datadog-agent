@@ -71,9 +71,9 @@ proxy:
 		select {
 		case p := <-out:
 			switch p.(type) {
-			case pb.StatsPayload:
+			case *pb.StatsPayload:
 				gots = true
-			case pb.AgentPayload:
+			case *pb.AgentPayload:
 				gott = true
 			}
 			if gott && gots {

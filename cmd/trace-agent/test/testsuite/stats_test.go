@@ -39,11 +39,11 @@ func TestClientStats(t *testing.T) {
 			}
 			timeout := time.After(3 * time.Second)
 			out := r.Out()
-			res := make([]pb.StatsPayload, 0, len(tt.Out))
+			res := make([]*pb.StatsPayload, 0, len(tt.Out))
 			for {
 				select {
 				case p := <-out:
-					got, ok := p.(pb.StatsPayload)
+					got, ok := p.(*pb.StatsPayload)
 					if !ok {
 						continue
 					}
@@ -62,7 +62,7 @@ func TestClientStats(t *testing.T) {
 	}
 }
 
-func normalizeTimeFields(t *testing.T, p pb.StatsPayload) pb.StatsPayload {
+func normalizeTimeFields(t *testing.T, p *pb.StatsPayload) *pb.StatsPayload {
 	now := time.Now().UnixNano()
 	for _, s := range p.Stats {
 		for i := range s.Stats {

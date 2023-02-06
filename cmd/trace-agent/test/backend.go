@@ -109,7 +109,7 @@ func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
 	if err := readMsgPRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
 	}
-	s.out <- payload
+	s.out <- &payload
 }
 
 func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) {
@@ -117,7 +117,7 @@ func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) {
 	if err := readProtoRequest(req, &payload); err != nil {
 		log.Println("server: error reading traces: ", err)
 	}
-	s.out <- payload
+	s.out <- &payload
 }
 
 func readMsgPRequest(req *http.Request, msg msgp.Decodable) error {
