@@ -244,3 +244,170 @@ func TestProcessEvents(t *testing.T) {
 
 	p.stop()
 }
+
+func TestProcessEvents_repoTagWithNoMatchingRepoDigest(t *testing.T) {
+	// In containerd some images are created without a repo digest, and it's
+	// also possible to remove repo digests manually. To test that scenario, in
+	// this test, we define an image with 2 repo tags: one for the gcr.io
+	// registry and another for the public.ecr.aws registry, but there's only
+	// one repo digest.
+	// We expect to send 2 events, one for each registry.
+
+	sender := mocksender.NewMockSender("")
+	sender.On("ContainerImage", mock.Anything, mock.Anything).Return()
+	p := newProcessor(sender, 2, 50*time.Millisecond)
+
+	p.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					},
+					RepoTags: []string{
+						"gcr.io/datadoghq/agent:7-rc",
+						"public.ecr.aws/datadog/agent:7-rc",
+					},
+					RepoDigests: []string{
+						// Notice that there's a repo tag for gcr.io, but no repo digest.
+						"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
+					SizeBytes:    42,
+					OS:           "DOS",
+					OSVersion:    "6.22",
+					Architecture: "80486DX",
+					Layers: []workloadmeta.ContainerImageLayer{
+						{
+							MediaType: "media",
+							Digest:    "digest_layer_1",
+							SizeBytes: 43,
+							URLs:      []string{"url"},
+							History: v1.History{
+								Created: pointer.Ptr(time.Unix(42, 43)),
+							},
+						},
+						{
+							MediaType: "media",
+							Digest:    "digest_layer_2",
+							URLs:      []string{"url"},
+							SizeBytes: 44,
+							History: v1.History{
+								Created: pointer.Ptr(time.Unix(43, 44)),
+							},
+						},
+					},
+				},
+			},
+		},
+		Ch: make(chan struct{}),
+	})
+
+	time.Sleep(100 * time.Millisecond)
+
+	sender.AssertNumberOfCalls(t, "ContainerImage", 1)
+	sender.AssertContainerImage(t, []model.ContainerImagePayload{
+		{
+			Version: "v1",
+			Images: []*model.ContainerImage{
+				{
+					Id:        "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Name:      "public.ecr.aws/datadog/agent",
+					Registry:  "public.ecr.aws",
+					ShortName: "agent",
+					Tags: []string{
+						"7-rc",
+					},
+					Digest:      "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Size:        42,
+					RepoDigests: []string{"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409"},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "DOS",
+						Version:      "6.22",
+						Architecture: "80486DX",
+					},
+					Layers: []*model.ContainerImage_ContainerImageLayer{
+						{
+							Urls:      []string{"url"},
+							MediaType: "media",
+							Digest:    "digest_layer_1",
+							Size:      43,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 42,
+									Nanos:   43,
+								},
+							},
+						},
+						{
+							Urls:      []string{"url"},
+							MediaType: "media",
+							Digest:    "digest_layer_2",
+							Size:      44,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 43,
+									Nanos:   44,
+								},
+							},
+						},
+					},
+					BuiltAt: &timestamp.Timestamp{
+						Seconds: 43,
+						Nanos:   44,
+					},
+				},
+				{
+					Id:        "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Name:      "gcr.io/datadoghq/agent",
+					Registry:  "gcr.io",
+					ShortName: "agent",
+					Tags: []string{
+						"7-rc",
+					},
+					Digest:      "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Size:        42,
+					RepoDigests: []string{},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "DOS",
+						Version:      "6.22",
+						Architecture: "80486DX",
+					},
+					Layers: []*model.ContainerImage_ContainerImageLayer{
+						{
+							Urls:      []string{"url"},
+							MediaType: "media",
+							Digest:    "digest_layer_1",
+							Size:      43,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 42,
+									Nanos:   43,
+								},
+							},
+						},
+						{
+							Urls:      []string{"url"},
+							MediaType: "media",
+							Digest:    "digest_layer_2",
+							Size:      44,
+							History: &model.ContainerImage_ContainerImageLayer_History{
+								Created: &timestamp.Timestamp{
+									Seconds: 43,
+									Nanos:   44,
+								},
+							},
+						},
+					},
+					BuiltAt: &timestamp.Timestamp{
+						Seconds: 43,
+						Nanos:   44,
+					},
+				},
+			},
+		},
+	})
+
+	p.stop()
+}

@@ -15,7 +15,6 @@ var attrProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_inode_setattr",
 			EBPFFuncName: "kprobe_security_inode_setattr",
 		},
 	},

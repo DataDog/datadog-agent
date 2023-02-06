@@ -9,7 +9,7 @@
 // - https://github.com/go-delve/delve/blob/cd9e6c02a6ca5f0d66c1f770ee10a0d8f4419333/pkg/proc/internal/ebpf/bpf/trace.bpf.c#L43
 // which is licensed under MIT.
 static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, void* dest) {
-    #if defined(__x86_64__)
+    #if defined(__TARGET_ARCH_x86)
         // This volatile temporary variable is need when building with clang-14,
         // or the verifier will complain that we dereference a modified context
         // pointer.
@@ -100,7 +100,7 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
         }
         *(u64*)dest = tmp;
         return 0;
-    #elif defined(__aarch64__)
+    #elif defined(__TARGET_ARCH_arm64)
         // TODO Support ARM
         /*if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
             // Verifier won't allow direct access to regs array if the index is not const
@@ -122,7 +122,7 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
 // - https://github.com/go-delve/delve/blob/cd9e6c02a6ca5f0d66c1f770ee10a0d8f4419333/pkg/proc/internal/ebpf/bpf/trace.bpf.c#L43
 // which is licensed under MIT.
 static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t regnum) {
-    #if defined(__x86_64__)
+    #if defined(__TARGET_ARCH_x86)
         switch (regnum) {
             case 0: // RAX
                 return &ctx->ax;
@@ -159,7 +159,7 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
             default:
                 return NULL;
         }
-    #elif defined(__aarch64__)
+    #elif defined(__TARGET_ARCH_arm64)
         // TODO Support ARM
         /*if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
             // Verifier won't allow direct access to regs array if the index is not const

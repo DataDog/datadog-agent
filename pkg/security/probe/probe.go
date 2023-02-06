@@ -253,10 +253,6 @@ func (p *Probe) Init() error {
 	}
 
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
-	if p.Config.AgentMonitoringEvents {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetSelectorsPerEventType()["*"]...)
-
-	}
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
