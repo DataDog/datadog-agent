@@ -16,10 +16,11 @@ COPY system-probe /opt/datadog-agent/embedded/bin/system-probe
 COPY clang-bpf /opt/datadog-agent/embedded/bin/clang-bpf
 COPY llc-bpf /opt/datadog-agent/embedded/bin/llc-bpf
 
-# if you want to replace the base image's core agent binary, set $CORE_AGENT_DEST to 
+# if you want to replace the base image's core agent binary, set $CORE_AGENT_DEST to
 # /opt/datadog-agent/bin/agent/agent; otherwise, set it to /dev/null
 COPY agent $CORE_AGENT_DEST
 
 COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/
+COPY co-re/*.o /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
 COPY *.c /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
 COPY agent-usm.jar /opt/datadog-agent/embedded/share/system-probe/java/

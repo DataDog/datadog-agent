@@ -142,16 +142,17 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 		return
 	}
 
-	var err error
-	var proc *process.Process
-	// We receive the Exec event first and /proc could be slow to update
-	end := time.Now().Add(10 * time.Millisecond)
-	for end.After(time.Now()) {
-		proc, err = process.NewProcess(int32(pid))
-		if err == nil {
-			break
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		// We receive the Exec event first and /proc could be slow to update
+		end := time.Now().Add(10 * time.Millisecond)
+		for end.After(time.Now()) {
+			proc, err = process.NewProcess(int32(pid))
+			if err == nil {
+				break
+			}
+			time.Sleep(time.Millisecond)
 		}
-		time.Sleep(time.Millisecond)
 	}
 	if err != nil {
 		// short living process can hit here (or later proc.Name() parsing)

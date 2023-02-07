@@ -46,8 +46,15 @@ func isFlowClosed(flags uint32) bool {
 	return (flags & driver.FlowClosedMask) == driver.FlowClosedMask
 }
 
-func isTCPFlowEstablished(flags uint32) bool {
-	return (flags & driver.TCPFlowEstablishedMask) == driver.TCPFlowEstablishedMask
+func isTCPFlowEstablished(flow *driver.PerFlowData) bool {
+	//return (flags & driver.TCPFlowEstablishedMask) == driver.TCPFlowEstablishedMask
+	tcpdata := flow.TCPFlow()
+	if nil != tcpdata {
+		if tcpdata.ConnectionStatus == driver.TcpStatusEstablished {
+			return true
+		}
+	}
+	return false
 }
 
 func convertV4Addr(addr [16]uint8) util.Address {
@@ -116,7 +123,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 			cs.RTTVar = uint32(tf.RttVariance)
 		}
 
-		if isTCPFlowEstablished(flow.Flags) {
+		if isTCPFlowEstablished(flow) {
 			cs.Monotonic.TCPEstablished = 1
 		}
 		if isFlowClosed(flow.Flags) {

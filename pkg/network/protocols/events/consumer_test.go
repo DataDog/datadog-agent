@@ -13,19 +13,21 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestConsumer(t *testing.T) {
@@ -40,8 +42,11 @@ func TestConsumer(t *testing.T) {
 	program, err := newEBPFProgram(c)
 	require.NoError(t, err)
 
+	var mux sync.Mutex
 	result := make(map[uint64]int)
 	callback := func(b []byte) {
+		mux.Lock()
+		defer mux.Unlock()
 		// each event is just a uint64
 		n := binary.LittleEndian.Uint64(b)
 		result[n] = +1
@@ -134,7 +139,6 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/syscalls/sys_enter_write",
 					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
 				},
 			},
@@ -148,7 +152,6 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/syscalls/sys_enter_write",
 					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
 				},
 			},

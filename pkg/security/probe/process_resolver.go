@@ -160,11 +160,7 @@ func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
 // GetFrom returns a new entry with value from the given entry
 func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
 	entry := a.Get()
-
-	entry.Size = event.ArgsEnvs.Size
-	entry.ValuesRaw = make([]byte, entry.Size)
-	copy(entry.ValuesRaw, event.ArgsEnvs.ValuesRaw[:])
-
+	entry.Init(event)
 	return entry
 }
 

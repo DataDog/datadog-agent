@@ -8,6 +8,14 @@
 
 package containerd
 
-func (c *collector) startSBOMCollection() error {
+import (
+	"context"
+)
+
+func sbomCollectionIsEnabled() bool {
+	return false
+}
+
+func (c *collector) startSBOMCollection(context.Context) error {
 	return nil
 }

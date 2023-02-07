@@ -334,9 +334,10 @@ func createProcCtrMessages(
 	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxBatchWeight)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
 	// also count containers and processes
-	messages := make([]model.MessageBody, 0, len(collectorProcs))
-	for _, m := range collectorProcs {
-		m.GroupSize = int32(len(collectorProcs))
+	messages := make([]model.MessageBody, 0, len(*collectorProcs))
+	for idx := range *collectorProcs {
+		m := &(*collectorProcs)[idx]
+		m.GroupSize = int32(len(*collectorProcs))
 		m.HostName = hostInfo.HostName
 		m.NetworkId = networkID
 		m.Info = hostInfo.SystemInfo
@@ -357,8 +358,12 @@ func chunkProcessesAndContainers(
 	containers []*model.Container,
 	maxChunkSize int,
 	maxChunkWeight int,
-) ([]*model.CollectorProc, int, int) {
-	chunker := &collectorProcChunker{}
+) (*[]model.CollectorProc, int, int) {
+	chunker := &util.ChunkAllocator[model.CollectorProc, *model.Process]{
+		AppendToChunk: func(c *model.CollectorProc, ps []*model.Process) {
+			c.Processes = append(c.Processes, ps...)
+		},
+	}
 
 	totalProcs := len(procsByCtr[emptyCtrID])
 
@@ -371,7 +376,7 @@ func chunkProcessesAndContainers(
 
 		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
-	return chunker.collectorProcs, totalProcs, totalContainers
+	return chunker.GetChunks(), totalProcs, totalContainers
 }
 
 // fmtProcesses goes through each process, converts them to process object and group them by containers
