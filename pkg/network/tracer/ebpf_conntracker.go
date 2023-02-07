@@ -349,7 +349,7 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 		}
 		entries[src.Netns] = append(entries[src.Netns], netlink.DebugConntrackEntry{
 			Family: src.Family().String(),
-			Proto:  network.ConnectionType(src.Type()).String(),
+			Proto:  src.Type().String(),
 			Origin: netlink.DebugConntrackTuple{
 				Src: netlink.DebugConntrackAddress{
 					IP:   src.SourceAddress().String(),
