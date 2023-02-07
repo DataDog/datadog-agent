@@ -1,8 +1,9 @@
 #ifndef __USM_EVENTS_H
 #define __USM_EVENTS_H
 
-#include "events-types.h"
 #include "bpf_telemetry.h"
+
+#include "protocols/events-types.h"
 
 /* USM_EVENTS_INIT defines two functions used for the purposes of buffering and sending
    data to userspace:

@@ -16,6 +16,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
+from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
@@ -26,8 +27,6 @@ BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 DNF_TAG = "dnf"
-
-CHECK_SOURCE_CMD = "grep -v '^//' {src_file} | if grep -q ' inline ' ; then echo -e '\u001b[7mPlease use __always_inline instead of inline in {src_file}\u001b[0m';exit 1;fi"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
@@ -208,20 +207,22 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
-    network_co_re_dir = os.path.join(network_c_dir, "co-re")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_co_re_flags = f"-I{network_co_re_dir}"
     network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
-    network_co_re_programs = []
+    network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
         infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{prog}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
-    for prog in network_co_re_programs:
-        infile = os.path.join(network_co_re_dir, f"{prog}.c")
+    for prog_path in network_co_re_programs:
+        prog = os.path.basename(prog_path)
+        src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
+        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
+
+        infile = os.path.join(src_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
@@ -300,14 +301,14 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
-                "pkg/network/ebpf/c/protocols/go-tls-types.h",
+                "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
             "pkg/network/protocols/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
-                "pkg/network/ebpf/c/protocols/tags-types.h",
-                "pkg/network/ebpf/c/protocols/http-types.h",
-                "pkg/network/ebpf/c/protocols/protocol-classification-defs.h",
-                "pkg/network/ebpf/c/protocols/http2-decoding-defs.h",
+                "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
+                "pkg/network/ebpf/c/protocols/tls/tags-types.h",
+                "pkg/network/ebpf/c/protocols/http/types.h",
+                "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
@@ -329,7 +330,7 @@ def ninja_cgo_type_files(nw, windows):
         in_dir, in_file = os.path.split(f)
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
-        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)}"
+        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
         nw.build(
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],
@@ -965,16 +966,16 @@ def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None):
 
 
 def check_for_inline(ctx):
-    for f in get_ebpf_targets():
-        if os.path.basename(f) == "bpf_helpers.h":
-            continue
-
-        for p in [ebpf_check_source_file(ctx, parallel_build=True, src_file=f)]:
-            p.join()
-
-
-def ebpf_check_source_file(ctx, parallel_build, src_file):
-    return ctx.run(CHECK_SOURCE_CMD.format(src_file=src_file), echo=False, asynchronous=parallel_build)
+    print("checking for invalid inline usage...")
+    src_dirs = ["pkg/ebpf/c/", "pkg/network/ebpf/c/", "pkg/security/ebpf/c/"]
+    grep_filter = "--include='*.c' --include '*.h'"
+    grep_exclude = "--exclude='bpf_helpers.h'"
+    pattern = "'^[^/]*\\binline\\b'"
+    grep_res = ctx.run(f"grep -n {grep_filter} {grep_exclude} -r {pattern} {' '.join(src_dirs)}", warn=True, hide=True)
+    if grep_res.ok:
+        print(color_message("Use __always_inline instead of inline:", "red"))
+        print(grep_res.stdout)
+        raise Exit(code=1)
 
 
 def run_ninja(
@@ -1059,8 +1060,6 @@ def build_object_files(
         verify_system_clang_version(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
-        print("checking for clang executable...")
-        ctx.run("which clang")
 
         if strip_object_files:
             print("checking for llvm-strip...")
@@ -1085,9 +1084,30 @@ def build_object_files(
     if not windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
-        ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
-        ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
-        ctx.run(f"{sudo} find {EMBEDDED_SHARE_DIR} ! -type d | {sudo} xargs chmod 0644")
+
+        if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
+            rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
+            ctx.run(
+                f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}"
+            )
+        else:
+            with ctx.cd(build_dir):
+
+                def cp_cmd(out_dir):
+                    dest = os.path.join(EMBEDDED_SHARE_DIR, out_dir)
+                    return " ".join(
+                        [
+                            f"-execdir cp -p {{}} {dest}/ \\;",
+                            f"-execdir chown root:root {dest}/{{}} \\;",
+                            f"-execdir chmod 0644 {dest}/{{}} \\;",
+                        ]
+                    )
+
+                ctx.run(f"{sudo} find . -maxdepth 1 -type f -name '*.o' {cp_cmd('.')}")
+                ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/co-re")
+                ctx.run(f"{sudo} find ./co-re -maxdepth 1 -type f -name '*.o' {cp_cmd('co-re')}")
+                ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
+                ctx.run(f"{sudo} find ./runtime -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
 def build_cws_object_files(

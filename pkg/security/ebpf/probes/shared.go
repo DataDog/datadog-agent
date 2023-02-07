@@ -15,28 +15,24 @@ var sharedProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/filename_create",
 			EBPFFuncName: "kprobe_filename_create",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/mnt_want_write",
 			EBPFFuncName: "kprobe_mnt_want_write",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/mnt_want_write_file",
 			EBPFFuncName: "kprobe_mnt_want_write_file",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/mnt_want_write_file_path",
 			EBPFFuncName: "kprobe_mnt_want_write_file_path",
 		},
 	},

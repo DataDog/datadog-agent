@@ -11,6 +11,7 @@ package http
 import (
 	"errors"
 	"fmt"
+	"syscall"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -22,6 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+)
+
+var (
+	startupError error
 )
 
 // Monitor is responsible for:
@@ -41,29 +47,40 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
+	defer func() {
+		// capture error and wrap it
+		if err != nil {
+			err = fmt.Errorf("could not instantiate http monitor: %w", err)
+			startupError = err
+		}
+	}()
+
+	if !c.EnableHTTPMonitoring {
+		return nil, fmt.Errorf("http monitoring is disabled")
+	}
+
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, &ErrNotSupported{fmt.Errorf("couldn't determine current kernel version: %w", err)}
+	}
+
+	if kversion < MinimumKernelVersion {
+		return nil, &ErrNotSupported{
+			fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String()),
+		}
+	}
+
 	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
-		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
+		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
 	}
 
 	if err := mgr.Init(); err != nil {
-		err2 := errors.Unwrap(err)
-		//err3 := errors.Unwrap(err2)
-		err4, ok := errors.Unwrap(err2).(*ebpf.VerifierError)
-		if ok {
-			for _, l := range err4.Log {
-				fmt.Println(l)
-			}
-		}
-
-		fmt.Printf("type %T, error %s\n", err2, err2)
-		//fmt.Printf("type %T, error %s\n", err3, err3)
-		fmt.Printf("type %T, error %s\n", err4, err4)
-		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
+		return nil, fmt.Errorf("error initializing http ebpf program: %w", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: protocolDispatcherSocketFilterSection, EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -98,6 +115,20 @@ func (m *Monitor) Start() error {
 	}
 
 	var err error
+
+	defer func() {
+		if err != nil {
+			if errors.Is(err, syscall.ENOMEM) {
+				err = fmt.Errorf("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+			}
+
+			if err != nil {
+				err = fmt.Errorf("could not enable http monitoring: %s", err)
+			}
+			startupError = err
+		}
+	}()
+
 	m.httpConsumer, err = events.NewConsumer(
 		"http",
 		m.ebpfProgram.Manager.Manager,
@@ -118,11 +149,25 @@ func (m *Monitor) Start() error {
 	}
 	m.http2Consumer.Start()
 
-	if err := m.ebpfProgram.Start(); err != nil {
+	err = m.ebpfProgram.Start()
+	if err != nil {
 		return err
 	}
 
-	return m.processMonitor.Initialize()
+	// Need to explicitly save the error in `err` so the defer function could save the startup error.
+	err = m.processMonitor.Initialize()
+	return err
+}
+
+func (m *Monitor) GetUSMStats() map[string]interface{} {
+	if m == nil {
+		return map[string]interface{}{
+			"Error": startupError.Error(),
+		}
+	}
+	return map[string]interface{}{
+		"last_check": m.telemetry.then,
+	}
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:

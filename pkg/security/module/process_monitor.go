@@ -24,7 +24,7 @@ type ProcessMonitoring struct {
 // HandleEvent implement the EventHandler interface
 func (p *ProcessMonitoring) HandleEvent(event *smodel.Event) {
 	// Force resolution of all event fields before exposing it through the API server
-	event.ResolveFields(false)
+	event.ResolveFields()
 	event.ResolveEventTimestamp()
 
 	entry, _ := event.ResolveProcessCacheEntry()

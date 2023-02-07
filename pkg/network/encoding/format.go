@@ -11,10 +11,10 @@ import (
 	"sync"
 	"unsafe"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 	"github.com/twmb/murmur3"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -56,8 +56,12 @@ func FormatConnection(
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(conn.Source, conn.SPort, ipc)
-	c.Raddr = formatAddr(conn.Dest, conn.DPort, ipc)
+	var containerID string
+	if conn.ContainerID != nil {
+		containerID = *conn.ContainerID
+	}
+	c.Laddr = formatAddr(conn.Source, conn.SPort, containerID, ipc)
+	c.Raddr = formatAddr(conn.Dest, conn.DPort, "", ipc)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
@@ -84,7 +88,7 @@ func FormatConnection(
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
-	conn.Tags |= staticTags
+	conn.StaticTags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
 
 	return c
@@ -147,12 +151,12 @@ func returnToPool(c *model.Connections) {
 	}
 }
 
-func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
+func formatAddr(addr util.Address, port uint16, containerID string, ipc ipCache) *model.Addr {
 	if addr.IsZero() {
 		return nil
 	}
 
-	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port)}
+	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port), ContainerId: containerID}
 }
 
 func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
@@ -248,7 +252,7 @@ func routeKey(v *network.Via) string {
 
 func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
 	mm := murmur3.New32()
-	for _, tag := range network.GetStaticTags(c.Tags) {
+	for _, tag := range network.GetStaticTags(c.StaticTags) {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
@@ -257,6 +261,14 @@ func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamic
 
 	// Dynamic tags
 	for tag := range connDynamicTags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	// other tags, e.g., from process env vars like DD_ENV, etc.
+	for tag := range c.Tags {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
