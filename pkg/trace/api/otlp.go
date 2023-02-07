@@ -145,7 +145,7 @@ const knuthFactor = uint64(1111111111111111111)
 
 // samplingRate returns the rate as defined by the probabilistic sampler.
 func (o *OTLPReceiver) samplingRate() float64 {
-	rate := float64(o.conf.OTLPReceiver.ProbabilisticSampling) / 100
+	rate := o.conf.OTLPReceiver.ProbabilisticSampling / 100
 	if rate <= 0 || rate >= 1 {
 		// assume that the user wants to keep the trace since he has sent it from
 		// his SDK and introduced no sampling mechanisms anywhere else.
@@ -317,25 +317,22 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesByID map[uint64]sampler.SamplingPriority) []*pb.TraceChunk {
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	for k, spans := range tracesByID {
+		if len(spans) == 0 {
+			continue
+		}
 		rate := strconv.FormatFloat(o.samplingRate(), 'f', 2, 64)
 		chunk := &pb.TraceChunk{
 			Tags:  map[string]string{"_dd.otlp_sr": rate},
 			Spans: spans,
 		}
-		// decide applies the given decision maker (dm) and sampling priority (prio)
-		// to the current chunk
-		var decide = func(dm string, prio sampler.SamplingPriority) {
-			chunk.Priority = int32(prio)
-			if len(chunk.Spans) > 0 {
-				chunk.Spans[0].Meta["_dd.p.dm"] = dm
-			}
-		}
 		if p, ok := prioritiesByID[k]; ok {
 			// a manual decision has been made by the user
-			decide("-4", p)
+			chunk.Priority = int32(p)
+			spans[0].Meta["_dd.p.dm"] = "-4"
 		} else {
 			// we use the probabilistic sampler to decide
-			decide("-9", o.sample(k))
+			chunk.Priority = int32(o.sample(k))
+			spans[0].Meta["_dd.p.dm"] = "-9"
 		}
 		traceChunks = append(traceChunks, chunk)
 	}

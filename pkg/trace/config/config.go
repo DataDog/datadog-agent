@@ -75,8 +75,9 @@ type OTLP struct {
 	UsePreviewHostnameLogic bool `mapstructure:"-"`
 
 	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
-	// and rare traces (outliers) if "RareSamplerEnabled" is true.
-	// Valid in range (0, 100].
+	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
+	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
+	// decision is followed.
 	ProbabilisticSampling float64
 }
 
