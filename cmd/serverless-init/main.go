@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -42,6 +43,13 @@ func main() {
 
 	logConfig := log.CreateConfig(origin)
 	log.SetupLog(logConfig, tags)
+
+	// The datadog-agent requires Load to be called or it could
+	// panic down the line.
+	_, err := config.Load()
+	if err != nil {
+		logger.Debugf("Error loading config: %v\n", err)
+	}
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, tags)
