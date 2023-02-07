@@ -321,7 +321,7 @@ static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk
     }
 }
 
-static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __s32 interesting_headers) {
+static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u8 interesting_headers) {
     http2_stream_t *current_stream;
     http2_header_t *current_header;
     http2_stream_key_t *http2_stream_key_template = &http2_ctx->http2_stream_key;
