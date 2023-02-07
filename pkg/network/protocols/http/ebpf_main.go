@@ -40,7 +40,6 @@ const (
 	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
 	connectionStatesMap                    = "connection_states"
 
-	httpSocketFilter  = "socket/http_filter"
 	http2SocketFilter = "socket/http2_filter"
 
 	// maxActive configures the maximum number of instances of the

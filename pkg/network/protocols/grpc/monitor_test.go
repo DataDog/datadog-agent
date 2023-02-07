@@ -9,13 +9,9 @@
 package grpc
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"io"
-	"math/rand"
-	nethttp "net/http"
 	"strings"
 	"testing"
 	"time"
@@ -24,22 +20,12 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
 	srvAddr = "127.0.0.1:5050"
 )
-
-func skipTestIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < http.MinimumKernelVersion {
-		t.Skip(fmt.Sprintf("gRPC feature not available on pre %s kernels", http.MinimumKernelVersion.String()))
-	}
-}
 
 // c is a stream endpoint
 // a + b are unary endpoints
@@ -70,7 +56,7 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.HandleUnary(ctx, "first"))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 1,
@@ -95,7 +81,7 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.HandleUnary(ctx, "third"))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 3,
@@ -120,11 +106,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.HandleUnary(ctx, "first"))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 1,
@@ -150,11 +136,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client2.GetFeature(ctx, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
@@ -180,11 +166,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client2.HandleUnary(ctx, "third"))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
@@ -210,11 +196,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.HandleUnary(ctx, "third"))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
@@ -232,7 +218,7 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.HandleStream(ctx, 10))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/protobuf.Math/Max"},
 					Method: http.MethodPost,
 				}: 1,
@@ -257,7 +243,7 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.HandleStream(ctx, 10))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/protobuf.Math/Max"},
 					Method: http.MethodPost,
 				}: 3,
@@ -283,11 +269,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client2.HandleUnary(ctx, "second"))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/protobuf.Math/Max"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
@@ -313,11 +299,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client2.HandleUnary(ctx, "second"))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/protobuf.Math/Max"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
@@ -336,7 +322,7 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.HandleUnary(ctx, longName))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 1,
@@ -364,11 +350,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client2.GetFeature(ctx, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
@@ -395,11 +381,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.GetFeature(ctx, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
@@ -433,11 +419,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client2.GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
@@ -471,11 +457,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
@@ -509,11 +495,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client2.GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
@@ -547,11 +533,11 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, client1.GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
-				http.Key{
+				{
 					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
 					Method: http.MethodPost,
 				}: 2,
-				http.Key{
+				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
 				}: 2,
@@ -609,117 +595,4 @@ func TestGRPCScenarios(t *testing.T) {
 			})
 		}
 	}
-}
-
-func assertAllRequestsExists(t *testing.T, monitor *http.Monitor, requests []*nethttp.Request) {
-	requestsExist := make([]bool, len(requests))
-	for i := 0; i < 10; i++ {
-		time.Sleep(10 * time.Millisecond)
-		stats := monitor.GetHTTPStats()
-		for reqIndex, req := range requests {
-			included, err := isRequestIncludedOnce(stats, req)
-			require.NoError(t, err)
-			requestsExist[reqIndex] = requestsExist[reqIndex] || included
-		}
-	}
-
-	for reqIndex, exists := range requestsExist {
-		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex, requests[reqIndex])
-	}
-}
-
-var (
-	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions}
-	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
-	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
-)
-
-func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
-	var (
-		random = rand.New(rand.NewSource(time.Now().Unix()))
-		idx    = 0
-		client = new(nethttp.Client)
-	)
-
-	return func() *nethttp.Request {
-		idx++
-		var method string
-		var body io.Reader
-		var finalBody []byte
-		if len(reqBody) > 0 {
-			finalBody = append([]byte(strings.Repeat(" ", idx)), reqBody...)
-			body = bytes.NewReader(finalBody)
-			method = httpMethodsWithBody[random.Intn(len(httpMethodsWithBody))]
-		} else {
-			method = httpMethods[random.Intn(len(httpMethods))]
-		}
-		status := statusCodes[random.Intn(len(statusCodes))]
-		url := fmt.Sprintf("http://%s/%d/request-%d", targetAddr, status, idx)
-		req, err := nethttp.NewRequest(method, url, body)
-		require.NoError(t, err)
-
-		resp, err := client.Do(req)
-		if strings.Contains(targetAddr, "ignore") {
-			return req
-		}
-		require.NoError(t, err)
-		if len(reqBody) > 0 {
-			respBody, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, finalBody, respBody)
-		}
-		return req
-	}
-}
-
-func includesRequest(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request) {
-	expectedStatus := testutil.StatusFromPath(req.URL.Path)
-	included, err := isRequestIncludedOnce(allStats, req)
-	require.NoError(t, err)
-	if !included {
-		t.Errorf(
-			"could not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
-			req.URL.Path,
-			req.Method,
-			expectedStatus,
-		)
-	}
-}
-
-func requestNotIncluded(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request) {
-	included, err := isRequestIncludedOnce(allStats, req)
-	require.NoError(t, err)
-	if included {
-		expectedStatus := testutil.StatusFromPath(req.URL.Path)
-		t.Errorf(
-			"should not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
-			req.URL.Path,
-			req.Method,
-			expectedStatus,
-		)
-	}
-}
-
-func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) (bool, error) {
-	occurrences := countRequestOccurrences(allStats, req)
-
-	if occurrences == 1 {
-		return true, nil
-	} else if occurrences == 0 {
-		return false, nil
-	}
-	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
-}
-
-func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) int {
-	expectedStatus := testutil.StatusFromPath(req.URL.Path)
-	occurrences := 0
-	for key, stats := range allStats {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
-			occurrences++
-		}
-	}
-
-	return occurrences
 }
