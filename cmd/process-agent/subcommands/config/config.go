@@ -146,7 +146,7 @@ func getConfigValue(globalParams *command.GlobalParams, args []string) error {
 }
 
 func getClient(globalParams *command.GlobalParams) (settings.Client, error) {
-	if err := command.BootstrapConfig(globalParams.ConfFilePath, true); err != nil {
+	if _, err := command.BootstrapConfig(globalParams.ConfFilePath, globalParams.SysProbeConfFilePath, true); err != nil {
 		return nil, log.Criticalf("Error parsing config: %s", err)
 	}
 

@@ -153,7 +153,7 @@ func getStatusURL() (string, error) {
 }
 
 func runStatus(cliParams *cliParams) error {
-	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
+	if _, err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, cliParams.SysProbeConfFilePath, true); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 

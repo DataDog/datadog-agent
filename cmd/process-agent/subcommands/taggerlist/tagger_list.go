@@ -49,7 +49,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func taggerList(cliParams *cliParams) error {
 	log.Info("Got a request for the tagger-list. Calling tagger.")
 
-	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
+	if _, err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, cliParams.SysProbeConfFilePath, true); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
