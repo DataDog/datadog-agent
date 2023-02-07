@@ -142,7 +142,7 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     http->tags |= tags;
 
-    if (http_responding(http)) {
+    if (http_responding(http) && packet_type == HTTP_RESPONSE) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
