@@ -37,44 +37,63 @@ shared_examples "passes" do |bundle, env|
     print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
   end
 
-  Dir.glob('/tmp/security-agent/**/testsuite').each do |f|
-    base_env = {
-      "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
-      "GOVERSION"=>"unknown"
-    }
-    junitfile = "#{bundle}.xml"
+  output_file_name = "#{bundle}-#{platform}-version-#{release}"
 
-    it "tests" do |ex|
-      Dir.chdir(File.dirname(f)) do
-        xmlpath = "/tmp/junit/#{bundle}/#{junitfile}"
+  base_env = {
+    "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
+    "GOVERSION"=>"unknown"
+  }
+  junitfile = "#{output_file_name}.xml"
+  testsuite_file_path = "/tmp/security-agent/tests/testsuite"
+
+  it "tests" do |ex|
+    Dir.chdir(File.dirname(testsuite_file_path)) do
+      xmlpath = "/tmp/junit/#{bundle}/#{junitfile}"
+
+      if bundle != "docker"
         cmd = ["sudo", "-E",
           "/go/bin/gotestsum",
           "--format", "dots",
           "--junitfile", xmlpath,
-          "--jsonfile", "/tmp/pkgjson/#{bundle}.json",
+          "--jsonfile", "/tmp/pkgjson/#{output_file_name}.json",
           "--raw-command", "--",
-          "/go/bin/test2json", "-t", f, "-test.v", "-test.count=1"
+          "/go/bin/test2json", "-t", testsuite_file_path, "-test.v", "-test.count=1", "-status-metrics"
         ]
 
-        puts cmd
+        if bundle == "ad"
+          cmd.append(["-test.run", "TestActivityDump"])
+        end
+      else
+        cmd = ["sudo", "docker", "exec", "-e", "docker-testsuite",
+          "/go/bin/gotestsum",
+          "--format", "dots",
+          "--junitfile", xmlpath,
+          "--jsonfile", "/tmp/pkgjson/#{output_file_name}.json",
+          "--raw-command", "--",
+          "/go/bin/test2json", "-t", testsuite_file_path, "-test.v", "-test.count=1", "-status-metrics", "--env", "docker"
+        ]
+      end
 
-        final_env = base_env.merge(env)
-        Open3.popen2e(final_env, *cmd) do |_, output, wait_thr|
-          output.each_line do |line|
-            puts KernelOut.format(line.strip)
-          end
-        end
+      # TODO (Celia Yuen): delete once SecAgent CI visibility is polished
+      puts cmd
+      puts env
 
-        xmldoc = REXML::Document.new(File.read(xmlpath))
-        REXML::XPath.each(xmldoc, "//testsuite/properties") do |props|
-          props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
-          props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
-          props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })
-          props.add_element("property", { "name" => "dd_tags[os.version]", "value" => release })
+      final_env = base_env.merge(env)
+      Open3.popen2e(final_env, *cmd) do |_, output, wait_thr|
+        output.each_line do |line|
+          puts KernelOut.format(line.strip)
         end
-        File.open(xmlpath, "w") do |f|
-          xmldoc.write(:output => f, :indent => 4)
-        end
+      end
+
+      xmldoc = REXML::Document.new(File.read(xmlpath))
+      REXML::XPath.each(xmldoc, "//testsuite/properties") do |props|
+        props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
+        props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
+        props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })
+        props.add_element("property", { "name" => "dd_tags[os.version]", "value" => release })
+      end
+      File.open(xmlpath, "w") do |f|
+        xmldoc.write(:output => f, :indent => 4)
       end
     end
   end
@@ -93,22 +112,18 @@ describe "security-agent" do
       include_examples "passes", "host", env
     end
   when "docker"
-    describe 'functional test running inside a container' do
-      it 'successfully runs' do
-        Open3.popen2e("sudo", "docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=/tmp/security-agent/ebpf_bytecode", "docker-testsuite", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics", "--env", "docker") do |_, output, wait_thr|
-          test_failures = check_output(output, wait_thr, "a")
-          expect(test_failures).to be_empty, test_failures.join("\n")
-        end
-      end
+    context 'functional test running inside a container' do
+      env = {}
+      include_examples "passes", "docker", env
     end
   when "ad"
-    describe 'activity dump functional test running on dedicated node' do
-      it 'successfully runs' do
-        Open3.popen2e({"DEDICATED_ACTIVITY_DUMP_NODE"=>"1", "DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED"=>"true", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode"}, "sudo", "-E", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics", "-test.run", "TestActivityDump") do |_, output, wait_thr|
-          test_failures = check_output(output, wait_thr, "a")
-          expect(test_failures).to be_empty, test_failures.join("\n")
-        end
-      end
+    context 'activity dump functional test running on dedicated node' do
+      env = {
+        "DEDICATED_ACTIVITY_DUMP_NODE"=>"1",
+        "DD_TESTS_RUNTIME_COMPILED"=>"1",
+        "DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED"=>"true"
+      }
+      include_examples "passes", "ad", env
     end
   else
     raise "no CWS platform provided"

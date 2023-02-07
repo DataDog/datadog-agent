@@ -212,7 +212,7 @@ if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
 
     docker_image 'testsuite-img' do
       tag 'latest'
-      source wrk_dir
+      source "#{wrk_dir}"
       action :build
     end
 
