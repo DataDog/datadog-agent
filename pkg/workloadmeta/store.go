@@ -623,7 +623,7 @@ func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) 
 			timer.Stop()
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
 		case <-timer.C:
-			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle dump: %+v", name, bundle)
+			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
 		}
 	}
