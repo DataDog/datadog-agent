@@ -42,7 +42,8 @@
         /* verifier so it can be assured we are not exceeding the memory limits. */                                 \
         const s64 left_buffer = (s64)(total_size) - (s64)(i*(blk_size));                                            \
         if (read_size <= left_buffer) {                                                                             \
-            bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * (blk_size)], read_size);                     \
+            void *buf = &buffer[i * (blk_size)];                                                                    \
+            bpf_skb_load_bytes_with_telemetry(skb, offset, buf, read_size);                                         \
         }                                                                                                           \
         return;                                                                                                     \
     }                                                                                                               \
