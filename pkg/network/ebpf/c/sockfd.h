@@ -1,6 +1,7 @@
 #ifndef __SOCKFD_H
 #define __SOCKFD_H
 
+#include "ktypes.h"
 #include "bpf_builtins.h"
 #include "ktypes.h"
 

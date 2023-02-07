@@ -180,8 +180,6 @@ type Config struct {
 	// ProcessEventMonitoringEnabled is set to true if `runtime_security_config.event_monitoring.process.enabled`
 	// is set to true
 	ProcessEventMonitoringEnabled bool
-	// EventMonitoring enables event monitoring. Send events to external consumer.
-	EventMonitoring bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool
 	// EventStreamUseRingBuffer specifies whether to use eBPF ring buffers when available
@@ -193,6 +191,10 @@ type Config struct {
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *Config) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+func (c *Config) IsEventMonitoringEnabled() bool {
+	return c.NetworkProcessEventMonitoringEnabled || c.ProcessEventMonitoringEnabled
 }
 
 func setEnv() {
