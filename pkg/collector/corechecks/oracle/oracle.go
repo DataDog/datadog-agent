@@ -28,6 +28,12 @@ type Check struct {
 
 // Run executes the check.
 func (c *Check) Run() error {
+	sender, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	sender.Gauge("oracle.helloworld", 10, "", nil)
+	sender.Commit()
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
