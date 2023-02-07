@@ -157,6 +157,7 @@ build_processed_btfhub_archive:
     - |
       for xdir in ${x64dirs[@]}; do
         platform=${xdir%%/*}
+        mkdir -p "btfs-amd64/${platform}"
         eval "mv ${xdir}/x86_64/*.btf.tar.xz btfs-amd64/${platform}"
       done
     # Handle ubuntu separately because we want to keep the btfs separated by ubuntu version
