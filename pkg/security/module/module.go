@@ -152,7 +152,7 @@ func (m *Module) Start() error {
 
 	// runtime security is disabled but might be used by other component like process
 	if !m.config.IsRuntimeEnabled() {
-		if m.config.EventMonitoring {
+		if m.config.IsEventMonitoringEnabled() {
 			// Currently select process related event type.
 			// TODO external monitors should be allowed to select the event types
 			return m.probe.SelectProbes([]eval.EventType{
@@ -553,7 +553,7 @@ func (m *Module) statsSender() {
 			}
 
 			// Event monitoring may run independently of CWS products
-			if m.config.NetworkProcessEventMonitoringEnabled || m.config.ProcessEventMonitoringEnabled {
+			if m.config.IsEventMonitoringEnabled() {
 				_ = m.statsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():

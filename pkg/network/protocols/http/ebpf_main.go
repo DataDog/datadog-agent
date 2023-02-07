@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,13 +32,10 @@ const (
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
-	protocolDispatcherSocketFilterSection  = "socket/protocol_dispatcher"
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
 	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
 	connectionStatesMap                    = "connection_states"
-
-	httpSocketFilter = "socket/http_filter"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -96,7 +92,6 @@ var tailCalls = []manager.TailCallRoute{
 		ProgArrayName: protocolDispatcherProgramsMap,
 		Key:           uint32(ProtocolHTTP),
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFSection:  httpSocketFilter,
 			EBPFFuncName: "socket__http_filter",
 		},
 	},
@@ -117,7 +112,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  probes.TCPSendMsg,
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
@@ -125,14 +119,12 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/net/netif_receive_skb",
 					EBPFFuncName: "tracepoint__net__netif_receive_skb",
 					UID:          probeUID,
 				},
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  protocolDispatcherSocketFilterSection,
 					EBPFFuncName: protocolDispatcherSocketFilterFunction,
 					UID:          probeUID,
 				},
@@ -292,21 +284,18 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.ActivatedProbes = []manager.ProbesSelector{
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  protocolDispatcherSocketFilterSection,
 				EBPFFuncName: protocolDispatcherSocketFilterFunction,
 				UID:          probeUID,
 			},
 		},
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  probes.TCPSendMsg,
 				EBPFFuncName: "kprobe__tcp_sendmsg",
 				UID:          probeUID,
 			},
 		},
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/net/netif_receive_skb",
 				EBPFFuncName: "tracepoint__net__netif_receive_skb",
 				UID:          probeUID,
 			},

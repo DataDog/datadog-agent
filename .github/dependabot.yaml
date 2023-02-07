@@ -81,20 +81,6 @@ updates:
       interval: weekly
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
-    directory: /pkg/quantile
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/metrics-aggregation
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: gomod
     directory: /pkg/security/secl
     labels:
       - dependencies

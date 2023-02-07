@@ -15,7 +15,6 @@ var signalProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/check_kill_permission",
 			EBPFFuncName: "kretprobe_check_kill_permission",
 		},
 	},

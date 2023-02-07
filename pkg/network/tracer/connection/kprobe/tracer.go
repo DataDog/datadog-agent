@@ -37,8 +37,7 @@ var (
 			ProgArrayName: probes.ClassificationProgsMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  probes.ProtocolClassifierSocketFilter,
-				EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+				EBPFFuncName: probes.ProtocolClassifierSocketFilter,
 				UID:          probeUID,
 			},
 		},
@@ -50,6 +49,9 @@ var (
 // filter, and a tracepoint (4.7.0+)
 func ClassificationSupported(config *config.Config) bool {
 	if !config.ProtocolClassificationEnabled {
+		return false
+	}
+	if !config.CollectTCPConns {
 		return false
 	}
 	currentKernelVersion, err := kernel.HostVersion()
@@ -109,10 +111,9 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	var undefinedProbes []manager.ProbeIdentificationPair
 
 	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported(config) && config.CollectTCPConns {
+	if ClassificationSupported(config) {
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
-			EBPFSection:  probes.ProtocolClassifierEntrySocketFilter,
-			EBPFFuncName: mainProbes[probes.ProtocolClassifierEntrySocketFilter],
+			EBPFFuncName: probes.ProtocolClassifierEntrySocketFilter,
 			UID:          probeUID,
 		})
 		if socketFilterProbe == nil {
@@ -143,7 +144,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
+		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
 			mgrOpts.ExcludedFunctions = append(mgrOpts.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
@@ -153,9 +154,8 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
 	}
 
-	for probeName, funcName := range enabledProbes {
+	for funcName := range enabledProbes {
 		probeIdentifier := manager.ProbeIdentificationPair{
-			EBPFSection:  probeName,
 			EBPFFuncName: funcName,
 			UID:          probeUID,
 		}
