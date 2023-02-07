@@ -207,7 +207,6 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/" + probe,
 					EBPFFuncName: "kprobe__" + probe,
 					UID:          probeUID,
 				},
@@ -215,7 +214,6 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/" + probe,
 					EBPFFuncName: "kretprobe__" + probe,
 					UID:          probeUID,
 				},
@@ -255,14 +253,12 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/" + probe,
 					EBPFFuncName: "kprobe__" + probe,
 					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/" + probe,
 					EBPFFuncName: "kretprobe__" + probe,
 					UID:          probeUID,
 				},

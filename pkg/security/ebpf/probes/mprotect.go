@@ -15,7 +15,6 @@ var mprotectProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_file_mprotect",
 			EBPFFuncName: "kprobe_security_file_mprotect",
 		},
 	},
