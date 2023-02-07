@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.2.2
-	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+	github.com/DataDog/go-libddwaf v0.0.0-20230109122420-3e97f3ec813d
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
@@ -549,12 +549,6 @@ require (
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
-)
-
-require (
-	github.com/DataDog/ebpf-manager v0.2.2
-	github.com/DataDog/go-libddwaf v0.0.0-20230109122420-3e97f3ec813d
-	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 )
 
 require github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
