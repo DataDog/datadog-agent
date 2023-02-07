@@ -24,10 +24,6 @@ func NewMetricPayloads() MetricPayloads {
 	}
 }
 
-type GetPayloadResponse struct {
-	Payloads [][]byte `json:"payloads"`
-}
-
 func (mp *MetricPayloads) UnmarshallPayloads(body []byte) error {
 	response := GetPayloadResponse{}
 	json.Unmarshal(body, &response)
@@ -75,22 +71,4 @@ func (mp *MetricPayloads) ContainsMetricNameAndTags(name string, tags []string) 
 	}
 
 	return false
-}
-
-func areTagsSubsetOfOtherTags(tags, otherTags []string) bool {
-	otherTagsSet := tagsToSet(otherTags)
-	for _, tag := range tags {
-		if _, found := otherTagsSet[tag]; !found {
-			return false
-		}
-	}
-	return true
-}
-
-func tagsToSet(tags []string) map[string]struct{} {
-	tagsSet := map[string]struct{}{}
-	for _, tag := range tags {
-		tagsSet[tag] = struct{}{}
-	}
-	return tagsSet
 }
