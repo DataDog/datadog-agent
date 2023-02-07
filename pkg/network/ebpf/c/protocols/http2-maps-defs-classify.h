@@ -11,7 +11,6 @@ BPF_LRU_MAP(http2_iterations, http2_iterations_key_t, http2_tail_call_state_t, 1
 
 BPF_PERCPU_ARRAY_MAP(http2_heap_buffer, __u32, heap_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, __u32, http2_headers_t, 1)
-BPF_PERCPU_ARRAY_MAP(http2_frames_to_process, __u32, http2_frames_t, 1)
 BPF_PERCPU_ARRAY_MAP(http2_stream_heap, __u32, http2_stream_t, 1)
 BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, __u32, http2_ctx_t, 1)
 #endif

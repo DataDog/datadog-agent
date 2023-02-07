@@ -6,12 +6,11 @@
 
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES_PER_ITERATION 2
-#define HTTP2_MAX_FRAMES_ITERATIONS 5
+#define HTTP2_MAX_FRAMES_ITERATIONS 10
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 8
+#define HTTP2_MAX_HEADERS_COUNT 30
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
@@ -21,7 +20,7 @@
 #define MAX_STATIC_TABLE_INDEX 61
 
 // This determines the size of the payload fragment that is captured for each HTTP2 request
-#define HTTP2_BUFFER_SIZE (8 * 16)
+#define HTTP2_BUFFER_SIZE (8 * 20)
 
 #define HTTP2_END_OF_STREAM 0x1
 
@@ -106,10 +105,6 @@ typedef struct {
 typedef struct {
     http2_header_t array[HTTP2_MAX_HEADERS_COUNT];
 } http2_headers_t;
-
-typedef struct {
-    http2_frame_t array[HTTP2_MAX_FRAMES_PER_ITERATION];
-} http2_frames_t;
 
 typedef struct {
     __u32 offset;
