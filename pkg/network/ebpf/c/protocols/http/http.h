@@ -138,13 +138,12 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
     } else if (packet_type == HTTP_RESPONSE) {
         http_begin_response(http, buffer);
         http_update_seen_before(http, skb_info);
+        if (http_responding(http)) {
+            http->response_last_seen = bpf_ktime_get_ns();
+        }
     }
 
     http->tags |= tags;
-
-    if (http_responding(http)) {
-        http->response_last_seen = bpf_ktime_get_ns();
-    }
 
     if (http_closed(http, skb_info, http_stack->owned_by_src_port)) {
         http_batch_enqueue(http);
