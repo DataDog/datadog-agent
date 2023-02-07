@@ -34,6 +34,7 @@ func (o *ServerlessOTLPAgent) Start(serializer serializer.MetricSerializer) {
 func (o *ServerlessOTLPAgent) Stop() {
 	if o.pipeline != nil {
 		o.pipeline.Stop()
+		o.waitForState(collectorStateClosed, time.Second)
 	}
 }
 
@@ -41,25 +42,28 @@ func IsEnabled() bool {
 	return coreOtlp.IsEnabled(config.Datadog)
 }
 
-func (o *ServerlessOTLPAgent) IsReady() bool {
-	if o.pipeline == nil {
-		return false
-	}
-	if status := coreOtlp.GetCollectorStatus(o.pipeline); status.Status != "Running" {
-		return false
-	}
-	return true
+var (
+	collectorStateRunning = "Running"
+	collectorStateClosed  = "Closed"
+)
+
+func (o *ServerlessOTLPAgent) state() string {
+	return coreOtlp.GetCollectorStatus(o.pipeline).Status
 }
 
 func (o *ServerlessOTLPAgent) Wait(timeout time.Duration) error {
+	return o.waitForState(collectorStateRunning, timeout)
+}
+
+func (o *ServerlessOTLPAgent) waitForState(state string, timeout time.Duration) error {
 	after := time.After(timeout)
 	for {
-		if o.IsReady() {
+		if o.state() == state {
 			return nil
 		}
 		select {
 		case <-after:
-			return fmt.Errorf("timeout waiting for otlp agent to start")
+			return fmt.Errorf("timeout waiting for otlp agent state %s", state)
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}
