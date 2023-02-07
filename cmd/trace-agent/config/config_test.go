@@ -748,6 +748,16 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("0.0.0.0", cfg.ReceiverHost)
 	})
 
+	env = "DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "12.3")
+		cfg, err := LoadConfigFile("./testdata/undocumented.yaml")
+		assert.NoError(err)
+		assert.Equal(12.3, cfg.OTLPReceiver.ProbabilisticSampling)
+	})
+
 	for _, envKey := range []string{
 		"DD_IGNORE_RESOURCE", // deprecated
 		"DD_APM_IGNORE_RESOURCES",

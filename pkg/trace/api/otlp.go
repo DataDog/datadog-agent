@@ -328,11 +328,11 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		if p, ok := prioritiesByID[k]; ok {
 			// a manual decision has been made by the user
 			chunk.Priority = int32(p)
-			spans[0].Meta["_dd.p.dm"] = "-4"
+			traceutil.SetMeta(spans[0], "_dd.p.dm", "-4")
 		} else {
 			// we use the probabilistic sampler to decide
 			chunk.Priority = int32(o.sample(k))
-			spans[0].Meta["_dd.p.dm"] = "-9"
+			traceutil.SetMeta(spans[0], "_dd.p.dm", "-9")
 		}
 		traceChunks = append(traceChunks, chunk)
 	}
