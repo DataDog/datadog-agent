@@ -38,13 +38,13 @@ static __always_inline bool is_version(const char* buf, __u32 buf_size) {
 
     u32 read_size = 0;
     const __u32 major_component_size = is_version_component_helper(buf, 0, buf_size, '.');
-    if (major_component_size <= 0) {
+    if (major_component_size == 0) {
         return false;
     }
     read_size += major_component_size;
 
     const __u32 minor_component_size = is_version_component_helper(buf, read_size, buf_size, '.');
-    if (minor_component_size <= 0) {
+    if (minor_component_size == 0) {
         return false;
     }
     read_size += minor_component_size;
