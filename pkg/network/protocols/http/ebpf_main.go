@@ -10,15 +10,11 @@ package http
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"math"
-	"strings"
-	"unsafe"
-
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
+	"math"
+	"strings"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -213,102 +209,6 @@ func (e *ebpfProgram) Init() error {
 		return err
 	}
 	defer buf.Close()
-
-	staticTable, _, err := e.Manager.GetMap(string(probes.StaticTableMap))
-	if err == nil {
-		type staticTableEntry struct {
-			Index uint64
-			Value StaticTableValue
-		}
-
-		staticTableEntries := []staticTableEntry{
-			{
-				Index: 2,
-				Value: StaticTableValue{
-					Key:   MethodKey,
-					Value: GetValue,
-				},
-			},
-			{
-				Index: 3,
-				Value: StaticTableValue{
-					Key:   MethodKey,
-					Value: PostValue,
-				},
-			},
-			{
-				Index: 4,
-				Value: StaticTableValue{
-					Key:   PathKey,
-					Value: EmptyPathValue,
-				},
-			},
-			{
-				Index: 5,
-				Value: StaticTableValue{
-					Key:   PathKey,
-					Value: IndexPathValue,
-				},
-			},
-			{
-				Index: 8,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K200Value,
-				},
-			},
-			{
-				Index: 9,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K204Value,
-				},
-			},
-			{
-				Index: 10,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K206Value,
-				},
-			},
-			{
-				Index: 11,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K304Value,
-				},
-			},
-			{
-				Index: 12,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K400Value,
-				},
-			},
-			{
-				Index: 13,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K404Value,
-				},
-			},
-			{
-				Index: 14,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K500Value,
-				},
-			},
-		}
-
-		for _, entry := range staticTableEntries {
-			err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
-
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
-	}
 
 	return e.init(buf, manager.Options{})
 }

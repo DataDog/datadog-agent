@@ -11,6 +11,7 @@ package http
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"syscall"
 	"unsafe"
 
@@ -78,6 +79,102 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	if err := mgr.Init(); err != nil {
 		return nil, fmt.Errorf("error initializing http ebpf program: %w", err)
+	}
+
+	staticTable, _, _ := mgr.GetMap(string(probes.StaticTableMap))
+	if staticTable != nil {
+		type staticTableEntry struct {
+			Index uint64
+			Value StaticTableValue
+		}
+
+		staticTableEntries := []staticTableEntry{
+			{
+				Index: 2,
+				Value: StaticTableValue{
+					Key:   MethodKey,
+					Value: GetValue,
+				},
+			},
+			{
+				Index: 3,
+				Value: StaticTableValue{
+					Key:   MethodKey,
+					Value: PostValue,
+				},
+			},
+			{
+				Index: 4,
+				Value: StaticTableValue{
+					Key:   PathKey,
+					Value: EmptyPathValue,
+				},
+			},
+			{
+				Index: 5,
+				Value: StaticTableValue{
+					Key:   PathKey,
+					Value: IndexPathValue,
+				},
+			},
+			{
+				Index: 8,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K200Value,
+				},
+			},
+			{
+				Index: 9,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K204Value,
+				},
+			},
+			{
+				Index: 10,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K206Value,
+				},
+			},
+			{
+				Index: 11,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K304Value,
+				},
+			},
+			{
+				Index: 12,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K400Value,
+				},
+			},
+			{
+				Index: 13,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K404Value,
+				},
+			},
+			{
+				Index: 14,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K500Value,
+				},
+			},
+		}
+
+		for _, entry := range staticTableEntries {
+			err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
 	}
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
