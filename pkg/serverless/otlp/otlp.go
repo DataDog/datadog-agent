@@ -34,7 +34,9 @@ func (o *ServerlessOTLPAgent) Start(serializer serializer.MetricSerializer) {
 func (o *ServerlessOTLPAgent) Stop() {
 	if o.pipeline != nil {
 		o.pipeline.Stop()
-		o.waitForState(collectorStateClosed, time.Second)
+		if err := o.waitForState(collectorStateClosed, time.Second); err != nil {
+			log.Error("Error stopping OTLP endpints:", err)
+		}
 	}
 }
 
