@@ -41,13 +41,13 @@ func (l ActivityDumpRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (l ActivityDumpRuntimeSetting) Get() (interface{}, error) {
-	val := config.Datadog.Get(l.ConfigKey)
+	val := config.SystemProbe.Get(l.ConfigKey)
 	return val, nil
 }
 
 func (l ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}) {
 	intVar, _ := strconv.Atoi(v.(string))
-	config.Datadog.Set(l.ConfigKey, intVar)
+	config.SystemProbe.Set(l.ConfigKey, intVar)
 }
 
 // Set changes the value of the runtime setting

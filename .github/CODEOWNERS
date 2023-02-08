@@ -179,6 +179,7 @@
 /comp/core @DataDog/agent-shared-components
 /comp/process @DataDog/processes
 /comp/systray @DataDog/windows-agent
+/comp/core/sysprobeconfig @DataDog/ebpf-platform
 # END COMPONENTS
 
 # pkg
@@ -313,7 +314,6 @@
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/runtime/tcp-queue-length.go  @DataDog/container-integrations
 /pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
-/pkg/quantile/                          @DataDog/metrics-aggregation
 /pkg/compliance/                        @DataDog/agent-security
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
@@ -368,7 +368,10 @@
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
+/test/fake-intake/                      @DataDog/agent-e2e-testing
 /test/new-e2e/                          @DataDog/agent-e2e-testing
+/test/new-e2e/ndm                       @DataDog/network-device-monitoring
+/test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm

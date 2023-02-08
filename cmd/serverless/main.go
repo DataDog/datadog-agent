@@ -237,6 +237,10 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// enable telemetry collection
 	go func() {
 		defer wg.Done()
+		if len(os.Getenv(daemon.LocalTestEnvVar)) > 0 {
+			log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
+			return
+		}
 		log.Debug("Enabling telemetry collection HTTP route")
 		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
 		logRegistrationError := registration.EnableTelemetryCollection(

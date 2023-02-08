@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1"
 	batchv1Listers "k8s.io/client-go/listers/batch/v1"
@@ -45,7 +45,7 @@ func NewJobCollector() *JobCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "jobs",
-			NodeType:                  orchestrator.K8sJob,
+			NodeType:                  model.K8SResource_JOB,
 			Version:                   "batch/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),

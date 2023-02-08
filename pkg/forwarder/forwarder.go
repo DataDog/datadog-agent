@@ -630,6 +630,7 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 
 // SubmitOrchestratorManifests sends orchestrator manifests
 func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+	transactionsOrchestratorManifest.Add(1)
 	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
 }
 

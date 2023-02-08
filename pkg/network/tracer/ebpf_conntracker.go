@@ -109,13 +109,13 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
 	}
 
-	ctMap, _, err := m.GetMap(string(probes.ConntrackMap))
+	ctMap, _, err := m.GetMap(probes.ConntrackMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
-	telemetryMap, _, err := m.GetMap(string(probes.ConntrackTelemetryMap))
+	telemetryMap, _, err := m.GetMap(probes.ConntrackTelemetryMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
@@ -167,8 +167,8 @@ func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Con
 			return err
 		}
 	}
-	if err := e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackFillInfo), EBPFFuncName: "kprobe_ctnetlink_fill_info"}); err != nil {
-		log.Debugf("detachHook %s/kprobe_ctnetlink_fill_info : %s", string(probes.ConntrackFillInfo), err)
+	if err := e.m.DetachHook(manager.ProbeIdentificationPair{EBPFFuncName: probes.ConntrackFillInfo}); err != nil {
+		log.Debugf("detachHook %s : %s", probes.ConntrackFillInfo, err)
 	}
 	return nil
 }
@@ -381,22 +381,20 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
-			{Name: string(probes.ConntrackMap)},
-			{Name: string(probes.ConntrackTelemetryMap)},
+			{Name: probes.ConntrackMap},
+			{Name: probes.ConntrackTelemetryMap},
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.ConntrackHashInsert),
-					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
+					EBPFFuncName: probes.ConntrackHashInsert,
 					UID:          "conntracker",
 				},
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.ConntrackFillInfo),
-					EBPFFuncName: "kprobe_ctnetlink_fill_info",
+					EBPFFuncName: probes.ConntrackFillInfo,
 					UID:          "conntracker",
 				},
 			},
@@ -431,7 +429,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
+			probes.ConntrackMap: {Type: ebpf.Hash, MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors:           telemetryMapKeys,
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
@@ -441,10 +439,10 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 	}
 
 	if mapErrTelemetryMap != nil {
-		opts.MapEditors[string(probes.MapErrTelemetryMap)] = mapErrTelemetryMap
+		opts.MapEditors[probes.MapErrTelemetryMap] = mapErrTelemetryMap
 	}
 	if helperErrTelemetryMap != nil {
-		opts.MapEditors[string(probes.HelperErrTelemetryMap)] = helperErrTelemetryMap
+		opts.MapEditors[probes.HelperErrTelemetryMap] = helperErrTelemetryMap
 	}
 
 	err = mgr.InitWithOptions(buf, opts)

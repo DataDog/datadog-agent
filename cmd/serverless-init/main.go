@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -32,6 +33,9 @@ func main() {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	}
 
+	// load proxy settings
+	setupProxy()
+
 	cloudService := cloudservice.GetCloudServiceType()
 	tags := cloudService.GetTags()
 	origin := cloudService.GetOrigin()
@@ -39,6 +43,13 @@ func main() {
 
 	logConfig := log.CreateConfig(origin)
 	log.SetupLog(logConfig, tags)
+
+	// The datadog-agent requires Load to be called or it could
+	// panic down the line.
+	_, err := config.Load()
+	if err != nil {
+		logger.Debugf("Error loading config: %v\n", err)
+	}
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, tags)
@@ -66,4 +77,8 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)
 	return metricAgent
+}
+
+func setupProxy() {
+	config.LoadProxyFromEnv(config.Datadog)
 }

@@ -58,6 +58,12 @@ func TestIsEC2UUID(t *testing.T) {
 	assert.True(t, isEC2UUID())
 	dmi.SetupMock(t, "", "8550b498-1488-4e75-82ba-a6931a9daf36", "", "")
 	assert.False(t, isEC2UUID())
+
+	// product_uuid with other board vendor
+	dmi.SetupMock(t, "", "ec20b498-1488-4e75-82ba-a6931a9daf36", "", "not AWS")
+	assert.False(t, isEC2UUID())
+	dmi.SetupMock(t, "", "ec20b498-1488-4e75-82ba-a6931a9daf36", "", DMIBoardVendor)
+	assert.True(t, isEC2UUID())
 }
 
 func TestIsEC2UUIDSwapEndian(t *testing.T) {
