@@ -6,7 +6,6 @@
 package core
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,6 @@ func TestBundleDependencies(t *testing.T) {
 		// instantiate all of the core components, since this is not done
 		// automatically.
 		fx.Invoke(func(config.Component) {}),
-		fx.Invoke(func(sysprobeconfig.Component) {}),
 		fx.Invoke(func(log.Component) {}),
 		fx.Invoke(func(flare.Component) {}),
 
@@ -37,7 +35,6 @@ func TestMockBundleDependencies(t *testing.T) {
 		// instantiate all of the core components, since this is not done
 		// automatically.
 		fx.Invoke(func(config.Component) {}),
-		fx.Invoke(func(sysprobeconfig.Component) {}),
 		fx.Invoke(func(log.Component) {}),
 
 		fx.Supply(BundleParams{}),

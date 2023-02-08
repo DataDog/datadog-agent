@@ -27,8 +27,8 @@ type runner struct {
 type dependencies struct {
 	fx.In
 
-	coreConfig     config.Component
-	sysProbeConfig sysprobeconfig.Component
+	CoreConfig     config.Component
+	SysProbeConfig sysprobeconfig.Component
 
 	Checks    []types.Check `group:"check"`
 	Submitter submitter.Component

@@ -23,8 +23,8 @@ type submitter struct {
 type dependencies struct {
 	fx.In
 
-	coreConfig     config.Component
-	sysProbeConfig sysprobeconfig.Component
+	CoreConfig     config.Component
+	SysProbeConfig sysprobeconfig.Component
 }
 
 func newSubmitter(deps dependencies) (Component, error) {

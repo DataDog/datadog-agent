@@ -31,8 +31,8 @@ func (c *check) Name() string {
 type dependencies struct {
 	fx.In
 
-	coreConfig     config.Component
-	sysProbeConfig sysprobeconfig.Component
+	CoreConfig     config.Component
+	SysProbeConfig sysprobeconfig.Component
 }
 
 func newCheck(deps dependencies) types.ProvidesCheck {
