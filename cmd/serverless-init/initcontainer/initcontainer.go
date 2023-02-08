@@ -55,11 +55,11 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 		LineBuffer: bytes.Buffer{},
 		IsError:    true,
 	}
-	handleSignals(cloudService, cmd.Process, config, metricAgent, traceAgent)
 	err := cmd.Start()
 	if err != nil {
 		return err
 	}
+	handleSignals(cloudService, cmd.Process, config, metricAgent, traceAgent)
 	err = cmd.Wait()
 	flush(config.FlushTimeout, metricAgent, traceAgent)
 	return err

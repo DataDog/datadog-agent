@@ -167,7 +167,6 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 
 	for _, section := range expandSyscallSections(syscallName, flag, compat...) {
 		probeCopy := probe.Copy()
-		probeCopy.EBPFSection = section
 		probeCopy.EBPFFuncName = getFunctionNameFromSection(section)
 		probes = append(probes, probeCopy)
 	}
@@ -176,7 +175,7 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 }
 
 // ExpandSyscallProbesSelector returns the list of a ProbesSelector required to query all the probes available for a syscall
-func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, compat ...bool) []manager.ProbesSelector {
+func ExpandSyscallProbesSelector(UID string, section string, flag int, compat ...bool) []manager.ProbesSelector {
 	var selectors []manager.ProbesSelector
 
 	if len(RuntimeArch) == 0 {
@@ -188,11 +187,11 @@ func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, c
 		if getSyscallPrefix() == "sys_" {
 			return selectors
 		}
-		id.EBPFSection += "_time32"
+		section += "_time32"
 	}
 
-	for _, section := range expandSyscallSections(id.EBPFSection, flag, compat...) {
-		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: id.UID, EBPFSection: section, EBPFFuncName: getFunctionNameFromSection(section)}}
+	for _, esection := range expandSyscallSections(section, flag, compat...) {
+		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: UID, EBPFFuncName: getFunctionNameFromSection(esection)}}
 		selectors = append(selectors, selector)
 	}
 

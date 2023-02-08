@@ -319,16 +319,15 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	}
 
 	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
+		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
 			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
-	for probeName, funcName := range enabledProbes {
+	for funcName := range enabledProbes {
 		offsetOptions.ActivatedProbes = append(
 			offsetOptions.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probeName),
 					EBPFFuncName: funcName,
 					UID:          "offset",
 				},
