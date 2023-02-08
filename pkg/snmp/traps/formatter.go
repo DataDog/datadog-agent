@@ -340,12 +340,17 @@ func formatType(variable gosnmp.SnmpPDU) string {
 }
 
 func formatValue(variable gosnmp.SnmpPDU) interface{} {
-	switch variable.Value.(type) {
-	case []byte:
-		return string(variable.Value.([]byte))
-	default:
-		return variable.Value
+	value := variable.Value
+
+	if bytes, ok := value.([]byte); ok {
+		value = string(bytes)
 	}
+
+	if variable.Type == gosnmp.ObjectIdentifier {
+		return NormalizeOID(value.(string))
+	}
+
+	return value
 }
 
 func formatVersion(packet *gosnmp.SnmpPacket) string {
