@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/network"
+	cprocess "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/process"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -58,17 +60,26 @@ var EventMonitor = module.Factory{
 			return nil, module.ErrNotEnabled
 		}
 
+		// TODO: check whether enabled in config
 		cws, err := secmodule.NewCWSConsumer(evm)
 		if err != nil {
 			return nil, err
 		}
 		evm.RegisterEventModule(cws)
 
-		/*	process, err := secmodule.NewProcessModule(evm)
-			if err != nil {
-				return nil, err
-			}
-			evm.RegisterEventModule(process)*/
+		// TODO: check whether enabled in config
+		network, err := network.NewNetworkConsumer(evm)
+		if err != nil {
+			return nil, err
+		}
+		evm.RegisterEventModule(network)
+
+		// TODO: check whether enabled in config
+		process, err := cprocess.NewProcessConsumer(evm)
+		if err != nil {
+			return nil, err
+		}
+		evm.RegisterEventModule(process)
 
 		return evm, err
 	},

@@ -125,7 +125,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer,
 
 // ID returns id for CWS
 func (c *CWSConsumer) ID() string {
-	return "CWS_MODULE"
+	return "CWS"
 }
 
 // Start the module

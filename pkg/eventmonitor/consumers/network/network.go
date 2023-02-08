@@ -27,7 +27,7 @@ func (n *NetworkConsumer) Stop() {
 
 // ID returns id for process monitor
 func (n *NetworkConsumer) ID() string {
-	return "NETWORK_MODULE"
+	return "NETWORK"
 }
 
 // NewNetworkConsumer returns a new NetworkConsumer instance

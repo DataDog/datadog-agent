@@ -76,7 +76,7 @@ func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 
 // ID returns id for process monitor
 func (p *ProcessConsumer) ID() string {
-	return "PROCESS_MODULE"
+	return "PROCESS"
 }
 
 // NewProcessConsumer returns a new ProcessConsumer instance
