@@ -191,9 +191,11 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT; ++headers_index) {
         offset = heap_buffer->offset;
         if (buffer_size <= offset) {
+            log_debug("[http2] filter_relevant_headers abort 1 returned %lu %lu", buffer_size, offset);
             break;
         }
         if (HTTP2_BUFFER_SIZE <= offset) {
+            log_debug("[http2] filter_relevant_headers abort 2 returned %lu %lu", HTTP2_BUFFER_SIZE, offset);
             break;
         }
         offset %= HTTP2_BUFFER_SIZE;
@@ -203,66 +205,17 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             interesting_headers += parse_field_indexed(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+            log_debug("[http2] filter_relevant_headers in 3 returned %lu", interesting_headers);
         } else if ((current_ch&192) == 64) {
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
             interesting_headers += parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+            log_debug("[http2] filter_relevant_headers in 4 returned %lu", interesting_headers);
         }
     }
 
     return interesting_headers;
-}
-
-static __always_inline bool filter_http2_frames(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_frame_t *current_frame, __u32 *max_offset) {
-    __u32 offset = iterations_key->skb_info.data_off;
-    // length cannot be 9
-    char frame_buf[10];
-    bpf_memset((char*)frame_buf, 0, 10);
-
-    bool is_end_of_stream = false;
-    bool is_headers_frame = false;
-    bool is_data_frame_end_of_stream = false;
-    frame_type_t frame_type;
-    __u8 frame_flags;
-
-//#pragma unroll (HTTP2_MAX_FRAMES_PER_ITERATION)
-//    for (int iteration = 0; iteration < HTTP2_MAX_FRAMES_PER_ITERATION; ++iteration) {
-
-    if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-        return false;
-    }
-
-    // read frame.
-    bpf_skb_load_bytes_with_telemetry(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
-    offset += HTTP2_FRAME_HEADER_SIZE;
-
-    if (!read_http2_frame_header2(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame->header)){
-        log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
-        return false;
-    }
-
-    frame_type = current_frame->header.type;
-    frame_flags = current_frame->header.flags;
-
-    current_frame->offset = offset;
-
-    offset += current_frame->header.length;
-
-    // filter frame
-    is_end_of_stream = (frame_flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
-    is_data_frame_end_of_stream = is_end_of_stream && (frame_type == kDataFrame);
-    is_headers_frame = frame_type == kHeadersFrame;
-
-    if (!is_data_frame_end_of_stream && !is_headers_frame) {
-        // Skipping the frame payload.
-        return false;
-    }
-
-//    }
-
-    *max_offset += offset - iterations_key->skb_info.data_off;
-    return true;
 }
 
 static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk_buff *skb, u64 offset) {
@@ -322,10 +275,12 @@ static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk
 }
 
 static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u8 interesting_headers) {
+    log_debug("[http2] process_headers called with %lu", interesting_headers);
     http2_stream_t *current_stream;
     http2_header_t *current_header;
     http2_stream_key_t *http2_stream_key_template = &http2_ctx->http2_stream_key;
 
+    // TODO: use a lower bound as we have much less "interesting" headers than HTTP2_MAX_HEADERS_COUNT.
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT; ++iteration) {
         if (iteration >= interesting_headers) {
@@ -340,6 +295,7 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
             break;
         }
 
+        log_debug("[http2] got stream");
         if (current_header->type == kStaticHeader) {
             // fetch static value
             static_table_entry_t* static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
@@ -416,67 +372,88 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
     http2_batch_enqueue(current_stream);
 }
 
-static __always_inline int find_interesting_headers(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_headers_t *headers_to_process, http2_frame_t *current_frame, struct http2_frame *current_frame_header, heap_buffer_t *heap_buffer){
-    __u8 interesting_headers = 0;
-
-    if (current_frame_header->type != kHeadersFrame) {
-        return interesting_headers;
-    }
-
-    // headers frame
-    heap_buffer->size = HTTP2_BUFFER_SIZE < current_frame_header->length ? HTTP2_BUFFER_SIZE : current_frame_header->length;
-
-    // read headers payload
-    read_into_buffer_skb_http2((char*)heap_buffer->fragment, skb, current_frame->offset);
-
-    interesting_headers += filter_relevant_headers(iterations_key, http2_ctx, headers_to_process->array, current_frame_header->stream_id, heap_buffer);
-
-    return interesting_headers;
-}
-
-static __always_inline void handle_interesting_headers(http2_ctx_t *http2_ctx, struct http2_frame *current_frame_header){
-    if (current_frame_header == NULL) {
-        return;
-    }
-
-    http2_ctx->http2_stream_key.stream_id = current_frame_header->stream_id;
-    if ((current_frame_header->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-        handle_end_of_stream(current_frame_header->type, &http2_ctx->http2_stream_key);
-    }
-}
-
-static __always_inline void process_relevant_http2_frames(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_frame_t *current_frame) {
+static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, struct http2_frame *current_frame_header) {
     const __u32 zero = 0;
 
-    heap_buffer_t *heap_buffer = bpf_map_lookup_elem(&http2_heap_buffer, &zero);
-    if (heap_buffer == NULL) {
+    // Allocating a buffer on the heap (percpu array), the buffer represents the frame payload.
+    heap_buffer_t *frame_payload = bpf_map_lookup_elem(&http2_heap_buffer, &zero);
+    if (frame_payload == NULL) {
         return;
     }
-    bpf_memset(heap_buffer, 0, sizeof(heap_buffer_t));
+    bpf_memset(frame_payload, 0, sizeof(heap_buffer_t));
 
+    // TODO: We should allocate lower number than HTTP2_MAX_HEADERS_COUNT, as we know we have 2-4 max interesting headers
+    // in one frame.
+    // Allocating an array of headers, to hold all interesting headers from the frame.
     http2_headers_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
     if (headers_to_process == NULL) {
         return;
     }
     bpf_memset(headers_to_process->array, 0, HTTP2_MAX_HEADERS_COUNT * sizeof(http2_header_t));
 
-    struct http2_frame *current_frame_header = &current_frame->header;
-    __u8 interesting_headers = find_interesting_headers(skb, iterations_key, http2_ctx, headers_to_process, current_frame, current_frame_header, heap_buffer);
+    // Search for relevant headers.
 
-    process_headers(http2_ctx, headers_to_process->array, interesting_headers);
+    // TODO: Introduce MIN macro
+    // headers frame
+    frame_payload->size = HTTP2_BUFFER_SIZE < current_frame_header->length ? HTTP2_BUFFER_SIZE : current_frame_header->length;
 
-    handle_interesting_headers(http2_ctx, current_frame_header);
+    // read headers payload
+    read_into_buffer_skb_http2((char*)frame_payload->fragment, skb, iterations_key->skb_info.data_off + HTTP2_FRAME_HEADER_SIZE);
+
+    __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process->array, current_frame_header->stream_id, frame_payload);
+    log_debug("[http2] filter_relevant_headers returned %lu", interesting_headers);
+    if (interesting_headers > 0) {
+        process_headers(http2_ctx, headers_to_process->array, interesting_headers);
+    }
 }
 
 static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx) {
-    http2_frame_t current_frame = {};
-    __u32 max_offset = 0;
-    if (!filter_http2_frames(skb, iterations_key, &current_frame, &max_offset)) {
+    __u32 offset = iterations_key->skb_info.data_off;
+    log_debug("[http2] skb %p reading from %lu until %lu", skb, offset, skb->len);
+    // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
+    if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+        log_debug("[http2] skb %p abort 1", skb);
         return -1;
     }
-    process_relevant_http2_frames(skb, iterations_key, http2_ctx, &current_frame);
 
-    return max_offset;
+    char frame_buf[HTTP2_FRAME_HEADER_SIZE];
+    bpf_memset((char*)frame_buf, 0, sizeof(frame_buf));
+
+    // read frame.
+    bpf_skb_load_bytes_with_telemetry(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
+    offset += HTTP2_FRAME_HEADER_SIZE;
+
+    struct http2_frame current_frame = {};
+    if (!read_http2_frame_header2(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
+        log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
+        return -1;
+    }
+
+    // Check if we should process the frame.
+    switch (current_frame.type) {
+    case kHeadersFrame:
+        // We always want to process headers frame.
+        process_headers_frame(skb, iterations_key, http2_ctx, &current_frame);
+        break;
+    case kDataFrame:
+        if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+            // We want to process data frame if and only if, it is an end of stream.
+            break;
+        }
+        // fallthrough
+    default:
+        // Should not process the frame.
+        goto end;
+    }
+
+    // If the payload is end of stream, call handle_end_of_stream.
+    if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+        http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
+        handle_end_of_stream(current_frame.type, &http2_ctx->http2_stream_key);
+    }
+
+end:
+    return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
 }
 
 #endif

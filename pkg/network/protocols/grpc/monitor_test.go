@@ -32,6 +32,8 @@ const (
 func TestGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableRuntimeCompiler = false
+	cfg.EnableCORE = false
 	cfg.BPFDebug = true
 
 	s, err := grpc.NewServer(srvAddr)
@@ -45,7 +47,7 @@ func TestGRPCScenarios(t *testing.T) {
 		expectedEndpoints map[http.Key]int
 	}{
 		{
-			name: "simple unary",
+			name: "aaaa simple unary",
 			runClients: func(t *testing.T, _ bool) {
 				var client1 grpc.Client
 				var err error

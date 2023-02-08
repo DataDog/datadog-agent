@@ -93,8 +93,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     iterations_key.skb_info.data_off += tail_call_state->offset;
 
     __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
-
-    if (read_size <= 0) {
+    if (read_size <= 0 || read_size == -1) {
         goto delete_iteration;
     }
     if (iterations_key.skb_info.data_off + read_size >= skb->len) {

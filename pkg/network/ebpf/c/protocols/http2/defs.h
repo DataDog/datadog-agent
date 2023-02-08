@@ -35,10 +35,4 @@ struct http2_frame {
     __u32 stream_id : 31;
 } __attribute__ ((packed));
 
-typedef struct {
-    struct http2_frame header;
-    __u32 offset;
-} __attribute__ ((packed)) http2_frame_t;
-
-
 #endif
