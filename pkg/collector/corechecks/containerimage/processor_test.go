@@ -10,81 +10,74 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/contimage"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
 	"github.com/golang/protobuf/ptypes/timestamp"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestProcessEvents(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID(""))
-	sender.On("ContainerImage", mock.Anything, mock.Anything).Return()
-	p := newProcessor(sender, 2, 50*time.Millisecond)
-
-	p.processEvents(workloadmeta.EventBundle{
-		Events: []workloadmeta.Event{
-			{
-				Type: workloadmeta.EventTypeSet,
-				Entity: &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainerImageMetadata,
-						ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					},
-					Registry:  "registry guessed by workloadmeta is ignored",
-					ShortName: "short name guessed by workloadmeta is ignored",
-					RepoTags: []string{
-						"datadog/agent:7-rc",
-						"datadog/agent:7.41.1-rc.1",
-						"gcr.io/datadoghq/agent:7-rc",
-						"gcr.io/datadoghq/agent:7.41.1-rc.1",
-						"public.ecr.aws/datadog/agent:7-rc",
-						"public.ecr.aws/datadog/agent:7.41.1-rc.1",
-					},
-					RepoDigests: []string{
-						"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
-						"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
-						"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
-					},
-					SizeBytes:    42,
-					OS:           "DOS",
-					OSVersion:    "6.22",
-					Architecture: "80486DX",
-					Layers: []workloadmeta.ContainerImageLayer{
-						{
-							MediaType: "media",
-							Digest:    "digest_layer_1",
-							SizeBytes: 43,
-							URLs:      []string{"url"},
-							History: v1.History{
-								Created: pointer.Ptr(time.Unix(42, 43)),
-							},
+	tests := []struct {
+		name           string
+		inputEvents    []workloadmeta.Event
+		expectedImages []*model.ContainerImage
+	}{
+		{
+			name: "standard case",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
 						},
-						{
-							MediaType: "media",
-							Digest:    "digest_layer_2",
-							URLs:      []string{"url"},
-							SizeBytes: 44,
-							History: v1.History{
-								Created: pointer.Ptr(time.Unix(43, 44)),
+						RepoTags: []string{
+							"datadog/agent:7-rc",
+							"datadog/agent:7.41.1-rc.1",
+							"gcr.io/datadoghq/agent:7-rc",
+							"gcr.io/datadoghq/agent:7.41.1-rc.1",
+							"public.ecr.aws/datadog/agent:7-rc",
+							"public.ecr.aws/datadog/agent:7.41.1-rc.1",
+						},
+						RepoDigests: []string{
+							"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+						SizeBytes:    42,
+						OS:           "DOS",
+						OSVersion:    "6.22",
+						Architecture: "80486DX",
+						Layers: []workloadmeta.ContainerImageLayer{
+							{
+								MediaType: "media",
+								Digest:    "digest_layer_1",
+								SizeBytes: 43,
+								URLs:      []string{"url"},
+								History: v1.History{
+									Created: pointer.Ptr(time.Unix(42, 43)),
+								},
+							},
+							{
+								MediaType: "media",
+								Digest:    "digest_layer_2",
+								URLs:      []string{"url"},
+								SizeBytes: 44,
+								History: v1.History{
+									Created: pointer.Ptr(time.Unix(43, 44)),
+								},
 							},
 						},
 					},
 				},
 			},
-		},
-		Ch: make(chan struct{}),
-	})
-
-	sender.AssertNumberOfCalls(t, "ContainerImage", 1)
-	sender.AssertContainerImage(t, []model.ContainerImagePayload{
-		{
-			Version: "v1",
-			Images: []*model.ContainerImage{
+			expectedImages: []*model.ContainerImage{
 				{
 					Id:        "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
 					Name:      "datadog/agent",
@@ -181,17 +174,6 @@ func TestProcessEvents(t *testing.T) {
 						Nanos:   44,
 					},
 				},
-			},
-		},
-	})
-
-	time.Sleep(100 * time.Millisecond)
-
-	sender.AssertNumberOfCalls(t, "ContainerImage", 2)
-	sender.AssertContainerImage(t, []model.ContainerImagePayload{
-		{
-			Version: "v1",
-			Images: []*model.ContainerImage{
 				{
 					Id:        "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
 					Name:      "public.ecr.aws/datadog/agent",
@@ -242,77 +224,58 @@ func TestProcessEvents(t *testing.T) {
 				},
 			},
 		},
-	})
-
-	p.stop()
-}
-
-func TestProcessEvents_repoTagWithNoMatchingRepoDigest(t *testing.T) {
-	// In containerd some images are created without a repo digest, and it's
-	// also possible to remove repo digests manually. To test that scenario, in
-	// this test, we define an image with 2 repo tags: one for the gcr.io
-	// registry and another for the public.ecr.aws registry, but there's only
-	// one repo digest.
-	// We expect to send 2 events, one for each registry.
-
-	sender := mocksender.NewMockSender("")
-	sender.On("ContainerImage", mock.Anything, mock.Anything).Return()
-	p := newProcessor(sender, 2, 50*time.Millisecond)
-
-	p.processEvents(workloadmeta.EventBundle{
-		Events: []workloadmeta.Event{
-			{
-				Type: workloadmeta.EventTypeSet,
-				Entity: &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainerImageMetadata,
-						ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					},
-					RepoTags: []string{
-						"gcr.io/datadoghq/agent:7-rc",
-						"public.ecr.aws/datadog/agent:7-rc",
-					},
-					RepoDigests: []string{
-						// Notice that there's a repo tag for gcr.io, but no repo digest.
-						"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
-					},
-					SizeBytes:    42,
-					OS:           "DOS",
-					OSVersion:    "6.22",
-					Architecture: "80486DX",
-					Layers: []workloadmeta.ContainerImageLayer{
-						{
-							MediaType: "media",
-							Digest:    "digest_layer_1",
-							SizeBytes: 43,
-							URLs:      []string{"url"},
-							History: v1.History{
-								Created: pointer.Ptr(time.Unix(42, 43)),
-							},
+		{
+			// In containerd some images are created without a repo digest, and it's
+			// also possible to remove repo digests manually. To test that scenario, in
+			// this test, we define an image with 2 repo tags: one for the gcr.io
+			// registry and another for the public.ecr.aws registry, but there's only
+			// one repo digest.
+			// We expect to send 2 events, one for each registry.
+			name: "repo tag with no matching repo digest",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
 						},
-						{
-							MediaType: "media",
-							Digest:    "digest_layer_2",
-							URLs:      []string{"url"},
-							SizeBytes: 44,
-							History: v1.History{
-								Created: pointer.Ptr(time.Unix(43, 44)),
+						RepoTags: []string{
+							"gcr.io/datadoghq/agent:7-rc",
+							"public.ecr.aws/datadog/agent:7-rc",
+						},
+						RepoDigests: []string{
+							// Notice that there's a repo tag for gcr.io, but no repo digest.
+							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+						SizeBytes:    42,
+						OS:           "DOS",
+						OSVersion:    "6.22",
+						Architecture: "80486DX",
+						Layers: []workloadmeta.ContainerImageLayer{
+							{
+								MediaType: "media",
+								Digest:    "digest_layer_1",
+								SizeBytes: 43,
+								URLs:      []string{"url"},
+								History: v1.History{
+									Created: pointer.Ptr(time.Unix(42, 43)),
+								},
+							},
+							{
+								MediaType: "media",
+								Digest:    "digest_layer_2",
+								URLs:      []string{"url"},
+								SizeBytes: 44,
+								History: v1.History{
+									Created: pointer.Ptr(time.Unix(43, 44)),
+								},
 							},
 						},
 					},
 				},
 			},
-		},
-		Ch: make(chan struct{}),
-	})
-
-	time.Sleep(100 * time.Millisecond)
-
-	sender.AssertNumberOfCalls(t, "ContainerImage", 1)
-	sender.AssertContainerImage(t, []model.ContainerImagePayload{
-		{
-			Version: "v1",
-			Images: []*model.ContainerImage{
+			expectedImages: []*model.ContainerImage{
 				{
 					Id:        "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
 					Name:      "public.ecr.aws/datadog/agent",
@@ -409,7 +372,42 @@ func TestProcessEvents_repoTagWithNoMatchingRepoDigest(t *testing.T) {
 				},
 			},
 		},
-	})
+	}
 
-	p.stop()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var imagesSent = atomic.NewInt32(0)
+
+			sender := mocksender.NewMockSender("")
+			sender.On("ContainerImage", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+				imagesSent.Inc()
+			})
+
+			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
+			// control the number of events sent on each call.
+			p := newProcessor(sender, 1, 50*time.Millisecond)
+
+			p.processEvents(workloadmeta.EventBundle{
+				Events: test.inputEvents,
+				Ch:     make(chan struct{}),
+			})
+
+			p.stop()
+
+			// The queue is processing the events in a different go routine and might
+			// need some time
+			assert.Eventually(t, func() bool {
+				return imagesSent.Load() == int32(len(test.expectedImages))
+			}, 1*time.Second, 5*time.Millisecond)
+
+			for _, expectedImage := range test.expectedImages {
+				sender.AssertContainerImage(t, []model.ContainerImagePayload{
+					{
+						Version: "v1",
+						Images:  []*model.ContainerImage{expectedImage},
+					},
+				})
+			}
+		})
+	}
 }
