@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -111,16 +112,26 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 }
 
 // BootstrapConfig is a helper for process-agent config initialization (until we further refactor to use components)
-func BootstrapConfig(path string, oneshotCommand bool) error {
+func BootstrapConfig(path string, sysprobePath string, oneshotCommand bool) (*sysconfig.Config, error) {
 	setHostMountEnv()
 
+	// We need to load in the system probe environment variables before we load the config, otherwise an
+	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
+	config.InitSystemProbeConfig(config.Datadog)
+
 	if err := loadConfigIfExists(path); err != nil {
-		return err
+		return nil, err
+	}
+
+	// For system probe, there is an additional config file that is shared with the system-probe
+	syscfg, err := sysconfig.Merge(sysprobePath)
+	if err != nil {
+		return nil, err
 	}
 
 	// Resolve any secrets
 	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
-		return err
+		return nil, err
 	}
 
 	var (
@@ -142,7 +153,7 @@ func BootstrapConfig(path string, oneshotCommand bool) error {
 		}
 	}
 
-	return config.SetupLogger(
+	return syscfg, config.SetupLogger(
 		LoggerName,
 		config.Datadog.GetString("log_level"),
 		logFile,
