@@ -12,6 +12,8 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 )
@@ -24,6 +26,9 @@ type runner struct {
 
 type dependencies struct {
 	fx.In
+
+	coreConfig     config.Component
+	sysProbeConfig sysprobeconfig.Component
 
 	Checks    []types.Check `group:"check"`
 	Submitter submitter.Component

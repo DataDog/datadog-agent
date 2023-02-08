@@ -6,6 +6,8 @@
 package submitter
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"testing"
 	"time"
 
@@ -20,6 +22,9 @@ type submitter struct {
 
 type dependencies struct {
 	fx.In
+
+	coreConfig     config.Component
+	sysProbeConfig sysprobeconfig.Component
 }
 
 func newSubmitter(deps dependencies) (Component, error) {
@@ -27,7 +32,6 @@ func newSubmitter(deps dependencies) (Component, error) {
 }
 
 func (s *submitter) Submit(start time.Time, checkName string, payload *types.Payload) {
-
 }
 
 func (s *submitter) Start() error {
