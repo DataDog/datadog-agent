@@ -857,10 +857,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		log.Infof("Adding test module as listener")
 		rs.AddListener(testMod)
 	})
-
-	if err := testMod.probe.AddEventHandler(model.UnknownEventType, cws); err != nil {
-		return nil, fmt.Errorf("failed to create module: %w", err)
-	}
 	testMod.probe.AddNewNotifyDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
 
 	if err := testMod.eventMonitor.Init(); err != nil {
