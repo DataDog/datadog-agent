@@ -74,6 +74,7 @@ platforms:
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
       al2022 = platform_name.include?("amazonlinux2022")
+      fedora = platform_name.include?("fedora")
       windows2008 = windows && platform_name.include?("2008")
 
       if windows
@@ -135,7 +136,7 @@ platforms:
     <% if al2022 %>
       sudo dnf install -y libxcrypt-compat
     <% end %>
-  <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || al2022 %>
+  <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || al2022 || fedora %>
   lifecycle:
     post_create:
   <% end %>
@@ -144,6 +145,9 @@ platforms:
         sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
         sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
         sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
+  <% end %>
+  <% if fedora %>
+    - remote: sudo dnf install -y libxcrypt-compat
   <% end %>
   <% if al2022 %>
   # Add a hook after creating the host, to make sure we wait until the user_data

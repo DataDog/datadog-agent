@@ -39,7 +39,23 @@
         "ec2": {
             "arm64": {
                 "debian-10": "ami-018ce69d4b9c9e3ec",
-                "debian-11": "ami-0d53a3ba77632d713"
+                "debian-11": "ami-0d53a3ba77632d713",
+                "debian-12": "ami-018158620b2de184c"
+            },
+            "x86_64": {
+                "debian-12": "ami-00968ff47d5999f55"
+            }
+        }
+    },
+    "fedora": {
+        "ec2": {
+            "arm64": {
+                "fedora-36": "ami-01925eb0821988986",
+                "fedora-37": "ami-0e9221491fc51fca6"
+            },
+            "x86_64": {
+                "fedora-36": "ami-08b7bda26f4071b80",
+                "fedora-37": "ami-023fb534213ca41da"
             }
         }
     },
@@ -72,12 +88,16 @@
             }
         },
         "ec2": {
+            "x86_64": {
+                "ubuntu-22-10": "ami-0e91aa083be0e6546"
+            },
             "arm64": {
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",
                 "ubuntu-20-04": "ami-0b75998a97c952252",
                 "ubuntu-20-04-2": "ami-0a82127206c2824a1",
                 "ubuntu-21-04": "ami-044f0ceee8e885e87",
-                "ubuntu-22-04": "ami-02ddaf75821f25213"
+                "ubuntu-22-04": "ami-02ddaf75821f25213",
+                "ubuntu-22-10": "ami-08ce05abd8d2790a4"
             }
         },
         "vagrant": {
@@ -102,12 +122,14 @@
             "x86_64": {
                 "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
                 "amazonlinux2-5-10": "ami-033b95fb8079dc481",
-                "amazonlinux2022-5-15": "ami-0309aede310b9cc1f"
+                "amazonlinux2022-5-15": "ami-0309aede310b9cc1f",
+                "amazonlinux2023": "ami-02396cdd13e9a1257"
             },
             "arm64": {
                 "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
                 "amazonlinux2-5-10": "ami-0e449176cecc3e577",
-                "amazonlinux2022-5-15": "ami-0a8495f6303122235"
+                "amazonlinux2022-5-15": "ami-0a8495f6303122235",
+                "amazonlinux2023": "ami-00d4ad33aaf7045d7"
             }
         }
     },
