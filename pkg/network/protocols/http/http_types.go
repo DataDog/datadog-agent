@@ -36,6 +36,7 @@ const (
 	ProtocolPostgres ProtocolType = C.PROTOCOL_POSTGRES
 	ProtocolAMQP     ProtocolType = C.PROTOCOL_AMQP
 	ProtocolRedis    ProtocolType = C.PROTOCOL_REDIS
+	ProtocolMySQL    ProtocolType = C.PROTOCOL_MYSQL
 	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
 )
 

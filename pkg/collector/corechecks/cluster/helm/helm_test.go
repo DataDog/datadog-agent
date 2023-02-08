@@ -249,9 +249,6 @@ func TestRun(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			stopCh := make(chan struct{})
-			defer close(stopCh)
-
 			var kubeObjects []runtime.Object
 			for _, secret := range test.secrets {
 				kubeObjects = append(kubeObjects, secret)
