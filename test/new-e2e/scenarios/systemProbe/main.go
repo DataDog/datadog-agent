@@ -24,6 +24,7 @@ func main() {
 
 	systemProbeEnv, err := systemProbe.NewTestEnv(*envNamePtr, *securityGroupsPtr, *subnetsPtr, *x86InstanceTypePtr, *armInstanceTypePtr)
 	if err != nil {
+		fmt.Printf("%+v\n", err)
 		panic(err)
 	}
 
