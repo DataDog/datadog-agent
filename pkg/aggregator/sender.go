@@ -28,6 +28,7 @@ type Sender interface {
 	MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool)
 	Counter(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
+	HistogramNoIndex(metric string, value float64, hostname string, tags []string)
 	Historate(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
@@ -329,6 +330,13 @@ func (s *checkSender) Counter(metric string, value float64, hostname string, tag
 // Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, false)
+}
+
+// Histogram should be used to track the statistical distribution of a set of values during a check run
+// Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
+// This value is not indexed by the backend.
+func (s *checkSender) HistogramNoIndex(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, true)
 }
 
 // HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics

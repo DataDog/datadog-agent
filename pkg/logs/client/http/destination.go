@@ -77,6 +77,7 @@ type Destination struct {
 	// Telemetry
 	expVars       *expvar.Map
 	telemetryName string
+	provider      *telemetry.StatsTelemetryProvider
 }
 
 // NewDestination returns a new Destination.
@@ -147,6 +148,7 @@ func newDestination(endpoint config.Endpoint,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
+		provider:            telemetry.GetStatsTelemetryProvider(),
 	}
 }
 
@@ -283,6 +285,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	latency := time.Since(then).Milliseconds()
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
+	d.provider.HistogramNoIndex("datadog.logs_agent.sender_latency", float64(latency), []string{fmt.Sprintf("destination:%s", d.telemetryName)})
 
 	if err != nil {
 		if ctx.Err() == context.Canceled {

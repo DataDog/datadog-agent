@@ -23,3 +23,5 @@ func (m StatsTelemetrySenderMock) Gauge(metric string, value float64, hostname s
 }
 func (m StatsTelemetrySenderMock) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
 }
+func (m StatsTelemetrySenderMock) HistogramNoIndex(metric string, value float64, hostname string, tags []string) {
+}
