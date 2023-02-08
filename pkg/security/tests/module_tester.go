@@ -41,7 +41,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/event_monitor"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -247,8 +247,8 @@ type testModule struct {
 	opts          testOpts
 	st            *simpleTest
 	t             testing.TB
-	eventMonitor  *event_monitor.EventMonitor
-	cws           *module.CWSModule
+	eventMonitor  *eventmonitor.EventMonitor
+	cws           *module.CWSConsumer
 	probe         *sprobe.Probe
 	eventHandlers eventHandlers
 	cmdWrapper    cmdWrapper
@@ -837,12 +837,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	testMod.eventMonitor, err = event_monitor.NewEventMonitor(sysProbeConfig, statsdClient, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(sysProbeConfig, statsdClient, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
 	if err != nil {
 		return nil, err
 	}
 
-	cws, err := module.NewCWSModule(testMod.eventMonitor)
+	cws, err := module.NewCWSConsumer(testMod.eventMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create module: %w", err)
 	}

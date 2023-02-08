@@ -9,23 +9,23 @@
 package module
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/event_monitor"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// ProcessModule describes a process monitoring object
-type ProcessModule struct{}
+// ProcessConsumer describes a process monitoring object
+type ProcessConsumer struct{}
 
-func (p *ProcessModule) Start() error {
+func (p *ProcessConsumer) Start() error {
 	return nil
 }
 
-func (p *ProcessModule) Stop() {
+func (p *ProcessConsumer) Stop() {
 }
 
 // HandleEvent implement the EventHandler interface
-func (p *ProcessModule) HandleEvent(event *smodel.Event) {
+func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()
 	event.ResolveEventTimestamp()
@@ -75,13 +75,13 @@ func (p *ProcessModule) HandleEvent(event *smodel.Event) {
 }
 
 // ID returns id for process monitor
-func (p *ProcessModule) ID() string {
+func (p *ProcessConsumer) ID() string {
 	return "PROCESS_MODULE"
 }
 
-// NewProcessModule returns a new ProcessModule instance
-func NewProcessModule(evm *event_monitor.EventMonitor) (*ProcessModule, error) {
-	p := &ProcessModule{}
+// NewProcessConsumer returns a new ProcessConsumer instance
+func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error) {
+	p := &ProcessConsumer{}
 
 	if err := evm.AddEventTypeHandler(smodel.ForkEventType, p); err != nil {
 		return nil, err

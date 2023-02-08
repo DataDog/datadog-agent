@@ -14,8 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/event_monitor"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -52,13 +52,13 @@ var EventMonitor = module.Factory{
 			return nil, module.ErrNotEnabled
 		}
 
-		evm, err := event_monitor.NewEventMonitor(sysProbeConfig, statsdClient, probe.Opts{})
+		evm, err := eventmonitor.NewEventMonitor(sysProbeConfig, statsdClient, probe.Opts{})
 		if err == ebpf.ErrNotImplemented {
 			log.Info("Datadog event monitoring is only supported on Linux")
 			return nil, module.ErrNotEnabled
 		}
 
-		cws, err := secmodule.NewCWSModule(evm)
+		cws, err := secmodule.NewCWSConsumer(evm)
 		if err != nil {
 			return nil, err
 		}

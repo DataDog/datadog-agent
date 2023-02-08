@@ -9,29 +9,29 @@
 package module
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/event_monitor"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	netevents "github.com/DataDog/datadog-agent/pkg/network/events"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NetworkModule describes a process monitoring object
-type NetworkModule struct{}
+// NetworkConsumer describes a process monitoring object
+type NetworkConsumer struct{}
 
-func (n *NetworkModule) Start() error {
+func (n *NetworkConsumer) Start() error {
 	return nil
 }
 
-func (n *NetworkModule) Stop() {
+func (n *NetworkConsumer) Stop() {
 }
 
 // ID returns id for process monitor
-func (n *NetworkModule) ID() string {
+func (n *NetworkConsumer) ID() string {
 	return "NETWORK_MODULE"
 }
 
-// NewNetworkModule returns a new NetworkModule instance
-func NewNetworkModule(evm *event_monitor.EventMonitor) (*NetworkModule, error) {
+// NewNetworkConsumer returns a new NetworkConsumer instance
+func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error) {
 	h := netevents.Handler()
 	if err := evm.AddEventTypeHandler(smodel.ForkEventType, h); err != nil {
 		return nil, err
@@ -45,5 +45,5 @@ func NewNetworkModule(evm *event_monitor.EventMonitor) (*NetworkModule, error) {
 
 	log.Info("network process monitoring initialized")
 
-	return &NetworkModule{}, nil
+	return &NetworkConsumer{}, nil
 }

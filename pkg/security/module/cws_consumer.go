@@ -22,7 +22,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/event_monitor"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -39,8 +39,8 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-// CWSModule represents the system-probe module for the runtime security agent
-type CWSModule struct {
+// CWSConsumer represents the system-probe module for the runtime security agent
+type CWSConsumer struct {
 	sync.RWMutex
 	config       *config.Config
 	probe        *probe.Probe
@@ -67,7 +67,7 @@ type CWSModule struct {
 }
 
 // Init initializes the module with options
-func NewCWSModule(evm *event_monitor.EventMonitor, opts ...Opts) (*CWSModule, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer, error) {
 	config, err := config.NewConfig(evm.Config)
 	if err != nil {
 		return nil, fmt.Errorf("invalid security runtime module configuration: %w", err)
@@ -80,7 +80,7 @@ func NewCWSModule(evm *event_monitor.EventMonitor, opts ...Opts) (*CWSModule, er
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	c := &CWSModule{
+	c := &CWSConsumer{
 		config:       config,
 		probe:        evm.Probe,
 		statsdClient: evm.StatsdClient,
@@ -96,7 +96,7 @@ func NewCWSModule(evm *event_monitor.EventMonitor, opts ...Opts) (*CWSModule, er
 		policyMonitor:  NewPolicyMonitor(evm.StatsdClient),
 		sendStatsChan:  make(chan chan bool, 1),
 	}
-	c.apiServer.cwsModule = c
+	c.apiServer.cwsConsumer = c
 
 	// set sender
 	if len(opts) > 0 && opts[0].EventSender != nil {
@@ -124,12 +124,12 @@ func NewCWSModule(evm *event_monitor.EventMonitor, opts ...Opts) (*CWSModule, er
 }
 
 // ID returns id for CWS
-func (c *CWSModule) ID() string {
+func (c *CWSConsumer) ID() string {
 	return "CWS_MODULE"
 }
 
 // Start the module
-func (c *CWSModule) Start() error {
+func (c *CWSConsumer) Start() error {
 	// start api server
 	api.RegisterVTCodec()
 	c.apiServer.Start(c.ctx)
@@ -230,12 +230,12 @@ func (c *CWSModule) Start() error {
 	return nil
 }
 
-func (c *CWSModule) displayApplyRuleSetReport(report *probe.ApplyRuleSetReport) {
+func (c *CWSConsumer) displayApplyRuleSetReport(report *probe.ApplyRuleSetReport) {
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 }
 
-func (c *CWSModule) getEventTypeEnabled() map[eval.EventType]bool {
+func (c *CWSConsumer) getEventTypeEnabled() map[eval.EventType]bool {
 	enabled := make(map[eval.EventType]bool)
 
 	categories := model.GetEventTypePerCategory()
@@ -292,14 +292,14 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 }
 
 // ReloadPolicies reloads the policies
-func (c *CWSModule) ReloadPolicies() error {
+func (c *CWSConsumer) ReloadPolicies() error {
 	seclog.Infof("reload policies")
 
 	return c.LoadPolicies(c.policyProviders, true)
 }
 
 // LoadPolicies loads the policies
-func (c *CWSModule) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
+func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
 
 	c.Lock()
@@ -358,7 +358,7 @@ func (c *CWSModule) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoa
 }
 
 // Close the module
-func (c *CWSModule) Stop() {
+func (c *CWSConsumer) Stop() {
 	signal.Stop(c.sigupChan)
 	close(c.sigupChan)
 
@@ -380,7 +380,7 @@ func (c *CWSModule) Stop() {
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (c *CWSModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (c *CWSConsumer) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if c.reloading.Load() {
 		return
 	}
@@ -389,7 +389,7 @@ func (c *CWSModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fie
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
-func (c *CWSModule) HandleEvent(event *model.Event) {
+func (c *CWSConsumer) HandleEvent(event *model.Event) {
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.SavedByActivityDumps {
 		return
@@ -401,12 +401,12 @@ func (c *CWSModule) HandleEvent(event *model.Event) {
 }
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
-func (c *CWSModule) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
+func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	c.eventSender.SendEvent(rule, event, func() []string { return nil }, "")
 }
 
 // RuleMatch is called by the ruleset when a rule matches
-func (c *CWSModule) RuleMatch(rule *rules.Rule, event eval.Event) {
+func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev := event.(*model.Event)
 
 	// ensure that all the fields are resolved before sending
@@ -441,7 +441,7 @@ func (c *CWSModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
-func (c *CWSModule) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
+func (c *CWSConsumer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
 	if c.rateLimiter.Allow(rule.ID) {
 		c.apiServer.SendEvent(rule, event, extTagsCb, service)
 	} else {
@@ -450,28 +450,28 @@ func (c *CWSModule) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 }
 
 // SendProcessEvent sends a process event using the provided EventSender interface
-func (c *CWSModule) SendProcessEvent(data []byte) {
+func (c *CWSConsumer) SendProcessEvent(data []byte) {
 	c.eventSender.SendProcessEventData(data)
 }
 
 // SendProcessEventData implements the EventSender interface forwarding a process event to the APIServer
-func (c *CWSModule) SendProcessEventData(data []byte) {
+func (c *CWSConsumer) SendProcessEventData(data []byte) {
 	c.apiServer.SendProcessEvent(data)
 }
 
 // HandleActivityDump sends an activity dump to the backend
-func (c *CWSModule) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
+func (c *CWSConsumer) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
 	c.apiServer.SendActivityDump(dump)
 }
 
 // SendStats send stats
-func (c *CWSModule) SendStats() {
+func (c *CWSConsumer) SendStats() {
 	ackChan := make(chan bool, 1)
 	c.sendStatsChan <- ackChan
 	<-ackChan
 }
 
-func (c *CWSModule) sendStats() {
+func (c *CWSConsumer) sendStats() {
 	if err := c.rateLimiter.SendStats(); err != nil {
 		seclog.Debugf("failed to send rate limiter stats: %s", err)
 	}
@@ -480,7 +480,7 @@ func (c *CWSModule) sendStats() {
 	}
 }
 
-func (c *CWSModule) statsSender() {
+func (c *CWSConsumer) statsSender() {
 	defer c.wg.Done()
 
 	statsTicker := time.NewTicker(c.config.StatsPollingInterval)
@@ -517,7 +517,7 @@ func (c *CWSModule) statsSender() {
 }
 
 // GetRuleSet returns the set of loaded rules
-func (c *CWSModule) GetRuleSet() (rs *rules.RuleSet) {
+func (c *CWSConsumer) GetRuleSet() (rs *rules.RuleSet) {
 	if ruleSet := c.currentRuleSet.Load(); ruleSet != nil {
 		return ruleSet.(*rules.RuleSet)
 	}
@@ -525,12 +525,12 @@ func (c *CWSModule) GetRuleSet() (rs *rules.RuleSet) {
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (c *CWSModule) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multierror.Error)) {
+func (c *CWSConsumer) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multierror.Error)) {
 	c.rulesLoaded = cb
 }
 
 // RunSelfTest runs the self tests
-func (c *CWSModule) RunSelfTest(sendLoadedReport bool) error {
+func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) error {
 	prevProviders, providers := c.policyProviders, c.policyProviders
 	if len(prevProviders) > 0 {
 		defer func() {
