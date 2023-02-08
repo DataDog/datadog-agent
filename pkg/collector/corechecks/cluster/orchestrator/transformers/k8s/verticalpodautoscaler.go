@@ -33,10 +33,6 @@ func ExtractVerticalPodAutoscaler(v *v1.VerticalPodAutoscaler) *model.VerticalPo
 // extractVerticalPodAutoscalerSpec converts the Kubernetes spec to our custom one
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L73
 func extractVerticalPodAutoscalerSpec(s *v1.VerticalPodAutoscalerSpec) *model.VerticalPodAutoscalerSpec {
-	if s == nil {
-		return &model.VerticalPodAutoscalerSpec{}
-	}
-
 	spec := &model.VerticalPodAutoscalerSpec{
 		Target: &model.VerticalPodAutoscalerTarget{
 			Kind: s.TargetRef.Kind,
