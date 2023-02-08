@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package module
+package network
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
