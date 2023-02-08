@@ -7,6 +7,7 @@ package systemProbe
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -111,6 +112,12 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	if err != nil {
 		return nil, err
 	}
+
+	b, err := json.MarshalIndent(upResult.Summary, "", "	")
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(string(b))
 
 	systemProbeTestEnv.StackOutput = upResult
 
