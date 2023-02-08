@@ -1412,6 +1412,7 @@ core,go.opentelemetry.io/collector/confmap/provider/envprovider,Apache-2.0,Copyr
 core,go.opentelemetry.io/collector/confmap/provider/fileprovider,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/httpprovider,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/confmap/provider/internal/configurablehttpprovider,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/yamlprovider,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/connector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/consumer,Apache-2.0,Copyright The OpenTelemetry Authors
