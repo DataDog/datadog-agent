@@ -71,14 +71,12 @@ type stats struct {
 	registersTotalTime       *atomic.Int64
 	unregisters              *atomic.Int64
 	unregistersTotalTime     *atomic.Int64
-	evicts                   *atomic.Int64
+	evicts                   nettelemetry.StatGaugeWrapper
 	nanoSecondsPerGet        telemetry.Gauge
 	nanoSecondsPerRegister   telemetry.Gauge
 	nanoSecondsPerUnRegister telemetry.Gauge
 	cacheSize                telemetry.Gauge
 	orphanSize               telemetry.Gauge
-	adamkStat                telemetry.Gauge
-	adamkStat2               nettelemetry.StatGaugeWrapper
 }
 
 type realConntracker struct {
@@ -125,12 +123,10 @@ func newStats() stats {
 		registersTotalTime:       atomic.NewInt64(0),
 		unregisters:              atomic.NewInt64(0),
 		unregistersTotalTime:     atomic.NewInt64(0),
-		evicts:                   atomic.NewInt64(0),
+		evicts:                   nettelemetry.NewStatGaugeWrapper("conntracker", "evicts_total", []string{}, "description"),
 		nanoSecondsPerGet:        telemetry.NewGauge("conntracker", "nanoSecondsPerGet", []string{}, "description"),
 		nanoSecondsPerRegister:   telemetry.NewGauge("conntracker", "nanoSecondsPerRegister", []string{}, "description"),
 		nanoSecondsPerUnRegister: telemetry.NewGauge("conntracker", "nanoSecondsPerUnregister", []string{}, "description"),
-		adamkStat:                telemetry.NewGauge("conntracker", "adamk_stat", []string{}, "description"),
-		adamkStat2:               nettelemetry.NewStatGaugeWrapper("conntracker", "adamkStat2", []string{}, "description"),
 	}
 }
 
@@ -209,8 +205,6 @@ func (ctr *realConntracker) RefreshTelemetry() {
 }
 
 func (ctr *realConntracker) GetStats() map[string]int64 {
-	ctr.stats.adamkStat.Set(1000)
-	ctr.stats.adamkStat2.Inc()
 	// only a few stats are locked
 	ctr.RLock()
 	size := ctr.cache.cache.Len()

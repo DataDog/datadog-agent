@@ -57,6 +57,8 @@ type Tracer interface {
 	Remove(conn *network.ConnectionStats) error
 	// GetTelemetry returns relevant telemetry.
 	GetTelemetry() map[string]int64
+	// RefreshProbeTelemetry sets the prometheus gauges to the current values of the underlying stats
+	RefreshProbeTelemetry()
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 	// An individual tracer implementation may choose which maps to expose via this function.
 	GetMap(string) *ebpf.Map
@@ -95,6 +97,9 @@ type tracer struct {
 type telemetry struct {
 	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
 	udpConns4, udpConns6 *atomic.Int64 `stats:""`
+	probeTelemetry map[string]errtelemetry.StatGaugeWrapper
+	failedTcpConnects errtelemetry.StatGaugeWrapper
+
 }
 
 func newTelemetry() telemetry {
@@ -368,6 +373,37 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 	_ = t.tcpStats.Delete(unsafe.Pointer(t.removeTuple))
 
 	return nil
+}
+
+func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
+	var zero uint64
+	mp, _, err := t.m.GetMap(string(probes.TelemetryMap))
+	if err != nil {
+		log.Warnf("error retrieving telemetry map: %s", err)
+		return &netebpf.Telemetry{}
+	}
+
+	telemetry := &netebpf.Telemetry{}
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+		// This can happen if we haven't initialized the telemetry object yet
+		// so let's just use a trace log
+		log.Tracef("error retrieving the telemetry struct: %s", err)
+	}
+	return telemetry
+}
+
+func (t *tracer) RefreshProbeTelemetry() {
+	telemetry := t.getEBPFTelemetry()
+
+	t.telemetry.failedTcpConnects.Set(int64(telemetry.Tcp_failed_connect))
+
+	for k, v := range t.telemetry.get() {
+		if val, ok := t.telemetry.probeTelemetry[k]; ok {
+			val.Set(v.(int64))
+		} else {
+			t.telemetry.probeTelemetry[k] = errtelemetry.NewStatGaugeWrapper("conn_tracer", k, []string{}, "desc")
+		}
+	}
 }
 
 func (t *tracer) GetTelemetry() map[string]int64 {

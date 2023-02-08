@@ -164,6 +164,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	ebpfTracer, err := connection.NewTracer(config, constantEditors, bpfTelemetry)
+	go ebpfTracer.RefreshProbeTelemetry()
 	if err != nil {
 		return nil, err
 	}
@@ -702,7 +703,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	for _, c := range comps {
 		switch c {
 		case conntrackStats:
-			ret["conntrack"] = t.conntracker.GetStats()
+			ret["conntrack"] = t.conntracker.GetStats() // done
 		case dnsStats:
 			ret["dns"] = t.reverseDNS.GetStats()
 		case epbfStats:
@@ -712,7 +713,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case kprobesStats:
 			ret["kprobes"] = ddebpf.GetProbeStats()
 		case stateStats:
-			ret["state"] = t.state.GetStats()["telemetry"]
+			ret["state"] = t.state.GetStats()["telemetry"] // done
 		case tracerStats:
 			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
