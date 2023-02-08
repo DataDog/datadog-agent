@@ -317,6 +317,8 @@ func TestRun_withCollectEvents(t *testing.T) {
 		Namespace: "default",
 	}
 
+	eventsAllowedDelta := 10 * time.Second
+
 	secret, err := secretForRelease(&rel, time.Now().Add(10))
 	assert.NoError(t, err)
 
@@ -342,7 +344,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	mockedSender.AssertEvent(
 		t,
 		eventForRelease(&rel, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", expectedTags),
-		10*time.Second,
+		eventsAllowedDelta,
 	)
 
 	// Upgrade the release and check that it creates the appropriate event.
@@ -361,7 +363,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	mockedSender.AssertEvent(
 		t,
 		eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", expectedTags),
-		10*time.Second,
+		eventsAllowedDelta,
 	)
 
 	// Delete the release (all revisions) and check that it creates the
@@ -377,7 +379,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	mockedSender.AssertEvent(
 		t,
 		eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", expectedTags),
-		10*time.Second,
+		eventsAllowedDelta,
 	)
 }
 
