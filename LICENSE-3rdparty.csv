@@ -2,6 +2,7 @@ Component,Origin,License,Copyright
 core,cloud.google.com/go/compute/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/iam,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/iam/apiv1/iampb,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/internal/optional,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/internal/trace,Apache-2.0,Copyright 2019 Google LLC
@@ -98,9 +99,12 @@ core,github.com/DataDog/nikos/apt,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/cos,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/extract,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/rpm,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/rpm/dnf,MIT,"Copyright (c) 2020-present Datadog, Inc"
+core,github.com/DataDog/nikos/rpm/dnfv2,MIT,"Copyright (c) 2020-present Datadog, Inc"
+core,github.com/DataDog/nikos/rpm/dnfv2/backend,MIT,"Copyright (c) 2020-present Datadog, Inc"
+core,github.com/DataDog/nikos/rpm/dnfv2/internal/utils,MIT,"Copyright (c) 2020-present Datadog, Inc"
+core,github.com/DataDog/nikos/rpm/dnfv2/repo,MIT,"Copyright (c) 2020-present Datadog, Inc"
+core,github.com/DataDog/nikos/rpm/dnfv2/types,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/types,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/utils,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/wsl,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/quantile,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
@@ -1155,6 +1159,7 @@ core,github.com/owenrumney/go-sarif/v2/sarif,Unlicense,"copyright interest in th
 core,github.com/package-url/packageurl-go,MIT,Copyright (c) the purl authors
 core,github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto,MIT,Copyright (c) 2017 Pavel Tetyaev
 core,github.com/patrickmn/go-cache,MIT,Alex Edwards <ajmedwards@gmail.com> | Copyright (c) 2012-2017 Patrick Mylund Nielsen and the go-cache contributors | Dustin Sallings <dustin@spy.net> | Jason Mooberry <jasonmoo@me.com> | Sergey Shepelev <temotor@gmail.com>
+core,github.com/paulcacheux/xmlite/xml,MIT,Copyright (c) 2023 Paul Cacheux
 core,github.com/pborman/uuid,BSD-3-Clause,"Copyright (c) 2009,2014 Google Inc. All rights reserved | Paul Borman <borman@google.com>"
 core,github.com/pelletier/go-toml,MIT,"Copyright (c) 2013 - 2021 Thomas Pelletier, Eric Anderton"
 core,github.com/philhofer/fwd,MIT,"Copyright (c) 2014-2015, Philip Hofer"
@@ -1795,6 +1800,7 @@ core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pprofutils,Apache-2.0,"Co
 core,gopkg.in/Knetic/govaluate.v3,MIT,"Copyright (c) 2014-2016 George Lester | abrander (panic-finding testing tool) | benpaxton (fix for missing type checks during literal elide process) | bgaifullin (lifting restriction on complex/struct types) | dpaolella (exposure of variables used in an expression) | iasci (ternary operator) | oxtoacart (parameter structures, deferred parameter retrieval) | prashantv (optimization of bools) | vjeantet (regex support) | wmiller848 (bitwise operators) | xfennec (fix for dates being parsed in the current Location)"
 core,gopkg.in/cheggaaa/pb.v1,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
 core,gopkg.in/inf.v0,BSD-3-Clause,Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 2009 The Go Authors. All rights reserved.
+core,gopkg.in/ini.v1,Apache-2.0,Copyright 2014 Unknwon
 core,gopkg.in/natefinch/lumberjack.v2,MIT,Copyright (c) 2014 Nate Finch
 core,gopkg.in/warnings.v0,BSD-2-Clause,Copyright (c) 2016 Péter Surányi
 core,gopkg.in/yaml.v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
