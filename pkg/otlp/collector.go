@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
@@ -40,7 +41,7 @@ var (
 )
 
 func getComponents(s serializer.MetricSerializer) (
-	component.Factories,
+	otelcol.Factories,
 	error,
 ) {
 	var errs []error
@@ -66,14 +67,14 @@ func getComponents(s serializer.MetricSerializer) (
 		errs = append(errs, err)
 	}
 
-	processors, err := component.MakeProcessorFactoryMap(
+	processors, err := processor.MakeFactoryMap(
 		batchprocessor.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	factories := component.Factories{
+	factories := otelcol.Factories{
 		Extensions: extensions,
 		Receivers:  receivers,
 		Processors: processors,

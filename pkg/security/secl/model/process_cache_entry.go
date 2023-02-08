@@ -182,6 +182,15 @@ func (p *ArgsEnvsCacheEntry) forceReleaseAll() {
 	}
 }
 
+// Init the head of the list
+func (p *ArgsEnvsCacheEntry) Init(event *ArgsEnvsEvent) {
+	p.Size = event.ArgsEnvs.Size
+	p.ValuesRaw = make([]byte, p.Size)
+	copy(p.ValuesRaw, event.ArgsEnvs.ValuesRaw[:])
+
+	p.TotalSize = uint64(p.Size)
+}
+
 // Append an entry to the list
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 	p.TotalSize += uint64(entry.Size)

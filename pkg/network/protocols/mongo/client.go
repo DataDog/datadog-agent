@@ -11,8 +11,11 @@ import (
 	"net"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 const (
@@ -71,6 +74,31 @@ func NewClient(opts Options) (*Client, error) {
 	return &Client{
 		C: client,
 	}, nil
+}
+
+var (
+	defaultDBs = common.StringSet{
+		"admin":  {},
+		"config": {},
+		"local":  {},
+	}
+)
+
+func (c *Client) DeleteDatabases() error {
+	dbs, err := c.C.ListDatabases(context.Background(), bson.M{})
+	if err != nil {
+		return err
+	}
+
+	for _, db := range dbs.Databases {
+		if _, isDefault := defaultDBs[db.Name]; isDefault {
+			continue
+		}
+		if err := c.C.Database(db.Name).Drop(context.Background()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Client) Stop() error {

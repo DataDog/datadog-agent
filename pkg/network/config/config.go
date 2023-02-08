@@ -20,12 +20,15 @@ const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
+	evNS  = "event_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
 
 	defaultOffsetThreshold = 400
 	maxOffsetThreshold     = 3000
+
+	defaultMaxProcessesTracked = 1024
 )
 
 // Config stores all flags used by the network eBPF tracer
@@ -95,6 +98,9 @@ type Config struct {
 	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved.
 	// Currently Windows only
 	HTTPMaxRequestFragment int64
+
+	// JavaAgentArgs arguments pass through injected USM agent
+	JavaAgentArgs string
 
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
@@ -190,6 +196,12 @@ type Config struct {
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
 
+	// EnableProcessEventMonitoring enables consuming CWS process monitoring events from the runtime security module
+	EnableProcessEventMonitoring bool
+
+	// MaxProcessesTracked is the maximum number of processes whose information is stored in the network module
+	MaxProcessesTracked int
+
 	// EnableRootNetNs disables using the network namespace of the root process (1)
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
@@ -211,8 +223,7 @@ func join(pieces ...string) string {
 
 // New creates a config for the network tracer
 func New() *Config {
-	cfg := ddconfig.Datadog
-	ddconfig.InitSystemProbeConfig(cfg)
+	cfg := ddconfig.SystemProbe
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),
@@ -272,6 +283,9 @@ func New() *Config {
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 
+		EnableProcessEventMonitoring: cfg.GetBool(join(evNS, "network_process", "enabled")),
+		MaxProcessesTracked:          cfg.GetInt(join(evNS, "network_process", "max_processes_tracked")),
+
 		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(spNS, "http_map_cleaner_interval_in_s"))) * time.Second,
@@ -279,6 +293,7 @@ func New() *Config {
 
 		// Service Monitoring
 		EnableJavaTLSSupport: cfg.GetBool(join(smNS, "enable_java_tls_support")),
+		JavaAgentArgs:        cfg.GetString(join(smNS, "java_agent_args")),
 		EnableGoTLSSupport:   cfg.GetBool(join(smNS, "enable_go_tls_support")),
 	}
 
@@ -355,6 +370,14 @@ func New() *Config {
 		if !cfg.IsSet(join(spNS, "enable_kernel_header_download")) {
 			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
 			c.EnableKernelHeaderDownload = true
+		}
+	}
+
+	if c.EnableProcessEventMonitoring {
+		log.Info("network process event monitoring enabled")
+
+		if c.MaxProcessesTracked <= 0 {
+			c.MaxProcessesTracked = defaultMaxProcessesTracked
 		}
 	}
 

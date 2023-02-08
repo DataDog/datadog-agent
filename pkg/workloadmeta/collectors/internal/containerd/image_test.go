@@ -17,29 +17,58 @@ import (
 func TestKnownImages(t *testing.T) {
 	images := newKnownImages()
 
-	// Add a first image name that refers to the "123" ID
-	images.addAssociation("agent:7", "123")
-	imageID, found := images.getImageID("agent:7")
+	imageID := "sha256:92ca512c4cbb8a0909f903979610d5ee300ee26ce2898040c99606d1de46fce1"
+	repoTag := "gcr.io/datadoghq/agent:7.42.0"
+	repoDigest := "gcr.io/datadoghq/agent@sha256:3a19076bfee70900a600b8e3ee2cc30d5101d1d3d2b33654f1a316e596eaa4e0"
+
+	// Add a reference. The image name is an ID.
+	images.addReference(imageID, imageID)
+	gotID, found := images.getImageID(imageID)
 	assert.True(t, found)
-	assert.Equal(t, "123", imageID)
-	assert.True(t, images.isReferenced("123"))
+	assert.Equal(t, imageID, gotID)
+	assert.Empty(t, images.getRepoTags(imageID))
+	assert.Empty(t, images.getRepoDigests(imageID))
+	assert.NotEmpty(t, images.getAReference(imageID))
 
-	// Add a second image that refers to the "123" ID
-	images.addAssociation("agent:latest", "123")
-	imageID, found = images.getImageID("agent:latest")
+	// Add another reference to the same image. The name is a repo tag.
+	images.addReference(repoTag, imageID)
+	gotID, found = images.getImageID(repoTag)
 	assert.True(t, found)
-	assert.Equal(t, "123", imageID)
-	assert.True(t, images.isReferenced("123"))
+	assert.Equal(t, imageID, gotID)
+	assert.Equal(t, []string{repoTag}, images.getRepoTags(imageID))
+	assert.Empty(t, images.getRepoDigests(imageID))
+	assert.NotEmpty(t, images.getAReference(imageID))
 
-	// Delete one of the associations
-	images.deleteAssociation("agent:latest", "123")
-	_, found = images.getImageID("agent:latest")
-	assert.False(t, found)
-	assert.True(t, images.isReferenced("123")) // Still referenced by the other
+	// Add another reference to the same image. The name is a repo digest.
+	images.addReference(repoDigest, imageID)
+	gotID, found = images.getImageID(repoDigest)
+	assert.True(t, found)
+	assert.Equal(t, imageID, gotID)
+	assert.Equal(t, []string{repoTag}, images.getRepoTags(imageID))
+	assert.Equal(t, []string{repoDigest}, images.getRepoDigests(imageID))
+	assert.NotEmpty(t, images.getAReference(imageID))
 
-	// Delete the other association
-	images.deleteAssociation("agent:7", "123")
-	_, found = images.getImageID("agent:7")
+	// Delete the reference that is an ID.
+	images.deleteReference(imageID, imageID)
+	_, found = images.getImageID(imageID)
 	assert.False(t, found)
-	assert.False(t, images.isReferenced("123"))
+	assert.Equal(t, []string{repoTag}, images.getRepoTags(imageID))
+	assert.Equal(t, []string{repoDigest}, images.getRepoDigests(imageID))
+	assert.NotEmpty(t, images.getAReference(imageID))
+
+	// Delete the reference that is a repo tag.
+	images.deleteReference(repoTag, imageID)
+	_, found = images.getImageID(repoTag)
+	assert.False(t, found)
+	assert.Empty(t, images.getRepoTags(imageID))
+	assert.Equal(t, []string{repoDigest}, images.getRepoDigests(imageID))
+	assert.NotEmpty(t, images.getAReference(imageID))
+
+	// Delete the reference that is a repo digest.
+	images.deleteReference(repoDigest, imageID)
+	_, found = images.getImageID(repoDigest)
+	assert.False(t, found)
+	assert.Empty(t, images.getRepoTags(imageID))
+	assert.Empty(t, images.getRepoDigests(imageID))
+	assert.Empty(t, images.getAReference(imageID))
 }

@@ -1,9 +1,9 @@
 #ifndef __TRACER_BPF_H
 #define __TRACER_BPF_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
-#include "protocols/protocol-classification-defs.h"
+#include "protocols/classification/defs.h"
 
 #define bool _Bool
 #define true 1

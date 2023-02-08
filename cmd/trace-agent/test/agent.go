@@ -77,7 +77,7 @@ func (s *agentRunner) Run(conf []byte) error {
 	if err != nil {
 		return fmt.Errorf("agent: error creating config: %v", err)
 	}
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(10 * time.Second)
 	exit := s.runAgentConfig(cfgPath)
 	for {
 		select {

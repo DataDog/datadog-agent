@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -27,7 +28,7 @@ func TestServerlessServiceRewrite(t *testing.T) {
 	}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	spanModifier := &spanModifier{
 		tags: cfg.GlobalTags,
 	}
@@ -58,7 +59,7 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	cfg.GlobalTags = map[string]string{"some": "tag", "function_arn": "arn:aws:foo:bar:baz"}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	spanModifier := &spanModifier{
 		tags: cfg.GlobalTags,
 	}

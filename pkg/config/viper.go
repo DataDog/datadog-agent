@@ -55,6 +55,16 @@ func (c *safeConfig) SetKnown(key string) {
 	c.Viper.SetKnown(key)
 }
 
+// IsKnown adds a key to the set of known valid config keys
+func (c *safeConfig) IsKnown(key string) bool {
+	c.Lock()
+	defer c.Unlock()
+
+	keys := c.Viper.GetKnownKeys()
+	_, ok := keys[key]
+	return ok
+}
+
 // GetKnownKeys returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
 func (c *safeConfig) GetKnownKeys() map[string]interface{} {

@@ -74,7 +74,7 @@ func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 }
 
 func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
-	t.Setenv(localTestEnvVar, "1")
+	t.Setenv(LocalTestEnvVar, "1")
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))

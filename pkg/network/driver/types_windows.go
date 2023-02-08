@@ -189,6 +189,11 @@ type ClassificationSettings struct {
 	Enabled uint64
 }
 
+type TcpConnectionStatus uint32
+
+const (
+	TcpStatusEstablished = 0x2
+)
 const (
 	HttpTransactionTypeSize        = 0x50
 	HttpSettingsTypeSize           = 0x14

@@ -1,10 +1,16 @@
 #ifndef __TRACER_TELEMETRY_H
 #define __TRACER_TELEMETRY_H
 
-#include "tracer-maps.h"
+#include "ktypes.h"
 #include "bpf_endian.h"
-#include "kconfig.h"
-#include <net/sock.h>
+
+#include "tracer-maps.h"
+#include "compiler.h"
+
+#ifdef COMPILE_CORE
+#define AF_INET 2 /* Internet IP Protocol */
+#define AF_INET6 10 /* IP version 6 */
+#endif
 
 enum telemetry_counter
 {
@@ -76,8 +82,8 @@ __maybe_unused static __always_inline void sockaddr_to_addr(struct sockaddr *sa,
         *metadata |= CONN_V6;
         sin6 = (struct sockaddr_in6 *)sa;
         if (addr_l && addr_h) {
-            bpf_probe_read_kernel(addr_h, sizeof(u64), sin6->sin6_addr.s6_addr);
-            bpf_probe_read_kernel(addr_l, sizeof(u64), &(sin6->sin6_addr.s6_addr[8]));
+            bpf_probe_read_kernel(addr_h, sizeof(u64), sin6->sin6_addr.in6_u.u6_addr8);
+            bpf_probe_read_kernel(addr_l, sizeof(u64), &(sin6->sin6_addr.in6_u.u6_addr8[8]));
         }
         if (port) {
             bpf_probe_read_kernel(port, sizeof(u16), &sin6->sin6_port);
