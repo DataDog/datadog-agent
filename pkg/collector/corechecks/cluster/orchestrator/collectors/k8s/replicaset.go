@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"k8s.io/apimachinery/pkg/labels"
 	appsv1Informers "k8s.io/client-go/informers/apps/v1"
 	appsv1Listers "k8s.io/client-go/listers/apps/v1"
@@ -46,7 +46,7 @@ func NewReplicaSetCollector() *ReplicaSetCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "replicasets",
-			NodeType:                  model.K8SResource_REPLICASET,
+			NodeType:                  orchestrator.K8sReplicaSet,
 			Version:                   "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
