@@ -7,11 +7,16 @@
 
 // Validates the given buffer is of the format <number><delimiter> where the number is up to 2 digits.
 // The buffer cannot be just the delimiter. On error returns -1, on success the location of the next element.
-static __always_inline int is_version_component_helper(const char *buf, char delimiter) {
+// Since we are limited with the code complexity we can generate, we scanned the MySQL repo and verified which
+// versions have been released, and by that we came into conclusion that we can make the above assumption.
+static __always_inline __u32 is_version_component_helper(const char *buf, __u32 offset, __u32 buf_size, char delimiter) {
     char current_char;
 #pragma unroll MAX_VERSION_COMPONENT
     for (unsigned i = 0; i < MAX_VERSION_COMPONENT; i++) {
-        current_char = buf[i];
+        if (offset + i >= buf_size) {
+            break;
+        }
+        current_char = buf[offset+i];
         if ('0' <= current_char && current_char <= '9') {
             continue;
         }
@@ -21,7 +26,7 @@ static __always_inline int is_version_component_helper(const char *buf, char del
         // Any other character is not supported.
         break;
    }
-   return -1;
+   return 0;
 }
 
 // Checks if the given buffer is a null terminated string that represents a version of the format <major>.<minor>.<bugfix>
@@ -31,16 +36,19 @@ static __always_inline bool is_version(const char* buf, __u32 buf_size) {
         return false;
     }
 
-    int major_pos_end = is_version_component_helper(buf, '.');
-    if (major_pos_end == -1 || buf_size < major_pos_end+MAX_VERSION_COMPONENT) {
+    u32 read_size = 0;
+    const __u32 major_component_size = is_version_component_helper(buf, 0, buf_size, '.');
+    if (major_component_size <= 0) {
         return false;
     }
+    read_size += major_component_size;
 
-    int minor_pos_end = is_version_component_helper(buf+major_pos_end, '.');
-    if (minor_pos_end == -1 || buf_size < minor_pos_end+major_pos_end+MAX_VERSION_COMPONENT) {
+    const __u32 minor_component_size = is_version_component_helper(buf, read_size, buf_size, '.');
+    if (minor_component_size <= 0) {
         return false;
     }
-    return is_version_component_helper(buf+minor_pos_end+major_pos_end, '\0') != -1;
+    read_size += minor_component_size;
+    return is_version_component_helper(buf, read_size, buf_size, '\0') > 0;
 }
 
 static __always_inline bool is_mysql(conn_tuple_t *tup, const char* buf, __u32 buf_size) {
