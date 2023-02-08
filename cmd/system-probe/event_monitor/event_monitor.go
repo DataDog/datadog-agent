@@ -42,17 +42,18 @@ type EventMonitor struct {
 	GRPCServer   *grpc.Server
 
 	// internals
-	ctx           context.Context
-	cancelFnc     context.CancelFunc
-	sendStatsChan chan chan bool
-	eventModules  []EventModule
-	netListener   net.Listener
-	wg            sync.WaitGroup
+	ctx            context.Context
+	cancelFnc      context.CancelFunc
+	sendStatsChan  chan chan bool
+	eventConsumers []EventConsumer
+	netListener    net.Listener
+	wg             sync.WaitGroup
 	// TODO should be remove after migration to a common section
 	secconfig *config.Config
 }
 
-type EventModule interface {
+// EventConsumer defines an event consumer
+type EventConsumer interface {
 	ID() string
 	Start() error
 	Stop()
@@ -84,8 +85,8 @@ func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler Ev
 }
 
 // RegisterEventModule register an event module
-func (m *EventMonitor) RegisterEventModule(em EventModule) {
-	m.eventModules = append(m.eventModules, em)
+func (m *EventMonitor) RegisterEventModule(consumer EventConsumer) {
+	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 
 // Init initializes the module
@@ -139,7 +140,7 @@ func (m *EventMonitor) Start() error {
 	}
 
 	// start event modules
-	for _, em := range m.eventModules {
+	for _, em := range m.eventConsumers {
 		if err := em.Start(); err != nil {
 			log.Errorf("unable to start %s : %v", em.ID(), err)
 		}
@@ -154,7 +155,7 @@ func (m *EventMonitor) Start() error {
 // Close the module
 func (m *EventMonitor) Close() {
 	// stop event modules
-	for _, em := range m.eventModules {
+	for _, em := range m.eventConsumers {
 		em.Stop()
 	}
 
