@@ -727,3 +727,77 @@ func Test_netmaskToPrefixlen(t *testing.T) {
 	assert.Equal(t, 1, netmaskToPrefixlen("128.0.0.0"))
 	assert.Equal(t, 0, netmaskToPrefixlen("0.0.0.0"))
 }
+
+func Test_getInterfaceConfig(t *testing.T) {
+	tests := []struct {
+		name                    string
+		interfaceConfigs        []checkconfig.InterfaceConfig
+		index                   string
+		tags                    []string
+		expectedInterfaceConfig checkconfig.InterfaceConfig
+		expectedError           string
+	}{
+		{
+			name: "matched by name",
+			interfaceConfigs: []checkconfig.InterfaceConfig{
+				{
+					MatchField: "name",
+					MatchValue: "eth0",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedInterfaceConfig: checkconfig.InterfaceConfig{
+				MatchField: "name",
+				MatchValue: "eth0",
+				InSpeed:    80,
+			},
+		},
+		{
+			name: "matched by index",
+			interfaceConfigs: []checkconfig.InterfaceConfig{
+				{
+					MatchField: "index",
+					MatchValue: "10",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedInterfaceConfig: checkconfig.InterfaceConfig{
+				MatchField: "index",
+				MatchValue: "10",
+				InSpeed:    80,
+			},
+		},
+		{
+			name: "not matched",
+			interfaceConfigs: []checkconfig.InterfaceConfig{
+				{
+					MatchField: "index",
+					MatchValue: "99",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedError: "no matching interface found for index=10, tags=[interface:eth0]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := getInterfaceConfig(tt.interfaceConfigs, tt.index, tt.tags)
+			if tt.expectedError != "" {
+				assert.EqualError(t, err, tt.expectedError)
+			}
+			assert.Equal(t, tt.expectedInterfaceConfig, config)
+		})
+	}
+}
