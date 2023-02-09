@@ -69,6 +69,6 @@ kernel_version_testing_system_probe_linux_x64_ec2_cleanup:
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
   script:
-    - pulumi login s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-version-testing/pulumi
+    - pulumi login s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-version-testing/$CI_PIPELINE_ID/pulumi
     - inv -e system-probe.test-microvms --destroy --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE
     - pulumi logout
