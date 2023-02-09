@@ -17,5 +17,5 @@ func TestGetCloudServiceType(t *testing.T) {
 	assert.Equal(t, GetCloudServiceType(), &ContainerApp{})
 
 	os.Unsetenv(ContainerAppNameEnvVar)
-	assert.Equal(t, GetCloudServiceType(), &CloudRun{})
+	assert.Equal(t, GetCloudServiceType(), &LocalService{})
 }
