@@ -33,17 +33,16 @@ type TestEnv struct {
 	StackOutput      auto.UpResult
 }
 
-// go:embed config/vmconfig.json
-//var vmconfig string
-
 const (
 	composeDataPath = "compose/data"
 )
 
 var (
 	SSHKeyFile           = filepath.Join(".", "/", "aws-ssh-key")
-	VMConfig             = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
+	vmConfig             = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
 	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
+	sshKeyX86            = filepath.Join(DD_AGENT_TESTING_DIR, "libvirt_rsa-x86")
+	sshKeyArm            = filepath.Join(DD_AGENT_TESTING_DIR, "libvirt_rsa-arm")
 )
 
 func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string) (*TestEnv, error) {
@@ -72,11 +71,13 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	config := auto.ConfigMap{
 		"ddinfra:aws/defaultARMInstanceType": auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":    auto.ConfigValue{Value: x86InstanceType},
-		"microvm:microVMConfigFile":          auto.ConfigValue{Value: VMConfig},
 		"ddinfra:aws/defaultKeyPairName":     auto.ConfigValue{Value: "datadog-agent-kitchen"},
 		"ddinfra:aws/defaultPrivateKeyPath":  auto.ConfigValue{Value: SSHKeyFile},
 		"ddinfra:aws/defaultSecurityGroups":  auto.ConfigValue{Value: securityGroups},
 		"ddinfra:aws/defaultSubnets":         auto.ConfigValue{Value: subnets},
+		"microvm:microVMConfigFile":          auto.ConfigValue{Value: vmConfig},
+		"microvm:libvirtSSHKeyFileX86":       auto.ConfigValue{Value: sshKeyX86},
+		"microvm:libvirtSSHKeyFileArm":       auto.ConfigValue{Value: sshKeyArm},
 	}
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
