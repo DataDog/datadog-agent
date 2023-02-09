@@ -7,6 +7,8 @@ package report
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -52,10 +54,38 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 		return nil
 	}
 
-	ifHighSpeedValues, err := values.GetColumnValues(ifHighSpeedOID)
-	if err != nil {
-		return fmt.Errorf("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=%s", fullIndex)
+	log.Warnf("ms.interfaceConfigs: %+v", ms.interfaceConfigs)
+	interfaceConfig := getInterfaceConfig(ms.interfaceConfigs, fullIndex, tags)
+	var ifHighSpeedFloatValue float64
+	if interfaceConfig != nil {
+		switch symbol.Name {
+		case "ifHCInOctets":
+			ifHighSpeedFloatValue = float64(interfaceConfig.InSpeed)
+		case "ifHCOutOctets":
+			ifHighSpeedFloatValue = float64(interfaceConfig.OutSpeed)
+		default:
+			// TODO: DO SOMETHING?
+			// not expected case.
+		}
+	} else {
+		ifHighSpeedValues, err := values.GetColumnValues(ifHighSpeedOID)
+		if err != nil {
+			return fmt.Errorf("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=%s", fullIndex)
+		}
+		ifHighSpeedValue, ok := ifHighSpeedValues[fullIndex]
+		if !ok {
+			return fmt.Errorf("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=%s", fullIndex)
+		}
+
+		ifHighSpeedFloatValue, err = ifHighSpeedValue.ToFloat64()
+		if err != nil {
+			return fmt.Errorf("failed to convert ifHighSpeedValue to float64: %s", err)
+		}
+		if ifHighSpeedFloatValue == 0.0 {
+			return fmt.Errorf("bandwidth usage: zero or invalid value for ifHighSpeed, skipping this row. fullIndex=%s, ifHighSpeedValue=%#v", fullIndex, ifHighSpeedValue)
+		}
 	}
+	log.Warnf("ifHighSpeedFloatValue: %.2f", ifHighSpeedFloatValue)
 
 	metricValues, err := getColumnValueFromSymbol(values, symbol)
 	if err != nil {
@@ -67,18 +97,6 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 		return fmt.Errorf("bandwidth usage: missing value for `%s` metric, skipping this row. fullIndex=%s", symbol.Name, fullIndex)
 	}
 
-	ifHighSpeedValue, ok := ifHighSpeedValues[fullIndex]
-	if !ok {
-		return fmt.Errorf("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=%s", fullIndex)
-	}
-
-	ifHighSpeedFloatValue, err := ifHighSpeedValue.ToFloat64()
-	if err != nil {
-		return fmt.Errorf("failed to convert ifHighSpeedValue to float64: %s", err)
-	}
-	if ifHighSpeedFloatValue == 0.0 {
-		return fmt.Errorf("bandwidth usage: zero or invalid value for ifHighSpeed, skipping this row. fullIndex=%s, ifHighSpeedValue=%#v", fullIndex, ifHighSpeedValue)
-	}
 	octetsFloatValue, err := octetsValue.ToFloat64()
 	if err != nil {
 		return fmt.Errorf("failed to convert octetsValue to float64: %s", err)
@@ -95,4 +113,21 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 
 	ms.sendMetric(sample)
 	return nil
+}
+
+func getInterfaceConfig(interfaceConfigs []checkconfig.InterfaceConfig, index string, tags []string) *checkconfig.InterfaceConfig {
+	var ifName string
+	for _, tag := range tags {
+		tagElems := strings.SplitN(tag, ":", 2)
+		if len(tagElems) == 2 && tagElems[0] == "interface" {
+			ifName = tagElems[1]
+		}
+	}
+	var matchedConfig *checkconfig.InterfaceConfig
+	for _, ifConfig := range interfaceConfigs {
+		if (ifConfig.Name != "" && ifConfig.Name == ifName) || (strconv.Itoa(ifConfig.Index) == index) {
+			matchedConfig = &ifConfig
+		}
+	}
+	return matchedConfig
 }

@@ -22,6 +22,7 @@ type MetricSender struct {
 	sender           aggregator.Sender
 	hostname         string
 	submittedMetrics int
+	interfaceConfigs []checkconfig.InterfaceConfig
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -34,8 +35,12 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender aggregator.Sender, hostname string) *MetricSender {
-	return &MetricSender{sender: sender, hostname: hostname}
+func NewMetricSender(sender aggregator.Sender, hostname string, interfaceConfigs []checkconfig.InterfaceConfig) *MetricSender {
+	return &MetricSender{
+		sender:           sender,
+		hostname:         hostname,
+		interfaceConfigs: interfaceConfigs,
+	}
 }
 
 // ReportMetrics reports metrics using Sender

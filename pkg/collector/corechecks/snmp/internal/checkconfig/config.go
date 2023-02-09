@@ -61,7 +61,9 @@ type DeviceDigest string
 
 // InterfaceConfig interface related configs (e.g. interface speed override)
 type InterfaceConfig struct {
-	Match    string `yaml:"match"`     // e.g. match: 'name:eth0'
+	Match    string `yaml:"match"` // e.g. match: 'name:eth0'
+	Name     string
+	Index    int
 	InSpeed  uint64 `yaml:"in_speed"`  // inbound speed override
 	OutSpeed uint64 `yaml:"out_speed"` // outbound speed override
 }
@@ -138,6 +140,8 @@ type InstanceConfig struct {
 	DetectMetricsEnabled         *Boolean `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int      `yaml:"experimental_detect_metrics_refresh_interval"`
 
+	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
+	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs []InterfaceConfig `yaml:"interface_configs"`
 }
 
@@ -521,6 +525,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	errors := ValidateEnrichMetrics(c.Metrics)
 	errors = append(errors, ValidateEnrichMetricTags(c.MetricTags)...)
+	errors = append(errors, validateEnrichInterfaceConfigs(c.InterfaceConfigs)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}

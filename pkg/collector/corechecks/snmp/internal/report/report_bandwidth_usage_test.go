@@ -24,18 +24,21 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		value float64
 	}
 	tests := []struct {
-		name           string
-		symbol         checkconfig.SymbolConfig
-		fullIndex      string
-		values         *valuestore.ResultValueStore
-		expectedMetric []Metric
-		expectedError  error
+		name             string
+		symbol           checkconfig.SymbolConfig
+		fullIndex        string
+		values           *valuestore.ResultValueStore
+		tags             []string
+		interfaceConfigs []checkconfig.InterfaceConfig
+		expectedMetric   []Metric
+		expectedError    error
 	}{
 		{
-			"snmp.ifBandwidthInUsage.Rate submitted",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "snmp.ifBandwidthInUsage.Rate submitted",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			tags:      []string{"abc"},
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
@@ -57,17 +60,16 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{
+			expectedMetric: []Metric{
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
 				{"snmp.ifBandwidthInUsage.rate", 50.0},
 			},
-			nil,
 		},
 		{
-			"snmp.ifBandwidthOutUsage.Rate submitted",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "snmp.ifBandwidthOutUsage.Rate submitted",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
@@ -89,27 +91,25 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{
+			expectedMetric: []Metric{
 				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
 				{"snmp.ifBandwidthOutUsage.rate", 10.0},
 			},
-			nil,
 		},
 		{
-			"not a bandwidth metric",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.99", Name: "notABandwidthMetric"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "not a bandwidth metric",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.99", Name: "notABandwidthMetric"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{},
 			},
-			[]Metric{},
-			nil,
+			expectedMetric: []Metric{},
 		},
 		{
-			"missing ifHighSpeed",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "missing ifHighSpeed",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
@@ -125,14 +125,14 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{},
-			fmt.Errorf("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=9"),
+			expectedMetric: []Metric{},
+			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=9"),
 		},
 		{
-			"missing ifHCInOctets",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "missing ifHCInOctets",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
@@ -148,14 +148,14 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{},
-			fmt.Errorf("bandwidth usage: missing `ifHCInOctets` metric, skipping this row. fullIndex=9"),
+			expectedMetric: []Metric{},
+			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHCInOctets` metric, skipping this row. fullIndex=9"),
 		},
 		{
-			"missing ifHCOutOctets",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCOutOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "missing ifHCOutOctets",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCOutOctets"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
@@ -171,14 +171,14 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{},
-			fmt.Errorf("bandwidth usage: missing `ifHCOutOctets` metric, skipping this row. fullIndex=9"),
+			expectedMetric: []Metric{},
+			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHCOutOctets` metric, skipping this row. fullIndex=9"),
 		},
 		{
-			"missing ifHCInOctets value",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "missing ifHCInOctets value",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
@@ -200,14 +200,14 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{},
-			fmt.Errorf("bandwidth usage: missing value for `ifHCInOctets` metric, skipping this row. fullIndex=9"),
+			expectedMetric: []Metric{},
+			expectedError:  fmt.Errorf("bandwidth usage: missing value for `ifHCInOctets` metric, skipping this row. fullIndex=9"),
 		},
 		{
-			"missing ifHighSpeed value",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "missing ifHighSpeed value",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
@@ -229,14 +229,14 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{},
-			fmt.Errorf("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=9"),
+			expectedMetric: []Metric{},
+			expectedError:  fmt.Errorf("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=9"),
 		},
 		{
-			"cannot convert ifHighSpeed to float",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "cannot convert ifHighSpeed to float",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
@@ -258,14 +258,14 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{},
-			fmt.Errorf("failed to convert ifHighSpeedValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
+			expectedMetric: []Metric{},
+			expectedError:  fmt.Errorf("failed to convert ifHighSpeedValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
 		},
 		{
-			"cannot convert ifHCInOctets to float",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
-			"9",
-			&valuestore.ResultValueStore{
+			name:      "cannot convert ifHCInOctets to float",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
@@ -287,8 +287,128 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					},
 				},
 			},
-			[]Metric{},
-			fmt.Errorf("failed to convert octetsValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
+			expectedMetric: []Metric{},
+			expectedError:  fmt.Errorf("failed to convert octetsValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
+		},
+		{
+			name:      "[custom speed] snmp.ifBandwidthInUsage.rate with custom interface speed matched by name",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			interfaceConfigs: []checkconfig.InterfaceConfig{
+				{
+					Name:    "eth0",
+					InSpeed: 160,
+				},
+			},
+			tags: []string{
+				"interface:eth0",
+			},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedMetric: []Metric{
+				// ((5000000 * 8) / (160 * 1000000)) * 100 = 25.0
+				{"snmp.ifBandwidthInUsage.rate", 25.0},
+			},
+		},
+		{
+			name:      "[custom speed] snmp.ifBandwidthInUsage.rate with custom interface speed matched by index",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			interfaceConfigs: []checkconfig.InterfaceConfig{
+				{
+					Index:   9,
+					InSpeed: 160,
+				},
+			},
+			tags: []string{
+				"interface:eth0",
+			},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedMetric: []Metric{
+				// ((5000000 * 8) / (160 * 1000000)) * 100 = 25.0
+				{"snmp.ifBandwidthInUsage.rate", 25.0},
+			},
+		},
+		{
+			name:      "[custom speed] snmp.ifBandwidthInUsage.rate with custom interface speed that does not match",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			interfaceConfigs: []checkconfig.InterfaceConfig{
+				{
+					Index:   11,
+					InSpeed: 160,
+				},
+			},
+			tags: []string{
+				"interface:eth0",
+			},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedMetric: []Metric{
+				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
+				{"snmp.ifBandwidthInUsage.rate", 50.0},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -297,14 +417,14 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{
-				sender: sender,
+				sender:           sender,
+				interfaceConfigs: tt.interfaceConfigs,
 			}
-			tags := []string{"foo:bar"}
-			err := ms.sendBandwidthUsageMetric(tt.symbol, tt.fullIndex, tt.values, tags)
+			err := ms.sendBandwidthUsageMetric(tt.symbol, tt.fullIndex, tt.values, tt.tags)
 			assert.Equal(t, tt.expectedError, err)
 
 			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, "Rate", metric.name, metric.value, "", tags)
+				sender.AssertMetric(t, "Rate", metric.name, metric.value, "", tt.tags)
 			}
 		})
 	}

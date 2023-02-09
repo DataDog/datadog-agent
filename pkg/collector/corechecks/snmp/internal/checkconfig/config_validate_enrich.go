@@ -8,6 +8,8 @@ package checkconfig
 import (
 	"fmt"
 	"regexp"
+	"strconv"
+	"strings"
 )
 
 var validMetadataResources = map[string]map[string]bool{
@@ -162,6 +164,41 @@ func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 		if transform.Start > transform.End {
 			errors = append(errors, fmt.Sprintf("transform rule end should be greater than start. Invalid rule: %#v", transform))
 		}
+	}
+	return errors
+}
+
+// ValidateEnrichMetricTags validates and enrich metric tags
+func validateEnrichInterfaceConfigs(interfaceConfigs []InterfaceConfig) []string {
+	var errors []string
+	for i := range interfaceConfigs {
+		errors = append(errors, validateEnrichInterfaceConfig(&interfaceConfigs[i])...)
+	}
+	return errors
+}
+
+func validateEnrichInterfaceConfig(interfaceConfig *InterfaceConfig) []string {
+	var errors []string
+	matchTokens := strings.SplitN(interfaceConfig.Match, ":", 1)
+	if len(matchTokens) != 2 {
+		// TODO: TEST ME
+		errors = append(errors, fmt.Sprintf("invalid interface match (expected values like `name:eth0`, `index:10`): %s", interfaceConfig.Match))
+	}
+	matchField := matchTokens[0]
+	matchValue := matchTokens[1]
+	switch matchField {
+	case "name":
+		interfaceConfig.Name = matchValue
+	case "index":
+		index, err := strconv.Atoi(matchValue)
+		if err != nil {
+			// TODO: TEST ME
+			errors = append(errors, fmt.Sprintf("invalid interface match `%s`: %s", interfaceConfig.Match, err))
+		}
+		interfaceConfig.Index = index
+	default:
+		// TODO: TEST ME
+		errors = append(errors, fmt.Sprintf("invalid interface match type: %s", interfaceConfig.Match))
 	}
 	return errors
 }
