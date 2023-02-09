@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package start
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
+	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -203,7 +204,7 @@ func Run(ctx context.Context) {
 		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, rcClient, cfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.RemoteConfigHandler(r, rcClient, cfg) },
 		})
 	}
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package remote
 
 import (
 	"context"
@@ -59,7 +59,7 @@ func TestConfigEndpoint(t *testing.T) {
 			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector())
 			mux := http.NewServeMux()
 			cfg := &config.AgentConfig{}
-			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, cfg))
+			mux.Handle("/v0.7/config", RemoteConfigHandler(rcv, &grpc, cfg))
 			server := httptest.NewServer(mux)
 			if tc.valid {
 				var request pbgo.ClientGetConfigsRequest
