@@ -296,7 +296,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			fullIndex: "9",
 			interfaceConfigs: &checkconfig.InterfaceConfig{
 				Name:    "eth0",
-				InSpeed: 160,
+				InSpeed: 160_000_000,
 			},
 			tags: []string{
 				"interface:eth0",
@@ -334,7 +334,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			fullIndex: "9",
 			interfaceConfigs: &checkconfig.InterfaceConfig{
 				Index:   9,
-				InSpeed: 160,
+				InSpeed: 160_000_000,
 			},
 			tags: []string{
 				"interface:eth0",

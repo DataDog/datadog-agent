@@ -50,13 +50,13 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 	if !ok {
 		return nil
 	}
-	var ifHighSpeedFloatValue float64
+	var ifSpeed float64
 	if interfaceConfig != nil {
 		switch symbol.Name {
 		case "ifHCInOctets":
-			ifHighSpeedFloatValue = float64(interfaceConfig.InSpeed)
+			ifSpeed = float64(interfaceConfig.InSpeed)
 		case "ifHCOutOctets":
-			ifHighSpeedFloatValue = float64(interfaceConfig.OutSpeed)
+			ifSpeed = float64(interfaceConfig.OutSpeed)
 		default:
 			// TODO: DO SOMETHING?
 			// not expected case.
@@ -71,15 +71,16 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 			return fmt.Errorf("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=%s", fullIndex)
 		}
 
-		ifHighSpeedFloatValue, err = ifHighSpeedValue.ToFloat64()
+		ifHighSpeedFloatValue, err := ifHighSpeedValue.ToFloat64()
 		if err != nil {
 			return fmt.Errorf("failed to convert ifHighSpeedValue to float64: %s", err)
 		}
 		if ifHighSpeedFloatValue == 0.0 {
 			return fmt.Errorf("bandwidth usage: zero or invalid value for ifHighSpeed, skipping this row. fullIndex=%s, ifHighSpeedValue=%#v", fullIndex, ifHighSpeedValue)
 		}
+		ifSpeed = ifHighSpeedFloatValue * (1e6)
 	}
-	log.Warnf("ifHighSpeedFloatValue: %.2f", ifHighSpeedFloatValue)
+	log.Warnf("ifSpeed: %.2f", ifSpeed)
 
 	metricValues, err := getColumnValueFromSymbol(values, symbol)
 	if err != nil {
@@ -95,7 +96,7 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 	if err != nil {
 		return fmt.Errorf("failed to convert octetsValue to float64: %s", err)
 	}
-	usageValue := ((octetsFloatValue * 8) / (ifHighSpeedFloatValue * (1e6))) * 100.0
+	usageValue := ((octetsFloatValue * 8) / (ifSpeed)) * 100.0
 
 	sample := MetricSample{
 		value:      valuestore.ResultValue{SubmissionType: "counter", Value: usageValue},

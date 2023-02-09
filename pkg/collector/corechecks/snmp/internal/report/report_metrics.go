@@ -168,7 +168,7 @@ func (ms *MetricSender) sendCustomInterfaceSpeed(interfaceConfig *checkconfig.In
 		ms.sendMetric(MetricSample{
 			value:      valuestore.ResultValue{Value: float64(interfaceConfig.InSpeed)},
 			tags:       tags,
-			symbol:     checkconfig.SymbolConfig{Name: "ifInSpeed.custom"},
+			symbol:     checkconfig.SymbolConfig{Name: "ifCustomInSpeed"},
 			forcedType: "gauge",
 			options:    checkconfig.MetricsConfigOption{},
 		})
@@ -177,7 +177,7 @@ func (ms *MetricSender) sendCustomInterfaceSpeed(interfaceConfig *checkconfig.In
 		ms.sendMetric(MetricSample{
 			value:      valuestore.ResultValue{Value: float64(interfaceConfig.InSpeed)},
 			tags:       tags,
-			symbol:     checkconfig.SymbolConfig{Name: "ifOutSpeed.custom"},
+			symbol:     checkconfig.SymbolConfig{Name: "ifCustomOutSpeed"},
 			forcedType: "gauge",
 			options:    checkconfig.MetricsConfigOption{},
 		})
