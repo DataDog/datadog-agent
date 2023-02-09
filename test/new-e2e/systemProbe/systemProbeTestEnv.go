@@ -80,8 +80,6 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		"microvm:libvirtSSHKeyFileArm":       auto.ConfigValue{Value: sshKeyArm},
 	}
 
-	fmt.Printf("x86-key: %s, arm-key: %s\n", sshKeyX86, sshKeyArm)
-
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 		awsEnvironment, err := aws.NewEnvironment(ctx)
 		if err != nil {
