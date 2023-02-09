@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/collector/otelcol"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreOtlp "github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -53,8 +55,8 @@ func IsEnabled() bool {
 }
 
 var (
-	collectorStateRunning = "Running"
-	collectorStateClosed  = "Closed"
+	collectorStateRunning = otelcol.StateRunning.String()
+	collectorStateClosed  = otelcol.StateClosed.String()
 )
 
 func (o *ServerlessOTLPAgent) state() string {
