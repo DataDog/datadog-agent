@@ -225,9 +225,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
-	wg.Add(4)
 
 	// starts trace agent
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
@@ -236,6 +236,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// starts otlp agent
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if !otlp.IsEnabled() {
@@ -248,6 +249,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// enable telemetry collection
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if len(os.Getenv(daemon.LocalTestEnvVar)) > 0 {
@@ -277,6 +279,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
+	wg.Add(1)
 	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
 	go func() {
 		defer wg.Done()
