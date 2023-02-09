@@ -29,7 +29,7 @@ import (
 
 var (
 	// allowedEventTypes defines allowed event type for subscribers
-	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExecEventType}
+	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExitEventType}
 )
 
 // EventMonitor represents the system-probe module for runtime monitoring
@@ -84,8 +84,8 @@ func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler Ev
 	return nil
 }
 
-// RegisterEventModule register an event module
-func (m *EventMonitor) RegisterEventModule(consumer EventConsumer) {
+// RegisterEventConsumer register an event module
+func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 

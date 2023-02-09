@@ -42,7 +42,6 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -77,12 +76,6 @@ system_probe_config:
   sysprobe_socket: /tmp/test-sysprobe.sock
   enable_kernel_header_download: true
   enable_runtime_compiler: true
-
-event_monitoring_config:
-  process:
-    enabled: {{ .EventMonitoringProcessEnabled }}
-  network_process:
-    enabled: {{ .EventMonitoringNetworkEnabled }}
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
@@ -205,8 +198,6 @@ type testOpts struct {
 	envsWithValue                       []string
 	disableAbnormalPathCheck            bool
 	disableRuntimeSecurity              bool
-	enableEventMonitoringProcess        bool
-	enableEventMonitoringNetwork        bool
 }
 
 func (s *stringSlice) String() string {
@@ -236,9 +227,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
-		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableEventMonitoringProcess == opts.enableEventMonitoringProcess &&
-		to.enableEventMonitoringNetwork == opts.enableEventMonitoringNetwork
+		to.disableRuntimeSecurity == opts.disableRuntimeSecurity
 }
 
 type testModule struct {
@@ -262,15 +251,13 @@ type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
 type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
 type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
-type onProcessEventSendDataHandler func([]byte)
 
 type eventHandlers struct {
 	sync.RWMutex
-	onRuleMatch            onRuleHandler
-	onProbeEvent           onProbeEventHandler
-	onCustomSendEvent      onCustomSendEventHandler
-	onDiscarderPushed      onDiscarderPushedHandler
-	onProcessEventSendData onProcessEventSendDataHandler
+	onRuleMatch       onRuleHandler
+	onProbeEvent      onProbeEventHandler
+	onCustomSendEvent onCustomSendEventHandler
+	onDiscarderPushed onDiscarderPushedHandler
 }
 
 //nolint:deadcode,unused
@@ -713,8 +700,6 @@ func genTestConfig(dir string, opts testOpts) (*sysconfig.Config, *config.Config
 		"LogTags":                             logTags,
 		"EnvsWithValue":                       opts.envsWithValue,
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
-		"EventMonitoringProcessEnabled":       opts.enableEventMonitoringProcess,
-		"EventMonitoringNetworkEnabled":       opts.enableEventMonitoringNetwork,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -841,27 +826,30 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if err != nil {
 		return nil, err
 	}
-
-	cws, err := module.NewCWSConsumer(testMod.eventMonitor)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create module: %w", err)
-	}
-	testMod.eventMonitor.RegisterEventModule(cws)
-
-	testMod.cws = cws
 	testMod.probe = testMod.eventMonitor.Probe
 
-	// listen for probe event
+	var ruleSetloadedErr *multierror.Error
+	if !opts.disableRuntimeSecurity {
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create module: %w", err)
+		}
+		testMod.cws = cws
+
+		testMod.eventMonitor.RegisterEventConsumer(cws)
+
+		testMod.cws.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+			ruleSetloadedErr = err
+			log.Infof("Adding test module as listener")
+			rs.AddListener(testMod)
+		})
+	}
+
+	// listen to probe event
 	if err := testMod.probe.AddEventHandler(model.UnknownEventType, testMod); err != nil {
 		return nil, err
 	}
 
-	var loadErr *multierror.Error
-	testMod.cws.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
-		loadErr = err
-		log.Infof("Adding test module as listener")
-		rs.AddListener(testMod)
-	})
 	testMod.probe.AddNewNotifyDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
 
 	if err := testMod.eventMonitor.Init(); err != nil {
@@ -878,9 +866,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
 
-	if loadErr.ErrorOrNil() != nil {
+	if ruleSetloadedErr.ErrorOrNil() != nil {
 		defer testMod.Close()
-		return nil, loadErr.ErrorOrNil()
+		return nil, ruleSetloadedErr.ErrorOrNil()
 	}
 
 	if logStatusMetrics {
@@ -911,15 +899,6 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb 
 		if tm.eventHandlers.onCustomSendEvent != nil {
 			tm.eventHandlers.onCustomSendEvent(rule, ev)
 		}
-	}
-}
-
-func (tm *testModule) SendProcessEventData(data []byte) {
-	tm.eventHandlers.RLock()
-	defer tm.eventHandlers.RUnlock()
-
-	if tm.eventHandlers.onProcessEventSendData != nil {
-		tm.eventHandlers.onProcessEventSendData(data)
 	}
 }
 
@@ -1226,12 +1205,6 @@ func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) RegisterProcessEventSendDataHandler(cb onProcessEventSendDataHandler) {
-	tm.eventHandlers.Lock()
-	tm.eventHandlers.onProcessEventSendData = cb
-	tm.eventHandlers.Unlock()
-}
-
 func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1269,72 +1242,6 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Ev
 		}
 	})
 	defer tm.RegisterProbeEventHandler(nil)
-
-	if action == nil {
-		message <- Continue
-	} else {
-		if err := action(); err != nil {
-			message <- Skip
-			return err
-		}
-		message <- Continue
-	}
-
-	select {
-	case <-time.After(timeout):
-		return NewTimeoutError(tm.probe)
-	case <-ctx.Done():
-		return nil
-	}
-}
-
-func (tm *testModule) GetProcessEvent(action func() error, cb func(event *pmodel.ProcessEvent) bool, timeout time.Duration, executablePath string, eventTypes ...pmodel.EventType) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	message := make(chan ActionMessage, 1)
-	var event pmodel.ProcessEvent
-
-	tm.RegisterProcessEventSendDataHandler(func(data []byte) {
-		if _, err := event.UnmarshalMsg(data); err != nil {
-			tm.t.Logf("failed to unmarshall process event: %v\n", err)
-			return
-		}
-
-		if len(eventTypes) > 0 {
-			match := false
-			for _, eventType := range eventTypes {
-				if event.EventType == eventType {
-					match = true
-					break
-				}
-			}
-			if !match {
-				return
-			}
-		}
-
-		if executablePath != "" && event.Exe != executablePath {
-			return
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-message:
-			switch msg {
-			case Continue:
-				if cb(&event) {
-					cancel()
-				} else {
-					message <- Continue
-				}
-			case Skip:
-				cancel()
-			}
-		}
-	})
-	defer tm.RegisterProcessEventSendDataHandler(nil)
 
 	if action == nil {
 		message <- Continue

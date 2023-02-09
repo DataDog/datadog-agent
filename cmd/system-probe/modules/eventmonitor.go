@@ -65,21 +65,21 @@ var EventMonitor = module.Factory{
 		if err != nil {
 			return nil, err
 		}
-		evm.RegisterEventModule(cws)
+		evm.RegisterEventConsumer(cws)
 
 		// TODO: check whether enabled in config
 		network, err := network.NewNetworkConsumer(evm)
 		if err != nil {
 			return nil, err
 		}
-		evm.RegisterEventModule(network)
+		evm.RegisterEventConsumer(network)
 
 		// TODO: check whether enabled in config
 		process, err := cprocess.NewProcessConsumer(evm)
 		if err != nil {
 			return nil, err
 		}
-		evm.RegisterEventModule(process)
+		evm.RegisterEventConsumer(process)
 
 		return evm, err
 	},
