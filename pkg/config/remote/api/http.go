@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -55,6 +56,9 @@ func NewHTTPClient(auth Auth) (*HTTPClient, error) {
 		header["DD-Application-Key"] = []string{auth.AppKey}
 	}
 	transport := httputils.CreateHTTPTransport()
+	// Set the keep-alive timeout to 30s instead of the default 90s, so the http RC client is not closed by the backend
+	transport.IdleConnTimeout = 30 * time.Second
+
 	httpClient := &http.Client{
 		Transport: transport,
 	}
@@ -90,9 +94,6 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
 	req.Header = c.header
-
-	// Explicitly force the request not to be keep-alive
-	req.Close = true
 
 	resp, err := c.client.Do(req)
 	if err != nil {
