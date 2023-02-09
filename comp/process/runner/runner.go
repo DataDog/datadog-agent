@@ -7,12 +7,11 @@ package runner
 
 import (
 	"context"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"testing"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -32,11 +31,7 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	CoreConfig     config.Component
-	SysProbeConfig sysprobeconfig.Component
-
-	Checks    []types.Check `group:"check"`
-	Submitter submitter.Component
+	SysCfg *sysconfig.Config
 }
 
 func newRunner(deps dependencies) (Component, error) {
@@ -44,7 +39,7 @@ func newRunner(deps dependencies) (Component, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := r.NewCollector(deps.SysProbeConfig.Object(), hinfo, r.GetChecks(deps.SysProbeConfig.Object(), ddconfig.IsAnyContainerFeaturePresent()))
+	c, err := r.NewCollector(deps.SysCfg, hinfo, r.GetChecks(deps.SysCfg, ddconfig.IsAnyContainerFeaturePresent()))
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +51,6 @@ func newRunner(deps dependencies) (Component, error) {
 	}
 
 	runner := &runner{
-		checks:    deps.Checks,
-		submitter: deps.Submitter,
 		collector: c,
 	}
 

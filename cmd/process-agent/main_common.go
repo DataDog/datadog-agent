@@ -22,10 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/process"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -267,15 +263,10 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 
 	err = fxutil.Run(
-		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-			SysprobeConfigParams: sysprobeconfig.NewParams(
-				sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
-			),
-			LogParams: core.LogParams{},
-		}),
-		core.Bundle,
-		process.Bundle,
+		fx.Supply(
+			syscfg,
+		),
+		runnerComp.Module,
 
 		fx.Invoke(func(runnerComp.Component) {
 			fmt.Println("Starting process agent") //TODO: Move starting ... with checks here
