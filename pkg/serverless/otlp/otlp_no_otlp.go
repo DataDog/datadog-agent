@@ -12,7 +12,11 @@ import "github.com/DataDog/datadog-agent/pkg/serializer"
 
 type ServerlessOTLPAgent struct{}
 
-func (o *ServerlessOTLPAgent) Start(serializer serializer.MetricSerializer) {}
+func NewServerlessOTLPAgent(serializer.MetricSerializer) *ServerlessOTLPAgent {
+	return nil
+}
+
+func (o *ServerlessOTLPAgent) Start() {}
 
 func (o *ServerlessOTLPAgent) Stop() {}
 
