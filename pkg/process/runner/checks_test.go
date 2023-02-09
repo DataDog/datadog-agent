@@ -1,9 +1,4 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
-package main
+package runner
 
 import (
 	"testing"
@@ -13,7 +8,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
@@ -42,14 +36,14 @@ func TestProcessDiscovery(t *testing.T) {
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", true)
-		enabledChecks := getChecks(scfg, false)
+		enabledChecks := GetChecks(scfg, false)
 		assertContainsCheck(t, enabledChecks, checks.DiscoveryCheckName)
 	})
 
 	// Make sure the process_discovery check can be disabled
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", false)
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertNotContainsCheck(t, enabledChecks, checks.DiscoveryCheckName)
 	})
 
@@ -57,7 +51,7 @@ func TestProcessDiscovery(t *testing.T) {
 	t.Run("mutual exclusion", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", true)
 		cfg.Set("process_config.process_collection.enabled", true)
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertNotContainsCheck(t, enabledChecks, checks.DiscoveryCheckName)
 	})
 }
@@ -72,7 +66,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.disable_realtime_checks", false)
 
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertContainsCheck(t, enabledChecks, checks.ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, checks.RTContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, checks.ProcessCheckName)
@@ -84,7 +78,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.disable_realtime_checks", true)
 
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertContainsCheck(t, enabledChecks, checks.ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, checks.RTContainerCheckName)
 	})
@@ -94,7 +88,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
 		cfg.Set("process_config.container_collection.enabled", true)
 
-		enabledChecks := getChecks(scfg, false)
+		enabledChecks := GetChecks(scfg, false)
 		assertNotContainsCheck(t, enabledChecks, checks.ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, checks.RTContainerCheckName)
 	})
@@ -104,7 +98,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", true)
 		cfg.Set("process_config.container_collection.enabled", true)
 
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertContainsCheck(t, enabledChecks, checks.ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, checks.ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, checks.RTContainerCheckName)
@@ -119,14 +113,14 @@ func TestProcessCheck(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertNotContainsCheck(t, enabledChecks, checks.ProcessCheckName)
 	})
 
 	// Make sure the process check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", true)
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertContainsCheck(t, enabledChecks, checks.ProcessCheckName)
 	})
 }
@@ -140,7 +134,7 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertContainsCheck(t, enabledChecks, checks.ConnectionsCheckName)
 	})
 
@@ -149,7 +143,7 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		enabledChecks := getChecks(scfg, true)
+		enabledChecks := GetChecks(scfg, true)
 		assertNotContainsCheck(t, enabledChecks, checks.ConnectionsCheckName)
 	})
 }
@@ -159,7 +153,7 @@ func TestPodCheck(t *testing.T) {
 	defer config.SetDetectedFeatures(nil)
 
 	t.Run("enabled", func(t *testing.T) {
-		// Resets the cluster name so that it isn't cached during the call to `getChecks()`
+		// Resets the cluster name so that it isn't cached during the call to `GetChecks()`
 		clustername.ResetClusterName()
 		defer clustername.ResetClusterName()
 
@@ -167,7 +161,7 @@ func TestPodCheck(t *testing.T) {
 		cfg.Set("orchestrator_explorer.enabled", true)
 		cfg.Set("cluster_name", "test")
 
-		enabledChecks := getChecks(&sysconfig.Config{}, true)
+		enabledChecks := GetChecks(&sysconfig.Config{}, true)
 		assertContainsCheck(t, enabledChecks, checks.PodCheckName)
 	})
 
@@ -178,7 +172,7 @@ func TestPodCheck(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", false)
 
-		enabledChecks := getChecks(&sysconfig.Config{}, true)
+		enabledChecks := GetChecks(&sysconfig.Config{}, true)
 		assertNotContainsCheck(t, enabledChecks, checks.PodCheckName)
 	})
 }
@@ -188,19 +182,19 @@ func TestProcessEventsCheck(t *testing.T) {
 	cfg := config.Mock(t)
 
 	t.Run("default", func(t *testing.T) {
-		enabledChecks := getChecks(scfg, false)
+		enabledChecks := GetChecks(scfg, false)
 		assertNotContainsCheck(t, enabledChecks, checks.ProcessEventsCheckName)
 	})
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.event_collection.enabled", true)
-		enabledChecks := getChecks(scfg, false)
+		enabledChecks := GetChecks(scfg, false)
 		assertContainsCheck(t, enabledChecks, checks.ProcessEventsCheckName)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.event_collection.enabled", false)
-		enabledChecks := getChecks(scfg, false)
+		enabledChecks := GetChecks(scfg, false)
 		assertNotContainsCheck(t, enabledChecks, checks.ProcessEventsCheckName)
 	})
 }
@@ -223,18 +217,18 @@ func TestDisableRealTime(t *testing.T) {
 		},
 	}
 
-	assert := assert.New(t)
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
 			mockConfig := config.Mock(t)
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 
-			enabledChecks := getChecks(&sysconfig.Config{}, true)
+			enabledChecks := GetChecks(&sysconfig.Config{}, true)
 			assert.EqualValues(tc.expectedChecks, getCheckNames(enabledChecks))
 
-			c, err := runner.NewCollector(nil, &checks.HostInfo{}, enabledChecks)
+			c, err := NewCollector(nil, &checks.HostInfo{}, enabledChecks)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.RunRealTime())
 		})

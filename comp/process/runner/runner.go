@@ -8,7 +8,6 @@ package runner
 import (
 	"context"
 	"testing"
-	"time"
 
 	"go.uber.org/fx"
 
@@ -16,12 +15,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	r "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
 
 // runner implements the Component.
 type runner struct {
 	checks    []types.Check
 	submitter submitter.Component
+
+	collector *r.Collector
 }
 
 type dependencies struct {
@@ -35,26 +39,30 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (Component, error) {
+	hinfo, err := checks.CollectHostInfo()
+	if err != nil {
+		return nil, err
+	}
+	c, err := r.NewCollector(deps.SysProbeConfig.Object(), hinfo,
+		r.GetChecks(deps.SysProbeConfig.Object(), ddconfig.IsAnyContainerFeaturePresent()))
+	if err != nil {
+		return nil, err
+	}
+
+	c.Submitter, err = r.NewSubmitter(hinfo.HostName, c.UpdateRTStatus)
+	if err != nil {
+		return nil, err
+	}
+
 	return &runner{
 		checks:    deps.Checks,
 		submitter: deps.Submitter,
+		collector: c,
 	}, nil
 }
 
 func (r *runner) Run(ctx context.Context) error {
-
-	for _, c := range r.checks {
-		if !c.IsEnabled() {
-			continue
-		}
-
-		payload, err := c.Run()
-		if err != nil {
-			return err
-		}
-		r.submitter.Submit(time.Now(), c.Name(), payload)
-	}
-	return nil
+	return r.collector.Run(ctx.Done())
 }
 
 func (r *runner) GetChecks() []types.Check {

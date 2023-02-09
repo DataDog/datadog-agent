@@ -21,7 +21,6 @@ import (
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -219,7 +218,7 @@ const (
 	chunkMask           = 1<<chunkNumberOfBits - 1
 )
 
-func (l *Collector) Run(exit chan struct{}) error {
+func (l *Collector) Run(exit <-chan struct{}) error {
 	err := l.Submitter.Start()
 	if err != nil {
 		return err
@@ -244,8 +243,6 @@ func (l *Collector) Run(exit chan struct{}) error {
 	}
 	status.UpdateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
-
-	go util.HandleSignals(exit)
 
 	var wg sync.WaitGroup
 
@@ -280,7 +277,7 @@ func (l *Collector) Run(exit chan struct{}) error {
 	return nil
 }
 
-func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), error) {
+func (l *Collector) runnerForCheck(c checks.Check, exit <-chan struct{}) (func(), error) {
 	if !l.runRealTime || !c.SupportsRunOptions() {
 		return l.basicRunner(c, exit), nil
 	}
@@ -322,7 +319,7 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 	)
 }
 
-func (l *Collector) basicRunner(c checks.Check, exit chan struct{}) func() {
+func (l *Collector) basicRunner(c checks.Check, exit <-chan struct{}) func() {
 	return func() {
 		// Run the check the first time to prime the caches.
 		if !c.Realtime() {
