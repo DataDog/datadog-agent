@@ -38,7 +38,7 @@ type dependencies struct {
 	Submitter submitter.Component
 }
 
-func newRunner(deps dependencies) (Component, error) {
+func newRunner(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	hinfo, err := checks.CollectHostInfo()
 	if err != nil {
 		return nil, err
@@ -54,15 +54,26 @@ func newRunner(deps dependencies) (Component, error) {
 		return nil, err
 	}
 
-	return &runner{
+	runner := &runner{
 		checks:    deps.Checks,
 		submitter: deps.Submitter,
 		collector: c,
-	}, nil
+	}
+
+	lc.Append(fx.Hook{
+		OnStart: runner.Run,
+		OnStop:  runner.Stop,
+	})
+
+	return runner, nil
 }
 
-func (r *runner) Run(ctx context.Context) error {
-	return r.collector.Run(ctx.Done())
+func (r *runner) Run(context.Context) error {
+	return r.collector.Run()
+}
+
+func (r *runner) Stop(ctx context.Context) error {
+
 }
 
 func (r *runner) GetChecks() []types.Check {

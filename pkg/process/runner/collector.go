@@ -218,7 +218,7 @@ const (
 	chunkMask           = 1<<chunkNumberOfBits - 1
 )
 
-func (l *Collector) Run(exit <-chan struct{}) error {
+func (l *Collector) Run() error {
 	err := l.Submitter.Start()
 	if err != nil {
 		return err
@@ -249,12 +249,11 @@ func (l *Collector) Run(exit <-chan struct{}) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		<-exit
 		l.Submitter.Stop()
 	}()
 
 	for _, c := range l.enabledChecks {
-		runner, err := l.runnerForCheck(c, exit)
+		runner, err := l.runnerForCheck(c)
 		if err != nil {
 			return fmt.Errorf("error starting check %s: %s", c.Name(), err)
 		}
@@ -266,7 +265,6 @@ func (l *Collector) Run(exit <-chan struct{}) error {
 		}()
 	}
 
-	<-exit
 	wg.Wait()
 
 	for _, check := range l.enabledChecks {
@@ -277,9 +275,9 @@ func (l *Collector) Run(exit <-chan struct{}) error {
 	return nil
 }
 
-func (l *Collector) runnerForCheck(c checks.Check, exit <-chan struct{}) (func(), error) {
+func (l *Collector) runnerForCheck(c checks.Check) (func(), error) {
 	if !l.runRealTime || !c.SupportsRunOptions() {
-		return l.basicRunner(c, exit), nil
+		return l.basicRunner(c), nil
 	}
 
 	rtName := checks.RTName(c.Name())
