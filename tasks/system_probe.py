@@ -1476,6 +1476,6 @@ def test_microvms(ctx, security_groups="", subnets="", instance_type_x86="", ins
     if instance_type_arm != "":
         args += f" --instance-type-arm {instance_type_arm}"
     if destroy:
-        args += f" --destroy"
+        args += " --destroy"
 
     ctx.run(f"cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --name usama-saqib-test {args}")
