@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The env tag is now injected on the cluster resource if configured

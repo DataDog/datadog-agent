@@ -15,6 +15,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	jsoniter "github.com/json-iterator/go"
@@ -123,13 +124,19 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 		return processResult, 0, nil
 	}
 
+	clusterTags := ctx.Cfg.ExtraTags
+	// special env injection for the cluster as RetrieveUnifiedServiceTags is not called
+	if envTag := config.Datadog.GetString("env"); envTag != "" {
+		clusterTags = append(clusterTags, fmt.Sprintf("%s:%s", "env", envTag))
+	}
+
 	messages := []model.MessageBody{
 		&model.CollectorCluster{
 			ClusterName: ctx.Cfg.KubeClusterName,
 			ClusterId:   ctx.ClusterID,
 			GroupId:     ctx.MsgGroupID,
 			Cluster:     clusterModel,
-			Tags:        ctx.Cfg.ExtraTags,
+			Tags:        clusterTags,
 		},
 	}
 	processResult = processors.ProcessResult{
