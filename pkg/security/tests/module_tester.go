@@ -167,7 +167,9 @@ rules:
 {{- end}}
 {{- if $Action.Block}}
       - block:
-          syscalls: {{$Action.Block.Syscalls}}
+          subsequent_syscalls: {{range $Action.Block.Syscalls}}
+            - "{{.}}"
+          {{end}}
 {{- end}}
 {{- end}}
 {{end}}

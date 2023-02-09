@@ -29,7 +29,7 @@ func TestSyscallBlockingSystem(t *testing.T) {
 			Actions: []rules.ActionDefinition{
 				{
 					Block: &rules.BlockDefinition{
-						Syscalls: true,
+						Syscalls: []string{"open", "openat", "creat"},
 					},
 				},
 			},
