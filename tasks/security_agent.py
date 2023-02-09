@@ -43,6 +43,7 @@ KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files")
 STRESS_TEST_SUITE = "stresssuite"
 
+
 @task
 def build(
     ctx,

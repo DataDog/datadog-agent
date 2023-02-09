@@ -69,6 +69,8 @@ cookbook_file "#{wrk_dir}/nikos.tar.gz" do
   mode '755'
 end
 
+# Resources for getting test output into the Datadog CI product
+
 directory "/go/bin" do
   recursive true
 end
@@ -111,13 +113,7 @@ directory "/tmp/pkgjson" do
   recursive true
 end
 
-if node[:platform] == "amazon" and node[:platform_version] == "2022"
-  execute "increase /tmp size" do
-    command "mount -o remount,size=5G /tmp/"
-    live_stream true
-    action :run
-  end
-end
+# End resources for getting test output into the Datadog CI product
 
 execute "Extract nikos.tar.gz" do
   command "mkdir -p /opt/datadog-agent/embedded/nikos/embedded/ && tar -xzvf #{wrk_dir}/nikos.tar.gz -C /opt/datadog-agent/embedded/nikos/embedded/"
@@ -212,7 +208,7 @@ if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
 
     docker_image 'testsuite-img' do
       tag 'latest'
-      source "#{wrk_dir}"
+      source wrk_dir
       action :build
     end
 

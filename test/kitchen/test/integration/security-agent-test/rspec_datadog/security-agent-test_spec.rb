@@ -5,6 +5,8 @@ require 'open3'
 require 'rexml/document'
 
 GOLANG_TEST_FAILURE = /FAIL:/
+# The real package name is security/tests, but setting a custom name because of the useful info
+PKG = "security/functionaltests"
 
 print KernelOut.format(`cat /etc/os-release`)
 print KernelOut.format(`uname -a`)
@@ -34,51 +36,47 @@ end
 
 shared_examples "passes" do |bundle, env|
   after :context do
+    # Combine all the /tmp/pkgjson/#{bundle}.json files into one /tmp/testjson/#{bundle}.json file
     print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
   end
 
-  output_file_name = "#{bundle}-#{platform}-version-#{release}"
-
   base_env = {
     "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
-    "GOVERSION"=>"unknown"
   }
-  junitfile = "#{output_file_name}.xml"
-  testsuite_file_path = "/tmp/security-agent/tests/testsuite"
+  final_env = base_env.merge(env)
 
+  testsuite_file_path = "/tmp/security-agent/tests/testsuite"
   it "tests" do |ex|
     Dir.chdir(File.dirname(testsuite_file_path)) do
-      xmlpath = "/tmp/junit/#{bundle}/#{junitfile}"
+      output_file_name = PKG.gsub("/","-")
 
-      if bundle != "docker"
-        cmd = ["sudo", "-E",
-          "/go/bin/gotestsum",
-          "--format", "dots",
-          "--junitfile", xmlpath,
-          "--jsonfile", "/tmp/pkgjson/#{output_file_name}.json",
-          "--raw-command", "--",
-          "/go/bin/test2json", "-t", testsuite_file_path, "-test.v", "-test.count=1", "-status-metrics"
-        ]
+      xmlpath = "/tmp/junit/#{bundle}/#{output_file_name}.xml"
+      jsonpath = "/tmp/pkgjson/#{bundle}/#{output_file_name}.json"
+
+      gotestsum_test2json_cmd = ["sudo", "-E",
+        "/go/bin/gotestsum",
+        "--format", "pkgname",
+        "--junitfile", xmlpath,
+        "--jsonfile", jsonpath,
+        "--raw-command", "--",
+        "/go/bin/test2json", "-t", "-p", PKG
+      ]
+
+      if bundle == "docker"
+        cmd = gotestsum_test2json_cmd.concat(["docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=#{final_env["DD_SYSTEM_PROBE_BPF_DIR"]}",
+          "docker-testsuite", testsuite_file_path, "-status-metrics", "--env", "docker", "-test.v", "-test.count=1"])
+      else
+        cmd = gotestsum_test2json_cmd.concat([testsuite_file_path, "-status-metrics", "-test.v", "-test.count=1"])
 
         if bundle == "ad"
-          cmd.append(["-test.run", "TestActivityDump"])
+          cmd.concat(["-test.run", "TestActivityDump"])
         end
-      else
-        cmd = ["sudo", "docker", "exec", "-e", "docker-testsuite",
-          "/go/bin/gotestsum",
-          "--format", "dots",
-          "--junitfile", xmlpath,
-          "--jsonfile", "/tmp/pkgjson/#{output_file_name}.json",
-          "--raw-command", "--",
-          "/go/bin/test2json", "-t", testsuite_file_path, "-test.v", "-test.count=1", "-status-metrics", "--env", "docker"
-        ]
       end
 
       # TODO (Celia Yuen): delete once SecAgent CI visibility is polished
       puts cmd
-      puts env
+      puts final_env
 
-      final_env = base_env.merge(env)
       Open3.popen2e(final_env, *cmd) do |_, output, wait_thr|
         output.each_line do |line|
           puts KernelOut.format(line.strip)
@@ -86,7 +84,7 @@ shared_examples "passes" do |bundle, env|
       end
 
       xmldoc = REXML::Document.new(File.read(xmlpath))
-      REXML::XPath.each(xmldoc, "//testsuite/properties") do |props|
+      REXML::XPath.each(xmldoc, "//testsuite/testsuite/properties") do |props|
         props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
         props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
         props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })
@@ -108,7 +106,10 @@ describe "security-agent" do
   case cws_platform
   when "host"
     context 'functional tests running directly on host' do
-      env = {}
+      env = {
+        "DD_TESTS_RUNTIME_COMPILED"=>"1",
+        "DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED"=>"true"
+      }
       include_examples "passes", "host", env
     end
   when "docker"
