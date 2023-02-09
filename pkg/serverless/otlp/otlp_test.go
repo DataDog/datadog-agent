@@ -49,6 +49,10 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert.Nil(err)
 	t.Setenv("DD_OTLP_CONFIG_TRACES_INTERNAL_PORT", strconv.Itoa(tracePort))
 
+	// in the case where test is run without the serverless build tag, skip
+	// hostname resolution
+	t.Setenv("DD_HOSTNAME", "myhostname")
+
 	grpcEndpoint, httpEndpoint := "localhost:4317", "localhost:4318"
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT", httpEndpoint)
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", grpcEndpoint)
