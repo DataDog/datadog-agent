@@ -41,8 +41,8 @@ var (
 	SSHKeyFile           = filepath.Join(".", "/", "aws-ssh-key")
 	vmConfig             = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
 	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
-	sshKeyX86            = filepath.Join(DD_AGENT_TESTING_DIR, "libvirt_rsa-x86")
-	sshKeyArm            = filepath.Join(DD_AGENT_TESTING_DIR, "libvirt_rsa-arm")
+	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
+	sshKeyArm            = os.Getenv("LibvirtSSHKeyArm")
 )
 
 func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string) (*TestEnv, error) {
@@ -79,6 +79,8 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		"microvm:libvirtSSHKeyFileX86":       auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":       auto.ConfigValue{Value: sshKeyArm},
 	}
+
+	fmt.Printf("x86-key: %s, arm-key: %s\n", sshKeyX86, sshKeyArm)
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 		awsEnvironment, err := aws.NewEnvironment(ctx)

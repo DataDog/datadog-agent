@@ -42,10 +42,16 @@ kernel_version_testing_system_probe_linux_x64_ec2:
     ARCH: x86_64
     EC2_INSTANCE_TYPE: "z1d.metal"
     AWS_REGION: us-east-1
+    LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
+    LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
   script:
     - pulumi login s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-version-testing/pulumi
     - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE
-    - pulumi logout
+  artifacts:
+    when: always
+    paths:
+      - $LibvirtSSHKeyX86
+      - $LibvirtSSHKeyArm
 
 kernel_version_testing_system_probe_linux_x64_ec2_cleanup:
   extends:
@@ -60,6 +66,8 @@ kernel_version_testing_system_probe_linux_x64_ec2_cleanup:
     ARCH: x86_64
     EC2_INSTANCE_TYPE: "z1d.metal"
     AWS_REGION: us-east-1
+    LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
+    LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
   script:
     - pulumi login s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-version-testing/pulumi
     - inv -e system-probe.test-microvms --destroy --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE
