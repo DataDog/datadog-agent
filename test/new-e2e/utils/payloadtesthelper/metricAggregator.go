@@ -14,17 +14,17 @@ import (
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
 )
 
-type MetricPayloads struct {
+type MetricAggregator struct {
 	metricsByName map[string][]*metricspb.MetricPayload_MetricSeries
 }
 
-func NewMetricPayloads() MetricPayloads {
-	return MetricPayloads{
+func NewMetricAggregator() MetricAggregator {
+	return MetricAggregator{
 		metricsByName: map[string][]*metricspb.MetricPayload_MetricSeries{},
 	}
 }
 
-func (mp *MetricPayloads) UnmarshallPayloads(body []byte) error {
+func (agg *MetricAggregator) UnmarshallPayloads(body []byte) error {
 	response := GetPayloadResponse{}
 	json.Unmarshal(body, &response)
 
@@ -44,22 +44,22 @@ func (mp *MetricPayloads) UnmarshallPayloads(body []byte) error {
 			return err
 		}
 		for _, serie := range metricsPayload.Series {
-			if _, found := mp.metricsByName[serie.Metric]; !found {
-				mp.metricsByName[serie.Metric] = []*metricspb.MetricPayload_MetricSeries{}
+			if _, found := agg.metricsByName[serie.Metric]; !found {
+				agg.metricsByName[serie.Metric] = []*metricspb.MetricPayload_MetricSeries{}
 			}
-			mp.metricsByName[serie.Metric] = append(mp.metricsByName[serie.Metric], serie)
+			agg.metricsByName[serie.Metric] = append(agg.metricsByName[serie.Metric], serie)
 		}
 	}
 	return nil
 }
 
-func (mp *MetricPayloads) ContainsMetricName(name string) bool {
-	_, found := mp.metricsByName[name]
+func (agg *MetricAggregator) ContainsMetricName(name string) bool {
+	_, found := agg.metricsByName[name]
 	return found
 }
 
-func (mp *MetricPayloads) ContainsMetricNameAndTags(name string, tags []string) bool {
-	series, found := mp.metricsByName[name]
+func (agg *MetricAggregator) ContainsMetricNameAndTags(name string, tags []string) bool {
+	series, found := agg.metricsByName[name]
 	if !found {
 		return false
 	}
