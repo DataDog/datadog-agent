@@ -115,15 +115,15 @@ func TestInject(t *testing.T) {
 		t.Fatal("host failed")
 	}
 
-	p := "unshare -p --fork "
-	_, err = testutil.RunCommand(p + "id")
-	if err != nil {
-		t.Skipf("unshare not supported on this platform %s", err)
-	}
-
 	// flush the caches to slow start java
 	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
 	t.Run("PIDnamespace", func(t *testing.T) {
+		p := "unshare -p --fork "
+		_, err = testutil.RunCommand(p + "id")
+		if err != nil {
+			t.Skipf("unshare not supported on this platform %s", err)
+		}
+
 		// running the tagert process in a new PID namespace
 		// and testing if the test/plaform give enough permission to do that
 		testInject(t, p)
