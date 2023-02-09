@@ -200,7 +200,7 @@ func (ctr *realConntracker) RefreshTelemetry() {
 		if registers != 0 {
 			ctr.stats.nanoSecondsPerRegister.Set(float64(registersTotalTime / registers))
 		}
-		time.Sleep(time.Duration(10) * time.Second)
+		time.Sleep(time.Duration(5) * time.Second)
 	}
 }
 

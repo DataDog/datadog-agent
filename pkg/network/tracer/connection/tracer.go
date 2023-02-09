@@ -71,6 +71,7 @@ type Tracer interface {
 const (
 	defaultClosedChannelSize = 500
 	ProbeUID                 = "net"
+	componentName = "conn_tracer"
 )
 
 type tracer struct {
@@ -98,8 +99,13 @@ type telemetry struct {
 	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
 	udpConns4, udpConns6 *atomic.Int64 `stats:""`
 	probeTelemetry map[string]errtelemetry.StatGaugeWrapper
-	failedTcpConnects errtelemetry.StatGaugeWrapper
-
+	tcpFailedConnects errtelemetry.StatGaugeWrapper
+	tcpSentMiscounts errtelemetry.StatGaugeWrapper
+	missedTcpClose errtelemetry.StatGaugeWrapper
+	missedUdpClose errtelemetry.StatGaugeWrapper
+	UdpSendsProcessed errtelemetry.StatGaugeWrapper
+	UdpSendsMissed errtelemetry.StatGaugeWrapper
+	UdpDroppedConns errtelemetry.StatGaugeWrapper
 }
 
 func newTelemetry() telemetry {
@@ -108,6 +114,14 @@ func newTelemetry() telemetry {
 		udpConns4: atomic.NewInt64(0),
 		tcpConns6: atomic.NewInt64(0),
 		udpConns6: atomic.NewInt64(0),
+		probeTelemetry: make(map[string]errtelemetry.StatGaugeWrapper),
+		tcpFailedConnects: errtelemetry.NewStatGaugeWrapper(componentName, "tcp_failed_connects", []string{}, "desc"),
+		tcpSentMiscounts: errtelemetry.NewStatGaugeWrapper(componentName, "tcp_sent_miscounts", []string{}, "desc"),
+		missedTcpClose: errtelemetry.NewStatGaugeWrapper(componentName, "missed_tcp_close", []string{}, "desc"),
+		missedUdpClose: errtelemetry.NewStatGaugeWrapper(componentName, "missed_udp_close", []string{}, "desc"),
+		UdpSendsProcessed: errtelemetry.NewStatGaugeWrapper(componentName, "udp_sends_processed", []string{}, "desc"),
+		UdpSendsMissed: errtelemetry.NewStatGaugeWrapper(componentName, "udp_sends_missed", []string{}, "desc"),
+		UdpDroppedConns: errtelemetry.NewStatGaugeWrapper(componentName, "udp_dropped_conns", []string{}, "desc"),
 	}
 }
 
@@ -395,7 +409,13 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 func (t *tracer) RefreshProbeTelemetry() {
 	telemetry := t.getEBPFTelemetry()
 
-	t.telemetry.failedTcpConnects.Set(int64(telemetry.Tcp_failed_connect))
+	t.telemetry.tcpFailedConnects.Set(int64(telemetry.Tcp_failed_connect))
+	t.telemetry.tcpSentMiscounts.Set(int64(telemetry.Tcp_sent_miscounts))
+	t.telemetry.missedTcpClose.Set(int64(telemetry.Missed_tcp_close))
+	t.telemetry.missedUdpClose.Set(int64(telemetry.Missed_udp_close))
+	t.telemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
+	t.telemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
+	t.telemetry.UdpDroppedConns.Set(int64(telemetry.Udp_dropped_conns))
 
 	for k, v := range t.telemetry.get() {
 		if val, ok := t.telemetry.probeTelemetry[k]; ok {
