@@ -42,7 +42,7 @@ var (
 	vmConfig             = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
 	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
-	sshKeyArm            = os.Getenv("LibvirtSSHKeyArm")
+	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
 )
 
 func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string) (*TestEnv, error) {
