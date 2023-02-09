@@ -51,7 +51,9 @@ kernel_version_testing_system_probe_linux_x64_ec2:
     when: always
     paths:
       - $LibvirtSSHKeyX86
-      - $LibvirtSSHKeyArm
+      - $LibvirtSSHKeyX86.pub
+      - $LibvirtSSHKeyARM
+      - $LibvirtSSHKeyARM.pub
 
 kernel_version_testing_system_probe_linux_x64_ec2_cleanup:
   extends:
