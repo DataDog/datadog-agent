@@ -179,10 +179,11 @@ func validateEnrichInterfaceConfigs(interfaceConfigs []InterfaceConfig) []string
 
 func validateEnrichInterfaceConfig(interfaceConfig *InterfaceConfig) []string {
 	var errors []string
-	matchTokens := strings.SplitN(interfaceConfig.Match, ":", 1)
+	matchTokens := strings.SplitN(interfaceConfig.Match, ":", 2)
 	if len(matchTokens) != 2 {
 		// TODO: TEST ME
 		errors = append(errors, fmt.Sprintf("invalid interface match (expected values like `name:eth0`, `index:10`): %s", interfaceConfig.Match))
+		return errors
 	}
 	matchField := matchTokens[0]
 	matchValue := matchTokens[1]

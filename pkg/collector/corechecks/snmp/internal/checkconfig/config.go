@@ -492,6 +492,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.InstanceTags = instance.Tags
 	c.MetricTags = instance.MetricTags
 	c.InterfaceConfigs = instance.InterfaceConfigs
+	log.Warnf("c.InterfaceConfigs from config: %+v", c.InterfaceConfigs)
 
 	c.AddUptimeMetric()
 
@@ -645,6 +646,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
 	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
+	newConfig.InterfaceConfigs = c.InterfaceConfigs
 
 	return &newConfig
 }

@@ -7,9 +7,6 @@ package report
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -110,21 +107,4 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 
 	ms.sendMetric(sample)
 	return nil
-}
-
-func getInterfaceConfig(interfaceConfigs []checkconfig.InterfaceConfig, index string, tags []string) *checkconfig.InterfaceConfig {
-	var ifName string
-	for _, tag := range tags {
-		tagElems := strings.SplitN(tag, ":", 2)
-		if len(tagElems) == 2 && tagElems[0] == "interface" {
-			ifName = tagElems[1]
-		}
-	}
-	var matchedConfig *checkconfig.InterfaceConfig
-	for _, ifConfig := range interfaceConfigs {
-		if (ifConfig.Name != "" && ifConfig.Name == ifName) || (strconv.Itoa(ifConfig.Index) == index) {
-			matchedConfig = &ifConfig
-		}
-	}
-	return matchedConfig
 }

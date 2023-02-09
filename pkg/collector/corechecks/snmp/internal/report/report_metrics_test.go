@@ -439,3 +439,36 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		})
 	}
 }
+
+func Test_getInterfaceConfig(t *testing.T) {
+	tests := []struct {
+		name                    string
+		interfaceConfigs        []checkconfig.InterfaceConfig
+		index                   string
+		tags                    []string
+		expectedInterfaceConfig *checkconfig.InterfaceConfig
+	}{
+		{
+			name: "matched",
+			interfaceConfigs: []checkconfig.InterfaceConfig{
+				{
+					Name:    "eth0",
+					InSpeed: 80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedInterfaceConfig: &checkconfig.InterfaceConfig{
+				Name:    "eth0",
+				InSpeed: 80,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedInterfaceConfig, getInterfaceConfig(tt.interfaceConfigs, tt.index, tt.tags))
+		})
+	}
+}

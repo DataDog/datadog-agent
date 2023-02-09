@@ -7,6 +7,8 @@ package report
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -145,9 +147,12 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				samples[sample.symbol.Name] = make(map[string]MetricSample)
 			}
 			samples[sample.symbol.Name][fullIndex] = sample
-			log.Warnf("ms.interfaceConfigs: %+v", ms.interfaceConfigs)
-			interfaceConfig := getInterfaceConfig(ms.interfaceConfigs, fullIndex, tags)
-			ms.sendCustomInterfaceSpeed(interfaceConfig, tags)
+			log.Warnf("ms.interfaceConfigs: %+v, fullIndex=%s, tags=%s", ms.interfaceConfigs, fullIndex, rowTags)
+			interfaceConfig := getInterfaceConfig(ms.interfaceConfigs, fullIndex, rowTags)
+			if interfaceConfig != nil {
+				log.Warnf("matched interfaceConfig: %+v", interfaceConfig)
+			}
+			ms.sendCustomInterfaceSpeed(interfaceConfig, rowTags)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags, interfaceConfig)
 		}
 	}
@@ -161,18 +166,18 @@ func (ms *MetricSender) sendCustomInterfaceSpeed(interfaceConfig *checkconfig.In
 	}
 	if interfaceConfig.InSpeed != 0 {
 		ms.sendMetric(MetricSample{
-			value:      valuestore.ResultValue{Value: interfaceConfig.InSpeed},
+			value:      valuestore.ResultValue{Value: float64(interfaceConfig.InSpeed)},
 			tags:       tags,
-			symbol:     checkconfig.SymbolConfig{Name: "snmp.ifInSpeed.custom"},
+			symbol:     checkconfig.SymbolConfig{Name: "ifInSpeed.custom"},
 			forcedType: "gauge",
 			options:    checkconfig.MetricsConfigOption{},
 		})
 	}
 	if interfaceConfig.OutSpeed != 0 {
 		ms.sendMetric(MetricSample{
-			value:      valuestore.ResultValue{Value: interfaceConfig.InSpeed},
+			value:      valuestore.ResultValue{Value: float64(interfaceConfig.InSpeed)},
 			tags:       tags,
-			symbol:     checkconfig.SymbolConfig{Name: "snmp.ifOutSpeed.custom"},
+			symbol:     checkconfig.SymbolConfig{Name: "ifOutSpeed.custom"},
 			forcedType: "gauge",
 			options:    checkconfig.MetricsConfigOption{},
 		})
@@ -275,4 +280,21 @@ func getFlagStreamValue(placement uint, strValue string) (float64, error) {
 		floatValue = 1.0
 	}
 	return floatValue, nil
+}
+
+func getInterfaceConfig(interfaceConfigs []checkconfig.InterfaceConfig, index string, tags []string) *checkconfig.InterfaceConfig {
+	var ifName string
+	for _, tag := range tags {
+		tagElems := strings.SplitN(tag, ":", 2)
+		if len(tagElems) == 2 && tagElems[0] == "interface" {
+			ifName = tagElems[1]
+		}
+	}
+	var matchedConfig *checkconfig.InterfaceConfig
+	for _, ifConfig := range interfaceConfigs {
+		if (ifConfig.Name != "" && ifConfig.Name == ifName) || (strconv.Itoa(ifConfig.Index) == index) {
+			matchedConfig = &ifConfig
+		}
+	}
+	return matchedConfig
 }
