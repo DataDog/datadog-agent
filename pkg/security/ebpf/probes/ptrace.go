@@ -20,12 +20,5 @@ func getPTraceProbes() []*manager.Probe {
 		},
 		SyscallFuncName: "ptrace",
 	}, EntryAndExit)...)
-	ptraceProbes = append(ptraceProbes, &manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/pid_task",
-			EBPFFuncName: "kprobe_pid_task",
-		},
-	})
 	return ptraceProbes
 }
