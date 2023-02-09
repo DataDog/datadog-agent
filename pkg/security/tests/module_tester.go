@@ -851,6 +851,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	testMod.cws = cws
 	testMod.probe = testMod.eventMonitor.Probe
 
+	// listen for probe event
+	if err := testMod.probe.AddEventHandler(model.UnknownEventType, testMod); err != nil {
+		return nil, err
+	}
+
 	var loadErr *multierror.Error
 	testMod.cws.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 		loadErr = err
