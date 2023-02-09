@@ -30,6 +30,7 @@ type runner struct {
 
 type dependencies struct {
 	fx.In
+	Lc fx.Lifecycle
 
 	CoreConfig     config.Component
 	SysProbeConfig sysprobeconfig.Component
@@ -38,7 +39,7 @@ type dependencies struct {
 	Submitter submitter.Component
 }
 
-func newRunner(lc fx.Lifecycle, deps dependencies) (Component, error) {
+func newRunner(deps dependencies) (Component, error) {
 	hinfo, err := checks.CollectHostInfo()
 	if err != nil {
 		return nil, err
@@ -61,7 +62,7 @@ func newRunner(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		collector: c,
 	}
 
-	lc.Append(fx.Hook{
+	deps.Lc.Append(fx.Hook{
 		OnStart: runner.Run,
 		OnStop:  runner.Stop,
 	})

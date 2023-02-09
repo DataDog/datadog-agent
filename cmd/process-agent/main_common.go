@@ -8,10 +8,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/process"
+	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"time"
+
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
@@ -151,18 +158,18 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := getChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
-
-	// Exit if agent is not enabled.
-	if len(enabledChecks) == 0 {
-		log.Infof(agent6DisabledMessage)
-
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
-		return
-	}
+	//enabledChecks := getChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
+	//
+	//// Exit if agent is not enabled.
+	//if len(enabledChecks) == 0 {
+	//	log.Infof(agent6DisabledMessage)
+	//
+	//	// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
+	//	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+	//	// http://supervisord.org/subprocess.html#process-states
+	//	time.Sleep(5 * time.Second)
+	//	return
+	//}
 
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
@@ -258,26 +265,25 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := runner.NewCollector(syscfg, hostInfo, enabledChecks)
+	err = fxutil.Run(
+		fx.Supply(core.BundleParams{
+			ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+			SysprobeConfigParams: sysprobeconfig.NewParams(
+				sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+			),
+			LogParams: core.LogParams{},
+		}),
+		core.Bundle,
+		process.Bundle,
+
+		fx.Invoke(func(runnerComp.Component) {
+			fmt.Println("Starting process agent") //TODO: Move starting ... with checks here
+		}),
+	)
 	if err != nil {
-		log.Criticalf("Error creating collector: %s", err)
+		log.Criticalf("Failed to start process agent: %s", err.Error())
 		cleanupAndExit(1)
 		return
-	}
-	cl.Submitter, err = runner.NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
-	if err != nil {
-		log.Criticalf("Error creating checkSubmitter: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-
-	if err := cl.Run(exit); err != nil {
-		log.Criticalf("Error starting collector: %s", err)
-		os.Exit(1)
-		return
-	}
-
-	for range exit {
 	}
 
 	if err := srv.Shutdown(context.Background()); err != nil {
