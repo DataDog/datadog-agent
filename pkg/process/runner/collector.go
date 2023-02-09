@@ -74,6 +74,8 @@ type Collector struct {
 
 	// Submits check payloads to datadog
 	Submitter Submitter
+
+	coreCfg ddconfig.ConfigReader
 }
 
 func (l *Collector) RunRealTime() bool {
@@ -81,16 +83,16 @@ func (l *Collector) RunRealTime() bool {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
-	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+func NewCollector(coreCfg ddconfig.ConfigReader, sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
+	runRealTime := !coreCfg.GetBool("process_config.disable_realtime_checks")
 
 	cfg := &checks.SysProbeConfig{}
-	if syscfg != nil && syscfg.Enabled {
+	if sysCfg != nil && sysCfg.Enabled {
 		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-		_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := sysCfg.EnabledModules[sysconfig.ProcessModule]
 		cfg.ProcessModuleEnabled = processModuleEnabled
-		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
-		cfg.SystemProbeAddress = syscfg.SocketAddress
+		cfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = sysCfg.SocketAddress
 	}
 
 	for _, c := range enabledChecks {
@@ -99,11 +101,11 @@ func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCh
 		}
 	}
 
-	return NewCollectorWithChecks(enabledChecks, runRealTime)
+	return NewCollectorWithChecks(coreCfg, enabledChecks, runRealTime)
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(checks []checks.Check, runRealTime bool) (*Collector, error) {
+func NewCollectorWithChecks(coreCfg ddconfig.ConfigReader, checks []checks.Check, runRealTime bool) (*Collector, error) {
 	orchestrator := oconfig.NewDefaultOrchestratorConfig()
 	if err := orchestrator.Load(); err != nil {
 		return nil, err
@@ -123,6 +125,8 @@ func NewCollectorWithChecks(checks []checks.Check, runRealTime bool) (*Collector
 		realTimeEnabled:  atomic.NewBool(false),
 
 		runRealTime: runRealTime,
+
+		coreCfg: coreCfg,
 	}, nil
 }
 
@@ -232,7 +236,7 @@ func (l *Collector) Run() error {
 	}
 
 	checkNamesLength := len(l.enabledChecks)
-	if !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+	if !l.coreCfg.GetBool("process_config.disable_realtime_checks") {
 		// checkNamesLength is double when realtime checks is enabled as we append the Process real time name
 		// as well as the original check name
 		checkNamesLength = checkNamesLength * 2
@@ -244,7 +248,7 @@ func (l *Collector) Run() error {
 
 		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
 		// process_rt doesn't show up in the enabled checks
-		if check.Name() == checks.ProcessCheckName && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+		if check.Name() == checks.ProcessCheckName && !l.coreCfg.GetBool("process_config.disable_realtime_checks") {
 			checkNames = append(checkNames, checks.RTProcessCheckName)
 		}
 	}

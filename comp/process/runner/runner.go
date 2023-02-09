@@ -44,7 +44,7 @@ func newRunner(deps dependencies) (Component, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := r.NewCollector(deps.SysProbeConfig.Object(), hinfo,
+	c, err := r.NewCollector(deps.CoreConfig, deps.SysProbeConfig.Object(), hinfo,
 		r.GetChecks(deps.SysProbeConfig.Object(), ddconfig.IsAnyContainerFeaturePresent()))
 	if err != nil {
 		return nil, err
