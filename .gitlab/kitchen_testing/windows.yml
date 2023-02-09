@@ -47,7 +47,7 @@
   extends:
     - .kitchen_test_windows_installer
   script:
-    - export WINDOWS_AGENT_FILE=datadog-agent-$(cd ../.. && inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-2-x86_64
+    - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(cd ../.. && inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - echo $WINDOWS_AGENT_FILE
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
