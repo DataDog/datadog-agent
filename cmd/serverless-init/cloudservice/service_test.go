@@ -6,16 +6,17 @@
 package cloudservice
 
 import (
-	"os"
 	"testing"
 
 	"gotest.tools/assert"
 )
 
 func TestGetCloudServiceType(t *testing.T) {
-	os.Setenv(ContainerAppNameEnvVar, "test-name")
-	assert.Equal(t, GetCloudServiceType(), &ContainerApp{})
+	assert.Equal(t, &LocalService{}, GetCloudServiceType())
 
-	os.Unsetenv(ContainerAppNameEnvVar)
-	assert.Equal(t, GetCloudServiceType(), &LocalService{})
+	t.Setenv(ContainerAppNameEnvVar, "test-name")
+	assert.Equal(t, &ContainerApp{}, GetCloudServiceType())
+
+	t.Setenv(serviceNameEnvVar, "test-name")
+	assert.Equal(t, &CloudRun{}, GetCloudServiceType())
 }
