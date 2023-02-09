@@ -23,20 +23,28 @@ type ServerlessOTLPAgent struct {
 	pipeline *coreOtlp.Pipeline
 }
 
-func (o *ServerlessOTLPAgent) Start(serializer serializer.MetricSerializer) {
-	var err error
-	o.pipeline, err = coreOtlp.BuildAndStart(context.Background(), config.Datadog, serializer)
+func NewServerlessOTLPAgent(serializer serializer.MetricSerializer) *ServerlessOTLPAgent {
+	pipeline, err := coreOtlp.NewPipelineFromAgentConfig(config.Datadog, serializer)
 	if err != nil {
-		log.Error("Error starting OTLP endpoint:", err)
+		log.Error("Error creating new otlp pipeline:", err)
+		return nil
+	}
+	return &ServerlessOTLPAgent{
+		pipeline: pipeline,
 	}
 }
 
+func (o *ServerlessOTLPAgent) Start() {
+	go o.pipeline.Run(context.Background())
+}
+
 func (o *ServerlessOTLPAgent) Stop() {
-	if o.pipeline != nil {
-		o.pipeline.Stop()
-		if err := o.waitForState(collectorStateClosed, time.Second); err != nil {
-			log.Error("Error stopping OTLP endpints:", err)
-		}
+	if o == nil {
+		return
+	}
+	o.pipeline.Stop()
+	if err := o.waitForState(collectorStateClosed, time.Second); err != nil {
+		log.Error("Error stopping OTLP endpints:", err)
 	}
 }
 

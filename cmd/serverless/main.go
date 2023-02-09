@@ -243,8 +243,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			log.Debug("otlp endpoint disabled")
 			return
 		}
-		otlpAgent := &otlp.ServerlessOTLPAgent{}
-		otlpAgent.Start(metricAgent.Demux.Serializer())
+		otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+		otlpAgent.Start()
 		serverlessDaemon.SetOTLPAgent(otlpAgent)
 	}()
 

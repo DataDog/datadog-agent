@@ -187,7 +187,12 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 
 // Run the OTLP pipeline.
 func (p *Pipeline) Run(ctx context.Context) error {
-	return p.col.Run(ctx)
+	err := p.col.Run(ctx)
+	if err != nil {
+		pipelineError.Store(fmt.Errorf("Error running the OTLP pipeline: %w", err))
+		log.Errorf(pipelineError.Load().Error())
+	}
+	return err
 }
 
 // Stop the OTLP pipeline.
@@ -197,6 +202,15 @@ func (p *Pipeline) Stop() {
 
 // BuildAndStart builds and starts an OTLP pipeline
 func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
+	p, err := NewPipelineFromAgentConfig(cfg, s)
+	if err != nil {
+		return nil, err
+	}
+	go p.Run(ctx)
+	return p, nil
+}
+
+func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
@@ -208,14 +222,6 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 		pipelineError.Store(fmt.Errorf("failed to build pipeline: %w", err))
 		return nil, pipelineError.Load()
 	}
-
-	go func() {
-		err = p.Run(ctx)
-		if err != nil {
-			pipelineError.Store(fmt.Errorf("Error running the OTLP pipeline: %w", err))
-			log.Errorf(pipelineError.Load().Error())
-		}
-	}()
 
 	return p, nil
 }

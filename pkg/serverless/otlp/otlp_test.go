@@ -66,8 +66,8 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert.True(metricAgent.IsReady())
 
 	// setup otlp agent
-	otlpAgent := &ServerlessOTLPAgent{}
-	otlpAgent.Start(metricAgent.Demux.Serializer())
+	otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+	otlpAgent.Start()
 	defer otlpAgent.Stop()
 	assert.NotNil(otlpAgent.pipeline)
 	assert.Nil(otlpAgent.Wait(5 * time.Second))
