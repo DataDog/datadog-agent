@@ -34,7 +34,7 @@ kernel_version_testing_system_probe_linux_x64_ec2:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_version_testing
   rules:
-    !reference [.on_system_probe_changes_or_manual]
+    !reference [.manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps", "package_testsuites_x64"]
   tags: ["runner:main"]
