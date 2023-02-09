@@ -6,50 +6,53 @@
 package payloadtesthelper
 
 import (
-	"bytes"
-	"compress/zlib"
-	"encoding/json"
-	"io/ioutil"
-
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
 )
 
+type MetricSeries struct {
+	// embed proto Metric Series struct
+	metricspb.MetricPayload_MetricSeries
+}
+
+func (mp *MetricSeries) name() string {
+	return mp.Metric
+}
+
+func parseMetricSeries(data []byte) (metrics []*MetricSeries, err error) {
+	enflated, err := enflate(data)
+	if err != nil {
+		return nil, err
+	}
+	metricsPayload := new(metricspb.MetricPayload)
+	err = metricsPayload.Unmarshal(enflated)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics = []*MetricSeries{}
+	for _, serie := range metricsPayload.Series {
+		metrics = append(metrics, &MetricSeries{MetricPayload_MetricSeries: *serie})
+	}
+
+	return metrics, err
+}
+
 type MetricAggregator struct {
-	metricsByName map[string][]*metricspb.MetricPayload_MetricSeries
+	metricsByName map[string][]*MetricSeries
 }
 
 func NewMetricAggregator() MetricAggregator {
 	return MetricAggregator{
-		metricsByName: map[string][]*metricspb.MetricPayload_MetricSeries{},
+		metricsByName: map[string][]*MetricSeries{},
 	}
 }
 
 func (agg *MetricAggregator) UnmarshallPayloads(body []byte) error {
-	response := GetPayloadResponse{}
-	json.Unmarshal(body, &response)
-
-	// build filtered metric map
-	for _, data := range response.Payloads {
-		re, err := zlib.NewReader(bytes.NewReader(data))
-		if err != nil {
-			return err
-		}
-		enflated, err := ioutil.ReadAll(re)
-		if err != nil {
-			return err
-		}
-		metricsPayload := new(metricspb.MetricPayload)
-		err = metricsPayload.Unmarshal(enflated)
-		if err != nil {
-			return err
-		}
-		for _, serie := range metricsPayload.Series {
-			if _, found := agg.metricsByName[serie.Metric]; !found {
-				agg.metricsByName[serie.Metric] = []*metricspb.MetricPayload_MetricSeries{}
-			}
-			agg.metricsByName[serie.Metric] = append(agg.metricsByName[serie.Metric], serie)
-		}
+	metricsByName, err := unmarshallPayloads(body, parseMetricSeries)
+	if err != nil {
+		return err
 	}
+	agg.metricsByName = metricsByName
 	return nil
 }
 

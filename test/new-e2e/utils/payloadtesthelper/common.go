@@ -5,8 +5,46 @@
 
 package payloadtesthelper
 
+import (
+	"bytes"
+	"compress/zlib"
+	"encoding/json"
+	"io/ioutil"
+)
+
 type GetPayloadResponse struct {
 	Payloads [][]byte `json:"payloads"`
+}
+
+type PayloadItem interface {
+	name() string
+}
+
+type parseFunc[P PayloadItem] func(data []byte) (items []P, err error)
+
+func unmarshallPayloads[P PayloadItem](body []byte, parse parseFunc[P]) (payloadsByName map[string][]P, err error) {
+	payloadsByName = map[string][]P{}
+	response := GetPayloadResponse{}
+
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	// build filtered metric map
+	for _, data := range response.Payloads {
+		payloads, err := parse(data)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range payloads {
+			if _, found := payloadsByName[item.name()]; !found {
+				payloadsByName[item.name()] = []P{}
+			}
+			payloadsByName[item.name()] = append(payloadsByName[item.name()], item)
+		}
+	}
+	return payloadsByName, nil
 }
 
 func areTagsSubsetOfOtherTags(tags, otherTags []string) bool {
@@ -25,4 +63,16 @@ func tagsToSet(tags []string) map[string]struct{} {
 		tagsSet[tag] = struct{}{}
 	}
 	return tagsSet
+}
+
+func enflate(payload []byte) (enflated []byte, err error) {
+	re, err := zlib.NewReader(bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	enflated, err = ioutil.ReadAll(re)
+	if err != nil {
+		return nil, err
+	}
+	return enflated, nil
 }
