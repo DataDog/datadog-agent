@@ -10,19 +10,16 @@ package kernel
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 
-	"golang.org/x/sys/unix"
+	"github.com/cilium/ebpf/features"
 )
 
 var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+)(?:\.(\d+))?.*$`)
 
 // Version is a numerical representation of a kernel version
 type Version uint32
-
-var hostVersion Version
 
 // String returns a string representing the version in x.x.x format
 func (v Version) String() string {
@@ -46,27 +43,11 @@ func (v Version) Patch() uint8 {
 
 // HostVersion returns the running kernel version of the host
 func HostVersion() (Version, error) {
-	if hostVersion != 0 {
-		return hostVersion, nil
+	lvc, err := features.LinuxVersionCode()
+	if err != nil {
+		return 0, err
 	}
-
-	if procVersion, err := os.ReadFile("/proc/version_signature"); err == nil {
-		v, err := parseUbuntuVersion(string(procVersion))
-		if err != nil {
-			return 0, fmt.Errorf("error parsing ubuntu kernel version: %s", err)
-		}
-		return v, nil
-	}
-
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		return 0, fmt.Errorf("error calling uname: %w", err)
-	}
-
-	if v, err := parseDebianVersion(unix.ByteSliceToString(uname.Version[:])); err == nil {
-		return v, nil
-	}
-	return ParseReleaseString(unix.ByteSliceToString(uname.Release[:]))
+	return Version(lvc), nil
 }
 
 // ParseVersion parses a string in the format of x.x.x to a Version
@@ -119,25 +100,6 @@ func ParseReleaseString(releaseString string) (Version, error) {
 	}
 
 	return VersionCode(byte(major), byte(minor), byte(patch)), nil
-}
-
-func parseUbuntuVersion(procVersion string) (Version, error) {
-	var u1, u2, releaseString string
-	_, err := fmt.Sscanf(procVersion, "%s %s %s", &u1, &u2, &releaseString)
-	if err != nil {
-		return 0, err
-	}
-	return ParseReleaseString(releaseString)
-}
-
-var debianVersionRegex = regexp.MustCompile(`.* SMP Debian (\d+\.\d+.\d+-\d+)(?:\+[[:alnum:]]*)?.*`)
-
-func parseDebianVersion(str string) (Version, error) {
-	match := debianVersionRegex.FindStringSubmatch(str)
-	if len(match) != 2 {
-		return 0, fmt.Errorf("failed to parse kernel version from /proc/version: %s", str)
-	}
-	return ParseReleaseString(match[1])
 }
 
 // UbuntuKernelVersion represents a version from an ubuntu kernel
