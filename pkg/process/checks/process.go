@@ -126,6 +126,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("found %d processes", len(procs))
 
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
@@ -216,7 +217,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
-	log.Debugf("collected processes in %s", time.Now().Sub(start))
+	log.Debugf("collected %d processes and %d containers in %s", len(procs), len(containers), time.Now().Sub(start))
 
 	return result, nil
 }
@@ -311,6 +312,7 @@ func fmtProcesses(
 
 	for _, fp := range procs {
 		if skipProcess(cfg, fp, lastProcs) {
+			log.Debugf("skipped process pid:%d, cmdline:%v", fp.Pid, fp.Cmdline)
 			continue
 		}
 

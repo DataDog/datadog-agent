@@ -124,6 +124,9 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			// want to do.
 			continue
 		}
+		execPath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
+		log.Debugf("filled proc entry for pid:%d executable:%s", pe32.Th32ProcessID, execPath)
+
 		cp, ok := p.cachedProcesses[pid]
 		if !ok {
 			// wasn't already in the map.
@@ -132,6 +135,8 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			if err := cp.fillFromProcEntry(&pe32); err != nil {
 				log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
 				continue
+			} else {
+				log.Debugf("filled Win32 process information for pid:%v, executable:%s", pid, execPath)
 			}
 			p.cachedProcesses[pid] = cp
 		} else {
@@ -139,6 +144,8 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			if cp.procHandle, err = OpenProcessHandle(int32(pe32.Th32ProcessID)); err != nil {
 				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
 				continue
+			} else {
+				log.Debugf("opened process handle for pid:%v, executable:%s", pid, execPath)
 			}
 		}
 		defer cp.close()
@@ -150,6 +157,8 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 		if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
 			log.Debugf("Could not get process times for %v %v", pid, err)
 			continue
+		} else {
+			log.Debugf("got process times for pid:%v, executable:%s", pid, execPath)
 		}
 		ctime := CPU.CreationTime.Nanoseconds() / 1000000
 
@@ -159,12 +168,16 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			if err := getProcessHandleCount(procHandle, &handleCount); err != nil {
 				log.Debugf("could not get handle count for %v %v", pid, err)
 				continue
+			} else {
+				log.Debugf("got process handle for pid:%v, executable:%s", pid, execPath)
 			}
 
 			var pmemcounter process.PROCESS_MEMORY_COUNTERS
 			if err := getProcessMemoryInfo(procHandle, &pmemcounter); err != nil {
 				log.Debugf("could not get memory info for %v %v", pid, err)
 				continue
+			} else {
+				log.Debugf("got memory info for pid:%v, executable:%s", pid, execPath)
 			}
 
 			// shell out to getprocessiocounters for io stats
@@ -172,6 +185,8 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			if err := getProcessIoCounters(procHandle, &ioCounters); err != nil {
 				log.Debugf("could not get IO Counters for %v %v", pid, err)
 				continue
+			} else {
+				log.Debugf("got process io counters for pid:%v, executable:%s", pid, execPath)
 			}
 
 			utime := float64((int64(CPU.UserTime.HighDateTime) << 32) | int64(CPU.UserTime.LowDateTime))
@@ -202,6 +217,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 		} else {
 			stats = &Stats{CreateTime: ctime}
 		}
+		log.Debugf("stats collected for pid:%d executable:%v stats:%v process_name:%s", pid, execPath, stats)
 
 		delete(knownPids, pid)
 		procs[int32(pid)] = &Process{
@@ -213,6 +229,10 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			Username: cp.userName,
 		}
 	}
+	if errCode := w32.GetLastError(); errCode != 0 {
+		log.Errorf("could not read all processes from snapshot errCode:%d", errCode)
+	}
+
 	for pid := range knownPids {
 		cp := p.cachedProcesses[pid]
 		log.Debugf("removing process %v %v", pid, cp.executablePath)
@@ -249,6 +269,8 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	} else {
 		cp.commandLine = commandParams.CmdLine
 	}
+
+	log.Debugf("filled proc entry for pid:%d executable:%s", pe32.Th32ProcessID, cp.executablePath)
 
 	cp.parsedArgs = ParseCmdLineArgs(cp.commandLine)
 	return
