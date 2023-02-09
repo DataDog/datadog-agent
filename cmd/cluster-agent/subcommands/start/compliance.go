@@ -38,8 +38,6 @@ func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader fun
 		return err
 	}
 
-	context.WithCancel(cancel)
-
 	<-ctx.Done()
 
 	stopper.Stop()
