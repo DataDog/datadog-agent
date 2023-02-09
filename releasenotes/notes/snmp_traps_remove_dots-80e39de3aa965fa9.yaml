@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-   Remove initial dot for OID in traps variables.
+   [snmp] Remove initial dot for OID in traps variables.
