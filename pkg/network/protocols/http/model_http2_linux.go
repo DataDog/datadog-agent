@@ -18,6 +18,9 @@ import (
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
 func (tx *ebpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
+	if tx.Path_size == 0 {
+		panic(tx)
+	}
 	// trim null byte + after
 	str, err := hpack.HuffmanDecodeToString(tx.Request_path[:tx.Path_size])
 	if err != nil {

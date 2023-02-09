@@ -60,6 +60,7 @@ int socket__http_filter(struct __sk_buff *skb) {
 
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
+    log_debug("guy %lu", sizeof(http2_stream_t));
     const __u32 zero = 0;
     http2_iterations_key_t iterations_key;
     bpf_memset(&iterations_key, 0, sizeof(http2_iterations_key_t));
@@ -67,6 +68,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
+    u32 offset = iterations_key.skb_info.data_off;
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
     if (tail_call_state == NULL) {
         const http2_tail_call_state_t iteration_value = {};
@@ -96,11 +98,13 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
 
-    if (read_size <= 0) {
+    if (read_size == -1) {
+        iterations_key.skb_info.data_off = offset;
         bpf_map_delete_elem(&http2_iterations, &iterations_key);
         return 0;
     }
     if (iterations_key.skb_info.data_off + read_size >= skb->len) {
+        iterations_key.skb_info.data_off = offset;
         bpf_map_delete_elem(&http2_iterations, &iterations_key);
         return 0;
     }
@@ -110,7 +114,8 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
         bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
     } else {
-        bpf_map_delete_elem(&http2_iterations, &iterations_key);
+       iterations_key.skb_info.data_off = offset;
+       bpf_map_delete_elem(&http2_iterations, &iterations_key);
     }
 
     return 0;

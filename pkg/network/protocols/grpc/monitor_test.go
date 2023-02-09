@@ -55,7 +55,9 @@ func TestGRPCScenarios(t *testing.T) {
 				require.NoError(t, err)
 
 				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, "first"))
+				for i := 0; i < 1000; i++ {
+					require.NoError(t, client1.HandleUnary(ctx, "first"))
+				}
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
