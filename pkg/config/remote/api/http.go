@@ -91,6 +91,9 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	}
 	req.Header = c.header
 
+	// Explicitly force the request not to be keep-alive
+	req.Close = true
+
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to issue request: %w", err)
