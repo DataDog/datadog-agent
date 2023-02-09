@@ -9,4 +9,4 @@
 fixes:
   - |
     Fixes the `labelsAsTags` parameter of the kube-state metrics core check.
-    Tags were not properly formatted when they came from a label on one resource kind (ex. namespace) and turned into a tag on another resource kind (ex. pod).
+    Tags were not properly formatted when they came from a label on one resource type (for example, namespace) and turned into a tag on another resource type (for example, pod).
