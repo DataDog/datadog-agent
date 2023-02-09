@@ -16,3 +16,5 @@
     - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
     - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_VARIABLES,IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+    # Print a line showing the images that were pushed, for debug & use. Each image from IMG_DESTINATIONS needs to be prefixed with datadog/ to be pulled.
+    - echo "Published image(s) datadog/${IMG_DESTINATIONS//,/, datadog\/}"
