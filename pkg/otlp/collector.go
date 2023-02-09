@@ -174,7 +174,8 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 		DisableGracefulShutdown: true,
 		ConfigProvider:          configProvider,
 		LoggingOptions:          options,
-		SkipSettingGRPCLogger:   true,
+		// see https://github.com/DataDog/datadog-agent/commit/3f4a78e5f2e276c8cdd90fa7e60455a2374d41d0
+		SkipSettingGRPCLogger: true,
 	})
 
 	if err != nil {
