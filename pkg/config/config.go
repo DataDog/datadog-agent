@@ -1462,10 +1462,10 @@ func checkConflictingOptions(config Config) error {
 
 // LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCusto
 func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
-	return LoadDatadogCustomWithKownEnvVars(config, origin, loadSecret, nil)
+	return LoadDatadogCustomWithKnownEnvVars(config, origin, loadSecret, nil)
 }
 
-func LoadDatadogCustomWithKownEnvVars(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {

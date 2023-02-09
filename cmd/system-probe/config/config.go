@@ -215,7 +215,7 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		aconfig.Datadog.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustomWithKownEnvVars(aconfig.Datadog, "datadog.yaml", true, aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustomWithKnownEnvVars(aconfig.Datadog, "datadog.yaml", true, aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {
