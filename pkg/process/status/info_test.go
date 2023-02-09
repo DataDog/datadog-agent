@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package status
 
 import (
 	"bytes"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -72,6 +74,17 @@ Processes and Containers Agent (v 0.99.0)
 				}`
 )
 
+func mkTestEps(t *testing.T) []apicfg.Endpoint {
+	testURL, err := url.Parse("https://process.datadoghq.com")
+	require.NoError(t, err)
+	return []apicfg.Endpoint{
+		{
+			APIKey:   "test",
+			Endpoint: testURL,
+		},
+	}
+}
+
 type testServerHandler struct {
 	t *testing.T
 }
@@ -122,7 +135,7 @@ func TestInfo(t *testing.T) {
 	assert.NotNil(server)
 	defer server.Close()
 
-	err := initInfo("ubuntu-1404.vagrantup.com", true)
+	err := InitInfo("ubuntu-1404.vagrantup.com", true, mkTestEps(t))
 	assert.NoError(err)
 	var buf bytes.Buffer
 	err = Info(&buf, server.URL+expVarPath)
@@ -151,7 +164,7 @@ func TestNotRunning(t *testing.T) {
 	assert.NotNil(server)
 	defer server.Close()
 
-	err := initInfo("host", false)
+	err := InitInfo("host", false, nil)
 	assert.NoError(err)
 	var buf bytes.Buffer
 	// we are going to use a different port so we got
@@ -179,7 +192,7 @@ func TestError(t *testing.T) {
 	assert.NotNil(server)
 	defer server.Close()
 
-	err := initInfo("host", false)
+	err := InitInfo("host", false, mkTestEps(t))
 	assert.NoError(err)
 	var buf bytes.Buffer
 	// same port but a 404 response

@@ -19,7 +19,7 @@ func main() {
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("⌛️ Starting fake intake")
-	fi := fakeintake.NewFakeIntake()
+	fi := fakeintake.NewFakeIntake(8080)
 	fmt.Println("🏃 Fake intake running")
 
 	<-sigs

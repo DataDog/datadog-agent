@@ -58,16 +58,15 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {
-			if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
+			if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
 				o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
 			}
 		}
-		for probeName, funcName := range enabledProbes {
+		for funcName := range enabledProbes {
 			o.ActivatedProbes = append(
 				o.ActivatedProbes,
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFSection:  probeName,
 						EBPFFuncName: funcName,
 						UID:          probeUID,
 					},

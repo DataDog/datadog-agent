@@ -636,7 +636,7 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts) (*sysconfig.Config, *config.Config, error) {
+func genTestConfig(dir string, opts testOpts, testDir string) (*sysconfig.Config, *config.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, nil, err
@@ -704,23 +704,35 @@ func genTestConfig(dir string, opts testOpts) (*sysconfig.Config, *config.Config
 		return nil, nil, err
 	}
 
-	sysProbeConfigPath, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
+		ddConfig, err := os.OpenFile(path.Join(testDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
+		if err != nil {
+			return "", "", err
+		}
+		defer ddConfig.Close()
+
+		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
+		if err != nil {
+			return "", "", err
+		}
+		defer sysprobeConfig.Close()
+
+		_, err = io.Copy(sysprobeConfig, buffer)
+		if err != nil {
+			return "", "", err
+		}
+		return ddConfig.Name(), sysprobeConfig.Name(), nil
+	}()
 	if err != nil {
 		return nil, nil, err
 	}
-	defer sysProbeConfigPath.Close()
 
-	_, err = io.Copy(sysProbeConfigPath, buffer)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	err = sysconfig.SetupOptionalDatadogConfig()
+	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	sysProbeConfig, err := sysconfig.New(sysProbeConfigPath.Name())
+	sysProbeConfig, err := sysconfig.New(sysprobeConfigName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -764,7 +776,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	sysProbeConfig, config, err := genTestConfig(st.root, opts)
+	sysProbeConfig, config, err := genTestConfig(st.root, opts, st.root)
 	if err != nil {
 		return nil, err
 	}

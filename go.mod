@@ -41,7 +41,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
-	github.com/DataDog/agent-payload/v5 v5.0.67
+	github.com/DataDog/agent-payload/v5 v5.0.69
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.43.0-rc.3
@@ -53,7 +53,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.43.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.2.2
+	github.com/DataDog/ebpf-manager v0.2.3
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
@@ -75,7 +75,7 @@ require (
 	github.com/alecthomas/repr v0.2.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
-	github.com/avast/retry-go/v4 v4.3.2
+	github.com/avast/retry-go/v4 v4.3.3
 	github.com/aws/aws-lambda-go v1.37.0
 	github.com/aws/aws-sdk-go v1.44.171
 	github.com/beevik/ntp v0.3.0
@@ -109,6 +109,7 @@ require (
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.2.6
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
+	github.com/go-sql-driver/mysql v1.7.0
 	github.com/gobwas/glob v0.2.3
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/gogo/protobuf v1.3.2
@@ -212,7 +213,7 @@ require (
 	golang.org/x/net v0.5.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.4.0
-	golang.org/x/text v0.6.0
+	golang.org/x/text v0.7.0
 	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.5.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
