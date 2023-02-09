@@ -49,6 +49,7 @@ func newRunner(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		return nil, err
 	}
 
+	// TODO: Inject submitter as a component dependency
 	c.Submitter, err = r.NewSubmitter(hinfo.HostName, c.UpdateRTStatus)
 	if err != nil {
 		return nil, err

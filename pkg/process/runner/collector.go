@@ -251,11 +251,9 @@ func (l *Collector) Run() error {
 	status.UpdateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
 
-	var wg sync.WaitGroup
-
-	wg.Add(1)
+	l.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer l.wg.Done()
 		l.Submitter.Stop()
 	}()
 
@@ -265,9 +263,9 @@ func (l *Collector) Run() error {
 			return fmt.Errorf("error starting check %s: %s", c.Name(), err)
 		}
 
-		wg.Add(1)
+		l.wg.Add(1)
 		go func() {
-			defer wg.Done()
+			defer l.wg.Done()
 			runner()
 		}()
 	}
