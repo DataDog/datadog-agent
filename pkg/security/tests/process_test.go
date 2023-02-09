@@ -2094,7 +2094,8 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *model.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "process.file.name", filelessExecutionFilenamePrefix, "process.file.name not matching")
+				// TODO (Celia): Remove purposeful error used for CI testing
+				assertFieldEqual(t, event, "process.file.name", filelessExecutionFilenamePrefix+"CI-TESTING", "process.file.name not matching")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process.ancestors.file.name not matching")
 			},
 		},
@@ -2104,7 +2105,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "script",
 			check: func(event *model.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "process.file.name", "memfd:script", "process.file.name not matching")
+				assertFieldEqual(t, event, "process.file.name", "memfd:script"+"CI-TESTING", "process.file.name not matching")
 			},
 		},
 		{
