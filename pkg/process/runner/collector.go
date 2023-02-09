@@ -251,12 +251,6 @@ func (l *Collector) Run() error {
 	status.UpdateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
 
-	l.wg.Add(1)
-	go func() {
-		defer l.wg.Done()
-		l.Submitter.Stop()
-	}()
-
 	for _, c := range l.enabledChecks {
 		runner, err := l.runnerForCheck(c)
 		if err != nil {
@@ -269,8 +263,6 @@ func (l *Collector) Run() error {
 			runner()
 		}()
 	}
-
-	//wg.Wait()
 
 	for _, check := range l.enabledChecks {
 		log.Debugf("Cleaning up %s check", check.Name())
@@ -403,6 +395,7 @@ func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
 func (l *Collector) Stop() {
 	close(l.stop)
 	l.wg.Wait()
+	l.Submitter.Stop()
 }
 
 // getContainerCount returns the number of containers in the message body
