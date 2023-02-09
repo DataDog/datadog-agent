@@ -15,9 +15,9 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
 const (

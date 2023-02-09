@@ -22,10 +22,10 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
 const (
@@ -142,10 +142,10 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		enobufs:             nettelemetry.NewStatGaugeWrapper("consumer", "enobufs", []string{}, "description"),
 		throttles:           nettelemetry.NewStatGaugeWrapper("consumer", "throttles", []string{}, "description"),
 		samplingPct:         nettelemetry.NewStatGaugeWrapper("consumer", "samplingPct", []string{}, "description"),
-		readErrors:      nettelemetry.NewStatGaugeWrapper("consumer", "readErrors", []string{}, "description"),
-		msgErrors:       nettelemetry.NewStatGaugeWrapper("consumer", "msgErrors", []string{}, "description"),
-		recvLoopRunning: atomic.NewBool(false),
-		rootNetNs:       ns,
+		readErrors:          nettelemetry.NewStatGaugeWrapper("consumer", "readErrors", []string{}, "description"),
+		msgErrors:           nettelemetry.NewStatGaugeWrapper("consumer", "msgErrors", []string{}, "description"),
+		recvLoopRunning:     atomic.NewBool(false),
+		rootNetNs:           ns,
 	}
 
 	return c, nil

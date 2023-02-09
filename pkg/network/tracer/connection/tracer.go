@@ -72,7 +72,7 @@ type Tracer interface {
 const (
 	defaultClosedChannelSize = 500
 	ProbeUID                 = "net"
-	componentName = "conn_tracer"
+	componentName            = "conn_tracer"
 )
 
 type tracer struct {
@@ -99,30 +99,30 @@ type tracer struct {
 type telemetry struct {
 	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
 	udpConns4, udpConns6 *atomic.Int64 `stats:""`
-	probeTelemetry map[string]errtelemetry.StatGaugeWrapper
-	tcpFailedConnects errtelemetry.StatGaugeWrapper
-	tcpSentMiscounts errtelemetry.StatGaugeWrapper
-	missedTcpClose errtelemetry.StatGaugeWrapper
-	missedUdpClose errtelemetry.StatGaugeWrapper
-	UdpSendsProcessed errtelemetry.StatGaugeWrapper
-	UdpSendsMissed errtelemetry.StatGaugeWrapper
-	UdpDroppedConns errtelemetry.StatGaugeWrapper
+	probeTelemetry       map[string]errtelemetry.StatGaugeWrapper
+	tcpFailedConnects    errtelemetry.StatGaugeWrapper
+	tcpSentMiscounts     errtelemetry.StatGaugeWrapper
+	missedTcpClose       errtelemetry.StatGaugeWrapper
+	missedUdpClose       errtelemetry.StatGaugeWrapper
+	UdpSendsProcessed    errtelemetry.StatGaugeWrapper
+	UdpSendsMissed       errtelemetry.StatGaugeWrapper
+	UdpDroppedConns      errtelemetry.StatGaugeWrapper
 }
 
 func newTelemetry() telemetry {
 	return telemetry{
-		tcpConns4: atomic.NewInt64(0),
-		udpConns4: atomic.NewInt64(0),
-		tcpConns6: atomic.NewInt64(0),
-		udpConns6: atomic.NewInt64(0),
-		probeTelemetry: make(map[string]errtelemetry.StatGaugeWrapper),
+		tcpConns4:         atomic.NewInt64(0),
+		udpConns4:         atomic.NewInt64(0),
+		tcpConns6:         atomic.NewInt64(0),
+		udpConns6:         atomic.NewInt64(0),
+		probeTelemetry:    make(map[string]errtelemetry.StatGaugeWrapper),
 		tcpFailedConnects: errtelemetry.NewStatGaugeWrapper(componentName, "tcp_failed_connects", []string{}, "desc"),
-		tcpSentMiscounts: errtelemetry.NewStatGaugeWrapper(componentName, "tcp_sent_miscounts", []string{}, "desc"),
-		missedTcpClose: errtelemetry.NewStatGaugeWrapper(componentName, "missed_tcp_close", []string{}, "desc"),
-		missedUdpClose: errtelemetry.NewStatGaugeWrapper(componentName, "missed_udp_close", []string{}, "desc"),
+		tcpSentMiscounts:  errtelemetry.NewStatGaugeWrapper(componentName, "tcp_sent_miscounts", []string{}, "desc"),
+		missedTcpClose:    errtelemetry.NewStatGaugeWrapper(componentName, "missed_tcp_close", []string{}, "desc"),
+		missedUdpClose:    errtelemetry.NewStatGaugeWrapper(componentName, "missed_udp_close", []string{}, "desc"),
 		UdpSendsProcessed: errtelemetry.NewStatGaugeWrapper(componentName, "udp_sends_processed", []string{}, "desc"),
-		UdpSendsMissed: errtelemetry.NewStatGaugeWrapper(componentName, "udp_sends_missed", []string{}, "desc"),
-		UdpDroppedConns: errtelemetry.NewStatGaugeWrapper(componentName, "udp_dropped_conns", []string{}, "desc"),
+		UdpSendsMissed:    errtelemetry.NewStatGaugeWrapper(componentName, "udp_sends_missed", []string{}, "desc"),
+		UdpDroppedConns:   errtelemetry.NewStatGaugeWrapper(componentName, "udp_dropped_conns", []string{}, "desc"),
 	}
 }
 
