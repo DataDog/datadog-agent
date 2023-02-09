@@ -186,13 +186,11 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 }
 
 // Run the OTLP pipeline.
-func (p *Pipeline) Run(ctx context.Context) error {
-	err := p.col.Run(ctx)
-	if err != nil {
+func (p *Pipeline) Run(ctx context.Context) {
+	if err := p.col.Run(ctx); err != nil {
 		pipelineError.Store(fmt.Errorf("Error running the OTLP pipeline: %w", err))
 		log.Errorf(pipelineError.Load().Error())
 	}
-	return err
 }
 
 // Stop the OTLP pipeline.
