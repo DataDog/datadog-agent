@@ -145,10 +145,38 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				samples[sample.symbol.Name] = make(map[string]MetricSample)
 			}
 			samples[sample.symbol.Name][fullIndex] = sample
-			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
+			log.Warnf("ms.interfaceConfigs: %+v", ms.interfaceConfigs)
+			interfaceConfig := getInterfaceConfig(ms.interfaceConfigs, fullIndex, tags)
+			ms.sendCustomInterfaceSpeed(interfaceConfig, tags)
+			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags, interfaceConfig)
 		}
 	}
 	return samples
+}
+
+func (ms *MetricSender) sendCustomInterfaceSpeed(interfaceConfig *checkconfig.InterfaceConfig, tags []string) {
+	// TODO: TESTME
+	if interfaceConfig == nil {
+		return
+	}
+	if interfaceConfig.InSpeed != 0 {
+		ms.sendMetric(MetricSample{
+			value:      valuestore.ResultValue{Value: interfaceConfig.InSpeed},
+			tags:       tags,
+			symbol:     checkconfig.SymbolConfig{Name: "snmp.ifInSpeed.custom"},
+			forcedType: "gauge",
+			options:    checkconfig.MetricsConfigOption{},
+		})
+	}
+	if interfaceConfig.OutSpeed != 0 {
+		ms.sendMetric(MetricSample{
+			value:      valuestore.ResultValue{Value: interfaceConfig.InSpeed},
+			tags:       tags,
+			symbol:     checkconfig.SymbolConfig{Name: "snmp.ifOutSpeed.custom"},
+			forcedType: "gauge",
+			options:    checkconfig.MetricsConfigOption{},
+		})
+	}
 }
 
 func (ms *MetricSender) sendMetric(metricSample MetricSample) {

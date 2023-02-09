@@ -29,7 +29,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
-		interfaceConfigs []checkconfig.InterfaceConfig
+		interfaceConfigs *checkconfig.InterfaceConfig
 		expectedMetric   []Metric
 		expectedError    error
 	}{
@@ -294,11 +294,9 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			name:      "[custom speed] snmp.ifBandwidthInUsage.rate with custom interface speed matched by name",
 			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{
-				{
-					Name:    "eth0",
-					InSpeed: 160,
-				},
+			interfaceConfigs: &checkconfig.InterfaceConfig{
+				Name:    "eth0",
+				InSpeed: 160,
 			},
 			tags: []string{
 				"interface:eth0",
@@ -334,11 +332,9 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			name:      "[custom speed] snmp.ifBandwidthInUsage.rate with custom interface speed matched by index",
 			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{
-				{
-					Index:   9,
-					InSpeed: 160,
-				},
+			interfaceConfigs: &checkconfig.InterfaceConfig{
+				Index:   9,
+				InSpeed: 160,
 			},
 			tags: []string{
 				"interface:eth0",
@@ -370,46 +366,6 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				{"snmp.ifBandwidthInUsage.rate", 25.0},
 			},
 		},
-		{
-			name:      "[custom speed] snmp.ifBandwidthInUsage.rate with custom interface speed that does not match",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
-			fullIndex: "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{
-				{
-					Index:   11,
-					InSpeed: 160,
-				},
-			},
-			tags: []string{
-				"interface:eth0",
-			},
-			values: &valuestore.ResultValueStore{
-				ColumnValues: valuestore.ColumnResultValuesType{
-					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
-						"9": {
-							Value: 5000000.0,
-						},
-					},
-					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
-						"9": {
-							Value: 1000000.0,
-						},
-					},
-					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
-						"9": {
-							Value: 80.0,
-						},
-					},
-				},
-			},
-			expectedMetric: []Metric{
-				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"snmp.ifBandwidthInUsage.rate", 50.0},
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -417,10 +373,9 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{
-				sender:           sender,
-				interfaceConfigs: tt.interfaceConfigs,
+				sender: sender,
 			}
-			err := ms.sendBandwidthUsageMetric(tt.symbol, tt.fullIndex, tt.values, tt.tags)
+			err := ms.sendBandwidthUsageMetric(tt.symbol, tt.fullIndex, tt.values, tt.tags, tt.interfaceConfigs)
 			assert.Equal(t, tt.expectedError, err)
 
 			for _, metric := range tt.expectedMetric {
@@ -510,7 +465,7 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 				sender: sender,
 			}
 			tags := []string{"foo:bar"}
-			ms.trySendBandwidthUsageMetric(tt.symbol, tt.fullIndex, tt.values, tags)
+			ms.trySendBandwidthUsageMetric(tt.symbol, tt.fullIndex, tt.values, tags, nil)
 
 			for _, metric := range tt.expectedMetric {
 				sender.AssertMetric(t, "Rate", metric.name, metric.value, "", tags)
