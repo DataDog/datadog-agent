@@ -137,7 +137,7 @@ func (s *socketFilterSnooper) GetStats() map[string]int64 {
 
 	stats["decoding_errors"] = s.decodingErrors.Load()
 	stats["truncated_packets"] = s.truncatedPkts.Load()
-	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
+	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000 // do we need this
 	stats["queries"] = s.queries.Load()
 	stats["successes"] = s.successes.Load()
 	stats["errors"] = s.errors.Load()

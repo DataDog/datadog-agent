@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -407,6 +408,13 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 }
 
 func (t *tracer) RefreshProbeTelemetry() {
+	for {
+		t.refreshProbeTelemetry()
+		time.Sleep(time.Duration(5) * time.Second)
+	}
+}
+
+func (t *tracer) refreshProbeTelemetry() {
 	telemetry := t.getEBPFTelemetry()
 
 	t.telemetry.tcpFailedConnects.Set(int64(telemetry.Tcp_failed_connect))
