@@ -269,7 +269,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		runnerComp.Module,
 
 		fx.Invoke(func(runnerComp.Component) {
-			fmt.Println("Starting process agent") //TODO: Move starting ... with checks here
+			// Required for making sure the runner starts
 		}),
 	)
 	if err != nil {
