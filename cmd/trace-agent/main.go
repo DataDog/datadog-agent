@@ -6,12 +6,13 @@
 package main
 
 import (
-	"os"
-	"os/signal"
-	"syscall"
+  "os"
+  "os/signal"
+  "syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+  "github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
 
 // handleSignal closes a channel to exit cleanly from routines
 func handleSignal(onSignal func()) {
