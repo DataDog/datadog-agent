@@ -72,8 +72,9 @@ func (r *runner) Run(context.Context) error {
 	return r.collector.Run()
 }
 
-func (r *runner) Stop(ctx context.Context) error {
-
+func (r *runner) Stop(context.Context) error {
+	r.collector.Stop()
+	return nil
 }
 
 func (r *runner) GetChecks() []types.Check {

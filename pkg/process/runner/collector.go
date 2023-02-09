@@ -48,6 +48,10 @@ type checkPayload struct {
 
 // Collector will collect metrics from the local system and ship to the backend.
 type Collector struct {
+	// required for being able to start and stop the collector
+	wg   *sync.WaitGroup
+	stop chan struct{}
+
 	// true if real-time is enabled
 	realTimeEnabled *atomic.Bool
 
@@ -106,6 +110,9 @@ func NewCollectorWithChecks(checks []checks.Check, runRealTime bool) (*Collector
 	}
 
 	return &Collector{
+		wg:   &sync.WaitGroup{},
+		stop: make(chan struct{}),
+
 		rtIntervalCh:  make(chan time.Duration),
 		orchestrator:  orchestrator,
 		groupID:       atomic.NewInt32(rand.Int31()),
@@ -265,7 +272,7 @@ func (l *Collector) Run() error {
 		}()
 	}
 
-	wg.Wait()
+	//wg.Wait()
 
 	for _, check := range l.enabledChecks {
 		log.Debugf("Cleaning up %s check", check.Name())
@@ -305,7 +312,7 @@ func (l *Collector) runnerForCheck(c checks.Check) (func(), error) {
 		checks.RunnerConfig{
 			CheckInterval:  interval,
 			RtInterval:     rtInterval,
-			ExitChan:       exit,
+			ExitChan:       l.stop,
 			RtIntervalChan: l.rtIntervalCh,
 			RtEnabled: func() bool {
 				return l.realTimeEnabled.Load()
@@ -317,7 +324,7 @@ func (l *Collector) runnerForCheck(c checks.Check) (func(), error) {
 	)
 }
 
-func (l *Collector) basicRunner(c checks.Check, exit <-chan struct{}) func() {
+func (l *Collector) basicRunner(c checks.Check) func() {
 	return func() {
 		// Run the check the first time to prime the caches.
 		if !c.Realtime() {
@@ -339,7 +346,7 @@ func (l *Collector) basicRunner(c checks.Check, exit <-chan struct{}) func() {
 					ticker.Stop()
 					ticker = time.NewTicker(d)
 				}
-			case _, ok := <-exit:
+			case _, ok := <-l.stop:
 				if !ok {
 					return
 				}
@@ -393,6 +400,11 @@ func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
 		}
 		log.Infof("real time interval updated to %s", l.realTimeInterval)
 	}
+}
+
+func (l *Collector) Stop() {
+	close(l.stop)
+	l.wg.Wait()
 }
 
 // getContainerCount returns the number of containers in the message body
