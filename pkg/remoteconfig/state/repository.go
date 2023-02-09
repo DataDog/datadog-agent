@@ -121,7 +121,7 @@ func NewUnverifiedRepository() (*Repository, error) {
 		metadata:               make(map[string]Metadata),
 		configs:                configs,
 		tufVerificationEnabled: false,
-		latestRootVersion:      1, // The backend expects usto start with a root version of 1.
+		latestRootVersion:      1, // The backend expects us to start with a root version of 1.
 	}, nil
 }
 
