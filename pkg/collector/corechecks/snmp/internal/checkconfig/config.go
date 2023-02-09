@@ -64,8 +64,8 @@ type InterfaceConfig struct {
 	Match    string `yaml:"match"` // e.g. match: 'name:eth0'
 	Name     string
 	Index    int
-	InSpeed  uint64 `yaml:"in_speed"`  // inbound speed override
-	OutSpeed uint64 `yaml:"out_speed"` // outbound speed override
+	InSpeed  uint64 `yaml:"in_speed"`  // inbound speed override in bps
+	OutSpeed uint64 `yaml:"out_speed"` // outbound speed override in bps
 }
 
 // InitConfig is used to deserialize integration init config
