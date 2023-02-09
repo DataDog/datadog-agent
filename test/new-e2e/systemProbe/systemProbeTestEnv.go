@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/DataDog/test-infra-definitions/aws"
-	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microVMs"
+	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microvms"
 	"github.com/DataDog/test-infra-definitions/command"
 
 	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
@@ -81,12 +81,12 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	}
 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-		awsEnvironment, err := aws.AWSEnvironment(ctx)
+		awsEnvironment, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
 
-		scenarioDone, err := microVMs.RunAndReturnInstances(ctx, awsEnvironment)
+		scenarioDone, err := microvms.RunAndReturnInstances(ctx, awsEnvironment)
 		if err != nil {
 			return err
 		}

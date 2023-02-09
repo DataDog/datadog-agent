@@ -16,6 +16,7 @@ require (
 )
 
 require (
+	github.com/DataDog/test-infra-definitions v0.0.0-20230209113440-95ee91228620 // indirect
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
