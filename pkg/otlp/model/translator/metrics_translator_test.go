@@ -402,7 +402,9 @@ func TestMapRuntimeMetricsHasMapping(t *testing.T) {
 	consumer := &mockFullConsumer{}
 	exampleDims = newDims("process.runtime.go.goroutines")
 	mappedDims := newDims("runtime.go.num_goroutine")
-	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(), consumer)
+	if err := tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(false), consumer); err != nil {
+		t.Fatal(err)
+	}
 	startTs := int(getProcessStartTime()) + 1
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -422,7 +424,9 @@ func TestMapRuntimeMetricsNoMapping(t *testing.T) {
 	tr := newTranslator(t, zap.NewNop())
 	consumer := &mockFullConsumer{}
 	exampleDims = newDims("runtime.go.mem.live_objects")
-	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(), consumer)
+	if err := tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(false), consumer); err != nil {
+		t.Fatal(err)
+	}
 	startTs := int(getProcessStartTime()) + 1
 	assert.ElementsMatch(t,
 		consumer.metrics,
