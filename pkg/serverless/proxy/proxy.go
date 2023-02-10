@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,9 +27,6 @@ func Start(proxyHostPort string, originalRuntimeHostPort string, processor invoc
 }
 
 func setup(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) {
-	if strings.Trim(originalRuntimeHostPort, " ") == "" {
-		originalRuntimeHostPort = "127.0.0.1:9001"
-	}
 	log.Debugf("runtime api proxy: starting reverse proxy on %s and forwarding to %s", proxyHostPort, originalRuntimeHostPort)
 	proxy := newProxy(originalRuntimeHostPort, processor)
 

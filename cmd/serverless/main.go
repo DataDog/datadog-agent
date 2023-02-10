@@ -316,7 +316,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// start the experimental proxy if enabled
 		proxy.Start(
 			"127.0.0.1:9000",
-			os.Getenv("DD_ORIGINAL_AWS_LAMBDA_RUNTIME_API"),
+			"127.0.0.1:9001",
 			lp,
 		)
 
@@ -343,7 +343,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Debug("Starting the experimental runtime api proxy")
 		proxy.Start(
 			"127.0.0.1:9000",
-			os.Getenv("DD_ORIGINAL_AWS_LAMBDA_RUNTIME_API"),
+			"127.0.0.1:9001",
 			serverlessDaemon.InvocationProcessor,
 		)
 	}
