@@ -177,13 +177,45 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 		var err error
 		switch lib.lang {
 		case java:
-			err = injectLibRequirements(pod, lib.ctrName, javaToolOptionsKey, javaEnvValFunc)
+			err = injectLibRequirements(pod, lib.ctrName, []envVar{
+				{
+					key:     javaToolOptionsKey,
+					valFunc: javaEnvValFunc,
+				}})
 		case js:
-			err = injectLibRequirements(pod, lib.ctrName, nodeOptionsKey, jsEnvValFunc)
+			err = injectLibRequirements(pod, lib.ctrName, []envVar{
+				{
+					key:     nodeOptionsKey,
+					valFunc: jsEnvValFunc,
+				}})
 		case python:
-			err = injectLibRequirements(pod, lib.ctrName, pythonPathKey, pythonEnvValFunc)
+			err = injectLibRequirements(pod, lib.ctrName, []envVar{
+				{
+					key:     pythonPathKey,
+					valFunc: pythonEnvValFunc,
+				}})
 		case dotnet:
-			err = injectLibRequirementsDotnet(pod, lib.ctrName)
+			err = injectLibRequirements(pod, lib.ctrName, []envVar{
+				{
+					key:     dotnetClrEnableProfilingKey,
+					valFunc: identityValFunc(dotnetClrEnableProfilingValue),
+				},
+				{
+					key:     dotnetClrProfilerIdKey,
+					valFunc: identityValFunc(dotnetClrProfilerIdValue),
+				},
+				{
+					key:     dotnetClrProfilerPathKey,
+					valFunc: identityValFunc(dotnetClrProfilerPathValue),
+				},
+				{
+					key:     dotnetTracerHomeKey,
+					valFunc: identityValFunc(dotnetTracerHomeValue),
+				},
+				{
+					key:     dotnetProfilingLdPreloadKey,
+					valFunc: dotnetProfilingLdPreloadEnvValFunc,
+				}})
 		default:
 			metrics.LibInjectionErrors.Inc(langStr)
 			lastError = fmt.Errorf("language %q is not supported. Supported languages are %v", lib.lang, supportedLanguages)
@@ -233,62 +265,26 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) {
 }
 
 // injectLibRequirements injects the minimal config requirements to enable instrumentation
-func injectLibRequirements(pod *corev1.Pod, ctrName string, envKey string, envVal envValFunc) error {
+func injectLibRequirements(pod *corev1.Pod, ctrName string, envVars []envVar) error {
 	for i, ctr := range pod.Spec.Containers {
 		if ctrName != "" && ctrName != ctr.Name {
 			continue
 		}
 
-		err := setEnvVarWithFunc(&pod.Spec.Containers[i], envKey, envVal)
-		if err != nil {
-			return err
-		}
+		for _, envVarPair := range envVars {
+			index := envIndex(ctr.Env, envVarPair.key)
+			if index < 0 {
+				pod.Spec.Containers[i].Env = append(pod.Spec.Containers[i].Env, corev1.EnvVar{
+					Name:  envVarPair.key,
+					Value: envVarPair.valFunc(""),
+				})
+			} else {
+				if pod.Spec.Containers[i].Env[index].ValueFrom != nil {
+					return fmt.Errorf("%q is defined via ValueFrom", envVarPair.key)
+				}
 
-		volumeAlreadyMounted := false
-		for _, vol := range pod.Spec.Containers[i].VolumeMounts {
-			if vol.Name == volumeName {
-				volumeAlreadyMounted = true
-				break
+				pod.Spec.Containers[i].Env[index].Value = envVarPair.valFunc(pod.Spec.Containers[i].Env[index].Value)
 			}
-		}
-		if !volumeAlreadyMounted {
-			pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{Name: volumeName, MountPath: mountPath})
-		}
-	}
-
-	return nil
-}
-
-// injectLibRequirements injects the minimal config requirements to enable instrumentation
-func injectLibRequirementsDotnet(pod *corev1.Pod, ctrName string) error {
-	for i, ctr := range pod.Spec.Containers {
-		if ctrName != "" && ctrName != ctr.Name {
-			continue
-		}
-
-		err := setEnvVar(&pod.Spec.Containers[i], dotnetClrEnableProfilingKey, dotnetClrEnableProfilingValue)
-		if err != nil {
-			return err
-		}
-
-		err2 := setEnvVar(&pod.Spec.Containers[i], dotnetClrProfilerIdKey, dotnetClrProfilerIdValue)
-		if err2 != nil {
-			return err2
-		}
-
-		err3 := setEnvVar(&pod.Spec.Containers[i], dotnetClrProfilerPathKey, dotnetClrProfilerPathValue)
-		if err3 != nil {
-			return err3
-		}
-
-		err4 := setEnvVar(&pod.Spec.Containers[i], dotnetTracerHomeKey, dotnetTracerHomeValue)
-		if err4 != nil {
-			return err4
-		}
-
-		err5 := setEnvVarWithFunc(&pod.Spec.Containers[i], dotnetProfilingLdPreloadKey, dotnetProfilingLdPreloadEnvValFunc)
-		if err5 != nil {
-			return err5
 		}
 
 		volumeAlreadyMounted := false
@@ -327,45 +323,6 @@ func injectLibConfig(pod *corev1.Pod, lang language) error {
 	return nil
 }
 
-func setEnvVar(ctr *corev1.Container, envKey string, envValue string) error {
-	index := envIndex(ctr.Env, envKey)
-
-	if index < 0 {
-		ctr.Env = append(ctr.Env, corev1.EnvVar{
-			Name:  envKey,
-			Value: envValue,
-		})
-	} else {
-		if ctr.Env[index].ValueFrom != nil {
-			return fmt.Errorf("%q is defined via ValueFrom", envKey)
-		}
-
-		// TBC: If the values has been set, then we should override any preexisting values
-		ctr.Env[index].Value = envValue
-	}
-
-	return nil
-}
-
-func setEnvVarWithFunc(ctr *corev1.Container, envKey string, envVal envValFunc) error {
-	index := envIndex(ctr.Env, envKey)
-
-	if index < 0 {
-		ctr.Env = append(ctr.Env, corev1.EnvVar{
-			Name:  envKey,
-			Value: envVal(""),
-		})
-	} else {
-		if ctr.Env[index].ValueFrom != nil {
-			return fmt.Errorf("%q is defined via ValueFrom", envKey)
-		}
-
-		ctr.Env[index].Value = envVal(ctr.Env[index].Value)
-	}
-
-	return nil
-}
-
 func injectLibVolume(pod *corev1.Pod) {
 	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
 		Name: volumeName,
@@ -385,7 +342,16 @@ func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 	return false
 }
 
+type envVar struct {
+	key     string
+	valFunc envValFunc
+}
+
 type envValFunc func(string) string
+
+func identityValFunc(s string) envValFunc {
+	return func(string) string { return s }
+}
 
 func javaEnvValFunc(predefinedVal string) string {
 	return predefinedVal + javaToolOptionsValue
