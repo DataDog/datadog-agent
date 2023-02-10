@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package runner
 
 import (
 	"testing"
@@ -15,11 +15,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	processmocks "github.com/DataDog/datadog-agent/cmd/process-agent/mocks"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
+	processmocks "github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
@@ -104,43 +103,6 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
 }
 
-func TestDisableRealTime(t *testing.T) {
-	tests := []struct {
-		name            string
-		disableRealtime bool
-		expectedChecks  []string
-	}{
-		{
-			name:            "true",
-			disableRealtime: true,
-			expectedChecks:  []string{checks.ContainerCheckName},
-		},
-		{
-			name:            "false",
-			disableRealtime: false,
-			expectedChecks:  []string{checks.ContainerCheckName, checks.RTContainerCheckName},
-		},
-	}
-
-	assert := assert.New(t)
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
-			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
-			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
-
-			enabledChecks := getChecks(&sysconfig.Config{}, true)
-			assert.EqualValues(tc.expectedChecks, getCheckNames(enabledChecks))
-
-			c, err := NewCollector(nil, &checks.HostInfo{}, enabledChecks)
-			assert.NoError(err)
-			assert.Equal(!tc.disableRealtime, c.runRealTime)
-			assert.ElementsMatch(tc.expectedChecks, getCheckNames(c.enabledChecks))
-		})
-	}
-}
-
 func TestDisableRealTimeProcessCheck(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -199,7 +161,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
 	assert.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
-	c.submitter = submitter
+	c.Submitter = submitter
 
 	standardOption := &checks.RunOptions{
 		RunStandard: true,
@@ -243,7 +205,7 @@ func TestCollectorRunCheck(t *testing.T) {
 	require.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
 	require.NoError(t, err)
-	c.submitter = submitter
+	c.Submitter = submitter
 
 	result := checks.StandardRunResult([]model.MessageBody{
 		&model.CollectorProc{},

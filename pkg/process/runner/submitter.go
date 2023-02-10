@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package runner
 
 import (
 	"fmt"
@@ -22,6 +22,7 @@ import (
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
@@ -112,10 +113,10 @@ func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.Collecto
 	if len(dropCheckPayloads) > 0 {
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
 	}
-	updateDropCheckPayloads(dropCheckPayloads)
+	status.UpdateDropCheckPayloads(dropCheckPayloads)
 
 	// Forwarder initialization
-	processAPIEndpoints, err := getAPIEndpoints()
+	processAPIEndpoints, err := GetAPIEndpoints()
 	if err != nil {
 		return nil, err
 	}
@@ -276,17 +277,17 @@ func (s *checkSubmitter) Start() error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueStats(&queueStats{
-					processQueueSize:      s.processResults.Len(),
-					rtProcessQueueSize:    s.rtProcessResults.Len(),
-					connectionsQueueSize:  s.connectionsResults.Len(),
-					eventQueueSize:        s.eventResults.Len(),
-					podQueueSize:          s.podResults.Len(),
-					processQueueBytes:     s.processResults.Weight(),
-					rtProcessQueueBytes:   s.rtProcessResults.Weight(),
-					connectionsQueueBytes: s.connectionsResults.Weight(),
-					eventQueueBytes:       s.eventResults.Weight(),
-					podQueueBytes:         s.podResults.Weight(),
+				status.UpdateQueueStats(&status.QueueStats{
+					ProcessQueueSize:      s.processResults.Len(),
+					RtProcessQueueSize:    s.rtProcessResults.Len(),
+					ConnectionsQueueSize:  s.connectionsResults.Len(),
+					EventQueueSize:        s.eventResults.Len(),
+					PodQueueSize:          s.podResults.Len(),
+					ProcessQueueBytes:     s.processResults.Weight(),
+					RtProcessQueueBytes:   s.rtProcessResults.Weight(),
+					ConnectionsQueueBytes: s.connectionsResults.Weight(),
+					EventQueueBytes:       s.eventResults.Weight(),
+					PodQueueBytes:         s.podResults.Weight(),
 				})
 			case <-queueLogTicker.C:
 				s.logQueuesSize()
@@ -429,7 +430,7 @@ func (s *checkSubmitter) messagesToResultsQueue(start time.Time, name string, me
 	}
 	queue.Add(result)
 	// update proc and container count for info
-	updateProcContainerCount(messages)
+	status.UpdateProcContainerCount(messages)
 }
 
 func (s *checkSubmitter) messagesToCheckResult(start time.Time, name string, messages []model.MessageBody) *checkResult {

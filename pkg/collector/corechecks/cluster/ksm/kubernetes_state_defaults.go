@@ -125,23 +125,8 @@ func defaultLabelsMapper() map[string]string {
 	}
 }
 
-// defaultLabelsMapperByResourceKind returns a map that contains the default labels to tag names by resource kind mapping
-func defaultLabelsMapperByResourceKind() map[string]map[string]string {
-	return map[string]map[string]string{
-		"pod": {
-			"phase": "pod_phase",
-		},
-		"ingress": {
-			"host":         "kube_ingress_host",
-			"path":         "kube_ingress_path",
-			"service_name": "kube_service",
-			"service_port": "kube_service_port",
-		},
-	}
-}
-
 // defaultLabelJoins returns a map that contains the default label joins configuration
-func defaultLabelJoins() map[string]*JoinsConfig {
+func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 	defaultStandardLabels := []string{
 		// Standard Datadog labels
 		"label_tags_datadoghq_com_env",
@@ -160,7 +145,7 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 		"label_helm_sh_chart",
 	}
 
-	return map[string]*JoinsConfig{
+	return map[string]*JoinsConfigWithoutLabelsMapping{
 		"kube_pod_status_phase": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"phase"},

@@ -67,6 +67,7 @@
 /.gitlab/docker_common/                              @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/fakeintake.yml                              @DataDog/agent-e2e-testing
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
@@ -97,6 +98,8 @@
 /.gitlab/choco_deploy.yml                            @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
+
+/.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 
 /chocolatey/                            @DataDog/windows-agent
 
@@ -375,6 +378,7 @@
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm
+/test/regression/                       @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform
