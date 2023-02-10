@@ -270,7 +270,8 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		),
 		runnerComp.Module,
 
-		fx.Invoke(func(runnerComp.Component) {}), // We need to invoke the runner, otherwise it's start hook will never be called
+		// Invoke the runner to call its start hook
+		fx.Invoke(func(runnerComp.Component) {}),
 	)
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %s", err.Error())
