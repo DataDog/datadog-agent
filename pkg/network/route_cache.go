@@ -17,12 +17,11 @@ import (
 
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
-	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,10 +48,10 @@ type routeCache struct {
 	router Router
 	ttl    time.Duration
 
-	size    *atomic.Uint64 `stats:""`
-	misses  *atomic.Uint64 `stats:""`
-	lookups *atomic.Uint64 `stats:""`
-	expires *atomic.Uint64 `stats:""`
+	size    nettelemetry.StatGaugeWrapper
+	misses  nettelemetry.StatGaugeWrapper
+	lookups nettelemetry.StatGaugeWrapper
+	expires nettelemetry.StatGaugeWrapper
 }
 
 const defaultTTL = 2 * time.Minute
@@ -87,10 +86,10 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 		router: router,
 		ttl:    ttl,
 
-		size:    atomic.NewUint64(0),
-		misses:  atomic.NewUint64(0),
-		lookups: atomic.NewUint64(0),
-		expires: atomic.NewUint64(0),
+		size:    nettelemetry.NewStatGaugeWrapper("route_cache", "size", []string{}, "description"),
+		misses:  nettelemetry.NewStatGaugeWrapper("route_cache", "misses", []string{}, "description"),
+		lookups: nettelemetry.NewStatGaugeWrapper("route_cache", "lookups", []string{}, "description"),
+		expires: nettelemetry.NewStatGaugeWrapper("route_cache", "expires", []string{}, "description"),
 	}
 
 	return rc
@@ -137,7 +136,11 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 }
 
 func (c *routeCache) GetStats() map[string]interface{} {
-	stats := atomicstats.Report(c)
+	stats := make(map[string]interface{})
+	stats["size"] = c.size.Load()
+	stats["misses"] = c.misses.Load()
+	stats["lookups"] = c.lookups.Load()
+	stats["expires"] = c.expires.Load()
 	stats["router"] = c.router.GetStats()
 	return stats
 }
@@ -170,14 +173,14 @@ type netlinkRouter struct {
 	ifcache  *lru.Cache
 	nlHandle *netlink.Handle
 
-	netlinkLookups *atomic.Uint64 `stats:""`
-	netlinkErrors  *atomic.Uint64 `stats:""`
-	netlinkMisses  *atomic.Uint64 `stats:""`
+	netlinkLookups nettelemetry.StatGaugeWrapper
+	netlinkErrors  nettelemetry.StatGaugeWrapper
+	netlinkMisses  nettelemetry.StatGaugeWrapper
 
-	ifCacheLookups *atomic.Uint64 `stats:""`
-	ifCacheMisses  *atomic.Uint64 `stats:""`
-	ifCacheSize    *atomic.Uint64 `stats:""`
-	ifCacheErrors  *atomic.Uint64 `stats:""`
+	ifCacheLookups nettelemetry.StatGaugeWrapper
+	ifCacheMisses  nettelemetry.StatGaugeWrapper
+	ifCacheSize    nettelemetry.StatGaugeWrapper
+	ifCacheErrors  nettelemetry.StatGaugeWrapper
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
@@ -215,14 +218,14 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 		ifcache:  lru.New(128),
 		nlHandle: nlHandle,
 
-		netlinkLookups: atomic.NewUint64(0),
-		netlinkErrors:  atomic.NewUint64(0),
-		netlinkMisses:  atomic.NewUint64(0),
+		netlinkLookups: nettelemetry.NewStatGaugeWrapper("netlink_router", "netlink_lookups", []string{}, "description"),
+		netlinkErrors:  nettelemetry.NewStatGaugeWrapper("netlink_router", "netlink_errors", []string{}, "description"),
+		netlinkMisses:  nettelemetry.NewStatGaugeWrapper("netlink_router", "netlink_misses", []string{}, "description"),
 
-		ifCacheLookups: atomic.NewUint64(0),
-		ifCacheMisses:  atomic.NewUint64(0),
-		ifCacheSize:    atomic.NewUint64(0),
-		ifCacheErrors:  atomic.NewUint64(0),
+		ifCacheLookups: nettelemetry.NewStatGaugeWrapper("netlink_router", "if_cache_lookups", []string{}, "description"),
+		ifCacheMisses:  nettelemetry.NewStatGaugeWrapper("netlink_router", "if_cache_misses", []string{}, "description"),
+		ifCacheSize:    nettelemetry.NewStatGaugeWrapper("netlink_router", "if_cache_size", []string{}, "description"),
+		ifCacheErrors:  nettelemetry.NewStatGaugeWrapper("netlink_router", "if_cache_errors", []string{}, "description"),
 	}
 
 	return nr, nil
@@ -235,7 +238,15 @@ func (n *netlinkRouter) Close() {
 }
 
 func (n *netlinkRouter) GetStats() map[string]interface{} {
-	return atomicstats.Report(n)
+	stats := make(map[string]interface{})
+	stats["netlink_lookups"] = n.netlinkLookups.Load()
+	stats["netlink_errors"] = n.netlinkErrors.Load()
+	stats["netlink_misses"] = n.netlinkMisses.Load()
+	stats["if_cache_lookups"] = n.ifCacheLookups.Load()
+	stats["if_cache_misses"] = n.ifCacheMisses.Load()
+	stats["if_cache_size"] = n.ifCacheSize.Load()
+	stats["if_cache_errors"] = n.ifCacheErrors.Load()
+	return stats
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {

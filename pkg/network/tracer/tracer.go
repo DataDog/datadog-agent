@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -36,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -55,7 +53,7 @@ type Tracer struct {
 	bpfTelemetry *telemetry.EBPFTelemetry
 
 	// Telemetry
-	skippedConns *atomic.Int64 `stats:""`
+	skippedConns telemetry.StatGaugeWrapper
 	// Will track the count of expired TCP connections
 	// We are manually expiring TCP connections because it seems that we are losing some TCP close events
 	// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
@@ -68,10 +66,10 @@ type Tracer struct {
 	//
 	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 	// to determine whether a connection is truly closed or not
-	expiredTCPConns  *atomic.Int64 `stats:""`
-	closedConns      *atomic.Int64 `stats:""`
-	connStatsMapSize *atomic.Int64 `stats:""`
-	lastCheck        *atomic.Int64 `stats:""`
+	expiredTCPConns  telemetry.StatGaugeWrapper
+	closedConns      telemetry.StatGaugeWrapper
+	connStatsMapSize telemetry.StatGaugeWrapper
+	lastCheck        telemetry.StatGaugeWrapper
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -202,11 +200,11 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
 
-		skippedConns:     atomic.NewInt64(0),
-		expiredTCPConns:  atomic.NewInt64(0),
-		closedConns:      atomic.NewInt64(0),
-		connStatsMapSize: atomic.NewInt64(0),
-		lastCheck:        atomic.NewInt64(0),
+		skippedConns:     telemetry.NewStatGaugeWrapper("network_tracer", "skipped_conns", []string{}, "description"),
+		expiredTCPConns:  telemetry.NewStatGaugeWrapper("network_tracer", "expired_tcp_conns", []string{}, "description"),
+		closedConns:      telemetry.NewStatGaugeWrapper("network_tracer", "closed_conns", []string{}, "description"),
+		connStatsMapSize: telemetry.NewStatGaugeWrapper("network_tracer", "conn_stats_map_size", []string{}, "description"),
+		lastCheck:        telemetry.NewStatGaugeWrapper("network_tracer", "last_check", []string{}, "description"),
 		bpfTelemetry:     bpfTelemetry,
 	}
 
@@ -447,7 +445,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	rctm := t.getRuntimeCompilationTelemetry()
 	khfr := int32(kernel.HeaderProvider.GetResult())
 	coretm := ddebpf.GetCORETelemetryByAsset()
-	t.lastCheck.Store(time.Now().Unix())
+	t.lastCheck.Set(time.Now().Unix())
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,
@@ -594,7 +592,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
 		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
-	t.connStatsMapSize.Store(int64(entryCount))
+	t.connStatsMapSize.Set(int64(entryCount))
 
 	// Remove expired entries
 	t.removeEntries(expired)
@@ -704,25 +702,30 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case conntrackStats:
 			ret["conntrack"] = t.conntracker.GetStats() // done
 		case dnsStats:
-			ret["dns"] = t.reverseDNS.GetStats()
+			ret["dns"] = t.reverseDNS.GetStats() // done except for timestamp
 		case epbfStats:
-			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
+			ret["ebpf"] = t.ebpfTracer.GetTelemetry() // done
 		case gatewayLookupStats:
-			ret["gateway_lookup"] = t.gwLookup.GetStats()
+			ret["gateway_lookup"] = t.gwLookup.GetStats() // done
 		case kprobesStats:
 			ret["kprobes"] = ddebpf.GetProbeStats()
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"] // done
 		case tracerStats:
-			tracerStats := atomicstats.Report(t)
+			tracerStats := make(map[string]interface{})
+			tracerStats["skipped_conns"] = t.skippedConns.Load()
+			tracerStats["closed_conns"] = t.closedConns.Load()
+			tracerStats["conn_stats_map_size"] = t.connStatsMapSize.Load()
+			tracerStats["expired_tcp_conns"] = t.expiredTCPConns.Load()
+			tracerStats["last_check"] = t.lastCheck.Load()
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		case processCacheStats:
 			ret["process_cache"] = t.processCache.GetStats()
 		case bpfMapStats:
-			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry()
+			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry() // done
 		case bpfHelperStats:
-			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
+			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry() // done
 		case httpStats:
 			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats()
 		}

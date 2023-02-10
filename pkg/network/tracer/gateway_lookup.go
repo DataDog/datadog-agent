@@ -15,13 +15,12 @@ import (
 
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/vishvananda/netns"
-	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,11 +36,11 @@ type gatewayLookup struct {
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
 
 	// stats
-	subnetCacheSize    *atomic.Uint64 `stats:""`
-	subnetCacheMisses  *atomic.Uint64 `stats:""`
-	subnetCacheLookups *atomic.Uint64 `stats:""`
-	subnetLookups      *atomic.Uint64 `stats:""`
-	subnetLookupErrors *atomic.Uint64 `stats:""`
+	subnetCacheSize    telemetry.StatGaugeWrapper
+	subnetCacheMisses  telemetry.StatGaugeWrapper
+	subnetCacheLookups telemetry.StatGaugeWrapper
+	subnetLookups      telemetry.StatGaugeWrapper
+	subnetLookupErrors telemetry.StatGaugeWrapper
 }
 
 type cloudProvider interface {
@@ -74,11 +73,11 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		procRoot:            config.ProcRoot,
 		rootNetNs:           ns,
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
-		subnetCacheSize:     atomic.NewUint64(0),
-		subnetCacheMisses:   atomic.NewUint64(0),
-		subnetCacheLookups:  atomic.NewUint64(0),
-		subnetLookups:       atomic.NewUint64(0),
-		subnetLookupErrors:  atomic.NewUint64(0),
+		subnetCacheSize:     telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_size", []string{}, "description"),
+		subnetCacheMisses:   telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_misses", []string{}, "description"),
+		subnetCacheLookups:  telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_lookups", []string{}, "description"),
+		subnetLookups:       telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookups", []string{}, "description"),
+		subnetLookupErrors:  telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookup_errors", []string{}, "description"),
 	}
 
 	router, err := network.NewNetlinkRouter(config)
@@ -183,13 +182,17 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 }
 
 func (g *gatewayLookup) GetStats() map[string]interface{} {
+	stats := make(map[string]interface{})
 	if g == nil {
-		return make(map[string]interface{})
+		return stats
 	}
-
-	report := atomicstats.Report(g)
-	report["route_cache"] = g.routeCache.GetStats()
-	return report
+	stats["subnet_cache_size"] = g.subnetCacheSize.Load()
+	stats["subnet_cache_misses"] = g.subnetCacheMisses.Load()
+	stats["subnet_cache_lookups"] = g.subnetCacheLookups.Load()
+	stats["subnet_lookups"] = g.subnetLookups.Load()
+	stats["subnet_lookup_errors"] = g.subnetLookupErrors.Load()
+	stats["route_cache"] = g.routeCache.GetStats()
+	return stats
 }
 
 func (g *gatewayLookup) Close() {
@@ -200,7 +203,7 @@ func (g *gatewayLookup) Close() {
 
 func (g *gatewayLookup) purge() {
 	g.subnetCache.Purge()
-	g.subnetCacheSize.Store(0)
+	g.subnetCacheSize.Set(0)
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
