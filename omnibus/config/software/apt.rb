@@ -34,6 +34,7 @@ build do
   patch source: "no_doc.patch", env: env
   patch source: "disable_arch_check.patch", env: env
   patch source: "disable_systemd.patch", env: env
+  patch source: "cmake-bindir.patch", env: env
 
   if (!File.exist? '/usr/bin/triehash') && (!File.exist? '/usr/local/bin/triehash')
     patch source: "triehash.patch", env: env, cwd: '/'
@@ -61,6 +62,7 @@ end
     "-DLOG_DIR:PATH=/var/log/apt",
     "-DCONF_DIR:PATH=/etc/apt",
     "-DLIBEXEC_DIR:PATH=/usr/lib/apt",
+    "-DBIN_DIR:PATH=/usr/bin", # use dpkg from the system
     "-DWITH_DOC=OFF",
     "-DUSE_NLS=OFF",
     "-DWITH_TESTS=OFF",
