@@ -1,4 +1,5 @@
 
+
 execute "df -h" do
   command "df -h"
   live_stream true
@@ -103,6 +104,38 @@ execute 'ensure conntrack is enabled' do
   command "iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT"
   user "root"
   action :run
+end
+
+
+
+package 'growpart' do
+  case node[:platform]
+  when 'amazon'
+    package_name 'cloud-utils-growpart'
+  when 'redhat', 'centos', 'fedora'
+    package_name 'cloud-utils-growpart'
+  else
+    package_name 'cloud-guest-utils'
+  end
+end
+
+package 'gdisk'
+
+execute 'increase spaceallos' do
+  command <<-EOF
+    df -h /tmp
+
+    dev_name=$(df -h / | tail -n1 | awk '{print $1}')
+    if [[ ${dev_name} =~ "^/dev/mapper" ]]; then
+       lvresize -L +4G ${dev_name}
+       resize2fs ${dev_name}
+    fi
+
+    df -h /tmp
+  EOF
+  user "root"
+  live_stream true
+  ignore_failure true
 end
 
 if Chef::SystemProbeHelpers::arm?(node) and node[:platform] == 'centos'
