@@ -27,15 +27,14 @@ const (
 // WaitGetNodeLabels waits for node labels to become available using a backoff retrier
 func WaitGetNodeLabels() (map[string]string, error) {
 	fetcher := &labelsFetcher{}
-	exp := &backoff.ExponentialBackOff{
-		InitialInterval:     nodeLabelsCheckInitialInterval,
-		RandomizationFactor: 0,
-		Multiplier:          nodeLabelsCheckMultiplier,
-		MaxInterval:         nodeLabelsCheckMaxInterval,
-		MaxElapsedTime:      nodeLabelsCheckMaxElapsedTime,
-		Clock:               backoff.SystemClock,
-	}
+	exp := backoff.NewExponentialBackOff()
+	exp.InitialInterval = nodeLabelsCheckInitialInterval
+	exp.RandomizationFactor = 0
+	exp.Multiplier = nodeLabelsCheckMultiplier
+	exp.MaxInterval = nodeLabelsCheckMaxInterval
+	exp.MaxElapsedTime = nodeLabelsCheckMaxElapsedTime
 	exp.Reset()
+
 	err := backoff.RetryNotify(fetcher.fetch, exp, notifyFetchNodeLabels())
 	return fetcher.nodeLabels, err
 }
