@@ -33,10 +33,6 @@ type TestEnv struct {
 	StackOutput      auto.UpResult
 }
 
-const (
-	composeDataPath = "compose/data"
-)
-
 var (
 	SSHKeyFile           = filepath.Join(".", "/", "aws-ssh-key")
 	vmConfig             = filepath.Join(".", "systemProbe", "config", "vmconfig.json")
