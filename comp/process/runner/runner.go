@@ -31,21 +31,18 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	SysCfg *sysconfig.Config
+	HostInfo *checks.HostInfo
+	SysCfg   *sysconfig.Config
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	hinfo, err := checks.CollectHostInfo()
-	if err != nil {
-		return nil, err
-	}
-	c, err := r.NewCollector(deps.SysCfg, hinfo, r.GetChecks(deps.SysCfg, ddconfig.IsAnyContainerFeaturePresent()))
+	c, err := r.NewCollector(deps.SysCfg, deps.HostInfo, r.GetChecks(deps.SysCfg, ddconfig.IsAnyContainerFeaturePresent()))
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: Inject submitter as a component dependency
-	c.Submitter, err = r.NewSubmitter(hinfo.HostName, c.UpdateRTStatus)
+	c.Submitter, err = r.NewSubmitter(deps.HostInfo.HostName, c.UpdateRTStatus)
 	if err != nil {
 		return nil, err
 	}

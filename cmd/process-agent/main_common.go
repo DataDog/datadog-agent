@@ -265,6 +265,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	err = fxutil.Run(
 		fx.Supply(
 			syscfg,
+			hostInfo,
 		),
 		runnerComp.Module,
 
