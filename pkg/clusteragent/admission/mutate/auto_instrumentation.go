@@ -54,6 +54,9 @@ const (
 	dotnetTracerHomeKey   = "DD_DOTNET_TRACER_HOME"
 	dotnetTracerHomeValue = "/datadog-lib"
 
+	dotnetTracerLogDirectoryKey   = "DD_TRACE_LOG_DIRECTORY"
+	dotnetTracerLogDirectoryValue = "/datadog-lib/logs"
+
 	dotnetProfilingLdPreloadKey   = "LD_PRELOAD"
 	dotnetProfilingLdPreloadValue = "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so"
 )
@@ -211,6 +214,10 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 				{
 					key:     dotnetTracerHomeKey,
 					valFunc: identityValFunc(dotnetTracerHomeValue),
+				},
+				{
+					key:     dotnetTracerLogDirectoryKey,
+					valFunc: identityValFunc(dotnetTracerLogDirectoryValue),
 				},
 				{
 					key:     dotnetProfilingLdPreloadKey,
