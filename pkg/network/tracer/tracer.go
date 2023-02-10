@@ -216,6 +216,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
+		go tr.processCache.RefreshTelemetry()
 
 		events.RegisterHandler(tr.processCache.handleProcessEvent)
 
@@ -702,13 +703,13 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case conntrackStats:
 			ret["conntrack"] = t.conntracker.GetStats() // done
 		case dnsStats:
-			ret["dns"] = t.reverseDNS.GetStats() // done except for timestamp
+			ret["dns"] = t.reverseDNS.GetStats() // wip
 		case epbfStats:
 			ret["ebpf"] = t.ebpfTracer.GetTelemetry() // done
 		case gatewayLookupStats:
 			ret["gateway_lookup"] = t.gwLookup.GetStats() // done
 		case kprobesStats:
-			ret["kprobes"] = ddebpf.GetProbeStats()
+			ret["kprobes"] = ddebpf.GetProbeStats() // wip
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"] // done
 		case tracerStats:
@@ -718,16 +719,16 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats["conn_stats_map_size"] = t.connStatsMapSize.Load()
 			tracerStats["expired_tcp_conns"] = t.expiredTCPConns.Load()
 			tracerStats["last_check"] = t.lastCheck.Load()
-			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
+			tracerStats["runtime"] = runtime.Tracer.GetTelemetry() // wip
 			ret["tracer"] = tracerStats
 		case processCacheStats:
-			ret["process_cache"] = t.processCache.GetStats()
+			ret["process_cache"] = t.processCache.GetStats() // done
 		case bpfMapStats:
 			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry() // done
 		case bpfHelperStats:
 			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry() // done
 		case httpStats:
-			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats()
+			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats() // done (lol)
 		}
 	}
 

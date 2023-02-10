@@ -14,11 +14,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
-	"go.uber.org/atomic"
 	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,10 +32,10 @@ type AFPacketSource struct {
 	exit chan struct{}
 
 	// telemetry
-	polls     *atomic.Int64
-	processed *atomic.Int64
-	captured  *atomic.Int64
-	dropped   *atomic.Int64
+	polls     telemetry.StatGaugeWrapper
+	processed telemetry.StatGaugeWrapper
+	captured  telemetry.StatGaugeWrapper
+	dropped   telemetry.StatGaugeWrapper
 }
 
 // NewPacketSource creates an AFPacketSource using the provided BPF filter
@@ -68,10 +68,10 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 		TPacket:      rawSocket,
 		socketFilter: filter,
 		exit:         make(chan struct{}),
-		polls:        atomic.NewInt64(0),
-		processed:    atomic.NewInt64(0),
-		captured:     atomic.NewInt64(0),
-		dropped:      atomic.NewInt64(0),
+		polls:        telemetry.NewStatGaugeWrapper("packet_source", "polls", []string{}, ""),
+		processed:    telemetry.NewStatGaugeWrapper("packet_source", "processed", []string{}, ""),
+		captured:     telemetry.NewStatGaugeWrapper("packet_source", "captured", []string{}, ""),
+		dropped:      telemetry.NewStatGaugeWrapper("packet_source", "dropped", []string{}, ""),
 	}
 	go ps.pollStats()
 

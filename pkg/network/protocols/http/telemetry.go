@@ -11,14 +11,12 @@ package http
 import (
 	"time"
 
-	"go.uber.org/atomic"
-
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type telemetry struct {
-	then *atomic.Int64
+	then libtelemetry.StatGaugeWrapper
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
@@ -37,7 +35,7 @@ func newTelemetry() (*telemetry, error) {
 	)
 
 	t := &telemetry{
-		then:         atomic.NewInt64(time.Now().Unix()),
+		then:         libtelemetry.NewStatGaugeWrapper("usm", "then", []string{}, "description"),
 		hits1XX:      metricGroup.NewMetric("hits1xx"),
 		hits2XX:      metricGroup.NewMetric("hits2xx"),
 		hits3XX:      metricGroup.NewMetric("hits3xx"),
@@ -51,6 +49,8 @@ func newTelemetry() (*telemetry, error) {
 		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
 	}
+
+	t.then.Set(time.Now().Unix())
 
 	return t, nil
 }
@@ -73,14 +73,14 @@ func (t *telemetry) count(tx httpTX) {
 
 func (t *telemetry) log() {
 	now := time.Now().Unix()
-	then := t.then.Swap(now)
+	t.then.Set(now)
 
 	totalRequests := t.totalHits.Delta()
 	dropped := t.dropped.Delta()
 	rejected := t.rejected.Delta()
 	malformed := t.malformed.Delta()
 	aggregations := t.aggregations.Delta()
-	elapsed := now - then
+	elapsed := now - t.then.Load()
 
 	log.Debugf(
 		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
