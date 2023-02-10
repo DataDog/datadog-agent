@@ -28,8 +28,8 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   env["PKG_CONFIG_PATH"] = "#{install_dir}/embedded/lib/pkgconfig"
-  env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
-  env["CXX"] = "/opt/gcc-10.4.0/bin/g++"
+  env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
+  env["CXX"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/g++"
   env["CXXFLAGS"] += " -static-libstdc++ -std=c++11"
   patch source: "no_doc.patch", env: env
   patch source: "disable_arch_check.patch", env: env

@@ -32,7 +32,7 @@ build do
 
   patch source: "ln_no_relative.patch", env: env
 
-  env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
+  env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
 
   make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
   make "-j #{workers} install PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env

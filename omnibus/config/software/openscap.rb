@@ -35,9 +35,8 @@ build do
 
   patch source: "get_results_from_session.patch", env: env
   patch source: "010_perlpm_install_fix.patch", env: env
-
-  env["CC"] = "/opt/gcc-10.4.0/bin/gcc"
-  env["CXX"] = "/opt/gcc-10.4.0/bin/g++"
+  env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
+  env["CXX"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/g++"
   env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
 
   cmake_build_dir = "#{project_dir}/build"
