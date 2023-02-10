@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // InitConfig is used to deserialize integration init config.
@@ -21,15 +22,12 @@ type InitConfig struct {
 
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                 string `yaml:"server"`
-	ServiceName            string `yaml:"service_name"`
-	Protocol               string `yaml:"protocol"`
-	Username               string `yaml:"username"`
-	Password               string `yaml:"password"`
-	JdbcDriverPath         string `yaml:"jdbc_driver_path"`
-	JdbcTruststorePath     string `yaml:"jdbc_truststore_path"`
-	JdbcTruststoreType     string `yaml:"jdbc_truststore_type"`
-	JdbcTruststorePassword string `yaml:"jdbc_truststore_password"`
+	Server      string `yaml:"server"`
+	Port        int    `yaml:"port"`
+	ServiceName string `yaml:"service_name"`
+	Protocol    string `yaml:"protocol"`
+	Username    string `yaml:"username"`
+	Password    string `yaml:"password"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -51,6 +49,7 @@ Protocol: '%s'
 
 // NewCheckConfig builds a new check config.
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
+	log.Infof("NewCHeckConfig")
 	instance := InstanceConfig{}
 	initCfg := InitConfig{}
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -23,26 +24,33 @@ var HOST = "localhost"
 var PORT = 1521
 var USER = "c##datadog"
 var PASSWORD = "datadog"
-var DB = "XE"
+var SERVICE_NAME = "XE"
 
 func TestBasic(t *testing.T) {
 	chk := Check{}
 
 	// language=yaml
-	rawInstanceConfig := []byte(`
-server: localhost,1521
-username: datadog
-password: datadog
-service_name: XE
-`)
+	rawInstanceConfig := []byte(fmt.Sprintf(`
+server: %s
+port: %d
+username: %s
+password: %s
+service_name: %s
+`, HOST, PORT, USER, PASSWORD, SERVICE_NAME))
 
 	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
+	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
+	assert.Equal(t, chk.config.InstanceConfig.Port, PORT)
+	assert.Equal(t, chk.config.InstanceConfig.Username, USER)
+	assert.Equal(t, chk.config.InstanceConfig.Password, PASSWORD)
+	assert.Equal(t, chk.config.InstanceConfig.ServiceName, SERVICE_NAME)
 }
 
 func TestConnectionGoOra(t *testing.T) {
 	//databaseUrl := go_ora.BuildUrl("localhost", 1521, "XE", "c##datadog", "datadog", nil)
-	databaseUrl := go_ora.BuildUrl(HOST, PORT, DB, USER, PASSWORD, nil)
+	databaseUrl := go_ora.BuildUrl(HOST, PORT, SERVICE_NAME, USER, PASSWORD, nil)
 	conn, err := sql.Open("oracle", databaseUrl)
 	assert.NoError(t, err)
 
@@ -52,7 +60,7 @@ func TestConnectionGoOra(t *testing.T) {
 }
 
 func TestConnectionGodror(t *testing.T) {
-	databaseUrl := fmt.Sprintf("%s/%s@%s:%d/%s", USER, PASSWORD, HOST, PORT, DB)
+	databaseUrl := fmt.Sprintf("%s/%s@%s:%d/%s", USER, PASSWORD, HOST, PORT, SERVICE_NAME)
 	_, err := sqlx.Connect("godror", databaseUrl)
 	assert.NoError(t, err)
 }
