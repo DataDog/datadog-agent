@@ -10,9 +10,13 @@ default_version '2.5.5'
 
 dependency 'bzip2'
 dependency 'gnutls'
+dependency 'libdb'
+dependency 'libgcrypt'
+dependency 'libiconv'
 dependency 'liblz4'
 dependency 'liblzma'
 dependency 'libxxhash'
+dependency 'zstd'
 
 license 'GPLv2'
 license_file "COPYING"
