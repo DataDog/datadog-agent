@@ -1,10 +1,16 @@
 
-if node[:platform] == "amazon" and node[:platform_version] == "2022"
-  execute "increase /tmp size" do
-    command "mount -o remount,size=10G /tmp/"
-    live_stream true
-    action :run
-  end
+execute "df -h" do
+  command "df -h"
+  live_stream true
+  action :run
+  ignore_failure true
+end
+
+execute "increase /tmp size" do
+  command "mount -o remount,size=10G /tmp/"
+  live_stream true
+  action :run
+  ignore_failure true
 end
 
 if platform?('centos')
@@ -91,6 +97,7 @@ kernel_module 'ipv6' do
   action :load
 end
 execute 'sysctl net.ipv6.conf.all.disable_ipv6=0'
+
 
 execute 'ensure conntrack is enabled' do
   command "iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT"
@@ -227,4 +234,13 @@ execute 'install docker-compose' do
   EOF
   user "root"
   live_stream true
+end
+
+
+
+execute "df -hafter" do
+  command "df -h"
+  live_stream true
+  action :run
+  ignore_failure true
 end
