@@ -46,10 +46,7 @@ Service: '%s'
 Server: '%s'
 ServiceName: '%s'
 Protocol: '%s'
-JDBC Driver Path: '%s'
-JDBC Truststore Path: '%s'
-JDBC Truststore Type: '%s'
-`, c.GlobalCustomQueries, c.Service, c.Server, c.ServiceName, c.Protocol, c.JdbcDriverPath, c.JdbcTruststorePath, c.JdbcTruststoreType)
+`, c.GlobalCustomQueries, c.Service, c.Server, c.ServiceName, c.Protocol)
 }
 
 // NewCheckConfig builds a new check config.
