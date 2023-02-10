@@ -1140,7 +1140,7 @@ func TestVariableValueFormat(t *testing.T) {
 			expected:    "1.3.6.1.6.3.1.1.5.4",
 		},
 		{
-			description: "type OID with incorrect value shouldn't panic",
+			description: "type OID with incorrect value",
 			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.ObjectIdentifier, Value: 1},
 			expected:    1,
 		},
@@ -1151,7 +1151,7 @@ func TestVariableValueFormat(t *testing.T) {
 		},
 		{
 			description: "[]byte value is not normalized",
-			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.ObjectIdentifier, Value: []byte{0x2e, 0x74, 0x65, 0x73, 0x74}},
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.OctetString, Value: []byte{0x2e, 0x74, 0x65, 0x73, 0x74}},
 			expected:    ".test",
 		},
 	}
