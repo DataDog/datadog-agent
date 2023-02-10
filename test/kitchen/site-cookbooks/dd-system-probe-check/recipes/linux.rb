@@ -1,3 +1,12 @@
+
+if node[:platform] == "amazon" and node[:platform_version] == "2022"
+  execute "increase /tmp size" do
+    command "mount -o remount,size=10G /tmp/"
+    live_stream true
+    action :run
+  end
+end
+
 if platform?('centos')
   include_recipe '::old_vault'
 end
