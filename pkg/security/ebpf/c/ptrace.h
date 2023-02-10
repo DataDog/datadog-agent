@@ -34,6 +34,8 @@ SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
 
 SEC("kprobe/ptrace_check_attach")
 int kprobe_ptrace_check_attach(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_PTRACE);
+    if (!syscall) {
         return 0;
     }
 
@@ -49,6 +51,7 @@ int kprobe_ptrace_check_attach(struct pt_regs *ctx) {
 int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PTRACE);
     if (!syscall) {
+        return 0;
     }
 
     struct ptrace_event_t event = {
