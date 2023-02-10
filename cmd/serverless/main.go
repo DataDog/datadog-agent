@@ -8,6 +8,7 @@ package main
 import (
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -260,15 +262,18 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
-	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
+	var (
+		httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
+		appsecInstance      *appsec.AppSec
+	)
 	go func() {
 		defer wg.Done()
-		appsec, err := appsec.New()
+		appsecInstance, err = appsec.New() // note that the assigned variable is in the parent scope
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
-		} else if appsec != nil {
+		} else if appsecInstance != nil {
 			log.Info("appsec: started successfully")
-			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
+			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsecInstance) // note that the assigned variable is in the parent scope
 		}
 	}()
 
@@ -287,7 +292,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	log.Debug("Setting ColdStartSpanCreator on Daemon")
 	serverlessDaemon.SetColdStartSpanCreator(coldStartSpanCreator)
 
-	lp := &invocationlifecycle.LifecycleProcessor{
+	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
+	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:            serverlessDaemon.ExtraTags,
 		Demux:                serverlessDaemon.MetricAgent.Demux,
 		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
@@ -296,28 +302,51 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		SubProcessor:         httpsecSubProcessor,
 	}
 
-	if httpsecSubProcessor != nil {
+	// NodeJS- and Python-specific support for AppSec: monitor the invocation through the runtime API monitoring until
+	// these tracers support the extension's universal instrumentation API
+	// TODO: remove the following block when the python and nodejs tracers support the extension universal instrumentation api
+	if rt := tags.GetRuntime(); appsecInstance != nil && (strings.Contains(rt, "nodejs") || strings.Contains(rt, "python")) {
+		log.Debug("appsec: starting the runtime api proxy monitoring for ", rt)
+		httpsecSubProcessor := httpsec.NewProxyProcessor(appsecInstance)
+		lp := &httpsec.ProxyLifecycleProcessor{
+			SubProcessor: httpsecSubProcessor,
+		}
+		serverlessDaemon.InvocationProcessor = lp
+
+		// start the experimental proxy if enabled
+		proxy.Start(
+			"127.0.0.1:9000",
+			os.Getenv("DD_ORIGINAL_AWS_LAMBDA_RUNTIME_API"),
+			lp,
+		)
+
 		ta := serverlessDaemon.TraceAgent.Get()
 		modifySpan := ta.ModifySpan
 		ta.ModifySpan = func(span *pb.Span) {
 			if modifySpan != nil {
 				modifySpan(span)
 			}
-			if serverlessDaemon.ExecutionContext.GetCurrentState().LastRequestID == span.Meta["request_id"] {
-				lp.SpanModifier(span)
+			// Add appsec tags to the aws lambda function root span
+			if span.Name != "aws.lambda" || span.Type != "serverless" {
+				return
 			}
+			if currentReqId, spanReqId := serverlessDaemon.ExecutionContext.GetCurrentState().LastRequestID, span.Meta["request_id"]; currentReqId != spanReqId {
+				log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
+				return
+			}
+			log.Debug("appsec: found service entry span to add appsec tags")
+			lp.SpanModifier(span)
 		}
+		log.Debug("appsec: runtime api proxy started successfully")
+	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
+		// start the experimental proxy if enabled
+		log.Debug("Starting the experimental runtime api proxy")
+		proxy.Start(
+			"127.0.0.1:9000",
+			os.Getenv("DD_ORIGINAL_AWS_LAMBDA_RUNTIME_API"),
+			serverlessDaemon.InvocationProcessor,
+		)
 	}
-
-	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
-	serverlessDaemon.InvocationProcessor = lp
-
-	// start the experimental proxy if enabled
-	_ = proxy.Start(
-		"127.0.0.1:9000",
-		"127.0.0.1:9001",
-		serverlessDaemon.InvocationProcessor,
-	)
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on

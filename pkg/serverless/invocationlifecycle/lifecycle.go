@@ -82,7 +82,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	payloadBytes := parseLambdaPayload(startDetails.InvokeEventRawPayload)
+	payloadBytes := ParseLambdaPayload(startDetails.InvokeEventRawPayload)
 	// TODO: avoid the unnecessary copy of payloadBytes when the logger isn't in debug level thanks to a []byte stringer
 	log.Debugf("Parsed payload string: %s", string(payloadBytes))
 
@@ -190,7 +190,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	endDetails.ResponseRawPayload = parseLambdaPayload(endDetails.ResponseRawPayload)
+	endDetails.ResponseRawPayload = ParseLambdaPayload(endDetails.ResponseRawPayload)
 
 	// Add the status code if it comes from an HTTP-like response struct
 	statusCode, err := trigger.GetStatusCodeFromHTTPResponse(endDetails.ResponseRawPayload)
@@ -305,19 +305,4 @@ func (lp *LifecycleProcessor) addTag(key string, value string) {
 func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
 	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
 	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID
-}
-
-func (lp *LifecycleProcessor) SpanModifier(s *pb.Span) {
-	lp.GetExecutionInfo().
-		log.Debug("applying lifecycle processor span tags")
-	for k, v := range lp.requestHandler.triggerTags {
-		if _, exists := s.Meta[k]; !exists {
-			s.Meta[k] = v
-		}
-	}
-	for k, v := range lp.requestHandler.triggerMetrics {
-		if _, exists := s.Metrics[k]; !exists {
-			s.Metrics[k] = v
-		}
-	}
 }

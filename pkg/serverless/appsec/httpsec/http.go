@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Monitorer is the interface type execpted by the httpsec invocation
+// Monitorer is the interface type expected by the httpsec invocation
 // subprocessor monitoring the given security rules addresses and returning
 // the security events that matched.
 type Monitorer interface {
