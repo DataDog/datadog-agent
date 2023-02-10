@@ -25,6 +25,7 @@ dependency 'libyaml'
 dependency 'pcre'
 dependency 'popt'
 dependency 'rpm'
+dependency 'util-linux'
 dependency 'xmlsec'
 
 relative_path "openscap-#{version}"
