@@ -198,27 +198,12 @@ var (
 	// MetricActivityDumpBrokenLineageDrop is the name of the metric used to report the number of events dropped due to broken ancestors lineage
 	// Tags: -
 	MetricActivityDumpBrokenLineageDrop = newRuntimeMetric(".activity_dump.broken_lineage_drop")
-	// MetricActivityDumpInsertCount is the name of the metric used to report the number of events that we may add to a dump
-	// Tags: -
-	MetricActivityDumpInsertCount = newRuntimeMetric(".activity_dump.insert_count")
 	// MetricActivityDumpEventTypeDrop is the name of the metric used to report the number of event dropped because their event types is not traced
 	// Tags: -
 	MetricActivityDumpEventTypeDrop = newRuntimeMetric(".activity_dump.event_type_drop")
-	// MetricActivityDumpResolveProcessCacheEntryDrop is the name of the metric used to report the number of event dropped because the process resolution failed
-	// Tags: -
-	MetricActivityDumpResolveProcessCacheEntryDrop = newRuntimeMetric(".activity_dump.resolve_process_cache_entry_drop")
-	// MetricActivityDumpAbnormalPathDrop is the name of the metric used to report the number of dropped event with an abnormal path
-	// Tags: -
-	MetricActivityDumpAbnormalPathDrop = newRuntimeMetric(".activity_dump.abnormal_path_drop")
-	// MetricActivityDumpEntryMatchDrop is the name of the metric used to report the number of dropped event with no matching on comm/containerID
-	// Tags: -
-	MetricActivityDumpEntryMatchDrop = newRuntimeMetric(".activity_dump.entry_match_drop")
 	// MetricActivityDumpValidRootNodeDrop is the name of the metric used to report the number of dropped root not valide node
 	// Tags: -
 	MetricActivityDumpValidRootNodeDrop = newRuntimeMetric(".activity_dump.valid_root_node_drop")
-	// MetricActivityDumpFindOrCreateDrop is the name of the metric used to report the number of event dropped by findOrCreateProcessActivityNode
-	// Tags: -
-	MetricActivityDumpFindOrCreateDrop = newRuntimeMetric(".activity_dump.find_or_create_drop")
 	// MetricActivityDumpBindFamilyDrop is the name of the metric used to report the number of event dropped because the address family is not handled
 	// Tags: -
 	MetricActivityDumpBindFamilyDrop = newRuntimeMetric(".activity_dump.bind_family_drop")
