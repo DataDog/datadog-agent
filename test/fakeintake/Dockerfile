@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 
 ## Build
-FROM golang:1.19-buster AS build
+FROM golang:1.18-buster AS build
 
 WORKDIR /app
 

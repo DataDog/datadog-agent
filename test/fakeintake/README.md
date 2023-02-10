@@ -4,7 +4,7 @@ Exposes a catch-all API for Datadog Agent POST requests.
 
 ## Requirements
 
-* [Golang 1.19](https://go.dev/dl/)
+- [Golang 1.18](https://go.dev/dl/)
 
 ## How to run
 
@@ -13,7 +13,7 @@ Exposes a catch-all API for Datadog Agent POST requests.
 1. cd to fakeintake root folder
 
 ```bash
-cd ~/dd/datadog-agent/test/fake-intake
+cd ~/dd/datadog-agent/test/fakeintake
 ```
 
 2. Build the fakeintake app
@@ -40,7 +40,7 @@ DD_DD_URL: "http://localhost:8080"
 1. cd to fakeintake root folder
 
 ```bash
-cd ~/dd/datadog-agent/test/fake-intake
+cd ~/dd/datadog-agent/test/fakeintake
 ```
 
 2. Start the docker container
@@ -69,7 +69,7 @@ docker buildx create --use desktop-linux
 2. Build a new multi-arch image using `buildx`. This will allow the container to run on both MacOS M1 (arm64) and Linux (amd64).
 
 ```bash
-docker buildx build --push --platform linux/arm64/v8,linux/amd64 --tag <repo_name>/fake-intake:<tag> .
+docker buildx build --push --platform linux/arm64/v8,linux/amd64 --tag <repo_name>/fakeintake:<tag> .
 ```
 
 ## API
@@ -110,7 +110,7 @@ curl ${SERVICE_IP}/fake/payloads/api/V2/series
 
 #### Juniper Notebook
 
-Play with fake-intake in a Juniper Notebook
+Play with fakeintake in a Juniper Notebook
 
 ```python
 # POST payloads
@@ -145,13 +145,11 @@ for payload in data["payloads"]:
 
 ## Development in VSCode
 
-This is a sub-module within `datadog-agent`. VSCode will complain about the multiple `go.mod` files. While waiting for a full repo migration to go workspaces, create a go workspace file and add `test/fake-intake` to workspaces
+This is a sub-module within `datadog-agent`. VSCode will complain about the multiple `go.mod` files. While waiting for a full repo migration to go workspaces, create a go workspace file and add `test/fakeintake` to workspaces
 
 ```bash
 go work init
-go work use . ./test/fake-intake
+go work use . ./test/fakeintake
 ```
 
-> **Note**
-> `go.work` file is currently ignored in `datadog-agent`
-
+> **Note** `go.work` file is currently ignored in `datadog-agent`

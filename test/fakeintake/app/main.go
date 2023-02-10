@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	fakeintake "github.com/Datadog/datadog-agent/test/fakeintake/server"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/server"
 )
 
 func main() {

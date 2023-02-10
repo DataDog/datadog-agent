@@ -1,4 +1,4 @@
-module github.com/Datadog/datadog-agent/test/fakeintake
+module github.com/DataDog/datadog-agent/test/fakeintake
 
 go 1.18
 
