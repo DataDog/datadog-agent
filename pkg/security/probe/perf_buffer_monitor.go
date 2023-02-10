@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,6 +60,8 @@ type PerfBufferMonitor struct {
 	probe        *Probe
 	config       *config.Config
 	statsdClient statsd.ClientInterface
+	eRPC         *erpc.ERPC
+
 	// numCPU holds the current count of CPU
 	numCPU int
 	// perfBufferStatsMaps holds the pointers to the statistics kernel maps
@@ -103,6 +106,7 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 		probe:               p,
 		config:              p.Config,
 		statsdClient:        p.StatsdClient,
+		eRPC:                p.Erpc,
 		perfBufferStatsMaps: make(map[string]*perfBufferStatMap),
 
 		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
@@ -457,6 +461,19 @@ func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterf
 	return nil
 }
 
+func (pbm *PerfBufferMonitor) getRingbufUsage(statsMap *perfBufferStatMap) (uint64, error) {
+	if err := pbm.eRPC.Request(&erpc.ERPCRequest{OP: erpc.GetRingbufUsage}); err != nil {
+		return 0, err
+	}
+
+	var ringUsage uint64
+	if err := statsMap.ebpfRingBufferMap.Lookup(int32(0), &ringUsage); err != nil {
+		return 0, fmt.Errorf("failed to retrieve ring buffer usage")
+	}
+
+	return ringUsage, nil
+}
+
 func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInterface) error {
 	var (
 		id       uint32
@@ -534,9 +551,9 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 		}
 
 		if statsMap.ebpfRingBufferMap != nil {
-			var ringUsage uint64
-			if err := statsMap.ebpfRingBufferMap.Lookup(int32(0), &ringUsage); err != nil {
-				return fmt.Errorf("failed to retrieve ring buffer usage for '%s'", perfMapName)
+			ringUsage, err := pbm.getRingbufUsage(statsMap)
+			if err != nil {
+				return err
 			}
 
 			// The capacity of ring buffer has to be a power of 2 and a multiple of 4096,

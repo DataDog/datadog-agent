@@ -387,7 +387,6 @@ void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 even
     int perf_ret;
     if (use_ring_buffer) {
         perf_ret = bpf_ringbuf_output(&events, kernel_event, kernel_event_size, 0);
-        store_ring_buffer_stats();
     } else {
         perf_ret = bpf_perf_event_output(ctx, &events, header->cpu, kernel_event, kernel_event_size);
     }

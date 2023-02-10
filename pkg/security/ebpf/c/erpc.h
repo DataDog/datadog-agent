@@ -17,6 +17,7 @@ enum erpc_op {
     EXPIRE_INODE_DISCARDER_OP,
     EXPIRE_PID_DISCARDER_OP,
     BUMP_DISCARDERS_REVISION,
+    GET_RINGBUF_USAGE,
 };
 
 struct discard_request_t {
@@ -107,6 +108,16 @@ int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
     return 0;
 }
 
+int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
+    if (!is_runtime_request()) {
+        return 0;
+    }
+
+    store_ring_buffer_stats();
+
+    return 0;
+}
+
 int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
     u32 cmd = PT_REGS_PARM3(ctx);
     if (cmd != RPC_CMD) {
@@ -160,7 +171,8 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
             return handle_expire_pid_discarder(data);
         case BUMP_DISCARDERS_REVISION:
             return handle_bump_discarders_revision(data);
-
+        case GET_RINGBUF_USAGE:
+            return handle_get_ringbuf_usage(data);
     }
 
     return 0;
