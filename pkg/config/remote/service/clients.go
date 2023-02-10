@@ -19,7 +19,7 @@ type client struct {
 	pbClient *pbgo.Client
 }
 
-type newActiveClients struct {
+type cacheBypassClients struct {
 	clock    clock.Clock
 	requests chan chan struct{}
 
@@ -31,7 +31,7 @@ type newActiveClients struct {
 	allowance     int
 }
 
-func (c *newActiveClients) isLimited() bool {
+func (c *cacheBypassClients) isLimited() bool {
 	now := c.clock.Now()
 	window := now.Truncate(c.rate)
 

@@ -74,10 +74,10 @@ type Service struct {
 	uptane        uptaneClient
 	api           api.API
 
-	products         map[rdata.Product]struct{}
-	newProducts      map[rdata.Product]struct{}
-	clients          *clients
-	newActiveClients newActiveClients
+	products           map[rdata.Product]struct{}
+	newProducts        map[rdata.Product]struct{}
+	clients            *clients
+	cacheBypassClients cacheBypassClients
 
 	lastUpdateErr error
 }
@@ -205,7 +205,7 @@ func NewService() (*Service, error) {
 		api:                            http,
 		uptane:                         uptaneClient,
 		clients:                        newClients(clock, clientsTTL),
-		newActiveClients: newActiveClients{
+		cacheBypassClients: cacheBypassClients{
 			clock:    clock,
 			requests: make(chan chan struct{}),
 
@@ -245,8 +245,8 @@ func (s *Service) Start(ctx context.Context) error {
 			case <-s.clock.After(refreshInterval):
 				err = s.refresh()
 			// New clients detected, request refresh
-			case response := <-s.newActiveClients.requests:
-				if !s.newActiveClients.isLimited() {
+			case response := <-s.cacheBypassClients.requests:
+				if !s.cacheBypassClients.isLimited() {
 					err = s.refresh()
 				} else {
 					telemetry.CacheBypassRateLimit.Inc()
@@ -315,6 +315,7 @@ func (s *Service) refresh() error {
 		ri, err := s.getRefreshInterval()
 		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
 			s.defaultRefreshInterval = ri
+			s.cacheBypassClients.rate = ri
 			log.Info("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
 		}
 	}
@@ -399,7 +400,7 @@ func (s *Service) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetC
 		// Timeout in case the previous request is still pending
 		// and we can't request another one
 		select {
-		case s.newActiveClients.requests <- response:
+		case s.cacheBypassClients.requests <- response:
 		case <-time.After(newClientBlockTTL):
 			// No need to add telemetry here, it'll be done in the second
 			// timeout case that will automatically be triggered
