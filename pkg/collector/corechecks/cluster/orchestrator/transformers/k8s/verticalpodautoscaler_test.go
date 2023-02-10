@@ -221,6 +221,7 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 						Kind: "Deployment",
 						Name: "My Service",
 					},
+					ResourcePolicies: []*model.ContainerResourcePolicy{},
 				},
 				Status: &model.VerticalPodAutoscalerStatus{},
 			},
@@ -286,14 +287,19 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 					},
 					ResourcePolicies: []*model.ContainerResourcePolicy{
 						{
-							ContainerName:      "TestContainer",
+							ContainerName: "TestContainer",
+							MinAllowed: &model.ResourceList{
+								MetricValues: map[string]float64{},
+							},
+							MaxAllowed: &model.ResourceList{
+								MetricValues: map[string]float64{},
+							},
 							ControlledResource: []string{"cpu"},
 						},
 					},
 				},
 				Status: &model.VerticalPodAutoscalerStatus{
-					LastRecommendedDate: exampleTime.Unix(),
-					Recommendations:     nil,
+					Recommendations: nil,
 				},
 			},
 		},
