@@ -1464,6 +1464,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         ctx.run(f"docker pull --platform linux/{arch} {image}")
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
 
+
 @task
 def test_microvms(ctx, security_groups="", subnets="", instance_type_x86="", instance_type_arm="", destroy=False):
     args = ""
