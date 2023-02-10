@@ -30,6 +30,8 @@ relative_path "lua-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
+  patch source: "nodoc.patch", env: env
+
   # lua compiles in a slightly interesting way, it has minimal configuration options
   # and only provides a makefile. We can't use use `-DLUA_USE_LINUX` or the `make linux`
   # methods because they make the assumption that the readline package has been installed.
