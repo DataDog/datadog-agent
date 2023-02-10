@@ -2145,6 +2145,7 @@
 			"net_device_ifindex_offset": 264,
 			"net_ns_offset": 112,
 			"pid_level_offset": 4,
+			"pid_link_pid_offset": 16,
 			"pid_numbers_offset": 48,
 			"pipe_inode_info_bufs_offset": 120,
 			"sb_magic_offset": 96,
@@ -2153,6 +2154,7 @@
 			"sock_common_skc_family_offset": 16,
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
+			"task_struct_pid_link_offset": 1424,
 			"tty_name_offset": 368,
 			"tty_offset": 376
 		},
@@ -2317,6 +2319,7 @@
 			"net_device_ifindex_offset": 264,
 			"net_ns_offset": 112,
 			"pid_level_offset": 4,
+			"pid_link_pid_offset": 16,
 			"pid_numbers_offset": 48,
 			"pipe_inode_info_bufs_offset": 120,
 			"sb_magic_offset": 96,
@@ -2325,6 +2328,7 @@
 			"sock_common_skc_family_offset": 16,
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
+			"task_struct_pid_link_offset": 1384,
 			"tty_name_offset": 368,
 			"tty_offset": 368
 		},

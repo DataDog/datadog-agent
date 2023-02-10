@@ -206,7 +206,7 @@ u64 __attribute__((always_inline)) get_task_struct_pid_offset() {
     LOAD_CONSTANT("kernel_has_pid_link_struct", kernel_has_pid_link_struct);
 
     u64 task_struct_pid_offset;
-    if (kernel_has_pid_link_struct) { // kernels <= 4.18
+    if (kernel_has_pid_link_struct) { // kernels < 4.19
         u64 task_struct_pid_link_offset;
         LOAD_CONSTANT("task_struct_pid_link_offset", task_struct_pid_link_offset);
         u64 pid_link_pid_offset;

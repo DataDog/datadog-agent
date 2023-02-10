@@ -39,9 +39,9 @@ const (
 	OffsetNamePIDStructLevel    = "pid_level_offset"
 	OffsetNamePIDStructNumbers  = "pid_numbers_offset"
 	OffsetNameDentryStructDSB   = "dentry_sb_offset"
-	OffsetNameTaskStructPID     = "task_struct_pid_offset"      // kernels > 4.18
-	OffsetNameTaskStructPIDLink = "task_struct_pid_link_offset" // kernels <= 4.18
-	OffsetNamePIDLinkStructPID  = "pid_link_pid_offset"         // kernels <= 4.18
+	OffsetNameTaskStructPID     = "task_struct_pid_offset"      // kernels >= 4.19
+	OffsetNameTaskStructPIDLink = "task_struct_pid_link_offset" // kernels < 4.19
+	OffsetNamePIDLinkStructPID  = "pid_link_pid_offset"         // kernels < 4.19
 
 	// splice event
 	OffsetNamePipeInodeInfoStructBufs = "pipe_inode_info_bufs_offset"

@@ -269,7 +269,7 @@ func (k *Version) HaveRingBuffers() bool {
 	return features.HaveMapType(ebpf.RingBuf) == nil
 }
 
-// HavePIDLinkStruct returns whether the kernel uses the pid_link struct.
+// HavePIDLinkStruct returns whether the kernel uses the pid_link struct, which was removed in 4.19
 func (k *Version) HavePIDLinkStruct() bool {
-	return k.Code != 0 && k.Code <= Kernel4_18
+	return k.Code != 0 && k.Code < Kernel4_19 && !k.IsRH8Kernel()
 }
