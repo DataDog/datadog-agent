@@ -42,8 +42,15 @@ build do
   cmake_options = [
     "-DENABLE_PERL=OFF",
     "-DENABLE_PYTHON3=OFF",
+    "-DBZIP2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
+    "-DBZIP2_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libbz2.so",
     "-DGCRYPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DGCRYPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libgcrypt.so",
+    "-DSELINUX_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
+    "-DSELINUX_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libselinux.so",
+    "-DPOPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
+    "-DPOPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpopt.so",
+    "-DRPMIO_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/librpmio.so",
   ]
   cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
 end
