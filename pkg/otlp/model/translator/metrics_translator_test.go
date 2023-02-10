@@ -27,9 +27,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary"
 )
 
 func TestIsCumulativeMonotonic(t *testing.T) {
@@ -357,7 +357,7 @@ func TestMapIntMonotonicReportFirstValue(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
 	consumer := &mockFullConsumer{}
-	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(), consumer)
+	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(false), consumer)
 	startTs := int(getProcessStartTime()) + 1
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -369,6 +369,14 @@ func TestMapIntMonotonicReportFirstValue(t *testing.T) {
 	)
 }
 
+func TestMapIntMonotonicNotReportFirstValueIfStartTSMatchTS(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(true), consumer)
+	assert.Empty(t, consumer.metrics)
+}
+
 func TestMapIntMonotonicReportDiffForFirstValue(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -377,7 +385,7 @@ func TestMapIntMonotonicReportDiffForFirstValue(t *testing.T) {
 	startTs := int(getProcessStartTime()) + 1
 	// Add an entry to the cache about the timeseries, in this case we send the diff (9) rather than the first value (10).
 	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
-	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(), consumer)
+	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(false), consumer)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
@@ -557,7 +565,7 @@ func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
 	consumer := &mockFullConsumer{}
-	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(), consumer)
+	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(false), consumer)
 	startTs := int(getProcessStartTime()) + 1
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -567,6 +575,14 @@ func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
 			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
 		},
 	)
+}
+
+func TestMapDoubleMonotonicNotReportFirstValueIfStartTSMatchTS(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(true), consumer)
+	assert.Empty(t, consumer.metrics)
 }
 
 func TestMapAPMStats(t *testing.T) {
@@ -591,7 +607,7 @@ func TestMapDoubleMonotonicReportDiffForFirstValue(t *testing.T) {
 	startTs := int(getProcessStartTime()) + 1
 	// Add an entry to the cache about the timeseries, in this case we send the diff (9) rather than the first value (10).
 	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
-	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(), consumer)
+	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(false), consumer)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
@@ -710,7 +726,7 @@ const (
 	fallbackHostname = "fallbackHostname"
 )
 
-func createTestIntCumulativeMonotonicMetrics() pmetric.Metrics {
+func createTestIntCumulativeMonotonicMetrics(tsmatch bool) pmetric.Metrics {
 	md := pmetric.NewMetrics()
 	met := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
 	met.SetName(exampleDims.name)
@@ -726,13 +742,17 @@ func createTestIntCumulativeMonotonicMetrics() pmetric.Metrics {
 	for i, val := range values {
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetStartTimestamp(seconds(startTs))
-		dpInt.SetTimestamp(seconds(startTs + i + 1))
+		if tsmatch {
+			dpInt.SetTimestamp(seconds(startTs))
+		} else {
+			dpInt.SetTimestamp(seconds(startTs + i + 1))
+		}
 		dpInt.SetIntValue(val)
 	}
 	return md
 }
 
-func createTestDoubleCumulativeMonotonicMetrics() pmetric.Metrics {
+func createTestDoubleCumulativeMonotonicMetrics(tsmatch bool) pmetric.Metrics {
 	md := pmetric.NewMetrics()
 	met := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
 	met.SetName(exampleDims.name)
@@ -748,7 +768,11 @@ func createTestDoubleCumulativeMonotonicMetrics() pmetric.Metrics {
 	for i, val := range values {
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetStartTimestamp(seconds(startTs))
-		dpInt.SetTimestamp(seconds(startTs + i + 1))
+		if tsmatch {
+			dpInt.SetTimestamp(seconds(startTs))
+		} else {
+			dpInt.SetTimestamp(seconds(startTs + i + 1))
+		}
 		dpInt.SetDoubleValue(val)
 	}
 	return md

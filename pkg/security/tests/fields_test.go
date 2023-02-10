@@ -41,7 +41,7 @@ func TestFieldsResolver(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_fields_open")
 
-			event.ResolveFields(false)
+			event.ResolveFields()
 
 			// rely on validateAbnormalPaths
 		})
@@ -57,7 +57,7 @@ func TestFieldsResolver(t *testing.T) {
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_fields_exec")
 
-			event.ResolveFields(false)
+			event.ResolveFields()
 
 			// rely on validateAbnormalPaths
 		}))

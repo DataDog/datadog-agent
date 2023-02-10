@@ -44,6 +44,7 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 			t.Logf("%s server is ready", serverName)
 			return
 		case <-time.After(time.Second * 60):
+			patternScanner.PrintLogs(t)
 			t.Fatalf("failed to start %s server", serverName)
 			return
 		}

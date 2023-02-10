@@ -130,8 +130,8 @@ func NewGRPCClient(agentName string, agentVersion string, products []data.Produc
 	return newClient(agentName, grpcClient, true, agentVersion, products, pollInterval)
 }
 
-// NewUnverifiedClient creates a new client that does not perform any TUF verification
-func NewUnverifiedClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
+// NewUnverifiedGRPCClient creates a new client that does not perform any TUF verification
+func NewUnverifiedGRPCClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
 	grpcClient, err := NewAgentGRPCConfigFetcher()
 	if err != nil {
 		return nil, err

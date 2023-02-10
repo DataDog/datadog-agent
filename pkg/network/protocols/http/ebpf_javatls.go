@@ -31,6 +31,9 @@ const (
 var (
 	// path to our java USM agent TLS tracer
 	javaUSMAgentJarPath = ""
+
+	// default arguments passed to the injected agent-usm.jar
+	javaUSMAgentArgs = ""
 	// authID is used here as an identifier, simple proof of authenticity
 	// between the injected java process and the ebpf ioctl that receive the payload
 	authID = int64(0)
@@ -49,10 +52,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 		return nil
 	}
 
-	if !c.EnableRuntimeCompiler {
-		log.Errorf("java TLS support requires runtime-compilation to be enabled")
-		return nil
-	}
+	javaUSMAgentArgs = c.JavaAgentArgs
 	javaUSMAgentJarPath = filepath.Join(c.JavaDir, AgentUSMJar)
 	jar, err := os.Open(javaUSMAgentJarPath)
 	if err != nil {
@@ -79,7 +79,12 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdent
 }
 
 func newJavaProcess(pid uint32) {
-	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, strconv.FormatInt(authID, 10)); err != nil {
+	args := javaUSMAgentArgs
+	if len(args) > 0 {
+		args += " "
+	}
+	args += "dd.usm.authID=" + strconv.FormatInt(authID, 10)
+	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
 	}
 }

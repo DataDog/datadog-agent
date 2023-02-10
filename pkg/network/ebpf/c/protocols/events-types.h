@@ -1,7 +1,7 @@
 #ifndef __USM_EVENTS_TYPES_H
 #define __USM_EVENTS_TYPES_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 #define BATCH_BUFFER_SIZE (4*1024)
 #define BATCH_PAGES_PER_CPU 3
