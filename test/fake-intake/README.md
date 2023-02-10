@@ -10,25 +10,25 @@ Exposes a catch-all API for Datadog Agent POST requests.
 
 ### Locally
 
-1. cd to fake-intake root folder
+1. cd to fakeintake root folder
 
 ```bash
 cd ~/dd/datadog-agent/test/fake-intake
 ```
 
-2. Build the fake-intake app
+2. Build the fakeintake app
 
 ```bash
-go build
+go install -o build/fakeintake app/main.go
 ```
 
-3. Run the fake-intake
+3. Run the fakeintake
 
 ```bash
-./fake-intake
+./build/fakeintake
 ```
 
-4. Configure Datadog Agent to use fake intake
+4. Configure Datadog Agent to use fakeintake
 
 ```yaml
 # datadog.yaml
@@ -37,7 +37,7 @@ DD_DD_URL: "http://localhost:8080"
 
 ### Docker
 
-1. cd to fake-intake root folder
+1. cd to fakeintake root folder
 
 ```bash
 cd ~/dd/datadog-agent/test/fake-intake

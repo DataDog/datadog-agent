@@ -10,10 +10,10 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY fakeintake/*.go ./fakeintake/
-COPY *.go ./
+COPY server/*.go ./server/
+COPY app/*.go ./app/
 
-RUN go build -o /build
+RUN go build -o /build app/main.go
 
 ## Deploy
 FROM ubuntu:22.04
