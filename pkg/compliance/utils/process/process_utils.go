@@ -7,6 +7,7 @@ package utils
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -115,7 +116,8 @@ func defaultFetchProcessesWithName(searchedName string) (Processes, error) {
 			return nil, err
 		}
 		envs, err := p.Environ()
-		if err != nil {
+		// NOTE(pierre): security-agent may be executed without the capabilities to get /proc/<pid>/environ
+		if err != nil && !os.IsPermission(err) {
 			return nil, err
 		}
 		table = append(table, NewProcessMetadata(pid, createTime, name, cmdline, envs))
