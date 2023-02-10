@@ -40,7 +40,20 @@ build do
     command "chmod +x /usr/local/bin/triehash"
   end
 
+# Don't rely on dpkg.
+if intel? && _64_bit?
+  arch = 'amd64'
+end
+if arm? && _32_bit?
+  arch = 'arm'
+end
+if arm? && _64_bit?
+  arch = 'arm64'
+end
+
   cmake_options = [
+    "-DCURRENT_VENDOR=ubuntu",
+    "-DCOMMON_ARCH=#{arch}",
     "-DDPKG_DATADIR=/usr/share/dpkg",
     "-DCMAKE_INSTALL_FULL_SYSCONFDIR:PATH=/etc",
     "-DBUILD_STATIC_LIBS=OFF",
