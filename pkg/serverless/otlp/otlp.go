@@ -37,7 +37,11 @@ func NewServerlessOTLPAgent(serializer serializer.MetricSerializer) *ServerlessO
 }
 
 func (o *ServerlessOTLPAgent) Start() {
-	go o.pipeline.Run(context.Background())
+	go func() {
+		if err := o.pipeline.Run(context.Background()); err != nil {
+			log.Errorf("Error running the OTLP pipeline: %s", err)
+		}
+	}()
 }
 
 func (o *ServerlessOTLPAgent) Stop() {
