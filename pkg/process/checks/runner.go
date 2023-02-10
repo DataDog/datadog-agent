@@ -17,7 +17,7 @@ type RunnerConfig struct {
 	CheckInterval time.Duration
 	RtInterval    time.Duration
 
-	ExitChan       <-chan struct{}
+	ExitChan       chan struct{}
 	RtIntervalChan chan time.Duration
 	RtEnabled      func() bool
 	RunCheck       func(options RunOptions)

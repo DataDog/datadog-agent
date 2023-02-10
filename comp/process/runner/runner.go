@@ -12,17 +12,12 @@ import (
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/comp/process/submitter"
-	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	r "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
 
 // runner implements the Component.
 type runner struct {
-	checks    []types.Check
-	submitter submitter.Component
-
 	collector *r.Collector
 }
 
@@ -41,7 +36,7 @@ func newRunner(deps dependencies) (Component, error) {
 		return nil, err
 	}
 
-	// TODO: Inject submitter as a component dependency
+	// TODO: Inject submitter as a component dependency once it is ready
 	c.Submitter, err = r.NewSubmitter(deps.HostInfo.HostName, c.UpdateRTStatus)
 	if err != nil {
 		return nil, err
@@ -74,5 +69,6 @@ func (r *runner) GetChecks() []checks.Check {
 }
 
 func newMock(deps dependencies, t testing.TB) Component {
+	// TODO
 	return nil
 }
