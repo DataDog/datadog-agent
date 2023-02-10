@@ -178,12 +178,6 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 	}
 }
 
-func isSNAT(c *model.Connection) bool {
-	return c.IpTranslation != nil &&
-		(c.IpTranslation.ReplDstIP != c.Laddr.Ip ||
-			c.IpTranslation.ReplDstPort != c.Laddr.Port)
-}
-
 func parseAddrPort(ip string, port uint16) (netip.AddrPort, error) {
 	addr, err := netip.ParseAddr(ip)
 	if err != nil {
