@@ -37,11 +37,14 @@ import (
 )
 
 const (
-	defaultRefreshInterval = 1 * time.Minute
-	minimalRefreshInterval = 5 * time.Second
-	defaultClientsTTL      = 30 * time.Second
-	maxClientsTTL          = 60 * time.Second
-	newClientBlockTTL      = 2 * time.Second
+	defaultRefreshInterval  = 1 * time.Minute
+	minimalRefreshInterval  = 5 * time.Second
+	defaultClientsTTL       = 30 * time.Second
+	maxClientsTTL           = 60 * time.Second
+	newClientBlockTTL       = 2 * time.Second
+	defaultCacheBypassLimit = 5
+	minCacheBypassLimit     = 1
+	maxCacheBypassLimit     = 10
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -178,6 +181,15 @@ func NewService() (*Service, error) {
 	}
 	clock := clock.New()
 
+	clientsCacheBypassLimit := config.Datadog.GetInt("remote_configuration.clients.cache_bypass_limit")
+	if clientsCacheBypassLimit < minCacheBypassLimit || clientsCacheBypassLimit > maxCacheBypassLimit {
+		log.Warnf(
+			"Configured clients cache bypass limit is not within accepted range (%d - %d): %d. Defaulting to %d",
+			minCacheBypassLimit, maxCacheBypassLimit, clientsCacheBypassLimit, defaultCacheBypassLimit,
+		)
+		clientsCacheBypassLimit = defaultCacheBypassLimit
+	}
+
 	return &Service{
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
@@ -196,7 +208,13 @@ func NewService() (*Service, error) {
 		newActiveClients: newActiveClients{
 			clock:    clock,
 			requests: make(chan chan struct{}),
-			until:    time.Now().UTC(),
+
+			// By default, allows for 5 cache bypass every refreshInterval seconds
+			// in addition to the usual refresh.
+			currentWindow: time.Now().UTC(),
+			rate:          refreshInterval,
+			capacity:      clientsCacheBypassLimit,
+			allowance:     clientsCacheBypassLimit,
 		},
 	}, nil
 }
@@ -228,8 +246,7 @@ func (s *Service) Start(ctx context.Context) error {
 				err = s.refresh()
 			// New clients detected, request refresh
 			case response := <-s.newActiveClients.requests:
-				if time.Now().UTC().After(s.newActiveClients.until) {
-					s.newActiveClients.setRateLimit(refreshInterval)
+				if !s.newActiveClients.isLimited() {
 					err = s.refresh()
 				} else {
 					telemetry.CacheBypassRateLimit.Inc()
