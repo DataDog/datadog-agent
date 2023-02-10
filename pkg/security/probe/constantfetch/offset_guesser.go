@@ -10,7 +10,6 @@ package constantfetch
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"os"
 	"os/exec"
@@ -127,7 +126,6 @@ func (og *OffsetGuesser) guessTaskStructPidLinkOffset() (uint64, error) {
 	}
 
 	guessedtaskStructPIDOffset, err := og.guessTaskStructPidOffset()
-	fmt.Printf(">>>> pid struct offset is: %d\n", guessedtaskStructPIDOffset)
 	if err != nil {
 		return ErrorSentinel, err
 	}
@@ -145,7 +143,6 @@ func (og *OffsetGuesser) guess(id string) error {
 		og.res[id] = offset
 	case OffsetNameTaskStructPID:
 		offset, err := og.guessTaskStructPidOffset()
-		fmt.Printf(">>>> pid struct offset is: %d\n", offset)
 		if err != nil {
 			return err
 		}
