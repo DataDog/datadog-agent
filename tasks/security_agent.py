@@ -794,11 +794,10 @@ def print_failed_tests(_, output_dir):
                         json_test = json.loads(line.strip())
                         if 'Test' in json_test:
                             name = json_test['Test']
-                            package = json_test['Package']
                             action = json_test["Action"]
 
                             if action == "fail":
-                                print(f"FAIL: [{test_platform}] [{bundle}] {package} {name}")
+                                print(f"FAIL: [{test_platform}] [{bundle}] {name}")
                                 fail_count += 1
 
     if fail_count > 0:

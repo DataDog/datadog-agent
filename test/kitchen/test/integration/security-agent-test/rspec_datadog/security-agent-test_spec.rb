@@ -4,10 +4,6 @@ require 'kernel_out_spec_helper'
 require 'open3'
 require 'rexml/document'
 
-GOLANG_TEST_FAILURE = /FAIL:/
-# The real package name is security/tests, but setting a custom name because of the useful info
-PKG = "security/functionaltests"
-
 print KernelOut.format(`cat /etc/os-release`)
 print KernelOut.format(`uname -a`)
 
@@ -17,22 +13,6 @@ osr = Hash[*CSV.read("/etc/os-release", col_sep: "=").flatten(1)]
 platform = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
 
 cws_platform = File.read('/tmp/security-agent/cws_platform').strip
-
-def check_output(output, wait_thr, tag="")
-  test_failures = []
-
-  output.each_line do |line|
-    striped_line = line.strip
-    puts KernelOut.format(striped_line, tag)
-    test_failures << KernelOut.format(striped_line, tag) if line =~ GOLANG_TEST_FAILURE
-  end
-
-  if test_failures.empty? && !wait_thr.value.success?
-    test_failures << KernelOut.format("Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured.", tag)
-  end
-
-  test_failures
-end
 
 shared_examples "passes" do |bundle, env|
   after :context do
@@ -48,7 +28,7 @@ shared_examples "passes" do |bundle, env|
   testsuite_file_path = "/tmp/security-agent/tests/testsuite"
   it "tests" do |ex|
     Dir.chdir(File.dirname(testsuite_file_path)) do
-      output_file_name = PKG.gsub("/","-")
+      output_file_name = "#{bundle}-#{platform}-version-#{release}"
 
       xmlpath = "/tmp/junit/#{bundle}/#{output_file_name}.xml"
       jsonpath = "/tmp/pkgjson/#{bundle}/#{output_file_name}.json"
@@ -59,7 +39,7 @@ shared_examples "passes" do |bundle, env|
         "--junitfile", xmlpath,
         "--jsonfile", jsonpath,
         "--raw-command", "--",
-        "/go/bin/test2json", "-t", "-p", PKG
+        "/go/bin/test2json", "-t", "-p", "github.com/DataDog/datadog-agent/pkg/security/tests"
       ]
 
       if bundle == "docker"
@@ -73,10 +53,6 @@ shared_examples "passes" do |bundle, env|
         end
       end
 
-      # TODO (Celia Yuen): delete once SecAgent CI visibility is polished
-      puts cmd
-      puts final_env
-
       Open3.popen2e(final_env, *cmd) do |_, output, wait_thr|
         output.each_line do |line|
           puts KernelOut.format(line.strip)
@@ -84,7 +60,7 @@ shared_examples "passes" do |bundle, env|
       end
 
       xmldoc = REXML::Document.new(File.read(xmlpath))
-      REXML::XPath.each(xmldoc, "//testsuite/testsuite/properties") do |props|
+      REXML::XPath.each(xmldoc, "//testsuites/testsuite/properties") do |props|
         props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
         props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
         props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })
