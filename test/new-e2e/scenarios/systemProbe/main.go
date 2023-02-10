@@ -36,6 +36,6 @@ func main() {
 		return
 	}
 
-	fmt.Println(systemProbeEnv.Arm64InstanceIP)
+	fmt.Println(systemProbeEnv.ARM64InstanceIP)
 	fmt.Println(systemProbeEnv.X86_64InstanceIP)
 }

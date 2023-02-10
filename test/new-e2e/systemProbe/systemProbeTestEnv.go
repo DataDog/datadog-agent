@@ -28,7 +28,7 @@ type TestEnv struct {
 	envName string
 	name    string
 
-	Arm64InstanceIP  string
+	ARM64InstanceIP  string
 	X86_64InstanceIP string
 	StackOutput      auto.UpResult
 }
@@ -125,6 +125,10 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	outputX86, found := upResult.Outputs["x86_64-instance-ip"]
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
+	}
+	outputARM, found = upResult.Outputs["arm64-instance-ip"]
+	if found {
+		systemProbeTestEnv.ARM64InstanceIP = outputARM.Value.(string)
 	}
 
 	return systemProbeTestEnv, nil
