@@ -422,6 +422,7 @@ def test(
     race=False,
     profile=False,
     rtloader_root=None,
+    embedded_path=None,
     python_home_2=None,
     python_home_3=None,
     cpus=0,
@@ -483,6 +484,7 @@ def test(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
+        embedded_path=embedded_path,
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
