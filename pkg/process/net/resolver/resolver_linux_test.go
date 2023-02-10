@@ -9,10 +9,10 @@ import (
 	"os"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -178,12 +178,32 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Port: 1234,
 				},
 				IntraHost: true,
+				Direction: model.ConnectionDirection_incoming,
 			},
 			expectedLaddrID: "foo3",
 			expectedRaddrID: "",
 		},
 		{
-			name: "raddr resolution within same netns (3)",
+			name: "raddr resolution within same netns (1)",
+			conn: &model.Connection{
+				Pid:   3,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				IntraHost: true,
+				Direction: model.ConnectionDirection_incoming,
+			},
+			expectedLaddrID: "foo3",
+			expectedRaddrID: "foo5",
+		},
+		{
+			name: "raddr resolution within same netns (2)",
 			conn: &model.Connection{
 				Pid:   5,
 				NetNS: 3,
@@ -196,6 +216,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Port: 1235,
 				},
 				IntraHost: true,
+				Direction: model.ConnectionDirection_outgoing,
 			},
 			expectedLaddrID: "foo5",
 			expectedRaddrID: "foo3",
