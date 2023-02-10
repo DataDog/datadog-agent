@@ -1116,3 +1116,52 @@ func TestIsValidOID_Unit(t *testing.T) {
 		require.Equal(t, expected, IsValidOID(oid))
 	}
 }
+
+func TestVariableValueFormat(t *testing.T) {
+	data := []struct {
+		description string
+		variable    gosnmp.SnmpPDU
+		expected    interface{}
+	}{
+
+		{
+			description: "type integer is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.Integer, Value: 10},
+			expected:    10,
+		},
+		{
+			description: "type OID is normalized",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.ObjectIdentifier, Value: ".1.3.6.1.6.3.1.1.5.4"},
+			expected:    "1.3.6.1.6.3.1.1.5.4",
+		},
+		{
+			description: "type OID is normalized only if necessary",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.ObjectIdentifier, Value: "1.3.6.1.6.3.1.1.5.4"},
+			expected:    "1.3.6.1.6.3.1.1.5.4",
+		},
+		{
+			description: "type OID with incorrect value shouldn't panic",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.ObjectIdentifier, Value: 1},
+			expected:    1,
+		},
+		{
+			description: "[]byte values are converted to string",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.OctetString, Value: []byte{0x74, 0x65, 0x73, 0x74}},
+			expected:    "test",
+		},
+		{
+			description: "[]byte value is not normalized",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.ObjectIdentifier, Value: []byte{0x2e, 0x74, 0x65, 0x73, 0x74}},
+			expected:    ".test",
+		},
+	}
+
+	for _, d := range data {
+		t.Run(d.description, func(t *testing.T) {
+			actual := formatValue(d.variable)
+			if diff := cmp.Diff(d.expected, actual); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}
