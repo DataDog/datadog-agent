@@ -261,11 +261,10 @@ func TestGetSNMPConfigDefault(t *testing.T) {
 	input := SNMPConfig{}
 	SetDefault(&input)
 	Exoutput := SNMPConfig{
-		Version:         "2",
-		CommunityString: "public",
-		Port:            161,
-		Timeout:         10,
-		Retries:         3,
+		Version: "2",
+		Port:    161,
+		Timeout: 2,
+		Retries: 3,
 	}
 	assert.Equal(t, Exoutput, input)
 

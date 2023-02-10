@@ -49,9 +49,8 @@ type SNMPConfig struct {
 func SetDefault(sc *SNMPConfig) {
 	sc.Port = 161
 	sc.Version = "2"
-	sc.Timeout = 10
+	sc.Timeout = 2
 	sc.Retries = 3
-	sc.CommunityString = "public"
 
 }
 
