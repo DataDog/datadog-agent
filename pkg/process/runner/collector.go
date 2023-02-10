@@ -398,6 +398,10 @@ func (l *Collector) Stop() {
 	l.Submitter.Stop()
 }
 
+func (l *Collector) GetChecks() []checks.Check {
+	return l.enabledChecks
+}
+
 // getContainerCount returns the number of containers in the message body
 func getContainerCount(mb model.MessageBody) int {
 	switch v := mb.(type) {

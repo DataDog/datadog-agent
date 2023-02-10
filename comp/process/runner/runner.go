@@ -14,7 +14,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	r "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
@@ -31,12 +30,13 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
+	Checks   []checks.Check
 	HostInfo *checks.HostInfo
 	SysCfg   *sysconfig.Config
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := r.NewCollector(deps.SysCfg, deps.HostInfo, r.GetChecks(deps.SysCfg, ddconfig.IsAnyContainerFeaturePresent()))
+	c, err := r.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks)
 	if err != nil {
 		return nil, err
 	}
@@ -68,11 +68,11 @@ func (r *runner) Stop(context.Context) error {
 	return nil
 }
 
-func (r *runner) GetChecks() []types.Check {
-	return r.checks
+func (r *runner) GetChecks() []checks.Check {
+	// TODO: Change this to use `types.Check` once checks are migrated to components
+	return r.collector.GetChecks()
 }
 
 func newMock(deps dependencies, t testing.TB) Component {
-	// TODO
 	return nil
 }

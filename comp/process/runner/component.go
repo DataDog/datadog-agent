@@ -8,10 +8,10 @@ package runner
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,7 +19,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	GetChecks() []types.Check
+	GetChecks() []checks.Check
 	Run(ctx context.Context) error
 }
 

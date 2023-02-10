@@ -266,6 +266,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		fx.Supply(
 			syscfg,
 			hostInfo,
+			enabledChecks,
 		),
 		runnerComp.Module,
 
