@@ -11,6 +11,7 @@ COPY go.sum ./
 RUN go mod download
 
 COPY server/*.go ./server/
+COPY api/*.go ./api/
 COPY app/*.go ./app/
 
 RUN go build -o /build app/main.go

@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 type payload struct {
@@ -134,10 +136,6 @@ func buildPostResponse(responseError error) httpResponse {
 	return ret
 }
 
-type getPayloadResponse struct {
-	Payloads [][]byte `json:"payloads"`
-}
-
 func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
 	routes := req.URL.Query()["endpoint"]
 	if len(routes) == 0 {
@@ -154,7 +152,7 @@ func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
 	payloads := fi.safeGetPayloads(route)
 
 	// build response
-	resp := getPayloadResponse{
+	resp := api.GetPayloadResponse{
 		Payloads: payloads,
 	}
 	jsonResp, err := json.Marshal(resp)

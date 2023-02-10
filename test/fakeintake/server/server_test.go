@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,10 +58,10 @@ func TestServer(t *testing.T) {
 		fi.getPayloads(response, request)
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 
-		expectedResponse := getPayloadResponse{
+		expectedResponse := api.GetPayloadResponse{
 			Payloads: [][]byte{},
 		}
-		actualResponse := getPayloadResponse{}
+		actualResponse := api.GetPayloadResponse{}
 		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading response")
 		json.Unmarshal(body, &actualResponse)
@@ -108,13 +109,13 @@ func TestServer(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
-		expectedGETResponse := getPayloadResponse{
+		expectedGETResponse := api.GetPayloadResponse{
 			Payloads: [][]byte{
 				[]byte("totoro|5|tag:valid,owner:pducolin"),
 				[]byte("totoro|7|tag:valid,owner:pducolin"),
 			},
 		}
-		actualGETResponse := getPayloadResponse{}
+		actualGETResponse := api.GetPayloadResponse{}
 		body, err := io.ReadAll(getResponse.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
