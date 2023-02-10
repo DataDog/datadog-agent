@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/alecthomas/units"
 	lib "github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
@@ -538,7 +539,10 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 				return fmt.Errorf("failed to retrieve ring buffer usage for '%s'", perfMapName)
 			}
 
-			if err := client.Gauge(metrics.MetricPerfBufferBytesFree, float64(statsMap.ebpfRingBufferMap.capacity-ringUsage), []string{pbm.config.StatsTagsCardinality, mapNameTag}, 1.0); err != nil {
+			// The capacity of ring buffer has to be a power of 2 and a multiple of 4096,
+			// the cardinality is low so we use it as a tag.
+			tags := []string{pbm.config.StatsTagsCardinality, mapNameTag, units.ToString(int64(statsMap.ebpfRingBufferMap.capacity), 1024, "", "M")}
+			if err := client.Gauge(metrics.MetricPerfBufferBytesFree, float64(statsMap.ebpfRingBufferMap.capacity-ringUsage), tags, 1.0); err != nil {
 				return err
 			}
 		}
