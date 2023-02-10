@@ -12,21 +12,20 @@ version("1.3.7") { source sha256: "a74f5bfb420b748916d2f88941bb6e04cad4c67a4cafc
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
-dependency 'xmlsec'
-dependency 'popt'
-dependency 'curl'
-dependency 'pcre'
-dependency 'libxslt'
-dependency 'libyaml'
-dependency 'libgcrypt'
-dependency 'bzip2'
-dependency 'rpm'
-dependency 'libacl'
+dependency 'apt'
 dependency 'attr'
+dependency 'bzip2'
+dependency 'curl'
+dependency 'libacl'
+dependency 'libgcrypt'
 dependency 'libselinux'
 dependency 'libsepol'
-dependency 'apt'
-dependency 'libdb'
+dependency 'libxslt'
+dependency 'libyaml'
+dependency 'pcre'
+dependency 'popt'
+dependency 'rpm'
+dependency 'xmlsec'
 
 relative_path "openscap-#{version}"
 
