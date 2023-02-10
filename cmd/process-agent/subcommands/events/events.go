@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
@@ -86,14 +85,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func bootstrapEventsCmd(cliParams *cliParams) error {
-	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
-
 	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
 	// Load system-probe.yaml file and merge it to the global Datadog config
-	_, err := sysconfig.Merge(cliParams.SysProbeConfFilePath)
+	_, err := sysconfig.New(cliParams.SysProbeConfFilePath)
 	if err != nil {
 		return log.Critical(err)
 	}

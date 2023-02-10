@@ -153,10 +153,11 @@ build_processed_btfhub_archive:
         eval "mv ${dir}/arm64/*.btf.tar.xz btfs-arm64/${platform}/"
       done
     # Handle the these directories separately because they don't have an arm64 version
-    - x64dirs=("amzn/2018" "fedora/24" "fedora/25" "fedora/26" "fedora/27")
+    - x64dirs=("amzn/2018" "fedora/24" "fedora/25" "fedora/26" "fedora/27" "sles/12.3" "sles/12.5" "sles/15.3")
     - |
       for xdir in ${x64dirs[@]}; do
         platform=${xdir%%/*}
+        mkdir -p "btfs-amd64/${platform}"
         eval "mv ${xdir}/x86_64/*.btf.tar.xz btfs-amd64/${platform}"
       done
     # Handle ubuntu separately because we want to keep the btfs separated by ubuntu version

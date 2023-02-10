@@ -12,6 +12,18 @@ System Probe
 {{- end }}
 {{- if .network_tracer }}
 
+  USM
+  ===
+  {{- if .network_tracer.universal_service_monitoring.Error }}
+    Status: Not running
+    Error: {{ .network_tracer.universal_service_monitoring.Error }}
+  {{- else }}
+    Status: Running
+    {{- if .network_tracer.universal_service_monitoring.last_check }}
+    Last Check: {{ formatUnixTime .network_tracer.universal_service_monitoring.last_check }}
+    {{- end }}
+  {{- end }}
+
   NPM
   ===
   {{- if .network_tracer.Error }}

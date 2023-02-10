@@ -8,7 +8,6 @@ package eval
 import (
 	"sync"
 	"time"
-	"unsafe"
 )
 
 // Context describes the context used during a rule evaluation
@@ -18,7 +17,9 @@ type Context struct {
 	Registers Registers
 
 	// cache available across all the evaluations
-	Cache map[string]unsafe.Pointer
+	StringCache map[string][]string
+	IntCache    map[string][]int
+	BoolCache   map[string][]bool
 
 	now time.Time
 }
@@ -43,16 +44,24 @@ func (c *Context) Reset() {
 	c.now = time.Time{}
 
 	// as the cache should be low in entry, prefer to delete than re-alloc
-	for key := range c.Cache {
-		delete(c.Cache, key)
+	for key := range c.StringCache {
+		delete(c.StringCache, key)
+	}
+	for key := range c.IntCache {
+		delete(c.IntCache, key)
+	}
+	for key := range c.BoolCache {
+		delete(c.BoolCache, key)
 	}
 }
 
 // NewContext return a new Context
 func NewContext(evt Event) *Context {
 	return &Context{
-		Event: evt,
-		Cache: make(map[string]unsafe.Pointer),
+		Event:       evt,
+		StringCache: make(map[string][]string),
+		IntCache:    make(map[string][]int),
+		BoolCache:   make(map[string][]bool),
 	}
 }
 

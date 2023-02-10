@@ -2,7 +2,7 @@ default_language_version:
   python: python3
 
 repos:
-- repo: https://gitlab.com/pycqa/flake8
+- repo: https://github.com/pycqa/flake8
   rev: 3.9.2 # should match major Python version
   hooks:
     - id: flake8

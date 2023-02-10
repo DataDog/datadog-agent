@@ -34,10 +34,6 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_endpoint_address_not_ready":                                                          "endpoint.address_not_ready",
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
-		"kube_pod_container_resource_requests_cpu_cores":                                           "container.cpu_requested",
-		"kube_pod_container_resource_limits_cpu_cores":                                             "container.cpu_limit",
-		"kube_pod_container_resource_limits_memory_bytes":                                          "container.memory_limit",
-		"kube_pod_container_resource_requests_memory_bytes":                                        "container.memory_requested",
 		"kube_persistentvolumeclaim_status_phase":                                                  "persistentvolumeclaim.status",
 		"kube_persistentvolumeclaim_access_mode":                                                   "persistentvolumeclaim.access_mode",
 		"kube_persistentvolumeclaim_resource_requests_storage_bytes":                               "persistentvolumeclaim.request_storage",
@@ -129,23 +125,8 @@ func defaultLabelsMapper() map[string]string {
 	}
 }
 
-// defaultLabelsMapperByResourceKind returns a map that contains the default labels to tag names by resource kind mapping
-func defaultLabelsMapperByResourceKind() map[string]map[string]string {
-	return map[string]map[string]string{
-		"pod": {
-			"phase": "pod_phase",
-		},
-		"ingress": {
-			"host":         "kube_ingress_host",
-			"path":         "kube_ingress_path",
-			"service_name": "kube_service",
-			"service_port": "kube_service_port",
-		},
-	}
-}
-
 // defaultLabelJoins returns a map that contains the default label joins configuration
-func defaultLabelJoins() map[string]*JoinsConfig {
+func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 	defaultStandardLabels := []string{
 		// Standard Datadog labels
 		"label_tags_datadoghq_com_env",
@@ -164,7 +145,7 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 		"label_helm_sh_chart",
 	}
 
-	return map[string]*JoinsConfig{
+	return map[string]*JoinsConfigWithoutLabelsMapping{
 		"kube_pod_status_phase": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"phase"},
