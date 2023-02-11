@@ -11,7 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // InitConfig is used to deserialize integration init config.
@@ -28,6 +27,8 @@ type InstanceConfig struct {
 	Protocol    string `yaml:"protocol"`
 	Username    string `yaml:"username"`
 	Password    string `yaml:"password"`
+	TnsAlias    string `yaml:"tns_alias"`
+	TnsAdmin    string `yaml:"tns_admin"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -49,7 +50,6 @@ Protocol: '%s'
 
 // NewCheckConfig builds a new check config.
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
-	log.Infof("NewCHeckConfig")
 	instance := InstanceConfig{}
 	initCfg := InitConfig{}
 
