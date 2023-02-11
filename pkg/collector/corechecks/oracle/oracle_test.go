@@ -8,6 +8,7 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,8 @@ var PORT = 1521
 var USER = "c##datadog"
 var PASSWORD = "datadog"
 var SERVICE_NAME = "XE"
+var TNS_ALIAS = "XE"
+var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/testutil/etc/netadmin"
 
 func TestBasic(t *testing.T) {
 	chk := Check{}
@@ -36,7 +39,9 @@ port: %d
 username: %s
 password: %s
 service_name: %s
-`, HOST, PORT, USER, PASSWORD, SERVICE_NAME))
+tns_alias: %s
+tns_admin: %s
+`, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
 
 	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
@@ -46,6 +51,8 @@ service_name: %s
 	assert.Equal(t, chk.config.InstanceConfig.Username, USER)
 	assert.Equal(t, chk.config.InstanceConfig.Password, PASSWORD)
 	assert.Equal(t, chk.config.InstanceConfig.ServiceName, SERVICE_NAME)
+	assert.Equal(t, chk.config.InstanceConfig.TnsAlias, TNS_ALIAS)
+	assert.Equal(t, chk.config.InstanceConfig.TnsAdmin, TNS_ADMIN)
 }
 
 func TestConnectionGoOra(t *testing.T) {
@@ -59,8 +66,15 @@ func TestConnectionGoOra(t *testing.T) {
 
 }
 
-func TestConnectionGodror(t *testing.T) {
-	databaseUrl := fmt.Sprintf("%s/%s@%s:%d/%s", USER, PASSWORD, HOST, PORT, SERVICE_NAME)
-	_, err := sqlx.Connect("godror", databaseUrl)
-	assert.NoError(t, err)
+func TestConnectionGodrorClassic(t *testing.T) {
+	_, tnsAdminSet := os.LookupEnv("TNS_ADMIN")
+	if tnsAdminSet {
+		databaseUrl := fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, USER, PASSWORD, TNS_ALIAS)
+		_, err := sqlx.Connect("godror", databaseUrl)
+		assert.NoError(t, err)
+	} else {
+		databaseUrl := fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
+		_, err := sqlx.Connect("godror", databaseUrl)
+		assert.NoError(t, err)
+	}
 }
