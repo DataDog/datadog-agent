@@ -207,12 +207,12 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 		if config.Datadog.Get("kubernetes_kubelet_nodename") != "" {
 			kubeletPathPrefix = fmt.Sprintf("/api/v1/nodes/%s/proxy", kubeletNodeName)
-			apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
+			apiServerIP := os.Getenv("KUBERNETES_SERVICE_HOST")
 
 			potentialHosts = &connectionInfo{
-				hostnames: []string{apiServerHost},
+				ips: []string{apiServerIP},
 			}
-			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerHost, kubeletHTTPSPort, kubeletPathPrefix)
+			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerIP, kubeletHTTPSPort, kubeletPathPrefix)
 		} else {
 			return nil, errors.New("kubelet proxy mode enabled but nodename is empty - unable to query")
 		}
