@@ -5,22 +5,14 @@
 # Copyright (C) 2020-present Datadog
 #
 
-if node['platform_family'] != 'windows'
-  wrk_dir = '/tmp/security-agent'
+cookbook_file "#{node['common']['work_dir']}/tests/stresssuite" do
+  source "stresssuite"
+  mode '755'
+end
 
-  directory wrk_dir do
-    recursive true
-  end
-
-  cookbook_file "#{wrk_dir}/tests/stresssuite" do
-    source "stresssuite"
-    mode '755'
-  end
-
-  ['polkit', 'unattended-upgrades', 'snapd', 'cron', 'walinuxagent',
-   'multipathd', 'rsyslog', 'atd', 'chronyd', 'hv-kvp-daemon'].each do |s|
-    service s do
-        action :stop
-    end
+['polkit', 'unattended-upgrades', 'snapd', 'cron', 'walinuxagent',
+ 'multipathd', 'rsyslog', 'atd', 'chronyd', 'hv-kvp-daemon'].each do |s|
+  service s do
+      action :stop
   end
 end
