@@ -202,10 +202,10 @@ static __always_inline bool validate_first_topic_name(struct __sk_buff *skb, u32
     CHECK_STRING_COMPOSED_OF_ASCII(TOPIC_NAME_MAX_STRING_SIZE, topic_name_size, topic_name);
 }
 
-// Trying to parse a produce request.
-static __always_inline bool try_parse_produce_request(const kafka_header_t *kafka_header, struct __sk_buff *skb, u32 offset) {
+// Getting the offset (out parameter) of the first topic name in the produce request.
+static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, struct __sk_buff *skb, u32 *out_offset) {
     const s16 api_version = kafka_header->api_version;
-
+    u32 offset = *out_offset;
     if (api_version >= 3) {
         READ_BIG_ENDIAN_WRAPPER(s16, transactional_id_size, skb, offset);
         if (transactional_id_size > 0) {
@@ -226,15 +226,16 @@ static __always_inline bool try_parse_produce_request(const kafka_header_t *kafk
         return false;
     }
 
-    return validate_first_topic_name(skb, offset);
+    *out_offset = offset;
+    return true;
 }
 
-// Trying to parse a fetch request.
-static __always_inline bool try_parse_fetch_request(const kafka_header_t *kafka_header, struct __sk_buff *skb, u32 offset) {
+// Getting the offset the topic name in the fetch request.
+static __always_inline u32 get_topic_offset_from_fetch_request(const kafka_header_t *kafka_header, struct __sk_buff *skb) {
     // replica_id => INT32
     // max_wait_ms => INT32
     // min_bytes => INT32
-    offset += 3 * sizeof(s32);
+    u32 offset = 3 * sizeof(s32);
 
     if (kafka_header->api_version >= 3) {
         // max_bytes => INT32
@@ -250,19 +251,27 @@ static __always_inline bool try_parse_fetch_request(const kafka_header_t *kafka_
         }
     }
 
-    return validate_first_topic_name(skb, offset);
+    return offset;
 }
 
 // Calls the relevant function, according to the api_key.
 static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header, struct __sk_buff *skb, u32 offset) {
+    // Due to old-verifiers limitations, if the request is fetch or produce, we are calculating the offset of the topic
+    // name in the request, and then validate the topic. We have to have shared call for validate_first_topic_name
+    // as the function is huge, rather than call validate_first_topic_name for each api_key.
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
-        return try_parse_produce_request(kafka_header, skb, offset);
+        if (!get_topic_offset_from_produce_request(kafka_header, skb, &offset)) {
+            return false;
+        }
+        break;
     case KAFKA_FETCH:
-        return try_parse_fetch_request(kafka_header, skb, offset);
+        offset += get_topic_offset_from_fetch_request(kafka_header, skb);
+        break;
     default:
         return false;
     }
+    return validate_first_topic_name(skb, offset);
 }
 
 // Checks if the packet represents kafka communication.
