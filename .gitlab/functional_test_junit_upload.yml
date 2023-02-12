@@ -2,6 +2,9 @@ functional_test_junit_upload:
   # Uncomment this to only run junit uploads on main/stable branches
   # rules:
   #   !reference [.on_main_or_release_branch]
+  rules:
+    - !reference [ .on_system_probe_changes_or_manual ]
+    - !reference [ .on_security_agent_changes_or_manual ]
   when: always
   stage: functional_test_junit_upload
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_AGENT_BUILDIMAGES
