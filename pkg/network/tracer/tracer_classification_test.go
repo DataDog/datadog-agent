@@ -175,7 +175,6 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 		return fmt.Sprintf("%s-%d", topicName, testIndex)
 	}
 
-	cfg.BPFDebug = true
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -201,7 +200,6 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 		require.NoError(t, client.DeleteTopic(ctx.extras["topic_name"].(string)))
 	}
 
-	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
 	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
 	kafka.RunServer(t, serverHost, kafkaPort)
@@ -376,7 +374,6 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 		client.DropDB()
 	}
 
-	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
 	targetAddress := net.JoinHostPort(targetHost, mysqlPort)
 	mysql.RunServer(t, serverHost, mysqlPort)

@@ -236,20 +236,18 @@ static __always_inline bool try_parse_fetch_request(const kafka_header_t *kafka_
     // min_bytes => INT32
     offset += 3 * sizeof(s32);
 
-    if (kafka_header->api_version >= 7) {
-        // session_id => INT32
-        // session_epoch => INT32
-        offset += 2 * sizeof(s32);
-    }
-
-    if (kafka_header->api_version >= 4) {
-        // isolation_level => INT8
-        offset += sizeof(s8);
-    }
-
     if (kafka_header->api_version >= 3) {
         // max_bytes => INT32
         offset += sizeof(s32);
+        if (kafka_header->api_version >= 4) {
+            // isolation_level => INT8
+            offset += sizeof(s8);
+            if (kafka_header->api_version >= 7) {
+                // session_id => INT32
+                // session_epoch => INT32
+                offset += 2 * sizeof(s32);
+            }
+        }
     }
 
     return validate_first_topic_name(skb, offset);
