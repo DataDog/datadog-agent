@@ -6,7 +6,7 @@
 #
 
 cookbook_file "#{node['common']['work_dir']}/tests/stresssuite" do
-  source "stresssuite"
+  source "tests/stresssuite"
   mode '755'
 end
 
