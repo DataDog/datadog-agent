@@ -777,6 +777,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
 
 
+# print_failed_tests is run at the end of the platform functional test Gitlab job to print failed tests
 @task
 def print_failed_tests(_, output_dir):
     fail_count = 0

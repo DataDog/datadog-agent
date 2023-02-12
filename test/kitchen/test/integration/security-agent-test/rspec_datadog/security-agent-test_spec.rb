@@ -16,12 +16,12 @@ cws_platform = File.read('/tmp/security-agent/cws_platform').strip
 
 shared_examples "passes" do |bundle, env|
   after :context do
-    # Combine all the /tmp/pkgjson/#{bundle}.json files into one /tmp/testjson/#{bundle}.json file
+    # Combine all the /tmp/pkgjson/#{bundle}.json files into one /tmp/testjson/#{bundle}.json file, which is then used to print failed tests at the end of the functional test Gitlab job
     print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
   end
 
   base_env = {
-    "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
+#     "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
   }
   final_env = base_env.merge(env)
 
@@ -33,6 +33,9 @@ shared_examples "passes" do |bundle, env|
       xmlpath = "/tmp/junit/#{bundle}/#{output_file_name}.xml"
       jsonpath = "/tmp/pkgjson/#{bundle}/#{output_file_name}.json"
 
+      # The package name has to be the real path in order to use agent-platform's CODEOWNER parsing downstream
+      # The junitfiles are uploaded to the Datadog CI Visibility product, and for downloading
+      # The json files are used to print failed tests at the end of the Gitlab job
       gotestsum_test2json_cmd = ["sudo", "-E",
         "/go/bin/gotestsum",
         "--format", "pkgname",
@@ -84,7 +87,6 @@ describe "security-agent" do
     context 'functional tests running directly on host' do
       env = {
         "DD_TESTS_RUNTIME_COMPILED"=>"1",
-        "DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED"=>"true"
       }
       include_examples "passes", "host", env
     end
@@ -98,7 +100,6 @@ describe "security-agent" do
       env = {
         "DEDICATED_ACTIVITY_DUMP_NODE"=>"1",
         "DD_TESTS_RUNTIME_COMPILED"=>"1",
-        "DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED"=>"true"
       }
       include_examples "passes", "ad", env
     end
