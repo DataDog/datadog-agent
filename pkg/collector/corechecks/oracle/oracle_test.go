@@ -8,7 +8,6 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +17,6 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 
 	_ "github.com/godror/godror"
-	"github.com/jmoiron/sqlx"
 )
 
 var HOST = "localhost"
@@ -56,7 +54,6 @@ tns_admin: %s
 }
 
 func TestConnectionGoOra(t *testing.T) {
-	//databaseUrl := go_ora.BuildUrl("localhost", 1521, "XE", "c##datadog", "datadog", nil)
 	databaseUrl := go_ora.BuildUrl(HOST, PORT, SERVICE_NAME, USER, PASSWORD, nil)
 	conn, err := sql.Open("oracle", databaseUrl)
 	assert.NoError(t, err)
@@ -66,6 +63,18 @@ func TestConnectionGoOra(t *testing.T) {
 
 }
 
+func TestConnection(t *testing.T) {
+	databaseUrl := fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, USER, PASSWORD, TNS_ALIAS)
+	_, err := sql.Open("godror", databaseUrl)
+	assert.NoError(t, err)
+
+	databaseUrl = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
+	_, err = sql.Open("godror", databaseUrl)
+	assert.NoError(t, err)
+
+}
+
+/*
 func TestConnectionGodrorClassic(t *testing.T) {
 	_, tnsAdminSet := os.LookupEnv("TNS_ADMIN")
 	if tnsAdminSet {
@@ -78,3 +87,4 @@ func TestConnectionGodrorClassic(t *testing.T) {
 		assert.NoError(t, err)
 	}
 }
+*/
