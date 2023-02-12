@@ -85,15 +85,22 @@ func TestSanity(t *testing.T) {
 	time.Sleep(time.Second * 2)
 
 	kafkaStats := monitor.GetKafkaStats()
-	// We expect 2 occurrences for each connection as we are working with a docker for now
+	// We expect 2 occurrences for each connection as we are working with a docker
 	require.Equal(t, 4, len(kafkaStats))
-	for _, kafkaStat := range kafkaStats {
+	numberOfProduceRequests := 0
+	numberOfFetchRequests := 0
+	for kafkaKey, kafkaStat := range kafkaStats {
 		// When the ctxTimeout is configured with 10 seconds, we get 2 fetches from this client
-		produceRequestsCount := kafkaStat.Data[ProduceAPIKey].Count
-		fetchRequestsCount := kafkaStat.Data[FetchAPIKey].Count
-		kafkaStatIsOK := produceRequestsCount == 1 || fetchRequestsCount == 1
-		require.True(t, kafkaStatIsOK, "Number of produce requests: %d, number of fetch requests: %d", produceRequestsCount, fetchRequestsCount)
+		if kafkaKey.RequestAPIKey == ProduceAPIKey {
+			numberOfProduceRequests += kafkaStat.Count
+		} else if kafkaKey.RequestAPIKey == FetchAPIKey {
+			numberOfFetchRequests += kafkaStat.Count
+		} else {
+			require.FailNow(t, "Expecting only produce or fetch kafka requests")
+		}
 	}
+	kafkaStatIsOK := numberOfProduceRequests == 2 || numberOfFetchRequests == 2
+	require.True(t, kafkaStatIsOK, "Number of produce requests: %d, number of fetch requests: %d", numberOfProduceRequests, numberOfFetchRequests)
 }
 
 // This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
@@ -168,10 +175,12 @@ func TestProduceClientIdEmptyString(t *testing.T) {
 	kafkaStats := monitor.GetKafkaStats()
 	// We expect 2 occurrences for each connection as we are working with a docker for now
 	require.Equal(t, 2, len(kafkaStats))
-	for _, kafkaStat := range kafkaStats {
-		// When the ctxTimeout is configured with 10 seconds, we get 2 fetches from this client
-		produceRequestsCount := kafkaStat.Data[ProduceAPIKey].Count
+	for kafkaKey, kafkaStat := range kafkaStats {
+		if kafkaKey.RequestAPIKey != ProduceAPIKey {
+			require.FailNow(t, "Expecting only produce requests")
+		}
+		produceRequestsCount := kafkaStat.Count
 		kafkaStatIsOK := produceRequestsCount == 1
-		require.True(t, kafkaStatIsOK, "Number of produce requests: %d", produceRequestsCount)
+		require.True(t, kafkaStatIsOK, "Number of produce kafka requests: %d", produceRequestsCount)
 	}
 }

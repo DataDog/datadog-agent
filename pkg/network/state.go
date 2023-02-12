@@ -47,7 +47,7 @@ type State interface {
 		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
 		http map[http.Key]*http.RequestStats,
-		kafka map[kafka.Key]*kafka.RequestStats,
+		kafka map[kafka.Key]*kafka.RequestStat,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -83,7 +83,7 @@ type State interface {
 type Delta struct {
 	BufferedData
 	HTTP     map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStats
+	Kafka    map[kafka.Key]*kafka.RequestStat
 	DNSStats dns.StatsByKeyByNameByType
 }
 
@@ -111,7 +111,7 @@ type client struct {
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
-	kafkaStatsDelta map[kafka.Key]*kafka.RequestStats
+	kafkaStatsDelta map[kafka.Key]*kafka.RequestStat
 	lastTelemetries map[ConnTelemetryType]int64
 }
 
@@ -125,7 +125,7 @@ func (c *client) Reset(active map[uint32]*ConnectionStats) {
 	c.closedConnectionsKeys = make(map[uint32]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
-	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
+	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStat)
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
@@ -209,7 +209,7 @@ func (ns *networkState) GetDelta(
 	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
 	httpStats map[http.Key]*http.RequestStats,
-	kafkaStats map[kafka.Key]*kafka.RequestStats,
+	kafkaStats map[kafka.Key]*kafka.RequestStat,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
@@ -488,7 +488,7 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 }
 
 // storeKafkaStats stores the latest Kafka stats for all clients
-func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStats) {
+func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStat) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
 			if len(client.kafkaStatsDelta) == 0 {
@@ -530,7 +530,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		closedConnectionsKeys: make(map[uint32]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
 		httpStatsDelta:        map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta:       map[kafka.Key]*kafka.RequestStats{},
+		kafkaStatsDelta:       map[kafka.Key]*kafka.RequestStat{},
 		lastTelemetries:       make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c

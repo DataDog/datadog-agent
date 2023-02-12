@@ -14,7 +14,7 @@ import (
 )
 
 type kafkaStatKeeper struct {
-	stats      map[Key]*RequestStats
+	stats      map[Key]*RequestStat
 	statsMutex sync.RWMutex
 	maxEntries int
 	telemetry  *telemetry
@@ -22,7 +22,7 @@ type kafkaStatKeeper struct {
 
 func newKafkaStatkeeper(c *config.Config, telemetry *telemetry) *kafkaStatKeeper {
 	return &kafkaStatKeeper{
-		stats:      make(map[Key]*RequestStats),
+		stats:      make(map[Key]*RequestStat),
 		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
 	}
@@ -34,6 +34,9 @@ func (statKeeper *kafkaStatKeeper) Process(tx *ebpfKafkaTx) {
 
 func (statKeeper *kafkaStatKeeper) add(transaction *ebpfKafkaTx) {
 	key := Key{
+		RequestAPIKey:  transaction.Request_api_key,
+		RequestVersion: transaction.Request_api_version,
+		TopicName:      transaction.TopicName(),
 		KeyTuple: KeyTuple{
 			SrcIPHigh: transaction.SrcIPHigh(),
 			SrcIPLow:  transaction.SrcIPLow(),
@@ -42,7 +45,6 @@ func (statKeeper *kafkaStatKeeper) add(transaction *ebpfKafkaTx) {
 			DstIPLow:  transaction.DstIPLow(),
 			DstPort:   transaction.DstPort(),
 		},
-		TopicName: transaction.TopicName(),
 	}
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()
@@ -52,23 +54,16 @@ func (statKeeper *kafkaStatKeeper) add(transaction *ebpfKafkaTx) {
 			statKeeper.telemetry.dropped.Add(1)
 			return
 		}
-		requestStats = new(RequestStats)
+		requestStats = new(RequestStat)
 		statKeeper.stats[key] = requestStats
 	}
-	// Need to create both stats so either of them will not be nil at the end of the process
-	if requestStats.Data[ProduceAPIKey] == nil {
-		requestStats.Data[ProduceAPIKey] = new(RequestStat)
-	}
-	if requestStats.Data[FetchAPIKey] == nil {
-		requestStats.Data[FetchAPIKey] = new(RequestStat)
-	}
-	requestStats.Data[transaction.APIKey()].Count++
+	requestStats.Count++
 }
 
-func (statKeeper *kafkaStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+func (statKeeper *kafkaStatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 	statKeeper.statsMutex.RLock()
 	defer statKeeper.statsMutex.RUnlock()
 	ret := statKeeper.stats // No deep copy needed since `statKeeper.stats` gets reset
-	statKeeper.stats = make(map[Key]*RequestStats)
+	statKeeper.stats = make(map[Key]*RequestStat)
 	return ret
 }

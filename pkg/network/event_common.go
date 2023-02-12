@@ -132,7 +132,7 @@ type Connections struct {
 	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
 	HTTP                        map[http.Key]*http.RequestStats
-	Kafka                       map[kafka.Key]*kafka.RequestStats
+	Kafka                       map[kafka.Key]*kafka.RequestStat
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 

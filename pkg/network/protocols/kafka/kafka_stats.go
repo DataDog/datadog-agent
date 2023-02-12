@@ -27,7 +27,9 @@ type KeyTuple struct {
 
 // Key is an identifier for a group of Kafka transactions
 type Key struct {
-	TopicName string
+	RequestAPIKey  uint16
+	RequestVersion uint16
+	TopicName      string
 	KeyTuple
 }
 
@@ -55,19 +57,18 @@ func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
 
 const NumOfAPIKeys = 2
 
-// RequestStats stores stats for KAFKA requests to a particular path
-type RequestStats struct {
-	Data [NumOfAPIKeys]*RequestStat
-}
+//// RequestStats stores stats for Kafka requests to a particular path
+//type RequestStats struct {
+//	RequestStat
+//}
 
-// RequestStat stores stats for Kafka requests to a particular path
+// RequestStat stores stats for Kafka requests to a particular key
 type RequestStat struct {
 	Count int
 }
 
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
-func (r *RequestStats) CombineWith(newStats *RequestStats) {
-	r.Data[ProduceAPIKey].Count += newStats.Data[ProduceAPIKey].Count
-	r.Data[FetchAPIKey].Count += newStats.Data[FetchAPIKey].Count
+func (r *RequestStat) CombineWith(newStats *RequestStat) {
+	r.Count += newStats.Count
 }

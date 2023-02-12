@@ -99,15 +99,10 @@ func (e *kafkaEncoder) GetKafkaAggregations(c network.ConnectionStats) *model.Da
 }
 
 func (e *kafkaEncoder) buildAggregations(payload *network.Connections) {
-	fetchAggrSize := make(map[kafka.KeyTuple]int)
-	produceAggrSize := make(map[kafka.KeyTuple]int)
-	for key, value := range payload.Kafka {
-		if value.Data[0] != nil {
-			produceAggrSize[key.KeyTuple] += value.Data[0].Count
-		}
-		if value.Data[1] != nil {
-			fetchAggrSize[key.KeyTuple] += value.Data[1].Count
-		}
+	// Count the number of aggregations per connections, so we can set the capacity of the aggregation slice accordingly
+	aggregationsCountPerConnection := make(map[kafka.KeyTuple]int)
+	for key := range payload.Kafka {
+		aggregationsCountPerConnection[key.KeyTuple]++
 	}
 
 	for key, stats := range payload.Kafka {
@@ -119,31 +114,24 @@ func (e *kafkaEncoder) buildAggregations(payload *network.Connections) {
 		}
 
 		if aggregation == nil {
+			// No aggregation created for this connection yet, creating the slice and set the capacity accordingly
 			aggregation = &kafkaAggregationWrapper{
 				DataStreamsAggregations: &model.DataStreamsAggregations{
-					KafkaProduceAggregations: &model.DataStreamsAggregations_KafkaProduceAggregations{
-						Stats: make([]*model.DataStreamsAggregations_TopicStats, 0, produceAggrSize[key.KeyTuple]),
-					},
-					KafkaFetchAggregations: &model.DataStreamsAggregations_KafkaFetchAggregations{
-						Stats: make([]*model.DataStreamsAggregations_TopicStats, 0, fetchAggrSize[key.KeyTuple]),
-					},
+					KafkaAggregations: make([]*model.KafkaAggregation, 0, aggregationsCountPerConnection[key.KeyTuple]),
 				},
 			}
 			e.aggregations[key.KeyTuple] = aggregation
 		}
 
-		if stats.Data[0] != nil && stats.Data[0].Count > 0 {
-			aggregation.KafkaProduceAggregations.Stats = append(aggregation.KafkaProduceAggregations.Stats, &model.DataStreamsAggregations_TopicStats{
-				Topic: key.TopicName,
-				Count: uint32(stats.Data[0].Count),
-			})
+		kafkaAggregation := model.KafkaAggregation{
+			Header: &model.KafkaRequestHeader{
+				RequestType:    uint32(key.RequestAPIKey),
+				RequestVersion: uint32(key.RequestVersion),
+			},
+			Topic: key.TopicName,
+			Count: uint32(stats.Count),
 		}
 
-		if stats.Data[1] != nil && stats.Data[1].Count > 0 {
-			aggregation.KafkaFetchAggregations.Stats = append(aggregation.KafkaFetchAggregations.Stats, &model.DataStreamsAggregations_TopicStats{
-				Topic: key.TopicName,
-				Count: uint32(stats.Data[1].Count),
-			})
-		}
+		aggregation.KafkaAggregations = append(aggregation.KafkaAggregations, &kafkaAggregation)
 	}
 }

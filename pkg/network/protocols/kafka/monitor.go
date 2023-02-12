@@ -108,9 +108,8 @@ func (m *Monitor) Start() error {
 	return m.processMonitor.Initialize()
 }
 
-// GetKafkaStats returns a map of Kafka stats stored in the following format:
-// [source, dest tuple, TopicName] -> RequestStats object
-func (m *Monitor) GetKafkaStats() map[Key]*RequestStats {
+// GetKafkaStats returns a map of Kafka stats
+func (m *Monitor) GetKafkaStats() map[Key]*RequestStat {
 	if m == nil {
 		return nil
 	}
