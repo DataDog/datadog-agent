@@ -1,7 +1,10 @@
 #ifndef __HTTP_BUFFER_H
 #define __HTTP_BUFFER_H
 
+#include "ktypes.h"
+#if defined(COMPILE_PREBUILT) || defined(COMPILE_RUNTIME)
 #include <linux/err.h>
+#endif
 
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"

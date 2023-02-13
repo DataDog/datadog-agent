@@ -1,8 +1,6 @@
 #ifndef __HTTP_H
 #define __HTTP_H
 
-#include <uapi/linux/ptrace.h>
-
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "tracer.h"

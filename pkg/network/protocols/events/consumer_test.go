@@ -18,15 +18,16 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestConsumer(t *testing.T) {
@@ -138,7 +139,6 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/syscalls/sys_enter_write",
 					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
 				},
 			},
@@ -152,7 +152,6 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/syscalls/sys_enter_write",
 					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
 				},
 			},

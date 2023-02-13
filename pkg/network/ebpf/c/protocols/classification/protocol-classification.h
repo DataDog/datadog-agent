@@ -13,6 +13,7 @@
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/mongo/helpers.h"
+#include "protocols/mysql/helpers.h"
 #include "protocols/redis/helpers.h"
 #include "protocols/postgres/helpers.h"
 
@@ -35,6 +36,8 @@ static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t
         *protocol = PROTOCOL_MONGO;
     } else if (is_postgres(buf, size)) {
         *protocol = PROTOCOL_POSTGRES;
+    } else if (is_mysql(tup, buf, size)) {
+        *protocol = PROTOCOL_MYSQL;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }
@@ -43,7 +46,7 @@ static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
-static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
+__maybe_unused static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
     conn_tuple_t skb_tup = {0};
 
