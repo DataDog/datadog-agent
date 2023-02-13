@@ -13,12 +13,12 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	r "github.com/DataDog/datadog-agent/pkg/process/runner"
+	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
 
 // runner implements the Component.
 type runner struct {
-	collector *r.Collector
+	collector *processRunner.Collector
 }
 
 type dependencies struct {
@@ -31,13 +31,13 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := r.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks)
+	c, err := processRunner.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: Inject submitter as a component dependency once it is ready
-	c.Submitter, err = r.NewSubmitter(deps.HostInfo.HostName, c.UpdateRTStatus)
+	c.Submitter, err = processRunner.NewSubmitter(deps.HostInfo.HostName, c.UpdateRTStatus)
 	if err != nil {
 		return nil, err
 	}

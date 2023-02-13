@@ -6,9 +6,9 @@
 package runner
 
 import (
-	"github.com/stretchr/testify/mock"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
