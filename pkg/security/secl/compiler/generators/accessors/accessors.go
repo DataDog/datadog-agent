@@ -359,6 +359,14 @@ func handleSpecRecursive(module *common.Module, astFile *ast.File, spec interfac
 			tag = reflect.StructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
 		}
 
+		if p, ok := tag.Lookup("platform"); ok {
+			platform := common.Platform(p)
+			compatiblePlatform := platform == common.Unspecified || platform == module.Platform
+			if !compatiblePlatform {
+				continue
+			}
+		}
+
 		if e, ok := tag.Lookup("event"); ok {
 			event = e
 			if _, ok = module.EventTypes[e]; !ok {
