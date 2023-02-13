@@ -97,25 +97,25 @@ type tracer struct {
 }
 
 type telemetry struct {
-	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
-	udpConns4, udpConns6 *atomic.Int64 `stats:""`
-	probeTelemetry       map[string]errtelemetry.StatGaugeWrapper
-	tcpFailedConnects    errtelemetry.StatGaugeWrapper
-	tcpSentMiscounts     errtelemetry.StatGaugeWrapper
-	missedTcpClose       errtelemetry.StatGaugeWrapper
-	missedUdpClose       errtelemetry.StatGaugeWrapper
-	UdpSendsProcessed    errtelemetry.StatGaugeWrapper
-	UdpSendsMissed       errtelemetry.StatGaugeWrapper
-	UdpDroppedConns      errtelemetry.StatGaugeWrapper
+	tcpConns4         errtelemetry.StatGaugeWrapper
+	tcpConns6         errtelemetry.StatGaugeWrapper
+	udpConns4         errtelemetry.StatGaugeWrapper
+	udpConns6         errtelemetry.StatGaugeWrapper
+	tcpFailedConnects errtelemetry.StatGaugeWrapper
+	tcpSentMiscounts  errtelemetry.StatGaugeWrapper
+	missedTcpClose    errtelemetry.StatGaugeWrapper
+	missedUdpClose    errtelemetry.StatGaugeWrapper
+	UdpSendsProcessed errtelemetry.StatGaugeWrapper
+	UdpSendsMissed    errtelemetry.StatGaugeWrapper
+	UdpDroppedConns   errtelemetry.StatGaugeWrapper
 }
 
 func newTelemetry() telemetry {
 	return telemetry{
-		tcpConns4:         atomic.NewInt64(0),
-		udpConns4:         atomic.NewInt64(0),
-		tcpConns6:         atomic.NewInt64(0),
-		udpConns6:         atomic.NewInt64(0),
-		probeTelemetry:    make(map[string]errtelemetry.StatGaugeWrapper),
+		tcpConns4:         errtelemetry.NewStatGaugeWrapper(componentName, "tcp_conns_4", []string{}, "desc"),
+		udpConns4:         errtelemetry.NewStatGaugeWrapper(componentName, "udp_conns_4", []string{}, "desc"),
+		tcpConns6:         errtelemetry.NewStatGaugeWrapper(componentName, "tcp_conns_6", []string{}, "desc"),
+		udpConns6:         errtelemetry.NewStatGaugeWrapper(componentName, "udp_conns_6", []string{}, "desc"),
 		tcpFailedConnects: errtelemetry.NewStatGaugeWrapper(componentName, "tcp_failed_connects", []string{}, "desc"),
 		tcpSentMiscounts:  errtelemetry.NewStatGaugeWrapper(componentName, "tcp_sent_miscounts", []string{}, "desc"),
 		missedTcpClose:    errtelemetry.NewStatGaugeWrapper(componentName, "missed_tcp_close", []string{}, "desc"),
@@ -279,12 +279,27 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
-	tel := newTelemetry()
+	// tel := newTelemetry()
+	var tcp4, tcp6, udp4, udp6 int64
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
 
-		tel.addConnection(conn)
+		isTCP := conn.Type == network.TCP
+		switch conn.Family {
+		case network.AFINET6:
+			if isTCP {
+				tcp6++
+			} else {
+				udp6++
+			}
+		case network.AFINET:
+			if isTCP {
+				tcp4++
+			} else {
+				udp4++
+			}
+		}
 
 		if filter != nil && !filter(conn) {
 			continue
@@ -299,35 +314,35 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
-	t.telemetry.assign(tel)
+	t.telemetry.assign(tcp4, tcp6, udp4, udp6)
 
 	return nil
 }
 
-func (t *telemetry) assign(other telemetry) {
-	t.tcpConns4.Store(other.tcpConns4.Load())
-	t.tcpConns6.Store(other.tcpConns6.Load())
-	t.udpConns4.Store(other.udpConns4.Load())
-	t.udpConns6.Store(other.udpConns6.Load())
+func (t *telemetry) assign(tcp4 int64, tcp6 int64, udp4 int64, udp6 int64) {
+	t.tcpConns4.Set(tcp4)
+	t.tcpConns6.Set(tcp6)
+	t.udpConns4.Set(udp4)
+	t.udpConns6.Set(udp6)
 }
 
-func (t *telemetry) addConnection(conn *network.ConnectionStats) {
-	isTCP := conn.Type == network.TCP
-	switch conn.Family {
-	case network.AFINET6:
-		if isTCP {
-			t.tcpConns6.Inc()
-		} else {
-			t.udpConns6.Inc()
-		}
-	case network.AFINET:
-		if isTCP {
-			t.tcpConns4.Inc()
-		} else {
-			t.udpConns4.Inc()
-		}
-	}
-}
+// func (t *telemetry) addConnection(conn *network.ConnectionStats) {
+// 	isTCP := conn.Type == network.TCP
+// 	switch conn.Family {
+// 	case network.AFINET6:
+// 		if isTCP {
+// 			t.tcpConns6.Inc()
+// 		} else {
+// 			t.udpConns6.Inc()
+// 		}
+// 	case network.AFINET:
+// 		if isTCP {
+// 			t.tcpConns4.Inc()
+// 		} else {
+// 			t.udpConns4.Inc()
+// 		}
+// 	}
+// }
 
 func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
 	isTCP := conn.Type == network.TCP
@@ -424,14 +439,6 @@ func (t *tracer) refreshProbeTelemetry() {
 	t.telemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
 	t.telemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
 	t.telemetry.UdpDroppedConns.Set(int64(telemetry.Udp_dropped_conns))
-
-	for k, v := range t.telemetry.get() {
-		if val, ok := t.telemetry.probeTelemetry[k]; ok {
-			val.Set(v.(int64))
-		} else {
-			t.telemetry.probeTelemetry[k] = errtelemetry.NewStatGaugeWrapper("conn_tracer", k, []string{}, "desc")
-		}
-	}
 }
 
 func (t *tracer) GetTelemetry() map[string]int64 {
