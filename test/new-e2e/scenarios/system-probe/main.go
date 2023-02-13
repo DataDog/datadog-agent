@@ -8,9 +8,30 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
+
+func run(envName, securityGroups, subnets, x86InstanceType, armInstanceType string, destroy bool) error {
+	systemProbeEnv, err := systemProbe.NewTestEnv(envName, securityGroups, subnets, x86InstanceType, armInstanceType)
+	if err != nil {
+		return err
+	}
+
+	if destroy {
+		err = systemProbeEnv.Destroy()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	fmt.Println(systemProbeEnv.ARM64InstanceIP)
+	fmt.Println(systemProbeEnv.X86_64InstanceIP)
+
+	return nil
+}
 
 func main() {
 	envNamePtr := flag.String("name", "system-probe", "environment name")
@@ -22,20 +43,8 @@ func main() {
 
 	flag.Parse()
 
-	systemProbeEnv, err := systemProbe.NewTestEnv(*envNamePtr, *securityGroupsPtr, *subnetsPtr, *x86InstanceTypePtr, *armInstanceTypePtr)
+	err := run(*envNamePtr, *securityGroupsPtr, *subnetsPtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr)
 	if err != nil {
-		fmt.Printf("%+v\n", err)
-		panic(err)
+		log.Fatal(err)
 	}
-
-	if *destroyPtr {
-		err = systemProbeEnv.Destroy()
-		if err != nil {
-			panic(err)
-		}
-		return
-	}
-
-	fmt.Println(systemProbeEnv.ARM64InstanceIP)
-	fmt.Println(systemProbeEnv.X86_64InstanceIP)
 }

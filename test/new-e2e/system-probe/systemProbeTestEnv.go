@@ -79,12 +79,12 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 		awsEnvironment, err := aws.NewEnvironment(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("aws new environment: %w", err)
 		}
 
 		scenarioDone, err := microvms.RunAndReturnInstances(ctx, awsEnvironment)
 		if err != nil {
-			return err
+			return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 		}
 
 		for _, instance := range scenarioDone.Instances {
@@ -99,15 +99,14 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 				pulumi.DependsOn(scenarioDone.Dependencies),
 			)
 			if err != nil {
-				return err
+				return fmt.Errorf("copy file: %w", err)
 			}
 		}
 
 		return nil
 	})
-
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create stack: %w", err)
 	}
 
 	b, err := json.MarshalIndent(upResult.Summary, "", "	")
