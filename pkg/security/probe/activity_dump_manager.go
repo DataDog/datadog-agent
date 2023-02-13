@@ -41,13 +41,14 @@ func areCGroupADsEnabled(c *config.Config) bool {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	config        *config.Config
-	statsdClient  statsd.ClientInterface
-	emptyDropped  *atomic.Uint64
-	fieldHandlers *FieldHandlers
-	resolvers     *Resolvers
-	kernelVersion *kernel.Version
-	manager       *manager.Manager
+	config             *config.Config
+	statsdClient       statsd.ClientInterface
+	emptyDropped       *atomic.Uint64
+	dropMaxDumpReached *atomic.Uint64
+	fieldHandlers      *FieldHandlers
+	resolvers          *Resolvers
+	kernelVersion      *kernel.Version
+	manager            *manager.Manager
 
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
@@ -173,6 +174,30 @@ func (adm *ActivityDumpManager) resolveTags() {
 		if err != nil {
 			seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
 		}
+
+		if !ad.countedByLimiter {
+			// check if we should discard this dump based on the manager dump limiter
+			limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
+			if limiterKey == ":" {
+				// wait for the tags
+				continue
+			}
+
+			counter, ok := adm.dumpLimiter.Get(limiterKey)
+			if !ok {
+				counter = atomic.NewUint64(0)
+				adm.dumpLimiter.Add(limiterKey, counter)
+			}
+
+			if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
+				ad.Finalize(true)
+				adm.RemoveDump(ad)
+				adm.dropMaxDumpReached.Inc()
+			} else {
+				ad.countedByLimiter = true
+				counter.Add(1)
+			}
+		}
 	}
 }
 
@@ -219,6 +244,7 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		config:                 config,
 		statsdClient:           statsdClient,
 		emptyDropped:           atomic.NewUint64(0),
+		dropMaxDumpReached:     atomic.NewUint64(0),
 		fieldHandlers:          p.fieldHandlers,
 		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
@@ -401,10 +427,14 @@ func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListPa
 	}, nil
 }
 
-func (adm *ActivityDumpManager) removeDump(dump *ActivityDump) {
+// RemoveDump removes a dump
+func (adm *ActivityDumpManager) RemoveDump(dump *ActivityDump) {
 	adm.Lock()
 	defer adm.Unlock()
+	adm.removeDump(dump)
+}
 
+func (adm *ActivityDumpManager) removeDump(dump *ActivityDump) {
 	toDelete := -1
 	for i, d := range adm.activeDumps {
 		if d.Name == dump.Name {
@@ -546,6 +576,12 @@ func (adm *ActivityDumpManager) SendStats() error {
 	if value := adm.emptyDropped.Swap(0); value > 0 {
 		if err := adm.statsdClient.Count(metrics.MetricActivityDumpEmptyDropped, int64(value), nil, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEmptyDropped, err)
+		}
+	}
+
+	if value := adm.dropMaxDumpReached.Swap(0); value > 0 {
+		if err := adm.statsdClient.Count(metrics.MetricActivityDumpDropMaxDumpReached, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpDropMaxDumpReached, err)
 		}
 	}
 

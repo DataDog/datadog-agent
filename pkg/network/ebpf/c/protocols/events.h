@@ -1,8 +1,9 @@
 #ifndef __USM_EVENTS_H
 #define __USM_EVENTS_H
 
-#include "events-types.h"
 #include "bpf_telemetry.h"
+
+#include "protocols/events-types.h"
 
 /* USM_EVENTS_INIT defines two functions used for the purposes of buffering and sending
    data to userspace:
@@ -25,29 +26,36 @@
     static __always_inline void name##_flush_batch(struct pt_regs *ctx) {               \
         u32 zero = 0;                                                                   \
         batch_state_t *batch_state = bpf_map_lookup_elem(&name##_batch_state, &zero);   \
-        if (!batch_state || batch_state->idx_to_flush == batch_state->idx) {            \
+        if (!batch_state) {                                                             \
             /* batch is not ready to be flushed */                                      \
             return;                                                                     \
         }                                                                               \
+        _Pragma( STR(unroll(BATCH_PAGES_PER_CPU)) )                                     \
+            for (int i = 0; i < BATCH_PAGES_PER_CPU; i++) {                             \
+                if (batch_state->idx_to_flush == batch_state->idx) return;              \
                                                                                         \
-        batch_key_t key = get_batch_key(batch_state->idx_to_flush);                     \
-        batch_data_t *batch = bpf_map_lookup_elem(&name##_batches, &key);               \
-        if (!batch) {                                                                   \
-            return;                                                                     \
-        }                                                                               \
+                batch_key_t key = get_batch_key(batch_state->idx_to_flush);             \
+                batch_data_t *batch = bpf_map_lookup_elem(&name##_batches, &key);       \
+                if (!batch) {                                                           \
+                    return;                                                             \
+                }                                                                       \
                                                                                         \
-        long ret = bpf_perf_event_output_with_telemetry(ctx,                            \
-                                                        &name##_batch_events, key.cpu,  \
-                                                        batch, sizeof(batch_data_t));   \
-        if (ret < 0) {                                                                  \
-            _LOG(name, "batch flush error: cpu: %d idx: %d err:%d",                     \
-                 key.cpu, batch->idx, ret);                                             \
-            return;                                                                     \
-        }                                                                               \
+                long ret = bpf_perf_event_output_with_telemetry(ctx,                    \
+                                                                &name##_batch_events,   \
+                                                                key.cpu,                \
+                                                                batch,                  \
+                                                                sizeof(batch_data_t));  \
+                if (ret < 0) {                                                          \
+                    _LOG(name, "batch flush error: cpu: %d idx: %d err:%d",             \
+                         key.cpu, batch->idx, ret);                                     \
+                    return;                                                             \
+                }                                                                       \
                                                                                         \
-        _LOG(name, "batch flushed: cpu: %d idx: %d", key.cpu, batch->idx);              \
-        batch->len = 0;                                                                 \
-        batch_state->idx_to_flush++;                                                    \
+                _LOG(name, "batch flushed: cpu: %d idx: %d", key.cpu, batch->idx);      \
+                batch->dropped_events = 0;                                              \
+                batch->len = 0;                                                         \
+                batch_state->idx_to_flush++;                                            \
+            }                                                                           \
     }                                                                                   \
                                                                                         \
     static __always_inline void name##_batch_enqueue(value *event) {                    \
@@ -67,6 +75,7 @@
         executing often enough and/or that BATCH_PAGES_PER_CPU is not large
         enough */                                                                       \
         if (name##_batch_full(batch)) {                                                 \
+            batch->dropped_events++;                                                    \
             _LOG(name, "enqueue error: dropping event because batch is full.",          \
                  bpf_get_smp_processor_id(), batch->idx);                               \
             return;                                                                     \

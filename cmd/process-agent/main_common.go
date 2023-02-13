@@ -25,7 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -60,7 +62,7 @@ func main() {
 }
 
 func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
-	if err := ddutil.SetupCoreDump(); err != nil {
+	if err := ddutil.SetupCoreDump(ddconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -80,17 +82,13 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		}()
 	}
 
-	// We need to load in the system probe environment variables before we load the config, otherwise an
-	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
-	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
-
 	if err := command.BootstrapConfig(globalParams.ConfFilePath, false); err != nil {
 		_ = log.Critical(err)
 		cleanupAndExit(1)
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(globalParams.SysProbeConfFilePath)
+	syscfg, err := sysconfig.New(globalParams.SysProbeConfFilePath)
 	if err != nil {
 		_ = log.Critical(err)
 		cleanupAndExit(1)
@@ -103,7 +101,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
-	err = manager.ConfigureAutoExit(mainCtx)
+	err = manager.ConfigureAutoExit(mainCtx, ddconfig.Datadog)
 	if err != nil {
 		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		cleanupAndExit(1)
@@ -173,7 +171,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 	// we shouldn't quit because docker is not required. If no docker docket is available,
 	// we just pass down empty string
-	updateDockerSocket(dockerSock)
+	status.UpdateDockerSocket(dockerSock)
 
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
@@ -224,7 +222,11 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		return
 	}
 
-	err = initInfo(hostInfo.HostName, processModuleEnabled)
+	eps, err := runner.GetAPIEndpoints()
+	if err != nil {
+		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
+	}
+	err = status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
 	if err != nil {
 		log.Criticalf("Error initializing info: %s", err)
 		cleanupAndExit(1)
@@ -233,7 +235,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
-		if err := Info(os.Stdout, url); err != nil {
+		if err := status.Info(os.Stdout, url); err != nil {
 			cleanupAndExit(1)
 		}
 		return
@@ -256,20 +258,20 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(syscfg, hostInfo, enabledChecks)
+	cl, err := runner.NewCollector(syscfg, hostInfo, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)
 		return
 	}
-	cl.submitter, err = NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
+	cl.Submitter, err = runner.NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
 	if err != nil {
 		log.Criticalf("Error creating checkSubmitter: %s", err)
 		cleanupAndExit(1)
 		return
 	}
 
-	if err := cl.run(exit); err != nil {
+	if err := cl.Run(exit); err != nil {
 		log.Criticalf("Error starting collector: %s", err)
 		os.Exit(1)
 		return

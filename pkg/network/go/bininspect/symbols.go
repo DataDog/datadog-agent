@@ -184,7 +184,7 @@ func getSymbols(f *elf.File, typ elf.SectionType, wanted map[string]struct{}) ([
 func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, symbolSet)
 	if regularSymbolsErr != nil {
-		log.Debugf("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
+		log.Tracef("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
 	}
 
 	var dynamicSymbols []elf.Symbol
@@ -192,7 +192,7 @@ func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[str
 	if len(regularSymbols) != len(symbolSet) {
 		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, elf.SHT_DYNSYM, symbolSet)
 		if dynamicSymbolsErr != nil {
-			log.Debugf("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
+			log.Tracef("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
 		}
 	}
 

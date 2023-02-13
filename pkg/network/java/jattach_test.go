@@ -74,7 +74,7 @@ func testInject(t *testing.T, prefix string) {
 	defer os.Remove(tfile.Name())
 
 	// equivalent to jattach <pid> load instrument false testdata/TestAgentLoaded.jar=<tempfile>
-	err = InjectAgent(pid, "testdata/TestAgentLoaded.jar", tfile.Name())
+	err = InjectAgent(pid, "testdata/TestAgentLoaded.jar", "testfile="+tfile.Name())
 	require.NoError(t, err)
 
 	time.Sleep((MINIMUM_JAVA_AGE_TO_ATTACH_MS + 200) * time.Millisecond) // wait java process to be old enough to be injected
@@ -115,17 +115,18 @@ func TestInject(t *testing.T) {
 		t.Fatal("host failed")
 	}
 
-	p := "unshare -p --fork "
-	_, err = testutil.RunCommand(p + "id")
-	if err != nil {
-		t.Skipf("unshare not supported on this platform %s", err)
-	}
-
 	// flush the caches to slow start java
 	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
 	t.Run("PIDnamespace", func(t *testing.T) {
+		p := "unshare -p --fork "
+		_, err = testutil.RunCommand(p + "id")
+		if err != nil {
+			t.Skipf("unshare not supported on this platform %s", err)
+		}
+
 		// running the tagert process in a new PID namespace
 		// and testing if the test/plaform give enough permission to do that
 		testInject(t, p)
 	})
+
 }
