@@ -101,9 +101,9 @@ var (
 	// MetricPerfBufferBytesRead is the name of the metric used to count the number of bytes read from a perf buffer
 	// Tags: map
 	MetricPerfBufferBytesRead = newRuntimeMetric(".perf_buffer.bytes.read")
-	// MetricPerfBufferBytesFree is the name of the metric used to count the number of bytes left in the ring buffer
+	// MetricPerfBufferBytesUsed is the name of the metric used to count the percentage of space left in the ring buffer
 	// Tags: map
-	MetricPerfBufferBytesFree = newRuntimeMetric(".perf_buffer.bytes.free")
+	MetricPerfBufferBytesUsed = newRuntimeMetric(".perf_buffer.bytes.used")
 	// MetricPerfBufferSortingError is the name of the metric used to report events reordering issues.
 	// Tags: map, event_type
 	MetricPerfBufferSortingError = newRuntimeMetric(".perf_buffer.sorting_error")
