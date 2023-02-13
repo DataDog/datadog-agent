@@ -60,7 +60,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	}
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
-		log.Error("appsec-proxy-lifecycle: unexpected lambda event parsing error: %v", err)
+		log.Errorf("appsec-proxy-lifecycle: unexpected lambda event parsing error: %v", err)
 		return
 	}
 
