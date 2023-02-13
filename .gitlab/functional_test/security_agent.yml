@@ -5,7 +5,6 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
-# Expect warning: github.com/DataDog/datadog-agent/pkg/config.LoadCustom:1501 Unknown environment variable: DD_SYSTEM_PROBE_BPF_DIR
 .runtime:
   script:
     - echo -n "--tags ci.job.name:${CI_JOB_NAME}" > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/tags.txt
@@ -48,7 +47,6 @@ kitchen_test_security_agent_x64:
     - bash -l tasks/kitchen_setup.sh
   script:
     - !reference [ .runtime, script ]
-    - invoke -e pipeline.notify --notification-type "merge"
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
@@ -95,7 +93,7 @@ kitchen_test_security_agent_arm64:
     - bash -l tasks/kitchen_setup.sh
   script:
     - !reference [ .runtime, script ]
-    - invoke -e pipeline.notify --notification-type "merge"
+    - inv -e pipeline.notify --notification-type "merge"
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -116,6 +114,9 @@ kitchen_test_security_agent_amazonlinux_x64:
   before_script:
     - pushd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
+  script:
+    - !reference [ .runtime, script ]
+    - inv -e pipeline.notify --notification-type "merge"
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
