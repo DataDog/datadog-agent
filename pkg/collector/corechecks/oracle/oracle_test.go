@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -65,11 +66,11 @@ func TestConnectionGoOra(t *testing.T) {
 
 func TestConnection(t *testing.T) {
 	databaseUrl := fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, USER, PASSWORD, TNS_ALIAS)
-	_, err := sql.Open("godror", databaseUrl)
+	_, err := sqlx.Open("godror", databaseUrl)
 	assert.NoError(t, err)
 
 	databaseUrl = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
-	_, err = sql.Open("godror", databaseUrl)
+	_, err = sqlx.Open("godror", databaseUrl)
 	assert.NoError(t, err)
 
 }
