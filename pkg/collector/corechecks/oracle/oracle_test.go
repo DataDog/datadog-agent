@@ -66,11 +66,15 @@ func TestConnectionGoOra(t *testing.T) {
 
 func TestConnection(t *testing.T) {
 	databaseUrl := fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, USER, PASSWORD, TNS_ALIAS)
-	_, err := sqlx.Open("godror", databaseUrl)
+	db, err := sqlx.Open("godror", databaseUrl)
+	assert.NoError(t, err)
+	err = db.Ping()
 	assert.NoError(t, err)
 
 	databaseUrl = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
 	_, err = sqlx.Open("godror", databaseUrl)
+	assert.NoError(t, err)
+	err = db.Ping()
 	assert.NoError(t, err)
 
 }
