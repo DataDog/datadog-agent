@@ -1466,17 +1466,24 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 
 @task
-def test_microvms(ctx, security_groups="", subnets="", instance_type_x86="", instance_type_arm="", destroy=False):
-    args = ""
-    if security_groups != "":
-        args += f" --sgs {security_groups}"
-    if subnets != "":
-        args += f" --subnets {subnets}"
-    if instance_type_x86 != "":
-        args += f" --instance-type-x86 {instance_type_x86}"
-    if instance_type_arm != "":
-        args += f" --instance-type-arm {instance_type_arm}"
+def test_microvms(
+    ctx, 
+    security_groups=None, 
+    subnets=None, 
+    instance_type_x86=None, 
+    instance_type_arm=None, 
+    destroy=False
+):
+    args = []
+    if security_groups != None:
+        args.append(f"--sgs {security_groups}")
+    if subnets != None:
+        args.append(f"--subnets {subnets}")
+    if instance_type_x86 != None:
+        args.append(f"--instance-type-x86 {instance_type_x86}")
+    if instance_type_arm != None:
+        args.append(f"--instance-type-arm {instance_type_arm}")
     if destroy:
-        args += " --destroy"
+        args.append("--destroy")
 
-    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {args}")
+    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {' '.join(args)}")
