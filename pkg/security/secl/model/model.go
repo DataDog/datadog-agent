@@ -193,14 +193,14 @@ type Event struct {
 	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 	Syscalls SyscallsEvent `field:"-"`
 
-	// kernel events
-	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
-	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
-	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace"`               // [7.35] [Kernel] A ptrace command was executed
-	MMap         MMapEvent         `field:"mmap" event:"mmap"`                   // [7.35] [Kernel] A mmap command was executed
-	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
-	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
-	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
+	// linux kernel events
+	SELinux      SELinuxEvent      `field:"selinux" event:"selinux" platform:"linux"`             // [7.30] [Kernel] An SELinux operation was run
+	BPF          BPFEvent          `field:"bpf" event:"bpf" platform:"linux"`                     // [7.33] [Kernel] A BPF command was executed
+	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace" platform:"linux"`               // [7.35] [Kernel] A ptrace command was executed
+	MMap         MMapEvent         `field:"mmap" event:"mmap" platform:"linux"`                   // [7.35] [Kernel] A mmap command was executed
+	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect" platform:"linux"`           // [7.35] [Kernel] A mprotect command was executed
+	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module" platform:"linux"`     // [7.35] [Kernel] A new kernel module was loaded
+	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module" platform:"linux"` // [7.35] [Kernel] A kernel module was deleted
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
