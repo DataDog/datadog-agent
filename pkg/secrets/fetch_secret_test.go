@@ -217,6 +217,29 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	assert.Equal(t, "decrypted secret for 'handle1' is empty", err.Error())
 }
 
+func TestFetchSecretLineBreakValue(t *testing.T) {
+	defer func() {
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+	}()
+
+	runCommand = func(string) ([]byte, error) {
+		return []byte("{\"handle1\":{\"value\": \"\\nsome data\\n\"}}"), nil
+	}
+	resp, err := fetchSecret([]string{"handle1"}, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]string{
+		"handle1": "some data",
+	}, resp)
+
+	runCommand = func(string) ([]byte, error) {
+		return []byte("{\"handle1\":{\"value\": \"test\\ndata\"}}"), nil
+	}
+	_, err = fetchSecret([]string{"handle1"}, "test")
+	assert.NotNil(t, err)
+	assert.Equal(t, "decrypted secret for 'handle1' contains line break", err.Error())
+}
+
 func TestFetchSecret(t *testing.T) {
 	defer func() {
 		secretCache = map[string]string{}

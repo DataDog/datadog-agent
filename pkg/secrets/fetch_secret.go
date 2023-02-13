@@ -150,15 +150,20 @@ func fetchSecret(secretsHandle []string, origin string) (map[string]string, erro
 		if v.ErrorMsg != "" {
 			return nil, fmt.Errorf("an error occurred while decrypting '%s': %s", sec, v.ErrorMsg)
 		}
-		if v.Value == "" {
+
+		value := strings.TrimSpace(v.Value)
+		if value == "" {
 			return nil, fmt.Errorf("decrypted secret for '%s' is empty", sec)
+		}
+		if strings.Contains(value, "\n") {
+			return nil, fmt.Errorf("decrypted secret for '%s' contains line break", sec)
 		}
 
 		// add it to the cache
-		secretCache[sec] = v.Value
+		secretCache[sec] = value
 		// keep track of place where a handle was found
 		secretOrigin[sec] = common.NewStringSet(origin)
-		res[sec] = v.Value
+		res[sec] = value
 	}
 	return res, nil
 }
