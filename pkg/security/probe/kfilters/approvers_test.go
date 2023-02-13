@@ -22,7 +22,7 @@ func TestApproverAncestors1(t *testing.T) {
 	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
 
 	rs := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-	addRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
+	AddRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
@@ -45,7 +45,7 @@ func TestApproverAncestors2(t *testing.T) {
 	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
 
 	rs := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-	addRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
+	AddRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
 		t.Fatal("no capabilities for open")
@@ -65,7 +65,7 @@ func TestApproverAncestors3(t *testing.T) {
 	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
 
 	rs := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-	addRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token" && process.file.path not in ["/bin/kubectl"]`)
+	AddRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token" && process.file.path not in ["/bin/kubectl"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
 		t.Fatal("no capabilities for open")
