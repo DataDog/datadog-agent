@@ -626,16 +626,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "dns.question.name":
-		return &eval.StringEvaluator{
-			OpOverrides: eval.DNSNameCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ev := ctx.Event.(*Event)
-				return ev.DNS.Name
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "dns.question.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.DNSNameCmp,
 			EvalFnc: func(ctx *eval.Context) int {
@@ -13799,7 +13789,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.count",
 		"dns.question.length",
 		"dns.question.name",
-		"dns.question.name.length",
 		"dns.question.type",
 		"exec.args",
 		"exec.args_flags",
@@ -14941,8 +14930,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "dns.question.length":
 		return int(ev.DNS.Size), nil
 	case "dns.question.name":
-		return ev.DNS.Name, nil
-	case "dns.question.name.length":
 		return len(ev.DNS.Name), nil
 	case "dns.question.type":
 		return int(ev.DNS.Type), nil
@@ -19041,8 +19028,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "dns", nil
 	case "dns.question.name":
 		return "dns", nil
-	case "dns.question.name.length":
-		return "dns", nil
 	case "dns.question.type":
 		return "dns", nil
 	case "exec.args":
@@ -21189,8 +21174,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "dns.question.length":
 		return reflect.Int, nil
 	case "dns.question.name":
-		return reflect.String, nil
-	case "dns.question.name.length":
 		return reflect.Int, nil
 	case "dns.question.type":
 		return reflect.Int, nil
@@ -23636,14 +23619,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.DNS.Size = uint16(rv)
 		return nil
 	case "dns.question.name":
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "DNS.Name"}
-		}
-		ev.DNS.Name = rv
-		return nil
-	case "dns.question.name.length":
-		return &eval.ErrFieldReadOnly{Field: "dns.question.name.length"}
+		return &eval.ErrFieldReadOnly{Field: "dns.question.name"}
 	case "dns.question.type":
 		rv, ok := value.(int)
 		if !ok {

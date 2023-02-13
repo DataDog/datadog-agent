@@ -9,7 +9,15 @@
 package model
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
-func (ev *Event) ResolveFields(forADs bool) {
+func (ev *Event) ResolveFields() {
+	ev.resolveFields(false)
+}
+
+// ResolveFieldsForAD resolves all the fields associate to the event type. Context fields are automatically resolved.
+func (ev *Event) ResolveFieldsForAD() {
+	ev.resolveFields(true)
+}
+func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	if !forADs {

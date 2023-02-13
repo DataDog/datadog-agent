@@ -1393,11 +1393,6 @@
         },
         {
           "name": "dns.question.name",
-          "definition": "the queried domain name",
-          "property_doc_link": "dns-question-name-doc"
-        },
-        {
-          "name": "dns.question.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
         },
@@ -7533,18 +7528,6 @@
       "link": "dns-question-length-doc",
       "type": "int",
       "definition": "the total DNS request size in bytes",
-      "prefixes": [
-        "dns"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "dns.question.name",
-      "link": "dns-question-name-doc",
-      "type": "string",
-      "definition": "the queried domain name",
       "prefixes": [
         "dns"
       ],
