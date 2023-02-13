@@ -834,11 +834,18 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(sysProbeConfig, statsdClient, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(sysProbeConfig, statsdClient)
 	if err != nil {
 		return nil, err
 	}
-	testMod.probe = testMod.eventMonitor.Probe
+
+	probe, err := sprobe.NewProbe(sysProbeConfig, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
+	if err != nil {
+		return nil, err
+	}
+
+	testMod.eventMonitor.probe = probe
+	testMod.probe = probe
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.disableRuntimeSecurity {

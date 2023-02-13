@@ -2,8 +2,6 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build linux
-// +build linux
 
 package modules
 
@@ -20,7 +18,6 @@ import (
 	cprocess "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/process"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,7 +51,7 @@ var EventMonitor = module.Factory{
 			return nil, module.ErrNotEnabled
 		}
 
-		evm, err := eventmonitor.NewEventMonitor(sysProbeConfig, statsdClient, probe.Opts{})
+		evm, err := eventmonitor.NewEventMonitor(sysProbeConfig, statsdClient)
 		if err == ebpf.ErrNotImplemented {
 			log.Info("Datadog event monitoring is only supported on Linux")
 			return nil, module.ErrNotEnabled

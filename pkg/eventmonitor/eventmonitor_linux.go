@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+// +build linux
+
 package eventmonitor
 
 import (
@@ -221,13 +224,13 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewEventMonitor(sysProbeConfig *sysconfig.Config, statsdClient statsd.ClientInterface, probeOpts probe.Opts) (*EventMonitor, error) {
+func NewEventMonitor(sysProbeConfig *sysconfig.Config, statsdClient statsd.ClientInterface) (*EventMonitor, error) {
 	secconfig, err := config.NewConfig(sysProbeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("invalid event monitoring configuration: %w", err)
 	}
 
-	probe, err := probe.NewProbe(secconfig, probeOpts)
+	probe, err := probe.NewProbe(secconfig, probe.Opts{})
 	if err != nil {
 		return nil, err
 	}

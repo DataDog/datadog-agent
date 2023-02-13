@@ -53,16 +53,6 @@ type ActivityDumpHandler interface {
 	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
 }
 
-// EventHandler represents an handler for the events sent by the probe
-type EventHandler interface {
-	HandleEvent(event *model.Event)
-}
-
-// CustomEventHandler represents an handler for the custom events sent by the probe
-type CustomEventHandler interface {
-	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
-}
-
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
 	Init(*manager.Manager, *config.Config) error

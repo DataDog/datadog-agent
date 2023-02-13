@@ -3,16 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package module
+//go:build windows
+// +build windows
 
-import (
-	"github.com/DataDog/datadog-go/v5/statsd"
-)
+package probe
 
-// TODO Split this
-// Opts define module options
-type Opts struct {
-	StatsdClient       statsd.ClientInterface
-	EventSender        EventSender
-	DontDiscardRuntime bool
+// Resolvers holds the list of the event attribute resolvers
+type Resolvers struct {
 }
