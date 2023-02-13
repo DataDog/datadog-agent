@@ -30,25 +30,7 @@ var handlerMux sync.Mutex
 // Configure event processing
 // Must be called *before* manager.InitWithOptions
 func Configure(proto string, m *manager.Manager, o *manager.Options) {
-	handler := ddebpf.NewPerfHandler(100)
-	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
-		Map: manager.Map{Name: proto + eventsMapSuffix},
-		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 16 * os.Getpagesize(),
-			Watermark:          1,
-			RecordHandler:      handler.RecordHandler,
-			LostHandler:        handler.LostHandler,
-			RecordGetter:       handler.RecordGetter,
-		},
-	})
-
-	handlerMux.Lock()
-	if handlerByProtocol == nil {
-		handlerByProtocol = make(map[string]*ddebpf.PerfHandler)
-	}
-	handlerByProtocol[proto] = handler
-	handlerMux.Unlock()
-
+	setupPerfMap(proto, m)
 	onlineCPUs, err := cpupossible.Get()
 	if err != nil {
 		onlineCPUs = make([]uint, 96)
@@ -76,4 +58,34 @@ func getHandler(proto string) *ddebpf.PerfHandler {
 	handler := handlerByProtocol[proto]
 	delete(handlerByProtocol, proto)
 	return handler
+}
+
+func setupPerfMap(proto string, m *manager.Manager) {
+	// check if we already have configured this perf map
+	// this can happen in the context of a failed program load succeeded by another attempt
+	mapName := proto + eventsMapSuffix
+	for _, perfMap := range m.PerfMaps {
+		if perfMap.Map.Name == mapName {
+			return
+		}
+	}
+
+	handler := ddebpf.NewPerfHandler(100)
+	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+		Map: manager.Map{Name: mapName},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 16 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      handler.RecordHandler,
+			LostHandler:        handler.LostHandler,
+			RecordGetter:       handler.RecordGetter,
+		},
+	})
+
+	handlerMux.Lock()
+	if handlerByProtocol == nil {
+		handlerByProtocol = make(map[string]*ddebpf.PerfHandler)
+	}
+	handlerByProtocol[proto] = handler
+	handlerMux.Unlock()
 }
