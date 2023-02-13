@@ -1,18 +1,58 @@
 
-
-execute "mount -ttmpfs none /tmp size=10G" do
-  command "mount -ttmpfs none /tmp size=10G"
+execute "df -Th" do
+  command "df -Th /tmp"
   live_stream true
   action :run
   ignore_failure true
 end
 
-execute "df -h" do
-  command "df -h /tmp"
+package 'growpart' do
+  case node[:platform]
+  when 'amazon', 'redhat', 'centos', 'fedora'
+    package_name 'cloud-utils-growpart'
+  else
+    package_name 'cloud-guest-utils'
+  end
+end
+
+#if Chef::SystemProbeHelpers::arm?(node) and node[:platform] == 'centos'
+#  package 'cloud-utils-growpart'
+#  package 'gdisk'
+
+execute 'increase space' do
+  command <<-EOF
+    df -Th /tmp
+
+    dev_name=$(df -Th / | tail -n1 | awk '{print $1}')
+    fstype=$(df -Th / | tail -n1 | awk '{print $2}')
+    use=$(df -Th / | tail -n1 | awk '{print $6}' | tr -d %)
+
+    if [[ $use -lt 70 ]]; then
+       exit 0
+    fi
+
+    if [[ ${dev_name} =~ ^/dev/mapper ]]; then
+       lvresize -L +4G ${dev_name}
+       resize2fs ${dev_name}
+    fi
+    if [[ ${dev_name} =~ ^/dev/nvme ]]; then
+       disk=$(echo $dev_name | awk -Fp '{print $1}')
+       partnum=$(echo $dev_name | awk -Fp '{print $2}')
+
+       growpart ${disk} ${partnum}
+       xfs_growfs -d /
+    fi
+    if [[ ${dev_name} =~ ^tmpfs ]]; then
+       mount -o remount,size=10G /tmp
+    fi
+
+    df -Th /tmp
+  EOF
+  user "root"
   live_stream true
-  action :run
   ignore_failure true
 end
+#end
 
 if platform?('centos')
   include_recipe '::old_vault'
@@ -108,56 +148,15 @@ end
 
 
 
-package 'growpart' do
-  case node[:platform]
-  when 'amazon'
-    package_name 'cloud-utils-growpart'
-  when 'redhat', 'centos', 'fedora'
-    package_name 'cloud-utils-growpart'
-  else
-    package_name 'cloud-guest-utils'
-  end
-end
-
-package 'gdisk'
-
 execute 'increase spaceallos' do
   command <<-EOF
     df -h /tmp
-
-    dev_name=$(df -h / | tail -n1 | awk '{print $1}')
-    if [[ ${dev_name} =~ ^/dev/mapper ]]; then
-       lvresize -L +4G ${dev_name}
-       resize2fs ${dev_name}
-    fi
 
     df -h /tmp
   EOF
   user "root"
   live_stream true
   ignore_failure true
-end
-
-if Chef::SystemProbeHelpers::arm?(node) and node[:platform] == 'centos'
-  package 'cloud-utils-growpart'
-  package 'gdisk'
-
-  execute 'increase space' do
-    command <<-EOF
-      df -h /tmp
-
-      dev_name=$(df -h / | tail -n1 | awk '{print $1}')
-      dev_name=$(python3 -c "print(' '.join('$dev_name'.rsplit('p', 1)))")
-      dev_name_array=($dev_name)
-
-      growpart ${dev_name_array[0]} ${dev_name_array[1]}
-      xfs_growfs -d /
-      df -h /tmp
-    EOF
-    user "root"
-    live_stream true
-    ignore_failure true
-  end
 end
 
 execute 'disable firewalld on redhat' do
@@ -272,7 +271,7 @@ end
 
 
 execute "df -hafter" do
-  command "df -h /tmp"
+  command "df -Th"
   live_stream true
   action :run
   ignore_failure true
