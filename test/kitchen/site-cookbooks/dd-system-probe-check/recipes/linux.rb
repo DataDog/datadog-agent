@@ -1,7 +1,7 @@
 
 
 execute "df -h" do
-  command "df -h"
+  command "df -h /tmp"
   live_stream true
   action :run
   ignore_failure true
@@ -126,7 +126,7 @@ execute 'increase spaceallos' do
     df -h /tmp
 
     dev_name=$(df -h / | tail -n1 | awk '{print $1}')
-    if [[ ${dev_name} =~ "^/dev/mapper" ]]; then
+    if [[ ${dev_name} =~ ^/dev/mapper ]]; then
        lvresize -L +4G ${dev_name}
        resize2fs ${dev_name}
     fi
@@ -272,7 +272,7 @@ end
 
 
 execute "df -hafter" do
-  command "df -h"
+  command "df -h /tmp"
   live_stream true
   action :run
   ignore_failure true
