@@ -777,9 +777,11 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
 
 
-# print_failed_tests is run at the end of the platform functional test Gitlab job to print failed tests
 @task
 def print_failed_tests(_, output_dir):
+    """
+    print_failed_tests is run at the end of the platform functional test Gitlab job to print failed tests
+    """
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
