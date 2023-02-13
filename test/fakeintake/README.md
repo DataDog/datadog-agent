@@ -8,6 +8,27 @@ Exposes a catch-all API for Datadog Agent POST requests.
 
 ## How to run
 
+### Docker
+
+1. Pull the `fakeintake` container image from [the public registry](https://hub.docker.com/r/datadog/fakeintake/tags)
+
+```bash
+docker pull datadog/fakeintake
+```
+
+2. Start the docker container
+
+```bash
+docker run -i datadog/fakeintake
+```
+
+3. Configure Datadog Agent to use fake intake
+
+```yaml
+# datadog.yaml
+DD_DD_URL: "http://localhost:8080"
+```
+
 ### Locally
 
 1. cd to fakeintake root folder
@@ -35,41 +56,22 @@ go install -o build/fakeintake app/main.go
 DD_DD_URL: "http://localhost:8080"
 ```
 
-### Docker
-
-1. cd to fakeintake root folder
-
-```bash
-cd ~/dd/datadog-agent/test/fakeintake
-```
-
-2. Start the docker container
-
-```bash
-docker compose up
-```
-
-3. Configure Datadog Agent to use fake intake
-
-```yaml
-# datadog.yaml
-DD_DD_URL: "http://localhost:8080"
-```
-
 ## How to build
+
+The `fakeintake` container is built by the `datadog-agent` CI and available at https://hub.docker.com/r/datadog/fakeintake/tags. Here are the instructions to build a container locally, in case of changes to `fakeintake`.
 
 ### 🐳 Docker, locally
 
-1. Ensure you are using buildx `desktop-linux` driver
+1. `cd` to `fakeintake` root
 
 ```bash
-docker buildx create --use desktop-linux
+cd $DATADOG_ROOT/datadog-agent/test/fakeintake
 ```
 
-2. Build a new multi-arch image using `buildx`. This will allow the container to run on both MacOS M1 (arm64) and Linux (amd64).
+2. Build and run a new container image
 
 ```bash
-docker buildx build --push --platform linux/arm64/v8,linux/amd64 --tag <repo_name>/fakeintake:<tag> .
+docker compose up --force-recreate
 ```
 
 ## API
