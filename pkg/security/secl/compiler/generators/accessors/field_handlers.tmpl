@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-{{range .BuildTags }}// {{.}}{{end}}
+{{- range .BuildTags }}
+// {{.}}
+{{end}}
 
 // Code generated - DO NOT EDIT.
 
