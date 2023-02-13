@@ -16,8 +16,8 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -339,7 +339,7 @@ type NodeID struct {
 // NewRandomNodeID returns a new random NodeID
 func NewRandomNodeID() NodeID {
 	return NodeID{
-		inner: eval.RandNonZeroUint64(),
+		inner: utils.RandNonZeroUint64(),
 	}
 }
 

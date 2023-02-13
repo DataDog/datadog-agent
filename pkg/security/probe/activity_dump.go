@@ -197,7 +197,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		now,
 		adm.resolvers.TimeResolver,
 	)
-	ad.LoadConfigCookie = eval.NewCookie()
+	ad.LoadConfigCookie = utils.NewCookie()
 
 	for _, option := range options {
 		option(ad)
