@@ -23,8 +23,9 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"strings"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -69,7 +70,8 @@ type DentryResolver struct {
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
 
-	pathEntryPool *sync.Pool
+	pathEntryPool      *sync.Pool
+	challengeGenerator *rand.Rand
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -557,7 +559,7 @@ func (dr *DentryResolver) preventSegmentMajorPageFault() {
 
 func (dr *DentryResolver) requestResolve(op uint8, mountID uint32, inode uint64, pathID uint32) (uint32, error) {
 	// create eRPC request
-	challenge := rand.Uint32()
+	challenge := dr.challengeGenerator.Uint32()
 	dr.erpcRequest.OP = op
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
@@ -950,16 +952,17 @@ func NewDentryResolver(config *config.Config, statsdClient statsd.ClientInterfac
 	}
 
 	return &DentryResolver{
-		config:          config,
-		statsdClient:    statsdClient,
-		cache:           make(map[uint32]*lru.Cache[uint64, *PathEntry]),
-		erpc:            e,
-		erpcRequest:     erpc.ERPCRequest{},
-		erpcStatsZero:   make([]eRPCStats, numCPU),
-		hitsCounters:    hitsCounters,
-		missCounters:    missCounters,
-		cacheGeneration: atomic.NewUint64(0),
-		numCPU:          numCPU,
-		pathEntryPool:   pathEntryPool,
+		config:             config,
+		statsdClient:       statsdClient,
+		cache:              make(map[uint32]*lru.Cache[uint64, *PathEntry]),
+		erpc:               e,
+		erpcRequest:        erpc.ERPCRequest{},
+		erpcStatsZero:      make([]eRPCStats, numCPU),
+		hitsCounters:       hitsCounters,
+		missCounters:       missCounters,
+		cacheGeneration:    atomic.NewUint64(0),
+		numCPU:             numCPU,
+		pathEntryPool:      pathEntryPool,
+		challengeGenerator: utils.NewTimeSeedGenerator(),
 	}, nil
 }
