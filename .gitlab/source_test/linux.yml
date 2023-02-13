@@ -20,7 +20,7 @@
     - inv -e install-tools
     - python3 -m tasks.release_tests
     - python3 -m tasks.libs.version_tests
-    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
+    - inv -e test $FLAVORS --skip-linters --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
   artifacts:
     expire_in: 2 weeks
     when: always
