@@ -21,7 +21,7 @@ shared_examples "passes" do |bundle, env|
   end
 
   base_env = {
-#     "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
+    "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
   }
   final_env = base_env.merge(env)
 

@@ -5,6 +5,7 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
+# Expect warning: github.com/DataDog/datadog-agent/pkg/config.LoadCustom:1501 Unknown environment variable: DD_SYSTEM_PROBE_BPF_DIR
 .runtime:
   script:
     - echo -n "--tags ci.job.name:${CI_JOB_NAME}" > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/tags.txt
