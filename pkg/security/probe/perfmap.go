@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/ebpf/perf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -31,8 +32,8 @@ const eventStreamMap = "events"
 type OrderedPerfMap struct {
 	perfMap           *manager.PerfMap
 	perfBufferMonitor *PerfBufferMonitor
-	reordererMonitor  *ReordererMonitor
-	reOrderer         *ReOrderer
+	reordererMonitor  *reorderer.ReordererMonitor
+	reOrderer         *reorderer.ReOrderer
 	recordPool        *RecordPool
 }
 
@@ -87,27 +88,27 @@ func (m *OrderedPerfMap) Resume() error {
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
-func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
+func ExtractEventInfo(record *perf.Record) (reorderer.QuickInfo, error) {
 	if len(record.RawSample) < 16 {
-		return QuickInfo{}, model.ErrNotEnoughData
+		return reorderer.QuickInfo{}, model.ErrNotEnoughData
 	}
 
-	return QuickInfo{
-		cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
-		timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+	return reorderer.QuickInfo{
+		Cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
+		Timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
 	}, nil
 }
 
 // NewOrderedPerfMap returned a new ordered perf map.
 func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdClient statsd.ClientInterface) (*OrderedPerfMap, error) {
 	recordPool := NewRecordPool()
-	reOrderer := NewReOrderer(ctx,
+	reOrderer := reorderer.NewReOrderer(ctx,
 		func(record *perf.Record) {
 			defer recordPool.Release(record)
 			handler(record.CPU, record.RawSample)
 		},
 		ExtractEventInfo,
-		ReOrdererOpts{
+		reorderer.ReOrdererOpts{
 			QueueSize:       10000,
 			Rate:            50 * time.Millisecond,
 			Retention:       5,
@@ -115,7 +116,7 @@ func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdCli
 			HeapShrinkDelta: 1000,
 		})
 
-	monitor, err := NewReOrderMonitor(ctx, statsdClient, reOrderer)
+	monitor, err := reorderer.NewReOrderMonitor(ctx, statsdClient, reOrderer)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the reorder monitor: %w", err)
 	}
