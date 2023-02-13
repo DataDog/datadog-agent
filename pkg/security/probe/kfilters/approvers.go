@@ -17,11 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-type onApproverHandler func(approvers rules.Approvers) (activeApprovers, error)
+type onApproverHandler func(approvers rules.Approvers) (ActiveApprovers, error)
 type activeApprover = activeKFilter
-type activeApprovers = activeKFilters
+type ActiveApprovers = activeKFilters
 
-var allApproversHandlers = make(map[eval.EventType]onApproverHandler)
+var AllApproversHandlers = make(map[eval.EventType]onApproverHandler)
 
 func approveBasename(tableName string, eventType model.EventType, basename string) (activeApprover, error) {
 	return &mapEventMask{
@@ -106,7 +106,7 @@ func onNewBasenameApprovers(eventType model.EventType, field string, approvers r
 }
 
 func onNewBasenameApproversWrapper(event model.EventType) onApproverHandler {
-	return func(approvers rules.Approvers) (activeApprovers, error) {
+	return func(approvers rules.Approvers) (ActiveApprovers, error) {
 		basenameApprovers, err := onNewBasenameApprovers(event, "file", approvers)
 		if err != nil {
 			return nil, err
@@ -116,7 +116,7 @@ func onNewBasenameApproversWrapper(event model.EventType) onApproverHandler {
 }
 
 func onNewTwoBasenamesApproversWrapper(event model.EventType, field1, field2 string) onApproverHandler {
-	return func(approvers rules.Approvers) (activeApprovers, error) {
+	return func(approvers rules.Approvers) (ActiveApprovers, error) {
 		basenameApprovers, err := onNewBasenameApprovers(event, field1, approvers)
 		if err != nil {
 			return nil, err
@@ -131,16 +131,16 @@ func onNewTwoBasenamesApproversWrapper(event model.EventType, field1, field2 str
 }
 
 func init() {
-	allApproversHandlers["chmod"] = onNewBasenameApproversWrapper(model.FileChmodEventType)
-	allApproversHandlers["chown"] = onNewBasenameApproversWrapper(model.FileChownEventType)
-	allApproversHandlers["link"] = onNewTwoBasenamesApproversWrapper(model.FileLinkEventType, "file", "file.destination")
-	allApproversHandlers["mkdir"] = onNewBasenameApproversWrapper(model.FileMkdirEventType)
-	allApproversHandlers["open"] = openOnNewApprovers
-	allApproversHandlers["rename"] = onNewTwoBasenamesApproversWrapper(model.FileRenameEventType, "file", "file.destination")
-	allApproversHandlers["rmdir"] = onNewBasenameApproversWrapper(model.FileRmdirEventType)
-	allApproversHandlers["unlink"] = onNewBasenameApproversWrapper(model.FileUnlinkEventType)
-	allApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimesEventType)
-	allApproversHandlers["mmap"] = mmapOnNewApprovers
-	allApproversHandlers["mprotect"] = mprotectOnNewApprovers
-	allApproversHandlers["splice"] = spliceOnNewApprovers
+	AllApproversHandlers["chmod"] = onNewBasenameApproversWrapper(model.FileChmodEventType)
+	AllApproversHandlers["chown"] = onNewBasenameApproversWrapper(model.FileChownEventType)
+	AllApproversHandlers["link"] = onNewTwoBasenamesApproversWrapper(model.FileLinkEventType, "file", "file.destination")
+	AllApproversHandlers["mkdir"] = onNewBasenameApproversWrapper(model.FileMkdirEventType)
+	AllApproversHandlers["open"] = openOnNewApprovers
+	AllApproversHandlers["rename"] = onNewTwoBasenamesApproversWrapper(model.FileRenameEventType, "file", "file.destination")
+	AllApproversHandlers["rmdir"] = onNewBasenameApproversWrapper(model.FileRmdirEventType)
+	AllApproversHandlers["unlink"] = onNewBasenameApproversWrapper(model.FileUnlinkEventType)
+	AllApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimesEventType)
+	AllApproversHandlers["mmap"] = mmapOnNewApprovers
+	AllApproversHandlers["mprotect"] = mprotectOnNewApprovers
+	AllApproversHandlers["splice"] = spliceOnNewApprovers
 }

@@ -26,7 +26,7 @@ var mprotectCapabilities = Capabilities{
 	},
 }
 
-func mprotectOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
+func mprotectOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {
