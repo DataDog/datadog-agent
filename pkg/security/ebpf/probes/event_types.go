@@ -405,8 +405,8 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			// List of probes required to capture signal events
 			"signal": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID,
-						EBPFFuncName: "kretprobe_check_kill_permission"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_check_kill_permission"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_kill_pid_info"}},
 				}},
 				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", Entry)},
 			},
