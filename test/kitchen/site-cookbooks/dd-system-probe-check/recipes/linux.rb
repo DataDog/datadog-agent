@@ -1,14 +1,14 @@
 
 
-execute "df -h" do
-  command "df -h /tmp"
+execute "mount -ttmpfs none /tmp size=10G" do
+  command "mount -ttmpfs none /tmp size=10G"
   live_stream true
   action :run
   ignore_failure true
 end
 
-execute "increase /tmp size" do
-  command "mount -o remount,size=10G /tmp/"
+execute "df -h" do
+  command "df -h /tmp"
   live_stream true
   action :run
   ignore_failure true
