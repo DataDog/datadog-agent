@@ -262,26 +262,47 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	err = fxutil.Run(
+	runApp(exit, syscfg, hostInfo, enabledChecks)
+
+	if err := srv.Shutdown(context.Background()); err != nil {
+		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
+	}
+}
+
+func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) {
+	go util.HandleSignals(exit)
+
+	var s fx.Shutdowner
+	app := fx.New(
 		fx.Supply(
 			syscfg,
 			hostInfo,
 			enabledChecks,
 		),
 		runnerComp.Module,
+		fxutil.FxLoggingOption(),
 
 		// Invoke the runner to call its start hook
 		fx.Invoke(func(runnerComp.Component) {}),
+		fx.Populate(&s),
 	)
+	err := app.Start(context.Background())
+	fmt.Println("test")
 	if err != nil {
-		log.Criticalf("Failed to start process agent: %s", err.Error())
-		cleanupAndExit(1)
+		log.Criticalf("Failed to start process agent: %v", err)
 		return
 	}
 
-	if err := srv.Shutdown(context.Background()); err != nil {
-		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
+	// Set up an exit channel
+	<-exit
+	err = s.Shutdown()
+	if err != nil {
+		log.Criticalf("Failed to properly stop the process agent: %v", err)
+		return
+	} else {
+		log.Info("The process-agent has successfully been shut down")
 	}
+	return
 }
 
 // cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
