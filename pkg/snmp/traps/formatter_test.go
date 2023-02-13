@@ -1157,11 +1157,6 @@ func TestVariableValueFormat(t *testing.T) {
 	}
 
 	for _, d := range data {
-		t.Run(d.description, func(t *testing.T) {
-			actual := formatValue(d.variable)
-			if diff := cmp.Diff(d.expected, actual); diff != "" {
-				t.Error(diff)
-			}
-		})
+		require.Equal(t, d.expected, formatValue(d.variable), d.description)
 	}
 }
