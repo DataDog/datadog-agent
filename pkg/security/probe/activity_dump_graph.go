@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -334,13 +333,6 @@ func (id GraphID) String() string {
 // NodeID represents the ID of a Node
 type NodeID struct {
 	inner uint64
-}
-
-// NewRandomNodeID returns a new random NodeID
-func NewRandomNodeID() NodeID {
-	return NodeID{
-		inner: utils.RandNonZeroUint64(),
-	}
 }
 
 // NewNodeIDFromPtr returns a new NodeID based on a pointer value

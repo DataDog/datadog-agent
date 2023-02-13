@@ -20,7 +20,7 @@ type CookieGenerator struct {
 
 func NewCookieGenerator() *CookieGenerator {
 	return &CookieGenerator{
-		inner: rand.New(rand.NewSource(time.Now().UnixNano())),
+		inner: NewTimeSeedGenerator(),
 	}
 }
 
@@ -29,12 +29,6 @@ func (cg *CookieGenerator) NewCookie() uint32 {
 	return cg.inner.Uint32()
 }
 
-// RandNonZeroUint64 returns a new non-zero uint64
-func RandNonZeroUint64() uint64 {
-	for {
-		value := rand.Uint64()
-		if value != 0 {
-			return value
-		}
-	}
+func NewTimeSeedGenerator() *rand.Rand {
+	return rand.New(rand.NewSource(time.Now().UnixNano()))
 }

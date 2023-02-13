@@ -10,9 +10,12 @@ package probe
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"text/template"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -63,10 +66,12 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		Nodes: make(map[GraphID]node),
 	}
 
+	gen := utils.NewTimeSeedGenerator()
+
 	for _, netns := range dump {
 		// create namespace node
 		netnsNode := node{
-			ID:    NewGraphID(NewRandomNodeID()),
+			ID:    NewGraphID(NewRandomNodeID(gen)),
 			Label: fmt.Sprintf("%v [fd:%d][handle:%v]", netns.NsID, netns.HandleFD, netns.HandlePath),
 			Color: namespaceColor,
 			Shape: namespaceShape,
@@ -82,7 +87,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		// create active and queued devices nodes
 		for _, dev := range netns.Devices {
 			devNode := node{
-				ID:        NewGraphID(NewRandomNodeID()),
+				ID:        NewGraphID(NewRandomNodeID(gen)),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: activeDeviceColor,
 				Color:     deviceColor,
@@ -100,7 +105,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		}
 		for _, dev := range netns.DevicesInQueue {
 			devNode := node{
-				ID:        NewGraphID(NewRandomNodeID()),
+				ID:        NewGraphID(NewRandomNodeID(gen)),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: queuedDeviceColor,
 				Color:     deviceColor,
@@ -119,4 +124,17 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 	}
 
 	return g
+}
+
+// NewRandomNodeID returns a new random NodeID
+func NewRandomNodeID(gen *rand.Rand) NodeID {
+	// generate non-0 value
+	value := uint64(0)
+	for value == 0 {
+		value = rand.Uint64()
+	}
+
+	return NodeID{
+		inner: value,
+	}
 }
