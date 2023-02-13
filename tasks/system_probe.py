@@ -1467,21 +1467,16 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 @task
 def test_microvms(
-    ctx, 
-    security_groups=None, 
-    subnets=None, 
-    instance_type_x86=None, 
-    instance_type_arm=None, 
-    destroy=False
+    ctx, security_groups=None, subnets=None, instance_type_x86=None, instance_type_arm=None, destroy=False
 ):
     args = []
-    if security_groups != None:
+    if security_groups is not None:
         args.append(f"--sgs {security_groups}")
-    if subnets != None:
+    if subnets is not None:
         args.append(f"--subnets {subnets}")
-    if instance_type_x86 != None:
+    if instance_type_x86 is not None:
         args.append(f"--instance-type-x86 {instance_type_x86}")
-    if instance_type_arm != None:
+    if instance_type_arm is not None:
         args.append(f"--instance-type-arm {instance_type_arm}")
     if destroy:
         args.append("--destroy")
