@@ -115,7 +115,9 @@ func extractVerticalPodAutoscalerStatus(s *v1.VerticalPodAutoscalerStatus) *mode
 			status.LastRecommendedDate = condition.LastTransitionTime.Unix()
 		}
 	}
-	status.Recommendations = extractContainerRecommendations(s.Recommendation.ContainerRecommendations)
+	if s.Recommendation != nil {
+		status.Recommendations = extractContainerRecommendations(s.Recommendation.ContainerRecommendations)
+	}
 	status.Conditions = extractContainerConditions(s.Conditions)
 	return &status
 }
