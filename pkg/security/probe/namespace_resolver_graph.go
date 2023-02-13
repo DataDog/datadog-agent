@@ -13,6 +13,8 @@ import (
 	"os"
 	"text/template"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -57,16 +59,16 @@ func (nr *NamespaceResolver) generateGraph(dump []NetworkNamespaceDump, graphFil
 	return t.Execute(graphFile, data)
 }
 
-func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) graph {
-	g := graph{
+func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils.Graph {
+	g := utils.Graph{
 		Title: fmt.Sprintf("Network Namespace Dump (%s)", time.Now().Format("2006-01-02 15:04:05")),
-		Nodes: make(map[GraphID]node),
+		Nodes: make(map[utils.GraphID]utils.Node),
 	}
 
 	for _, netns := range dump {
 		// create namespace node
-		netnsNode := node{
-			ID:    NewGraphID(NewRandomNodeID()),
+		netnsNode := utils.Node{
+			ID:    utils.NewGraphID(utils.NewRandomNodeID()),
 			Label: fmt.Sprintf("%v [fd:%d][handle:%v]", netns.NsID, netns.HandleFD, netns.HandlePath),
 			Color: namespaceColor,
 			Shape: namespaceShape,
@@ -81,8 +83,8 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 
 		// create active and queued devices nodes
 		for _, dev := range netns.Devices {
-			devNode := node{
-				ID:        NewGraphID(NewRandomNodeID()),
+			devNode := utils.Node{
+				ID:        utils.NewGraphID(utils.NewRandomNodeID()),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: activeDeviceColor,
 				Color:     deviceColor,
@@ -91,7 +93,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 			}
 			g.Nodes[devNode.ID] = devNode
 
-			devEdge := edge{
+			devEdge := utils.Edge{
 				From:  netnsNode.ID,
 				To:    devNode.ID,
 				Color: namespaceColor,
@@ -99,8 +101,8 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 			g.Edges = append(g.Edges, devEdge)
 		}
 		for _, dev := range netns.DevicesInQueue {
-			devNode := node{
-				ID:        NewGraphID(NewRandomNodeID()),
+			devNode := utils.Node{
+				ID:        utils.NewGraphID(utils.NewRandomNodeID()),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: queuedDeviceColor,
 				Color:     deviceColor,
@@ -109,7 +111,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 			}
 			g.Nodes[devNode.ID] = devNode
 
-			devEdge := edge{
+			devEdge := utils.Edge{
 				From:  netnsNode.ID,
 				To:    devNode.ID,
 				Color: namespaceColor,
