@@ -25,15 +25,15 @@ type cacheBypassClients struct {
 
 	// Fixed window rate limiting
 	// It allows client requests spikes while limiting the global amount of request
-	currentWindow time.Time
-	rate          time.Duration
-	capacity      int
-	allowance     int
+	currentWindow  time.Time
+	windowDuration time.Duration
+	capacity       int
+	allowance      int
 }
 
-func (c *cacheBypassClients) isLimited() bool {
+func (c *cacheBypassClients) Limit() bool {
 	now := c.clock.Now()
-	window := now.Truncate(c.rate)
+	window := now.Truncate(c.windowDuration)
 
 	// If we're in a new window, reset the allowance
 	if c.currentWindow != window {

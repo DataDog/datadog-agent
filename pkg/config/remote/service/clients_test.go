@@ -44,24 +44,24 @@ func TestcacheBypassClientsRateLimit(t *testing.T) {
 		requests:      make(chan chan struct{}),
 		currentWindow: clock.Now(),
 		// Allows 3 bypass every 5 seconds
-		rate:      5 * time.Second,
-		capacity:  3,
-		allowance: 3,
+		windowDuration: 5 * time.Second,
+		capacity:       3,
+		allowance:      3,
 	}
 
 	// 3 bypass
-	assert.False(t, cacheBypassClients.isLimited())
-	assert.False(t, cacheBypassClients.isLimited())
-	assert.False(t, cacheBypassClients.isLimited())
+	assert.False(t, cacheBypassClients.Limit())
+	assert.False(t, cacheBypassClients.Limit())
+	assert.False(t, cacheBypassClients.Limit())
 	// bypass blocked
-	assert.True(t, cacheBypassClients.isLimited())
-	assert.True(t, cacheBypassClients.isLimited())
+	assert.True(t, cacheBypassClients.Limit())
+	assert.True(t, cacheBypassClients.Limit())
 
 	// Still blocked after 2 seconds, since we'rer still in the fixed window
 	clock.Add(2 * time.Second)
-	assert.True(t, cacheBypassClients.isLimited())
+	assert.True(t, cacheBypassClients.Limit())
 
 	// New window
 	clock.Add(4 * time.Second)
-	assert.False(t, cacheBypassClients.isLimited())
+	assert.False(t, cacheBypassClients.Limit())
 }

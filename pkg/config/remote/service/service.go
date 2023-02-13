@@ -211,10 +211,10 @@ func NewService() (*Service, error) {
 
 			// By default, allows for 5 cache bypass every refreshInterval seconds
 			// in addition to the usual refresh.
-			currentWindow: time.Now().UTC(),
-			rate:          refreshInterval,
-			capacity:      clientsCacheBypassLimit,
-			allowance:     clientsCacheBypassLimit,
+			currentWindow:  time.Now().UTC(),
+			windowDuration: refreshInterval,
+			capacity:       clientsCacheBypassLimit,
+			allowance:      clientsCacheBypassLimit,
 		},
 	}, nil
 }
@@ -246,7 +246,7 @@ func (s *Service) Start(ctx context.Context) error {
 				err = s.refresh()
 			// New clients detected, request refresh
 			case response := <-s.cacheBypassClients.requests:
-				if !s.cacheBypassClients.isLimited() {
+				if !s.cacheBypassClients.Limit() {
 					err = s.refresh()
 				} else {
 					telemetry.CacheBypassRateLimit.Inc()
@@ -315,7 +315,7 @@ func (s *Service) refresh() error {
 		ri, err := s.getRefreshInterval()
 		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
 			s.defaultRefreshInterval = ri
-			s.cacheBypassClients.rate = ri
+			s.cacheBypassClients.windowDuration = ri
 			log.Info("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
 		}
 	}
