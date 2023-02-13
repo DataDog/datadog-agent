@@ -41,13 +41,14 @@ func areCGroupADsEnabled(c *config.Config) bool {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	config        *config.Config
-	statsdClient  statsd.ClientInterface
-	emptyDropped  *atomic.Uint64
-	fieldHandlers *FieldHandlers
-	resolvers     *Resolvers
-	kernelVersion *kernel.Version
-	manager       *manager.Manager
+	config             *config.Config
+	statsdClient       statsd.ClientInterface
+	emptyDropped       *atomic.Uint64
+	dropMaxDumpReached *atomic.Uint64
+	fieldHandlers      *FieldHandlers
+	resolvers          *Resolvers
+	kernelVersion      *kernel.Version
+	manager            *manager.Manager
 
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
@@ -191,6 +192,7 @@ func (adm *ActivityDumpManager) resolveTags() {
 			if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
 				ad.Finalize(true)
 				adm.RemoveDump(ad)
+				adm.dropMaxDumpReached.Inc()
 			} else {
 				ad.countedByLimiter = true
 				counter.Add(1)
@@ -242,6 +244,7 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		config:                 config,
 		statsdClient:           statsdClient,
 		emptyDropped:           atomic.NewUint64(0),
+		dropMaxDumpReached:     atomic.NewUint64(0),
 		fieldHandlers:          p.fieldHandlers,
 		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
@@ -573,6 +576,12 @@ func (adm *ActivityDumpManager) SendStats() error {
 	if value := adm.emptyDropped.Swap(0); value > 0 {
 		if err := adm.statsdClient.Count(metrics.MetricActivityDumpEmptyDropped, int64(value), nil, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEmptyDropped, err)
+		}
+	}
+
+	if value := adm.dropMaxDumpReached.Swap(0); value > 0 {
+		if err := adm.statsdClient.Count(metrics.MetricActivityDumpDropMaxDumpReached, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpDropMaxDumpReached, err)
 		}
 	}
 

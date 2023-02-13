@@ -2,14 +2,11 @@ module github.com/DataDog/datadog-agent/pkg/otlp/model
 
 go 1.18
 
-replace (
-	github.com/DataDog/datadog-agent/pkg/quantile => ../../quantile
-	github.com/DataDog/datadog-agent/pkg/trace => ../../trace
-)
+replace github.com/DataDog/datadog-agent/pkg/trace => ../../trace
 
 require (
-	github.com/DataDog/datadog-agent/pkg/quantile v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.43.0-rc.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/golang/protobuf v1.5.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible

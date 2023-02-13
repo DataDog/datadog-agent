@@ -9,19 +9,31 @@
 package orchestrator
 
 import (
+	"expvar"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"go.uber.org/atomic"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var (
+	bufferExpVars      = expvar.NewMap("orchestrator-manifest-buffer")
+	bufferedManifest   = map[model.K8SResource]*expvar.Int{}
+	manifestFlushed    = &expvar.Int{}
+	bufferFlushedTotal = &expvar.Int{}
+)
+
+func init() {
+	bufferExpVars.Set("ManifestsFlushedLastTime", manifestFlushed)
+	bufferExpVars.Set("BufferFlushed", bufferFlushedTotal)
+}
 
 // ManifestBufferConfig contains information about buffering manifests.
 type ManifestBufferConfig struct {
@@ -82,6 +94,7 @@ func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
 	}
 	manifestMessages := processors.ChunkManifest(ctx, k8s.BaseHandlers{}.BuildManifestMessageBody, manifests)
 	sender.OrchestratorManifest(manifestMessages, cb.Cfg.ClusterID)
+	setManifestStats(manifests)
 	cb.bufferedManifests = cb.bufferedManifests[:0]
 }
 
@@ -135,5 +148,21 @@ func BufferManifestProcessResult(messages []model.MessageBody, buffer *ManifestB
 		for _, manifest := range m.Manifests {
 			buffer.ManifestChan <- manifest
 		}
+	}
+}
+
+func setManifestStats(manifests []interface{}) {
+	// Number of manifests flushed
+	manifestFlushed.Set(int64(len(manifests)))
+	// Number of times the buffer is flushed
+	bufferFlushedTotal.Add(1)
+	// Number of manifests flushed per resource in total
+	for _, m := range manifests {
+		nodeType := model.K8SResource(m.(*model.Manifest).Type)
+		if _, ok := bufferedManifest[nodeType]; !ok {
+			bufferedManifest[nodeType] = &expvar.Int{}
+			bufferExpVars.Set(nodeType.String(), bufferedManifest[nodeType])
+		}
+		bufferedManifest[nodeType].Add(1)
 	}
 }

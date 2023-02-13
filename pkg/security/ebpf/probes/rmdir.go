@@ -15,21 +15,18 @@ var rmdirProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_inode_rmdir",
 			EBPFFuncName: "kprobe_security_inode_rmdir",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/do_rmdir",
 			EBPFFuncName: "kprobe_do_rmdir",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/do_rmdir",
 			EBPFFuncName: "kretprobe_do_rmdir",
 		},
 	},
