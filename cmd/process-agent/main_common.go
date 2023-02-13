@@ -287,7 +287,6 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 		fx.Populate(&s),
 	)
 	err := app.Start(context.Background())
-	fmt.Println("test")
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %v", err)
 		return
