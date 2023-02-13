@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package reorderer
 
 import (
 	"context"
