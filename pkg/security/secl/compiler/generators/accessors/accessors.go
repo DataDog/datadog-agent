@@ -528,15 +528,15 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	packagesLookupMap[pkgName] = pkg.Types
 
 	splittedBuildTags := strings.Split(buildTags, ",")
-	var buildTags []string
+	var formattedBuildTags []string
 	for _, tag := range splittedBuildTags {
 		if tag != "" {
-			buildTags = append(buildTags, fmt.Sprintf("+build %s", tag))
+			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("+build %s", tag))
 		}
 	}
 	for _, comment := range astFile.Comments {
 		if strings.HasPrefix(comment.Text(), "+build ") {
-			buildTags = append(buildTags, comment.Text())
+			formattedBuildTags = append(formattedBuildTags, comment.Text())
 		}
 	}
 
@@ -549,11 +549,18 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		Name:       moduleName,
 		SourcePkg:  pkgName,
 		TargetPkg:  pkgName,
-		BuildTags:  buildTags,
+		BuildTags:  formattedBuildTags,
 		Fields:     make(map[string]*common.StructField),
 		AllFields:  make(map[string]*common.StructField),
 		Iterators:  make(map[string]*common.StructField),
 		EventTypes: make(map[string]*common.EventTypeMetadata),
+		Platform:   common.Unspecified,
+	}
+
+	if strings.Contains(buildTags, "linux") {
+		module.Platform = common.Linux
+	} else if strings.Contains(buildTags, "windows") {
+		module.Platform = common.Windows
 	}
 
 	// If the target package is different from the model package
