@@ -1,5 +1,5 @@
-//go:build linux_bpf
-// +build linux_bpf
+//go:build linux
+// +build linux
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.

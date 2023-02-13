@@ -1,5 +1,5 @@
-//go:build linux_bpf
-// +build linux_bpf
+//go:build linux
+// +build linux
 
 // Code generated - DO NOT EDIT.
 package model
