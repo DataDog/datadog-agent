@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package kfilters
 
 import (
 	"fmt"
@@ -16,27 +16,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var spliceCapabilities = Capabilities{
-	"splice.file.path": {
+var mmapCapabilities = Capabilities{
+	"mmap.file.path": {
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
 		ValidateFnc:     validateBasenameFilter,
 	},
-	"splice.file.name": {
+	"mmap.file.name": {
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType,
 	},
-	"splice.pipe_entry_flag": {
+	"mmap.protection": {
 		PolicyFlags:     PolicyFlagFlags,
 		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"splice.pipe_exit_flag": {
+	"mmap.flags": {
 		PolicyFlags:     PolicyFlagFlags,
 		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func spliceOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
+func mmapOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {
@@ -45,32 +45,32 @@ func spliceOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 		return values
 	}
 
-	spliceApprovers, err := onNewBasenameApprovers(model.SpliceEventType, "file", approvers)
+	mmapApprovers, err := onNewBasenameApprovers(model.MMapEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "splice.file.name", "splice.file.path": // already handled by onNewBasenameApprovers
-		case "splice.pipe_entry_flag":
+		case "mmap.file.name", "mmap.file.path": // already handled by onNewBasenameApprovers
+		case "mmap.flags":
 			var approver activeApprover
-			approver, err = approveFlags("splice_entry_flags_approvers", intValues(values)...)
+			approver, err = approveFlags("mmap_flags_approvers", intValues(values)...)
 			if err != nil {
 				return nil, err
 			}
-			spliceApprovers = append(spliceApprovers, approver)
-		case "splice.pipe_exit_flag":
+			mmapApprovers = append(mmapApprovers, approver)
+		case "mmap.protection":
 			var approver activeApprover
-			approver, err = approveFlags("splice_exit_flags_approvers", intValues(values)...)
+			approver, err = approveFlags("mmap_protection_approvers", intValues(values)...)
 			if err != nil {
 				return nil, err
 			}
-			spliceApprovers = append(spliceApprovers, approver)
+			mmapApprovers = append(mmapApprovers, approver)
 
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(spliceApprovers...), nil
+	return newActiveKFilters(mmapApprovers...), nil
 }

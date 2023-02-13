@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package kfilters
 
 // FilterPolicy describes a filtering policy
 type FilterPolicy struct {

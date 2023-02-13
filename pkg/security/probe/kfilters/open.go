@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package kfilters
 
 import (
 	"fmt"
@@ -16,27 +16,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var mmapCapabilities = Capabilities{
-	"mmap.file.path": {
+var openCapabilities = Capabilities{
+	"open.file.path": {
 		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 		ValidateFnc:     validateBasenameFilter,
+		FilterWeight:    15,
 	},
-	"mmap.file.name": {
+	"open.file.name": {
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType,
+		FilterWeight:    10,
 	},
-	"mmap.protection": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
-	},
-	"mmap.flags": {
+	"open.flags": {
 		PolicyFlags:     PolicyFlagFlags,
 		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func mmapOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
+func openOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {
@@ -45,32 +43,26 @@ func mmapOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 		return values
 	}
 
-	mmapApprovers, err := onNewBasenameApprovers(model.MMapEventType, "file", approvers)
+	openApprovers, err := onNewBasenameApprovers(model.FileOpenEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "mmap.file.name", "mmap.file.path": // already handled by onNewBasenameApprovers
-		case "mmap.flags":
-			var approver activeApprover
-			approver, err = approveFlags("mmap_flags_approvers", intValues(values)...)
+		case "open.file.name", "open.file.path": // already handled by onNewBasenameApprovers
+		case "open.flags":
+			activeApprover, err := approveFlags("open_flags_approvers", intValues(values)...)
 			if err != nil {
 				return nil, err
 			}
-			mmapApprovers = append(mmapApprovers, approver)
-		case "mmap.protection":
-			var approver activeApprover
-			approver, err = approveFlags("mmap_protection_approvers", intValues(values)...)
-			if err != nil {
-				return nil, err
-			}
-			mmapApprovers = append(mmapApprovers, approver)
+			openApprovers = append(openApprovers, activeApprover)
 
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
+
 	}
-	return newActiveKFilters(mmapApprovers...), nil
+
+	return newActiveKFilters(openApprovers...), nil
 }

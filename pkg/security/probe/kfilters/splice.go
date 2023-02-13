@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package kfilters
 
 import (
 	"fmt"
@@ -16,25 +16,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var openCapabilities = Capabilities{
-	"open.file.path": {
+var spliceCapabilities = Capabilities{
+	"splice.file.path": {
 		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
 		ValidateFnc:     validateBasenameFilter,
-		FilterWeight:    15,
 	},
-	"open.file.name": {
+	"splice.file.name": {
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType,
-		FilterWeight:    10,
 	},
-	"open.flags": {
+	"splice.pipe_entry_flag": {
+		PolicyFlags:     PolicyFlagFlags,
+		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+	},
+	"splice.pipe_exit_flag": {
 		PolicyFlags:     PolicyFlagFlags,
 		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func openOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
+func spliceOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {
@@ -43,26 +45,32 @@ func openOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 		return values
 	}
 
-	openApprovers, err := onNewBasenameApprovers(model.FileOpenEventType, "file", approvers)
+	spliceApprovers, err := onNewBasenameApprovers(model.SpliceEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "open.file.name", "open.file.path": // already handled by onNewBasenameApprovers
-		case "open.flags":
-			activeApprover, err := approveFlags("open_flags_approvers", intValues(values)...)
+		case "splice.file.name", "splice.file.path": // already handled by onNewBasenameApprovers
+		case "splice.pipe_entry_flag":
+			var approver activeApprover
+			approver, err = approveFlags("splice_entry_flags_approvers", intValues(values)...)
 			if err != nil {
 				return nil, err
 			}
-			openApprovers = append(openApprovers, activeApprover)
+			spliceApprovers = append(spliceApprovers, approver)
+		case "splice.pipe_exit_flag":
+			var approver activeApprover
+			approver, err = approveFlags("splice_exit_flags_approvers", intValues(values)...)
+			if err != nil {
+				return nil, err
+			}
+			spliceApprovers = append(spliceApprovers, approver)
 
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
-
 	}
-
-	return newActiveKFilters(openApprovers...), nil
+	return newActiveKFilters(spliceApprovers...), nil
 }
