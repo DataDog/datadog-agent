@@ -99,10 +99,11 @@ type ProcessResolver struct {
 	sync.RWMutex
 	state *atomic.Int64
 
-	manager      *manager.Manager
-	config       *config.Config
-	statsdClient statsd.ClientInterface
-	scrubber     *procutil.DataScrubber
+	manager         *manager.Manager
+	config          *config.Config
+	statsdClient    statsd.ClientInterface
+	scrubber        *procutil.DataScrubber
+	cookieGenerator *utils.CookieGenerator
 
 	resolvers        *Resolvers
 	execFileCacheMap *lib.Map
@@ -273,7 +274,7 @@ func (p *ProcessResolver) DequeueExited() {
 func (p *ProcessResolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext = pidContext
-	entry.Cookie = utils.NewCookie()
+	entry.Cookie = p.cookieGenerator.NewCookie()
 	return entry
 }
 
@@ -1298,25 +1299,26 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 	}
 
 	p := &ProcessResolver{
-		manager:        manager,
-		config:         config,
-		statsdClient:   statsdClient,
-		scrubber:       scrubber,
-		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
-		opts:           opts,
-		argsEnvsCache:  argsEnvsCache,
-		state:          atomic.NewInt64(snapshotting),
-		argsEnvsPool:   NewArgsEnvsPool(maxArgsEnvResidents),
-		hitsStats:      map[string]*atomic.Int64{},
-		cacheSize:      atomic.NewInt64(0),
-		missStats:      atomic.NewInt64(0),
-		addedEntries:   atomic.NewInt64(0),
-		flushedEntries: atomic.NewInt64(0),
-		pathErrStats:   atomic.NewInt64(0),
-		argsTruncated:  atomic.NewInt64(0),
-		argsSize:       atomic.NewInt64(0),
-		envsTruncated:  atomic.NewInt64(0),
-		envsSize:       atomic.NewInt64(0),
+		manager:         manager,
+		config:          config,
+		statsdClient:    statsdClient,
+		scrubber:        scrubber,
+		cookieGenerator: utils.NewCookieGenerator(),
+		entryCache:      make(map[uint32]*model.ProcessCacheEntry),
+		opts:            opts,
+		argsEnvsCache:   argsEnvsCache,
+		state:           atomic.NewInt64(snapshotting),
+		argsEnvsPool:    NewArgsEnvsPool(maxArgsEnvResidents),
+		hitsStats:       map[string]*atomic.Int64{},
+		cacheSize:       atomic.NewInt64(0),
+		missStats:       atomic.NewInt64(0),
+		addedEntries:    atomic.NewInt64(0),
+		flushedEntries:  atomic.NewInt64(0),
+		pathErrStats:    atomic.NewInt64(0),
+		argsTruncated:   atomic.NewInt64(0),
+		argsSize:        atomic.NewInt64(0),
+		envsTruncated:   atomic.NewInt64(0),
+		envsSize:        atomic.NewInt64(0),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)

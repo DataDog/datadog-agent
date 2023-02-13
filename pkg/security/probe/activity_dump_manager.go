@@ -49,6 +49,7 @@ type ActivityDumpManager struct {
 	resolvers          *Resolvers
 	kernelVersion      *kernel.Version
 	manager            *manager.Manager
+	cookieGenerator    *utils.CookieGenerator
 
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
@@ -249,6 +250,7 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
 		manager:                manager,
+		cookieGenerator:        utils.NewCookieGenerator(),
 		tracedPIDsMap:          tracedPIDs,
 		tracedCommsMap:         tracedComms,
 		tracedCgroupsMap:       tracedCgroupsMap,
