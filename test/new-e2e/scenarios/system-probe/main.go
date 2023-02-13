@@ -9,7 +9,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/systemProbe"
+	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
 
 func main() {

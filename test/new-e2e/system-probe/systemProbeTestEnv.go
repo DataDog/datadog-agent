@@ -122,7 +122,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	if found {
 		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
 	}
-	outputARM, found = upResult.Outputs["arm64-instance-ip"]
+	outputARM, found := upResult.Outputs["arm64-instance-ip"]
 	if found {
 		systemProbeTestEnv.ARM64InstanceIP = outputARM.Value.(string)
 	}

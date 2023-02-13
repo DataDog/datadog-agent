@@ -1479,4 +1479,4 @@ def test_microvms(ctx, security_groups="", subnets="", instance_type_x86="", ins
     if destroy:
         args += " --destroy"
 
-    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/systemProbe/main.go --name usama-saqib-test {args}")
+    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {args}")
