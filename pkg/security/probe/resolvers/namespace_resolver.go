@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -145,7 +146,7 @@ func (nn *NetworkNamespace) getNamespaceHandleDup() (*os.File, error) {
 }
 
 // dequeueNetworkDevices dequeues the devices in the current network devices queue.
-func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *TCResolver, manager *manager.Manager) {
+func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manager *manager.Manager) {
 	nn.Lock()
 	defer nn.Unlock()
 
@@ -191,7 +192,7 @@ func (nn *NetworkNamespace) hasValidHandle() bool {
 type NamespaceResolver struct {
 	sync.Mutex
 	state      *atomic.Int64
-	tcResolver *TCResolver
+	tcResolver *tc.Resolver
 	client     statsd.ClientInterface
 	config     *config.Config
 	manager    *manager.Manager
@@ -200,7 +201,7 @@ type NamespaceResolver struct {
 }
 
 // NewNamespaceResolver returns a new instance of NamespaceResolver
-func NewNamespaceResolver(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, tcResolver *TCResolver) (*NamespaceResolver, error) {
+func NewNamespaceResolver(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, tcResolver *tc.Resolver) (*NamespaceResolver, error) {
 	nr := &NamespaceResolver{
 		state:      atomic.NewInt64(0),
 		client:     statsdClient,

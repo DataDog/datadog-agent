@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,7 +40,7 @@ type Resolvers struct {
 	ProcessResolver   *resolvers.ProcessResolver
 	NamespaceResolver *resolvers.NamespaceResolver
 	CgroupResolver    *cgroup.CgroupResolver
-	TCResolver        *resolvers.TCResolver
+	TCResolver        *tc.Resolver
 	PathResolver      *resolvers.PathResolver
 }
 
@@ -60,7 +61,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	tcResolver := resolvers.NewTCResolver(config)
+	tcResolver := tc.NewResolver(config)
 
 	namespaceResolver, err := resolvers.NewNamespaceResolver(probe.Config, probe.Manager, probe.StatsdClient, probe.resolvers.TCResolver)
 	if err != nil {

@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package tc
 
 import (
 	"fmt"
@@ -30,20 +30,20 @@ type NetDeviceKey struct {
 	NetworkDirection manager.TrafficType
 }
 
-type TCResolver struct {
+type Resolver struct {
 	sync.RWMutex
 	config   *config.Config
 	programs map[NetDeviceKey]*manager.Probe
 }
 
-func NewTCResolver(config *config.Config) *TCResolver {
-	return &TCResolver{
+func NewResolver(config *config.Config) *Resolver {
+	return &Resolver{
 		config:   config,
 		programs: make(map[NetDeviceKey]*manager.Probe),
 	}
 }
 
-func (tcr *TCResolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
+func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
@@ -52,7 +52,7 @@ func (tcr *TCResolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) 
 	}
 }
 
-func (tcr *TCResolver) SelectTCProbes() manager.ProbesSelector {
+func (tcr *Resolver) SelectTCProbes() manager.ProbesSelector {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
@@ -76,7 +76,7 @@ func (tcr *TCResolver) SelectTCProbes() manager.ProbesSelector {
 
 // SetupNewTCClassifierWithNetNSHandle creates and attaches TC probes on the provided device. WARNING: this function
 // will not close the provided netns handle, so the caller of this function needs to take care of it.
-func (tcr *TCResolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File, m *manager.Manager) error {
+func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File, m *manager.Manager) error {
 	tcr.Lock()
 	defer tcr.Unlock()
 
@@ -116,7 +116,7 @@ func (tcr *TCResolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevic
 }
 
 // flushNetworkNamespace thread unsafe version of FlushNetworkNamespace
-func (tcr *TCResolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Manager) {
+func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Manager) {
 	tcr.Lock()
 	defer tcr.Unlock()
 
@@ -130,7 +130,7 @@ func (tcr *TCResolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Ma
 
 // FlushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
 // per network namespace (ignoring the interfaces that are lazily deleted).
-func (tcr *TCResolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) map[uint32]int {
+func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) map[uint32]int {
 	tcr.Lock()
 	defer tcr.Unlock()
 
@@ -158,7 +158,7 @@ func (tcr *TCResolver) FlushInactiveProbes(m *manager.Manager, isLazy func(strin
 	return probesCountNoLazyDeletion
 }
 
-func (tcr *TCResolver) ResolveNetworkDeviceIfName(ifIndex, netNS uint32) (string, bool) {
+func (tcr *Resolver) ResolveNetworkDeviceIfName(ifIndex, netNS uint32) (string, bool) {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
