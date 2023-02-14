@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package mount
 
 import (
 	"fmt"
@@ -440,7 +440,7 @@ func TestMountResolver(t *testing.T) {
 	cr, _ := cgroup.NewCgroupResolver()
 
 	// Create mount resolver
-	mr, _ := NewMountResolver(nil, cr, MountResolverOpts{})
+	mr, _ := NewResolver(nil, cr, ResolverOpts{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
@@ -473,7 +473,7 @@ func TestMountResolver(t *testing.T) {
 }
 
 func TestMountGetParentPath(t *testing.T) {
-	mr := &MountResolver{
+	mr := &Resolver{
 		mounts: map[uint32]*model.Mount{
 			1: {
 				MountID:       1,
@@ -503,7 +503,7 @@ func TestMountGetParentPath(t *testing.T) {
 }
 
 func TestMountLoop(t *testing.T) {
-	mr := &MountResolver{
+	mr := &Resolver{
 		mounts: map[uint32]*model.Mount{
 			1: {
 				MountID:       1,
@@ -533,7 +533,7 @@ func TestMountLoop(t *testing.T) {
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
-	mr := &MountResolver{
+	mr := &Resolver{
 		mounts: make(map[uint32]*model.Mount),
 	}
 

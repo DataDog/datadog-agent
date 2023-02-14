@@ -14,17 +14,18 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // PathResolver describes a resolvers for path and file names
 type PathResolver struct {
 	dentryResolver *dentry.DentryResolver
-	mountResolver  *MountResolver
+	mountResolver  *mount.Resolver
 }
 
 // NewPathResolver returns a new path resolver
-func NewPathResolver(dentryResolver *dentry.DentryResolver, mountResolver *MountResolver) *PathResolver {
+func NewPathResolver(dentryResolver *dentry.DentryResolver, mountResolver *mount.Resolver) *PathResolver {
 	return &PathResolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
 }
 
@@ -46,7 +47,7 @@ func (r *PathResolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.
 
 	mountPath, err := r.mountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
-		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, ErrMountKernelID) {
+		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, err
@@ -54,7 +55,7 @@ func (r *PathResolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.
 
 	rootPath, err := r.mountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
-		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, ErrMountKernelID) {
+		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, err

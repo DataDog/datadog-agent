@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package mount
 
 import (
 	"context"
@@ -88,14 +88,14 @@ type deleteRequest struct {
 	timeoutAt time.Time
 }
 
-// MountResolverOpts defines mount resolver options
-type MountResolverOpts struct {
+// ResolverOpts defines mount resolver options
+type ResolverOpts struct {
 	UseProcFS bool
 }
 
-// MountResolver represents a cache for mountpoints and the corresponding file systems
-type MountResolver struct {
-	opts            MountResolverOpts
+// Resolver represents a cache for mountpoints and the corresponding file systems
+type Resolver struct {
+	opts            ResolverOpts
 	cgroupsResolver *cgroup.CgroupResolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
@@ -114,7 +114,7 @@ type MountResolver struct {
 }
 
 // IsMountIDValid returns whether the mountID is valid
-func (mr *MountResolver) IsMountIDValid(mountID uint32) (bool, error) {
+func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 	if mountID == 0 {
 		return false, ErrMountUndefined
 	}
@@ -127,7 +127,7 @@ func (mr *MountResolver) IsMountIDValid(mountID uint32) (bool, error) {
 }
 
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
-func (mr *MountResolver) SyncCache(pid uint32) error {
+func (mr *Resolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -146,7 +146,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 }
 
 // syncCache update cache with the first working pid
-func (mr *MountResolver) syncCache(pids ...uint32) error {
+func (mr *Resolver) syncCache(pids ...uint32) error {
 	var err error
 	var mnts []*mountinfo.Info
 
@@ -172,7 +172,7 @@ func (mr *MountResolver) syncCache(pids ...uint32) error {
 	return err
 }
 
-func (mr *MountResolver) finalize(first *model.Mount) {
+func (mr *Resolver) finalize(first *model.Mount) {
 	open_queue := make([]*model.Mount, 0, len(mr.mounts))
 	open_queue = append(open_queue, first)
 
@@ -209,14 +209,14 @@ func (mr *MountResolver) finalize(first *model.Mount) {
 	}
 }
 
-func (mr *MountResolver) delete(mount *model.Mount) {
+func (mr *Resolver) delete(mount *model.Mount) {
 	if m, exists := mr.mounts[mount.MountID]; exists {
 		mr.redemption.Add(mount.MountID, m)
 	}
 }
 
 // Delete a mount from the cache
-func (mr *MountResolver) Delete(mountID uint32) error {
+func (mr *Resolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -231,7 +231,7 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 }
 
 // ResolveFilesystem returns the name of the filesystem
-func (mr *MountResolver) ResolveFilesystem(mountID, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) ResolveFilesystem(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -244,7 +244,7 @@ func (mr *MountResolver) ResolveFilesystem(mountID, pid uint32, containerID stri
 }
 
 // Insert a new mount point in the cache
-func (mr *MountResolver) Insert(e model.Mount, pid uint32, containerID string) error {
+func (mr *Resolver) Insert(e model.Mount, pid uint32, containerID string) error {
 	if e.MountID == 0 {
 		return ErrMountUndefined
 	}
@@ -257,7 +257,7 @@ func (mr *MountResolver) Insert(e model.Mount, pid uint32, containerID string) e
 	return nil
 }
 
-func (mr *MountResolver) insert(m *model.Mount) {
+func (mr *Resolver) insert(m *model.Mount) {
 	// umount the previous one if exists
 	if prev, ok := mr.mounts[m.MountID]; ok {
 		// if present in the redemption that the evict function that will remove the entry
@@ -285,7 +285,7 @@ func (mr *MountResolver) insert(m *model.Mount) {
 	}
 }
 
-func (mr *MountResolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string, error) {
+func (mr *Resolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
 	}
@@ -329,11 +329,11 @@ func (mr *MountResolver) _getMountPath(mountID uint32, cache map[uint32]bool) (s
 	return mountPointStr, nil
 }
 
-func (mr *MountResolver) getMountPath(mountID uint32) (string, error) {
+func (mr *Resolver) getMountPath(mountID uint32) (string, error) {
 	return mr._getMountPath(mountID, map[uint32]bool{})
 }
 
-func (mr *MountResolver) dequeue(now time.Time) {
+func (mr *Resolver) dequeue(now time.Time) {
 	mr.lock.Lock()
 
 	var i int
@@ -363,7 +363,7 @@ func (mr *MountResolver) dequeue(now time.Time) {
 }
 
 // Start starts the resolver
-func (mr *MountResolver) Start(ctx context.Context) {
+func (mr *Resolver) Start(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
@@ -380,14 +380,14 @@ func (mr *MountResolver) Start(ctx context.Context) {
 }
 
 // ResolveMountPath returns the root of a mount identified by its mount ID.
-func (mr *MountResolver) ResolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) ResolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	return mr.resolveMountRoot(mountID, pid, containerID)
 }
 
-func (mr *MountResolver) resolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) resolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
 	mount, err := mr.resolveMount(mountID, pid, containerID)
 	if err != nil {
 		return "", err
@@ -396,14 +396,14 @@ func (mr *MountResolver) resolveMountRoot(mountID, pid uint32, containerID strin
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
-func (mr *MountResolver) ResolveMountPath(mountID, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	return mr.resolveMountPath(mountID, pid, containerID)
 }
 
-func (mr *MountResolver) isSyncCacheAllowed(mountID uint32) bool {
+func (mr *Resolver) isSyncCacheAllowed(mountID uint32) bool {
 	now := time.Now()
 	if ts, ok := mr.fallbackLimiter.Get(mountID); ok {
 		if now.After(ts) {
@@ -415,14 +415,14 @@ func (mr *MountResolver) isSyncCacheAllowed(mountID uint32) bool {
 	return true
 }
 
-func (mr *MountResolver) syncCacheMiss(mountID uint32) {
+func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.procMissStats.Inc()
 
 	// add to fallback limiter to avoid storm of file access
 	mr.fallbackLimiter.Add(mountID, time.Now().Add(fallbackLimiterPeriod))
 }
 
-func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) resolveMountPath(mountID, pid uint32, containerID string) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
 	}
@@ -469,14 +469,14 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 }
 
 // ResolveMount returns the mount
-func (mr *MountResolver) ResolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
+func (mr *Resolver) ResolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	return mr.resolveMount(mountID, pid, containerID)
 }
 
-func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
+func (mr *Resolver) resolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, err
 	}
@@ -593,7 +593,7 @@ func GetVFSRenameInputType(kernelVersion *skernel.Version) uint64 {
 }
 
 // SendStats sends metrics about the current state of the namespace resolver
-func (mr *MountResolver) SendStats() error {
+func (mr *Resolver) SendStats() error {
 	mr.lock.RLock()
 	defer mr.lock.RUnlock()
 
@@ -616,9 +616,9 @@ func (mr *MountResolver) SendStats() error {
 	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(len(mr.mounts)), []string{}, 1.0)
 }
 
-// NewMountResolver instantiates a new mount resolver
-func NewMountResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.CgroupResolver, opts MountResolverOpts) (*MountResolver, error) {
-	mr := &MountResolver{
+// NewResolver instantiates a new mount resolver
+func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.CgroupResolver, opts ResolverOpts) (*Resolver, error) {
+	mr := &Resolver{
 		opts:            opts,
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgroupsResolver,

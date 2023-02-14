@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
@@ -34,7 +35,7 @@ import (
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	manager           *manager.Manager
-	MountResolver     *resolvers.MountResolver
+	MountResolver     *mount.Resolver
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *user.UserGroupResolver
@@ -76,7 +77,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient, cgroupsResolver, resolvers.MountResolverOpts{UseProcFS: true})
+	mountResolver, err := mount.NewResolver(probe.StatsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
 	if err != nil {
 		return nil, err
 	}
