@@ -8,13 +8,18 @@ package flare
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/fatih/color"
 	"go.etcd.io/bbolt"
 )
 
@@ -68,4 +73,69 @@ func getRemoteConfigDB(fb flarehelpers.FlareBuilder) error {
 			})
 		})
 	})
+}
+
+func getStateString(state *pbgo.FileMetaState, padding int) string {
+	if state == nil {
+		return color.YellowString(fmt.Sprintf("%*s\n", padding, "- Not found"))
+	}
+	return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
+}
+
+func printAndRemoveFile(w io.Writer, repo map[string]*pbgo.FileMetaState, name string, prefix string, padding int) {
+	file, found := repo[name]
+	fmt.Fprintf(w, "%s%s%s", prefix, name, getStateString(file, padding))
+	if found {
+		delete(repo, name)
+	}
+}
+
+func printTUFRepo(w io.Writer, repo map[string]*pbgo.FileMetaState) {
+	printAndRemoveFile(w, repo, "root.json", "", 20)
+	printAndRemoveFile(w, repo, "timestamp.json", "|- ", 12)
+	printAndRemoveFile(w, repo, "snapshot.json", "|- ", 13)
+	printAndRemoveFile(w, repo, "targets.json", "|- ", 14)
+
+	// Sort the keys to display the delegated targets in order
+	keys := make([]string, 0, len(repo))
+	for k := range repo {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, name := range keys {
+		fmt.Fprintf(w, "    |- %s %s\n", name, getStateString(repo[name], 4))
+	}
+}
+
+// PrintRemoteConfigState dump the whole remote-config state
+func PrintRemoteConfigState(w io.Writer, s *pbgo.GetStateConfigResponse) {
+	fmt.Fprintln(w, "\n=== Remote config DB state ===")
+
+	fmt.Fprintln(w, "\nConfiguration repository")
+	fmt.Fprintln(w, strings.Repeat("-", 25))
+	printTUFRepo(os.Stdout, s.ConfigState)
+
+	fmt.Fprintln(w, "\nDirector repository")
+	fmt.Fprintln(w, strings.Repeat("-", 20))
+	printTUFRepo(os.Stdout, s.DirectorState)
+	keys := make([]string, 0, len(s.TargetFilenames))
+	for k := range s.TargetFilenames {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, name := range keys {
+		fmt.Fprintf(w, "    |- %s - Hash: %s\n", name, s.TargetFilenames[name])
+	}
+
+	fmt.Fprintln(w, "\n=== Remote config active clients ===")
+
+	for _, client := range s.ActiveClients {
+		fmt.Fprintf(w, "\n== Client %s ==\n%+v\n", client.Id, client)
+	}
+
+	if len(s.ActiveClients) == 0 {
+		fmt.Fprintln(w, "No active clients")
+	}
 }
