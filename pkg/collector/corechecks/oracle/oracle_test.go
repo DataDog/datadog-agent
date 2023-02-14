@@ -9,16 +9,20 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	go_ora "github.com/sijms/go-ora/v2"
 
 	_ "github.com/godror/godror"
 )
+
+var chk Check
 
 var HOST = "localhost"
 var PORT = 1521
@@ -29,7 +33,7 @@ var TNS_ALIAS = "XE"
 var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/testutil/etc/netadmin"
 
 func TestBasic(t *testing.T) {
-	chk := Check{}
+	chk = Check{}
 
 	// language=yaml
 	rawInstanceConfig := []byte(fmt.Sprintf(`
@@ -79,17 +83,15 @@ func TestConnection(t *testing.T) {
 
 }
 
-/*
-func TestConnectionGodrorClassic(t *testing.T) {
-	_, tnsAdminSet := os.LookupEnv("TNS_ADMIN")
-	if tnsAdminSet {
-		databaseUrl := fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, USER, PASSWORD, TNS_ALIAS)
-		_, err := sqlx.Connect("godror", databaseUrl)
-		assert.NoError(t, err)
-	} else {
-		databaseUrl := fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
-		_, err := sqlx.Connect("godror", databaseUrl)
-		assert.NoError(t, err)
-	}
+func demuxOpts() aggregator.AgentDemultiplexerOptions {
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts.FlushInterval = 1 * time.Hour
+	opts.DontStartForwarders = true
+	return opts
 }
-*/
+
+func TestChkRun(t *testing.T) {
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	err := chk.Run()
+	assert.NoError(t, err)
+}
