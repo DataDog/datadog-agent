@@ -5,35 +5,6 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
-.pull_test_dockers:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  needs: []
-  tags: ["runner:docker"]
-  rules:
-    !reference [ .on_system_probe_changes_or_manual ]
-  stage: functional_test
-  script:
-    # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    # Pull base images
-    - mkdir kitchen-dockers
-    - inv -e system-probe.save-test-dockers --output-dir kitchen-dockers --arch $ARCH
-  artifacts:
-    expire_in: 1 day
-    paths:
-      - kitchen-dockers
-
-pull_test_dockers_x64:
-  extends: .pull_test_dockers
-  variables:
-    ARCH: amd64
-
-pull_test_dockers_arm64:
-  extends: .pull_test_dockers
-  variables:
-    ARCH: arm64
-
 .kitchen_test_system_probe:
   extends:
     - .kitchen_common
@@ -59,8 +30,10 @@ pull_test_dockers_arm64:
       - $CI_PROJECT_DIR/kitchen_logs
 
 .retrieve_test_dockers:
+  - S3_CP_CMD $S3_ARTIFACTS_URI/kitchen-dockers-$ARCH.tar.gz ./
+  - tar xzvf kitchen-dockers-$ARCH.tar.gz
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
-  - mv kitchen-dockers/* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
+  - mv kitchen-dockers-$ARCH/* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
 
 .retrieve_minimized_btfs:
   - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz /tmp/minimized-btfs.tar.xz

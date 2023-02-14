@@ -2,7 +2,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
   needs: []
   tags: ["runner:docker"]
-  stage: functional_test
+  stage: kernel_version_testing
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -10,12 +10,17 @@
     # Pull base images
     - mkdir $KITCHEN_DOCKERS
     - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
+    # upload docker images to S3 artifacts bucket
+    - pushd $DD_AGENT_TESTING_DIR
+    - tar czvf kitchen-dockers-$ARCH.tar.gz kitchen-dockers-$ARCH
+    - $S3_CP_CMD kitchen-dockers-$ARCH.tar.gz $S3_ARTIFACTS_URI/kitchen-dockers-$ARCH.tar.gz
+    - popd
   artifacts:
     expire_in: 1 day
     paths:
-      - kitchen-dockers
+      - $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
   variables:
-    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers
+    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
 
 pull_test_dockers_x64:
   extends: .pull_test_dockers
