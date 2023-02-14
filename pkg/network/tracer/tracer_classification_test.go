@@ -21,6 +21,7 @@ import (
 	"time"
 
 	redis2 "github.com/go-redis/redis/v9"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"go.mongodb.org/mongo-driver/bson"
@@ -82,6 +83,13 @@ func validateProtocolConnection(expectedProtocol network.ProtocolType) func(t *t
 func skipIfNotLinux(t *testing.T, _ testContext) {
 	if runtime.GOOS != "linux" {
 		t.Skip("test is supported on linux machine only")
+	}
+}
+
+// skipIfUsingNAT skips the test if we have a NAT rules applied.
+func skipIfUsingNAT(t *testing.T, ctx testContext) {
+	if ctx.targetAddress != ctx.serverAddress {
+		t.Skip("test is not supported when NAT is applied")
 	}
 }
 
@@ -464,7 +472,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 }
 
 func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := skipIfNotLinux
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    postgresPort,
@@ -974,7 +982,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 }
 
 func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := skipIfNotLinux
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    amqpPort,
@@ -1408,7 +1416,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	t.Errorf("couldn't find incoming and outgoing connections with protocol %d for "+
+	assert.Failf(t, "", "couldn't find incoming and outgoing connections with protocol %d for "+
 		"server address %s and target address %s.\nIncoming: %v\nOutgoing: %v\nfound incoming with protocol: "+
 		"%v\nfound outgoing with protocol: %v", expectedProtocol, serverAddr, targetAddr, incomingConns, outgoingConns, foundIncomingWithProtocol, foundOutgoingWithProtocol)
 }
