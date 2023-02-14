@@ -117,7 +117,7 @@ class GoModule:
 DEFAULT_MODULES = {
     ".": GoModule(
         ".",
-        targets=["./pkg", "./cmd"],
+        targets=["./pkg", "./cmd", "./comp"],
     ),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
