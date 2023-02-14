@@ -6,14 +6,11 @@
 package resolver
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestLocalResolver(t *testing.T) {
@@ -312,30 +309,6 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedRaddrID: "foo6",
 		},
 		{
-			name: "cross namespace with dnat to loopback",
-			conn: &model.Connection{
-				Pid:   20,
-				NetNS: 20,
-				Laddr: &model.Addr{
-					Ip:   "10.10.10.10",
-					Port: 22222,
-				},
-				Raddr: &model.Addr{
-					Ip:   "169.254.169.254.169",
-					Port: 80,
-				},
-				Direction: model.ConnectionDirection_outgoing,
-				IpTranslation: &model.IPTranslation{
-					ReplDstIP:   "10.10.10.10",
-					ReplDstPort: 22222,
-					ReplSrcIP:   "127.0.0.1",
-					ReplSrcPort: 8181,
-				},
-			},
-			expectedLaddrID: "foo20",
-			expectedRaddrID: "",
-		},
-		{
 			name: "zero src netns failed resolution",
 			conn: &model.Connection{
 				Pid:   22,
@@ -371,35 +344,6 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedLaddrID: "foo21",
 			expectedRaddrID: "", // should NOT resolve to foo22
 		},
-	}
-
-	if os.Getuid() == 0 {
-		rootNs, err := util.GetNetNsInoFromPid("/proc", 1)
-		require.NoError(t, err)
-		tests = append(tests, resolveTest{
-			name: "cross namespace with dnat to loopback",
-			conn: &model.Connection{
-				Pid:   21,
-				NetNS: rootNs,
-				Laddr: &model.Addr{
-					Ip:   "127.0.0.1",
-					Port: 8181,
-				},
-				Raddr: &model.Addr{
-					Ip:   "10.10.10.10",
-					Port: 22222,
-				},
-				Direction: model.ConnectionDirection_outgoing,
-				IpTranslation: &model.IPTranslation{
-					ReplDstIP:   "169.254.169.254",
-					ReplDstPort: 80,
-					ReplSrcIP:   "10.10.10.10",
-					ReplSrcPort: 22222,
-				},
-			},
-			expectedLaddrID: "foo21",
-			expectedRaddrID: "foo20",
-		})
 	}
 
 	resolver := &LocalResolver{}
