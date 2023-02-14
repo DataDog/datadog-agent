@@ -20,9 +20,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

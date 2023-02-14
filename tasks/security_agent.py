@@ -566,7 +566,7 @@ def cws_go_generate(ctx):
         "cp ./pkg/security/serializers/serializers_easyjson.mock ./pkg/security/serializers/serializers_easyjson.go"
     )
     ctx.run(
-        "cp ./pkg/security/probe/activitydump/activity_dump_easyjson.mock ./pkg/security/probe/activitydump/activity_dump_easyjson.go"
+        "cp ./pkg/security/activitydump/activity_dump_easyjson.mock ./pkg/security/activitydump/activity_dump_easyjson.go"
     )
     ctx.run("go generate ./pkg/security/...")
 
