@@ -172,15 +172,17 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 
 	return &model.FileEvent{
 		FileFields: model.FileFields{
-			UID:          fi.Uid,
-			User:         fi.User,
-			GID:          fi.Gid,
-			Group:        fi.Group,
-			Mode:         uint16(fi.Mode),
-			CTime:        fi.Ctime,
-			MTime:        fi.Mtime,
-			MountID:      fi.MountId,
-			Inode:        fi.Inode,
+			UID:   fi.Uid,
+			User:  fi.User,
+			GID:   fi.Gid,
+			Group: fi.Group,
+			Mode:  uint16(fi.Mode),
+			CTime: fi.Ctime,
+			MTime: fi.Mtime,
+			PathKey: model.PathKey{
+				MountID: fi.MountId,
+				Inode:   fi.Inode,
+			},
 			InUpperLayer: fi.InUpperLayer,
 		},
 		PathnameStr: fi.Path,
