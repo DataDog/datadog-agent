@@ -43,4 +43,16 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "1", string(payloads[0]))
 		assert.Equal(t, "/foo/bar", string(payloads[1]))
 	})
+
+	t.Run("should handle response with errors", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		payloads, err := client.getFakePayloads("/foo/bar")
+		assert.Error(t, err, "Expecting error")
+		assert.Nil(t, payloads)
+	})
 }
