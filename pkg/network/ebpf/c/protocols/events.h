@@ -100,6 +100,21 @@
             batch_state->idx++;                                                         \
         }                                                                               \
     }                                                                                   \
+                                                                                        \
+    static __always_inline void name##_batch_pop() {                                    \
+        u32 zero = 0;                                                                   \
+        batch_state_t *batch_state =  bpf_map_lookup_elem(&name##_batch_state, &zero);  \
+        if (batch_state == NULL) {                                                      \
+            return;                                                                     \
+        }                                                                               \
+                                                                                        \
+        batch_key_t key = get_batch_key(batch_state->idx);                              \
+        batch_data_t *batch = bpf_map_lookup_elem(&name##_batches, &key);               \
+        if (batch == NULL || batch->len == 0) {                                         \
+            return;                                                                     \
+        }                                                                               \
+        batch->len--;                                                                   \
+    }                                                                                   \
 
 static __always_inline batch_key_t get_batch_key(u64 batch_idx) {
     batch_key_t key = { 0 };

@@ -44,12 +44,6 @@ typedef struct {
     __u64 response_last_seen;
     char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
 
-    // this field is used exclusively in the kernel side to prevent a TCP segment
-    // to be processed twice in the context of localhost traffic. The field will
-    // be populated with the "original" (pre-normalization) source port number of
-    // the TCP segment containing the beginning of a given HTTP request
-    __u16 owned_by_src_port;
-
     // this field is used to disambiguate segments in the context of keep-alives
     // we populate it with the TCP seq number of the request and then the response segments
     __u32 tcp_seq;

@@ -46,10 +46,6 @@ int socket__http_filter(struct __sk_buff *skb) {
     if (!http_allow_packet(&http, skb, &skb_info)) {
         return 0;
     }
-
-    // src_port represents the source port number *before* normalization
-    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http.owned_by_src_port = http.tup.sport;
     normalize_tuple(&http.tup);
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
