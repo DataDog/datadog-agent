@@ -124,7 +124,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			// want to do.
 			continue
 		}
-		execPath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
+		execPath := winutil.ConvertWindowsString16(pe32.SzExeFile[:])
 		log.Debugf("filled proc entry for pid:%d executable:%s", pe32.Th32ProcessID, execPath)
 
 		cp, ok := p.cachedProcesses[pid]
