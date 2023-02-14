@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -86,7 +87,23 @@ func (pc *profiledContainer) isValid() bool {
 	return pc.name != "" && pc.tag != ""
 }
 
-func (t *telemetry) reportProfiledContainers() {
+func (t *telemetry) fetchConfig() (*api.SecurityConfigMessage, error) {
+	cfg, err := t.runtimeSecurityClient.GetConfig()
+	if err != nil {
+		return cfg, errors.New("couldn't fetch config from runtime security module")
+	}
+	return cfg, nil
+}
+
+func (t *telemetry) reportProfiledContainers() error {
+	cfg, err := t.fetchConfig()
+	if err != nil {
+		return err
+	}
+	if !cfg.ActivityDumpEnabled {
+		return nil
+	}
+
 	profiled := make(map[profiledContainer]bool)
 
 	for _, container := range t.containers.ListRunningContainers() {
@@ -113,13 +130,14 @@ func (t *telemetry) reportProfiledContainers() {
 
 	log.Infof("not yet profiled workloads: %v", missing)
 	t.containers.Sender.Gauge(metrics.MetricActivityDumpNotYetProfiledWorkload, float64(len(missing)), "", nil)
+	return nil
 }
 
 func (t *telemetry) reportContainers() error {
 	// retrieve the runtime security module config
-	cfg, err := t.runtimeSecurityClient.GetConfig()
+	cfg, err := t.fetchConfig()
 	if err != nil {
-		return errors.New("couldn't fetch config from runtime security module")
+		return err
 	}
 
 	var metricName string
