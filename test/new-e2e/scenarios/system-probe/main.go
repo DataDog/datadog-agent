@@ -19,16 +19,12 @@ func run(envName, securityGroups, subnets, x86InstanceType, armInstanceType stri
 		return err
 	}
 
-	if destroy {
-		err = systemProbeEnv.Destroy()
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
 	fmt.Println(systemProbeEnv.ARM64InstanceIP)
 	fmt.Println(systemProbeEnv.X86_64InstanceIP)
+
+	if destroy {
+		return systemProbeEnv.Destroy()
+	}
 
 	return nil
 }
