@@ -22,6 +22,10 @@ func (cr *checkRun) name() string {
 	return cr.Check
 }
 
+func (cr *checkRun) tags() []string {
+	return cr.Tags
+}
+
 func parseCheckRunPayload(data []byte) (checks []*checkRun, err error) {
 	enflated, err := enflate(data)
 	if err != nil {
@@ -33,40 +37,11 @@ func parseCheckRunPayload(data []byte) (checks []*checkRun, err error) {
 }
 
 type CheckRunAggregator struct {
-	checkRunByName map[string][]*checkRun
+	Aggregator[*checkRun]
 }
 
 func NewCheckRunAggregator() CheckRunAggregator {
 	return CheckRunAggregator{
-		checkRunByName: map[string][]*checkRun{},
+		Aggregator: newAggregator(parseCheckRunPayload),
 	}
-}
-
-func (agg *CheckRunAggregator) UnmarshallPayloads(body []byte) error {
-	checks, err := unmarshallPayloads(body, parseCheckRunPayload)
-	if err != nil {
-		return err
-	}
-	agg.checkRunByName = checks
-	return nil
-}
-
-func (agg *CheckRunAggregator) ContainsCheckName(name string) bool {
-	_, found := agg.checkRunByName[name]
-	return found
-}
-
-func (agg *CheckRunAggregator) ContainsCheckNameAndTags(name string, tags []string) bool {
-	checks, found := agg.checkRunByName[name]
-	if !found {
-		return false
-	}
-
-	for _, serie := range checks {
-		if areTagsSubsetOfOtherTags(tags, serie.Tags) {
-			return true
-		}
-	}
-
-	return false
 }

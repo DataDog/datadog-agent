@@ -18,33 +18,68 @@ type GetPayloadResponse struct {
 
 type PayloadItem interface {
 	name() string
+	tags() []string
 }
 
 type parseFunc[P PayloadItem] func(data []byte) (items []P, err error)
 
-func unmarshallPayloads[P PayloadItem](body []byte, parse parseFunc[P]) (payloadsByName map[string][]P, err error) {
-	payloadsByName = map[string][]P{}
+type Aggregator[P PayloadItem] struct {
+	payloadsByName map[string][]P
+	parse          parseFunc[P]
+}
+
+func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
+	return Aggregator[P]{
+		payloadsByName: map[string][]P{},
+		parse:          parse,
+	}
+}
+
+func (agg *Aggregator[P]) UnmarshallPayloads(body []byte) error {
 	response := GetPayloadResponse{}
 
-	err = json.Unmarshal(body, &response)
+	err := json.Unmarshal(body, &response)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// build filtered metric map
+	// reset map
+	agg.payloadsByName = map[string][]P{}
+	// build map
 	for _, data := range response.Payloads {
-		payloads, err := parse(data)
+		payloads, err := agg.parse(data)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		for _, item := range payloads {
-			if _, found := payloadsByName[item.name()]; !found {
-				payloadsByName[item.name()] = []P{}
+			if _, found := agg.payloadsByName[item.name()]; !found {
+				agg.payloadsByName[item.name()] = []P{}
 			}
-			payloadsByName[item.name()] = append(payloadsByName[item.name()], item)
+			agg.payloadsByName[item.name()] = append(agg.payloadsByName[item.name()], item)
 		}
 	}
-	return payloadsByName, nil
+
+	return nil
+}
+
+func (agg *Aggregator[P]) ContainsPayloadName(name string) bool {
+	_, found := agg.payloadsByName[name]
+	return found
+}
+
+func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string) bool {
+	payloads, found := agg.payloadsByName[name]
+	if !found {
+		return false
+	}
+
+	for _, payloadItem := range payloads {
+		if areTagsSubsetOfOtherTags(tags, payloadItem.tags()) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func areTagsSubsetOfOtherTags(tags, otherTags []string) bool {

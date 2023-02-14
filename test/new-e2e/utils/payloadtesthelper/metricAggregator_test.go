@@ -20,22 +20,22 @@ func TestNewMetricPayloads(t *testing.T) {
 		agg := NewMetricAggregator()
 		err := agg.UnmarshallPayloads(metricsBody)
 		assert.NoError(t, err)
-		assert.Equal(t, 74, len(agg.metricsByName))
+		assert.Equal(t, 74, len(agg.payloadsByName))
 	})
 
 	t.Run("ContainsMetricName", func(t *testing.T) {
 		agg := NewMetricAggregator()
 		err := agg.UnmarshallPayloads(metricsBody)
 		assert.NoError(t, err)
-		assert.True(t, agg.ContainsMetricName("system.uptime"))
-		assert.False(t, agg.ContainsMetricName("invalid.name"))
+		assert.True(t, agg.ContainsPayloadName("system.uptime"))
+		assert.False(t, agg.ContainsPayloadName("invalid.name"))
 	})
 
 	t.Run("ContainsMetricName", func(t *testing.T) {
 		agg := NewMetricAggregator()
 		err := agg.UnmarshallPayloads(metricsBody)
 		assert.NoError(t, err)
-		assert.True(t, agg.ContainsMetricNameAndTags("datadog.agent.python.version", []string{"python_version:3", "agent_version_major:7"}))
-		assert.False(t, agg.ContainsMetricNameAndTags("datadog.agent.python.version", []string{"python_version:3", "invalid:tag"}))
+		assert.True(t, agg.ContainsPayloadNameAndTags("datadog.agent.python.version", []string{"python_version:3", "agent_version_major:7"}))
+		assert.False(t, agg.ContainsPayloadNameAndTags("datadog.agent.python.version", []string{"python_version:3", "invalid:tag"}))
 	})
 }

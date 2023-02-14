@@ -18,6 +18,10 @@ func (mp *MetricSeries) name() string {
 	return mp.Metric
 }
 
+func (mp *MetricSeries) tags() []string {
+	return mp.Tags
+}
+
 func parseMetricSeries(data []byte) (metrics []*MetricSeries, err error) {
 	enflated, err := enflate(data)
 	if err != nil {
@@ -38,40 +42,11 @@ func parseMetricSeries(data []byte) (metrics []*MetricSeries, err error) {
 }
 
 type MetricAggregator struct {
-	metricsByName map[string][]*MetricSeries
+	Aggregator[*MetricSeries]
 }
 
 func NewMetricAggregator() MetricAggregator {
 	return MetricAggregator{
-		metricsByName: map[string][]*MetricSeries{},
+		Aggregator: newAggregator(parseMetricSeries),
 	}
-}
-
-func (agg *MetricAggregator) UnmarshallPayloads(body []byte) error {
-	metricsByName, err := unmarshallPayloads(body, parseMetricSeries)
-	if err != nil {
-		return err
-	}
-	agg.metricsByName = metricsByName
-	return nil
-}
-
-func (agg *MetricAggregator) ContainsMetricName(name string) bool {
-	_, found := agg.metricsByName[name]
-	return found
-}
-
-func (agg *MetricAggregator) ContainsMetricNameAndTags(name string, tags []string) bool {
-	series, found := agg.metricsByName[name]
-	if !found {
-		return false
-	}
-
-	for _, serie := range series {
-		if areTagsSubsetOfOtherTags(tags, serie.Tags) {
-			return true
-		}
-	}
-
-	return false
 }

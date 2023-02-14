@@ -20,22 +20,22 @@ func TestCheckRun(t *testing.T) {
 		agg := NewCheckRunAggregator()
 		err := agg.UnmarshallPayloads(checkRunBody)
 		assert.NoError(t, err)
-		assert.Equal(t, 4, len(agg.checkRunByName))
+		assert.Equal(t, 4, len(agg.payloadsByName))
 	})
 
 	t.Run("ContainsCheckName", func(t *testing.T) {
 		agg := NewCheckRunAggregator()
 		err := agg.UnmarshallPayloads(checkRunBody)
 		assert.NoError(t, err)
-		assert.True(t, agg.ContainsCheckName("datadog.agent.up"))
-		assert.False(t, agg.ContainsCheckName("invalid.check.name"))
+		assert.True(t, agg.ContainsPayloadName("datadog.agent.up"))
+		assert.False(t, agg.ContainsPayloadName("invalid.check.name"))
 	})
 
 	t.Run("ContainsCheckNameAndTags", func(t *testing.T) {
 		agg := NewCheckRunAggregator()
 		err := agg.UnmarshallPayloads(checkRunBody)
 		assert.NoError(t, err)
-		assert.True(t, agg.ContainsCheckNameAndTags("snmp.can_check", []string{"snmp_device:192.168.0.3", "snmp_host:41ba948911b9"}))
-		assert.False(t, agg.ContainsCheckNameAndTags("snmp.can_check", []string{"invalid:tag"}))
+		assert.True(t, agg.ContainsPayloadNameAndTags("snmp.can_check", []string{"snmp_device:192.168.0.3", "snmp_host:41ba948911b9"}))
+		assert.False(t, agg.ContainsPayloadNameAndTags("snmp.can_check", []string{"invalid:tag"}))
 	})
 }
