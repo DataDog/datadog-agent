@@ -37,11 +37,14 @@ import (
 )
 
 const (
-	defaultRefreshInterval = 1 * time.Minute
-	minimalRefreshInterval = 5 * time.Second
-	defaultClientsTTL      = 30 * time.Second
-	maxClientsTTL          = 60 * time.Second
-	newClientBlockTTL      = 2 * time.Second
+	defaultRefreshInterval  = 1 * time.Minute
+	minimalRefreshInterval  = 5 * time.Second
+	defaultClientsTTL       = 30 * time.Second
+	maxClientsTTL           = 60 * time.Second
+	newClientBlockTTL       = 2 * time.Second
+	defaultCacheBypassLimit = 5
+	minCacheBypassLimit     = 1
+	maxCacheBypassLimit     = 10
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -71,10 +74,10 @@ type Service struct {
 	uptane        uptaneClient
 	api           api.API
 
-	products         map[rdata.Product]struct{}
-	newProducts      map[rdata.Product]struct{}
-	clients          *clients
-	newActiveClients newActiveClients
+	products           map[rdata.Product]struct{}
+	newProducts        map[rdata.Product]struct{}
+	clients            *clients
+	cacheBypassClients cacheBypassClients
 
 	lastUpdateErr error
 }
@@ -178,6 +181,15 @@ func NewService() (*Service, error) {
 	}
 	clock := clock.New()
 
+	clientsCacheBypassLimit := config.Datadog.GetInt("remote_configuration.clients.cache_bypass_limit")
+	if clientsCacheBypassLimit < minCacheBypassLimit || clientsCacheBypassLimit > maxCacheBypassLimit {
+		log.Warnf(
+			"Configured clients cache bypass limit is not within accepted range (%d - %d): %d. Defaulting to %d",
+			minCacheBypassLimit, maxCacheBypassLimit, clientsCacheBypassLimit, defaultCacheBypassLimit,
+		)
+		clientsCacheBypassLimit = defaultCacheBypassLimit
+	}
+
 	return &Service{
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
@@ -193,10 +205,16 @@ func NewService() (*Service, error) {
 		api:                            http,
 		uptane:                         uptaneClient,
 		clients:                        newClients(clock, clientsTTL),
-		newActiveClients: newActiveClients{
+		cacheBypassClients: cacheBypassClients{
 			clock:    clock,
 			requests: make(chan chan struct{}),
-			until:    time.Now().UTC(),
+
+			// By default, allows for 5 cache bypass every refreshInterval seconds
+			// in addition to the usual refresh.
+			currentWindow:  time.Now().UTC(),
+			windowDuration: refreshInterval,
+			capacity:       clientsCacheBypassLimit,
+			allowance:      clientsCacheBypassLimit,
 		},
 	}, nil
 }
@@ -227,9 +245,8 @@ func (s *Service) Start(ctx context.Context) error {
 			case <-s.clock.After(refreshInterval):
 				err = s.refresh()
 			// New clients detected, request refresh
-			case response := <-s.newActiveClients.requests:
-				if time.Now().UTC().After(s.newActiveClients.until) {
-					s.newActiveClients.setRateLimit(refreshInterval)
+			case response := <-s.cacheBypassClients.requests:
+				if !s.cacheBypassClients.Limit() {
 					err = s.refresh()
 				} else {
 					telemetry.CacheBypassRateLimit.Inc()
@@ -298,6 +315,7 @@ func (s *Service) refresh() error {
 		ri, err := s.getRefreshInterval()
 		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
 			s.defaultRefreshInterval = ri
+			s.cacheBypassClients.windowDuration = ri
 			log.Info("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
 		}
 	}
@@ -382,7 +400,7 @@ func (s *Service) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetC
 		// Timeout in case the previous request is still pending
 		// and we can't request another one
 		select {
-		case s.newActiveClients.requests <- response:
+		case s.cacheBypassClients.requests <- response:
 		case <-time.After(newClientBlockTTL):
 			// No need to add telemetry here, it'll be done in the second
 			// timeout case that will automatically be triggered
