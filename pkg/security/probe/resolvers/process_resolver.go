@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
@@ -593,7 +594,7 @@ func (p *ProcessResolver) resolve(pid, tid uint32, inode uint64) *model.ProcessC
 		return entry
 	}
 
-	if p.state.Load() != Snapshotted {
+	if p.state.Load() != resolvers.Snapshotted {
 		return nil
 	}
 
@@ -1284,7 +1285,7 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,
-		state:          atomic.NewInt64(Snapshotting),
+		state:          atomic.NewInt64(resolvers.Snapshotting),
 		argsEnvsPool:   NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:      map[string]*atomic.Int64{},
 		cacheSize:      atomic.NewInt64(0),

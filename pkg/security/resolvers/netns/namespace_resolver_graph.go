@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package netns
 
 import (
 	"fmt"
@@ -29,7 +29,7 @@ var (
 	deviceShape       = "record"
 )
 
-func (nr *NamespaceResolver) generateGraph(dump []NetworkNamespaceDump, graphFile *os.File) error {
+func (nr *Resolver) generateGraph(dump []NetworkNamespaceDump, graphFile *os.File) error {
 	if graphFile == nil {
 		return nil
 	}
@@ -59,7 +59,7 @@ func (nr *NamespaceResolver) generateGraph(dump []NetworkNamespaceDump, graphFil
 	return t.Execute(graphFile, data)
 }
 
-func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils.Graph {
+func (nr *Resolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils.Graph {
 	g := utils.Graph{
 		Title: fmt.Sprintf("Network Namespace Dump (%s)", time.Now().Format("2006-01-02 15:04:05")),
 		Nodes: make(map[utils.GraphID]utils.Node),
