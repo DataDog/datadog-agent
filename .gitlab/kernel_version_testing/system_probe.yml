@@ -38,10 +38,9 @@ pull_test_dockers_arm64:
     !reference [.on_system_probe_changes_or_manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
-  before_script:
+  script:
     - mkdir $DEPENDENCIES
     - pushd $DEPENDENCIES
-  script:
     - mkdir -p $EMBEDDED_BIN
     - cp $CLANG_BPF $EMBEDDED_BIN
     - cp $LLC_BPF $EMBEDDED_BIN
@@ -58,21 +57,22 @@ pull_test_dockers_arm64:
     - cp -R $KITCHEN_DOCKERS $DEPENDENCIES
     - cp -R site-cookbooks $DEPENDENCIES
     - tar czvf $ARCHIVE_NAME $DEPENDENCIES
+    - popd
   artifacts:
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/dependencies
-    CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/default/clang-bpf
-    LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/default/llc-bpf
+    CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
+    LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/llc-bpf
     GO_BIN: go/bin
-    GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/default/gotestsum
-    TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/default/test2json
+    GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
+    TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
     EMBEDDED_BIN: opt/datadog-agent/embedded/bin
     EMBEDDED_INC: opt/datadog-agent/embedded/include
     BTF_DIR: system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
-    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers
+    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
 
 package_dependencies_x64:
   extends:
