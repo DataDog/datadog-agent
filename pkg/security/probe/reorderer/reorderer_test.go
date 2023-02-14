@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package reorderer
 
 import (
 	"context"
@@ -109,8 +109,8 @@ func TestOrderRate(t *testing.T) {
 	},
 		func(record *perf.Record) (QuickInfo, error) {
 			return QuickInfo{
-				cpu:       uint64(record.RawSample[0]),
-				timestamp: uint64(record.RawSample[1]),
+				Cpu:       uint64(record.RawSample[0]),
+				Timestamp: uint64(record.RawSample[1]),
 			}, nil
 		},
 		ReOrdererOpts{
