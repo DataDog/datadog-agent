@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
@@ -203,9 +204,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
-	wg.Add(3)
 
 	// starts trace agent
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
@@ -213,7 +214,21 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
+	// starts otlp agent
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if !otlp.IsEnabled() {
+			log.Debug("otlp endpoint disabled")
+			return
+		}
+		otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+		otlpAgent.Start()
+		serverlessDaemon.SetOTLPAgent(otlpAgent)
+	}()
+
 	// enable telemetry collection
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if len(os.Getenv(daemon.LocalTestEnvVar)) > 0 {
@@ -243,6 +258,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
+	wg.Add(1)
 	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
 	go func() {
 		defer wg.Done()

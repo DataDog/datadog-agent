@@ -909,6 +909,9 @@ core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger,BSD-3-
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/runtime,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/utilities,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/v2/runtime,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/v2/utilities,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/h2non/filetype,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers/isobmff,MIT,Copyright (c) Tomas Aparicio
@@ -1483,6 +1486,12 @@ core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/codes,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/internal/envconfig,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/otlpconfig,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/tracetransform,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1510,6 +1519,10 @@ core,go.opentelemetry.io/otel/sdk/trace,Apache-2.0,Copyright The OpenTelemetry A
 core,go.opentelemetry.io/otel/semconv/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.12.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/otlp/collector/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/otlp/common/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/otlp/resource/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/otlp/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.uber.org/atomic,MIT,"Copyright (c) 2016 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/cgroups,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/runtime,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
