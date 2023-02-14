@@ -100,7 +100,6 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 			fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
 			fmt.Sprintf("http.iis.site:%v", tx.SiteID),
 			fmt.Sprintf("http.iis.sitename:%v", tx.SiteName),
-			fmt.Sprintf("service:%v", tx.AppPool),
 		}
 	}
 	return nil
