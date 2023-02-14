@@ -33,7 +33,10 @@ func TestIntegrationClient(t *testing.T) {
 		// post a test payloads to fakeintake
 		serverUrl := "http://localhost:8080"
 		testEndpoint := "/foo/bar"
-		http.Post(fmt.Sprintf("%s%s", serverUrl, testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
+		resp, err := http.Post(fmt.Sprintf("%s%s", serverUrl, testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 
 		client := NewClient(serverUrl)
 		payloads, err := client.getFakePayloads(testEndpoint)
