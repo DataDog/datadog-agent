@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package ringbuffer
 
 import (
 	"errors"
@@ -65,8 +65,8 @@ func (rb *RingBuffer) Resume() error {
 	return nil
 }
 
-// NewRingBuffer returns a new ring buffer based event stream.
-func NewRingBuffer(handler func(int, []byte)) *RingBuffer {
+// New returns a new ring buffer based event stream.
+func New(handler func(int, []byte)) *RingBuffer {
 	return &RingBuffer{
 		handler: handler,
 	}

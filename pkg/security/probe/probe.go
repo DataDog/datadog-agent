@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -1414,7 +1415,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.zeroEvent()
 
 	if useRingBuffers {
-		p.eventStream = NewRingBuffer(p.handleEvent)
+		p.eventStream = ringbuffer.New(p.handleEvent)
 	} else {
 		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEvent, p.StatsdClient)
 		if err != nil {
