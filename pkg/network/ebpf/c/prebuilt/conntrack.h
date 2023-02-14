@@ -4,12 +4,14 @@
 #include <net/netfilter/nf_conntrack.h>
 #include <linux/types.h>
 #include <linux/sched.h>
+
 #include "bpf_builtins.h"
 #include "tracer.h"
 #include "conntrack-types.h"
 #include "conntrack-maps.h"
 #include "ip.h"
 #include "ipv6.h"
+#include "offsets.h"
 #include "sock.h"
 
 static __always_inline __u32 systemprobe_pid() {
