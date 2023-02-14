@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/activitydump"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -160,7 +160,7 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 
 	// Look for an unresolved path
 	if err := event.PathResolutionError; err != nil {
-		var notCritical *resolvers.ErrPathResolutionNotCritical
+		var notCritical *path.ErrPathResolutionNotCritical
 		if !errors.As(err, &notCritical) {
 			m.probe.DispatchCustomEvent(
 				NewAbnormalPathEvent(event, m.probe, err),

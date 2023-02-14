@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package path
 
 import (
 	"errors"
@@ -18,24 +18,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// PathResolver describes a resolvers for path and file names
-type PathResolver struct {
+// Resolver describes a resolvers for path and file names
+type Resolver struct {
 	dentryResolver *dentry.DentryResolver
 	mountResolver  *mount.Resolver
 }
 
-// NewPathResolver returns a new path resolver
-func NewPathResolver(dentryResolver *dentry.DentryResolver, mountResolver *mount.Resolver) *PathResolver {
-	return &PathResolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
+// NewResolver returns a new path resolver
+func NewResolver(dentryResolver *dentry.DentryResolver, mountResolver *mount.Resolver) *Resolver {
+	return &Resolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
 }
 
 // ResolveBasename resolves an inode/mount ID pair to a file basename
-func (r *PathResolver) ResolveBasename(e *model.FileFields) string {
+func (r *Resolver) ResolveBasename(e *model.FileFields) string {
 	return r.dentryResolver.ResolveName(e.MountID, e.Inode, e.PathID)
 }
 
 // ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (r *PathResolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
+func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.dentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err

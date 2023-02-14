@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -45,7 +46,7 @@ type Resolvers struct {
 	NamespaceResolver *netns.Resolver
 	CgroupResolver    *cgroup.CgroupResolver
 	TCResolver        *tc.Resolver
-	PathResolver      *resolvers.PathResolver
+	PathResolver      *path.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -82,7 +83,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	pathResolver := resolvers.NewPathResolver(dentryResolver, mountResolver)
+	pathResolver := path.NewResolver(dentryResolver, mountResolver)
 
 	containerResolver := &container.Resolver{}
 	processResolver, err := resolvers.NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,

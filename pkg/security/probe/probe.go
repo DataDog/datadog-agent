@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -637,7 +638,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
 
-			var errResolution *resolvers.ErrPathResolution
+			var errResolution *path.ErrPathResolution
 			if errors.As(err, &errResolution) {
 				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
 			}

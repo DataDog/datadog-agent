@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
+	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -71,7 +72,7 @@ type ProcessResolver struct {
 	cgroupResolver    *cgroup.CgroupResolver
 	userGroupResolver *user.UserGroupResolver
 	timeResolver      *stime.Resolver
-	pathResolver      *PathResolver
+	pathResolver      *spath.Resolver
 
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
@@ -713,12 +714,12 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32, inode uint64) *model
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
 	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
-		return &ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
+		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
 	}
 
 	if entry.HasInterpreter() {
 		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
-			return &ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
+			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
 		}
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow
@@ -1273,7 +1274,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *mo
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
 	cgroupResolver *cgroup.CgroupResolver, userGroupResolver *user.UserGroupResolver, timeResolver *stime.Resolver,
-	pathResolver *PathResolver, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	pathResolver *spath.Resolver, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
