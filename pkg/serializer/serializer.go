@@ -366,6 +366,13 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
 		if err == nil {
 			return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+		} else if len(payloads) > 0 {
+			// Even if there was an error during the process, some payloads were created,
+			// submit these before doing fallback serialization
+			err = s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+			if err != nil {
+				return err
+			}
 		}
 		log.Warnf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
 	}
