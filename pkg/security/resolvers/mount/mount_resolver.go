@@ -96,7 +96,7 @@ type ResolverOpts struct {
 // Resolver represents a cache for mountpoints and the corresponding file systems
 type Resolver struct {
 	opts            ResolverOpts
-	cgroupsResolver *cgroup.CgroupResolver
+	cgroupsResolver *cgroup.Resolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
 	mounts          map[uint32]*model.Mount
@@ -617,7 +617,7 @@ func (mr *Resolver) SendStats() error {
 }
 
 // NewResolver instantiates a new mount resolver
-func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.CgroupResolver, opts ResolverOpts) (*Resolver, error) {
+func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, opts ResolverOpts) (*Resolver, error) {
 	mr := &Resolver{
 		opts:            opts,
 		statsdClient:    statsdClient,

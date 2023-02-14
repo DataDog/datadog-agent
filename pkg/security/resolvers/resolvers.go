@@ -48,7 +48,7 @@ type Resolvers struct {
 	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
 	NamespaceResolver *netns.Resolver
-	CgroupResolver    *cgroup.CgroupResolver
+	CgroupResolver    *cgroup.Resolver
 	TCResolver        *tc.Resolver
 	PathResolver      *path.Resolver
 }
@@ -77,7 +77,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	cgroupsResolver, err := cgroup.NewCgroupResolver()
+	cgroupsResolver, err := cgroup.NewResolver()
 	if err != nil {
 		return nil, err
 	}

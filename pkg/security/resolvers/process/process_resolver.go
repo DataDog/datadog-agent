@@ -73,7 +73,7 @@ type Resolver struct {
 
 	containerResolver *container.Resolver
 	mountResolver     *mount.Resolver
-	cgroupResolver    *cgroup.CgroupResolver
+	cgroupResolver    *cgroup.Resolver
 	userGroupResolver *user.UserGroupResolver
 	timeResolver      *stime.Resolver
 	pathResolver      *spath.Resolver
@@ -1277,7 +1277,7 @@ func (p *Resolver) NewProcessVariables(scoper func(ctx *eval.Context) *model.Pro
 // NewResolver returns a new process resolver
 func NewResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
-	cgroupResolver *cgroup.CgroupResolver, userGroupResolver *user.UserGroupResolver, timeResolver *stime.Resolver,
+	cgroupResolver *cgroup.Resolver, userGroupResolver *user.UserGroupResolver, timeResolver *stime.Resolver,
 	pathResolver *spath.Resolver, opts ResolverOpts) (*Resolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {

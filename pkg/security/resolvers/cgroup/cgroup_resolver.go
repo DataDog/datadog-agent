@@ -19,14 +19,14 @@ type pid1CacheEntry struct {
 	refCount int
 }
 
-// CgroupResolver defines a cgroup monitor
-type CgroupResolver struct {
+// Resolver defines a cgroup monitor
+type Resolver struct {
 	sync.RWMutex
 	pids *simplelru.LRU[string, *pid1CacheEntry]
 }
 
 // AddPID1 associates a container id and a pid which is expected to be the pid 1
-func (cr *CgroupResolver) AddPID1(id string, pid uint32) {
+func (cr *Resolver) AddPID1(id string, pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -42,7 +42,7 @@ func (cr *CgroupResolver) AddPID1(id string, pid uint32) {
 }
 
 // GetPID1 return the registered pid1
-func (cr *CgroupResolver) GetPID1(id string) (uint32, bool) {
+func (cr *Resolver) GetPID1(id string) (uint32, bool) {
 	cr.RLock()
 	defer cr.RUnlock()
 
@@ -55,7 +55,7 @@ func (cr *CgroupResolver) GetPID1(id string) (uint32, bool) {
 }
 
 // DelByPID force removes the entry
-func (cr *CgroupResolver) DelByPID(pid uint32) {
+func (cr *Resolver) DelByPID(pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -69,7 +69,7 @@ func (cr *CgroupResolver) DelByPID(pid uint32) {
 }
 
 // Release decrement usage
-func (cr *CgroupResolver) Release(id string) {
+func (cr *Resolver) Release(id string) {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -83,20 +83,20 @@ func (cr *CgroupResolver) Release(id string) {
 }
 
 // Len return the number of entries
-func (cr *CgroupResolver) Len() int {
+func (cr *Resolver) Len() int {
 	cr.RLock()
 	defer cr.RUnlock()
 
 	return cr.pids.Len()
 }
 
-// NewCgroupResolver returns a new cgroups monitor
-func NewCgroupResolver() (*CgroupResolver, error) {
+// NewResolver returns a new cgroups monitor
+func NewResolver() (*Resolver, error) {
 	pids, err := simplelru.NewLRU[string, *pid1CacheEntry](1024, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &CgroupResolver{
+	return &Resolver{
 		pids: pids,
 	}, nil
 }

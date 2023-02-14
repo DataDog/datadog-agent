@@ -17,7 +17,7 @@ import (
 // CgroupsMonitor defines a cgroup monitor
 type CgroupsMonitor struct {
 	statsdClient    statsd.ClientInterface
-	cgroupsResolver *cgroup.CgroupResolver
+	cgroupsResolver *cgroup.Resolver
 }
 
 // SendStats send stats
@@ -28,7 +28,7 @@ func (cm *CgroupsMonitor) SendStats() error {
 }
 
 // NewCgroupsMonitor returns a new cgroups monitor
-func NewCgroupsMonitor(statsdClient statsd.ClientInterface, cgrouspResolver *cgroup.CgroupResolver) *CgroupsMonitor {
+func NewCgroupsMonitor(statsdClient statsd.ClientInterface, cgrouspResolver *cgroup.Resolver) *CgroupsMonitor {
 	return &CgroupsMonitor{
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgrouspResolver,
