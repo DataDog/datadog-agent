@@ -5,6 +5,6 @@
 
 package api
 
-type GetPayloadResponse struct {
+type APIFakeIntakePayloadsGETResponse struct {
 	Payloads [][]byte `json:"payloads"`
 }

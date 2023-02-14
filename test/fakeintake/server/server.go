@@ -152,7 +152,7 @@ func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
 	payloads := fi.safeGetPayloads(route)
 
 	// build response
-	resp := api.GetPayloadResponse{
+	resp := api.APIFakeIntakePayloadsGETResponse{
 		Payloads: payloads,
 	}
 	jsonResp, err := json.Marshal(resp)
