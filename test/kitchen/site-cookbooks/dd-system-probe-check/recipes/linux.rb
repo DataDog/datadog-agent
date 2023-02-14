@@ -26,23 +26,32 @@ execute 'increase space' do
     d=$(df -Th /tmp | tail -n1)
     dev_name=$(echo $d | awk '{print $1}')
     fstype=$(echo $d | awk '{print $2}')
-    use=$(echo $d | awk '{print $6}' | tr -d %)
+    avail=$(echo $d | awk '{print $5}' | tr -d G)
+    mnt=$(echo $d | awk '{print $7}')
 
-    if [[ $use -lt 70 ]]; then
-       echo "skip because use $use < 70%"
+    if [[ $(awk "BEGIN {print 10.0<$avail}") -eq 1 ]]; then
+       echo "skip because use $avail > 10G"
        exit 0
     fi
 
     if [[ ${dev_name} =~ ^/dev/mapper ]]; then
        lvresize -L +4G ${dev_name}
-       resize2fs ${dev_name}
+       if [[ ${fstype} = "xfs" ]]; then
+          xfs_growfs -d ${mnt}
+       else
+          resize2fs ${dev_name}
+       fi
     fi
     if [[ ${dev_name} =~ ^/dev/nvme ]]; then
        disk=$(echo $dev_name | awk -Fp '{print $1}')
        partnum=$(echo $dev_name | awk -Fp '{print $2}')
 
        growpart ${disk} ${partnum}
-       xfs_growfs -d /
+       if [[ ${fstype} = "xfs" ]]; then
+          xfs_growfs -d ${mnt}
+       else
+          resize2fs ${dev_name}
+       fi
     fi
     if [[ ${dev_name} =~ ^tmpfs ]]; then
        mount -o remount,size=10G /tmp
