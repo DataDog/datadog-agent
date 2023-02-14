@@ -106,7 +106,7 @@ func hasForceActiveAnnotation(metric datadoghq.DatadogMetric) bool {
 	if value, found := metric.Annotations[alwaysActiveAnnotation]; found {
 		enabled, err := strconv.ParseBool(value)
 		if err != nil {
-			log.Errorf("Unable to parse value from %s annotation: '%s'", alwaysActiveAnnotation, value)
+			log.Debugf("Unable to parse value from %s annotation: '%s'", alwaysActiveAnnotation, value)
 			return false
 		}
 		return enabled
