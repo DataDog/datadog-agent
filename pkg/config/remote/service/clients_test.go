@@ -37,7 +37,7 @@ func TestClients(t *testing.T) {
 	assert.Empty(t, clients.clients)
 }
 
-func TestcacheBypassClientsRateLimit(t *testing.T) {
+func TestCacheBypassClientsRateLimit(t *testing.T) {
 	clock := clock.NewMock()
 	cacheBypassClients := cacheBypassClients{
 		clock:         clock,
