@@ -138,7 +138,7 @@ func TestRegoCheck(t *testing.T) {
 				},
 			},
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 		},
 		{
@@ -182,7 +182,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: compliance.Reports{
 				{
@@ -236,7 +236,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: compliance.Reports{
 				{
@@ -281,7 +281,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: compliance.Reports{
 				{
@@ -324,7 +324,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: nil,
 		},

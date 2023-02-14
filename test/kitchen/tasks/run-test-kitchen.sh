@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 # This script sets up the environment and then runs the test kitchen itself.
 

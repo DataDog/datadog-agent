@@ -164,27 +164,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// KMS_ENCRYPTED or SECRET_ARN
 	setSecretsFromEnv(os.Environ())
 
-	// try to read API key from KMS
-
-	var apiKey string
-	if apiKey, err = readAPIKeyFromKMS(os.Getenv(kmsAPIKeyEnvVar)); err != nil {
-		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
-	} else if apiKey != "" {
-		log.Info("Using deciphered KMS API Key.")
-		os.Setenv(apiKeyEnvVar, apiKey)
-	}
-
-	// try to read the API key from Secrets Manager, only if not set from KMS
-
-	if apiKey == "" {
-		if apiKey, err = readAPIKeyFromSecretsManager(os.Getenv(secretsManagerAPIKeyEnvVar)); err != nil {
-			log.Errorf("Error while trying to read an API Key from Secrets Manager: %s", err)
-		} else if apiKey != "" {
-			log.Info("Using API key set in Secrets Manager.")
-			os.Setenv(apiKeyEnvVar, apiKey)
-		}
-	}
-
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
