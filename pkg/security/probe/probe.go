@@ -632,7 +632,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+		if resolvers.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 			return
 		}
 
@@ -650,7 +650,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
 
-			var errResolution *ErrPathResolution
+			var errResolution *resolvers.ErrPathResolution
 			if errors.As(err, &errResolution) {
 				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
 			}
@@ -812,7 +812,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+	if resolvers.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return
 	}
 
@@ -1453,6 +1453,43 @@ func getNetStructType(kv *kernel.Version) uint64 {
 		return netStructHasProcINum
 	}
 	return netStructHasNS
+}
+
+const (
+	doForkListInput uint64 = iota
+	doForkStructInput
+)
+
+func getAttr2(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.IsRH7Kernel() {
+		return 1
+	}
+	return 0
+}
+
+// getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
+func getDoForkInput(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
+		return doForkStructInput
+	}
+	return doForkListInput
+}
+
+// getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
+// space
+func getCGroupWriteConstants() manager.ConstantEditor {
+	cgroupWriteConst := uint64(1)
+	kv, err := kernel.NewKernelVersion()
+	if err == nil {
+		if kv.IsRH7Kernel() {
+			cgroupWriteConst = 2
+		}
+	}
+
+	return manager.ConstantEditor{
+		Name:  "cgroup_write_type",
+		Value: cgroupWriteConst,
+	}
 }
 
 // GetOffsetConstants returns the offsets and struct sizes constants

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -28,8 +29,8 @@ func TestProcessArgsFlags(t *testing.T) {
 		"-9", "-", "--",
 	})
 
-	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, NewProcessResolverOpts(nil))
+	resolver, _ := resolvers.NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, resolvers.NewProcessResolverOpts(nil))
 
 	e := model.Event{
 		Exec: model.ExecEvent{
@@ -89,8 +90,8 @@ func TestProcessArgsOptions(t *testing.T) {
 		"--", "---", "-9",
 	})
 
-	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, NewProcessResolverOpts(nil))
+	resolver, _ := resolvers.NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, resolvers.NewProcessResolverOpts(nil))
 
 	e := model.Event{
 		Exec: model.ExecEvent{

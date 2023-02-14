@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package resolvers
 
 import (
 	"container/list"
@@ -30,7 +30,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -41,47 +40,10 @@ import (
 )
 
 const (
-	doForkListInput uint64 = iota
-	doForkStructInput
-)
-
-const (
 	procResolveMaxDepth = 16
 	maxArgsEnvResidents = 1024
 	maxParallelArgsEnvs = 512 // == number of parallel starting processes
 )
-
-func getAttr2(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.IsRH7Kernel() {
-		return 1
-	}
-	return 0
-}
-
-// getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
-func getDoForkInput(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
-		return doForkStructInput
-	}
-	return doForkListInput
-}
-
-// getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
-// space
-func getCGroupWriteConstants() manager.ConstantEditor {
-	cgroupWriteConst := uint64(1)
-	kv, err := kernel.NewKernelVersion()
-	if err == nil {
-		if kv.IsRH7Kernel() {
-			cgroupWriteConst = 2
-		}
-	}
-
-	return manager.ConstantEditor{
-		Name:  "cgroup_write_type",
-		Value: cgroupWriteConst,
-	}
-}
 
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct {
@@ -98,7 +60,13 @@ type ProcessResolver struct {
 	statsdClient statsd.ClientInterface
 	scrubber     *procutil.DataScrubber
 
-	resolvers        *Resolvers
+	containerResolver *ContainerResolver
+	mountResolver     *MountResolver
+	cgroupResolver    *CgroupsResolver
+	userGroupResolver *UserGroupResolver
+	timeResolver      *TimeResolver
+	pathResolver      *PathResolver
+
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
@@ -402,7 +370,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 
 	// Retrieve the container ID of the process from /proc
-	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+	containerID, err := p.containerResolver.GetContainerID(pid)
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
 	}
@@ -413,7 +381,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
+	entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't get the filesystem: %w", proc.Pid, err)
 	}
@@ -543,7 +511,7 @@ func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 	}
 
 	if entry.IsContainerInit() {
-		p.resolvers.CgroupsResolver.AddPID1(entry.ContainerID, entry.Pid)
+		p.cgroupResolver.AddPID1(entry.ContainerID, entry.Pid)
 	}
 
 	p.addedEntries.Inc()
@@ -587,12 +555,12 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	entry.Exit(exitTime)
 
 	if entry.IsContainerInit() {
-		p.resolvers.CgroupsResolver.Release(entry.ContainerID)
+		p.cgroupResolver.Release(entry.ContainerID)
 	}
 
 	// Release also the parent if the entry is a fork child. The parent could have increased the ref counter too
 	if entry.IsThread && entry.Ancestor.IsContainerInit() {
-		p.resolvers.CgroupsResolver.Release(entry.Ancestor.ContainerID)
+		p.cgroupResolver.Release(entry.Ancestor.ContainerID)
 	}
 
 	delete(p.entryCache, entry.Pid)
@@ -621,7 +589,7 @@ func (p *ProcessResolver) resolve(pid, tid uint32, inode uint64) *model.ProcessC
 		return entry
 	}
 
-	if p.state.Load() != resolvers.Snapshotted {
+	if p.state.Load() != Snapshotted {
 		return nil
 	}
 
@@ -656,7 +624,7 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *mod
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, pidCtx, ctrCtx)
+	pathnameStr, err := p.pathResolver.ResolveFileFieldsPath(&fileEvent.FileFields, pidCtx, ctrCtx)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
@@ -692,7 +660,7 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.resolvers.MountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid, entry.ContainerID)
+		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid, entry.ContainerID)
 		if err != nil {
 			return "", err
 		}
@@ -704,9 +672,9 @@ func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (
 
 // ApplyBootTime realign timestamp from the boot time
 func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
-	entry.ExecTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ExecTime)
-	entry.ForkTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ForkTime)
-	entry.ExitTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ExitTime)
+	entry.ExecTime = p.timeResolver.ApplyBootTime(entry.ExecTime)
+	entry.ForkTime = p.timeResolver.ApplyBootTime(entry.ForkTime)
+	entry.ExitTime = p.timeResolver.ApplyBootTime(entry.ExitTime)
 }
 
 // ResolveFromCache resolves cache entry from the cache
@@ -812,7 +780,7 @@ func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessC
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
 	if entry.ContainerID == "" {
-		containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+		containerID, err := p.containerResolver.GetContainerID(pid)
 		if err == nil {
 			entry.ContainerID = string(containerID)
 		}
@@ -1002,13 +970,13 @@ func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 
 // SetProcessUsersGroups resolves and set users and groups
 func (p *ProcessResolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
-	pce.User, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.UID))
-	pce.EUser, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.EUID))
-	pce.FSUser, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.FSUID))
+	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID))
+	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID))
+	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID))
 
-	pce.Group, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.GID))
-	pce.EGroup, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.EGID))
-	pce.FSGroup, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.FSGID))
+	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID))
+	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID))
+	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID))
 }
 
 // Get returns the cache entry for a specified pid
@@ -1296,7 +1264,9 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *mo
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *procutil.DataScrubber, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	scrubber *procutil.DataScrubber, containerResolver *ContainerResolver, mountResolver *MountResolver,
+	cgroupResolver *CgroupsResolver, userGroupResolver *UserGroupResolver, timeResolver *TimeResolver,
+	pathResolver *PathResolver, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1310,7 +1280,7 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,
-		state:          atomic.NewInt64(resolvers.Snapshotting),
+		state:          atomic.NewInt64(Snapshotting),
 		argsEnvsPool:   NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:      map[string]*atomic.Int64{},
 		cacheSize:      atomic.NewInt64(0),

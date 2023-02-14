@@ -10,17 +10,14 @@ package probe
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
 	"sort"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -35,10 +32,11 @@ type Resolvers struct {
 	UserGroupResolver *resolvers.UserGroupResolver
 	TagsResolver      *resolvers.TagsResolver
 	DentryResolver    *resolvers.DentryResolver
-	ProcessResolver   *ProcessResolver
+	ProcessResolver   *resolvers.ProcessResolver
 	NamespaceResolver *resolvers.NamespaceResolver
 	CgroupsResolver   *resolvers.CgroupsResolver
 	TCResolver        *resolvers.TCResolver
+	PathResolver      *resolvers.PathResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -75,8 +73,11 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
-		probe.scrubber, NewProcessResolverOpts(probe.Config.EnvsWithValue))
+	pathResolver := resolvers.NewPathResolver(dentryResolver, mountResolver)
+
+	containerResolver := &resolvers.ContainerResolver{}
+	processResolver, err := resolvers.NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
+		probe.scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, resolvers.NewProcessResolverOpts(probe.Config.EnvsWithValue))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +85,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	resolvers := &Resolvers{
 		manager:           probe.Manager,
 		MountResolver:     mountResolver,
-		ContainerResolver: &resolvers.ContainerResolver{},
+		ContainerResolver: containerResolver,
 		TimeResolver:      timeResolver,
 		UserGroupResolver: userGroupResolver,
 		TagsResolver:      resolvers.NewTagsResolver(config),
@@ -93,102 +94,10 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		CgroupsResolver:   cgroupsResolver,
 		TCResolver:        tcResolver,
 		ProcessResolver:   processResolver,
+		PathResolver:      pathResolver,
 	}
-
-	resolvers.ProcessResolver.resolvers = resolvers
 
 	return resolvers, nil
-}
-
-// resolveBasename resolves an inode/mount ID pair to a file basename
-func (r *Resolvers) resolveBasename(e *model.FileFields) string {
-	return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID)
-}
-
-// resolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
-	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
-	if err != nil {
-		return pathStr, err
-	}
-
-	if e.IsFileless() {
-		return pathStr, err
-	}
-
-	mountPath, err := r.MountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
-	if err != nil {
-		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
-			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
-		}
-		return pathStr, err
-	}
-
-	rootPath, err := r.MountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
-	if err != nil {
-		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
-			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
-		}
-		return pathStr, err
-	}
-	// This aims to handle bind mounts
-	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
-		pathStr = strings.Replace(pathStr, rootPath, "", 1)
-	}
-
-	if mountPath != "/" {
-		pathStr = mountPath + pathStr
-	}
-
-	return pathStr, err
-}
-
-// ResolveCredentialsUser resolves the user id of the process to a username
-func (r *Resolvers) ResolveCredentialsUser(e *model.Credentials) string {
-	if len(e.User) == 0 {
-		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
-	}
-	return e.User
-}
-
-// ResolveCredentialsGroup resolves the group id of the process to a group name
-func (r *Resolvers) ResolveCredentialsGroup(e *model.Credentials) string {
-	if len(e.Group) == 0 {
-		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
-	}
-	return e.Group
-}
-
-// ResolveCredentialsEUser resolves the effective user id of the process to a username
-func (r *Resolvers) ResolveCredentialsEUser(e *model.Credentials) string {
-	if len(e.EUser) == 0 {
-		e.EUser, _ = r.UserGroupResolver.ResolveUser(int(e.EUID))
-	}
-	return e.EUser
-}
-
-// ResolveCredentialsEGroup resolves the effective group id of the process to a group name
-func (r *Resolvers) ResolveCredentialsEGroup(e *model.Credentials) string {
-	if len(e.EGroup) == 0 {
-		e.EGroup, _ = r.UserGroupResolver.ResolveGroup(int(e.EGID))
-	}
-	return e.EGroup
-}
-
-// ResolveCredentialsFSUser resolves the file-system user id of the process to a username
-func (r *Resolvers) ResolveCredentialsFSUser(e *model.Credentials) string {
-	if len(e.FSUser) == 0 {
-		e.FSUser, _ = r.UserGroupResolver.ResolveUser(int(e.FSUID))
-	}
-	return e.FSUser
-}
-
-// ResolveCredentialsFSGroup resolves the file-system group id of the process to a group name
-func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
-	if len(e.FSGroup) == 0 {
-		e.FSGroup, _ = r.UserGroupResolver.ResolveGroup(int(e.FSGID))
-	}
-	return e.FSGroup
 }
 
 // Start the resolvers
@@ -267,7 +176,7 @@ func (r *Resolvers) snapshot() error {
 			continue
 		}
 
-		if IsKThread(uint32(ppid), uint32(proc.Pid)) {
+		if resolvers.IsKThread(uint32(ppid), uint32(proc.Pid)) {
 			continue
 		}
 

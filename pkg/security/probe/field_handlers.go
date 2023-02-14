@@ -25,7 +25,7 @@ type FieldHandlers struct {
 // ResolveFilePath resolves the inode to a full path
 func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := fh.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
+		path, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -41,7 +41,7 @@ func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent
 		if f.PathnameStr != "" {
 			f.SetBasenameStr(path.Base(f.PathnameStr))
 		} else {
-			f.SetBasenameStr(fh.resolvers.resolveBasename(&f.FileFields))
+			f.SetBasenameStr(fh.resolvers.PathResolver.ResolveBasename(&f.FileFields))
 		}
 	}
 	return f.BasenameStr
@@ -343,7 +343,7 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 	}
 
 	if len(e.BoolName) == 0 {
-		e.BoolName = fh.resolvers.resolveBasename(&e.File.FileFields)
+		e.BoolName = fh.resolvers.PathResolver.ResolveBasename(&e.File.FileFields)
 	}
 	return e.BoolName
 }

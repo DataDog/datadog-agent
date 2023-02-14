@@ -1090,7 +1090,7 @@ func (pan *ProcessActivityNode) retain() {
 }
 
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
-func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *ProcessResolver) {
+func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *resolvers.ProcessResolver) {
 	_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
 	envs, envsTruncated := resolver.GetProcessEnvs(&pan.Process)
 	pan.Process.Envs = envs
