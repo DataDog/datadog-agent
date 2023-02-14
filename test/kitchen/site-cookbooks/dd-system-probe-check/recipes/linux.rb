@@ -6,6 +6,21 @@ execute "df -Th" do
   ignore_failure true
 end
 
+execute 'move tmp system probe data to root' do
+  command <<-EOF
+    df -Th /
+
+    mkdir /system-probe-tests
+    chmod 0777 /system-probe-tests
+    mv /tmp/system-probe-tests/* /system-probe-tests
+    rm -rf /tmp/system-probe-tests
+    ln -s /system-probe-tests /tmp/system-probe-tests
+  EOF
+  live_stream true
+  action :run
+  ignore_failure true
+end
+
 package 'growpart' do
   case node[:platform]
   when 'amazon', 'redhat', 'centos', 'fedora'
