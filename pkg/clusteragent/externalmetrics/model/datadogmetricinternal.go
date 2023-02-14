@@ -144,13 +144,16 @@ func (d *DatadogMetricInternal) RawQuery() string {
 	return d.query
 }
 
-// UpdateFrom updates the `DatadogMetricInternal` from `DatadogMetric` Spec
-func (d *DatadogMetricInternal) UpdateFrom(currentSpec datadoghq.DatadogMetricSpec) {
+// UpdateFrom updates the `DatadogMetricInternal` from `DatadogMetric`
+func (d *DatadogMetricInternal) UpdateFrom(current datadoghq.DatadogMetric) {
+	currentSpec := current.Spec
+
 	if d.shouldResolveQuery(currentSpec) {
 		d.resolveQuery(currentSpec.Query)
 	}
 	d.query = currentSpec.Query
 	d.MaxAge = currentSpec.MaxAge.Duration
+	d.AlwaysActive = hasForceActiveAnnotation(current)
 }
 
 // shouldResolveQuery returns whether we should try to resolve a new query
