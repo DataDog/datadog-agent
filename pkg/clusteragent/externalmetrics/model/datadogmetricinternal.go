@@ -11,6 +11,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
@@ -26,6 +27,7 @@ import (
 // exported for testing purposes
 const (
 	DatadogMetricErrorConditionReason string = "Unable to fetch data from Datadog"
+	alwaysActiveAnnotation                   = "external-metrics.datadoghq.com/always-active"
 )
 
 // DatadogMetricInternal is a flatten, easier to use, representation of `DatadogMetric` CRD
@@ -35,6 +37,7 @@ type DatadogMetricInternal struct {
 	resolvedQuery        *string
 	Valid                bool
 	Active               bool
+	AlwaysActive         bool
 	Deleted              bool
 	Autogen              bool
 	ExternalMetricName   string
@@ -53,6 +56,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		query:                datadogMetric.Spec.Query,
 		Valid:                false,
 		Active:               false,
+		AlwaysActive:         hasForceActiveAnnotation(datadogMetric),
 		Deleted:              false,
 		Autogen:              false,
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
@@ -98,6 +102,18 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 	return internal
 }
 
+func hasForceActiveAnnotation(metric datadoghq.DatadogMetric) bool {
+	if value, found := metric.Annotations[alwaysActiveAnnotation]; found {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Errorf("Unable to parse value from %s annotation: '%s'", alwaysActiveAnnotation, value)
+			return false
+		}
+		return enabled
+	}
+	return false
+}
+
 // NewDatadogMetricInternalFromExternalMetric returns a `DatadogMetricInternal` object
 // that is auto-generated from a standard ExternalMetric query (non-DatadogMetric reference)
 func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscalerReference string) DatadogMetricInternal {
@@ -106,6 +122,7 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 		query:                query,
 		Valid:                false,
 		Active:               true,
+		AlwaysActive:         false,
 		Deleted:              false,
 		Autogen:              true,
 		ExternalMetricName:   metricName,
