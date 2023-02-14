@@ -60,7 +60,6 @@ pull_test_dockers_arm64:
     # copy over docker images
     - mkdir kitchen-dockers
     - cp -R $KITCHEN_DOCKERS $DEPENDENCIES
-    - cp -R site-cookbooks $DEPENDENCIES
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
