@@ -82,10 +82,10 @@ package_dependencies_x64:
     ARCHIVE_NAME: "dependencies-x86_64.tar.gz"
     ARCH: amd64
 
-package_testsuites_arm64:
+package_dependencies_arm64:
   extends:
     - .package_dependencies
-  needs: ["tests_ebpf_arm64"]
+  needs: ["tests_ebpf_arm64", "pull_test_dockers_arm64"]
   variables:
     ARCHIVE_NAME: "dependencies-arm64.tar.gz"
     ARCH: arm64
@@ -98,7 +98,7 @@ kernel_version_testing_system_probe_linux_x64_ec2:
   rules:
     !reference [.manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  needs: ["go_deps", "go_tools_deps", "package_testsuites_x64"]
+  needs: ["go_deps", "go_tools_deps", "package_dependencies_x64"]
   tags: ["runner:main"]
   variables:
     ARCH: x86_64
