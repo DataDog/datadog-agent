@@ -1,28 +1,9 @@
-functional_test_junit_upload:
-  # Uncomment this to only run junit uploads on main/stable branches
-  # rules:
-  #   !reference [.on_main_or_release_branch]
-  stage: functional_test_junit_upload
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
-  allow_failure: true
-  when: always
-  needs:
-    - job: go_tools_deps # This is to force this job to wait until whether the following jobs are to be skipped has been calculated by the pipeline
-    - job: kitchen_test_system_probe_linux_x64
-      optional: true
-    - job: kitchen_test_system_probe_linux_x64_ec2
-      optional: true
-    - job: kitchen_test_system_probe_linux_arm64
-      optional: true
-    - job: kitchen_test_security_agent_arm64
-      optional: true
-    - job: kitchen_test_security_agent_amazonlinux_x64
-      optional: true
-  variables:
-    DD_ENV: ci
-  script:
-    - set +x
-    - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
-    - set -x
-    - find $DD_AGENT_TESTING_DIR -maxdepth 1 -type f -name "kitchen-junit-*.tar.gz" -exec inv -e junit-upload --tgz-path {} \;
+---
+# functional_test_junit_upload stage
+# Contains jobs which upload the junit output of the kitchen functional tests
+
+# The system probe and security agent junit upload jobs were split
+# to bypass the logical complexity of having many optionally needed jobs.
+include:
+  - /.gitlab/junit_upload/functional_test_junit_upload_system_probe.yml
+  - /.gitlab/junit_upload/functional_test_junit_upload_security-agent.yml

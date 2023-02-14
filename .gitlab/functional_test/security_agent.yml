@@ -93,7 +93,6 @@ kitchen_test_security_agent_arm64:
     - bash -l tasks/kitchen_setup.sh
   script:
     - !reference [ .runtime, script ]
-    - inv -e pipeline.notify --notification-type "merge"
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -116,7 +115,6 @@ kitchen_test_security_agent_amazonlinux_x64:
     - bash -l tasks/kitchen_setup.sh
   script:
     - !reference [ .runtime, script ]
-    - inv -e pipeline.notify --notification-type "merge"
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
