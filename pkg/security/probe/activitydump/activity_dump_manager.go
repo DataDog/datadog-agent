@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -49,7 +50,7 @@ type ActivityDumpManager struct {
 	dropMaxDumpReached *atomic.Uint64
 	newEvent           func() *model.Event
 	processResolver    *resolvers.ProcessResolver
-	timeResolver       *resolvers.TimeResolver
+	timeResolver       *stime.Resolver
 	tagsResolvers      *resolvers.TagsResolver
 	kernelVersion      *kernel.Version
 	manager            *manager.Manager
@@ -219,7 +220,7 @@ func (adm *ActivityDumpManager) HandleActivityDump(dump *api.ActivityDumpStreamM
 }
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
-func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, processResolver *resolvers.ProcessResolver, timeResolver *resolvers.TimeResolver,
+func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, processResolver *resolvers.ProcessResolver, timeResolver *stime.Resolver,
 	tagsResolver *resolvers.TagsResolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {

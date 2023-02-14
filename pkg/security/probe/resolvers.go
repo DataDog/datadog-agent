@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,7 +34,7 @@ type Resolvers struct {
 	manager           *manager.Manager
 	MountResolver     *resolvers.MountResolver
 	ContainerResolver *resolvers.ContainerResolver
-	TimeResolver      *resolvers.TimeResolver
+	TimeResolver      *time.Resolver
 	UserGroupResolver *user.UserGroupResolver
 	TagsResolver      *resolvers.TagsResolver
 	DentryResolver    *dentry.DentryResolver
@@ -51,7 +52,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	timeResolver, err := resolvers.NewTimeResolver()
+	timeResolver, err := time.NewResolver()
 	if err != nil {
 		return nil, err
 	}
