@@ -9,7 +9,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package serializers
 
 import (
 	"fmt"
@@ -19,6 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -613,7 +614,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *Resolvers) *ProcessSerializer {
+func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolvers.Resolvers) *ProcessSerializer {
 	if ps.IsNotKworker() {
 		argv, argvTruncated := resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
 		envs, EnvsTruncated := resolvers.ProcessResolver.GetProcessEnvs(ps)
@@ -703,7 +704,7 @@ func newUserContextSerializer(e *model.Event) *UserContextSerializer {
 	}
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resolvers *Resolvers) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resolvers *resolvers.Resolvers) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
@@ -832,7 +833,7 @@ func newMProtectEventSerializer(e *model.Event) *MProtectEventSerializer {
 	}
 }
 
-func newPTraceEventSerializer(e *model.Event, resolvers *Resolvers) *PTraceEventSerializer {
+func newPTraceEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
@@ -854,7 +855,7 @@ func newUnloadModuleEventSerializer(e *model.Event) *ModuleEventSerializer {
 	}
 }
 
-func newSignalEventSerializer(e *model.Event, resolvers *Resolvers) *SignalEventSerializer {
+func newSignalEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
@@ -936,11 +937,11 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 	}
 }
 
-func newMountEventSerializer(e *model.Event) *MountEventSerializer {
-	fh := e.FieldHandlers.(*FieldHandlers)
+func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *MountEventSerializer {
+	fh := e.FieldHandlers
 
-	src, srcErr := fh.ResolveMountRoot(e, &e.Mount.Mount)
-	dst, dstErr := fh.ResolveMountPoint(e, &e.Mount.Mount)
+	src, srcErr := resolvers.PathResolver.ResolveMountRoot(e, &e.Mount.Mount)
+	dst, dstErr := resolvers.PathResolver.ResolveMountPoint(e, &e.Mount.Mount)
 	mountPointPath := fh.ResolveMountPointPath(e, &e.Mount)
 	mountSourcePath := fh.ResolveMountSourcePath(e, &e.Mount)
 
@@ -994,7 +995,7 @@ func serializeSyscallRetval(retval int64) string {
 	}
 }
 
-func MarshalEvent(event *model.Event, probe *Probe) ([]byte, error) {
+func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
 	s := NewEventSerializer(event, probe)
 	w := &jwriter.Writer{
 		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
@@ -1012,7 +1013,7 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, probe *Probe) *EventSerializer {
+func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
 	var pc model.ProcessContext
 	if entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event); entry != nil {
 		pc = entry.ProcessContext
@@ -1022,7 +1023,7 @@ func NewEventSerializer(event *model.Event, probe *Probe) *EventSerializer {
 		EventContextSerializer: EventContextSerializer{
 			Name: model.EventType(event.Type).String(),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(&pc, event, probe.resolvers),
+		ProcessContextSerializer: newProcessContextSerializer(&pc, event, resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
 		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTimestamp(event)),
@@ -1140,7 +1141,7 @@ func NewEventSerializer(event *model.Event, probe *Probe) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Utimes.Retval)
 	case model.FileMountEventType:
-		s.MountEventSerializer = newMountEventSerializer(event)
+		s.MountEventSerializer = newMountEventSerializer(event, resolvers)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mount.Retval)
 	case model.FileUmountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
@@ -1208,7 +1209,7 @@ func NewEventSerializer(event *model.Event, probe *Probe) *EventSerializer {
 		s.MProtectEventSerializer = newMProtectEventSerializer(event)
 	case model.PTraceEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.PTrace.Retval)
-		s.PTraceEventSerializer = newPTraceEventSerializer(event, probe.resolvers)
+		s.PTraceEventSerializer = newPTraceEventSerializer(event, resolvers)
 	case model.LoadModuleEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.LoadModule.Retval)
 		if !event.LoadModule.LoadedFromMemory {
@@ -1222,7 +1223,7 @@ func NewEventSerializer(event *model.Event, probe *Probe) *EventSerializer {
 		s.ModuleEventSerializer = newUnloadModuleEventSerializer(event)
 	case model.SignalEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Signal.Retval)
-		s.SignalEventSerializer = newSignalEventSerializer(event, probe.resolvers)
+		s.SignalEventSerializer = newSignalEventSerializer(event, resolvers)
 	case model.SpliceEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Splice.Retval)
 		s.SpliceEventSerializer = newSpliceEventSerializer(event)

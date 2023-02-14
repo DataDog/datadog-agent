@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package resolvers
 
 import (
 	"context"
@@ -15,7 +15,9 @@ import (
 	"runtime"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
@@ -31,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -51,8 +54,8 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
-	dentryResolver, err := dentry.NewDentryResolver(probe.Config, probe.StatsdClient, probe.Erpc)
+func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC) (*Resolvers, error) {
+	dentryResolver, err := dentry.NewDentryResolver(config, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +72,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 
 	tcResolver := tc.NewResolver(config)
 
-	namespaceResolver, err := netns.NewResolver(probe.Config, probe.Manager, probe.StatsdClient, probe.resolvers.TCResolver)
+	namespaceResolver, err := netns.NewResolver(config, manager, statsdClient, tcResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +82,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := mount.NewResolver(probe.StatsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
+	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
 	if err != nil {
 		return nil, err
 	}
@@ -87,14 +90,14 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	pathResolver := path.NewResolver(dentryResolver, mountResolver)
 
 	containerResolver := &container.Resolver{}
-	processResolver, err := process.NewResolver(probe.Manager, probe.Config, probe.StatsdClient,
-		probe.scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, process.NewResolverOpts(probe.Config.EnvsWithValue))
+	processResolver, err := process.NewResolver(manager, config, statsdClient,
+		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, process.NewResolverOpts(config.EnvsWithValue))
 	if err != nil {
 		return nil, err
 	}
 
 	resolvers := &Resolvers{
-		manager:           probe.Manager,
+		manager:           manager,
 		MountResolver:     mountResolver,
 		ContainerResolver: containerResolver,
 		TimeResolver:      timeResolver,
@@ -135,8 +138,8 @@ func (r *Resolvers) Snapshot() error {
 		return fmt.Errorf("unable to snapshot processes: %w", err)
 	}
 
-	r.ProcessResolver.SetState(netns.Snapshotted)
-	r.NamespaceResolver.SetState(netns.Snapshotted)
+	r.ProcessResolver.SetState(process.Snapshotted)
+	r.NamespaceResolver.SetState(process.Snapshotted)
 
 	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {

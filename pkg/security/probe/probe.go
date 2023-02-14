@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/ringbuffer"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -47,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -89,7 +91,7 @@ type Probe struct {
 	// Events section
 	handlers      [model.MaxAllEventType][]EventHandler
 	monitor       *Monitor
-	resolvers     *Resolvers
+	resolvers     *resolvers.Resolvers
 	event         *model.Event
 	fieldHandlers *FieldHandlers
 	scrubber      *procutil.DataScrubber
@@ -114,7 +116,7 @@ type Probe struct {
 }
 
 // GetResolvers returns the resolvers of Probe
-func (p *Probe) GetResolvers() *Resolvers {
+func (p *Probe) GetResolvers() *resolvers.Resolvers {
 	return p.resolvers
 }
 
@@ -304,7 +306,7 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := MarshalEvent(event, p)
+		eventJSON, err := serializers.MarshalEvent(event, p.resolvers)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -325,7 +327,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := MarshalCustomEvent(event)
+		eventJSON, err := serializers.MarshalCustomEvent(event)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -1168,12 +1170,12 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	p.resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
 	// Resolve mount point
-	if err := p.fieldHandlers.SetMountPoint(ev, m); err != nil {
+	if err := p.resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 		seclog.Debugf("failed to set mount point: %v", err)
 		return err
 	}
 	// Resolve root
-	if err := p.fieldHandlers.SetMountRoot(ev, m); err != nil {
+	if err := p.resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
 		seclog.Debugf("failed to set mount root: %v", err)
 		return err
 	}
@@ -1403,7 +1405,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
-	resolvers, err := NewResolvers(config, p)
+	resolvers, err := resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc)
 	if err != nil {
 		return nil, err
 	}

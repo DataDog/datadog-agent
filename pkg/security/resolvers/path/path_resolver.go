@@ -71,3 +71,37 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 
 	return pathStr, err
 }
+
+// SetMountRoot set the mount point information
+func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
+	var err error
+	e.RootStr, err = r.dentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+	return err
+}
+
+// ResolveMountRoot resolves the mountpoint to a full path
+func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error) {
+	if len(e.RootStr) == 0 {
+		if err := r.SetMountRoot(ev, e); err != nil {
+			return "", err
+		}
+	}
+	return e.RootStr, nil
+}
+
+// SetMountPoint set the mount point information
+func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
+	var err error
+	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+	return err
+}
+
+// ResolveMountPoint resolves the mountpoint to a full path
+func (r *Resolver) ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error) {
+	if len(e.MountPointStr) == 0 {
+		if err := r.SetMountPoint(ev, e); err != nil {
+			return "", err
+		}
+	}
+	return e.MountPointStr, nil
+}

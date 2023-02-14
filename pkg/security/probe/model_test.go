@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -39,7 +40,7 @@ func TestProcessArgsFlags(t *testing.T) {
 			},
 		},
 		FieldHandlers: &FieldHandlers{
-			resolvers: &Resolvers{
+			resolvers: &resolvers.Resolvers{
 				ProcessResolver: resolver,
 			},
 		},
@@ -100,7 +101,7 @@ func TestProcessArgsOptions(t *testing.T) {
 			},
 		},
 		FieldHandlers: &FieldHandlers{
-			resolvers: &Resolvers{
+			resolvers: &resolvers.Resolvers{
 				ProcessResolver: resolver,
 			},
 		},

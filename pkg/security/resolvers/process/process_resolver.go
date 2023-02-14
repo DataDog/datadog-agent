@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
@@ -44,6 +43,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+)
+
+const (
+	Snapshotting = iota // Snapshotting describes the state where resolvers are being populated
+	Snapshotted         // Snapshotted describes the state where resolvers are fully populated
 )
 
 const (
@@ -597,7 +601,7 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEnt
 		return entry
 	}
 
-	if p.state.Load() != netns.Snapshotted {
+	if p.state.Load() != Snapshotted {
 		return nil
 	}
 
@@ -1288,7 +1292,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,
-		state:          atomic.NewInt64(netns.Snapshotting),
+		state:          atomic.NewInt64(Snapshotting),
 		argsEnvsPool:   NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:      map[string]*atomic.Int64{},
 		cacheSize:      atomic.NewInt64(0),

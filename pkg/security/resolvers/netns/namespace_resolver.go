@@ -28,15 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-)
-
-const (
-	Snapshotting = iota // Snapshotting describes the state where resolvers are being populated
-	Snapshotted         // Snapshotted describes the state where resolvers are fully populated
 )
 
 var (
@@ -266,7 +262,7 @@ func (nr *Resolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NetNSP
 	netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
 
 	// if the snapshot process is still going on, we need to snapshot the namespace now, otherwise we'll miss it
-	if nr.GetState() == Snapshotting {
+	if nr.GetState() == sprocess.Snapshotting {
 		_ = nr.snapshotNetworkDevices(netns)
 	}
 	return netns, true

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -199,7 +200,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *prob
 			return true
 		}
 
-		s := probe.NewEventSerializer(ev, p)
+		s := serializers.NewEventSerializer(ev, p.GetResolvers())
 		if s == nil || s.FileEventSerializer == nil {
 			return true
 		}

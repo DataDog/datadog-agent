@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -442,7 +443,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
-	eventJSON, err := sprobe.MarshalEvent(event, probe)
+	eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -531,7 +532,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := sprobe.MarshalEvent(event, probe)
+		eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -1027,7 +1028,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := sprobe.MarshalEvent(ev, tm.probe)
+	b, err := serializers.MarshalEvent(ev, tm.probe.GetResolvers())
 	return string(b), err
 }
 

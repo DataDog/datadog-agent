@@ -36,7 +36,7 @@ PATH_EXCLUSION_REGEX = [
     '/pkg/security/probe/activity/activity_dump_graph_gen_linux.go',
     '/pkg/security/probe/custom_events_easyjson.go',
     '/pkg/security/probe/fields_resolver.go',
-    '/pkg/security/probe/serializers_easyjson.go',
+    '/pkg/security/serializers/serializers_easyjson.go',
     '/pkg/security/probe/dump/.*_gen(_test){,1}.go',
     '/pkg/security/secl/model/.*_gen(_test){,1}.go',
     '/pkg/security/secl/model/accessors.go',
