@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -16,12 +17,58 @@ import (
 	"strings"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/fatih/color"
 	"go.etcd.io/bbolt"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+func exportRemoteConfig(fb flarehelpers.FlareBuilder) error {
+	// Dump the DB
+	if err := getRemoteConfigDB(fb); err != nil {
+		return err
+	}
+
+	// Dump the state
+	token, err := security.FetchAuthToken()
+	if err != nil {
+		return fmt.Errorf("Couldn't get auth token: %v", err)
+	}
+	ctx, close := context.WithCancel(context.Background())
+	defer close()
+	md := metadata.MD{
+		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	}
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx)
+	if err != nil {
+		return err
+	}
+	in := new(emptypb.Empty)
+
+	s, err := cli.GetConfigState(ctx, in)
+	if err != nil {
+		return fmt.Errorf("Couldn't get the repositories state: %v", err)
+	}
+
+	fb.AddFileFromFunc("remote-config-state.log", func() ([]byte, error) {
+		fct := func(w io.Writer) error {
+			PrintRemoteConfigState(w, s)
+
+			return nil
+		}
+
+		return functionOutputToBytes(fct), nil
+	})
+
+	return nil
+}
 
 func hashRCTargets(raw []byte) []byte {
 	hash := sha256.Sum256(raw)
@@ -114,11 +161,11 @@ func PrintRemoteConfigState(w io.Writer, s *pbgo.GetStateConfigResponse) {
 
 	fmt.Fprintln(w, "\nConfiguration repository")
 	fmt.Fprintln(w, strings.Repeat("-", 25))
-	printTUFRepo(os.Stdout, s.ConfigState)
+	printTUFRepo(w, s.ConfigState)
 
 	fmt.Fprintln(w, "\nDirector repository")
 	fmt.Fprintln(w, strings.Repeat("-", 20))
-	printTUFRepo(os.Stdout, s.DirectorState)
+	printTUFRepo(w, s.DirectorState)
 	keys := make([]string, 0, len(s.TargetFilenames))
 	for k := range s.TargetFilenames {
 		keys = append(keys, k)
