@@ -17,7 +17,7 @@ package translator
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 type translatorConfig struct {
