@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -63,7 +64,7 @@ type ProcessResolver struct {
 
 	containerResolver *ContainerResolver
 	mountResolver     *MountResolver
-	cgroupResolver    *CgroupsResolver
+	cgroupResolver    *cgroup.CgroupResolver
 	userGroupResolver *user.UserGroupResolver
 	timeResolver      *TimeResolver
 	pathResolver      *PathResolver
@@ -1267,7 +1268,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *mo
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *ContainerResolver, mountResolver *MountResolver,
-	cgroupResolver *CgroupsResolver, userGroupResolver *user.UserGroupResolver, timeResolver *TimeResolver,
+	cgroupResolver *cgroup.CgroupResolver, userGroupResolver *user.UserGroupResolver, timeResolver *TimeResolver,
 	pathResolver *PathResolver, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {

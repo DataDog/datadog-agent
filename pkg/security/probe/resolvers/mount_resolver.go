@@ -24,6 +24,7 @@ import (
 
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -95,7 +96,7 @@ type MountResolverOpts struct {
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
 	opts            MountResolverOpts
-	cgroupsResolver *CgroupsResolver
+	cgroupsResolver *cgroup.CgroupResolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
 	mounts          map[uint32]*model.Mount
@@ -616,7 +617,7 @@ func (mr *MountResolver) SendStats() error {
 }
 
 // NewMountResolver instantiates a new mount resolver
-func NewMountResolver(statsdClient statsd.ClientInterface, cgroupsResolver *CgroupsResolver, opts MountResolverOpts) (*MountResolver, error) {
+func NewMountResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.CgroupResolver, opts MountResolverOpts) (*MountResolver, error) {
 	mr := &MountResolver{
 		opts:            opts,
 		statsdClient:    statsdClient,

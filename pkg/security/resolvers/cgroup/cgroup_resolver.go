@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package cgroup
 
 import (
 	"sync"
@@ -19,14 +19,14 @@ type pid1CacheEntry struct {
 	refCount int
 }
 
-// CgroupsResolver defines a cgroup monitor
-type CgroupsResolver struct {
+// CgroupResolver defines a cgroup monitor
+type CgroupResolver struct {
 	sync.RWMutex
 	pids *simplelru.LRU[string, *pid1CacheEntry]
 }
 
 // AddPID1 associates a container id and a pid which is expected to be the pid 1
-func (cr *CgroupsResolver) AddPID1(id string, pid uint32) {
+func (cr *CgroupResolver) AddPID1(id string, pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -42,7 +42,7 @@ func (cr *CgroupsResolver) AddPID1(id string, pid uint32) {
 }
 
 // GetPID1 return the registered pid1
-func (cr *CgroupsResolver) GetPID1(id string) (uint32, bool) {
+func (cr *CgroupResolver) GetPID1(id string) (uint32, bool) {
 	cr.RLock()
 	defer cr.RUnlock()
 
@@ -55,7 +55,7 @@ func (cr *CgroupsResolver) GetPID1(id string) (uint32, bool) {
 }
 
 // DelByPID force removes the entry
-func (cr *CgroupsResolver) DelByPID(pid uint32) {
+func (cr *CgroupResolver) DelByPID(pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -69,7 +69,7 @@ func (cr *CgroupsResolver) DelByPID(pid uint32) {
 }
 
 // Release decrement usage
-func (cr *CgroupsResolver) Release(id string) {
+func (cr *CgroupResolver) Release(id string) {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -83,20 +83,20 @@ func (cr *CgroupsResolver) Release(id string) {
 }
 
 // Len return the number of entries
-func (cr *CgroupsResolver) Len() int {
+func (cr *CgroupResolver) Len() int {
 	cr.RLock()
 	defer cr.RUnlock()
 
 	return cr.pids.Len()
 }
 
-// NewCgroupsResolver returns a new cgroups monitor
-func NewCgroupsResolver() (*CgroupsResolver, error) {
+// NewCgroupResolver returns a new cgroups monitor
+func NewCgroupResolver() (*CgroupResolver, error) {
 	pids, err := simplelru.NewLRU[string, *pid1CacheEntry](1024, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &CgroupsResolver{
+	return &CgroupResolver{
 		pids: pids,
 	}, nil
 }

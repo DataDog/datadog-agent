@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
@@ -37,7 +38,7 @@ type Resolvers struct {
 	DentryResolver    *dentry.DentryResolver
 	ProcessResolver   *resolvers.ProcessResolver
 	NamespaceResolver *resolvers.NamespaceResolver
-	CgroupsResolver   *resolvers.CgroupsResolver
+	CgroupResolver    *cgroup.CgroupResolver
 	TCResolver        *resolvers.TCResolver
 	PathResolver      *resolvers.PathResolver
 }
@@ -66,7 +67,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	cgroupsResolver, err := resolvers.NewCgroupsResolver()
+	cgroupsResolver, err := cgroup.NewCgroupResolver()
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +95,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		TagsResolver:      resolvers.NewTagsResolver(config),
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
-		CgroupsResolver:   cgroupsResolver,
+		CgroupResolver:    cgroupsResolver,
 		TCResolver:        tcResolver,
 		ProcessResolver:   processResolver,
 		PathResolver:      pathResolver,

@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -436,7 +437,7 @@ func TestMountResolver(t *testing.T) {
 	// use pid 1 for the tests
 	var pid uint32 = 1
 
-	cr, _ := NewCgroupsResolver()
+	cr, _ := cgroup.NewCgroupResolver()
 
 	// Create mount resolver
 	mr, _ := NewMountResolver(nil, cr, MountResolverOpts{})
