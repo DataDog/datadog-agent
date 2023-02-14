@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
@@ -164,27 +165,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// KMS_ENCRYPTED or SECRET_ARN
 	setSecretsFromEnv(os.Environ())
 
-	// try to read API key from KMS
-
-	var apiKey string
-	if apiKey, err = readAPIKeyFromKMS(os.Getenv(kmsAPIKeyEnvVar)); err != nil {
-		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
-	} else if apiKey != "" {
-		log.Info("Using deciphered KMS API Key.")
-		os.Setenv(apiKeyEnvVar, apiKey)
-	}
-
-	// try to read the API key from Secrets Manager, only if not set from KMS
-
-	if apiKey == "" {
-		if apiKey, err = readAPIKeyFromSecretsManager(os.Getenv(secretsManagerAPIKeyEnvVar)); err != nil {
-			log.Errorf("Error while trying to read an API Key from Secrets Manager: %s", err)
-		} else if apiKey != "" {
-			log.Info("Using API key set in Secrets Manager.")
-			os.Setenv(apiKeyEnvVar, apiKey)
-		}
-	}
-
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
@@ -224,9 +204,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
-	wg.Add(3)
 
 	// starts trace agent
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
@@ -234,7 +214,21 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
+	// starts otlp agent
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if !otlp.IsEnabled() {
+			log.Debug("otlp endpoint disabled")
+			return
+		}
+		otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+		otlpAgent.Start()
+		serverlessDaemon.SetOTLPAgent(otlpAgent)
+	}()
+
 	// enable telemetry collection
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if len(os.Getenv(daemon.LocalTestEnvVar)) > 0 {
@@ -264,6 +258,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
+	wg.Add(1)
 	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
 	go func() {
 		defer wg.Done()

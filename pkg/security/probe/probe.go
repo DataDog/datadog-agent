@@ -146,7 +146,7 @@ func (p *Probe) UseRingBuffers() bool {
 
 func (p *Probe) sanityChecks() error {
 	// make sure debugfs is mounted
-	if mounted, err := utilkernel.IsDebugFSMounted(); !mounted {
+	if mounted, err := utilkernel.IsDebugFSOrTraceFSMounted(); !mounted {
 		return err
 	}
 
