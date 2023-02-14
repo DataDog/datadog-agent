@@ -9,6 +9,22 @@ if !platform?('windows')
   include_recipe "::linux_use_azure_mnt"
 end
 
+script 'check space' do
+  interpreter "bash"
+  code <<-EOH
+    echo df -h /
+    df -h /
+    echo du -d 1 -h /
+    du -d 1 -h /
+    echo du -d 1 -h /mnt
+    du -d 1 -h /mnt
+    echo du -d 1 -h /tmp
+    du -d 1 -h /tmp
+    echo lsblk
+    lsblk
+  EOH
+end
+
 # This will copy the whole file tree from COOKBOOK_NAME/files/default/tests
 # to the directory where RSpec is expecting them.
 testdir = value_for_platform(
