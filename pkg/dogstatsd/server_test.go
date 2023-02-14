@@ -950,8 +950,9 @@ dogstatsd_mapper_profiles:
 			demux := mockDemultiplexer()
 			defer demux.Stop(false)
 			s := NewServer(false)
+
+			err = s.Start(demux)
 			require.NoError(t, err, "Case `%s` failed. NewServer should not return error %v", scenario.name, err)
-			_ = s.Start(demux)
 
 			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
