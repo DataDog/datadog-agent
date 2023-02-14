@@ -21,7 +21,7 @@ type Number int
 // Boolean can unmarshal yaml string or bool value
 type Boolean bool
 
-//UnmarshalYAML unmarshalls StringArray
+// UnmarshalYAML unmarshalls StringArray
 func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var multi []string
 	err := unmarshal(&multi)
@@ -38,7 +38,7 @@ func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-//UnmarshalYAML unmarshalls Number
+// UnmarshalYAML unmarshalls Number
 func (n *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var integer int
 	err := unmarshal(&integer)
@@ -59,7 +59,7 @@ func (n *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-//UnmarshalYAML unmarshalls Boolean
+// UnmarshalYAML unmarshalls Boolean
 func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var value bool
 	err := unmarshal(&value)
@@ -85,7 +85,7 @@ func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-//UnmarshalYAML unmarshalls MetricTagConfigList
+// UnmarshalYAML unmarshalls MetricTagConfigList
 func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var multi []MetricTagConfig
 	err := unmarshal(&multi)

@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -56,7 +56,7 @@ func TestMkdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdir")
 			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
 			assert.Equal(t, getInode(t, testFile), event.Mkdir.File.Inode, "wrong inode")
@@ -79,7 +79,7 @@ func TestMkdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
 			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, uint16(event.Mkdir.Mode), 0777)
@@ -132,7 +132,7 @@ func TestMkdir(t *testing.T) {
 				return fmt.Errorf("failed to create directory with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
 			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, uint16(event.Mkdir.Mode), 0777)
@@ -182,7 +182,7 @@ func TestMkdirError(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(t, syscallTester, "mkdirat-error", testatFile)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
 			assert.Equal(t, event.Mkdir.Retval, -int64(syscall.EACCES))
 		})

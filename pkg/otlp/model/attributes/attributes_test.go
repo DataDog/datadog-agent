@@ -73,14 +73,24 @@ func TestContainerTagFromAttributes(t *testing.T) {
 		"empty_string_val":                         "",
 	}
 
-	assert.Equal(t, "container_name:sample_app,image_tag:sample_app_image_tag,kube_container_name:kube_sample_app,kube_replica_set:sample_replica_set,kube_daemon_set:sample_daemonset_name,pod_name:sample_pod_name,cloud_provider:sample_cloud_provider,region:sample_region,zone:sample_zone,task_family:sample_task_family,ecs_cluster_name:sample_ecs_cluster_name,ecs_container_name:sample_ecs_container_name", ContainerTagFromAttributes(attributeMap))
+	assert.Equal(t, map[string]string{
+		"container_name":      "sample_app",
+		"image_tag":           "sample_app_image_tag",
+		"kube_container_name": "kube_sample_app",
+		"kube_replica_set":    "sample_replica_set",
+		"kube_daemon_set":     "sample_daemonset_name",
+		"pod_name":            "sample_pod_name",
+		"cloud_provider":      "sample_cloud_provider",
+		"region":              "sample_region",
+		"zone":                "sample_zone",
+		"task_family":         "sample_task_family",
+		"ecs_cluster_name":    "sample_ecs_cluster_name",
+		"ecs_container_name":  "sample_ecs_container_name",
+	}, ContainerTagFromAttributes(attributeMap))
 }
 
 func TestContainerTagFromAttributesEmpty(t *testing.T) {
-	var empty string
-	attributeMap := map[string]string{}
-
-	assert.Equal(t, empty, ContainerTagFromAttributes(attributeMap))
+	assert.Empty(t, ContainerTagFromAttributes(map[string]string{}))
 }
 
 func TestOriginIDFromAttributes(t *testing.T) {

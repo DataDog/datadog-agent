@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -29,6 +30,14 @@ const pathTraces = "/api/v0.2/traces"
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
 var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
+
+type samplerTPSReader interface {
+	GetTargetTPS() float64
+}
+
+type samplerEnabledReader interface {
+	IsEnabled() bool
+}
 
 // SampledChunks represents the result of a trace sampling operation.
 type SampledChunks struct {
@@ -48,10 +57,12 @@ type TraceWriter struct {
 	// Channel should only be received from when testing.
 	In chan *SampledChunks
 
+	prioritySampler samplerTPSReader
+	errorsSampler   samplerTPSReader
+	rareSampler     samplerEnabledReader
+
 	hostname     string
 	env          string
-	targetTPS    float64
-	errorTPS     float64
 	senders      []*sender
 	stop         chan struct{}
 	stats        *info.TraceWriterInfo
@@ -71,20 +82,21 @@ type TraceWriter struct {
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
+func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector) *TraceWriter {
 	tw := &TraceWriter{
-		In:           make(chan *SampledChunks, 1000),
-		hostname:     cfg.Hostname,
-		env:          cfg.DefaultEnv,
-		targetTPS:    cfg.TargetTPS,
-		errorTPS:     cfg.ErrorTPS,
-		stats:        &info.TraceWriterInfo{},
-		stop:         make(chan struct{}),
-		flushChan:    make(chan chan struct{}),
-		syncMode:     cfg.SynchronousFlushing,
-		tick:         5 * time.Second,
-		agentVersion: cfg.AgentVersion,
-		easylog:      log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		In:              make(chan *SampledChunks, 1000),
+		prioritySampler: prioritySampler,
+		errorsSampler:   errorsSampler,
+		rareSampler:     rareSampler,
+		hostname:        cfg.Hostname,
+		env:             cfg.DefaultEnv,
+		stats:           &info.TraceWriterInfo{},
+		stop:            make(chan struct{}),
+		flushChan:       make(chan chan struct{}),
+		syncMode:        cfg.SynchronousFlushing,
+		tick:            5 * time.Second,
+		agentVersion:    cfg.AgentVersion,
+		easylog:         log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -107,7 +119,7 @@ func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 		tw.tick = time.Duration(s*1000) * time.Millisecond
 	}
 	log.Debugf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
-	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize)
+	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector)
 	return tw
 }
 
@@ -227,13 +239,15 @@ func (w *TraceWriter) flush() {
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
 	p := pb.AgentPayload{
-		AgentVersion:   w.agentVersion,
-		HostName:       w.hostname,
-		Env:            w.env,
-		TargetTPS:      w.targetTPS,
-		ErrorTPS:       w.errorTPS,
-		TracerPayloads: w.tracerPayloads,
+		AgentVersion:       w.agentVersion,
+		HostName:           w.hostname,
+		Env:                w.env,
+		TargetTPS:          w.prioritySampler.GetTargetTPS(),
+		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
+		RareSamplerEnabled: w.rareSampler.IsEnabled(),
+		TracerPayloads:     w.tracerPayloads,
 	}
+	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)

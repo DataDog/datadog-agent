@@ -13,7 +13,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -127,7 +127,7 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		return
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Warnf("Could not read request body: %v", err)

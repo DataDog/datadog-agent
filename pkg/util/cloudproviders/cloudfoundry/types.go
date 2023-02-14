@@ -11,7 +11,7 @@ package cloudfoundry
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -592,7 +592,7 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		}
 
 		defer resp.Body.Close()
-		resBody, err := ioutil.ReadAll(resp.Body)
+		resBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d: %s", appGUID, page, err)
 		}
@@ -626,7 +626,7 @@ func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (strin
 	}
 
 	defer resp.Body.Close()
-	resBody, err := ioutil.ReadAll(resp.Body)
+	resBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Error reading isolation segment %s response: %s", resource, err)
 	}
@@ -672,7 +672,7 @@ func (c *CFClient) ListProcessByAppGUID(query url.Values, appGUID string) ([]cfc
 		}
 
 		defer resp.Body.Close()
-		resBody, err := ioutil.ReadAll(resp.Body)
+		resBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("Error reading processes response for app %s for page %d: %s", appGUID, page, err)
 		}

@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,7 +38,7 @@ type TransactionRetryQueue struct {
 	dropPrioritySorter    TransactionPrioritySorter
 	optionalStorage       TransactionDiskStorage
 	telemetry             TransactionRetryQueueTelemetry
-	pointDroppedSender    *PointDroppedSender
+	pointCountTelemetry   *PointCountTelemetry
 	mutex                 sync.RWMutex
 }
 
@@ -50,15 +49,15 @@ func BuildTransactionRetryQueue(
 	optionalDomainFolderPath string,
 	optionalDiskUsageLimit *DiskUsageLimit,
 	dropPrioritySorter TransactionPrioritySorter,
-	resolver resolver.DomainResolver) *TransactionRetryQueue {
+	resolver resolver.DomainResolver,
+	pointCountTelemetry *PointCountTelemetry) *TransactionRetryQueue {
 	var storage TransactionDiskStorage
 	var err error
 	domain := resolver.GetBaseDomain()
-	pointDroppedSender := NewPointDroppedSender(domain, telemetry.GetStatsTelemetryProvider())
 
 	if optionalDomainFolderPath != "" && optionalDiskUsageLimit != nil {
 		serializer := NewHTTPTransactionsSerializer(resolver)
-		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()), pointDroppedSender)
+		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()), pointCountTelemetry)
 
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.
@@ -73,7 +72,7 @@ func BuildTransactionRetryQueue(
 		maxMemSizeInBytes,
 		flushToStorageRatio,
 		NewTransactionRetryQueueTelemetry(domain),
-		pointDroppedSender)
+		pointCountTelemetry)
 }
 
 // NewTransactionRetryQueue creates a new instance of NewTransactionRetryQueue
@@ -83,14 +82,14 @@ func NewTransactionRetryQueue(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	telemetry TransactionRetryQueueTelemetry,
-	pointDroppedSender *PointDroppedSender) *TransactionRetryQueue {
+	pointCountTelemetry *PointCountTelemetry) *TransactionRetryQueue {
 	return &TransactionRetryQueue{
 		maxMemSizeInBytes:   maxMemSizeInBytes,
 		flushToStorageRatio: flushToStorageRatio,
 		dropPrioritySorter:  dropPrioritySorter,
 		optionalStorage:     optionalTransactionStorage,
 		telemetry:           telemetry,
-		pointDroppedSender:  pointDroppedSender,
+		pointCountTelemetry: pointCountTelemetry,
 	}
 }
 
@@ -153,7 +152,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 
 func (tc *TransactionRetryQueue) onDropPoints(count int) {
 	tc.telemetry.addPointDroppedCount(count)
-	tc.pointDroppedSender.AddDroppedPointCount(count)
+	tc.pointCountTelemetry.OnPointDropped(count)
 }
 
 // ExtractTransactions extracts transactions from the container.
@@ -180,14 +179,6 @@ func (tc *TransactionRetryQueue) ExtractTransactions() ([]transaction.Transactio
 	tc.telemetry.setCurrentMemSizeInBytes(tc.currentMemSizeInBytes)
 	tc.telemetry.setTransactionsCount(len(tc.transactions))
 	return transactions, nil
-}
-
-// GetCurrentMemSizeInBytes gets the current memory usage in bytes
-func (tc *TransactionRetryQueue) getCurrentMemSizeInBytes() int {
-	tc.mutex.RLock()
-	defer tc.mutex.RUnlock()
-
-	return tc.currentMemSizeInBytes
 }
 
 // GetTransactionCount gets the number of transactions in the container
@@ -249,14 +240,4 @@ func (tc *TransactionRetryQueue) extractTransactionsFromMemory(payloadSizeInByte
 	tc.transactions = tc.transactions[i:]
 	tc.currentMemSizeInBytes -= sizeInBytesExtracted
 	return transactionsExtracted
-}
-
-// Start starts pointDroppedSender
-func (tc *TransactionRetryQueue) Start() {
-	tc.pointDroppedSender.Start()
-}
-
-// Stop stops pointDroppedSender
-func (tc *TransactionRetryQueue) Stop() {
-	tc.pointDroppedSender.Stop()
 }

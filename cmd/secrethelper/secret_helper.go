@@ -32,7 +32,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,7 +120,7 @@ func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes bool, newKube
 }
 
 func parseInputSecrets(r io.Reader) ([]string, error) {
-	in, err := ioutil.ReadAll(r)
+	in, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

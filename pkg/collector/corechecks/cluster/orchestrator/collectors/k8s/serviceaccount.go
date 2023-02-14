@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
 	corev1Listers "k8s.io/client-go/listers/core/v1"
@@ -40,11 +40,14 @@ type ServiceAccountCollector struct {
 func NewServiceAccountCollector() *ServiceAccountCollector {
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "serviceaccounts",
-			NodeType:         orchestrator.K8sServiceAccount,
-			Version:          "v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "serviceaccounts",
+			NodeType:                  model.K8SResource_SERVICEACCOUNT,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),
 	}
@@ -76,13 +79,7 @@ func (c *ServiceAccountCollector) Run(rcfg *collectors.CollectorRunConfig) (*col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

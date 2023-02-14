@@ -6,10 +6,8 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -171,7 +169,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 	for _, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
 
-		entries, err := ioutil.ReadDir(path)
+		entries, err := os.ReadDir(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -236,7 +234,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
-func collectEntry(file os.FileInfo, path string, integrationName string, integrationErrors map[string]string) (configEntry, map[string]string) {
+func collectEntry(file os.DirEntry, path string, integrationName string, integrationErrors map[string]string) (configEntry, map[string]string) {
 	const defaultExt string = ".default"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
@@ -297,7 +295,7 @@ func collectEntry(file os.FileInfo, path string, integrationName string, integra
 	return entry, integrationErrors
 }
 
-func collectDir(parentPath string, folder os.FileInfo, integrationErrors map[string]string) (configPkg, map[string]string) {
+func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[string]string) (configPkg, map[string]string) {
 	configs := []integration.Config{}
 	defaultConfigs := []integration.Config{}
 	otherConfigs := []integration.Config{}
@@ -311,7 +309,7 @@ func collectDir(parentPath string, folder os.FileInfo, integrationErrors map[str
 	}
 
 	// search for yaml files within this directory
-	subEntries, err := ioutil.ReadDir(dirPath)
+	subEntries, err := os.ReadDir(dirPath)
 	if err != nil {
 		log.Warnf("Skipping config directory %s: %s", dirPath, err)
 		return configPkg{configs, defaultConfigs, otherConfigs}, integrationErrors
@@ -351,7 +349,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := ioutil.ReadFile(fpath)
+	yamlFile, err := os.ReadFile(fpath)
 	if err != nil {
 		return conf, err
 	}
@@ -382,10 +380,10 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		// at this point the Yaml was already parsed, no need to check the error
 		rawConf, _ := yaml.Marshal(instance)
 		dataConf := (integration.Data)(rawConf)
-		if fargate.IsFargateInstance(context.TODO()) {
+		if fargate.IsFargateInstance() {
 			// In Fargate, since no host tags are applied in the backend,
 			// add the configured DD_TAGS/DD_EXTRA_TAGS to the instance tags.
-			tags := config.GetConfiguredTags(false)
+			tags := config.GetGlobalConfiguredTags(false)
 			err := dataConf.MergeAdditionalTags(tags)
 			if err != nil {
 				log.Debugf("Could not add agent-level tags to instance of %v: %v", fpath, err)

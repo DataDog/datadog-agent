@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 # This script sets up the environment and then runs the test kitchen itself.
 
@@ -151,6 +151,7 @@ test_suites=".*"
 for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee "/tmp/runlog${attempt}"
   result=${PIPESTATUS[0]}
+
   # Before destroying the kitchen machines, get the list of failed suites,
   # as their status will be reset to non-failing once they're destroyed.
   # failing_test_suites is a newline-separated list of the failing test suite names.

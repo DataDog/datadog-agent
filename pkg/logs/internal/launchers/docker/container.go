@@ -90,7 +90,7 @@ func (c *Container) getShortImageName(ctx context.Context) (string, error) {
 		log.Debugf("Could not resolve image name %s: %s", imageName, err)
 		return shortName, err
 	}
-	_, shortName, _, err = containers.SplitImageName(imageName)
+	_, _, shortName, _, err = containers.SplitImageName(imageName)
 	if err != nil {
 		log.Debugf("Cannot parse image name: %v", err)
 	}

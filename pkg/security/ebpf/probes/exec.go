@@ -15,140 +15,132 @@ var execProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "tracepoint/sched/sched_process_fork",
-			EBPFFuncName: "sched_process_fork",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/do_exit",
-			EBPFFuncName: "kprobe_do_exit",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/do_fork",
-			EBPFFuncName: "kprobe_do_fork",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/_do_fork",
-			EBPFFuncName: "kprobe__do_fork",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/kernel_clone",
-			EBPFFuncName: "kprobe_kernel_clone",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/cgroup_procs_write",
-			EBPFFuncName: "kprobe_cgroup_procs_write",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/cgroup1_procs_write",
-			EBPFFuncName: "kprobe_cgroup1_procs_write",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/cgroup_tasks_write",
-			EBPFFuncName: "kprobe_cgroup_tasks_write",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/cgroup1_tasks_write",
-			EBPFFuncName: "kprobe_cgroup1_tasks_write",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/exit_itimers",
-			EBPFFuncName: "kprobe_exit_itimers",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/prepare_binprm",
 			EBPFFuncName: "kprobe_prepare_binprm",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/bprm_execve",
 			EBPFFuncName: "kprobe_bprm_execve",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_bprm_check",
 			EBPFFuncName: "kprobe_security_bprm_check",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/setup_new_exec",
-			EBPFFuncName: "kprobe_setup_new_exec",
+			EBPFFuncName: "sched_process_fork",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_bprm_committed_creds",
-			EBPFFuncName: "kprobe_security_bprm_committed_creds",
+			EBPFFuncName: "kprobe_do_exit",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/commit_creds",
+			EBPFFuncName: "kprobe_do_fork",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe__do_fork",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_kernel_clone",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_cgroup_procs_write",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_cgroup1_procs_write",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_cgroup_tasks_write",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_cgroup1_tasks_write",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_exit_itimers",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_setup_new_exec_interp",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID + "_a",
+			EBPFFuncName: "kprobe_setup_new_exec_args_envs",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_setup_arg_pages",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_mprotect_fixup",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
 			EBPFFuncName: "kprobe_commit_creds",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/__task_pid_nr_ns",
 			EBPFFuncName: "kretprobe__task_pid_nr_ns",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/alloc_pid",
 			EBPFFuncName: "kretprobe_alloc_pid",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/switch_task_namespaces",
 			EBPFFuncName: "kprobe_switch_task_namespaces",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/do_coredump",
 			EBPFFuncName: "kprobe_do_coredump",
 		},
 	},
@@ -227,19 +219,27 @@ func getExecProbes() []*manager.Probe {
 }
 
 func getExecTailCallRoutes() []manager.TailCallRoute {
-	var routes []manager.TailCallRoute
-
-	for i := uint32(0); i != 10; i++ {
-		route := manager.TailCallRoute{
+	return []manager.TailCallRoute{
+		{
 			ProgArrayName: "args_envs_progs",
-			Key:           i,
+			Key:           ExecGetEnvsOffsetKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "kprobe/parse_args_envs",
+				EBPFFuncName: "kprobe_get_envs_offset",
+			},
+		},
+		{
+			ProgArrayName: "args_envs_progs",
+			Key:           ExecParseArgsEnvsSplitKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_parse_args_envs_split",
+			},
+		},
+		{
+			ProgArrayName: "args_envs_progs",
+			Key:           ExecParseArgsEnvsKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_parse_args_envs",
 			},
-		}
-		routes = append(routes, route)
+		},
 	}
-
-	return routes
 }

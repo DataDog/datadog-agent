@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run github.com/tinylib/msgp -tests=false
+
 package model
 
 import (
-	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 // EventType represents the type of the process lifecycle event
@@ -52,21 +51,21 @@ func NewEventType(eventType string) EventType {
 
 // ProcessEvent is a common interface for collected process events shared across multiple event listener implementations
 type ProcessEvent struct {
-	EventType      EventType `json:"event_type"`
-	CollectionTime time.Time `json:"collection_time"`
-	Pid            uint32    `json:"pid"`
-	ContainerID    string    `json:"container_id"`
-	Ppid           uint32    `json:"ppid"`
-	UID            uint32    `json:"uid"`
-	GID            uint32    `json:"gid"`
-	Username       string    `json:"username"`
-	Group          string    `json:"group"`
-	Exe            string    `json:"exe"`
-	Cmdline        []string  `json:"cmdline"`
-	ForkTime       time.Time `json:"fork_time,omitempty"`
-	ExecTime       time.Time `json:"exec_time,omitempty"`
-	ExitTime       time.Time `json:"exit_time,omitempty"`
-	ExitCode       uint32    `json:"exit_code,omitempty"`
+	EventType      EventType `json:"event_type" msg:"event_type"`
+	CollectionTime time.Time `json:"collection_time" msg:"collection_time"`
+	Pid            uint32    `json:"pid" msg:"pid"`
+	ContainerID    string    `json:"container_id" msg:"container_id"`
+	Ppid           uint32    `json:"ppid" msg:"ppid"`
+	UID            uint32    `json:"uid" msg:"uid"`
+	GID            uint32    `json:"gid" msg:"gid"`
+	Username       string    `json:"username" msg:"username"`
+	Group          string    `json:"group" msg:"group"`
+	Exe            string    `json:"exe" msg:"exe"`
+	Cmdline        []string  `json:"cmdline" msg:"cmdline"`
+	ForkTime       time.Time `json:"fork_time,omitempty" msg:"fork_time,omitempty"`
+	ExecTime       time.Time `json:"exec_time,omitempty" msg:"exec_time,omitempty"`
+	ExitTime       time.Time `json:"exit_time,omitempty" msg:"exit_time,omitempty"`
+	ExitCode       uint32    `json:"exit_code,omitempty" msg:"exit_code,omitempty"`
 }
 
 // NewMockedForkEvent creates a mocked Fork event for tests
@@ -125,26 +124,4 @@ func NewMockedExitEvent(ts time.Time, pid uint32, exe string, args []string, cod
 		ExitTime:       ts,
 		ExitCode:       code,
 	}
-}
-
-// AssertProcessEvents compares two ProcessEvents. Two events can't be compared using directly assert.Equal
-// due to the embedded time fields
-func AssertProcessEvents(t *testing.T, expected, actual *ProcessEvent) {
-	t.Helper()
-
-	assert.Equal(t, expected.EventType, actual.EventType)
-	assert.WithinDuration(t, expected.CollectionTime, actual.CollectionTime, 0)
-	assert.Equal(t, expected.Pid, actual.Pid)
-	assert.Equal(t, expected.ContainerID, actual.ContainerID)
-	assert.Equal(t, expected.Ppid, actual.Ppid)
-	assert.Equal(t, expected.UID, actual.UID)
-	assert.Equal(t, expected.GID, actual.GID)
-	assert.Equal(t, expected.Username, actual.Username)
-	assert.Equal(t, expected.Group, actual.Group)
-	assert.Equal(t, expected.Exe, actual.Exe)
-	assert.Equal(t, expected.Cmdline, actual.Cmdline)
-	assert.WithinDuration(t, expected.ForkTime, actual.ForkTime, 0)
-	assert.WithinDuration(t, expected.ExecTime, actual.ExecTime, 0)
-	assert.WithinDuration(t, expected.ExitTime, actual.ExitTime, 0)
-	assert.Equal(t, expected.ExitCode, actual.ExitCode)
 }

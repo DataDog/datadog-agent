@@ -28,15 +28,6 @@ type BTFHubConstantFetcher struct {
 	res           map[string]uint64
 }
 
-var idToDistribMapping = map[string]string{
-	"ubuntu": "ubuntu",
-	"debian": "debian",
-	"amzn":   "amzn",
-	"centos": "centos",
-	"fedora": "fedora",
-	"ol":     "oracle-linux",
-}
-
 var archMapping = map[string]string{
 	"amd64": "x86_64",
 	"arm64": "arm64",
@@ -110,14 +101,9 @@ type kernelInfos struct {
 }
 
 func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
-	releaseID, ok := kv.OsRelease["ID"]
+	distribution, ok := kv.OsRelease["ID"]
 	if !ok {
 		return nil, fmt.Errorf("failed to collect os-release ID")
-	}
-
-	distribution, ok := idToDistribMapping[releaseID]
-	if !ok {
-		return nil, fmt.Errorf("failed to map release ID to distribution")
 	}
 
 	version, ok := kv.OsRelease["VERSION_ID"]
@@ -125,13 +111,12 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
 		return nil, fmt.Errorf("failed to collect os-release VERSION_ID")
 	}
 
-	// HACK: fix mapping of version for oracle-linux
-	if distribution == "oracle-linux" {
-		if strings.HasPrefix(version, "7.") {
-			version = "ol7"
-		} else {
-			return nil, fmt.Errorf("failed to collect version for non ol7 oracle linux")
-		}
+	// HACK: fix mapping of version for oracle-linux and amazon linux 2018
+	switch {
+	case distribution == "ol" && strings.HasPrefix(version, "7."):
+		version = "7"
+	case distribution == "amzn" && strings.HasPrefix(version, "2018."):
+		version = "2018"
 	}
 
 	arch, ok := archMapping[runtime.GOARCH]
@@ -150,6 +135,7 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
 // BTFHubConstants represents all the information required for identifying
 // a unique btf file from BTFHub
 type BTFHubConstants struct {
+	Commit    string              `json:"commit"`
 	Constants []map[string]uint64 `json:"constants"`
 	Kernels   []BTFHubKernel      `json:"kernels"`
 }

@@ -59,7 +59,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 			return nil, fmt.Errorf("error initializing ebpf programs: %w", err)
 		}
 
-		filter, _ = p.GetProbe(manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketDNSFilter), EBPFFuncName: funcName, UID: probeUID})
+		filter, _ = p.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: probes.SocketDNSFilter, UID: probeUID})
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
 		}
@@ -76,7 +76,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 	}
 	defer ns.Close()
 
-	err = util.WithNS(cfg.ProcRoot, ns, func() error {
+	err = util.WithNS(ns, func() error {
 		packetSrc, srcErr = filterpkg.NewPacketSource(filter, bpfFilter)
 		return srcErr
 	})

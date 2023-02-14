@@ -60,6 +60,8 @@ const (
 	pauseContainerUpstream = `image:upstream/pause.*`
 	// - cdk/pause-amd64
 	pauseContainerCDK = `image:cdk/pause.*`
+	// - giantswarm/pause
+	pauseContainerGiantSwarm = `image:giantswarm/pause.*`
 
 	// filter prefixes for inclusion/exclusion
 	imageFilterPrefix         = `image:`
@@ -176,6 +178,7 @@ func GetPauseContainerFilter() (*Filter, error) {
 			pauseContainerECR,
 			pauseContainerUpstream,
 			pauseContainerCDK,
+			pauseContainerGiantSwarm,
 		)
 	}
 
@@ -269,6 +272,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerECR,
 			pauseContainerUpstream,
 			pauseContainerCDK,
+			pauseContainerGiantSwarm,
 		)
 	}
 	return NewFilter(includeList, excludeList)

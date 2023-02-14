@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,10 +19,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,7 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector())
 
 	return receiver
 }
@@ -139,6 +140,19 @@ func TestListenTCP(t *testing.T) {
 		_, ok := ln.(*rateLimitedListener)
 		assert.True(t, ok)
 	})
+}
+
+func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+	data := []byte{0x96, 0x97, 0xa4, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x96, 0x94, 0x9c, 0x00, 0x00, 0x00, 0x30, 0x30, 0xd1, 0x30, 0x30, 0x30, 0x30, 0x30, 0xdf, 0x30, 0x30, 0x30, 0x30}
+
+	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestStateHeaders(t *testing.T) {
@@ -362,7 +376,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					t.Fatalf("no data received")
 				}
 
-				body, err := ioutil.ReadAll(resp.Body)
+				body, err := io.ReadAll(resp.Body)
 				assert.Nil(err)
 				assert.Equal("OK\n", string(body))
 			case v04:
@@ -386,7 +400,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					t.Fatalf("no data received")
 				}
 
-				body, err := ioutil.ReadAll(resp.Body)
+				body, err := io.ReadAll(resp.Body)
 				assert.Nil(err)
 				var tr traceResponse
 				err = json.Unmarshal(body, &tr)
@@ -423,7 +437,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		traceCount := 10
-		req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
+		req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := client.Do(req)
@@ -432,6 +446,24 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.Equal(400, resp.StatusCode)
 		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
+}
+
+func TestHandleWithVersionRejectCrossSite(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
+
+	var client http.Client
+	req, err := http.NewRequest("POST", server.URL, nil)
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+	resp.Body.Close()
+	assert.Equal(http.StatusForbidden, resp.StatusCode)
 }
 
 func TestReceiverUnexpectedEOF(t *testing.T) {
@@ -454,7 +486,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert.NoError(err)
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", "270")
-	req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
+	req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
 
 	resp, err := client.Do(req)
 	assert.NoError(err)
@@ -473,23 +505,23 @@ func TestTraceCount(t *testing.T) {
 			delete(req.Header, k)
 		}
 		_, err := traceCount(req)
-		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", headerTraceCount))
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", header.TraceCount))
 	})
 
 	t.Run("value-empty", func(t *testing.T) {
-		req.Header.Set(headerTraceCount, "")
+		req.Header.Set(header.TraceCount, "")
 		_, err := traceCount(req)
-		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", headerTraceCount))
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", header.TraceCount))
 	})
 
 	t.Run("value-bad", func(t *testing.T) {
-		req.Header.Set(headerTraceCount, "qwe")
+		req.Header.Set(header.TraceCount, "qwe")
 		_, err := traceCount(req)
 		assert.Equal(t, err, errInvalidHeaderTraceCountValue)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		req.Header.Set(headerTraceCount, "123")
+		req.Header.Set(header.TraceCount, "123")
 		count, err := traceCount(req)
 		assert.NoError(t, err)
 		assert.Equal(t, count, int64(123))
@@ -526,7 +558,7 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
-	req.Header.Set(headerContainerID, "abcdef123789456")
+	req.Header.Set(header.ContainerID, "abcdef123789456")
 	tp, _, err := decodeTracerPayload(v05, req, &info.TagStats{
 		Tags: info.Tags{
 			Lang:          "python",
@@ -629,14 +661,14 @@ func TestHandleStats(t *testing.T) {
 		}
 		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
-		req.Header.Set(headerLang, "lang1")
-		req.Header.Set(headerTracerVersion, "0.1.0")
+		req.Header.Set(header.Lang, "lang1")
+		req.Header.Set(header.TracerVersion, "0.1.0")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if resp.StatusCode != 200 {
-			slurp, _ := ioutil.ReadAll(resp.Body)
+			slurp, _ := io.ReadAll(resp.Body)
 			t.Fatal(string(slurp), resp.StatusCode)
 		}
 
@@ -662,9 +694,9 @@ func TestClientComputedStatsHeader(t *testing.T) {
 
 			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(headerLang, "lang1")
+			req.Header.Set(header.Lang, "lang1")
 			if on {
-				req.Header.Set(headerComputedStats, "yes")
+				req.Header.Set(header.ComputedStats, "yes")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -775,9 +807,9 @@ func TestClientComputedTopLevel(t *testing.T) {
 
 			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(headerLang, "lang1")
+			req.Header.Set(header.Lang, "lang1")
 			if on {
-				req.Header.Set(headerComputedTopLevel, "yes")
+				req.Header.Set(header.ComputedTopLevel, "yes")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -823,9 +855,9 @@ func TestClientDropP0s(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 	req.Header.Set("Content-Type", "application/msgpack")
-	req.Header.Set(headerLang, "lang1")
-	req.Header.Set(headerDroppedP0Traces, "153")
-	req.Header.Set(headerDroppedP0Spans, "2331")
+	req.Header.Set(header.Lang, "lang1")
+	req.Header.Set(header.DroppedP0Traces, "153")
+	req.Header.Set(header.DroppedP0Spans, "2331")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -867,7 +899,7 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 				reader := &chunkedReader{reader: bytes.NewReader(bts)}
 				req, err := http.NewRequest("POST", url, reader)
 				req.Header.Set("Content-Type", "application/msgpack")
-				req.Header.Set(headerTraceCount, strconv.Itoa(n))
+				req.Header.Set(header.TraceCount, strconv.Itoa(n))
 				assert.Nil(err)
 
 				resp, err := client.Do(req)
@@ -1017,7 +1049,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector())
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -1036,7 +1068,7 @@ func TestReplyOKV5(t *testing.T) {
 	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
 	assert.NoError(t, err)
-	slurp, err := ioutil.ReadAll(resp.Body)
+	slurp, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1110,7 +1142,7 @@ func TestWatchdog(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(headerTraceCount, "3")
+			req.Header.Set(header.TraceCount, "3")
 			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatal(err)

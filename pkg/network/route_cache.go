@@ -195,7 +195,7 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 
 	var fd int
 	var nlHandle *netlink.Handle
-	err = util.WithNS(cfg.ProcRoot, rootNs, func() (sockErr error) {
+	err = util.WithNS(rootNs, func() (sockErr error) {
 		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
 			return err
 		}

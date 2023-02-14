@@ -10,6 +10,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	batchv1 "k8s.io/api/batch/v1"
 )
@@ -55,6 +56,7 @@ func ExtractJob(j *batchv1.Job) *model.Job {
 	}
 
 	job.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(j.Spec.Template)
+	job.Tags = append(job.Tags, transformers.RetrieveUnifiedServiceTags(j.ObjectMeta.Labels)...)
 
 	return &job
 }

@@ -334,7 +334,7 @@ community_string: abc
 
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
-	assert.Equal(t, 1, len(config.Profiles))
+	assert.Equal(t, 2, len(config.Profiles))
 	assert.Equal(t, fixtureProfileDefinitionMap()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
 }
 
@@ -959,6 +959,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		IPAddress:             "1.2.3.4",
 		Profiles:              mockProfiles,
 		CollectDeviceMetadata: true,
+		CollectTopology:       false,
 	}
 	err = c.RefreshWithProfile("profile1")
 	assert.NoError(t, err)
@@ -974,6 +975,8 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 			"1.2.3.4.7",
 			"1.3.6.1.2.1.2.2.1.99",
 			"1.3.6.1.2.1.31.1.1.1.1",
+			"1.3.6.1.2.1.4.20.1.2",
+			"1.3.6.1.2.1.4.20.1.3",
 		},
 	}, c.OidConfig)
 
@@ -1063,6 +1066,64 @@ collect_device_metadata: true
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.CollectDeviceMetadata)
+}
+
+func Test_buildConfig_collectTopology(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.CollectTopology)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_topology: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.CollectTopology)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_topology: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.CollectTopology)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_topology: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_topology: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.CollectTopology)
 }
 
 func Test_buildConfig_namespace(t *testing.T) {
@@ -1212,6 +1273,122 @@ use_device_id_as_hostname: true
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.UseDeviceIDAsHostname)
+}
+
+func Test_buildConfig_DetectMetricsEnabled(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.DetectMetricsEnabled)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+experimental_detect_metrics_enabled: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.DetectMetricsEnabled)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+experimental_detect_metrics_enabled: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.DetectMetricsEnabled)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+experimental_detect_metrics_enabled: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+experimental_detect_metrics_enabled: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.DetectMetricsEnabled)
+}
+
+func Test_buildConfig_DetectMetricsRefreshInterval(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, 3600, config.DetectMetricsRefreshInterval)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+experimental_detect_metrics_refresh_interval: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, 10, config.DetectMetricsRefreshInterval)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+experimental_detect_metrics_refresh_interval: 10
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 20
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, 10, config.DetectMetricsRefreshInterval)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+experimental_detect_metrics_refresh_interval: 20
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+experimental_detect_metrics_refresh_interval: 30
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, 20, config.DetectMetricsRefreshInterval)
 }
 
 func Test_buildConfig_minCollectionInterval(t *testing.T) {
@@ -1585,6 +1762,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		ExtraTags:             []string{"ExtraTags:tag"},
 		InstanceTags:          []string{"InstanceTags:tag"},
 		CollectDeviceMetadata: true,
+		CollectTopology:       true,
 		UseDeviceIDAsHostname: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},
@@ -1623,6 +1801,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assertNotSameButEqualElements(t, config.ExtraTags, configCopy.ExtraTags)
 	assertNotSameButEqualElements(t, config.InstanceTags, configCopy.InstanceTags)
 	assert.Equal(t, config.CollectDeviceMetadata, configCopy.CollectDeviceMetadata)
+	assert.Equal(t, config.CollectTopology, configCopy.CollectTopology)
 	assert.Equal(t, config.UseDeviceIDAsHostname, configCopy.UseDeviceIDAsHostname)
 	assert.Equal(t, config.DeviceID, configCopy.DeviceID)
 	assertNotSameButEqualElements(t, config.DeviceIDTags, configCopy.DeviceIDTags)

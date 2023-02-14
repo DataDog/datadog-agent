@@ -81,7 +81,8 @@
                 "ubuntu-16-04": "bento/ubuntu-16.04"
             },
             "arm64": {
-                "ubuntu-20-04": "bytesguy/ubuntu-server-20.04-arm64"
+                "ubuntu-20-04": "bytesguy/ubuntu-server-20.04-arm64",
+                "ubuntu-22-04": "brycekahle/ubuntu-22.04-arm64"
             }
         }
     },
@@ -134,6 +135,16 @@
                 "comment-win2004": "# Windows_Server-2004-English-Core-Base-2021.02.10",
                 "win20H2": "ami-03661d5caaa2f79c1",
                 "comment-win20h2": "Windows_Server-20H2-English-Core-Base-2021.02.10"
+            }
+        },
+        "vagrant": {
+            "x86_64": {
+                "win2022": "cdaf/WindowsServer2022",
+                "comment-win2022": "Windows Server 2022 Standard Desktop Experience Evaluation",
+                "win2022-dc": "cdaf/WindowsServerDC",
+                "comment-win2022-dc": "Windows Server 2022 Standard Evaluation + Domain Controller",
+                "win2019-core": "cdaf/WindowsServerCore",
+                "comment-win2019-core": "Windows Server 2019 Standard Core Evaluation"
             }
         }
     }

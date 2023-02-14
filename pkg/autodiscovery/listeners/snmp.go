@@ -412,6 +412,8 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		return s.config.Namespace, nil
 	case "collect_device_metadata":
 		return strconv.FormatBool(s.config.CollectDeviceMetadata), nil
+	case "collect_topology":
+		return strconv.FormatBool(s.config.CollectTopology), nil
 	case "use_device_id_as_hostname":
 		return strconv.FormatBool(s.config.UseDeviceIDAsHostname), nil
 	case "tags":

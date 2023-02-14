@@ -3,7 +3,7 @@ name: "CWS BTFHub constants sync"
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 4 * * 2' # at 4:30 UTC every Tuesday https://crontab.guru/#30_4_*_*_2
+    - cron: '30 4 * * *' # at 4:30 UTC every day
 
 jobs:
   sync:
@@ -23,7 +23,7 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
+          python-version: '3.8.14'
           cache: 'pip'
 
       - name: Install go

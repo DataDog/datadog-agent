@@ -120,7 +120,11 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 				}
 			}
 			if len(clusterName) > 0 {
-				data.clusterName = clusterName
+				if !IsRFC1123CompliantClusterName(clusterName) {
+					log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted, ", clusterName)
+				}
+				data.clusterName = MakeClusterNameRFC1123Compliant(clusterName)
+				log.Infof("Using cluster name %s from the node label", data.clusterName)
 			}
 		}
 
@@ -140,6 +144,24 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
 func GetClusterName(ctx context.Context, hostname string) string {
 	return getClusterName(ctx, defaultClusterNameData, hostname)
+}
+
+// GetClusterNameTagValue  a k8s cluster name if it exists, either directly specified or autodiscovered
+//
+// This function also "normalize" the k8s cluster name if the configuration option
+// "enabled_rfc1123_compliant_cluster_name_tag" is set to "true"
+// this allow to limit the risk of breaking user that currently rely on previous `kube_cluster_name` tag value.
+func GetClusterNameTagValue(ctx context.Context, hostname string) string {
+	if config.Datadog.GetBool("enabled_rfc1123_compliant_cluster_name_tag") {
+		return GetRFC1123CompliantClusterName(ctx, hostname)
+	}
+	return GetClusterName(ctx, hostname)
+}
+
+// IsRFC1123CompliantClusterName check if the clusterName is RFC1123 compliant
+// return false if not compliant
+func IsRFC1123CompliantClusterName(clusterName string) bool {
+	return !strings.Contains(clusterName, "_")
 }
 
 // GetRFC1123CompliantClusterName returns an RFC-1123 compliant k8s cluster

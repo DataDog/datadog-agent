@@ -10,7 +10,7 @@ package common
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -39,7 +39,7 @@ func GetResourcesNamespace() string {
 // GetMyNamespace returns the namespace our pod is running in
 func GetMyNamespace() string {
 	namespacePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-	val, e := ioutil.ReadFile(namespacePath)
+	val, e := os.ReadFile(namespacePath)
 	if e == nil && val != nil {
 		return string(val)
 	}

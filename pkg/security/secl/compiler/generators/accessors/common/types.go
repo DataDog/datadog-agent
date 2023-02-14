@@ -51,7 +51,9 @@ type StructField struct {
 	Weight              int64
 	CommentText         string
 	OpOverrides         string
-	Constants           string
+	Check               string
+	Alias               string
+	AliasPrefix         string
 }
 
 // GetEvaluatorType returns the evaluator type name
@@ -81,10 +83,62 @@ func (sf *StructField) GetEvaluatorType() string {
 	return evaluatorType
 }
 
+// GetDefaultReturnValue returns default value for the given return type
+func (sf *StructField) GetDefaultReturnValue() string {
+	if sf.ReturnType == "int" {
+		if sf.Iterator != nil || sf.IsArray {
+			return "[]int{}"
+		}
+		return "0"
+	} else if sf.ReturnType == "bool" {
+		if sf.Iterator != nil || sf.IsArray {
+			return "[]bool{}"
+		}
+		return "false"
+	} else if sf.ReturnType == "net.IPNet" {
+		if sf.IsArray {
+			return "&eval.CIDRValues{}"
+		}
+		return "net.IPNet{}"
+	} else {
+		if sf.Iterator != nil || sf.IsArray {
+			return "[]string{}"
+		}
+		return `""`
+	}
+}
+
+// GetDefaultScalarReturnValue returns default scalar value for the given return type
+func (sf *StructField) GetDefaultScalarReturnValue() string {
+	if sf.ReturnType == "int" {
+		return "0"
+	} else if sf.ReturnType == "bool" {
+		return "false"
+	} else if sf.ReturnType == "net.IPNet" {
+		return "net.IPNet{}"
+	} else {
+		return `""`
+	}
+}
+
 // GetArrayPrefix returns the array prefix of this field
 func (sf *StructField) GetArrayPrefix() string {
 	if sf.IsArray {
 		return "[]"
 	}
 	return ""
+}
+
+// GetCacheName returns the cache name
+func (sf *StructField) GetCacheName() string {
+	switch sf.ReturnType {
+	case "string":
+		return "StringCache"
+	case "int":
+		return "IntCache"
+	case "bool":
+		return "BoolCache"
+	default:
+		panic("no cache name defined for this return type")
+	}
 }

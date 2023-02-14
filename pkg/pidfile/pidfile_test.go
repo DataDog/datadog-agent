@@ -6,7 +6,6 @@
 package pidfile
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,7 +20,7 @@ func TestWritePID(t *testing.T) {
 	pidFilePath := filepath.Join(dir, "this_should_be_created", "agent.pid")
 	err := WritePID(pidFilePath)
 	assert.Nil(t, err)
-	data, err := ioutil.ReadFile(pidFilePath)
+	data, err := os.ReadFile(pidFilePath)
 	assert.Nil(t, err)
 	pid, err := strconv.Atoi(string(data))
 	assert.Nil(t, err)

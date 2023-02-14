@@ -19,12 +19,10 @@ import (
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/agent/subcommands/health"
 	cmdhostname "github.com/DataDog/datadog-agent/cmd/agent/subcommands/hostname"
 	cmdimport "github.com/DataDog/datadog-agent/cmd/agent/subcommands/import"
-	cmdinstallsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/installsvc"
 	cmdintegrations "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations"
 	cmdjmx "github.com/DataDog/datadog-agent/cmd/agent/subcommands/jmx"
 	cmdlaunchgui "github.com/DataDog/datadog-agent/cmd/agent/subcommands/launchgui"
 	cmdremoteconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remoteconfig"
-	cmdremovesvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/removesvc"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	cmdsecret "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secret"
 	cmdsecrethelper "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secrethelper"
@@ -67,7 +65,5 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdintegrations.Commands,
 		cmdstop.Commands,
 		cmdcontrolsvc.Commands,
-		cmdinstallsvc.Commands,
-		cmdremovesvc.Commands,
 	}
 }

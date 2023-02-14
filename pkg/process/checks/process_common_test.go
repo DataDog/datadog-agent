@@ -20,12 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func makeContainer(id string) *model.Container {
-	return &model.Container{
-		Id: id,
-	}
-}
-
 //nolint:deadcode,unused
 func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
 	procsByPid = make(map[int32]*procutil.Process)
@@ -80,7 +74,6 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 		},
 		CreateTime: process.Stats.CreateTime,
 		IoStat:     &model.IOStat{},
-		Networks:   &model.ProcessNetworks{},
 	}
 }
 
@@ -101,8 +94,7 @@ func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*mode
 				SystemPct: float32(cpu.SystemPct),
 				TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 			},
-			IoStat:   &model.IOStat{},
-			Networks: &model.ProcessNetworks{},
+			IoStat: &model.IOStat{},
 		})
 	}
 

@@ -7,48 +7,15 @@
 package version
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	versionCmd := &cobra.Command{
-		Use:   "version",
-		Short: "Print the version info",
-		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(run)
-		},
-	}
+	versionCmd := version.MakeCommand("Agent")
 
 	return []*cobra.Command{versionCmd}
-}
-
-func run() error {
-	av, _ := version.Agent()
-	meta := ""
-	if av.Meta != "" {
-		meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
-	}
-	fmt.Fprintln(
-		color.Output,
-		fmt.Sprintf("Agent %s %s- Commit: %s - Serialization version: %s - Go version: %s",
-			color.CyanString(av.GetNumberAndPre()),
-			meta,
-			color.GreenString(av.Commit),
-			color.YellowString(serializer.AgentPayloadVersion),
-			color.RedString(runtime.Version()),
-		),
-	)
-
-	return nil
 }

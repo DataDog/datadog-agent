@@ -84,6 +84,43 @@ func TestDockerSocketTailer_run_erroredContainer(t *testing.T) {
 	require.Equal(t, int32(3), tailerStopped.Load())
 }
 
+func TestDockerSocketTailer_run_canStopWithError(t *testing.T) {
+	dst := &DockerSocketTailer{}
+	dst.ctx, dst.cancel = context.WithCancel(context.Background())
+	dst.stopped = make(chan struct{})
+
+	tailerStarted := atomic.NewInt32(0)
+	tailerStopped := atomic.NewInt32(0)
+
+	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
+	erroredContainerID := make(chan string)
+	go dst.run(
+		func() (*dockerTailerPkg.Tailer, chan string, error) {
+			tailerStarted.Inc()
+			return &dockerTailerPkg.Tailer{}, erroredContainerID, nil
+		},
+		func(*dockerTailerPkg.Tailer) {
+			// Simulate an error occurring at the same time as as the tailer is trying to stop.
+			// This can happen in the real socket tailer implementation as these errors are handled by
+			// the same goroutine that manages the tailer shutdown. This test ensures any pending errors
+			// do not prevent the tailer from being stopped.
+			erroredContainerID <- "abcd"
+			tailerStopped.Inc()
+		})
+
+	// wait until the inner tailer has started
+	for tailerStarted.Load() < 1 {
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	// stop the tailer - this should not block.
+	dst.Stop()
+
+	// check that the tailer was started and subsequently stopped
+	require.Equal(t, int32(1), tailerStarted.Load())
+	require.Equal(t, int32(1), tailerStopped.Load())
+}
+
 func TestDockerSocketTailer_run_error_starting(t *testing.T) {
 	backoffInitialDuration = 1 * time.Millisecond
 	defer func() { backoffInitialDuration = 1 * time.Second }()

@@ -14,19 +14,15 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-type ProtocolType uint16
-
 const (
-	ProtocolUnclassified ProtocolType = iota
-	ProtocolUnknown
-	ProtocolHTTP
-	ProtocolHTTP2
-	ProtocolTLS
-	MaxProtocols
+	// 100Gbps * 30s = 375GB
+	maxByteCountChange uint64 = 375 << 30
+	// use typical small MTU size, 1300, to get max packet count
+	maxPacketCountChange uint64 = maxByteCountChange / 1300
 )
 
 // ConnectionType will be either TCP or UDP
@@ -219,41 +215,6 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
-// StatCountersByCookie stores StatCounters by unique cookie
-type StatCountersByCookie []*struct {
-	StatCounters
-	Cookie uint32
-}
-
-// Get returns a StatCounters object for a cookie
-func (s StatCountersByCookie) Get(cookie uint32) (StatCounters, bool) {
-	for _, c := range s {
-		if c.Cookie == cookie {
-			return c.StatCounters, true
-		}
-	}
-
-	return StatCounters{}, false
-}
-
-// Put adds or sets a StatCounters object for a cookie
-func (s *StatCountersByCookie) Put(cookie uint32, sc StatCounters) {
-	for _, c := range *s {
-		if c.Cookie == cookie {
-			c.StatCounters = sc
-			return
-		}
-	}
-
-	*s = append(*s, &struct {
-		StatCounters
-		Cookie uint32
-	}{
-		StatCounters: sc,
-		Cookie:       cookie,
-	})
-}
-
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -262,22 +223,11 @@ type ConnectionStats struct {
 	IPTranslation *IPTranslation
 	Via           *Via
 
-	// Monotonic stores a list of StatCounters
-	// each identified by a unique "cookie"
-	//
-	// this is necessary because we use connection
-	// info like src/dst address/port to uniquely
-	// identify a connection and port reuse or
-	// races in the ebpf code may occur that would
-	// make conflicts in the stats per connection
-	// impossible to resolve/detect
-	//
-	// the "cookie" is generated in the ebpf code
-	// when we first create counters for a connection;
-	// see the get_conn_stats() function
-	Monotonic StatCountersByCookie
+	Monotonic StatCounters
 
 	Last StatCounters
+
+	Cookie uint32
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -294,11 +244,15 @@ type ConnectionStats struct {
 	Family           ConnectionFamily
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
-	Tags             uint64
+	StaticTags       uint64
+	Tags             map[string]struct{}
 
 	IntraHost bool
 	IsAssured bool
-	Protocol  ProtocolType
+
+	ContainerID *string
+
+	Protocol ProtocolType
 }
 
 // Via has info about the routing decision for a flow
@@ -331,8 +285,9 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
-//     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
-//    32b     16b     16b      4b      4b     32/128b      32/128b
+//	 4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
+//	32b     16b     16b      4b      4b     32/128b      32/128b
+//
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) []byte {
 	return generateConnectionKey(c, buf, false)
@@ -350,26 +305,6 @@ func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 // between two connection checks
 func (c ConnectionStats) IsShortLived() bool {
 	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
-}
-
-// MonotonicSum returns the sum of all the monotonic stats
-func (c ConnectionStats) MonotonicSum() StatCounters {
-	var stc StatCounters
-	for _, st := range c.Monotonic {
-		stc = stc.Add(st.StatCounters)
-	}
-
-	return stc
-}
-
-func (c ConnectionStats) clone() ConnectionStats {
-	cl := c
-	cl.Monotonic = make(StatCountersByCookie, 0, len(c.Monotonic))
-	for _, s := range c.Monotonic {
-		cl.Monotonic.Put(s.Cookie, s.StatCounters)
-	}
-
-	return cl
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
@@ -397,7 +332,7 @@ func BeautifyKey(key string) string {
 	family := (raw[8] >> 4) & 0xf
 	typ := raw[8] & 0xf
 
-	// Finally source addr, dest addr
+	// source addr, dest addr
 	addrSize := 4
 	if ConnectionFamily(family) == AFINET6 {
 		addrSize = 16
@@ -431,31 +366,24 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 		)
 	}
 
-	var stc StatCounters
-	cookies := make([]uint32, 0, len(c.Monotonic))
-	for _, st := range c.Monotonic {
-		stc = stc.Add(st.StatCounters)
-		cookies = append(cookies, st.Cookie)
-	}
-
 	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
-		humanize.Bytes(stc.SentBytes), humanize.Bytes(c.Last.SentBytes),
-		humanize.Bytes(stc.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
+		humanize.Bytes(c.Monotonic.SentBytes), humanize.Bytes(c.Last.SentBytes),
+		humanize.Bytes(c.Monotonic.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
 	)
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
 			", %d retransmits (+%d), RTT %s (± %s), %d established (+%d), %d closed (+%d)",
-			stc.Retransmits, c.Last.Retransmits,
+			c.Monotonic.Retransmits, c.Last.Retransmits,
 			time.Duration(c.RTT)*time.Microsecond,
 			time.Duration(c.RTTVar)*time.Microsecond,
-			stc.TCPEstablished, c.Last.TCPEstablished,
-			stc.TCPClosed, c.Last.TCPClosed,
+			c.Monotonic.TCPEstablished, c.Last.TCPEstablished,
+			c.Monotonic.TCPClosed, c.Last.TCPClosed,
 		)
 	}
 
-	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
+	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
 	str += fmt.Sprintf(", protocol: %v", c.Protocol)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
 
@@ -512,39 +440,8 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 
 	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+
 	return buf[:n]
-}
-
-// Sub returns s-other
-func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
-	if s.RecvBytes < other.RecvBytes ||
-		s.RecvPackets < other.RecvPackets ||
-		(s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
-		s.SentBytes < other.SentBytes ||
-		s.SentPackets < other.SentPackets ||
-		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
-		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) {
-		return sc, true
-	}
-
-	sc = StatCounters{
-		RecvBytes:   s.RecvBytes - other.RecvBytes,
-		RecvPackets: s.RecvPackets - other.RecvPackets,
-		SentBytes:   s.SentBytes - other.SentBytes,
-		SentPackets: s.SentPackets - other.SentPackets,
-	}
-
-	if s.Retransmits > 0 {
-		sc.Retransmits = s.Retransmits - other.Retransmits
-	}
-	if s.TCPEstablished > 0 {
-		sc.TCPEstablished = s.TCPEstablished - other.TCPEstablished
-	}
-	if s.TCPClosed > 0 {
-		sc.TCPClosed = s.TCPClosed - other.TCPClosed
-	}
-
-	return sc, false
 }
 
 // Add returns s+other
@@ -587,4 +484,14 @@ func (s StatCounters) Max(other StatCounters) StatCounters {
 		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
 		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
 	}
+}
+
+// isUnderflow checks if a metric has "underflowed", i.e.
+// the most recent value is less than what was seen
+// previously. We distinguish between an "underflow" and
+// an integer overflow if the change is greater than
+// some preset max value; if the change is greater, then
+// its an underflow
+func isUnderflow(previous, current, maxChange uint64) bool {
+	return current < previous && (current-previous) > maxChange
 }

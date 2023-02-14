@@ -19,10 +19,10 @@ import (
 
 // IptablesSave saves the current iptables state to a file
 // and returns its path
-func IptablesSave(t *testing.T) []byte {
+func IptablesSave(tb testing.TB) []byte {
 	cmd := exec.Command("iptables-save")
 	state, err := cmd.Output()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	// make sure the nat table is saved,
 	// on some machines on startup, with the
@@ -32,15 +32,15 @@ func IptablesSave(t *testing.T) []byte {
 	// rules added by tests
 	cmd = exec.Command("iptables-save", "-t", "nat")
 	natState, err := cmd.Output()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	return append(state, natState...)
 }
 
 // IptablesRestore restores iptables state from a file
-func IptablesRestore(t *testing.T, state []byte) {
+func IptablesRestore(tb testing.TB, state []byte) {
 	cmd := exec.Command("iptables-restore", "--counters")
 	cmd.Stdin = bytes.NewReader(state)
-	assert.NoError(t, cmd.Run())
+	assert.NoError(tb, cmd.Run())
 }
 
 // Ip6tablesSave saves the current iptables state to a file

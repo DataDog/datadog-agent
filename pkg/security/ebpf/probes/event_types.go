@@ -17,15 +17,15 @@ import (
 // NetworkNFNatSelectors is the list of probes that should be activated if the `nf_nat` module is loaded
 var NetworkNFNatSelectors = []manager.ProbesSelector{
 	&manager.OneOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/nf_nat_manip_pkt", EBPFFuncName: "kprobe_nf_nat_manip_pkt"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/nf_nat_packet", EBPFFuncName: "kprobe_nf_nat_packet"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_nf_nat_manip_pkt"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_nf_nat_packet"}},
 	}},
 }
 
 // NetworkVethSelectors is the list of probes that should be activated if the `veth` module is loaded
 var NetworkVethSelectors = []manager.ProbesSelector{
 	&manager.AllOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/veth_newlink", EBPFFuncName: "kprobe_veth_newlink"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_veth_newlink"}},
 	}},
 }
 
@@ -33,39 +33,39 @@ var NetworkVethSelectors = []manager.ProbesSelector{
 var NetworkSelectors = []manager.ProbesSelector{
 	// flow classification probes
 	&manager.AllOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_sk_classify_flow", EBPFFuncName: "kprobe_security_sk_classify_flow"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/path_get", EBPFFuncName: "kprobe_path_get"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/proc_fd_link", EBPFFuncName: "kprobe_proc_fd_link"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_socket_bind"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_sk_classify_flow"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_path_get"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_proc_fd_link"}},
 	}},
 
 	// network device probes
 	&manager.AllOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/register_netdevice", EBPFFuncName: "kprobe_register_netdevice"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_register_netdevice"}},
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/dev_change_net_namespace", EBPFFuncName: "kprobe_dev_change_net_namespace"}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/__dev_change_net_namespace", EBPFFuncName: "kprobe___dev_change_net_namespace"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_change_net_namespace"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_change_net_namespace"}},
 		}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/register_netdevice", EBPFFuncName: "kretprobe_register_netdevice"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_register_netdevice"}},
 	}},
 	&manager.BestEffort{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/dev_get_valid_name", EBPFFuncName: "kprobe_dev_get_valid_name"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/dev_new_index", EBPFFuncName: "kprobe_dev_new_index"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/dev_new_index", EBPFFuncName: "kretprobe_dev_new_index"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/__dev_get_by_index", EBPFFuncName: "kprobe___dev_get_by_index"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/__dev_get_by_name", EBPFFuncName: "kprobe___dev_get_by_name"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_get_valid_name"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_new_index"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_dev_new_index"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_get_by_index"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_get_by_name"}},
 	}},
 }
 
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
 var SyscallMonitorSelectors = []manager.ProbesSelector{
-	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/raw_syscalls/sys_enter", EBPFFuncName: "sys_enter"}},
+	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sys_enter"}},
 }
 
 // SnapshotSelectors selectors required during the snapshot
 var SnapshotSelectors = []manager.ProbesSelector{
 	// required to stat /proc/.../exe
-	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_getattr", EBPFFuncName: "kprobe_security_inode_getattr"}},
+	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_inode_getattr"}},
 }
 
 var selectorsPerEventTypeStore map[eval.EventType][]manager.ProbesSelector
@@ -78,521 +78,366 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			"*": {
 				// Exec probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/raw_syscalls/sys_exit", EBPFFuncName: "sys_exit"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/sched/sched_process_fork", EBPFFuncName: "sched_process_fork"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_exit", EBPFFuncName: "kprobe_do_exit"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bprm_committed_creds", EBPFFuncName: "kprobe_security_bprm_committed_creds"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/exit_itimers", EBPFFuncName: "kprobe_exit_itimers"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sys_exit"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_exit"}},
 					&manager.BestEffort{Selectors: []manager.ProbesSelector{
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/prepare_binprm", EBPFFuncName: "kprobe_prepare_binprm"}},
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/bprm_execve", EBPFFuncName: "kprobe_bprm_execve"}},
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bprm_check", EBPFFuncName: "kprobe_security_bprm_check"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_prepare_binprm"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_bprm_execve"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_bprm_check"}},
 					}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/setup_new_exec", EBPFFuncName: "kprobe_setup_new_exec"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_open", EBPFFuncName: "kprobe_vfs_open"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_dentry_open", EBPFFuncName: "kprobe_do_dentry_open"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/commit_creds", EBPFFuncName: "kprobe_commit_creds"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/__task_pid_nr_ns", EBPFFuncName: "kretprobe__task_pid_nr_ns"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/alloc_pid", EBPFFuncName: "kretprobe_alloc_pid"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/switch_task_namespaces", EBPFFuncName: "kprobe_switch_task_namespaces"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_coredump", EBPFFuncName: "kprobe_do_coredump"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_setup_new_exec_interp"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID + "_a", EBPFFuncName: "kprobe_setup_new_exec_args_envs"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_setup_arg_pages"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mprotect_fixup"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_exit_itimers"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_open"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_dentry_open"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_commit_creds"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe__task_pid_nr_ns"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_alloc_pid"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_switch_task_namespaces"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_coredump"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/cgroup_procs_write", EBPFFuncName: "kprobe_cgroup_procs_write"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/cgroup1_procs_write", EBPFFuncName: "kprobe_cgroup1_procs_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup_procs_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup1_procs_write"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/_do_fork", EBPFFuncName: "kprobe__do_fork"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_fork", EBPFFuncName: "kprobe_do_fork"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/kernel_clone", EBPFFuncName: "kprobe_kernel_clone"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe__do_fork"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_fork"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_kernel_clone"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/cgroup_tasks_write", EBPFFuncName: "kprobe_cgroup_tasks_write"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/cgroup1_tasks_write", EBPFFuncName: "kprobe_cgroup1_tasks_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup_tasks_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup1_tasks_write"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "execve"}, Entry),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "execveat"}, Entry),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setuid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setuid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setgid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setgid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "seteuid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "seteuid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setegid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setegid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setfsuid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setfsuid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setfsgid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setfsgid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setreuid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setreuid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setregid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setregid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setresuid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setresuid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setresgid"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setresgid16"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "capset"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fork"}, Entry),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "vfork"}, Entry),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "clone"}, Entry),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "clone3"}, Entry),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execve", Entry)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execveat", Entry)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setuid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setuid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setgid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setgid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "seteuid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "seteuid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setegid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setegid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setfsuid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setfsuid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setfsgid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setfsgid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setreuid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setreuid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setregid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setregid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setresuid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setresuid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setresgid", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setresgid16", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "capset", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fork", Entry)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "vfork", Entry)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "clone", Entry)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "clone3", Entry)},
 
 				// File Attributes
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_setattr", EBPFFuncName: "kprobe_security_inode_setattr"}},
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_inode_setattr"}},
 
 				// Open probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_truncate", EBPFFuncName: "kprobe_vfs_truncate"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_truncate"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "open"}, EntryAndExit, true),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "creat"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "truncate"}, EntryAndExit, true),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "openat"}, EntryAndExit, true),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "openat2"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "open_by_handle_at"}, EntryAndExit, true),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open", EntryAndExit, true)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "creat", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "truncate", EntryAndExit, true)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "openat", EntryAndExit, true)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "openat2", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open_by_handle_at", EntryAndExit, true)},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_openat", EBPFFuncName: "kprobe_io_openat"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_openat2", EBPFFuncName: "kprobe_io_openat2"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/io_openat2", EBPFFuncName: "kretprobe_io_openat2"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_io_openat"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_io_openat2"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_io_openat2"}},
 				}},
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filp_close", EBPFFuncName: "kprobe_filp_close"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_filp_close"}},
 				}},
 
 				// iouring
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/io_uring/io_uring_create", EBPFFuncName: "io_uring_create"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "io_uring_create"}},
 					&manager.OneOf{Selectors: []manager.ProbesSelector{
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_allocate_scq_urings", EBPFFuncName: "kprobe_io_allocate_scq_urings"}},
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_sq_offload_start", EBPFFuncName: "kprobe_io_sq_offload_start"}},
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/io_ring_ctx_alloc", EBPFFuncName: "kretprobe_io_ring_ctx_alloc"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_io_allocate_scq_urings"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_io_sq_offload_start"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_io_ring_ctx_alloc"}},
 					}},
 				}},
 
 				// Mount probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/attach_recursive_mnt", EBPFFuncName: "kprobe_attach_recursive_mnt"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/propagate_mnt", EBPFFuncName: "kprobe_propagate_mnt"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_sb_umount", EBPFFuncName: "kprobe_security_sb_umount"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_attach_recursive_mnt"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_propagate_mnt"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_sb_umount"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_clone_mnt"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mount"}, EntryAndExit, true),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "umount"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mount", EntryAndExit, true)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", Entry)},
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___attach_mnt"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_attach_mnt"}},
+				}},
 
 				// Rename probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_rename", EBPFFuncName: "kprobe_vfs_rename"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_rename"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "rename"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "renameat"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rename", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "renameat", EntryAndExit)},
 				&manager.BestEffort{Selectors: append(
 					[]manager.ProbesSelector{
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_renameat2", EBPFFuncName: "kprobe_do_renameat2"}},
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_renameat2", EBPFFuncName: "kretprobe_do_renameat2"}},
-					},
-					ExpandSyscallProbesSelector(manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "renameat2"}, EntryAndExit)...),
-				},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_renameat2"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_renameat2"}}},
+					ExpandSyscallProbesSelector(SecurityAgentUID, "renameat2", EntryAndExit)...)},
 
 				// unlink rmdir probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "unlinkat"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlinkat", EntryAndExit)},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_unlinkat", EBPFFuncName: "kprobe_do_unlinkat"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_unlinkat", EBPFFuncName: "kretprobe_do_unlinkat"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_unlinkat"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_unlinkat"}},
 				}},
 
 				// Rmdir probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_rmdir", EBPFFuncName: "kprobe_security_inode_rmdir"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_inode_rmdir"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "rmdir"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rmdir", EntryAndExit)},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_rmdir", EBPFFuncName: "kprobe_do_rmdir"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_rmdir", EBPFFuncName: "kretprobe_do_rmdir"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_rmdir"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_rmdir"}},
 				}},
 
 				// Unlink probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_unlink", EBPFFuncName: "kprobe_vfs_unlink"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_unlink"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "unlink"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlink", EntryAndExit)},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_linkat", EBPFFuncName: "kprobe_do_linkat"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_linkat", EBPFFuncName: "kretprobe_do_linkat"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_linkat"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_linkat"}},
 				}},
 
 				// ioctl probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_vfs_ioctl", EBPFFuncName: "kprobe_do_vfs_ioctl"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_vfs_ioctl"}},
 				}},
 
 				// Link
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_link", EBPFFuncName: "kprobe_vfs_link"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filename_create", EBPFFuncName: "kprobe_filename_create"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_link"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_filename_create"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "link"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "linkat"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", EntryAndExit)},
 
 				// selinux
 				// This needs to be best effort, as sel_write_disable is in the process to be removed
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_disable", EBPFFuncName: "kprobe_sel_write_disable"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_sel_write_disable"}},
 				}},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_enforce", EBPFFuncName: "kprobe_sel_write_enforce"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_sel_write_enforce"}},
 				}},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_bool", EBPFFuncName: "kprobe_sel_write_bool"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_sel_write_bool"}},
 				}},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_commit_bools_write", EBPFFuncName: "kprobe_sel_commit_bools_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_sel_commit_bools_write"}},
 				}},
 
 				// pipes
 				// This is needed to skip FIM events relatives to pipes (avoiding abnormal path events)
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mntget", EBPFFuncName: "kprobe_mntget"}},
-				}},
-			},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mntget"}},
+				}}},
 
 			// List of probes required to capture chmod events
 			"chmod": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "chmod"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchmod"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchmodat"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chmod", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchmod", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchmodat", EntryAndExit)},
 			},
 
 			// List of probes required to capture chown events
 			"chown": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write_file", EBPFFuncName: "kprobe_mnt_want_write_file"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write_file_path", EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "chown"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "chown16"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchown"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchown16"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchownat"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "lchown"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "lchown16"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chown", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chown16", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchown", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchown16", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchownat", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "lchown", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "lchown16", EntryAndExit)},
 			},
 
 			// List of probes required to capture mkdir events
 			"mkdir": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_mkdir", EBPFFuncName: "kprobe_vfs_mkdir"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filename_create", EBPFFuncName: "kprobe_filename_create"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_mkdir"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_filename_create"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mkdir"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mkdirat"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdir", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdirat", EntryAndExit)},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_mkdirat", EBPFFuncName: "kprobe_do_mkdirat"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_mkdirat", EBPFFuncName: "kretprobe_do_mkdirat"}},
-				}},
-			},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_mkdirat"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_mkdirat"}},
+				}}},
 
 			// List of probes required to capture removexattr events
 			"removexattr": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_removexattr", EBPFFuncName: "kprobe_vfs_removexattr"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_removexattr"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write_file", EBPFFuncName: "kprobe_mnt_want_write_file"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write_file_path", EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "removexattr"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fremovexattr"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "lremovexattr"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "removexattr", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fremovexattr", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "lremovexattr", EntryAndExit)},
 			},
 
 			// List of probes required to capture setxattr events
 			"setxattr": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_setxattr", EBPFFuncName: "kprobe_vfs_setxattr"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_setxattr"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write_file", EBPFFuncName: "kprobe_mnt_want_write_file"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write_file_path", EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "setxattr"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fsetxattr"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "lsetxattr"}, EntryAndExit),
-				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setxattr", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsetxattr", EntryAndExit)},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "lsetxattr", EntryAndExit)},
 			},
 
 			// List of probes required to capture utimes events
 			"utimes": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
 				}},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "utime"}, EntryAndExit, true),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "utime32"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "utimes"}, EntryAndExit, true),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "utimes"}, EntryAndExit|ExpandTime32),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "utimensat"}, EntryAndExit, true),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "utimensat"}, EntryAndExit|ExpandTime32),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "futimesat"}, EntryAndExit, true),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "futimesat"}, EntryAndExit|ExpandTime32),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utime", EntryAndExit, true)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utime32", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utimes", EntryAndExit, true)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utimes", EntryAndExit|ExpandTime32)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utimensat", EntryAndExit, true)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utimensat", EntryAndExit|ExpandTime32)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "futimesat", EntryAndExit, true)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "futimesat", EntryAndExit|ExpandTime32)},
 			},
 
 			// List of probes required to capture bpf events
 			"bpf": {
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bpf_map", EBPFFuncName: "kprobe_security_bpf_map"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bpf_prog", EBPFFuncName: "kprobe_security_bpf_prog"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/check_helper_call", EBPFFuncName: "kprobe_check_helper_call"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_bpf_map"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_bpf_prog"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_check_helper_call"}},
 				}},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "bpf"}, EntryAndExit),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bpf", EntryAndExit)},
 			},
 
 			// List of probes required to capture ptrace events
 			"ptrace": {
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "ptrace"}, EntryAndExit),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "ptrace", EntryAndExit)},
 			},
 
 			// List of probes required to capture mmap events
 			"mmap": {
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mmap"}, Exit),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mmap", Exit)},
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/syscalls/sys_enter_mmap", EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/fget", EBPFFuncName: "kretprobe_fget"}},
-				}},
-			},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_fget"}},
+				}}},
 
 			// List of probes required to capture mprotect events
 			"mprotect": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_file_mprotect", EBPFFuncName: "kprobe_security_file_mprotect"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_file_mprotect"}},
 				}},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mprotect"}, EntryAndExit),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mprotect", EntryAndExit)},
 			},
 
 			// List of probes required to capture kernel load_module events
 			"load_module": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
 					&manager.OneOf{Selectors: []manager.ProbesSelector{
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_kernel_read_file", EBPFFuncName: "kprobe_security_kernel_read_file"}},
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_kernel_module_from_file", EBPFFuncName: "kprobe_security_kernel_module_from_file"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_kernel_read_file"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_kernel_module_from_file"}},
 					}},
 					&manager.OneOf{Selectors: []manager.ProbesSelector{
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_init_module", EBPFFuncName: "kprobe_do_init_module"}},
-						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/module_put", EBPFFuncName: "kprobe_module_put"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_init_module"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_module_put"}},
 					}},
 				}},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "init_module"}, EntryAndExit),
-				},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "finit_module"}, EntryAndExit),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "init_module", EntryAndExit)},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "finit_module", EntryAndExit)},
 			},
 
 			// List of probes required to capture kernel unload_module events
 			"unload_module": {
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "delete_module"}, EntryAndExit),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "delete_module", EntryAndExit)},
 			},
 
 			// List of probes required to capture signal events
 			"signal": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID,
-						EBPFSection: "kretprobe/check_kill_permission", EBPFFuncName: "kretprobe_check_kill_permission"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_check_kill_permission"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_kill_pid_info"}},
 				}},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kill"}, Entry),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", Entry)},
 			},
 
 			// List of probes required to capture splice events
 			"splice": {
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "splice"}, EntryAndExit),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "splice", EntryAndExit)},
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/get_pipe_info", EBPFFuncName: "kprobe_get_pipe_info"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/get_pipe_info", EBPFFuncName: "kretprobe_get_pipe_info"}},
-				}},
-			},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_get_pipe_info"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_get_pipe_info"}},
+				}}},
 
 			// List of probes required to capture bind events
 			"bind": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_socket_bind"}},
 				}},
-				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "bind"}, EntryAndExit),
-				},
+				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bind", EntryAndExit)},
 			},
 
 			// List of probes required to capture DNS events
 			"dns": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
-				}},
-			},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_socket_bind"}},
+				}}},
 		}
 	}
 
 	if ShouldUseModuleLoadTracepoint() {
 		selectorsPerEventTypeStore["load_module"] = append(selectorsPerEventTypeStore["load_module"], &manager.BestEffort{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/module/module_load", EBPFFuncName: "module_load"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "module_load"}},
 		}})
 	}
 

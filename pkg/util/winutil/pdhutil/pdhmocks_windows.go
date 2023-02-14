@@ -10,19 +10,18 @@ package pdhutil
 
 import (
 	"fmt"
-	"strings"
 	"regexp"
+	"strings"
 )
 
-var activeCounterStrings CounterStrings
 var activeAvailableCounters AvailableCounters
 
 type mockCounter struct {
-	path string
-	machine string
-	class string
+	path     string
+	machine  string
+	class    string
 	instance string
-	counter string
+	counter  string
 }
 
 type mockQuery struct {
@@ -43,11 +42,11 @@ func mockCounterFromString(path string) mockCounter {
 	r := regexp.MustCompile(`\\\\([^\\]+)\\([^\\\(]+)(?:\(([^\\\)]+)\))?\\(.+)`)
 	res := r.FindStringSubmatch(path)
 	return mockCounter{
-		path: path,
-		machine: res[1],
-		class: res[2],
+		path:     path,
+		machine:  res[1],
+		class:    res[2],
 		instance: res[3],
-		counter: res[4],
+		counter:  res[4],
 	}
 }
 
@@ -90,19 +89,7 @@ func mockPdhCloseQuery(hQuery PDH_HQUERY) uint32 {
 	return 0
 }
 
-func mockPdhRemoveCounter(hCounter PDH_HCOUNTER) uint32 {
-	counterIndex := int(hCounter)
-
-	for _, query := range openQueries {
-		if _, ok := query.counters[counterIndex]; ok {
-			delete(query.counters, counterIndex)
-			return 0
-		}
-	}
-	return PDH_INVALID_HANDLE
-}
-
-func mockCounterFromHandle(hCounter PDH_HCOUNTER) (mockCounter, error){
+func mockCounterFromHandle(hCounter PDH_HCOUNTER) (mockCounter, error) {
 	// check to see that it's a valid counter
 	ndx := int(hCounter)
 	var ctr mockCounter
@@ -125,14 +112,14 @@ func mockPdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_
 	}
 	if classMap, ok := counterValues[ctr.class]; ok {
 		if instMap, ok := classMap[ctr.counter]; ok {
-			for inst,vals := range instMap {
+			for inst, vals := range instMap {
 				if len(vals) > 0 {
 					out_items = append(out_items,
 						PdhCounterValueItem{
 							instance: inst,
 							value: PdhCounterValue{
 								CStatus: PDH_CSTATUS_NEW_DATA,
-								Double: vals[0],
+								Double:  vals[0],
 							},
 						},
 					)
@@ -177,13 +164,11 @@ func mockpdhMakeCounterPath(machine string, object string, instance string, coun
 
 // SetupTesting initializes the PDH libarary with the mock functions rather than the real thing
 func SetupTesting(counterstringsfile, countersfile string) {
-	activeCounterStrings, _ = ReadCounterStrings(counterstringsfile)
 	activeAvailableCounters, _ = ReadCounters(countersfile)
 	// For testing
 	pfnPdhOpenQuery = mockPdhOpenQuery
 	pfnPdhAddEnglishCounter = mockPdhAddEnglishCounter
 	pfnPdhCollectQueryData = mockPdhCollectQueryData
-	pfnPdhRemoveCounter = mockPdhRemoveCounter
 	pfnPdhGetFormattedCounterValueFloat = mockpdhGetFormattedCounterValueFloat
 	pfnPdhGetFormattedCounterArray = mockPdhGetFormattedCounterArray
 	pfnPdhCloseQuery = mockPdhCloseQuery
@@ -210,7 +195,6 @@ func SetQueryReturnValue(counter string, val float64) {
 	// instance -> value list
 	instMap[mc.instance] = append(instMap[mc.instance], val)
 }
-
 
 // RemoveCounterInstance removes a specific instance from the table of available instances
 func RemoveCounterInstance(clss, inst string) {

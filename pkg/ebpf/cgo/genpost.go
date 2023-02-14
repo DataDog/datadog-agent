@@ -7,7 +7,7 @@ package main
 
 import (
 	"go/format"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	b, err := ioutil.ReadAll(os.Stdin)
+	b, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -46,9 +46,9 @@ func removeAbsolutePath(b []byte, platform string) []byte {
 	var removeAbsolutePathRegex *regexp.Regexp
 	switch platform {
 	case "linux":
-		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo -godefs [^/]+) /.+/([^/]+)$`)
+		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo -godefs .+) /.+/([^/]+)$`)
 	case "windows":
-		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo.exe -godefs [^\\]+) .:\\.+\\([^\\]+)$`)
+		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo.exe -godefs .+) .:\\.+\\([^\\]+)$`)
 	default:
 		log.Fatal("unsupported platform")
 	}

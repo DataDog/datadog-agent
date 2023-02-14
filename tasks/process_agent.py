@@ -65,11 +65,6 @@ def build(
 
     build_tags = get_build_tags(build_include, build_exclude)
 
-    ## secrets is not supported on windows because the process agent still runs as
-    ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
-    if sys.platform == 'win32' and "secrets" in build_tags:
-        build_tags.remove("secrets")
-
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
@@ -127,10 +122,13 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             core_agent_dest = "/dev/null"
 
         ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
+        ctx.run(f"mkdir {docker_context}/co-re")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c")
+        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        ctx.run(f"cp pkg/network/java/agent-usm.jar {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -159,6 +157,7 @@ def gen_mocks(ctx):
     """
 
     interfaces = {
+        "./cmd/process-agent": ["Submitter"],
         "./pkg/process/checks": ["Check", "CheckWithRealTime"],
         "./pkg/process/net": ["SysProbeUtil"],
         "./pkg/process/procutil": ["Probe"],

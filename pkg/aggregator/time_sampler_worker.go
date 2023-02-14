@@ -13,9 +13,9 @@ import (
 )
 
 // The timeSamplerWorker runs the process loop for a TimeSampler:
-//  - receiving samples for the TimeSampler to process
-//  - receiving flush triggers to flush the series from the TimeSampler
-//    into a serializer
+//   - receiving samples for the TimeSampler to process
+//   - receiving flush triggers to flush the series from the TimeSampler
+//     into a serializer
 type timeSamplerWorker struct {
 	// parent sampler the timeSamplerWorker is responsible of
 	sampler *TimeSampler

@@ -148,6 +148,9 @@ var (
 	// MetricProcessResolverEnvsSize is the name of the metric used to report the number of envs size
 	// Tags: -
 	MetricProcessResolverEnvsSize = newRuntimeMetric(".process_resolver.envs.size")
+	// MetricProcessEventBrokenLineage is the name of the metric used to report a broken lineage
+	// Tags: -
+	MetricProcessEventBrokenLineage = newRuntimeMetric(".process_resolver.event_broken_lineage")
 
 	// Mount resolver metrics
 
@@ -192,6 +195,24 @@ var (
 	// be sent because they are too big
 	// Tags: format, compression
 	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
+	// MetricActivityDumpBrokenLineageDrop is the name of the metric used to report the number of events dropped due to broken ancestors lineage
+	// Tags: -
+	MetricActivityDumpBrokenLineageDrop = newRuntimeMetric(".activity_dump.broken_lineage_drop")
+	// MetricActivityDumpEventTypeDrop is the name of the metric used to report the number of event dropped because their event types is not traced
+	// Tags: -
+	MetricActivityDumpEventTypeDrop = newRuntimeMetric(".activity_dump.event_type_drop")
+	// MetricActivityDumpValidRootNodeDrop is the name of the metric used to report the number of dropped root not valide node
+	// Tags: -
+	MetricActivityDumpValidRootNodeDrop = newRuntimeMetric(".activity_dump.valid_root_node_drop")
+	// MetricActivityDumpBindFamilyDrop is the name of the metric used to report the number of event dropped because the address family is not handled
+	// Tags: -
+	MetricActivityDumpBindFamilyDrop = newRuntimeMetric(".activity_dump.bind_family_drop")
+	// MetricActivityDumpEmptyDropped is the name of the metric used to report the number of activity dumps dropped because they were empty
+	// Tags: -
+	MetricActivityDumpEmptyDropped = newRuntimeMetric(".activity_dump.empty_dump_dropped")
+	// MetricActivityDumpDropMaxDumpReached is the name of the metric used to report that an activity dump was dropped because the maximum amount of dumps for a workload was reached
+	// Tags: -
+	MetricActivityDumpDropMaxDumpReached = newRuntimeMetric(".activity_dump.drop_max_dump_reached")
 
 	// Namespace resolver metrics
 
@@ -236,12 +257,15 @@ var (
 	// MetricSecurityAgentFIMRunning is reported when the security agent `FIM` feature is enabled
 	MetricSecurityAgentFIMRunning = newAgentMetric(".fim.running")
 
-	// MetricSecurityAgentRuntimeContainersRunning is used to report the count of running containers when the security agent
+	// MetricSecurityAgentRuntimeContainersRunning is used to report the count of running containers when the security agent.
 	// `Runtime` feature is enabled
 	MetricSecurityAgentRuntimeContainersRunning = newAgentMetric(".runtime.containers_running")
 	// MetricSecurityAgentFIMContainersRunning is used to report the count of running containers when the security agent
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
+	// MetricRuntimeCgroupsRunning is used to report the count of running cgroups.
+	// Tags: -
+	MetricRuntimeCgroupsRunning = newAgentMetric(".runtime.cgroups_running")
 
 	// Event Monitoring metrics
 

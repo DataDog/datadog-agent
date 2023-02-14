@@ -11,6 +11,7 @@ build_dogstatsd_static-binary_x64:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
+    - inv check-go-version
     - inv -e dogstatsd.build --static --major-version 7
     - $S3_CP_CMD $CI_PROJECT_DIR/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
 
@@ -27,6 +28,7 @@ build_dogstatsd_static-binary_arm64:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
+    - inv check-go-version
     - inv -e dogstatsd.build --static --major-version 7
     - $S3_CP_CMD $CI_PROJECT_DIR/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
 
@@ -41,6 +43,7 @@ build_dogstatsd-binary_x64:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
+    - inv check-go-version
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $CI_PROJECT_DIR/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
@@ -57,6 +60,7 @@ build_dogstatsd-binary_arm64:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
+    - inv check-go-version
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $CI_PROJECT_DIR/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
 
@@ -71,6 +75,7 @@ build_iot_agent-binary_x64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7
     - $S3_CP_CMD $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
@@ -86,4 +91,5 @@ build_iot_agent-binary_arm64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7

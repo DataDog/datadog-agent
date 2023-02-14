@@ -16,8 +16,10 @@
 # These whole classes of package names have fixed copyright
 cloud.google.com/*: Copyright 2019 Google LLC
 code.cloudfoundry.org/*: Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved.
+github.com/GoogleCloudPlatform/docker-credential-gcr: Copyright 2016 Google, Inc.
 github.com/aws/aws-lambda-go: Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
+github.com/aws/aws-sdk-go-v2: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/containerd/*: Copyright 2012-2015 Docker, Inc.
 github.com/coreos/*: Copyright 2017 CoreOS, Inc
 github.com/docker/*: Copyright 2012-2017 Docker, Inc.
@@ -70,22 +72,41 @@ github.com/openshift/api/quota: Copyright 2020 Red Hat, Inc.
 # https://datadoghq.atlassian.net/browse/AC-1296
 github.com/DataDog/mmh3: Copyright (c) 2017 Datadog, Inc.
 
+# https://datadoghq.atlassian.net/browse/OTEL-345
+github.com/DataDog/opentelemetry-mapping-go: Copyright (c) 2023 Datadog, Inc.
+
+# https://github.com/briandowns/spinner/blob/master/NOTICE.txt
+github.com/briandowns/spinner: Copyright (c) 2022 Brian J. Downs
+
+# https://github.com/shibumi/go-pathspec/blob/master/GO-LICENSE
+github.com/shibumi/go-pathspec: Copyright (c) 2012 The Go Authors. All rights reserved.
+
+# https://github.com/acomagu/bufpipe/blob/master/LICENSE
+github.com/acomagu/bufpipe: Copyright (c) 2019 acomagu
+
 # For Apache projects, copyright is typically in individual source files and
 # not scanned automatically.
 github.com/tklauser/numcpus: Copyright 2018 Tobias Klauser
 github.com/Masterminds/goutils: "Copyright 2014 Alexander Okoli"
-github.com/dgraph-io/ristretto:
+github.com/outcaste-io/ristretto:
  - "Copyright 2019 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
  - "Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt"
  - "Copyright (c) 2019 Ewan Chou"
 github.com/go-logr/logr: ["Copyright 2019 The logr Authors.", "Copyright 2020 The logr Authors."]
 github.com/go-logr/stdr: "Copyright 2019 The logr Authors."
+github.com/go-openapi/analysis: Copyright 2015 go-swagger maintainers
+github.com/go-openapi/errors: Copyright 2015 go-swagger maintainers
 github.com/go-openapi/jsonpointer: "Copyright 2013 sigu-399 ( https://github.com/sigu-399 )"
 github.com/go-openapi/jsonreference: "Copyright 2013 sigu-399 ( https://github.com/sigu-399 )"
+github.com/go-openapi/loads: Copyright 2015 go-swagger maintainers
+github.com/go-openapi/runtime: Copyright 2015 go-swagger maintainers
 github.com/go-openapi/spec: Copyright 2015 go-swagger maintainers
+github.com/go-openapi/strfmt: Copyright 2015 go-swagger maintainers
 github.com/go-openapi/swag: Copyright 2015 go-swagger maintainers
+github.com/go-openapi/validate: Copyright 2015 go-swagger maintainers
 github.com/google/gofuzz: Copyright 2014 Google Inc. All rights reserved.
 github.com/kubernetes-sigs/custom-metrics-apiserver: Copyright 2018 The Kubernetes Authors.
 github.com/mostynb/go-grpc-compression/snappy: Copyright 2017 gRPC authors.
@@ -97,6 +118,16 @@ github.com/xeipuuv/gojsonreference: Copyright 2015 xeipuuv ( https://github.com/
 github.com/xeipuuv/gojsonschema: Copyright 2015 xeipuuv
 github.com/open-policy-agent/opa: Copyright 2016 The OPA Authors.  All rights reserved.
 github.com/containernetworking/*: Copyright 2019 CNI authors
+github.com/xanzy/ssh-agent: ["Copyright (c) 2014 David Mzareulyan", "Copyright 2015, Sander van Harmelen"]
+github.com/google/go-containerregistry:
+ - "Copyright 2018 Google LLC All Rights Reserved."
+ - "Copyright 2019 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
+ - "Copyright 2021 Google LLC All Rights Reserved."
+ - "Copyright 2022 Google LLC All Rights Reserved."
+github.com/google/licenseclassifier/v2:
+ - "Copyright 2017 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
@@ -110,6 +141,7 @@ github.com/klauspost/compress/snappy: Copyright (c) 2011 The Snappy-Go Authors. 
 github.com/golang/snappy: Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 github.com/shirou/w32: Copyright (c) 2010-2012 The w32 Authors. All rights reserved.
 github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights reserved.", "Copyright 2010 The Go Authors.  All rights reserved."]
+
 # These are just difficult to figure out, as they have no full copyright declaration.
 # The following rules are applied:
 #  * Automatic "Copyright (c)"
@@ -126,3 +158,14 @@ gomodules.xyz/jsonpatch: Copyright (c) 2015 The Authors
 github.com/bytecodealliance/wasmtime-go: Copyright (c) 2020 The Bytecode Alliance
 github.com/OneOfOne/xxhash: Copyright (c) 2014 Ahmed W. (OneOfOne)
 github.com/yashtewari/glob-intersection: Copyright (c) 2018 Yash Tewari (yashtewari)
+go.mongodb.org/mongo-driver/*: Copyright © 2018 MongoDB, Inc.
+github.com/masahiro331/go-ext4-filesystem: Copyright (c) 2021 masahiro331
+github.com/masahiro331/go-mvn-version: Copyright (c) 2020 masahiro331
+github.com/masahiro331/go-vmdk-parser: Copyright (c) 2020 masahiro331
+github.com/masahiro331/go-xfs-filesystem: Copyright (c) 2021 masahiro331
+github.com/knqyf263/go-apk-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
+github.com/aquasecurity/go-gem-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
+github.com/aquasecurity/go-npm-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
+github.com/aquasecurity/go-pep440-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
+github.com/aquasecurity/go-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
+github.com/spdx/tools-golang: Copyright (c) 2018 The Authors

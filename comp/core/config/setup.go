@@ -8,28 +8,26 @@ package config
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/viper"
 	"io/fs"
-	"os"
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/viper"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(
-	confFilePath string,
-	configName string,
-	withoutSecrets bool,
-	failOnMissingFile bool,
-	useDefaultConfigPath bool,
-	defaultConfPath string) (*config.Warnings, error) {
+func setupConfig(deps dependencies) (*config.Warnings, error) {
+	confFilePath := deps.Params.confFilePath
+	configName := deps.Params.configName
+	withoutSecrets := !deps.Params.configLoadSecrets
+	failOnMissingFile := !deps.Params.configMissingOK
+	defaultConfPath := deps.Params.defaultConfPath
+
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)
 	}
+
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
@@ -40,10 +38,7 @@ func setupConfig(
 			config.Datadog.SetConfigFile(confFilePath)
 		}
 	}
-	if useDefaultConfigPath {
-		if len(defaultConfPath) == 0 {
-			defaultConfPath = common.DefaultConfPath
-		}
+	if defaultConfPath != "" {
 		config.Datadog.AddConfigPath(defaultConfPath)
 	}
 
@@ -71,57 +66,5 @@ func setupConfig(
 		}
 		return warnings, err
 	}
-	return warnings, nil
-}
-
-// MergeConfigurationFiles reads an array of configuration filenames and attempts to merge them. The userDefined value is used to specify that configurationFilesArray contains filenames defined on the command line
-// TODO(paulcacheux): change this a component method once all security-agent commands have been converted to fx
-func MergeConfigurationFiles(configName string, configurationFilesArray []string, userDefined bool) (*config.Warnings, error) {
-	// we'll search for a config file named `datadog.yaml`
-	config.Datadog.SetConfigName(configName)
-
-	// Track if a configuration file was loaded
-	loadedConfiguration := false
-
-	var warnings *config.Warnings
-
-	// Load and merge configuration files
-	for _, configurationFilename := range configurationFilesArray {
-		if _, err := os.Stat(configurationFilename); err != nil {
-			if userDefined {
-				fmt.Printf("Warning: unable to access %s\n", configurationFilename)
-			}
-			continue
-		}
-		if !loadedConfiguration {
-			w, err := setupConfig(configurationFilename, "", false, true, true, "")
-			if err != nil {
-				if userDefined {
-					fmt.Printf("Warning: unable to open %s\n", configurationFilename)
-				}
-				continue
-			}
-			warnings = w
-			loadedConfiguration = true
-		} else {
-			file, err := os.Open(configurationFilename)
-			if err != nil {
-				if userDefined {
-					fmt.Printf("Warning: unable to open %s\n", configurationFilename)
-				}
-				continue
-			}
-
-			err = config.Datadog.MergeConfig(file)
-			if err != nil {
-				return warnings, fmt.Errorf("unable to merge a configuration file: %v", err)
-			}
-		}
-	}
-
-	if !loadedConfiguration {
-		return warnings, fmt.Errorf("unable to load any configuration file from %s", configurationFilesArray)
-	}
-
 	return warnings, nil
 }

@@ -10,14 +10,15 @@ package ebpf
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/gopsutil/host"
 	"github.com/cilium/ebpf/btf"
 	"github.com/mholt/archiver/v3"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,22 +51,46 @@ func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, COREResult) {
 	return nil, btfNotFound
 }
 
-func checkEmbeddedCollection(collectionPath string) (*btf.Spec, error) {
-	si := host.GetStatusInformation()
-	platform := si.Platform
-	platformVersion := si.PlatformVersion
-	kernelVersion := si.KernelVersion
+func getBTFDirAndFilename() (dir, file string, err error) {
+	info, err := host.Info()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to retrieve host info: %s", err)
+	}
 
-	btfSubdirectory := filepath.Join(platform)
-	if platform == "ubuntu" {
+	platform := info.Platform
+	platformVersion := info.PlatformVersion
+	kernelVersion := info.KernelVersion
+
+	// using directory names from .gitlab/deps_build.yml
+	switch platform {
+	case "amzn", "amazon":
+		return "amazon", kernelVersion, nil
+	case "suse", "sles": //opensuse treated differently on purpose
+		return "sles", kernelVersion, nil
+	case "redhat", "rhel":
+		return "redhat", kernelVersion, nil
+	case "oracle", "ol":
+		return "oracle", kernelVersion, nil
+	case "ubuntu":
 		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
 		// This is because we have BTFs for different versions of ubuntu with the exact same
 		// kernel name, so kernel name alone is not a unique identifier.
-		btfSubdirectory = filepath.Join(platform, platformVersion)
+		return filepath.Join(platform, platformVersion), kernelVersion, nil
+	default:
+		return platform, kernelVersion, nil
 	}
+}
+
+func checkEmbeddedCollection(collectionPath string) (*btf.Spec, error) {
+	btfSubdirectory, btfBasename, err := getBTFDirAndFilename()
+	if err != nil {
+		return nil, err
+	}
+	btfFilename := btfBasename + ".btf"
+	btfTarballFilename := btfBasename + ".btf.tar.xz"
 
 	// If we've previously extracted the BTF file in question, we can just load it
-	extractedBtfPath := filepath.Join(collectionPath, btfSubdirectory, kernelVersion+".btf")
+	extractedBtfPath := filepath.Join(collectionPath, btfSubdirectory, btfFilename)
 	if _, err := os.Stat(extractedBtfPath); err == nil {
 		return loadBTFFrom(extractedBtfPath)
 	}
@@ -75,10 +100,10 @@ func checkEmbeddedCollection(collectionPath string) (*btf.Spec, error) {
 	// of BTFs as a whole is also compressed.
 	// This means that we'll need to first extract the specific BTF which  we're looking for from the collection
 	// tarball, and then unarchive it.
-	btfTarball := filepath.Join(collectionPath, btfSubdirectory, kernelVersion+".btf.tar.xz")
+	btfTarball := filepath.Join(collectionPath, btfSubdirectory, btfTarballFilename)
 	if _, err := os.Stat(btfTarball); errors.Is(err, fs.ErrNotExist) {
 		collectionTarball := filepath.Join(collectionPath, "minimized-btfs.tar.xz")
-		targetBtfFile := filepath.Join(btfSubdirectory, kernelVersion+".btf.tar.xz")
+		targetBtfFile := filepath.Join(btfSubdirectory, btfTarballFilename)
 
 		if err := archiver.NewTarXz().Extract(collectionTarball, targetBtfFile, collectionPath); err != nil {
 			return nil, err
@@ -89,7 +114,7 @@ func checkEmbeddedCollection(collectionPath string) (*btf.Spec, error) {
 	if err := archiver.NewTarXz().Unarchive(btfTarball, destinationFolder); err != nil {
 		return nil, err
 	}
-	return loadBTFFrom(filepath.Join(destinationFolder, kernelVersion+".btf"))
+	return loadBTFFrom(filepath.Join(destinationFolder, btfFilename))
 }
 
 func loadBTFFrom(path string) (*btf.Spec, error) {
@@ -97,6 +122,7 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer data.Close()
 
 	return btf.LoadSpecFromReader(data)
 }

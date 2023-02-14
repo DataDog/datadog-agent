@@ -12,6 +12,7 @@
     - mkdir -p $NIKOS_EMBEDDED_PATH
     - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
   script:
+    - inv check-go-version
     - inv -e system-probe.build --nikos-embedded-path=$NIKOS_EMBEDDED_PATH --strip-object-files
     # fail if references to glibc >= 2.18
     - objdump -p $CI_PROJECT_DIR/$SYSTEM_PROBE_BINARIES_DIR/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
@@ -29,6 +30,11 @@
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-offset-guesser.o $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http.o $S3_ARTIFACTS_URI/http-co-re.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http-debug.o $S3_ARTIFACTS_URI/http-debug-co-re.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $S3_ARTIFACTS_URI/oom-kill-co-re.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $S3_ARTIFACTS_URI/tracer-fentry-co-re.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $S3_ARTIFACTS_URI/tracer.c.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/http.c $S3_ARTIFACTS_URI/http.c.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $S3_ARTIFACTS_URI/runtime-security.c.$ARCH

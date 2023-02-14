@@ -46,8 +46,6 @@ struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct proc_cache_t),
     .max_entries = 16384,
-    .pinning = 0,
-    .namespace = "",
 };
 
 static void __attribute__((always_inline)) fill_container_context(struct proc_cache_t *entry, struct container_context_t *context) {
@@ -91,8 +89,6 @@ struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct pid_cache_t),
     .max_entries = 16384,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
@@ -100,8 +96,6 @@ struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 16738,
-    .pinning = 0,
-    .namespace = "",
 };
 
 // defined in exec.h
@@ -122,8 +116,6 @@ struct bpf_map_def SEC("maps/netns_cache") netns_cache = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 40960,
-    .pinning = 0,
-    .namespace = "",
 };
 
 static struct proc_cache_t * __attribute__((always_inline)) fill_process_context_with_pid_tgid(struct process_context_t *data, u64 pid_tgid) {
@@ -146,7 +138,12 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
         data->is_kworker = 1;
     }
 
-    return get_proc_cache(tgid);
+    struct proc_cache_t *pc = get_proc_cache(tgid);
+    if (pc) {
+        data->inode = pc->entry.executable.path_key.ino;
+    }
+
+    return pc;
 }
 
 static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
@@ -159,8 +156,6 @@ struct bpf_map_def SEC("maps/root_nr_namespace_nr") root_nr_namespace_nr = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 32768,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/namespace_nr_root_nr") namespace_nr_root_nr = {
@@ -168,8 +163,6 @@ struct bpf_map_def SEC("maps/namespace_nr_root_nr") namespace_nr_root_nr = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 32768,
-    .pinning = 0,
-    .namespace = "",
 };
 
 void __attribute__((always_inline)) register_nr(u32 root_nr, u64 namespace_nr) {
@@ -224,14 +217,19 @@ u64 __attribute__((always_inline)) get_sizeof_upid() {
     return sizeof_upid;
 }
 
+u32 __attribute__((always_inline)) get_pid_from_root_pidns(struct pid *pid) {
+    // read the root pid namespace nr from &pid->numbers[0].nr
+    u32 root_nr = 0;
+    bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
+    return root_nr;
+}
+
 void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     if (pid == NULL) {
         return;
     }
 
-    // read the root namespace nr from &pid->numbers[0].nr
-    u32 root_nr = 0;
-    bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
+    u32 root_nr = get_pid_from_root_pidns(pid);
 
     // TODO(will): iterate over the list to insert the nr of each namespace, for now get only the deepest one
     u32 pid_level = 0;

@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
 
-type tagPair struct {
+// TagPair contains a pair of tag key and value
+type TagPair struct {
 	name    string
 	envName string
 }
@@ -24,18 +27,10 @@ func getTag(envName string) (string, bool) {
 	return strings.ToLower(value), true
 }
 
-// GetBaseTagsMapWithMetadata returns a map of Datadog's base tags + Cloud Run specific if present
+// GetBaseTagsMapWithMetadata returns a map of Datadog's base tags
 func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
-	tags := map[string]string{}
-	listTags := []tagPair{
-		{
-			name:    "revision_name",
-			envName: "K_REVISION",
-		},
-		{
-			name:    "service_name",
-			envName: "K_SERVICE",
-		},
+	tagsMap := map[string]string{}
+	listTags := []TagPair{
 		{
 			name:    "env",
 			envName: "DD_ENV",
@@ -51,17 +46,17 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 	}
 	for _, tagPair := range listTags {
 		if value, found := getTag(tagPair.envName); found {
-			tags[tagPair.name] = value
+			tagsMap[tagPair.name] = value
 		}
 	}
 
 	for key, value := range metadata {
-		tags[key] = value
+		tagsMap[key] = value
 	}
 
-	tags["origin"] = "cloudrun"
+	tagsMap["datadog_init_version"] = tags.GetExtensionVersion()
 
-	return tags
+	return tagsMap
 }
 
 // GetBaseTagsArrayWithMetadataTags see GetBaseTagsMapWithMetadata (as array)

@@ -39,9 +39,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(getHostname,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "off", false)), // never output anything but hostname
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", false)}), // never output anything but hostname
 				core.Bundle,
 			)
 		},

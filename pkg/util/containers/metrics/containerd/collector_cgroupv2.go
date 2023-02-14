@@ -40,11 +40,11 @@ func getCPUStatsCgroupV2(cpuStat *v2.CPUStat) *provider.ContainerCPUStats {
 
 	// Unfortunately the underlying struct does not provide a way to know if metrics are set or not
 	return &provider.ContainerCPUStats{
-		Total:            pointer.UIntToFloatPtr(cpuStat.UsageUsec * uint64(time.Microsecond)),
-		System:           pointer.UIntToFloatPtr(cpuStat.SystemUsec * uint64(time.Microsecond)),
-		User:             pointer.UIntToFloatPtr(cpuStat.UserUsec * uint64(time.Microsecond)),
-		ThrottledTime:    pointer.UIntToFloatPtr(cpuStat.ThrottledUsec * uint64(time.Microsecond)),
-		ThrottledPeriods: pointer.UIntToFloatPtr(cpuStat.NrThrottled),
+		Total:            pointer.Ptr(float64(cpuStat.UsageUsec * uint64(time.Microsecond))),
+		System:           pointer.Ptr(float64(cpuStat.SystemUsec * uint64(time.Microsecond))),
+		User:             pointer.Ptr(float64(cpuStat.UserUsec * uint64(time.Microsecond))),
+		ThrottledTime:    pointer.Ptr(float64(cpuStat.ThrottledUsec * uint64(time.Microsecond))),
+		ThrottledPeriods: pointer.Ptr(float64(cpuStat.NrThrottled)),
 	}
 }
 
@@ -54,16 +54,16 @@ func getMemoryStatsCgroupV2(memStat *v2.MemoryStat, memEvents *v2.MemoryEvents) 
 	}
 
 	res := provider.ContainerMemStats{
-		UsageTotal:   pointer.UIntToFloatPtr(memStat.Usage),
-		RSS:          pointer.UIntToFloatPtr(memStat.Anon),
-		Cache:        pointer.UIntToFloatPtr(memStat.File),
-		KernelMemory: pointer.UIntToFloatPtr(memStat.Slab + memStat.KernelStack),
-		Limit:        pointer.UIntToFloatPtr(memStat.UsageLimit), // TODO: Check value if no limit
-		Swap:         pointer.UIntToFloatPtr(memStat.SwapUsage),
+		UsageTotal:   pointer.Ptr(float64(memStat.Usage)),
+		RSS:          pointer.Ptr(float64(memStat.Anon)),
+		Cache:        pointer.Ptr(float64(memStat.File)),
+		KernelMemory: pointer.Ptr(float64(memStat.Slab + memStat.KernelStack)),
+		Limit:        pointer.Ptr(float64(memStat.UsageLimit)), // TODO: Check value if no limit
+		Swap:         pointer.Ptr(float64(memStat.SwapUsage)),
 	}
 
 	if memEvents != nil {
-		res.OOMEvents = pointer.UIntToFloatPtr(memEvents.Oom)
+		res.OOMEvents = pointer.Ptr(float64(memEvents.Oom))
 	}
 
 	return &res
@@ -86,10 +86,10 @@ func getIOStatsCgroupV2(ioStat *v2.IOStat) *provider.ContainerIOStats {
 		sumWOps += float64(ioEntry.Wios)
 
 		outIOStats := provider.DeviceIOStats{
-			ReadBytes:       pointer.UIntToFloatPtr(ioEntry.Rbytes),
-			WriteBytes:      pointer.UIntToFloatPtr(ioEntry.Wbytes),
-			ReadOperations:  pointer.UIntToFloatPtr(ioEntry.Rios),
-			WriteOperations: pointer.UIntToFloatPtr(ioEntry.Wios),
+			ReadBytes:       pointer.Ptr(float64(ioEntry.Rbytes)),
+			WriteBytes:      pointer.Ptr(float64(ioEntry.Wbytes)),
+			ReadOperations:  pointer.Ptr(float64(ioEntry.Rios)),
+			WriteOperations: pointer.Ptr(float64(ioEntry.Wios)),
 		}
 		deviceName := fmt.Sprintf("%d:%d", ioEntry.Major, ioEntry.Minor)
 		result.Devices[deviceName] = outIOStats

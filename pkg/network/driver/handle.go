@@ -169,6 +169,11 @@ func (dh *RealDriverHandle) GetStatsForHandle() (map[string]map[string]int64, er
 			"num_flows_missed_max_no_handle": stats.Flow_stats.Num_flows_missed_max_no_handle_exceeded,
 			"num_packets_after_closed":       stats.Flow_stats.Num_packets_after_flow_closed,
 
+			"classify_no_direction":        stats.Flow_stats.Classify_with_no_direction,
+			"classify_multiple_request":    stats.Flow_stats.Classify_multiple_request,
+			"classify_multiple_response":   stats.Flow_stats.Classify_multiple_response,
+			"classify_response_no_request": stats.Flow_stats.Classify_response_no_request,
+
 			"http_txns_captured":       stats.Http_stats.Txns_captured,
 			"http_txns_skipped_max":    stats.Http_stats.Txns_skipped_max_exceeded,
 			"http_ndis_non_contiguous": stats.Http_stats.Ndis_buffer_non_contiguous,

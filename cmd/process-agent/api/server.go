@@ -17,13 +17,15 @@ import (
 )
 
 func setupHandlers(r *mux.Router) {
-	r.HandleFunc("/config", settingshttp.Server.GetFull("process_config")).Methods("GET") // Get only settings in the process_config namespace
-	r.HandleFunc("/config/all", settingshttp.Server.GetFull("")).Methods("GET")           // Get all fields from process-agent Config object
+	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("process_config")).Methods("GET") // Get only settings in the process_config namespace
+	r.HandleFunc("/config/all", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")           // Get all fields from process-agent Config object
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/agent/status", statusHandler).Methods("GET")
 	r.HandleFunc("/agent/tagger-list", getTaggerList).Methods("GET")
+	r.HandleFunc("/agent/workload-list/short", getShortWorkloadList).Methods("GET")
+	r.HandleFunc("/agent/workload-list/verbose", getVerboseWorkloadList).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
 }
 

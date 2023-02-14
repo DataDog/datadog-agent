@@ -20,21 +20,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var originalConfig = config.Datadog
-
-func restoreGlobalConfig() {
-	config.Datadog = originalConfig
-}
-
-func newConfig() {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(config.Datadog)
+func newConfig(t *testing.T) {
+	originalConfig := config.SystemProbe
+	t.Cleanup(func() {
+		config.SystemProbe = originalConfig
+	})
+	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	config.InitSystemProbeConfig(config.SystemProbe)
 }
 
 func TestDisablingDNSInspection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNS.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -43,9 +40,7 @@ func TestDisablingDNSInspection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		t.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -57,8 +52,7 @@ func TestDisablingDNSInspection(t *testing.T) {
 
 func TestDisablingProtocolClassification(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-NoPRTCLClassifying.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -67,11 +61,8 @@ func TestDisablingProtocolClassification(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		os.Setenv("DD_ENABLE_PROTOCOL_CLASSIFICATION", "false")
-		defer os.Unsetenv("DD_ENABLE_PROTOCOL_CLASSIFICATION")
+		newConfig(t)
+		t.Setenv("DD_ENABLE_PROTOCOL_CLASSIFICATION", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -80,11 +71,30 @@ func TestDisablingProtocolClassification(t *testing.T) {
 	})
 }
 
+func TestEnableGoTLSSupport(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableGoTLS.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableGoTLSSupport)
+	})
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -93,10 +103,9 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -105,38 +114,42 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
-func TestEnableHTTPMonitoringViaHTTP(t *testing.T) {
+func TestEnableJavaTLSSupport(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+		newConfig(t)
 
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableJavaTLS.yaml")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.True(t, cfg.EnableJavaTLSSupport)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+		newConfig(t)
 
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
-
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_JAVA_TLS_SUPPORT", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.True(t, cfg.EnableJavaTLSSupport)
 	})
+}
+
+func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
+	newConfig(t)
+
+	_, err := sysconfig.New("")
+	require.NoError(t, err)
+	cfg := New()
+
+	assert.False(t, cfg.EnableJavaTLSSupport)
 }
 
 func TestDisableGatewayLookup(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		// default config
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -144,7 +157,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 
 		assert.True(t, cfg.EnableGatewayLookup)
 
-		newConfig()
+		newConfig(t)
 		_, err = sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableGwLookup.yaml")
 		require.NoError(t, err)
 		cfg = New()
@@ -153,9 +166,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -167,9 +178,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 
 func TestIgnoreConntrackInitFailure(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-IgnoreCTInitFailure.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -178,9 +187,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -193,9 +200,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 
 func TestEnablingDNSStatsCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -204,9 +209,7 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		t.Setenv("DD_COLLECT_DNS_STATS", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -214,7 +217,7 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 
 		assert.False(t, cfg.CollectDNSStats)
 
-		newConfig()
+		newConfig(t)
 		t.Setenv("DD_COLLECT_DNS_STATS", "true")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
@@ -226,9 +229,7 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 
 func TestDisablingDNSDomainCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -237,9 +238,7 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		t.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -247,7 +246,7 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 
 		assert.False(t, cfg.CollectDNSDomains)
 
-		newConfig()
+		newConfig(t)
 		t.Setenv("DD_COLLECT_DNS_DOMAINS", "true")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
@@ -259,9 +258,7 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 
 func TestSettingMaxDNSStats(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -270,10 +267,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		newConfig()
+		newConfig(t)
 		os.Unsetenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -281,7 +275,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 
 		assert.Equal(t, 20000, cfg.MaxDNSStats) // default value
 
-		newConfig()
+		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS", "10000")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
@@ -310,9 +304,7 @@ func TestHTTPReplaceRules(t *testing.T) {
 	}
 
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-HTTPReplaceRules.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -324,9 +316,7 @@ func TestHTTPReplaceRules(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
         [
           {
@@ -358,9 +348,7 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	maxTrackedConnections := New().MaxTrackedConnections
 
 	t.Run("value set", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
 
 		cfg := New()
@@ -368,9 +356,7 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	})
 
 	t.Run("value not set", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		newConfig(t)
 		cfg := New()
 		require.Equal(t, int(cfg.MaxTrackedConnections), cfg.MaxClosedConnectionsBuffered)
 	})
@@ -378,9 +364,7 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 
 func TestMaxHTTPStatsBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
-		newConfig()
-		t.Cleanup(restoreGlobalConfig)
-
+		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
 
 		cfg := New()
@@ -388,9 +372,7 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 	})
 
 	t.Run("value set through yaml", func(t *testing.T) {
-		newConfig()
-		t.Cleanup(restoreGlobalConfig)
-
+		newConfig(t)
 		cfg := configurationFromYAML(t, `
 network_config:
   max_http_stats_buffered: 30000
@@ -418,6 +400,10 @@ func TestNetworkConfigEnabled(t *testing.T) {
 		{sysIn: &ys, npmIn: &ys, usmIn: &ys, npmEnabled: true, usmEnabled: true},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			f, err := os.CreateTemp(t.TempDir(), "emptyconfig*.yaml")
+			require.NoError(t, err)
+			t.Cleanup(func() { f.Close() })
+
 			if tc.sysIn != nil {
 				t.Setenv("DD_SYSTEM_PROBE_ENABLED", strconv.FormatBool(*tc.sysIn))
 			}
@@ -428,10 +414,8 @@ func TestNetworkConfigEnabled(t *testing.T) {
 				t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(*tc.usmIn))
 			}
 
-			newConfig()
-			t.Cleanup(restoreGlobalConfig)
-
-			_, err := sysconfig.New("")
+			newConfig(t)
+			_, err = sysconfig.New(f.Name())
 			require.NoError(t, err)
 			cfg := New()
 			assert.Equal(t, tc.npmEnabled, cfg.NPMEnabled, "npm state")

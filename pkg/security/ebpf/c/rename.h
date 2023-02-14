@@ -146,7 +146,7 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         if (S_ISDIR(syscall->rename.target_file.metadata.mode)) {
             // remove all discarders on the mount point as the rename could invalidate a child discarder in case of a
             // folder rename. For the inode the discarder is invalidated in the ret.
-            bump_inode_discarder_revision(syscall->rename.target_file.path_key.mount_id);
+            bump_mount_discarder_revision(syscall->rename.target_file.path_key.mount_id);
         }
     }
 

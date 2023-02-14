@@ -10,7 +10,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
+	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -27,25 +27,25 @@ type factory struct {
 }
 
 // NewFactory creates a new serializer exporter factory.
-func NewFactory(s serializer.MetricSerializer) component.ExporterFactory {
+func NewFactory(s serializer.MetricSerializer) exp.Factory {
 	f := &factory{s}
 
-	return component.NewExporterFactory(
+	return exp.NewFactory(
 		TypeStr,
 		newDefaultConfig,
-		component.WithMetricsExporter(f.createMetricExporter, stability),
+		exp.WithMetrics(f.createMetricExporter, stability),
 	)
 }
 
-func (f *factory) createMetricExporter(ctx context.Context, params component.ExporterCreateSettings, c config.Exporter) (component.MetricsExporter, error) {
+func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSettings, c component.Config) (exp.Metrics, error) {
 	cfg := c.(*exporterConfig)
 
-	exp, err := newExporter(params.Logger, f.s, cfg)
+	newExp, err := newExporter(params.Logger, f.s, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	exporter, err := exporterhelper.NewMetricsExporter(ctx, params, cfg, exp.ConsumeMetrics,
+	exporter, err := exporterhelper.NewMetricsExporter(ctx, params, cfg, newExp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithTimeout(cfg.TimeoutSettings),
 	)

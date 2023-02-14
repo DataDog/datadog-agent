@@ -20,6 +20,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// reset method is only used for testing
+func (ccc *CCCache) reset() {
+	ccc.Lock()
+	defer ccc.Unlock()
+	ccc.segmentBySpaceGUID = make(map[string]*cfclient.IsolationSegment)
+	ccc.segmentByOrgGUID = make(map[string]*cfclient.IsolationSegment)
+	ccc.sidecarsByAppGUID = make(map[string][]*CFSidecar)
+	ccc.appsByGUID = make(map[string]*cfclient.V3App)
+	ccc.spacesByGUID = make(map[string]*cfclient.V3Space)
+	ccc.orgsByGUID = make(map[string]*cfclient.V3Organization)
+	ccc.orgQuotasByGUID = make(map[string]*CFOrgQuota)
+	ccc.processesByAppGUID = make(map[string][]*cfclient.Process)
+	ccc.cfApplicationsByGUID = make(map[string]*CFApplication)
+	ccc.lastUpdated = time.Time{}
+	ccc.updatedOnce = make(chan struct{})
+}
+
 type testCCClientCounter struct {
 	sync.RWMutex
 	hitsByMethod map[string]int
@@ -28,30 +45,19 @@ type testCCClientCounter struct {
 var globalCCClientCounter = testCCClientCounter{}
 
 func (t *testCCClientCounter) UpdateHits(method string) {
-	t.RLock()
-	if t.hitsByMethod == nil {
-		t.RUnlock()
-		t.Lock()
-		t.hitsByMethod = make(map[string]int)
-		t.Unlock()
-	} else {
-		t.RUnlock()
-	}
-
 	t.Lock()
 	defer t.Unlock()
+	if t.hitsByMethod == nil {
+		t.hitsByMethod = make(map[string]int)
+	}
 	t.hitsByMethod[method]++
 }
 
 func (t *testCCClientCounter) GetHits(method string) int {
-	t.RLock()
+	t.Lock()
+	defer t.Unlock()
 	if t.hitsByMethod == nil {
-		t.RUnlock()
-		t.Lock()
 		t.hitsByMethod = make(map[string]int)
-		t.Unlock()
-	} else {
-		t.RUnlock()
 	}
 	return t.hitsByMethod[method]
 }
@@ -162,11 +168,13 @@ func TestCCCachePolling(t *testing.T) {
 }
 
 func TestCCCache_GetApp(t *testing.T) {
-	app1, _ := cc.GetApp("random_app_guid")
+	app1, err := cc.GetApp("random_app_guid")
+	assert.Nil(t, err)
 	assert.EqualValues(t, v3App1, *app1)
-	app2, _ := cc.GetApp("guid2")
+	app2, err := cc.GetApp("guid2")
+	assert.Nil(t, err)
 	assert.EqualValues(t, v3App2, *app2)
-	_, err := cc.GetApp("not-existing-guid")
+	_, err = cc.GetApp("not-existing-guid")
 	assert.NotNil(t, err)
 }
 
@@ -319,7 +327,8 @@ func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cc.GetSpace(v3Space1.GUID)
+			_, err := cc.GetSpace(v3Space1.GUID)
+			assert.Nil(t, err)
 		}()
 	}
 	wg.Wait()
@@ -342,7 +351,8 @@ func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cc.GetOrg(v3Org1.GUID)
+			_, err := cc.GetOrg(v3Org1.GUID)
+			assert.Nil(t, err)
 		}()
 	}
 	wg.Wait()

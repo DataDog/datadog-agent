@@ -7,6 +7,12 @@ package workloadmeta
 
 import "fmt"
 
+func init() {
+	// CreateGlobalStore is usually called by the main cmd in the existing
+	// agents, so there's no need to call it yourself
+	CreateGlobalStore(nil)
+}
+
 func ExampleStore_Subscribe() {
 	filter := NewFilter([]Kind{KindContainer}, SourceRuntime, EventTypeAll)
 	ch := GetGlobalStore().Subscribe("test", NormalPriority, filter)

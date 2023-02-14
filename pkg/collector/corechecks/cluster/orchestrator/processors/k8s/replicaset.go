@@ -46,7 +46,7 @@ func (h *ReplicaSetHandlers) BuildMessageBody(ctx *processors.ProcessorContext, 
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		ReplicaSets: models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 
@@ -70,7 +70,7 @@ func (h *ReplicaSetHandlers) ResourceList(ctx *processors.ProcessorContext, list
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *ReplicaSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *ReplicaSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*appsv1.ReplicaSet).UID
 }
 

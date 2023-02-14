@@ -11,9 +11,10 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -206,9 +207,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 	for {
 
 		d.retryLock.Lock()
-		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
+		backoffDuration := d.backoff.GetBackoffDuration(d.nbErrors)
+		d.blockedUntil = time.Now().Add(backoffDuration)
 		if d.blockedUntil.After(time.Now()) {
-			log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
+			log.Debugf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
 			d.waitForBackoff()
 		}
 		d.retryLock.Unlock()
@@ -218,11 +220,11 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
+			log.Warnf("Could not send payload: %v", err)
 		}
 
 		if err == context.Canceled {
 			d.updateRetryState(nil, isRetrying)
-			log.Warnf("Could not send payload: %v", err)
 			return
 		}
 
@@ -291,12 +293,17 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 
 	defer resp.Body.Close()
-	response, err := ioutil.ReadAll(resp.Body)
+	response, err := io.ReadAll(resp.Body)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.
+		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 		return err
 	}
+
+	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
+	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
+
 	if resp.StatusCode >= http.StatusBadRequest {
 		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
 	}

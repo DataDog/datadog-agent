@@ -18,10 +18,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -58,7 +58,7 @@ func (s dumpFilesSlice) Less(i, j int) bool {
 
 // ActivityDumpLocalStorage is used to manage ActivityDumps storage
 type ActivityDumpLocalStorage struct {
-	localDumps *simplelru.LRU
+	localDumps *simplelru.LRU[string, []string]
 }
 
 // NewActivityDumpLocalStorage creates a new ActivityDumpLocalStorage instance
@@ -67,9 +67,8 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 		return &ActivityDumpLocalStorage{}, nil
 	}
 
-	lru, err := simplelru.NewLRU(p.config.ActivityDumpLocalStorageMaxDumpsCount, func(key interface{}, value interface{}) {
-		files, ok := key.([]string)
-		if !ok || len(files) == 0 {
+	lru, err := simplelru.NewLRU(p.Config.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files []string) {
+		if len(files) == 0 {
 			return
 		}
 		// remove everything
@@ -82,13 +81,13 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 	}
 
 	// snapshot the dumps in the default output directory
-	if len(p.config.ActivityDumpLocalStorageDirectory) > 0 {
+	if len(p.Config.ActivityDumpLocalStorageDirectory) > 0 {
 		// list all the files in the activity dump output directory
-		files, err := os.ReadDir(p.config.ActivityDumpLocalStorageDirectory)
+		files, err := os.ReadDir(p.Config.ActivityDumpLocalStorageDirectory)
 		if err != nil {
 			if os.IsNotExist(err) {
 				files = make([]os.DirEntry, 0)
-				if err = os.MkdirAll(p.config.ActivityDumpLocalStorageDirectory, 0400); err != nil {
+				if err = os.MkdirAll(p.Config.ActivityDumpLocalStorageDirectory, 0400); err != nil {
 					return nil, fmt.Errorf("couldn't create output directory for cgroup activity dumps: %w", err)
 				}
 			} else {
@@ -101,7 +100,7 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 		for _, f := range files {
 			// check if the extension of the file is known
 			ext := filepath.Ext(f.Name())
-			if _, err = dump.ParseStorageFormat(ext); err != nil && ext != ".gz" {
+			if _, err = config.ParseStorageFormat(ext); err != nil && ext != ".gz" {
 				// ignore this file
 				continue
 			}
@@ -141,12 +140,12 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 }
 
 // GetStorageType returns the storage type of the ActivityDumpLocalStorage
-func (storage *ActivityDumpLocalStorage) GetStorageType() dump.StorageType {
-	return dump.LocalStorage
+func (storage *ActivityDumpLocalStorage) GetStorageType() config.StorageType {
+	return config.LocalStorage
 }
 
 // Persist saves the provided buffer to the persistent storage
-func (storage *ActivityDumpLocalStorage) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
 	outputPath := request.GetOutputPath(ad.DumpMetadata.Name)
 
 	if request.Compression {
@@ -162,14 +161,10 @@ func (storage *ActivityDumpLocalStorage) Persist(request dump.StorageRequest, ad
 
 	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
 	if storage.localDumps != nil {
-		filesRaw, ok := storage.localDumps.Get(ad.DumpMetadata.Name)
+		files, ok := storage.localDumps.Get(ad.DumpMetadata.Name)
 		if !ok {
 			storage.localDumps.Add(ad.DumpMetadata.Name, []string{outputPath})
 		} else {
-			files, ok := filesRaw.([]string)
-			if !ok {
-				files = []string{}
-			}
 			storage.localDumps.Add(ad.DumpMetadata.Name, append(files, outputPath))
 		}
 	}

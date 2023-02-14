@@ -18,8 +18,9 @@ const winprocCheckName = "winproc"
 
 type processChk struct {
 	core.CheckBase
-	numprocs *pdhutil.PdhSingleInstanceCounterSet
-	pql      *pdhutil.PdhSingleInstanceCounterSet
+	pdhQuery *pdhutil.PdhQuery
+	// maps metric to counter object
+	counters map[string]pdhutil.PdhSingleInstanceCounter
 }
 
 // Run executes the check
@@ -29,42 +30,42 @@ func (c *processChk) Run() error {
 		return err
 	}
 
-	var val float64
-
-	// counter ("System", "Processes")
-	if c.numprocs == nil {
-		c.numprocs, err = pdhutil.GetEnglishSingleInstanceCounter("System", "Processes")
-	}
-	if c.numprocs != nil {
-		val, err = c.numprocs.GetValue()
-	}
+	// Fetch PDH query values
+	err = c.pdhQuery.CollectQueryData()
 	if err == nil {
-		sender.Gauge("system.proc.count", val, "", nil)
+		// Get values for PDH counters
+		for metricname, counter := range c.counters {
+			var val float64
+			val, err = counter.GetValue()
+			if err == nil {
+				sender.Gauge(metricname, val, "", nil)
+			} else {
+				c.Warnf("winproc.Check: Could not retrieve value for %v: %v", metricname, err)
+			}
+		}
 	} else {
-		c.Warnf("winproc.Check: Error getting number of processes: %v", err)
-	}
-
-	// counter ("System", "Processor Queue Length")
-	if c.pql == nil {
-		c.pql, err = pdhutil.GetEnglishSingleInstanceCounter("System", "Processor Queue Length")
-	}
-	if c.pql != nil {
-		val, err = c.pql.GetValue()
-	}
-	if err == nil {
-		sender.Gauge("system.proc.queue_length", val, "", nil)
-	} else {
-		c.Warnf("winproc.Check: Error getting processor queue length: %v", err)
+		c.Warnf("winproc.Check: Could not collect performance counter data: %v", err)
 	}
 
 	sender.Commit()
 	return nil
 }
 
-func (c *processChk) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(initConfig, data, source)
+func (c *processChk) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
+	}
+
+	// Create PDH query
+	c.pdhQuery, err = pdhutil.CreatePdhQuery()
+	if err != nil {
+		return err
+	}
+
+	c.counters = map[string]pdhutil.PdhSingleInstanceCounter{
+		"system.proc.count":        c.pdhQuery.AddEnglishSingleInstanceCounter("System", "Processes"),
+		"system.proc.queue_length": c.pdhQuery.AddEnglishSingleInstanceCounter("System", "Processor Queue Length"),
 	}
 
 	return err

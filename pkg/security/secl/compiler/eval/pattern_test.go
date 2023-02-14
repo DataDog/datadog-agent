@@ -78,6 +78,10 @@ func TestPatternMatches(t *testing.T) {
 		if PatternMatches("*t*9*3", "atest123", false) {
 			t.Error("shouldn't match")
 		}
+
+		if PatternMatches("*.c", "test.ct", false) {
+			t.Error("shouldn't match")
+		}
 	})
 
 	t.Run("insensitive-case", func(t *testing.T) {

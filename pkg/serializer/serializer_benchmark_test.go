@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package serializer
 

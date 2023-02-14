@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
+	"github.com/DataDog/go-tuf/pkg/keys"
+	"github.com/DataDog/go-tuf/sign"
+	"github.com/DataDog/go-tuf/util"
 	"github.com/stretchr/testify/assert"
-	"github.com/theupdateframework/go-tuf/data"
-	"github.com/theupdateframework/go-tuf/pkg/keys"
-	"github.com/theupdateframework/go-tuf/sign"
-	"github.com/theupdateframework/go-tuf/util"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 )
@@ -177,34 +177,37 @@ func addCWSDDFile(id string, version int64, file []byte, targets *data.Targets) 
 	return path, tfm.Hashes, file
 }
 
-func newAPMSamplingFile() apmsampling.APMSampling {
-	apmConfig := apmsampling.APMSampling{
-		TargetTPS: []apmsampling.TargetTPS{{
-			Service:   "test service",
-			Env:       "test env",
-			Value:     0.5,
-			Rank:      0,
-			Mechanism: apmsampling.SamplingMechanism(6),
-		}},
+func newAPMSamplingFile() []byte {
+	tps := float64(42)
+	enabled := true
+	samplerConfig := apmsampling.SamplerConfig{
+		AllEnvs: apmsampling.SamplerEnvConfig{
+			PrioritySamplerTargetTPS: &tps,
+			ErrorsSamplerTargetTPS:   &tps,
+			RareSamplerEnabled:       &enabled,
+		},
+		ByEnv: []apmsampling.EnvAndConfig{
+			{Env: "some-env", Config: apmsampling.SamplerEnvConfig{
+				PrioritySamplerTargetTPS: &tps,
+				ErrorsSamplerTargetTPS:   &tps,
+				RareSamplerEnabled:       &enabled,
+			}},
+		},
 	}
 
-	return apmConfig
+	raw, _ := json.Marshal(samplerConfig)
+
+	return raw
 }
 
-func addAPMSamplingFile(id string, version int64, file apmsampling.APMSampling, targets *data.Targets) (string, data.Hashes, []byte) {
+func addAPMSamplingFile(id string, version int64, file []byte, targets *data.Targets) (string, data.Hashes) {
 	path := fmt.Sprintf("datadog/3/%s/%s/config", ProductAPMSampling, id)
 
-	buf := make([]byte, 0, file.Msgsize())
-	out, err := file.MarshalMsg(buf)
-	if err != nil {
-		panic(err)
-	}
-
-	tfm := generateRCTargetFileMeta(out, version)
+	tfm := generateRCTargetFileMeta(file, version)
 
 	targets.Targets[path] = tfm
 
-	return path, tfm.Hashes, out
+	return path, tfm.Hashes
 }
 
 func convertGoTufHashes(hashes data.Hashes) map[string][]byte {

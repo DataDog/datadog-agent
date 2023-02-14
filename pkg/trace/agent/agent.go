@@ -10,6 +10,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -54,6 +57,8 @@ type Agent struct {
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
+	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
+	TelemetryCollector    telemetry.TelemetryCollector
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -78,7 +83,7 @@ type Agent struct {
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
@@ -97,16 +102,17 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		RareSampler:           sampler.NewRareSampler(conf),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
 		EventProcessor:        newEventProcessor(conf),
-		TraceWriter:           writer.NewTraceWriter(conf),
-		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
+		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector),
 		obfuscator:            obfuscate.NewObfuscator(oconf),
 		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
+	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
+	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector)
 	return agnt
 }
 
@@ -121,6 +127,7 @@ func (a *Agent) Run() {
 		a.NoPrioritySampler,
 		a.EventProcessor,
 		a.OTLPReceiver,
+		a.RemoteConfigHandler,
 	} {
 		starter.Start()
 	}
@@ -204,6 +211,14 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
 		rate := ratelimiter.RealRate()
 		sampler.SetPreSampleRate(root, rate)
+	}
+
+	// TODO: add azure specific tags here (at least for now, so chill out and
+	// just do it) "it doesn't have to be pretty it just has to work"
+	if a.conf.InAzureAppServices {
+		for k, v := range traceutil.GetAppServicesTags() {
+			traceutil.SetMeta(root, k, v)
+		}
 	}
 }
 
@@ -400,8 +415,12 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 		in.Env = a.conf.DefaultEnv
 	}
 	in.Env = traceutil.NormalizeTag(in.Env)
-	in.TracerVersion = tracerVersion
-	in.Lang = lang
+	if in.TracerVersion == "" {
+		in.TracerVersion = tracerVersion
+	}
+	if in.Lang == "" {
+		in.Lang = lang
+	}
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {
@@ -463,8 +482,14 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 		ts.TracesPriorityNone.Inc()
 	}
 
-	if isManualUserDrop(priority, pt) {
-		return 0, false, nil
+	if features.Has("error_rare_sample_tracer_drop") {
+		if isManualUserDrop(priority, pt) {
+			return 0, false, nil
+		}
+	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
+		if priority < 0 {
+			return 0, false, nil
+		}
 	}
 
 	sampled := a.runSamplers(now, pt, hasPriority)
@@ -496,13 +521,8 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
-	var rare bool
-	if !a.conf.RareSamplerEnabled {
-		rare = false
-	} else {
-		// run this early to make sure the signature gets counted by the RareSampler.
-		rare = a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
-	}
+	// run this early to make sure the signature gets counted by the RareSampler.
+	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
 	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
 		return true
 	}

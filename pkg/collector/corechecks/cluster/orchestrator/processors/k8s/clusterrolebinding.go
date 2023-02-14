@@ -46,7 +46,7 @@ func (h *ClusterRoleBindingHandlers) BuildMessageBody(ctx *processors.ProcessorC
 		GroupId:             ctx.MsgGroupID,
 		GroupSize:           int32(groupSize),
 		ClusterRoleBindings: models,
-		Tags:                ctx.Cfg.ExtraTags,
+		Tags:                append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 
@@ -70,7 +70,7 @@ func (h *ClusterRoleBindingHandlers) ResourceList(ctx *processors.ProcessorConte
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *ClusterRoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *ClusterRoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*rbacv1.ClusterRoleBinding).UID
 }
 

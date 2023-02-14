@@ -8,10 +8,13 @@ package workloadmeta
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -73,12 +76,29 @@ type Store interface {
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
 
+	// ListImages returns metadata about all known images, equivalent to all
+	// entities with kind KindContainerImageMetadata.
+	ListImages() []*ContainerImageMetadata
+
+	// GetImage returns metadata about a container image. It fetches the entity
+	// with kind KindContainerImageMetadata and the given ID.
+	GetImage(id string) (*ContainerImageMetadata, error)
+
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.
 	Notify(events []CollectorEvent)
 
 	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
+
+	// Reset resets the state of the store so that newEntities are the only
+	// entities stored. This function sends events to the subscribers in the
+	// following cases:
+	// - EventTypeSet: one for each entity in newEntities that doesn't exist in
+	// the store. Also, when the entity exists, but with different values.
+	// - EventTypeUnset: one for each entity that exists in the store but is not
+	// present in newEntities.
+	Reset(newEntities []Entity, source Source)
 }
 
 // Kind is the kind of an entity.
@@ -86,9 +106,10 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer     Kind = "container"
-	KindKubernetesPod Kind = "kubernetes_pod"
-	KindECSTask       Kind = "ecs_task"
+	KindContainer              Kind = "container"
+	KindKubernetesPod          Kind = "kubernetes_pod"
+	KindECSTask                Kind = "ecs_task"
+	KindContainerImageMetadata Kind = "container_image_metadata"
 )
 
 // Source is the source name of an entity.
@@ -114,6 +135,10 @@ const (
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
 	SourceClusterOrchestrator Source = "cluster_orchestrator"
+
+	// SourceRemoteWorkloadmeta represents entities detected by the remote
+	// workloadmeta.
+	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -247,6 +272,7 @@ type ContainerImage struct {
 	ID        string
 	RawName   string
 	Name      string
+	Registry  string
 	ShortName string
 	Tag       string
 }
@@ -258,7 +284,7 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 		Name:    imageName,
 	}
 
-	name, shortName, tag, err := containers.SplitImageName(imageName)
+	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}
@@ -268,6 +294,7 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 	}
 
 	image.Name = name
+	image.Registry = registry
 	image.ShortName = shortName
 	image.Tag = tag
 
@@ -595,6 +622,120 @@ func (t ECSTask) String(verbose bool) string {
 }
 
 var _ Entity = &ECSTask{}
+
+// ContainerImageMetadata is an Entity that represents container image metadata
+type ContainerImageMetadata struct {
+	EntityID
+	EntityMeta
+	ShortName    string
+	RepoTags     []string
+	RepoDigests  []string
+	MediaType    string
+	SizeBytes    int64
+	OS           string
+	OSVersion    string
+	Architecture string
+	Variant      string
+	Layers       []ContainerImageLayer
+	SBOM         *SBOM
+}
+
+// ContainerImageLayer represents a layer of a container image
+type ContainerImageLayer struct {
+	MediaType string
+	Digest    string
+	SizeBytes int64
+	URLs      []string
+	History   v1.History
+}
+
+// SBOM represents the Software Bill Of Materials (SBOM) of a container
+type SBOM struct {
+	CycloneDXBOM       *cyclonedx.BOM
+	GenerationTime     time.Time
+	GenerationDuration time.Duration
+}
+
+// GetID implements Entity#GetID.
+func (i ContainerImageMetadata) GetID() EntityID {
+	return i.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (i *ContainerImageMetadata) Merge(e Entity) error {
+	otherImage, ok := e.(*ContainerImageMetadata)
+	if !ok {
+		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
+	}
+
+	return merge(i, otherImage)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (i ContainerImageMetadata) DeepCopy() Entity {
+	cp := deepcopy.Copy(i).(ContainerImageMetadata)
+	return &cp
+}
+
+// String implements Entity#String.
+func (i ContainerImageMetadata) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, i.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, i.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Repo tags:", i.RepoTags)
+	_, _ = fmt.Fprintln(&sb, "Repo digests:", i.RepoDigests)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Media Type:", i.MediaType)
+		_, _ = fmt.Fprintln(&sb, "Size in bytes:", i.SizeBytes)
+		_, _ = fmt.Fprintln(&sb, "OS:", i.OS)
+		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
+		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
+		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+
+		if i.SBOM != nil {
+			_, _ = fmt.Fprintf(&sb, "SBOM: stored. Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+		} else {
+			_, _ = fmt.Fprintln(&sb, "SBOM: not stored")
+		}
+
+		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
+		for _, layer := range i.Layers {
+			_, _ = fmt.Fprintln(&sb, layer)
+		}
+	}
+
+	return sb.String()
+}
+
+// String returns a string representation of ContainerImageLayer
+func (layer ContainerImageLayer) String() string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "Media Type:", layer.MediaType)
+	_, _ = fmt.Fprintln(&sb, "Digest:", layer.Digest)
+	_, _ = fmt.Fprintln(&sb, "Size in bytes:", layer.SizeBytes)
+	_, _ = fmt.Fprintln(&sb, "URLs:", layer.URLs)
+
+	printHistory(&sb, layer.History)
+
+	return sb.String()
+}
+
+func printHistory(out io.Writer, history v1.History) {
+	_, _ = fmt.Fprintln(out, "History:")
+	_, _ = fmt.Fprintln(out, "- createdAt:", history.Created)
+	_, _ = fmt.Fprintln(out, "- createdBy:", history.CreatedBy)
+	_, _ = fmt.Fprintln(out, "- comment:", history.Comment)
+	_, _ = fmt.Fprintln(out, "- emptyLayer:", history.EmptyLayer)
+}
+
+var _ Entity = &ContainerImageMetadata{}
 
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.

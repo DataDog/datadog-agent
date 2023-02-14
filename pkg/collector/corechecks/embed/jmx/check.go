@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// JMXCheck TODO <agent-core> : IML-199
+// JMXCheck represents a JMXFetch check
 type JMXCheck struct {
 	id             check.ID
 	name           string
@@ -31,20 +31,21 @@ type JMXCheck struct {
 }
 
 func newJMXCheck(config integration.Config, source string) *JMXCheck {
+	digest := config.IntDigest()
 	check := &JMXCheck{
 		config:    config,
 		stop:      make(chan struct{}),
 		name:      config.Name,
-		id:        check.ID(fmt.Sprintf("%v_%v", config.Name, config.Digest())),
+		id:        check.ID(fmt.Sprintf("%v_%x", config.Name, digest)),
 		source:    source,
 		telemetry: telemetry_utils.IsCheckEnabled("jmx"),
 	}
-	check.Configure(config.InitConfig, config.MetricConfig, source) //nolint:errcheck
+	check.Configure(digest, config.InitConfig, config.MetricConfig, source) //nolint:errcheck
 
 	return check
 }
 
-// Run TODO <agent-core> : IML-199
+// Run schedules this JMXCheck to run
 func (c *JMXCheck) Run() error {
 	err := state.scheduleCheck(c)
 	if err != nil {
@@ -61,68 +62,69 @@ func (c *JMXCheck) Run() error {
 	return nil
 }
 
-// Stop TODO <agent-core> : IML-199
+// Stop forces the JMXCheck to stop and will unschedule it
 func (c *JMXCheck) Stop() {
 	close(c.stop)
 	state.unscheduleCheck(c)
 }
 
-// Cancel TODO <agent-core> : IML-199
+// Cancel is a noop
 func (c *JMXCheck) Cancel() {}
 
-// String TODO <agent-core> : IML-199
+// String provides a printable version of the JMXCheck
 func (c *JMXCheck) String() string {
 	return c.name
 }
 
-// Version TODO <agent-core> : IML-199
+// Version returns the version of the JMXCheck
+// (note, returns an empty string)
 func (c *JMXCheck) Version() string {
 	return ""
 }
 
-// ConfigSource TODO <agent-core> : IML-199
+// ConfigSource returns the source of the configuration of the JMXCheck
 func (c *JMXCheck) ConfigSource() string {
 	return c.source
 }
 
-// InitConfig TODO <agent-core> : IML-199
+// InitConfig returns the init_config in YAML or JSON of the JMXCheck
 func (c *JMXCheck) InitConfig() string {
 	return c.initConfig
 }
 
-// InstanceConfig TODO <agent-core> : IML-199
+// InstanceConfig returns the metric config in YAML or JSON of the JMXCheck
 func (c *JMXCheck) InstanceConfig() string {
 	return c.instanceConfig
 }
 
-// Configure TODO <agent-core> : IML-199
-func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data, source string) error {
+// Configure configures this JMXCheck, setting InitConfig and InstanceConfig
+func (c *JMXCheck) Configure(integrationConfigDigest uint64, config integration.Data, initConfig integration.Data, source string) error {
 	c.initConfig = string(config)
 	c.instanceConfig = string(initConfig)
 	return nil
 }
 
-// Interval TODO <agent-core> : IML-199
+// Interval returns the scheduling time for the check (0 for JMXCheck)
 func (c *JMXCheck) Interval() time.Duration {
 	return 0
 }
 
-// ID TODO <agent-core> : IML-199
+// ID provides a unique identifier for this JMXCheck instance
 func (c *JMXCheck) ID() check.ID {
 	return c.id
 }
 
-// IsTelemetryEnabled TODO <agent-core> : IML-199
+// IsTelemetryEnabled returns if telemetry is enabled for this JMXCheck
 func (c *JMXCheck) IsTelemetryEnabled() bool {
 	return c.telemetry
 }
 
-// GetWarnings TODO <agent-core> : IML-199
+// GetWarnings returns the last warning registered by this JMXCheck (currently an empty slice)
 func (c *JMXCheck) GetWarnings() []error {
 	return []error{}
 }
 
-// GetSenderStats TODO <agent-core> : IML-199
+// GetSenderStats returns the stats from the last run of this JMXCheck
 func (c *JMXCheck) GetSenderStats() (check.SenderStats, error) {
 	return check.NewSenderStats(), nil
 }

@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
+	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
-	"github.com/theupdateframework/go-tuf/data"
-	tufutil "github.com/theupdateframework/go-tuf/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -36,11 +37,14 @@ import (
 )
 
 const (
-	defaultRefreshInterval = 1 * time.Minute
-	minimalRefreshInterval = 5 * time.Second
-	defaultClientsTTL      = 30 * time.Second
-	maxClientsTTL          = 60 * time.Second
-	newClientBlockTTL      = 2 * time.Second
+	defaultRefreshInterval  = 1 * time.Minute
+	minimalRefreshInterval  = 5 * time.Second
+	defaultClientsTTL       = 30 * time.Second
+	maxClientsTTL           = 60 * time.Second
+	newClientBlockTTL       = 2 * time.Second
+	defaultCacheBypassLimit = 5
+	minCacheBypassLimit     = 1
+	maxCacheBypassLimit     = 10
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -70,10 +74,10 @@ type Service struct {
 	uptane        uptaneClient
 	api           api.API
 
-	products         map[rdata.Product]struct{}
-	newProducts      map[rdata.Product]struct{}
-	clients          *clients
-	newActiveClients newActiveClients
+	products           map[rdata.Product]struct{}
+	newProducts        map[rdata.Product]struct{}
+	clients            *clients
+	cacheBypassClients cacheBypassClients
 
 	lastUpdateErr error
 }
@@ -83,6 +87,7 @@ type uptaneClient interface {
 	Update(response *pbgo.LatestConfigsResponse) error
 	State() (uptane.State, error)
 	DirectorRoot(version uint64) ([]byte, error)
+	StoredOrgUUID() (string, error)
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
@@ -93,15 +98,20 @@ type uptaneClient interface {
 // NewService instantiates a new remote configuration management service
 func NewService() (*Service, error) {
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
-	refreshInterval := config.Datadog.GetDuration("remote_configuration.refresh_interval")
-	if refreshInterval == 0 {
-		refreshInterval = defaultRefreshInterval
+
+	var refreshInterval time.Duration
+	if config.Datadog.IsSet("remote_configuration.refresh_interval") {
+		refreshInterval = config.Datadog.GetDuration("remote_configuration.refresh_interval")
+	} else {
 		refreshIntervalOverrideAllowed = true
+		refreshInterval = defaultRefreshInterval
 	}
 
+	// Either invalid (which resolves to 0) or was explicitly set below minimal. If it was invalid there would
+	// be an additional error message describing the failure to parse the value.
 	if refreshInterval < minimalRefreshInterval {
-		log.Warnf("remote_configuration.refresh_interval is set to %v which is below the minimum of %v", refreshInterval, minimalRefreshInterval)
-		refreshInterval = minimalRefreshInterval
+		log.Warnf("remote_configuration.refresh_interval is set to %v which is below the minimum of %v - using default refresh interval %v", refreshInterval, minimalRefreshInterval, defaultRefreshInterval)
+		refreshInterval = defaultRefreshInterval
 		refreshIntervalOverrideAllowed = true
 	}
 
@@ -154,8 +164,7 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	apiKeyHash := sha256.Sum256([]byte(apiKey))
-	cacheKey := fmt.Sprintf("%s/", apiKeyHash)
+	cacheKey := generateCacheKey(apiKey)
 	opt := []uptane.ClientOption{}
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
@@ -177,6 +186,15 @@ func NewService() (*Service, error) {
 	}
 	clock := clock.New()
 
+	clientsCacheBypassLimit := config.Datadog.GetInt("remote_configuration.clients.cache_bypass_limit")
+	if clientsCacheBypassLimit < minCacheBypassLimit || clientsCacheBypassLimit > maxCacheBypassLimit {
+		log.Warnf(
+			"Configured clients cache bypass limit is not within accepted range (%d - %d): %d. Defaulting to %d",
+			minCacheBypassLimit, maxCacheBypassLimit, clientsCacheBypassLimit, defaultCacheBypassLimit,
+		)
+		clientsCacheBypassLimit = defaultCacheBypassLimit
+	}
+
 	return &Service{
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
@@ -192,10 +210,16 @@ func NewService() (*Service, error) {
 		api:                            http,
 		uptane:                         uptaneClient,
 		clients:                        newClients(clock, clientsTTL),
-		newActiveClients: newActiveClients{
+		cacheBypassClients: cacheBypassClients{
 			clock:    clock,
 			requests: make(chan chan struct{}),
-			until:    time.Now().UTC(),
+
+			// By default, allows for 5 cache bypass every refreshInterval seconds
+			// in addition to the usual refresh.
+			currentWindow:  time.Now().UTC(),
+			windowDuration: refreshInterval,
+			capacity:       clientsCacheBypassLimit,
+			allowance:      clientsCacheBypassLimit,
 		},
 	}, nil
 }
@@ -226,9 +250,8 @@ func (s *Service) Start(ctx context.Context) error {
 			case <-s.clock.After(refreshInterval):
 				err = s.refresh()
 			// New clients detected, request refresh
-			case response := <-s.newActiveClients.requests:
-				if time.Now().UTC().After(s.newActiveClients.until) {
-					s.newActiveClients.setRateLimit(refreshInterval)
+			case response := <-s.cacheBypassClients.requests:
+				if !s.cacheBypassClients.Limit() {
 					err = s.refresh()
 				} else {
 					telemetry.CacheBypassRateLimit.Inc()
@@ -267,7 +290,12 @@ func (s *Service) refresh() error {
 	if err != nil {
 		log.Warnf("could not get previous backend client state: %v", err)
 	}
-	request := buildLatestConfigsRequest(s.hostname, s.traceAgentEnv, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	orgUUID, err := s.uptane.StoredOrgUUID()
+	if err != nil {
+		return err
+	}
+
+	request := buildLatestConfigsRequest(s.hostname, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)
@@ -292,6 +320,7 @@ func (s *Service) refresh() error {
 		ri, err := s.getRefreshInterval()
 		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
 			s.defaultRefreshInterval = ri
+			s.cacheBypassClients.windowDuration = ri
 			log.Info("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
 		}
 	}
@@ -353,7 +382,7 @@ func (s *Service) getRefreshInterval() (time.Duration, error) {
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
-func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+func (s *Service) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
 	err := validateRequest(request)
@@ -362,15 +391,35 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	}
 
 	if !s.clients.active(request.Client) {
+		// Trigger a bypass to directly get configurations from the agent.
+		// This will timeout to avoid blocking the tracer if:
+		// - The previous request is still pending
+		// - The triggered request takes too long
+
 		s.clients.seen(request.Client)
 		s.Unlock()
+
 		response := make(chan struct{})
-		s.newActiveClients.requests <- response
+		bypassStart := time.Now()
+
+		// Timeout in case the previous request is still pending
+		// and we can't request another one
+		select {
+		case s.cacheBypassClients.requests <- response:
+		case <-time.After(newClientBlockTTL):
+			// No need to add telemetry here, it'll be done in the second
+			// timeout case that will automatically be triggered
+		}
+
+		partialNewClientBlockTTL := newClientBlockTTL - time.Since(bypassStart)
+
+		// Timeout if the response is taking too long
 		select {
 		case <-response:
-		case <-time.After(newClientBlockTTL):
+		case <-time.After(partialNewClientBlockTTL):
 			telemetry.CacheBypassTimeout.Inc()
 		}
+
 		s.Lock()
 	}
 
@@ -619,4 +668,21 @@ func enforceCanonicalJSON(raw []byte) ([]byte, error) {
 	}
 
 	return canonical, nil
+}
+
+func generateCacheKey(apiKey string) string {
+	h := sha256.New()
+	h.Write([]byte(apiKey))
+
+	// Hash the API Key with the initial root. This prevents the agent from being locked
+	// to a root chain if a developer accidentally forgets to use the development roots
+	// in a testing environment
+	embeddedRoots := meta.RootsConfig()
+	if r, ok := embeddedRoots[1]; ok {
+		h.Write(r)
+	}
+
+	hash := h.Sum(nil)
+
+	return fmt.Sprintf("%x/", hash)
 }

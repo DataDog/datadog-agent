@@ -12,8 +12,7 @@ on:
 
 jobs:
   CodeQL-Build:
-    # CodeQL runs on ubuntu-latest, windows-latest, and macos-latest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout repository
@@ -24,7 +23,7 @@ jobs:
       - name: Setup Python3
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.8.10'
 
       - name: Install Python requirements
         run: |

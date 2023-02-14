@@ -54,13 +54,12 @@ type elfMetadata struct {
 
 // Result is the result of the binary inspection process.
 type Result struct {
-	Arch                 GoArch
-	ABI                  GoABI
-	GoVersion            goversion.GoVersion
-	IncludesDebugSymbols bool
-	Functions            map[string]FunctionMetadata
-	StructOffsets        map[FieldIdentifier]uint64
-	GoroutineIDMetadata  GoroutineIDMetadata
+	Arch                GoArch
+	ABI                 GoABI
+	GoVersion           goversion.GoVersion
+	Functions           map[string]FunctionMetadata
+	StructOffsets       map[FieldIdentifier]uint64
+	GoroutineIDMetadata GoroutineIDMetadata
 }
 
 // GoArch only includes supported architectures,
@@ -173,9 +172,10 @@ type FunctionMetadata struct {
 // has been successful in getting the expected values from eBPF.
 //
 // TODO: look into cases where a middle piece of a parameter has been eliminated
-//       (such as the length of a slice),
-//       and make sure result is expected/handled well.
-//       Then, document such cases.
+//
+//	(such as the length of a slice),
+//	and make sure result is expected/handled well.
+//	Then, document such cases.
 type ParameterMetadata struct {
 	// Total size in bytes.
 	TotalSize int64

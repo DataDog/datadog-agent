@@ -5,6 +5,33 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
+.pull_test_dockers:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  needs: []
+  tags: ["runner:docker"]
+  stage: functional_test
+  script:
+    # DockerHub login for build to limit rate limit when pulling base images
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    # Pull base images
+    - mkdir kitchen-dockers
+    - inv -e system-probe.save-test-dockers --output-dir kitchen-dockers --arch $ARCH
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - kitchen-dockers
+
+pull_test_dockers_x64:
+  extends: .pull_test_dockers
+  variables:
+    ARCH: amd64
+
+pull_test_dockers_arm64:
+  extends: .pull_test_dockers
+  variables:
+    ARCH: arm64
+
 .kitchen_test_system_probe:
   extends:
     - .kitchen_common
@@ -14,31 +41,45 @@
   stage: functional_test
   variables:
     AGENT_MAJOR_VERSION: 7
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
   script:
-    - bash -l tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
+    - echo -n "--tags ci.job.name:${CI_JOB_NAME}" > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/tags.txt
+    - echo -n "${CI_JOB_URL}" > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_url.txt
+    - tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
+    - popd
+    - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
 
+.retrieve_test_dockers:
+  - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
+  - mv kitchen-dockers/* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
 
 .retrieve_minimized_btfs:
   - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz /tmp/minimized-btfs.tar.xz
   - cp /tmp/minimized-btfs.tar.xz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/minimized-btfs.tar.xz
-
 
 kitchen_test_system_probe_linux_x64:
   extends:
     - .kitchen_test_system_probe
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  needs: [ "tests_ebpf_x64", "generate_minimized_btfs_x64" ]
+  needs: [ "tests_ebpf_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
     KITCHEN_IMAGE_SIZE: Standard_D2_v2
+    AZURE_KITCHEN_MOUNT_DIR: /mnt/kitchen_mount
+    AZURE_KITCHEN_TARGET_MOUNT_DIR: /tmp/kitchen_mount
   before_script:
+    - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - pushd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -48,21 +89,21 @@ kitchen_test_system_probe_linux_x64:
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "centos-76,rhel-81"
 
-
 kitchen_test_system_probe_linux_x64_ec2:
   extends:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_x64", "generate_minimized_btfs_x64" ]
+  needs: [ "tests_ebpf_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t2.xlarge"
   before_script:
+    - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - pushd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -74,25 +115,28 @@ kitchen_test_system_probe_linux_arm64:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2_spot_instances
-  needs: [ "tests_ebpf_arm64", "generate_minimized_btfs_arm64" ]
+  needs: [ "tests_ebpf_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64" ]
   variables:
     ARCH: arm64
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
+    - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - pushd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
+        KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "centos-78,rhel-83"
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
+        KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
 
 kitchen_test_system_probe_windows_x64:
   extends:
@@ -110,7 +154,7 @@ kitchen_test_system_probe_windows_x64:
     - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")
     - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
     - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - pushd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
   script:
-    - bash -l tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION

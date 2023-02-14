@@ -8,9 +8,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
-	"path"
-	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/viper"
@@ -26,9 +26,9 @@ type ModuleName string
 
 const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
-	Namespace             = "system_probe_config"
-	spNS                  = Namespace
-	defaultConfigFileName = "system-probe.yaml"
+	Namespace = "system_probe_config"
+	spNS      = Namespace
+	smNS      = "service_monitoring_config"
 
 	defaultConnsMessageBatchSize = 600
 	maxConnsMessageBatchSize     = 1000
@@ -59,9 +59,10 @@ type Config struct {
 	SocketAddress      string
 	MaxConnsPerMessage int
 
-	LogFile   string
-	LogLevel  string
-	DebugPort int
+	LogFile          string
+	LogLevel         string
+	DebugPort        int
+	TelemetryEnabled bool
 
 	StatsdHost string
 	StatsdPort int
@@ -72,62 +73,40 @@ type Config struct {
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string) (*Config, error) {
-	aconfig.InitSystemProbeConfig(aconfig.Datadog)
-	aconfig.Datadog.SetConfigName("system-probe")
+	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
 		// if the configuration file path was supplied on the command line,
-		// add that first so it's first in line
-		aconfig.Datadog.AddConfigPath(configPath)
+		// add that first, so it's first in line
+		aconfig.SystemProbe.AddConfigPath(configPath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(configPath, ".yaml") {
-			aconfig.Datadog.SetConfigFile(configPath)
+			aconfig.SystemProbe.SetConfigFile(configPath)
 		}
 	}
-	aconfig.Datadog.AddConfigPath(defaultConfigDir)
-
-	_, err := aconfig.LoadWithoutSecret()
-	var e viper.ConfigFileNotFoundError
+	aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
+	// load the configuration
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", true)
 	if err != nil {
+		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
-			log.Infof("no config exists at %s, ignoring...", configPath)
+			// do nothing, we can ignore a missing system-probe.yaml config file
+		} else if errors.Is(err, fs.ErrPermission) {
+			// special-case permission-denied with a clearer error message
+			if runtime.GOOS == "windows" {
+				return nil, fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
+			} else {
+				return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
+			}
 		} else {
-			return nil, err
+			return nil, fmt.Errorf("unable to load system-probe config file: %w", err)
 		}
 	}
-	return load(configPath)
+	return load()
 }
 
-// Merge will merge the system-probe configuration into the existing datadog configuration
-func Merge(configPath string) (*Config, error) {
-	aconfig.InitSystemProbeConfig(aconfig.Datadog)
-	if configPath != "" {
-		if !strings.HasSuffix(configPath, ".yaml") {
-			configPath = path.Join(configPath, defaultConfigFileName)
-		}
-	} else {
-		configPath = path.Join(defaultConfigDir, defaultConfigFileName)
-	}
-
-	if f, err := os.Open(configPath); err == nil {
-		err = aconfig.Datadog.MergeConfig(f)
-		_ = f.Close()
-		if err != nil {
-			return nil, fmt.Errorf("error merging system-probe config file: %s", err)
-		}
-	} else {
-		log.Infof("no config exists at %s, ignoring...", configPath)
-	}
-
-	return load(configPath)
-}
-
-func load(configPath string) (*Config, error) {
-	cfg := aconfig.Datadog
-
-	if err := aconfig.ResolveSecrets(cfg, filepath.Base(configPath)); err != nil {
-		return nil, err
-	}
+func load() (*Config, error) {
+	cfg := aconfig.SystemProbe
 
 	var profSettings *profiling.Settings
 	if cfg.GetBool(key(spNS, "internal_profiling.enabled")) {
@@ -166,14 +145,25 @@ func load(configPath string) (*Config, error) {
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
 		MaxConnsPerMessage: cfg.GetInt(key(spNS, "max_conns_per_message")),
 
-		LogFile:   cfg.GetString(key(spNS, "log_file")),
-		LogLevel:  cfg.GetString(key(spNS, "log_level")),
-		DebugPort: cfg.GetInt(key(spNS, "debug_port")),
+		LogFile:          cfg.GetString("log_file"),
+		LogLevel:         cfg.GetString("log_level"),
+		DebugPort:        cfg.GetInt(key(spNS, "debug_port")),
+		TelemetryEnabled: cfg.GetBool(key(spNS, "telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
 
 		ProfilingSettings: profSettings,
+	}
+
+	// backwards compatible log settings
+	if !cfg.IsSet("log_level") && cfg.IsSet(key(spNS, "log_level")) {
+		c.LogLevel = cfg.GetString(key(spNS, "log_level"))
+		cfg.Set("log_level", c.LogLevel)
+	}
+	if !cfg.IsSet("log_file") && cfg.IsSet(key(spNS, "log_file")) {
+		c.LogFile = cfg.GetString(key(spNS, "log_file"))
+		cfg.Set("log_file", c.LogFile)
 	}
 
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
@@ -182,42 +172,36 @@ func load(configPath string) (*Config, error) {
 		cfg.Set(key(spNS, "max_conns_per_message"), c.MaxConnsPerMessage)
 	}
 
-	// this check must come first so we can accurately tell if system_probe was explicitly enabled
+	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
 	npmEnabled := cfg.GetBool("network_config.enabled")
-	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
+	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
 
-	if npmEnabled {
-		log.Info("network_config.enabled detected: enabling system-probe with network module running.")
-		c.EnabledModules[NetworkTracerModule] = struct{}{}
-	} else if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
+	if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
-		log.Info("network_config not found, but system-probe was enabled, enabling network module by default")
-		c.EnabledModules[NetworkTracerModule] = struct{}{}
+		log.Info("`system_probe_config.enabled` is deprecated, enable NPM with `network_config.enabled` instead")
 		// ensure others can key off of this single config value for NPM status
 		cfg.Set("network_config.enabled", true)
 		npmEnabled = true
 	}
 
-	if !npmEnabled && usmEnabled {
-		log.Info("service_monitoring.enabled detected: enabling system-probe with network module running.")
+	if npmEnabled || usmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
-
 	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {
-		log.Info("system_probe_config.enable_tcp_queue_length detected, will enable system-probe with TCP queue length check")
 		c.EnabledModules[TCPQueueLengthTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(key(spNS, "enable_oom_kill")) {
-		log.Info("system_probe_config.enable_oom_kill detected, will enable system-probe with OOM Kill check")
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
-	if cfg.GetBool("runtime_security_config.enabled") || cfg.GetBool("runtime_security_config.fim_enabled") || cfg.GetBool("runtime_security_config.event_monitoring.enabled") {
-		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled detected, enabling system-probe")
+
+	if cfg.GetBool("runtime_security_config.enabled") ||
+		cfg.GetBool("runtime_security_config.fim_enabled") ||
+		cfg.GetBool("event_monitoring_config.process.enabled") ||
+		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool("event_monitoring_config.network_process.enabled")) {
 		c.EnabledModules[SecurityRuntimeModule] = struct{}{}
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {
-		log.Info("process_config.enabled detected, enabling system-probe")
 		c.EnabledModules[ProcessModule] = struct{}{}
 	}
 
@@ -231,8 +215,18 @@ func load(configPath string) (*Config, error) {
 		c.Enabled = false
 		c.SocketAddress = ""
 	}
+
 	cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
 	cfg.Set(key(spNS, "enabled"), c.Enabled)
+
+	if cfg.GetBool(key(smNS, "process_service_inference", "enabled")) {
+		if !usmEnabled {
+			log.Info("service monitoring is disabled, disabling process service inference")
+			cfg.Set(key(smNS, "process_service_inference", "enabled"), false)
+		} else {
+			log.Info("process service inference is enabled")
+		}
+	}
 
 	return c, nil
 }
@@ -241,4 +235,35 @@ func load(configPath string) (*Config, error) {
 func (c Config) ModuleIsEnabled(modName ModuleName) bool {
 	_, ok := c.EnabledModules[modName]
 	return ok
+}
+
+// SetupOptionalDatadogConfig loads the datadog.yaml config file but will not fail on a missing file
+func SetupOptionalDatadogConfig() error {
+	return SetupOptionalDatadogConfigWithDir(defaultConfigDir, "")
+}
+
+// SetupOptionalDatadogConfig loads the datadog.yaml config file from a given config directory but will not fail on a missing file
+func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
+	aconfig.Datadog.AddConfigPath(configDir)
+	if configFile != "" {
+		aconfig.Datadog.SetConfigFile(configFile)
+	}
+	// load the configuration
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", true)
+	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
+	var e viper.ConfigFileNotFoundError
+	if err != nil && !errors.As(err, &e) {
+		// special-case permission-denied with a clearer error message
+		if errors.Is(err, fs.ErrPermission) {
+			if runtime.GOOS == "windows" {
+				err = fmt.Errorf(`cannot access the Datadog config file (%w); try running the command in an Administrator shell"`, err)
+			} else {
+				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
+			}
+		} else {
+			err = fmt.Errorf("unable to load Datadog config file: %w", err)
+		}
+		return err
+	}
+	return nil
 }

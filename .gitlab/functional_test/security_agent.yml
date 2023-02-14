@@ -15,10 +15,10 @@
   retry: 0
   variables:
     AGENT_MAJOR_VERSION: 7
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
   script:
-    - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
 
 kitchen_test_security_agent_x64:
   extends:
@@ -30,7 +30,7 @@ kitchen_test_security_agent_x64:
     KITCHEN_ARCH: x86_64
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
@@ -45,6 +45,9 @@ kitchen_test_security_agent_x64:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-2,ubuntu-22-04"
         KITCHEN_CWS_PLATFORM: [host, docker]
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-22-04"
+        KITCHEN_CWS_PLATFORM: [ad]
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
         KITCHEN_CWS_PLATFORM: [host]
@@ -71,7 +74,7 @@ kitchen_test_security_agent_arm64:
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -88,10 +91,10 @@ kitchen_test_security_agent_amazonlinux_x64:
   needs: [ "tests_ebpf_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
-    KITCHEN_EC2_INSTANCE_TYPE: "t2.medium"
+    KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -110,12 +113,12 @@ kitchen_stress_security_agent:
   needs: ["tests_ebpf_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   script:
-    - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"

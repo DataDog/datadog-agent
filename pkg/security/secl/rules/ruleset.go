@@ -10,12 +10,15 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cast"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // MacroID represents the ID of a macro
@@ -79,6 +82,7 @@ type RuleDefinition struct {
 	Disabled               bool               `yaml:"disabled"`
 	Combine                CombinePolicy      `yaml:"combine"`
 	Actions                []ActionDefinition `yaml:"actions"`
+	Every                  time.Duration      `yaml:"every"`
 	Policy                 *Policy
 }
 
@@ -159,7 +163,6 @@ type RuleSetListener interface {
 type RuleSet struct {
 	opts             *Opts
 	evalOpts         *eval.Opts
-	macroStore       *eval.MacroStore
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
 	policies         []*Policy
@@ -174,13 +177,6 @@ type RuleSet struct {
 	fields []string
 	logger log.Logger
 	pool   *eval.ContextPool
-}
-
-func (rs *RuleSet) replCtx() eval.ReplacementContext {
-	return eval.ReplacementContext{
-		Opts:       rs.evalOpts,
-		MacroStore: rs.macroStore,
-	}
 }
 
 // GetPolicies returns the policies
@@ -205,19 +201,19 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 // ListMacroIDs returns the list of MacroIDs from the ruleset
 func (rs *RuleSet) ListMacroIDs() []MacroID {
 	var ids []string
-	for macroID := range rs.macroStore.Macros {
-		ids = append(ids, macroID)
+	for _, macro := range rs.evalOpts.MacroStore.List() {
+		ids = append(ids, macro.ID)
 	}
 	return ids
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
-func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
+func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*MacroDefinition) *multierror.Error {
 	var result *multierror.Error
 
 	// Build the list of macros for the ruleset
 	for _, macroDef := range macros {
-		if _, err := rs.AddMacro(macroDef); err != nil {
+		if _, err := rs.AddMacro(parsingContext, macroDef); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -226,10 +222,10 @@ func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
 }
 
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
-func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
+func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroDefinition) (*eval.Macro, error) {
 	var err error
 
-	if _, exists := rs.macroStore.Macros[macroDef.ID]; exists {
+	if macro := rs.evalOpts.MacroStore.Get(macroDef.ID); macro != nil {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("multiple definition with the same ID")}
 	}
 
@@ -239,26 +235,26 @@ func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
 	case macroDef.Expression != "" && len(macroDef.Values) > 0:
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
 	case macroDef.Expression != "":
-		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, rs.replCtx()); err != nil {
+		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	default:
-		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.macroStore); err != nil {
+		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	}
 
-	rs.macroStore.AddMacro(macro.Macro)
+	rs.evalOpts.MacroStore.Add(macro.Macro)
 
 	return macro.Macro, nil
 }
 
 // AddRules adds rules to the ruleset and generate their partials
-func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
+func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDefinition) *multierror.Error {
 	var result *multierror.Error
 
 	for _, ruleDef := range rules {
-		if _, err := rs.AddRule(ruleDef); err != nil {
+		if _, err := rs.AddRule(parsingContext, ruleDef); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -290,7 +286,7 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
+func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefinition) (*eval.Rule, error) {
 	if ruleDef.Disabled {
 		return nil, nil
 	}
@@ -311,19 +307,15 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	}
 
 	rule := &Rule{
-		Rule: &eval.Rule{
-			ID:         ruleDef.ID,
-			Expression: ruleDef.Expression,
-			Tags:       tags,
-		},
+		Rule:       eval.NewRule(ruleDef.ID, ruleDef.Expression, rs.evalOpts, tags...),
 		Definition: ruleDef,
 	}
 
-	if err := rule.Parse(); err != nil {
+	if err := rule.Parse(parsingContext); err != nil {
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: &ErrRuleSyntax{Err: err}}
 	}
 
-	if err := rule.GenEvaluator(rs.model, rs.replCtx()); err != nil {
+	if err := rule.GenEvaluator(rs.model, parsingContext); err != nil {
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
@@ -443,7 +435,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, rs.eventCtor(), fieldCaps)
+	return GetApprovers(bucket.rules, model.NewDefaultEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -483,7 +475,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	ctx := rs.pool.Get(event.GetPointer())
+	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
 
 	return IsDiscarder(ctx, field, bucket.rules)
@@ -499,8 +491,8 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 			}
 			name += action.Set.Name
 
-			variable, found := rs.evalOpts.Variables[name]
-			if !found {
+			variable := rs.evalOpts.VariableStore.Get(name)
+			if variable == nil {
 				return fmt.Errorf("unknown variable: %s", name)
 			}
 
@@ -530,7 +522,7 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	ctx := rs.pool.Get(event.GetPointer())
+	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
@@ -631,6 +623,8 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		ruleIndex  = make(map[string]*RuleDefinition)
 	)
 
+	parsingContext := ast.NewParsingContext()
+
 	policies, err := loader.LoadPolicies(opts)
 	if err != nil {
 		errs = multierror.Append(errs, err)
@@ -662,7 +656,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	}
 
 	// Add the macros to the ruleset and generate macros evaluators
-	if err := rs.AddMacros(allMacros); err.ErrorOrNil() != nil {
+	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 
@@ -679,7 +673,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 					varName = string(action.Set.Scope) + "." + varName
 				}
 
-				if _, err := rs.model.NewEvent().GetFieldValue(varName); err == nil {
+				if _, err := rs.eventCtor().GetFieldValue(varName); err == nil {
 					errs = multierror.Append(errs, fmt.Errorf("variable '%s' conflicts with field", varName))
 					continue
 				}
@@ -760,34 +754,46 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 					continue
 				}
 
-				if existingVariable, found := rs.evalOpts.Variables[varName]; found && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
+				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
 					errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s'", varName))
 					continue
 				}
 
-				rs.evalOpts.Variables[varName] = variable
+				rs.evalOpts.VariableStore.Add(varName, variable)
 			}
 		}
 	}
 
 	// Add rules to the ruleset and generate rules evaluators
-	if err := rs.AddRules(allRules); err.ErrorOrNil() != nil {
+	if err := rs.AddRules(parsingContext, allRules); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 
 	return errs
 }
 
+// NewEvent returns a new event using the embedded constructor
+func (rs *RuleSet) NewEvent() eval.Event {
+	return rs.eventCtor()
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
-func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *RuleSet {
+func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
+
+	if evalOpts.MacroStore == nil {
+		evalOpts.WithMacroStore(&eval.MacroStore{})
+	}
+
+	if evalOpts.VariableStore == nil {
+		evalOpts.WithVariableStore(&eval.VariableStore{})
+	}
 
 	return &RuleSet{
 		model:            model,
 		eventCtor:        eventCtor,
 		opts:             opts,
 		evalOpts:         evalOpts,
-		macroStore:       macroStore,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*Rule),
 		logger:           logger,

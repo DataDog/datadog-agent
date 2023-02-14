@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -105,7 +105,7 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 		logFile = common.DefaultLogFile
 	}
 
-	logFileContents, e := ioutil.ReadFile(logFile)
+	logFileContents, e := os.ReadFile(logFile)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
@@ -132,6 +132,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
+		return
 	} else if payload.Email == "" || payload.CaseID == "" {
 		w.Write([]byte("Error creating flare: missing information"))
 		return
@@ -191,6 +192,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 	}[setting]; !ok {
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprintf(w, `"error": "requested setting is not whitelisted"`)
+		return
 	}
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		setting: config.Datadog.Get(setting),
@@ -203,7 +205,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 // Sends the configuration (aka datadog.yaml) file
 func getConfigFile(w http.ResponseWriter, r *http.Request) {
 	path := config.Datadog.ConfigFileUsed()
-	settings, e := ioutil.ReadFile(path)
+	settings, e := os.ReadFile(path)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
@@ -218,6 +220,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
+		return
 	}
 	data := []byte(payload.Config)
 
@@ -230,7 +233,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := config.Datadog.ConfigFileUsed()
-	e = ioutil.WriteFile(path, data, 0644)
+	e = os.WriteFile(path, data, 0644)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return

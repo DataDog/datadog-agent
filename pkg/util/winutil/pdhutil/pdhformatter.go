@@ -13,20 +13,19 @@ import (
 
 // PdhFormatter implements a formatter for PDH performance counters
 type PdhFormatter struct {
-	buf []uint8
 }
 
 // PdhCounterValue represents a counter value
 type PdhCounterValue struct {
-	CStatus    uint32
-	Double float64
-	Large  int64
-	Long   int32
+	CStatus uint32
+	Double  float64
+	Large   int64
+	Long    int32
 }
 
 type PdhCounterValueItem struct {
 	instance string
-	value PdhCounterValue
+	value    PdhCounterValue
 }
 
 // ValueEnumFunc implements a callback for counter enumeration

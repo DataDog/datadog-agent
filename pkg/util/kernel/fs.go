@@ -9,7 +9,6 @@
 package kernel
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"github.com/moby/sys/mountinfo"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -64,9 +64,9 @@ func GetMountPoint(path string) (*mountinfo.Info, error) {
 	return nil, fmt.Errorf("no matching mountpoint found")
 }
 
-// IsDebugFSMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
+// isDebugFSMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs (or debugfs AND tracefs) is/are mounted or not
 // returns a boolean and a possible error message
-func IsDebugFSMounted() (bool, error) {
+func isDebugFSMounted() (bool, error) {
 	_, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events")
 	if err != nil {
 		if os.IsPermission(err) {
@@ -88,7 +88,7 @@ func IsDebugFSMounted() (bool, error) {
 	}
 
 	// on fargate, kprobe_events is mounted as ro
-	if !fargate.IsFargateInstance(context.Background()) {
+	if !fargate.IsFargateInstance() {
 		options := strings.Split(mi.Options, ",")
 		for _, option := range options {
 			if option == "ro" {
@@ -98,4 +98,76 @@ func IsDebugFSMounted() (bool, error) {
 	}
 
 	return true, nil
+}
+
+// isTraceFSMounted would test the existence of file /sys/kernel/tracing/kprobe_events to determine if tracefs is mounted (and debugfs is not)
+// returns a boolean and a possible error message
+func isTraceFSMounted() bool {
+	_, err := os.Stat("/sys/kernel/tracing/kprobe_events")
+	if err != nil {
+		if os.IsPermission(err) {
+			seclog.Errorf("eBPF not supported, does not have permission to access tracefs")
+			return false
+		} else if os.IsNotExist(err) {
+			seclog.Errorf("tracefs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t tracefs none /sys/kernel/tracing\" to mount tracefs")
+			return false
+		} else {
+			seclog.Errorf("an error occurred while accessing tracefs: %s", err)
+			return false
+		}
+	}
+
+	mi, err := GetMountPoint("/sys/kernel/tracing/kprobe_events")
+	if err != nil {
+		seclog.Errorf("unable to detect tracefs mount point: %s", err)
+		return false
+	}
+
+	if mi.FSType != "tracefs" {
+		seclog.Errorf("kprobe_events mount point(%s): wrong fs type(%s)", mi.Mountpoint, mi.FSType)
+		return false
+	}
+
+	// on fargate, kprobe_events is mounted as ro
+	if !fargate.IsFargateInstance() {
+		options := strings.Split(mi.Options, ",")
+		for _, option := range options {
+			if option == "ro" {
+				seclog.Errorf("kprobe_events mount point(%s) is in read-only mode", mi.Mountpoint)
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// Cf https://www.kernel.org/doc/Documentation/trace/ftrace.txt :
+//     [...] When tracefs is configured into the kernel (which selecting any ftrace
+//     option will do) the directory /sys/kernel/tracing will be created.
+//     [...] Before 4.1, all ftrace tracing control files were within the debugfs
+//     file system, which is typically located at /sys/kernel/debug/tracing.
+//     For backward compatibility, when mounting the debugfs file system,
+//     the tracefs file system will be automatically mounted at:
+//      /sys/kernel/debug/tracing
+//     All files located in the tracefs file system will be located in that
+//     debugfs file system directory as well.
+
+// IsDebugFSOrTraceFSMounted would test the existence of file /sys/kernel/tracing/kprobe_events to determine if tracefs is mounted or not
+// returns a boolean and a possible error message
+func IsDebugFSOrTraceFSMounted() (bool, error) {
+	isMounted := isTraceFSMounted()
+	if isMounted {
+		return true, nil
+	}
+	return isDebugFSMounted()
+}
+
+func GetTraceFSMountPath() string {
+	if isTraceFSMounted() {
+		return "/sys/kernel/tracing"
+	} else if isMounted, _ := isDebugFSMounted(); isMounted {
+		return "/sys/kernel/debug/tracing"
+	}
+	return ""
 }

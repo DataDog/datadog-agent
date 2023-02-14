@@ -23,13 +23,14 @@ include:
   - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
-  - /.gitlab/deploy_invalidate.yml
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
+  - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
+  - /.gitlab/functional_test_junit_upload.yml
   - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
   # FIXME: our current Gitlab version doesn't support importing a file more than once
@@ -38,6 +39,7 @@ include:
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/benchmarks/benchmarks.yml
 
 default:
   retry:
@@ -48,10 +50,6 @@ default:
       - unknown_failure
       - api_failure
 
-workflow:
-  rules:
-    - if: $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
-
 stages:
   - maintenance_jobs
   - deps_build
@@ -61,6 +59,7 @@ stages:
   - binary_build
   - package_deps_build
   - integration_test
+  - benchmarks
   - package_build
   - internal_deploy
   - kitchen_deploy
@@ -75,13 +74,13 @@ stages:
   - deploy_dca
   - choco_build
   - choco_deploy
-  - deploy_invalidate
   - internal_image_deploy
   - trigger_release
   - e2e
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
+  - functional_test_junit_upload
   - internal_kubernetes_deploy
   - notify
 
@@ -135,17 +134,18 @@ variables:
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
+  S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v10726529-3c98072
+  DATADOG_AGENT_BUILDIMAGES: v13321514-644fed4
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
-  DATADOG_AGENT_WINBUILDIMAGES: v10726529-3c98072
-  DATADOG_AGENT_ARMBUILDIMAGES: v10726529-3c98072
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10726529-3c98072
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10726529-3c98072
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v10582792-c2b9fb7
+  DATADOG_AGENT_WINBUILDIMAGES: v12605723-c5447ff
+  DATADOG_AGENT_ARMBUILDIMAGES: v12605723-c5447ff
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v13019318-b404755
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v12605723-c5447ff
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v13216831-f911126
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -166,6 +166,7 @@ variables:
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
+  ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   USE_CACHING_PROXY_RUBY: "true"
   CLANG_LLVM_VER: 12.0.1
 
@@ -255,6 +256,26 @@ variables:
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+
+#
+# Workflow rules
+# Rules used to define whether a pipeline should run, and with which variables
+#
+
+workflow:
+  rules:
+    - <<: *if_main_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+    - <<: *if_release_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+    - <<: *if_deploy
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+    - if: $CI_COMMIT_TAG == null
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -586,6 +607,19 @@ variables:
     when: manual
     allow_failure: true
 
+# This rule will add the job as manual when running on beta deploy branch
+# and will add it as a regular automatically running job when running
+# on stable deploy branch.
+.on_deploy_stable_or_beta_manual_auto_on_stable:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: manual
+    allow_failure: true
+  - when: on_success
+
 .on_deploy_stable_repo_branch_a7_manual:
   - <<: *if_not_version_7
     when: never
@@ -731,8 +765,10 @@ variables:
 
 .on_system_probe_changes_or_manual:
   - changes:
+      - pkg/collector/corechecks/ebpf/**/*
       - pkg/ebpf/**/*
       - pkg/network/**/*
+      - pkg/util/kernel/**/*
       - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*
@@ -750,4 +786,12 @@ variables:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_trace_agent_changes_or_manual:
+  - changes:
+      - pkg/trace/**/*
+      - .gitlab/benchmarks/*
+    when: on_success
+  - when: manual
     allow_failure: true

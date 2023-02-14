@@ -117,8 +117,6 @@ struct bpf_map_def SEC("maps/cgroup_tracing_event_gen") cgroup_tracing_event_gen
     .key_size = sizeof(u32),
     .value_size = sizeof(struct cgroup_tracing_event_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing_event() {
@@ -366,7 +364,9 @@ enum rate_limiter_algo_ids {
 __attribute__((always_inline)) u8 activity_dump_rate_limiter_reset_period(u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p) {
     rate_ctx_p->current_period = now;
     rate_ctx_p->counter = 0;
+#ifndef __BALOUM__ // do not change algo during unit tests
     rate_ctx_p->algo_id = now % RL_ALGO_TOTAL_NUMBER;
+#endif /* __BALOUM__ */
     return 1;
 }
 

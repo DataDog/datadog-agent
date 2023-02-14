@@ -6,8 +6,6 @@ struct bpf_map_def SEC("maps/mprotect_vm_protection_approvers") mprotect_vm_prot
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct syscall_cache_t *syscall) {
@@ -24,8 +22,6 @@ struct bpf_map_def SEC("maps/mprotect_req_protection_approvers") mprotect_req_pr
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) approve_mprotect_by_req_protection(struct syscall_cache_t *syscall) {

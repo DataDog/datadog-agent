@@ -113,7 +113,7 @@ func (l *namedPipeConnections) handleConnections() {
 			}
 			for conn := range connections {
 				// Stop the current execution of net.Conn.Read() and exit listen loop.
-				conn.SetReadDeadline(time.Now())
+				_ = conn.SetReadDeadline(time.Now())
 			}
 
 		}

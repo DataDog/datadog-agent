@@ -234,19 +234,19 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 	read += n
 
-	// Unmarshal linux_binprm_t
-	if len(data) < 16 {
-		return 0, ErrNotEnoughData
+	// interpreter part
+	var pathKey PathKey
+
+	n, err = pathKey.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
 	}
+	read += n
 
 	// TODO: Is there a better way to determine if there's no interpreter?
-	inode, mountID := ByteOrder.Uint64(data[read:read+8]), ByteOrder.Uint32(data[read+8:read+12])
-	if e.FileEvent.Inode != inode || e.FileEvent.MountID != mountID {
-		e.LinuxBinprm.FileEvent.Inode, e.LinuxBinprm.FileEvent.MountID = inode, mountID
-		e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
+	if e.FileEvent.Inode != pathKey.Inode || e.FileEvent.MountID != pathKey.MountID {
+		e.LinuxBinprm.FileEvent.PathKey = pathKey
 	}
-
-	read += 16
 
 	if len(data[read:]) < 16 {
 		return 0, ErrNotEnoughData
@@ -316,31 +316,46 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	return MaxArgEnvSize + 8, nil
 }
 
+func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	p.Inode = ByteOrder.Uint64(data[0:8])
+	p.MountID = ByteOrder.Uint32(data[8:12])
+	p.PathID = ByteOrder.Uint32(data[12:16])
+
+	return 16, nil
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
-	e.Inode = ByteOrder.Uint64(data[0:8])
-	e.MountID = ByteOrder.Uint32(data[8:12])
-	e.PathID = ByteOrder.Uint32(data[12:16])
-	e.Flags = int32(ByteOrder.Uint32(data[16:20]))
+
+	n, err := e.PathKey.UnmarshalBinary(data)
+	if err != nil {
+		return n, err
+	}
+	data = data[n:]
+
+	e.Flags = int32(ByteOrder.Uint32(data[0:4]))
 
 	// +4 for padding
 
-	e.UID = ByteOrder.Uint32(data[24:28])
-	e.GID = ByteOrder.Uint32(data[28:32])
-	e.NLink = ByteOrder.Uint32(data[32:36])
-	e.Mode = ByteOrder.Uint16(data[36:38])
+	e.UID = ByteOrder.Uint32(data[8:12])
+	e.GID = ByteOrder.Uint32(data[12:16])
+	e.NLink = ByteOrder.Uint32(data[16:20])
+	e.Mode = ByteOrder.Uint16(data[20:22])
 
 	// +2 for padding
 
-	timeSec := ByteOrder.Uint64(data[40:48])
-	timeNsec := ByteOrder.Uint64(data[48:56])
+	timeSec := ByteOrder.Uint64(data[24:32])
+	timeNsec := ByteOrder.Uint64(data[32:40])
 	e.CTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
-	timeSec = ByteOrder.Uint64(data[56:64])
-	timeNsec = ByteOrder.Uint64(data[64:72])
+	timeSec = ByteOrder.Uint64(data[40:48])
+	timeNsec = ByteOrder.Uint64(data[48:56])
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
 	return 72, nil
@@ -373,34 +388,37 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent)
-	if err != nil {
-		return n, err
-	}
-
-	data = data[n:]
+func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.MountID = ByteOrder.Uint32(data[0:4])
-	e.GroupID = ByteOrder.Uint32(data[4:8])
-	e.Device = ByteOrder.Uint32(data[8:12])
-	e.ParentMountID = ByteOrder.Uint32(data[12:16])
-	e.ParentInode = ByteOrder.Uint64(data[16:24])
-	e.RootInode = ByteOrder.Uint64(data[24:32])
-	e.RootMountID = ByteOrder.Uint32(data[32:36])
+	m.MountID = ByteOrder.Uint32(data[0:4])
+	m.GroupID = ByteOrder.Uint32(data[4:8])
+	m.Device = ByteOrder.Uint32(data[8:12])
+	m.ParentMountID = ByteOrder.Uint32(data[12:16])
+	m.ParentInode = ByteOrder.Uint64(data[16:24])
+	m.RootInode = ByteOrder.Uint64(data[24:32])
+	m.RootMountID = ByteOrder.Uint32(data[32:36])
+	m.BindSrcMountID = ByteOrder.Uint32(data[36:40])
 
-	// Notes: bytes 36 to 40 are used to pad the structure
-
-	SliceToArray(data[40:56], e.FSTypeRaw[:])
-	e.FSType, err = UnmarshalString(e.FSTypeRaw[:], 16)
+	var err error
+	m.FSType, err = UnmarshalString(data[40:56], 16)
 	if err != nil {
 		return 0, err
 	}
 
 	return 56, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.Mount)
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
+	return e.Mount.UnmarshalBinary(data)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -476,7 +494,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -484,8 +502,9 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.Tid = ByteOrder.Uint32(data[4:8])
 	p.NetNS = ByteOrder.Uint32(data[8:12])
 	p.IsKworker = ByteOrder.Uint32(data[12:16]) > 0
+	p.Inode = ByteOrder.Uint64(data[16:24])
 
-	return 16, nil
+	return 24, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

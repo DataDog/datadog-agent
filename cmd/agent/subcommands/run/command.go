@@ -9,16 +9,14 @@ package run
 import (
 	"context"
 	"errors"
+	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
-
-	_ "expvar" // Blank import used because this isn't directly used in this file
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -32,9 +30,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -70,6 +71,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerimage"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
@@ -79,6 +81,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk"
@@ -115,9 +118,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(run,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfFilePath:      globalParams.ConfFilePath,
-				ConfigLoadSecrets: true,
-			}.LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
+				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
 			core.Bundle,
 		)
 	}
@@ -143,7 +146,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	defer func() {
 		stopAgent(cliParams)
 	}()
@@ -184,7 +187,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		}
 	}()
 
-	if err := startAgent(cliParams); err != nil {
+	if err := startAgent(cliParams, flare); err != nil {
 		return err
 	}
 
@@ -197,19 +200,19 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
 func StartAgentWithDefaults() error {
 	// run startAgent in an app, so that the log and config components get initialized
-	return fxutil.OneShot(func(log log.Component, config config.Component) error {
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}})
+	return fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component) error {
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare)
 	},
+		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
-			ConfFilePath:      "", // no config file path specification in this situation
-			ConfigLoadSecrets: true,
-		}.LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
+			ConfigParams: config.NewAgentParamsWithSecrets(""),
+			LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
 		core.Bundle,
 	)
 }
 
 // startAgent Initializes the agent process
-func startAgent(cliParams *cliParams) error {
+func startAgent(cliParams *cliParams, flare flare.Component) error {
 	var err error
 
 	// Main context passed to components
@@ -246,7 +249,7 @@ func startAgent(cliParams *cliParams) error {
 		pkglog.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(pkgconfig.Datadog); err != nil {
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -261,7 +264,7 @@ func startAgent(cliParams *cliParams) error {
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling()
+	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
@@ -297,7 +300,7 @@ func startAgent(cliParams *cliParams) error {
 		pkglog.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
 	}
 
-	err = manager.ConfigureAutoExit(common.MainCtx)
+	err = manager.ConfigureAutoExit(common.MainCtx, pkgconfig.Datadog)
 	if err != nil {
 		return pkglog.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
@@ -340,7 +343,7 @@ func startAgent(cliParams *cliParams) error {
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService); err != nil {
+	if err = api.StartServer(configService, flare); err != nil {
 		return pkglog.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -374,6 +377,8 @@ func startAgent(cliParams *cliParams) error {
 	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
 	opts.UseContainerLifecycleForwarder = pkgconfig.Datadog.GetBool("container_lifecycle.enabled")
+	opts.UseContainerImageForwarder = pkgconfig.Datadog.GetBool("container_image.enabled")
+	opts.UseSBOMForwarder = pkgconfig.Datadog.GetBool("sbom.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
 	// Setup stats telemetry handler
@@ -402,7 +407,11 @@ func startAgent(cliParams *cliParams) error {
 		}
 	}
 
-	if err = common.SetupSystemProbeConfig(cliParams.GlobalParams.SysProbeConfFilePath); err != nil {
+	// FIXME: this is necessary to fix windows agent starting as a service, since it is bypassing fx providing
+	// sysprobeconfig via the cobra run command. If this is removed, the system-probe config is not initialized
+	// correctly, and the agent does not correctly determine if system-probe is enabled. Ultimately causing the
+	// system-probe service to not start.
+	if _, err := sysconfig.New(cliParams.SysProbeConfFilePath); err != nil {
 		pkglog.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
 

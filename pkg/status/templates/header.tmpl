@@ -86,7 +86,7 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{ $key }}: {{ $value }}
   {{- end }}
 
-{{- if eq .config.fips_enabled true }}
+{{- if eq .config.fips_enabled "true" }}
 
   FIPS proxy
   ==========

@@ -46,7 +46,7 @@ func (h *DaemonSetHandlers) BuildMessageBody(ctx *processors.ProcessorContext, r
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		DaemonSets:  models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 
@@ -70,7 +70,7 @@ func (h *DaemonSetHandlers) ResourceList(ctx *processors.ProcessorContext, list 
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *DaemonSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *DaemonSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*appsv1.DaemonSet).UID
 }
 

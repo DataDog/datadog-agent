@@ -1,0 +1,2 @@
+service_monitoring_config:
+  enable_go_tls_support: true

@@ -2,3 +2,5 @@ fcct-*
 kind
 kubectl
 kubectl.sha256
+fedora.gpg
+butane-*

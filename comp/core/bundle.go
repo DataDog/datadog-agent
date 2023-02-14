@@ -13,25 +13,35 @@
 package core
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/internal"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
 
-// BundleParams defines the parameters for this bundle.
-type BundleParams = internal.BundleParams
-
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
+	// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
+	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
 	config.Module,
+	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 	log.Module,
+	flare.Module,
+	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
+	sysprobeconfig.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
-	config.MockModule,
+	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+	config.Module,
+	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 	log.Module,
+	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
+	sysprobeconfig.MockModule,
 )

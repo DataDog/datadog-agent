@@ -14,11 +14,9 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -36,55 +34,78 @@ var (
 
 const compilationStepTimeout = 60 * time.Second
 
+func writeStdarg() (string, error) {
+	tmpIncludeDir, err := os.MkdirTemp(os.TempDir(), "include-")
+	if err != nil {
+		return "", fmt.Errorf("error creating temporary include directory: %s", err.Error())
+	}
+
+	if err = os.WriteFile(filepath.Join(tmpIncludeDir, "stdarg.h"), stdargHData, 0644); err != nil {
+		return "", fmt.Errorf("error writing data to stdarg.h: %s", err.Error())
+	}
+	return tmpIncludeDir, nil
+}
+
+func kernelHeaderPaths(headerDirs []string) []string {
+	arch := kernel.Arch()
+	var paths []string
+	for _, d := range headerDirs {
+		paths = append(paths,
+			fmt.Sprintf("%s/arch/%s/include", d, arch),
+			fmt.Sprintf("%s/arch/%s/include/generated", d, arch),
+			fmt.Sprintf("%s/include", d),
+			fmt.Sprintf("%s/arch/%s/include/uapi", d, arch),
+			fmt.Sprintf("%s/arch/%s/include/generated/uapi", d, arch),
+			fmt.Sprintf("%s/include/uapi", d),
+			fmt.Sprintf("%s/include/generated/uapi", d),
+		)
+	}
+	return paths
+}
+
 // CompileToObjectFile compiles an eBPF program
 func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, headerDirs []string) error {
 	if len(headerDirs) == 0 {
 		return fmt.Errorf("unable to find kernel headers")
 	}
 
-	arch := kernel.Arch()
-	if arch == "" {
-		return fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
-	}
-
-	tmpIncludeDir, err := ioutil.TempDir(os.TempDir(), "include-")
+	tmpIncludeDir, err := writeStdarg()
 	if err != nil {
-		return fmt.Errorf("error creating temporary include directory: %s", err.Error())
+		return err
 	}
 	defer os.RemoveAll(tmpIncludeDir)
-
-	if err = os.WriteFile(filepath.Join(tmpIncludeDir, "stdarg.h"), stdargHData, 0644); err != nil {
-		return fmt.Errorf("error writing data to stdarg.h: %s", err.Error())
-	}
-
-	for _, d := range headerDirs {
-		cflags = append(cflags,
-			fmt.Sprintf("-isystem%s/arch/%s/include", d, arch),
-			fmt.Sprintf("-isystem%s/arch/%s/include/generated", d, arch),
-			fmt.Sprintf("-isystem%s/include", d),
-			fmt.Sprintf("-isystem%s/arch/%s/include/uapi", d, arch),
-			fmt.Sprintf("-isystem%s/arch/%s/include/generated/uapi", d, arch),
-			fmt.Sprintf("-isystem%s/include/uapi", d),
-			fmt.Sprintf("-isystem%s/include/generated/uapi", d),
-		)
-	}
 	cflags = append(cflags, fmt.Sprintf("-isystem%s", tmpIncludeDir))
-	cflags = append(cflags, "-c", "-x", "c", "-o", "-", "-")
 
-	var clangOut, clangErr, llcErr bytes.Buffer
+	kps := kernelHeaderPaths(headerDirs)
+	for _, p := range kps {
+		cflags = append(cflags, fmt.Sprintf("-isystem%s", p))
+	}
+
+	cflags = append(cflags, "-c", "-x", "c", "-o", "-", "-")
+	clangOut := &bytes.Buffer{}
+	if err := clang(in, clangOut, cflags); err != nil {
+		return fmt.Errorf("compiling asset to bytecode: %w", err)
+	}
+	if err := llc(clangOut, outputFile); err != nil {
+		return fmt.Errorf("error compiling bytecode to object file: %w", err)
+	}
+	return nil
+}
+
+func clang(in io.Reader, out io.Writer, cflags []string) error {
+	var clangErr bytes.Buffer
 
 	clangCtx, clangCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer clangCancel()
 
 	compileToBC := exec.CommandContext(clangCtx, clangBinPath, cflags...)
 	compileToBC.Stdin = in
-	compileToBC.Stdout = &clangOut
+	compileToBC.Stdout = out
 	compileToBC.Stderr = &clangErr
 
-	log.Debugf("compiling asset to bytecode: %v", compileToBC.Args)
+	log.Debugf("running clang: %v", compileToBC.Args)
 
-	err = compileToBC.Run()
-
+	err := compileToBC.Run()
 	if err != nil {
 		var errMsg string
 		if clangCtx.Err() == context.DeadlineExceeded {
@@ -94,24 +115,28 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		} else {
 			errMsg = err.Error()
 		}
-		return fmt.Errorf("error compiling asset to bytecode: %s", errMsg)
+		return fmt.Errorf("clang: %s", errMsg)
 	}
 
 	if len(clangErr.String()) > 0 {
 		log.Debugf("%s", clangErr.String())
 	}
+	return nil
+}
 
+func llc(in io.Reader, outputFile string) error {
+	var llcErr bytes.Buffer
 	llcCtx, llcCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer llcCancel()
 
 	bcToObj := exec.CommandContext(llcCtx, llcBinPath, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
-	bcToObj.Stdin = &clangOut
+	bcToObj.Stdin = in
 	bcToObj.Stdout = nil
 	bcToObj.Stderr = &llcErr
 
-	log.Debugf("compiling bytecode to object file: %v", bcToObj.Args)
+	log.Debugf("running llc: %v", bcToObj.Args)
 
-	err = bcToObj.Run()
+	err := bcToObj.Run()
 	if err != nil {
 		var errMsg string
 		if llcCtx.Err() == context.DeadlineExceeded {
@@ -121,12 +146,29 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		} else {
 			errMsg = err.Error()
 		}
-		return fmt.Errorf("error compiling bytecode to object file: %s", errMsg)
+		return fmt.Errorf("llc: %s", errMsg)
 	}
 
 	if len(llcErr.String()) > 0 {
-		log.Debugf("%s", clangErr.String())
+		log.Debugf("%s", llcErr.String())
+	}
+	return nil
+}
+
+// Preprocess runs the clang preprocessor on `in` and writes the output to `out`
+func Preprocess(in io.Reader, out io.Writer, cflags []string, headerDirs []string) error {
+	tmpIncludeDir, err := writeStdarg()
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpIncludeDir)
+	cflags = append(cflags, fmt.Sprintf("-isystem%s", tmpIncludeDir))
+
+	kps := kernelHeaderPaths(headerDirs)
+	for _, p := range kps {
+		cflags = append(cflags, fmt.Sprintf("-isystem%s", p))
 	}
 
-	return nil
+	cflags = append(cflags, "-E", "-x", "c", "-o", "-", "-")
+	return clang(in, out, cflags)
 }

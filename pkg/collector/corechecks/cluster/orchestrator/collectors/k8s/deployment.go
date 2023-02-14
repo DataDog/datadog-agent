@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"k8s.io/apimachinery/pkg/labels"
 	appsv1Informers "k8s.io/client-go/informers/apps/v1"
 	appsv1Listers "k8s.io/client-go/listers/apps/v1"
@@ -40,11 +40,14 @@ type DeploymentCollector struct {
 func NewDeploymentCollector() *DeploymentCollector {
 	return &DeploymentCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "deployments",
-			NodeType:         orchestrator.K8sDeployment,
-			Version:          "apps/v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "deployments",
+			NodeType:                  model.K8SResource_DEPLOYMENT,
+			Version:                   "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
 	}
@@ -76,13 +79,7 @@ func (c *DeploymentCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

@@ -2,8 +2,10 @@
 #define __TCP_RECV_H__
 
 #include "bpf_helpers.h"
+#include "bpf_telemetry.h"
 #include "tracer-stats.h"
 #include "tracer-maps.h"
+#include "sock.h"
 
 int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
     conn_tuple_t t = {};
@@ -17,9 +19,10 @@ int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
     __u32 packets_out = 0;
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
-    protocol_t protocol = get_protocol(&t);
-    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, protocol, skp);
+    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
+
+#if defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
 
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
@@ -97,5 +100,6 @@ int kretprobe__tcp_read_sock(struct pt_regs *ctx) {
     return handle_tcp_recv(pid_tgid, skp, recv);
 }
 
+#endif // defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
 
 #endif // __TCP_RECV_H__

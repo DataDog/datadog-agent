@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"expvar" // automatically publish `/debug/vars` on HTTP port
-
 	"fmt"
 	"io"
 	"net/http"
@@ -34,14 +33,16 @@ var (
 	traceWriterInfo TraceWriterInfo
 	statsWriterInfo StatsWriterInfo
 
-	watchdogInfo     watchdog.Info
-	rateByService    map[string]float64
-	rateLimiterStats RateLimiterStats
-	start            = time.Now()
-	once             sync.Once
-	infoTmpl         *template.Template
-	notRunningTmpl   *template.Template
-	errorTmpl        *template.Template
+	watchdogInfo  watchdog.Info
+	rateByService map[string]float64
+	// The rates by service with empty env values removed (As they are confusing to view for customers)
+	rateByServiceFiltered map[string]float64
+	rateLimiterStats      RateLimiterStats
+	start                 = time.Now()
+	once                  sync.Once
+	infoTmpl              *template.Template
+	notRunningTmpl        *template.Template
+	errorTmpl             *template.Template
 )
 
 const (
@@ -136,17 +137,30 @@ func publishReceiverStats() interface{} {
 	return receiverStats
 }
 
-// UpdateRateByService updates the RateByService map.
+// UpdateRateByService updates the RateByService map and the filtered RateByServiceFiltered map.
 func UpdateRateByService(rbs map[string]float64) {
 	infoMu.Lock()
 	defer infoMu.Unlock()
 	rateByService = rbs
+
+	rateByServiceFiltered = make(map[string]float64, len(rateByService))
+	for k, v := range rateByService {
+		if !strings.HasSuffix(k, ",env:") {
+			rateByServiceFiltered[k] = v
+		}
+	}
 }
 
 func publishRateByService() interface{} {
 	infoMu.RLock()
 	defer infoMu.RUnlock()
 	return rateByService
+}
+
+func publishRateByServiceFiltered() interface{} {
+	infoMu.RLock()
+	defer infoMu.RUnlock()
+	return rateByServiceFiltered
 }
 
 // UpdateWatchdogInfo updates internal stats about the watchdog.
@@ -226,6 +240,7 @@ func InitInfo(conf *config.AgentConfig) error {
 		expvar.Publish("trace_writer", expvar.Func(publishTraceWriterInfo))
 		expvar.Publish("stats_writer", expvar.Func(publishStatsWriterInfo))
 		expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
+		expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
 		expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
 		expvar.Publish("ratelimiter", expvar.Func(publishRateLimiterStats))
 
@@ -283,7 +298,7 @@ type StatusInfo struct {
 		GitCommit string
 	} `json:"version"`
 	Receiver      []TagStats         `json:"receiver"`
-	RateByService map[string]float64 `json:"ratebyservice"`
+	RateByService map[string]float64 `json:"ratebyservice_filtered"`
 	TraceWriter   TraceWriterInfo    `json:"trace_writer"`
 	StatsWriter   StatsWriterInfo    `json:"stats_writer"`
 	Watchdog      watchdog.Info      `json:"watchdog"`
@@ -348,21 +363,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 	// display the remote program version, now that we know it
 	program, banner := getProgramBanner(info.Version.Version)
 
-	// Remove the default service and env, as well as any entries with an empty env.
-	// It can be inferred from other values so has little added-value and could be confusing for users.
-	// Besides, if one still really wants it:
-	// curl http://localhost:8126/debug/vars would show it.
-	if info.RateByService != nil {
-		delete(info.RateByService, "service:,env:")
-		for k := range info.RateByService {
-			if strings.HasSuffix(k, ",env:") {
-				delete(info.RateByService, k)
-			}
-		}
-	}
-
 	var buffer bytes.Buffer
-
 	err = infoTmpl.Execute(&buffer, struct {
 		Banner  string
 		Program string

@@ -2,6 +2,89 @@
 Release Notes
 =============
 
+.. _Release Notes_7.42.0:
+
+7.42.0 / 6.42.0
+======
+
+.. _Release Notes_7.42.0_New Features:
+
+New Features
+------------
+
+- Supports the collection of custom resource definition and custom resource manifests for the orchestrator explorer.
+
+
+.. _Release Notes_7.42.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collects Unified Service Tags for the orchestrator explorer product.
+
+
+.. _Release Notes_7.41.0:
+
+7.41.0 / 6.41.0
+======
+
+.. _Release Notes_7.41.0_New Features:
+
+New Features
+------------
+
+- Add ``Namespace`` collection in the orchestrator check and enable it by default.
+
+
+.. _Release Notes_7.41.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Improves performance of the Cluster Agent admission controller on large pods.
+
+
+.. _Release Notes_7.40.0:
+
+7.40.0 / 6.40.0
+======
+
+.. _Release Notes_7.40.0_New Features:
+
+New Features
+------------
+
+- Experimental: The Datadog Admission Controller can inject the Python APM library into Kubernetes containers for auto-instrumentation.
+
+- The orchestrator check is now able to discover resources to collect based
+  on API groups available in the Kubernetes cluster.
+
+
+.. _Release Notes_7.40.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The admission controller now injects variables and volume mounts to init containers in addition to regular containers.
+
+- Chunk orchestrator payloads by size and weight
+
+- KSM Core check: Add the ``helm_chart`` tag automatically from the standard helm label ``helm.sh/chart``.
+
+- Helm check: Add a ``helm_chart`` tag, equivalent to the standard helm label ``helm.sh/chart`` (see https://helm.sh/docs/chart_best_practices/labels/).
+
+
+.. _Release Notes_7.40.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an edge case in the Admission Controller when ``mutateUnlabelled`` is enabled and ``configMode`` is set to ``socket``.
+  This combination could prevent the creation of new DaemonSet Agent pods.
+
+- Fixed a resource leak in the helm check.
+
+
 .. _Release Notes_7.39.0:
 
 7.39.0 / 6.39.0
@@ -39,10 +122,10 @@ Enhancement Notes
 Bug Fixes
 ---------
 
-- Fix the DCA `leader_election_is_leader` metric that could sometimes report ``is_leader="false"`` on the leader instance
+- Fix the DCA ``leader_election_is_leader`` metric that could sometimes report ``is_leader="false"`` on the leader instance
 
-- Fixed an error when running `datadog-cluster-agent status` with
-  `DD_EXTERNAL_METRICS_PROVIDER_ENABLED=true` and no app key set.
+- Fixed an error when running ``datadog-cluster-agent status`` with
+  ``DD_EXTERNAL_METRICS_PROVIDER_ENABLED=true`` and no app key set.
 
 - The KSM Core check now handles cron job schedules with time zones.
 

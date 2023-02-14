@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1beta1"
 	batchv1Listers "k8s.io/client-go/listers/batch/v1beta1"
@@ -32,11 +32,14 @@ type CronJobV1Beta1Collector struct {
 func NewCronJobV1Beta1Collector() *CronJobV1Beta1Collector {
 	return &CronJobV1Beta1Collector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: false,
-			IsStable:         true,
-			Name:             "cronjobs",
-			NodeType:         orchestrator.K8sCronJob,
-			Version:          "batch/v1beta1",
+			IsDefaultVersion:          false,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "cronjobs",
+			NodeType:                  model.K8SResource_CRONJOB,
+			Version:                   "batch/v1beta1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Beta1Handlers)),
 	}
@@ -68,13 +71,7 @@ func (c *CronJobV1Beta1Collector) Run(rcfg *collectors.CollectorRunConfig) (*col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

@@ -29,6 +29,7 @@ type BindSyscallArgs C.bind_syscall_args_t
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
+type _Ctype_struct_sockaddr uint64
 
 type TCPState uint8
 
@@ -46,3 +47,4 @@ const (
 )
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+const SizeofBatch = C.sizeof_batch_t

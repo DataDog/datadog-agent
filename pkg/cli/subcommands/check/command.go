@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -45,8 +45,6 @@ import (
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
-	// *command.GlobalParams
-
 	// cmd is the running cobra.Command
 	cmd *cobra.Command
 
@@ -60,6 +58,7 @@ type cliParams struct {
 	checkPause                int
 	checkName                 string
 	checkDelay                int
+	instanceFilter            string
 	logLevel                  string
 	formatJSON                bool
 	formatTable               bool
@@ -84,12 +83,13 @@ type cliParams struct {
 }
 
 type GlobalParams struct {
-	ConfFilePath string
-	ConfigName   string
-	LoggerName   string
+	ConfFilePath         string
+	SysProbeConfFilePath string
+	ConfigName           string
+	LoggerName           string
 }
 
-// MakeCommand returns a `check` to be used by agent binaries.
+// MakeCommand returns a `check` command to be used by agent binaries.
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 	cmd := &cobra.Command{
@@ -109,10 +109,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigName:        globalParams.ConfigName,
-					ConfigLoadSecrets: true,
-				}.LogForOneShot(globalParams.LoggerName, "off", true)),
+					ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					LogParams:            log.LogForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -123,6 +122,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().IntVar(&cliParams.checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	cmd.Flags().StringVarP(&cliParams.logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&cliParams.checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
+	cmd.Flags().StringVarP(&cliParams.instanceFilter, "instance-filter", "", "", "filter instances using jq style syntax, example: --instance-filter '.ip_address == \"127.0.0.51\"'")
 	cmd.Flags().BoolVarP(&cliParams.formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	cmd.Flags().BoolVarP(&cliParams.formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&cliParams.breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
@@ -153,13 +153,19 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	previousIntegrationTracing := false
+	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
 		if pkgconfig.Datadog.IsSet("integration_tracing") {
 			previousIntegrationTracing = pkgconfig.Datadog.GetBool("integration_tracing")
+
+		}
+		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
+			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
 		pkgconfig.Datadog.Set("integration_tracing", true)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -168,6 +174,10 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		cliParams.cmd.Help() //nolint:errcheck
 		return nil
 	}
+
+	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
+	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
+	pkgconfig.Datadog.Set("container_image_collection.sbom.enabled", "false")
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -192,8 +202,12 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-	allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances))
+
+	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter)
 	cancelTimeout()
+	if err != nil {
+		return err
+	}
 
 	// make sure the checks in cs are not JMX checks
 	for idx := range allConfigs {
@@ -239,7 +253,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	if cliParams.profileMemory {
 		// If no directory is specified, make a temporary one
 		if cliParams.profileMemoryDir == "" {
-			cliParams.profileMemoryDir, err = ioutil.TempDir("", "datadog-agent-memory-profiler")
+			cliParams.profileMemoryDir, err = os.MkdirTemp("", "datadog-agent-memory-profiler")
 			if err != nil {
 				return err
 			}
@@ -388,7 +402,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 			snapshotDir := filepath.Join(profileDataDir, "snapshots")
 			if _, err := os.Stat(snapshotDir); !os.IsNotExist(err) {
-				snapshots, err := ioutil.ReadDir(snapshotDir)
+				snapshots, err := os.ReadDir(snapshotDir)
 				if err != nil {
 					return err
 				}
@@ -396,7 +410,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 				numSnapshots := len(snapshots)
 				if numSnapshots > 0 {
 					lastSnapshot := snapshots[numSnapshots-1]
-					snapshotContents, err := ioutil.ReadFile(filepath.Join(snapshotDir, lastSnapshot.Name()))
+					snapshotContents, err := os.ReadFile(filepath.Join(snapshotDir, lastSnapshot.Name()))
 					if err != nil {
 						return err
 					}
@@ -411,7 +425,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 			diffDir := filepath.Join(profileDataDir, "diffs")
 			if _, err := os.Stat(diffDir); !os.IsNotExist(err) {
-				diffs, err := ioutil.ReadDir(diffDir)
+				diffs, err := os.ReadDir(diffDir)
 				if err != nil {
 					return err
 				}
@@ -419,7 +433,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 				numDiffs := len(diffs)
 				if numDiffs > 0 {
 					lastDiff := diffs[numDiffs-1]
-					diffContents, err := ioutil.ReadFile(filepath.Join(diffDir, lastDiff.Name()))
+					diffContents, err := os.ReadFile(filepath.Join(diffDir, lastDiff.Name()))
 					if err != nil {
 						return err
 					}
@@ -482,6 +496,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	if cliParams.generateIntegrationTraces {
 		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
 	}
 
 	return nil
@@ -526,7 +541,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	if err != nil {
 		fmt.Println("Error while scrubbing the check file:", err)
 	}
-	err = ioutil.WriteFile(flarePath, scrubbed, os.ModePerm)
+	err = os.WriteFile(flarePath, scrubbed, os.ModePerm)
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)

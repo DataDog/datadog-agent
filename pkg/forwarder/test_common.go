@@ -22,6 +22,7 @@ type testTransaction struct {
 	mock.Mock
 	assertClient bool
 	processed    chan bool
+	pointCount   int
 }
 
 func newTestTransaction() *testTransaction {
@@ -72,7 +73,7 @@ func (t *testTransaction) SerializeTo(serializer transaction.TransactionsSeriali
 }
 
 func (t *testTransaction) GetPointCount() int {
-	return 0
+	return t.pointCount
 }
 
 // Compile-time checking to ensure that MockedForwarder implements Forwarder
@@ -180,5 +181,15 @@ func (tf *MockedForwarder) SubmitOrchestratorManifests(payload transaction.Bytes
 
 // SubmitContainerLifecycleEvents mock
 func (tf *MockedForwarder) SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}
+
+// SubmitContainerImages mock
+func (tf *MockedForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}
+
+// SubmitSBOM mock
+func (tf *MockedForwarder) SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }

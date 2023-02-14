@@ -10,12 +10,12 @@ package k8s
 
 import (
 	"context"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
@@ -48,11 +48,14 @@ type IngressCollector struct {
 func NewIngressCollector() *IngressCollector {
 	return &IngressCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "ingresses",
-			NodeType:         orchestrator.K8sIngress,
-			Version:          "networking.k8s.io/v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "ingresses",
+			NodeType:                  model.K8SResource_INGRESS,
+			Version:                   "networking.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),
 	}
@@ -100,13 +103,7 @@ func (c *IngressCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

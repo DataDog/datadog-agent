@@ -33,7 +33,7 @@ func HeadlessSocketFilter(cfg *config.Config, filter *manager.Probe) (closeFn fu
 	}
 	defer ns.Close()
 
-	err = util.WithNS(cfg.ProcRoot, ns, func() error {
+	err = util.WithNS(ns, func() error {
 		packetSrc, srcErr = NewPacketSource(filter, nil)
 		return srcErr
 	})

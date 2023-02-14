@@ -6,8 +6,6 @@ struct bpf_map_def SEC("maps/pipefs_mountid") pipefs_mountid = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 #define DECLARE_EQUAL_TO_SUFFIXED(suffix, s) static __attribute__((always_inline)) int equal_to_##suffix(char *str) { \

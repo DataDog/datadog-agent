@@ -11,7 +11,7 @@ package metrics
 import (
 	"bytes"
 	"compress/zlib"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
@@ -96,7 +96,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	assert.Equal(t, 0, firstPayload.GetPointCount())
 	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
+	decompressed, _ := io.ReadAll(r)
 	r.Close()
 
 	// Check that we encoded the protobuf correctly
@@ -130,7 +130,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	require.Equal(t, 0, firstPayload.GetPointCount())
 	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
+	decompressed, _ := io.ReadAll(r)
 	r.Close()
 
 	pl := new(gogen.SketchPayload)
@@ -160,7 +160,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	assert.Equal(t, 11, firstPayload.GetPointCount())
 	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
+	decompressed, _ := io.ReadAll(r)
 	r.Close()
 
 	// Check that we encoded the protobuf correctly
@@ -212,7 +212,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	for _, pld := range payloads {
 		reader := bytes.NewReader(pld.GetContent())
 		r, _ := zlib.NewReader(reader)
-		decompressed, _ := ioutil.ReadAll(r)
+		decompressed, _ := io.ReadAll(r)
 		r.Close()
 
 		pl := new(gogen.SketchPayload)

@@ -16,6 +16,7 @@ cluster_agent_cloudfoundry-build_amd64:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
+    - inv check-go-version
     - inv -e cluster-agent-cloudfoundry.build
     - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
     - mkdir -p $OMNIBUS_PACKAGE_DIR

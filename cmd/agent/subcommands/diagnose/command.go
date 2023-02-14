@@ -55,9 +55,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runAll,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "info", true)),
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -71,9 +70,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runDatadogConnectivityDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "info", true)),
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -101,9 +99,8 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 			return fxutil.OneShot(printPayload,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "off", true)),
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -119,9 +116,8 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 			return fxutil.OneShot(printPayload,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "off", true)),
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
 				core.Bundle,
 			)
 		},

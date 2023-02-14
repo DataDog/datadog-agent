@@ -48,14 +48,14 @@ func TestOctogonConstants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	config, err := genTestConfig(dir, testOpts{})
+	config, err := genTestConfig(dir, testOpts{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("rc-vs-fallback", func(t *testing.T) {
-		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
+			return kv.IsSLESKernel()
 		})
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
@@ -65,8 +65,8 @@ func TestOctogonConstants(t *testing.T) {
 	})
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
-		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
+			return kv.IsSLESKernel()
 		})
 
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
@@ -108,8 +108,8 @@ func TestOctogonConstants(t *testing.T) {
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
-		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
+		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
+			return kv.IsSLESKernel()
 		})
 
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)

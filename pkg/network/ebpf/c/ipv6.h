@@ -1,7 +1,10 @@
 #ifndef __IPV6_H
 #define __IPV6_H
 
+#include "bpf_core_read.h"
 #include "bpf_telemetry.h"
+
+#include "defs.h"
 
 /* check if IPs are IPv4 mapped to IPv6 ::ffff:xxxx:xxxx
  * https://tools.ietf.org/html/rfc4291#section-2.5.5
@@ -22,8 +25,27 @@ __maybe_unused static __always_inline bool is_ipv4_mapped_ipv6(__u64 saddr_h, __
 }
 
 static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct in6_addr *in6) {
+#ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(addr_h, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[0]));
     bpf_probe_read_kernel_with_telemetry(addr_l, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[2]));
+#else
+    BPF_CORE_READ_INTO(addr_h, in6, in6_u.u6_addr32[0]);
+    BPF_CORE_READ_INTO(addr_l, in6, in6_u.u6_addr32[2]);
+#endif
+}
+
+static __maybe_unused __always_inline bool is_ipv6_enabled() {
+#ifdef COMPILE_RUNTIME
+#ifdef FEATURE_IPV6_ENABLED
+    return true;
+#else
+    return false;
+#endif
+#else
+    __u64 val = 0;
+    LOAD_CONSTANT("ipv6_enabled", val);
+    return val == ENABLED;
+#endif
 }
 
 #endif

@@ -46,7 +46,7 @@ type SysProbeListener struct {
 
 // NewListener returns a new SysProbeListener to listen for process events
 func NewListener(handler EventHandler) (*SysProbeListener, error) {
-	socketPath := ddconfig.Datadog.GetString("runtime_security_config.socket")
+	socketPath := ddconfig.SystemProbe.GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
@@ -148,22 +148,20 @@ func (l *SysProbeListener) run() {
 // consumeData unmarshals the serialized process event received from the SecurityModule server, filters it and applies the
 // EventHandler
 func (l *SysProbeListener) consumeData(data []byte) {
-	var sysEvent model.ProcessMonitoringEvent
+	var sysEvent model.ProcessEvent
 	if _, err := sysEvent.UnmarshalMsg(data); err != nil {
 		log.Errorf("Could not unmarshal process event: %v", err)
 		return
 	}
 
-	e := model.ProcessMonitoringToProcessEvent(&sysEvent)
-
 	// Only consume expected process events
-	switch e.EventType {
+	switch sysEvent.EventType {
 	case model.Exec, model.Exit:
 		if l.handler == nil {
 			log.Error("No EventHandler set to consume event, dropping it")
 			return
 		}
-		l.handler(e)
+		l.handler(&sysEvent)
 	default: // drop unexpected event
 	}
 }

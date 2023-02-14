@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -64,10 +64,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:       globalParams.ConfFilePath,
-					ConfigLoadSecrets:  false,
-					ConfigLoadSysProbe: true,
-				}.LogForOneShot("CORE", "off", true)),
+					ConfigParams:         config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					LogParams:            log.LogForOneShot("CORE", "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -92,9 +91,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(componentStatusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "off", true)),
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -131,7 +129,7 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(log log.Component, config config.Component, cliParams *cliParams) error {
+func statusCmd(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	return redactError(requestStatus(config, cliParams))
 }
 
@@ -175,7 +173,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	}
 
 	if cliParams.statusFilePath != "" {
-		ioutil.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
+		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
@@ -238,7 +236,7 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	}
 
 	if cliParams.statusFilePath != "" {
-		ioutil.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
+		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}

@@ -24,7 +24,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 var _ SketchConsumer = (*sketchConsumer)(nil)
@@ -32,6 +33,12 @@ var _ SketchConsumer = (*sketchConsumer)(nil)
 type sketchConsumer struct {
 	mockTimeSeriesConsumer
 	sk *quantile.Sketch
+}
+
+func (c *sketchConsumer) ConsumeAPMStats(_ pb.ClientStatsPayload) {
+	// not used for this consumer, but do warn the user if they
+	// try to use it
+	panic("(*sketchConsumer).ConsumeAPMStats not implemented")
 }
 
 // ConsumeSketch implements the translator.Consumer interface.

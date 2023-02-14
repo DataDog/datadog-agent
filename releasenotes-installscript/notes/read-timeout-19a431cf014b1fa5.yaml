@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    On error, the user prompt will now only run when a terminal is attached.
-    It will have a default negative answer and it will time out after 60 seconds.

@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1"
 	batchv1Listers "k8s.io/client-go/listers/batch/v1"
@@ -39,11 +39,14 @@ type JobCollector struct {
 func NewJobCollector() *JobCollector {
 	return &JobCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "jobs",
-			NodeType:         orchestrator.K8sJob,
-			Version:          "batch/v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "jobs",
+			NodeType:                  model.K8SResource_JOB,
+			Version:                   "batch/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
 	}
@@ -75,13 +78,7 @@ func (c *JobCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

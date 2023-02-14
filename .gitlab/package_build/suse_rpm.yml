@@ -3,6 +3,7 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
@@ -28,6 +29,8 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-syscall-wrapper.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-offset-guesser.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/oom-kill-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/http.c.${PACKAGE_ARCH} /tmp/system-probe/http.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
@@ -101,6 +104,7 @@ iot_agent_suse-x64:
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present

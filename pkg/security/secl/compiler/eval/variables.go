@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"unsafe"
 )
 
 var (
@@ -388,7 +387,7 @@ func NewMutableIntArrayVariable() *MutableIntArrayVariable {
 }
 
 // Scoper maps a variable to the entity its scoped to
-type Scoper func(ctx *Context) unsafe.Pointer
+type Scoper[T any] func(ctx *Context) T
 
 // GlobalVariables holds a set of global variables
 type GlobalVariables struct{}
@@ -470,14 +469,14 @@ func (v *Variables) Set(name string, value interface{}) bool {
 }
 
 // ScopedVariables holds a set of scoped variables
-type ScopedVariables struct {
-	scoper         Scoper
-	onNewVariables func(_ unsafe.Pointer)
-	vars           map[unsafe.Pointer]*Variables
+type ScopedVariables[T comparable] struct {
+	scoper         Scoper[T]
+	onNewVariables func(T)
+	vars           map[T]*Variables
 }
 
 // GetVariable returns new variable of the type of the specified value
-func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableValue, error) {
+func (v *ScopedVariables[T]) GetVariable(name string, value interface{}) (VariableValue, error) {
 	getVariables := func(ctx *Context) *Variables {
 		return v.vars[v.scoper(ctx)]
 	}
@@ -539,15 +538,15 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableV
 }
 
 // ReleaseVariable releases a scoped variable
-func (v *ScopedVariables) ReleaseVariable(key unsafe.Pointer) {
+func (v *ScopedVariables[T]) ReleaseVariable(key T) {
 	delete(v.vars, key)
 }
 
 // NewScopedVariables returns a new set of scope variables
-func NewScopedVariables(scoper Scoper, onNewVariables func(unsafe.Pointer)) *ScopedVariables {
-	return &ScopedVariables{
+func NewScopedVariables[T comparable](scoper Scoper[T], onNewVariables func(T)) *ScopedVariables[T] {
+	return &ScopedVariables[T]{
 		scoper:         scoper,
 		onNewVariables: onNewVariables,
-		vars:           make(map[unsafe.Pointer]*Variables),
+		vars:           make(map[T]*Variables),
 	}
 }

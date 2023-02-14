@@ -146,11 +146,17 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) { //nolint:u
 }
 
 // EventID sometimes comes in like <EventID>7036</EventID>
-//   which mxj will transform to "EventID":"7036"
+//
+//	which mxj will transform to "EventID":"7036"
+//
 // other times it comes in like <EventID Qualifiers='16384'>7036</EventID>
-//   which mxj will transform to "EventID":{"value":"7036","Qualifiers":"16384"}
+//
+//	which mxj will transform to "EventID":{"value":"7036","Qualifiers":"16384"}
+//
 // We want to normalize this so the resulting JSON is consistent
-//   "EventID":"7036","EventIDQualifier":"16384"
+//
+//	"EventID":"7036","EventIDQualifier":"16384"
+//
 // Format definition: https://learn.microsoft.com/en-us/windows/win32/wes/eventschema-systempropertiestype-complextype
 func normalizeEventID(mv mxj.Map) error {
 	values, err := mv.ValuesForPath(eventIDPath)

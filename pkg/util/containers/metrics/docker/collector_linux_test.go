@@ -9,7 +9,6 @@
 package docker
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -43,11 +42,11 @@ func Test_convertCPUStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerCPUStats{
-				Total:            pointer.Float64Ptr(42),
-				System:           pointer.Float64Ptr(43),
-				User:             pointer.Float64Ptr(44),
-				ThrottledPeriods: pointer.Float64Ptr(45),
-				ThrottledTime:    pointer.Float64Ptr(46),
+				Total:            pointer.Ptr(42.0),
+				System:           pointer.Ptr(43.0),
+				User:             pointer.Ptr(44.0),
+				ThrottledPeriods: pointer.Ptr(45.0),
+				ThrottledTime:    pointer.Ptr(46.0),
 			},
 		},
 	}
@@ -79,12 +78,12 @@ func Test_convertMemoryStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerMemStats{
-				UsageTotal:   pointer.Float64Ptr(42),
-				KernelMemory: pointer.Float64Ptr(95),
-				Limit:        pointer.Float64Ptr(43),
-				OOMEvents:    pointer.Float64Ptr(44),
-				RSS:          pointer.Float64Ptr(45),
-				Cache:        pointer.Float64Ptr(46),
+				UsageTotal:   pointer.Ptr(42.0),
+				KernelMemory: pointer.Ptr(95.0),
+				Limit:        pointer.Ptr(43.0),
+				OOMEvents:    pointer.Ptr(44.0),
+				RSS:          pointer.Ptr(45.0),
+				Cache:        pointer.Ptr(46.0),
 			},
 		},
 	}
@@ -159,22 +158,22 @@ func Test_convertIOStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerIOStats{
-				ReadBytes:       pointer.Float64Ptr(86),
-				WriteBytes:      pointer.Float64Ptr(88),
-				ReadOperations:  pointer.Float64Ptr(94),
-				WriteOperations: pointer.Float64Ptr(96),
+				ReadBytes:       pointer.Ptr(86.0),
+				WriteBytes:      pointer.Ptr(88.0),
+				ReadOperations:  pointer.Ptr(94.0),
+				WriteOperations: pointer.Ptr(96.0),
 				Devices: map[string]provider.DeviceIOStats{
 					"foo1": {
-						ReadBytes:       pointer.Float64Ptr(42),
-						WriteBytes:      pointer.Float64Ptr(43),
-						ReadOperations:  pointer.Float64Ptr(46),
-						WriteOperations: pointer.Float64Ptr(47),
+						ReadBytes:       pointer.Ptr(42.0),
+						WriteBytes:      pointer.Ptr(43.0),
+						ReadOperations:  pointer.Ptr(46.0),
+						WriteOperations: pointer.Ptr(47.0),
 					},
 					"bar2": {
-						ReadBytes:       pointer.Float64Ptr(44),
-						WriteBytes:      pointer.Float64Ptr(45),
-						ReadOperations:  pointer.Float64Ptr(48),
-						WriteOperations: pointer.Float64Ptr(49),
+						ReadBytes:       pointer.Ptr(44.0),
+						WriteBytes:      pointer.Ptr(45.0),
+						ReadOperations:  pointer.Ptr(48.0),
+						WriteOperations: pointer.Ptr(49.0),
 					},
 				},
 			},
@@ -188,7 +187,7 @@ func Test_convertIOStats(t *testing.T) {
 			"   1       3 bar2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
 	)
 
-	err := ioutil.WriteFile(dir+"/diskstats", diskstats, 0o644)
+	err := os.WriteFile(dir+"/diskstats", diskstats, 0o644)
 	assert.Nil(t, err)
 	defer os.Remove(dir + "/diskstats")
 
@@ -214,8 +213,8 @@ func Test_convetrPIDStats(t *testing.T) {
 				Limit:   43,
 			},
 			expectedOutput: provider.ContainerPIDStats{
-				ThreadCount: pointer.Float64Ptr(42),
-				ThreadLimit: pointer.Float64Ptr(43),
+				ThreadCount: pointer.Ptr(42.0),
+				ThreadLimit: pointer.Ptr(43.0),
 			},
 		},
 	}

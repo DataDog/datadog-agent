@@ -61,8 +61,9 @@ func TestDefaults(t *testing.T) {
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{
-		"enabled":  true,
-		"interval": 4 * time.Hour,
+		"enabled":        true,
+		"hint_frequency": 60,
+		"interval":       4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
 }
 
@@ -558,82 +559,80 @@ additional_endpoints:
 }
 
 func TestAddAgentVersionToDomain(t *testing.T) {
-	// US
-	newURL, err := AddAgentVersionToDomain("https://app.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.com", newURL)
+	appVersionPrefix := getDomainPrefix("app")
+	flareVersionPrefix := getDomainPrefix("flare")
 
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.com", newURL)
+	versionURLTests := []struct {
+		url                 string
+		expectedURL         string
+		shouldAppendVersion bool
+	}{
+		{ // US
+			"https://app.datadoghq.com",
+			".datadoghq.com",
+			true,
+		},
+		{ // EU
+			"https://app.datadoghq.eu",
+			".datadoghq.eu",
+			true,
+		},
+		{ // Gov
+			"https://app.ddog-gov.com",
+			".ddog-gov.com",
+			true,
+		},
+		{ // Additional site
+			"https://app.us2.datadoghq.com",
+			".us2.datadoghq.com",
+			true,
+		},
+		{ // arbitrary site
+			"https://app.xx9.datadoghq.com",
+			".xx9.datadoghq.com",
+			true,
+		},
+		{ // Custom DD URL: leave unchanged
+			"https://custom.datadoghq.com",
+			"custom.datadoghq.com",
+			false,
+		},
+		{ // Custom DD URL with 'agent' subdomain: leave unchanged
+			"https://custom.agent.datadoghq.com",
+			"custom.agent.datadoghq.com",
+			false,
+		},
+		{ // Custom DD URL: unclear if anyone is actually using such a URL, but for now leave unchanged
+			"https://app.custom.datadoghq.com",
+			"app.custom.datadoghq.com",
+			false,
+		},
+		{ // Custom top-level domain: unclear if anyone is actually using this, but for now leave unchanged
+			"https://app.datadoghq.internal",
+			"app.datadoghq.internal",
+			false,
+		},
+		{ // DD URL set to proxy, leave unchanged
+			"https://app.myproxy.com",
+			"app.myproxy.com",
+			false,
+		},
+	}
 
-	// EU
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.eu", newURL)
+	for _, testCase := range versionURLTests {
+		appURL, err := AddAgentVersionToDomain(testCase.url, "app")
+		require.Nil(t, err)
+		flareURL, err := AddAgentVersionToDomain(testCase.url, "flare")
+		require.Nil(t, err)
 
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.eu", newURL)
-
-	// Gov
-	newURL, err = AddAgentVersionToDomain("https://app.ddog-gov.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("app")+".ddog-gov.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://app.ddog-gov.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("flare")+".ddog-gov.com", newURL)
-
-	// Additional site
-	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("app")+".us2.datadoghq.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("flare")+".us2.datadoghq.com", newURL)
-
-	// Custom DD URL: leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://custom.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://custom.datadoghq.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://custom.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://custom.datadoghq.com", newURL)
-
-	// Custom DD URL with 'agent' subdomain: leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://custom.agent.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://custom.agent.datadoghq.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://custom.agent.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://custom.agent.datadoghq.com", newURL)
-
-	// Custom DD URL: unclear if anyone is actually using such a URL, but for now leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://app.custom.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.custom.datadoghq.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://app.custom.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.custom.datadoghq.com", newURL)
-
-	// Custom top-level domain: unclear if anyone is actually using this, but for now leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.internal", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.datadoghq.internal", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.internal", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.datadoghq.internal", newURL)
-
-	// DD URL set to proxy, leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://app.myproxy.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.myproxy.com", newURL)
+		if testCase.shouldAppendVersion {
+			assert.Equal(t, "https://"+appVersionPrefix+testCase.expectedURL, appURL)
+			assert.Equal(t, "https://"+flareVersionPrefix+testCase.expectedURL, flareURL)
+		} else {
+			assert.Equal(t, "https://"+testCase.expectedURL, appURL)
+			assert.Equal(t, "https://"+testCase.expectedURL, flareURL)
+		}
+	}
 }
 
 func TestIsCloudProviderEnabled(t *testing.T) {
@@ -908,7 +907,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := setupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	_, err := load(conf, "datadog_secrets.yaml", true)
+	_, err := LoadDatadogCustom(conf, "datadog_secrets.yaml", true)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{
@@ -1133,6 +1132,8 @@ func TestSetupFipsEndpoints(t *testing.T) {
 	datadogYaml := `
 dd_url: https://somehost:1234
 
+skip_ssl_validation: true
+
 apm_config:
   apm_dd_url: https://somehost:1234
   profiling_dd_url: https://somehost:1234
@@ -1159,6 +1160,13 @@ network_devices:
   metadata:
     dd_url: somehost:1234
 
+orchestrator_explorer:
+    orchestrator_dd_url: https://somehost:1234
+
+runtime_security_config:
+    endpoints:
+        logs_dd_url: somehost:1234
+
 proxy:
   http: http://localhost:1234
   https: https://localhost:1234
@@ -1170,49 +1178,100 @@ proxy:
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedHTTPURL, testConfig.GetString("dd_url"))
-	assert.Equal(t, expectedHTTPURL, testConfig.GetString("apm_config.apm_dd_url"))
-	assert.Equal(t, expectedHTTPURL, testConfig.GetString("apm_config.profiling_dd_url"))
-	assert.Equal(t, expectedHTTPURL, testConfig.GetString("apm_config.telemetry.dd_url"))
-	assert.Equal(t, expectedHTTPURL, testConfig.GetString("process_config.process_dd_url"))
+	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, false, testConfig)
 	assert.Equal(t, false, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, expectedURL, testConfig.GetString("logs_config.logs_dd_url"))
-	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.metrics.dd_url"))
-	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.activity.dd_url"))
-	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.samples.dd_url"))
-	assert.Equal(t, expectedURL, testConfig.GetString("network_devices.metadata.dd_url"))
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.NotNil(t, GetProxies())
 	// reseting proxies
 	proxies = nil
 
-	datadogYaml += `
+	datadogYamlFips := datadogYaml + `
 fips:
   enabled: true
   local_address: localhost
   port_range_start: 5000
+  https: false
 `
 
 	expectedURL = "localhost:50"
 	expectedHTTPURL = "http://" + expectedURL
-	testConfig = setupConfFromYAML(datadogYaml)
+	testConfig = setupConfFromYAML(datadogYamlFips)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedHTTPURL+"01", testConfig.GetString("dd_url"))
-	assert.Equal(t, expectedHTTPURL+"02", testConfig.GetString("apm_config.apm_dd_url"))
-	assert.Equal(t, expectedHTTPURL+"03", testConfig.GetString("apm_config.profiling_dd_url"))
-	assert.Equal(t, expectedHTTPURL+"10", testConfig.GetString("apm_config.telemetry.dd_url"))
-	assert.Equal(t, expectedHTTPURL+"04", testConfig.GetString("process_config.process_dd_url"))
+	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
 	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, expectedURL+"05", testConfig.GetString("logs_config.logs_dd_url"))
-	assert.Equal(t, expectedURL+"06", testConfig.GetString("database_monitoring.metrics.dd_url"))
-	assert.Equal(t, expectedURL+"06", testConfig.GetString("database_monitoring.activity.dd_url"))
-	assert.Equal(t, expectedURL+"07", testConfig.GetString("database_monitoring.samples.dd_url"))
-	assert.Equal(t, expectedURL+"08", testConfig.GetString("network_devices.metadata.dd_url"))
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.Nil(t, GetProxies())
+
+	datadogYamlFips = datadogYaml + `
+fips:
+  enabled: true
+  local_address: localhost
+  port_range_start: 5000
+  https: true
+  tls_verify: false
+`
+
+	expectedHTTPURL = "https://" + expectedURL
+	testConfig = setupConfFromYAML(datadogYamlFips)
+	testConfig.Set("skip_ssl_validation", false) // should be overridden by fips.tls_verify
+	LoadProxyFromEnv(testConfig)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+
+	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
+	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
+	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
+	assert.Nil(t, GetProxies())
+
+	testConfig.Set("skip_ssl_validation", true) // should be overridden by fips.tls_verify
+	testConfig.Set("fips.tls_verify", true)
+	LoadProxyFromEnv(testConfig)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+
+	assert.Equal(t, false, testConfig.GetBool("skip_ssl_validation"))
+	assert.Nil(t, GetProxies())
+}
+
+func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBaseURL string, rng bool, c Config) {
+	if rng {
+		assert.Equal(t, expectedBaseHTTPURL+"01", c.GetString("dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"02", c.GetString("apm_config.apm_dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"03"+"/api/v2/profile", c.GetString("apm_config.profiling_dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"10", c.GetString("apm_config.telemetry.dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"04", c.GetString("process_config.process_dd_url"))
+		assert.Equal(t, expectedBaseURL+"05", c.GetString("logs_config.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.metrics.dd_url"))
+		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.dd_url"))
+		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.dd_url"))
+		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
+		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+
+	} else {
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.apm_dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.profiling_dd_url")) // Omitting "/api/v2/profile" as the config is not overwritten
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.telemetry.dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("process_config.process_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("logs_config.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.metrics.dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+	}
 }
 
 func TestSetupFipsEndpointsNonLocalAddress(t *testing.T) {

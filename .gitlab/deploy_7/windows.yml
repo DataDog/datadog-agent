@@ -1,5 +1,5 @@
 ---
-deploy_staging_windows-7:
+deploy_packages_windows-7:
   rules:
     !reference [.on_deploy_a7]
   stage: deploy7
@@ -13,37 +13,11 @@ deploy_staging_windows-7:
       --recursive
       --exclude "*"
       --include "datadog-agent-7*.msi"
-      --include "datadog-agent-7*.debug.zip"
-      --include "datadog-agent-7*.wixpdb"
-      --include "customaction-7*.pdb"
-      $OMNIBUS_PACKAGE_DIR
-      s3://$WINDOWS_BUILDS_S3_BUCKET/$BUCKET_BRANCH/
-      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-    - $S3_CP_CMD
-      --recursive
-      --exclude "*"
-      --include "datadog-agent-7*.msi"
+      --include "datadog-agent-ng-7*.msi"
       --include "datadog-agent-7*.debug.zip"
       --include "datadog-agent-7*.wixpdb"
       --include "customaction-7*.pdb"
       $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true
-
-deploy_staging_windows_master-latest-7:
-  rules:
-    !reference [.on_deploy_nightly_repo_branch_a7]
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies: ["windows_msi_and_bosh_zip_x64-a7"]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD
-      $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi
-      "s3://$WINDOWS_BUILDS_S3_BUCKET/$BUCKET_BRANCH/datadog-agent-7-latest.amd64.msi"
-      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_staging_windows_tags-7:
   rules:

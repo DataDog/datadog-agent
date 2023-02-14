@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build !serverless && otlp
-// +build !serverless,otlp
+//go:build otlp
+// +build otlp
 
 package otlp
 
@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/service"
+	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
@@ -154,7 +154,7 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 }
 
 // newMapProvider creates a service.ConfigProvider with the fixed configuration.
-func newMapProvider(cfg PipelineConfig) (service.ConfigProvider, error) {
+func newMapProvider(cfg PipelineConfig) (otelcol.ConfigProvider, error) {
 	cfgMap, err := buildMap(cfg)
 	if err != nil {
 		return nil, err

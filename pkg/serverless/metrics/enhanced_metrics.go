@@ -32,6 +32,9 @@ const (
 	postRuntimeDurationMetric = "aws.lambda.enhanced.post_runtime_duration"
 	estimatedCostMetric       = "aws.lambda.enhanced.estimated_cost"
 	initDurationMetric        = "aws.lambda.enhanced.init_duration"
+	responseLatencyMetric     = "aws.lambda.enhanced.response_latency"
+	responseDurationMetric    = "aws.lambda.enhanced.response_duration"
+	producedBytesMetric       = "aws.lambda.enhanced.produced_bytes"
 	// OutOfMemoryMetric is the name of the out of memory enhanced Lambda metric
 	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
 	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
@@ -52,22 +55,58 @@ func getOutOfMemorySubstrings() []string {
 	}
 }
 
-// GenerateRuntimeDurationMetric generates the runtime duration metric
-func GenerateRuntimeDurationMetric(start time.Time, end time.Time, tags []string, demux aggregator.Demultiplexer) {
+// GenerateEnhancedMetricsFromRuntimeDoneLogArgs are the arguments required for
+// the GenerateEnhancedMetricsFromRuntimeDoneLog func
+type GenerateEnhancedMetricsFromRuntimeDoneLogArgs struct {
+	Start            time.Time
+	End              time.Time
+	ResponseLatency  float64
+	ResponseDuration float64
+	ProducedBytes    float64
+	Tags             []string
+	Demux            aggregator.Demultiplexer
+}
+
+// GenerateEnhancedMetricsFromRuntimeDoneLog generates the runtime duration metric
+func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromRuntimeDoneLogArgs) {
 	// first check if both date are set
-	if start.IsZero() || end.IsZero() {
+	if args.Start.IsZero() || args.End.IsZero() {
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
 	} else {
-		duration := end.Sub(start).Milliseconds()
-		demux.AggregateSample(metrics.MetricSample{
+		duration := args.End.Sub(args.Start).Milliseconds()
+		args.Demux.AggregateSample(metrics.MetricSample{
 			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
-			Tags:       tags,
+			Tags:       args.Tags,
 			SampleRate: 1,
-			Timestamp:  float64(end.UnixNano()) / float64(time.Second),
+			Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
 		})
 	}
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       responseLatencyMetric,
+		Value:      args.ResponseLatency,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       responseDurationMetric,
+		Value:      args.ResponseDuration,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       producedBytesMetric,
+		Value:      args.ProducedBytes,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+	})
 }
 
 // GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics from a LogTypeFunction message

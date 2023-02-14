@@ -14,6 +14,7 @@ from . import (
     docker,
     dogstatsd,
     github,
+    msi,
     package,
     pipeline,
     process_agent,
@@ -31,6 +32,7 @@ from .build_tags import audit_tag_impact, print_default_build_tags
 from .components import lint_components
 from .fuzz import fuzz
 from .go import (
+    check_go_version,
     check_mod_tidy,
     deps,
     deps_vendored,
@@ -48,6 +50,7 @@ from .test import (
     install_shellcheck,
     install_tools,
     integration_tests,
+    junit_macos_repack,
     junit_upload,
     lint_copyrights,
     lint_filenames,
@@ -88,8 +91,10 @@ ns.add_task(download_tools)
 ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
+ns.add_task(check_go_version)
 ns.add_task(generate_config)
 ns.add_task(junit_upload)
+ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 
 # add namespaced tasks to the root
@@ -101,6 +106,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
+ns.add_collection(msi)
 ns.add_collection(github)
 ns.add_collection(package)
 ns.add_collection(pipeline)

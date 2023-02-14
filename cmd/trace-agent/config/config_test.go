@@ -8,13 +8,13 @@ package config
 import (
 	"errors"
 	"html/template"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -274,14 +274,14 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		body, err := ioutil.ReadFile("testdata/stringcode.go.tmpl")
+		body, err := os.ReadFile("testdata/stringcode.go.tmpl")
 		if err != nil {
 			t.Fatal(err)
 		}
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(response string, code int) string {
-			f, err := ioutil.TempFile("", "trace-test-hostname.*.go")
+			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -438,6 +438,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(c.LogThrottling)
 	assert.True(c.OTLPReceiver.SpanNameAsResourceName)
 	assert.Equal(map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, c.OTLPReceiver.SpanNameRemappings)
+	assert.Equal(88.4, c.OTLPReceiver.ProbabilisticSampling)
 
 	noProxy := true
 	if _, ok := os.LookupEnv("NO_PROXY"); ok {
@@ -747,6 +748,16 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("0.0.0.0", cfg.ReceiverHost)
 	})
 
+	env = "DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "12.3")
+		cfg, err := LoadConfigFile("./testdata/undocumented.yaml")
+		assert.NoError(err)
+		assert.Equal(12.3, cfg.OTLPReceiver.ProbabilisticSampling)
+	})
+
 	for _, envKey := range []string{
 		"DD_IGNORE_RESOURCE", // deprecated
 		"DD_APM_IGNORE_RESOURCES",
@@ -832,6 +843,17 @@ func TestLoadEnv(t *testing.T) {
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `["bad1:value with a space","bad2:value with spaces"]`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}, {K: "bad2", V: "value with spaces"}})
 	})
 
 	for _, envKey := range []string{
@@ -989,5 +1011,90 @@ func TestLoadEnv(t *testing.T) {
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
+	})
+}
+
+func TestFargateConfig(t *testing.T) {
+	assert := assert.New(t)
+	type testData struct {
+		name         string
+		envKey       string
+		envValue     string
+		orchestrator config.FargateOrchestratorName
+	}
+	for _, data := range []testData{
+		{
+			name:         "ecs_fargate",
+			envKey:       "ECS_FARGATE",
+			envValue:     "true",
+			orchestrator: config.OrchestratorECS,
+		},
+		{
+			name:         "eks_fargate",
+			envKey:       "DD_EKS_FARGATE",
+			envValue:     "true",
+			orchestrator: config.OrchestratorEKS,
+		},
+		{
+			name:         "unknown",
+			envKey:       "ECS_FARGATE",
+			envValue:     "",
+			orchestrator: config.OrchestratorUnknown,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			t.Setenv(data.envKey, data.envValue)
+			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
+			assert.NoError(err)
+
+			if runtime.GOOS == "darwin" {
+				assert.Equal(config.OrchestratorUnknown, cfg.FargateOrchestrator)
+			} else {
+				assert.Equal(data.orchestrator, cfg.FargateOrchestrator)
+			}
+		})
+	}
+}
+
+func TestSetMaxMemCPU(t *testing.T) {
+	t.Run("default, non-containerized", func(t *testing.T) {
+		cleanConfig()
+		defer cleanConfig()
+		c := config.New()
+		setMaxMemCPU(c, false)
+		assert.Equal(t, 0.5, c.MaxCPU)
+		assert.Equal(t, 5e8, c.MaxMemory)
+	})
+
+	t.Run("default, containerized", func(t *testing.T) {
+		cleanConfig()
+		defer cleanConfig()
+		c := config.New()
+		setMaxMemCPU(c, true)
+		assert.Equal(t, 0.0, c.MaxCPU)
+		assert.Equal(t, 0.0, c.MaxMemory)
+	})
+
+	t.Run("limits set, non-containerized", func(t *testing.T) {
+		cleanConfig()
+		defer cleanConfig()
+		c := config.New()
+		coreconfig.Datadog.Set("apm_config.max_cpu_percent", "20")
+		coreconfig.Datadog.Set("apm_config.max_memory", "200")
+		setMaxMemCPU(c, false)
+		assert.Equal(t, 0.2, c.MaxCPU)
+		assert.Equal(t, 200.0, c.MaxMemory)
+	})
+
+	t.Run("limits set, containerized", func(t *testing.T) {
+		cleanConfig()
+		defer cleanConfig()
+		c := config.New()
+		coreconfig.Datadog.Set("apm_config.max_cpu_percent", "30")
+		coreconfig.Datadog.Set("apm_config.max_memory", "300")
+		setMaxMemCPU(c, true)
+		assert.Equal(t, 0.3, c.MaxCPU)
+		assert.Equal(t, 300.0, c.MaxMemory)
 	})
 }

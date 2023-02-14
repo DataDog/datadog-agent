@@ -10,7 +10,8 @@ package module
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
+	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,21 +22,38 @@ type ProcessMonitoring struct {
 }
 
 // HandleEvent implement the EventHandler interface
-func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
+func (p *ProcessMonitoring) HandleEvent(event *smodel.Event) {
 	// Force resolution of all event fields before exposing it through the API server
-	event.ResolveFields(false)
+	event.ResolveFields()
 	event.ResolveEventTimestamp()
 
-	entry := event.ResolveProcessCacheEntry()
+	entry, _ := event.ResolveProcessCacheEntry()
 	if entry == nil {
 		return
 	}
 
-	e := &model.ProcessMonitoringEvent{
-		ProcessCacheEntry: entry,
-		EventType:         event.GetEventType().String(),
-		CollectionTime:    event.Timestamp,
-		ExitCode:          event.Exit.Code,
+	var cmdline []string
+	if entry.ArgsEntry != nil {
+		// ignore if the args have been truncated
+		cmdline, _ = entry.ArgsEntry.ToArray()
+	}
+
+	e := &model.ProcessEvent{
+		EventType:      model.NewEventType(event.GetEventType().String()),
+		CollectionTime: event.Timestamp,
+		Pid:            entry.Pid,
+		ContainerID:    entry.ContainerID,
+		Ppid:           entry.PPid,
+		UID:            entry.UID,
+		GID:            entry.GID,
+		Username:       entry.User,
+		Group:          entry.Group,
+		Exe:            entry.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
+		Cmdline:        cmdline,
+		ForkTime:       entry.ForkTime,
+		ExecTime:       entry.ExecTime,
+		ExitTime:       entry.ExitTime,
+		ExitCode:       event.Exit.Code,
 	}
 
 	data, err := e.MarshalMsg(nil)
@@ -44,11 +62,11 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 		return
 	}
 
-	p.module.apiServer.SendProcessEvent(data)
+	p.module.SendProcessEvent(data)
 }
 
 // HandleCustomEvent implement the EventHandler interface
-func (p *ProcessMonitoring) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+func (p *ProcessMonitoring) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 
 // NewProcessMonitoring returns a new ProcessMonitoring instance

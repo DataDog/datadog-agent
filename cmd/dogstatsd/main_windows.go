@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
+	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -31,12 +33,6 @@ var (
 
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
-
-	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
-		"no": false, "false": false, "0": false}
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
-		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
 )
 
 func init() {
@@ -68,7 +64,7 @@ func main() {
 	}
 	defer log.Flush()
 
-	if err = MakeRootCommand().Execute(); err != nil {
+	if err = command.MakeRootCommand(defaultLogFile).Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
@@ -84,17 +80,21 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	log.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cliParams := &cliParams{}
-	err := runDogstatsdFct(
+	cliParams := &start.CLIParams{}
+
+	err := start.RunDogstatsdFct(
 		cliParams,
 		DefaultConfPath,
-		func(config config.Component) error { return runAgent(ctx, cliParams, config) })
+		defaultLogFile,
+		func(config config.Component, params *start.Params) error {
+			return start.RunAgent(ctx, cliParams, config, params)
+		})
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
-		stopAgent(cancel)
+		start.StopAgent(cancel)
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
@@ -131,7 +131,7 @@ loop:
 	elog.Info(0x40000006, ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	stopAgent(cancel)
+	start.StopAgent(cancel)
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }

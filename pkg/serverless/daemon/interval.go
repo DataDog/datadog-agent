@@ -49,13 +49,9 @@ func (d *Daemon) InvocationInterval() time.Duration {
 	if len(d.lastInvocations) < 20 {
 		return 0
 	}
-
-	var total int64
-	for i := 1; i < len(d.lastInvocations); i++ {
-		total += int64(d.lastInvocations[i].Sub(d.lastInvocations[i-1]))
-	}
-
-	return time.Duration(total / int64(len(d.lastInvocations)-1))
+	invs := len(d.lastInvocations)
+	total := int64(d.lastInvocations[invs-1].Sub(d.lastInvocations[0]))
+	return time.Duration(total / int64(invs-1))
 }
 
 // AutoSelectStrategy uses the invocation interval of the function to select the

@@ -191,6 +191,10 @@ func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
 	prs.newStore = make(map[string][]uint16)
 }
 
+// buildStoreKey will use the input data (sourceAddr, destAddr, endpoint type, port)
+// and convert it to a key with `string` type. The actual elements of the key are in `[]byte`,
+// but we cast them to `string` and concat into a single `string` to be able to use it as map key
+// (`[]byte` is mutable and can't be used as map key).
 func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) string {
 	var portPart1, portPart2 = uint8(port >> 8), uint8(port & 0xff)
 	return string(sourceAddr) + string(destAddr) + string([]byte{byte(endpointT)}) + string([]byte{portPart1, portPart2})

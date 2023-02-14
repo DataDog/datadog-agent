@@ -12,10 +12,10 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/atomic"
 	"k8s.io/client-go/tools/cache"
 )
@@ -72,11 +72,14 @@ func (cv *CollectorVersions) CollectorForVersion(version string) (Collector, boo
 
 // CollectorMetadata contains information about a collector.
 type CollectorMetadata struct {
-	IsDefaultVersion bool
-	IsStable         bool
-	Name             string
-	NodeType         orchestrator.NodeType
-	Version          string
+	IsDefaultVersion          bool
+	IsMetadataProducer        bool
+	IsManifestProducer        bool
+	IsStable                  bool
+	SupportsManifestBuffering bool
+	Name                      string
+	NodeType                  model.K8SResource
+	Version                   string
 }
 
 // FullName returns a string that contains the collector name and version.
@@ -104,4 +107,15 @@ type CollectorRunResult struct {
 	Result             processors.ProcessResult
 	ResourcesListed    int
 	ResourcesProcessed int
+}
+
+func NewProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.ProcessorContext {
+	return &processors.ProcessorContext{
+		APIClient:          rcfg.APIClient,
+		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", metadata.Version),
+		Cfg:                rcfg.Config,
+		ClusterID:          rcfg.ClusterID,
+		MsgGroupID:         rcfg.MsgGroupRef.Inc(),
+		NodeType:           metadata.NodeType,
+	}
 }

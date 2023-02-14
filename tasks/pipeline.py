@@ -14,7 +14,13 @@ from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
-from .libs.pipeline_notifications import base_message, find_job_owners, get_failed_tests, send_slack_message
+from .libs.pipeline_notifications import (
+    GITHUB_SLACK_MAP,
+    base_message,
+    find_job_owners,
+    get_failed_tests,
+    send_slack_message,
+)
 from .libs.pipeline_stats import get_failed_jobs_stats
 from .libs.pipeline_tools import (
     FilteredOutException,
@@ -23,7 +29,7 @@ from .libs.pipeline_tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from .libs.types import FailedJobType, SlackMessage, TeamMessage
+from .libs.types import SlackMessage, TeamMessage
 from .utils import (
     DEFAULT_BRANCH,
     get_all_allowed_repo_branches,
@@ -320,30 +326,6 @@ def wait_for_pipeline_from_ref(gitlab, ref):
 
 # Tasks to trigger pipeline notifications
 
-GITHUB_SLACK_MAP = {
-    "@DataDog/agent-platform": "#agent-platform",
-    "@DataDog/container-integrations": "#container-integrations",
-    "@DataDog/platform-integrations": "#platform-integrations",
-    "@DataDog/agent-network": "#network-agent",
-    "@DataDog/agent-security": "#security-and-compliance-agent-ops",
-    "@DataDog/agent-apm": "#apm-agent",
-    "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
-    "@DataDog/processes": "#process-agent-ops",
-    "@DataDog/agent-core": "#agent-core",
-    "@DataDog/agent-metrics-logs": "#agent-metrics-logs",
-    "@DataDog/agent-shared-components": "#agent-shared-components",
-    "@DataDog/container-app": "#container-app",
-    "@DataDog/metrics-aggregation": "#metrics-aggregation",
-    "@DataDog/serverless": "#serverless-agent",
-    "@DataDog/remote-config": "#remote-config-monitoring",
-    "@DataDog/agent-all": "#datadog-agent-pipelines",
-    "@DataDog/ebpf-platform": "#ebpf-platform",
-    "@DataDog/Networks": "#networks",
-    "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
-    "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
-    "@DataDog/opentelemetry": "#opentelemetry-ops",
-}
-
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
 """
@@ -506,7 +488,7 @@ def send_stats(_, print_to_stdout=False):
     project_name = "DataDog/datadog-agent"
 
     try:
-        job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
+        global_failure_reason, job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
     except Exception as e:
         print("Found exception when generating statistics:")
         print(e)
@@ -520,32 +502,21 @@ def send_stats(_, print_to_stdout=False):
     timestamp = int(datetime.now().timestamp())
     series = []
 
-    # This stores the reason why a pipeline ultimately failed.
-    # The goal is to have a statistic of the number of pipelines that fail
-    # only due to infrastructure failures.
-    global_failure_reason = None
-    for failure_type, failure_reasons in job_failure_stats.items():
-        if failure_type == FailedJobType.JOB_FAILURE:
-            global_failure_reason = FailedJobType.JOB_FAILURE.name
-        elif failure_type == FailedJobType.INFRA_FAILURE and not global_failure_reason:
-            global_failure_reason = FailedJobType.INFRA_FAILURE.name
-
-        for failure_reason, count in failure_reasons.items():
-            # This allows getting stats on the number of jobs that fail due to infrastructure
-            # issues vs. other failures, and have a per-pipeline ratio of infrastructure failures.
-            series.append(
-                create_count(
-                    metric_name="datadog.ci.job_failures",
-                    timestamp=timestamp,
-                    value=count,
-                    tags=[
-                        "repository:datadog-agent",
-                        f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-                        f"type:{failure_type.name}",
-                        f"reason:{failure_reason.name}",
-                    ],
-                )
+    for failure_tags, count in job_failure_stats.items():
+        # This allows getting stats on the number of jobs that fail due to infrastructure
+        # issues vs. other failures, and have a per-pipeline ratio of infrastructure failures.
+        series.append(
+            create_count(
+                metric_name="datadog.ci.job_failures",
+                timestamp=timestamp,
+                value=count,
+                tags=list(failure_tags)
+                + [
+                    "repository:datadog-agent",
+                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+                ],
             )
+        )
 
     if job_failure_stats:  # At least one job failed
         pipeline_state = "failed"

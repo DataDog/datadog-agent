@@ -34,7 +34,7 @@ var (
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
-	EventsPerfRingBufferSize = 257 * os.Getpagesize()
+	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 	// defaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 	// Must be a power of 2 and a multiple of the page size
 	defaultEventsRingBufferSize uint32
@@ -46,10 +46,12 @@ func init() {
 		numCPU = 1
 	}
 
-	if numCPU < 64 {
-		defaultEventsRingBufferSize = uint32(64 * 256 * os.Getpagesize())
+	if numCPU <= 16 {
+		defaultEventsRingBufferSize = uint32(8 * 256 * os.Getpagesize())
+	} else if numCPU <= 64 {
+		defaultEventsRingBufferSize = uint32(16 * 256 * os.Getpagesize())
 	} else {
-		defaultEventsRingBufferSize = uint32(128 * 256 * os.Getpagesize())
+		defaultEventsRingBufferSize = uint32(32 * 256 * os.Getpagesize())
 	}
 }
 
@@ -91,7 +93,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
 				EBPFFuncName: "sys_exit",
 			},
 		},
@@ -99,7 +100,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "kprobe/security_inode_getattr",
 				EBPFFuncName: "kprobe_security_inode_getattr",
 			},
 		},
@@ -132,8 +132,6 @@ func AllMaps() []*manager.Map {
 		// SELinux tables
 		{Name: "selinux_write_buffer"},
 		{Name: "selinux_enforce_status"},
-		// Flushing discarders boolean
-		{Name: "flushing_discarders"},
 		// Enabled event mask
 		{Name: "enabled_events"},
 	}

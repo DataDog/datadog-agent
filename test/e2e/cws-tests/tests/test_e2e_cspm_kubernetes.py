@@ -6,7 +6,7 @@ import warnings
 
 import emoji
 from lib.const import CSPM_START_LOG
-from lib.cspm.api import App, wait_for_compliance_event, wait_for_findings
+from lib.cspm.api import App
 from lib.kubernetes import KubernetesHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
@@ -221,8 +221,9 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="wait for datadog.security_agent.compliance.running metric", emoji="\N{beer mug}"):
             self.app.wait_for_metric("datadog.security_agent.compliance.running", host=TestE2EKubernetes.hostname)
 
-        with Step(msg="check app compliance event", emoji=":SOON_arrow:"):
-            wait_for_compliance_event(f"resource_id:{self.resource_id}")
+        ## Disabled while no CSPM API is available
+        # with Step(msg="check app compliance event", emoji=":SOON_arrow:"):
+        #     wait_for_compliance_event(f"resource_id:{self.resource_id}")
 
         with Step(msg="wait for finding generation (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)
@@ -232,8 +233,9 @@ class TestE2EKubernetes(unittest.TestCase):
                 "datadog.security_agent.compliance.containers_running", host=TestE2EKubernetes.hostname
             )
 
-        with Step(msg="check app findings", emoji=":chart_increasing_with_yen:"):
-            wait_for_findings(f"@resource_type:kubernetes_*_node @resource:{self.resource_id}")
+        ## Disabled while no CSPM API is available
+        # with Step(msg="check app findings", emoji=":chart_increasing_with_yen:"):
+        #     wait_for_findings(f"@resource_type:kubernetes_*_node @resource:{self.resource_id}")
 
         print(emoji.emojize(":heart_on_fire:"), flush=True)
 

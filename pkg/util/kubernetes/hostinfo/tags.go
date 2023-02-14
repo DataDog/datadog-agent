@@ -24,7 +24,7 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 	if len(labelsToTags) > 0 {
 		var nodeLabels map[string]string
 		nodeInfo, e := NewNodeInfo()
-		if err != nil {
+		if e != nil {
 			err = e
 		} else {
 			nodeLabels, e = nodeInfo.GetNodeLabels(ctx)

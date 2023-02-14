@@ -134,7 +134,7 @@ func TestCheckRun(t *testing.T) {
 				e.ExpireAt = time.Time{}
 				return cmp.Equal(e, test.expectEvent)
 			})).Maybe()
-			checkable.On("check", check).Return(test.checkReports)
+			checkable.On("Check", check).Return(test.checkReports)
 
 			err := check.Run()
 			assert.Equal(test.expectErr, err)

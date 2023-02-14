@@ -18,7 +18,6 @@ import (
 )
 
 // Profile holds the list of rules generated from an activity dump
-//msgp:ignore Profile
 type Profile struct {
 	Name     string
 	Selector string
@@ -26,7 +25,6 @@ type Profile struct {
 }
 
 // ProfileRule contains the data required to generate a rule
-//msgp:ignore ProfileRule
 type ProfileRule struct {
 	ID         string
 	Expression string

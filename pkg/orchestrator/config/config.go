@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -44,6 +45,8 @@ type OrchestratorConfig struct {
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
 	IsManifestCollectionEnabled    bool
+	BufferedManifestEnabled        bool
+	ManifestBufferFlushInterval    time.Duration
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -102,19 +105,14 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// Orchestrator Explorer
-	if config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
-		oc.OrchestrationCollectionEnabled = true
-		// Set clustername
-		hname, _ := hostname.Get(context.TODO())
-		if clusterName := clustername.GetClusterName(context.TODO(), hname); clusterName != "" {
-			oc.KubeClusterName = clusterName
-		}
-	}
+	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
 
 	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(key(orchestratorNS, "collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
 	oc.ExtraTags = config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags"))
 	oc.IsManifestCollectionEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.enabled"))
+	oc.BufferedManifestEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.buffer_manifest"))
+	oc.ManifestBufferFlushInterval = config.Datadog.GetDuration(key(orchestratorNS, "manifest_collection.buffer_flush_interval"))
 
 	return nil
 }
@@ -196,4 +194,16 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 	}
 
 	setter(val)
+}
+
+// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
+func IsOrchestratorEnabled() (bool, string) {
+	enabled := config.Datadog.GetBool(key(orchestratorNS, "enabled"))
+	var clusterName string
+	if enabled {
+		// Set clustername
+		hname, _ := hostname.Get(context.TODO())
+		clusterName = clustername.GetClusterName(context.TODO(), hname)
+	}
+	return enabled, clusterName
 }

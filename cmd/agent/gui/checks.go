@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -200,7 +199,7 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("Error: Unable to join config path with the file name: %s", fileName)
 			continue
 		}
-		file, e = ioutil.ReadFile(filePath)
+		file, e = os.ReadFile(filePath)
 		if e == nil {
 			break
 		}
@@ -267,7 +266,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
-		e = ioutil.WriteFile(path, data, 0600)
+		e = os.WriteFile(path, data, 0600)
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
@@ -277,7 +276,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
-			e = ioutil.WriteFile(path, data, 0600)
+			e = os.WriteFile(path, data, 0600)
 		}
 
 		if e != nil {
@@ -341,13 +340,13 @@ func getWheelsChecks() ([]string, error) {
 func listChecks(w http.ResponseWriter, r *http.Request) {
 	integrations := []string{}
 	for _, path := range checkPaths {
-		files, err := ioutil.ReadDir(path)
+		files, err := os.ReadDir(path)
 		if err != nil {
 			continue
 		}
 
 		for _, file := range files {
-			if ext := filepath.Ext(file.Name()); ext == ".py" && file.Mode().IsRegular() {
+			if ext := filepath.Ext(file.Name()); ext == ".py" && file.Type().IsRegular() {
 				integrations = append(integrations, file.Name())
 			}
 		}
@@ -442,7 +441,7 @@ func listConfigs(w http.ResponseWriter, r *http.Request) {
 // Helper function which returns all the filenames in a check config directory
 func readConfDir(path string) ([]string, error) {
 	var filenames []string
-	entries, err := ioutil.ReadDir(path)
+	entries, err := os.ReadDir(path)
 	if err != nil {
 		return filenames, err
 	}
@@ -454,10 +453,10 @@ func readConfDir(path string) ([]string, error) {
 				continue
 			}
 
-			subEntries, err := ioutil.ReadDir(filepath.Join(path, entry.Name()))
+			subEntries, err := os.ReadDir(filepath.Join(path, entry.Name()))
 			if err == nil {
 				for _, subEntry := range subEntries {
-					if hasRightEnding(subEntry.Name()) && subEntry.Mode().IsRegular() {
+					if hasRightEnding(subEntry.Name()) && subEntry.Type().IsRegular() {
 						// Save the full path of the config file {check_name.d}/{filename}
 						filenames = append(filenames, entry.Name()+"/"+subEntry.Name())
 					}
@@ -466,7 +465,7 @@ func readConfDir(path string) ([]string, error) {
 			continue
 		}
 
-		if hasRightEnding(entry.Name()) && entry.Mode().IsRegular() {
+		if hasRightEnding(entry.Name()) && entry.Type().IsRegular() {
 			filenames = append(filenames, entry.Name())
 		}
 	}

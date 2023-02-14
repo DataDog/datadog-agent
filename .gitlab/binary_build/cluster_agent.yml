@@ -3,6 +3,7 @@
   stage: binary_build
   needs: ["go_mod_tidy_check"]
   script:
+    - inv check-go-version
     - inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
     - $S3_CP_CMD $CI_PROJECT_DIR/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml

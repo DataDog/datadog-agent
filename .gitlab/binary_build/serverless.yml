@@ -4,6 +4,7 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - inv check-go-version
     - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless -o $BINARY_NAME
 
 .check_size_common:

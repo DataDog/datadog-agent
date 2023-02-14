@@ -45,6 +45,9 @@ Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
 pkg/status/template.go
 
+# gotestsum-generated files
+module_test_output.json
+
 # jetbrains IDE directory
 /.idea/
 
@@ -108,7 +111,14 @@ system-probe-msg.h
 **/.ninja_log
 **/.ninja_deps
 *.ninja
-*.d
+pkg/ebpf/bytecode/build/**/*.d
+pkg/ebpf/bytecode/runtime/conntrack.go
+pkg/ebpf/bytecode/runtime/http.go
+pkg/ebpf/bytecode/runtime/oom-kill.go
+pkg/ebpf/bytecode/runtime/runtime-security.go
+pkg/ebpf/bytecode/runtime/tcp-queue-length.go
+pkg/ebpf/bytecode/runtime/tracer.go
+pkg/security/tests/syscall_tester/**/*.d
 
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
@@ -138,6 +148,7 @@ pkg/ebpf/bytecode/build/
 
 # CGo generated object files
 pkg/network/**/_obj/
+pkg/util/winutil/**/_obj/
 
 # windows container build output
 build.out/
@@ -174,3 +185,17 @@ TAGS
 
 # cscope
 cscope.out
+
+# Go workspace until we have proper support in the tooling
+go.work*
+
+tools/windows/DatadogAgentInstaller/.vs/
+tools/windows/DatadogAgentInstaller/packages/
+tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
+*.wixobj
+*obj*
+*.g.wxs
+*.DotSettings.user
+
+# e2e test intake generated binary
+test/fake-intake/fake-intake

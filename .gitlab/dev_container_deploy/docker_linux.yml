@@ -38,23 +38,6 @@ dev_branch-dogstatsd:
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
-dev_branch-a7:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules:
-    !reference [.on_a7_manual]
-  needs:
-    - docker_build_agent7
-    - docker_build_agent7_jmx
-  variables:
-    IMG_REGISTRIES: dev
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
-
 dev_branch_multiarch-a6:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
@@ -81,7 +64,7 @@ dev_branch_multiarch-a7:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_all_builds_a7_manual]
+    !reference [.on_a7_manual]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64

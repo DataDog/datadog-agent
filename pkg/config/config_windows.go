@@ -17,7 +17,6 @@ var (
 	defaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = "c:\\programdata\\datadog\\run"
-	defaultSyslogURI            = ""
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"

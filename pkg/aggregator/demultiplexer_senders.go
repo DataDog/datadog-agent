@@ -60,15 +60,6 @@ func (s *senders) DestroySender(id check.ID) {
 	s.senderPool.removeSender(id)
 }
 
-// ChangeAllSendersDefaultHostname is to be called by the aggregator
-// when its hostname changes. All existing senders will have their
-// default hostname updated.
-func (s *senders) ChangeAllSendersDefaultHostname(hostname string) {
-	if s.senderPool != nil {
-		s.senderPool.changeAllSendersDefaultHostname(hostname)
-	}
-}
-
 // getDefaultSender returns a default sender.
 func (s *senders) GetDefaultSender() (Sender, error) {
 	s.senderInit.Do(func() {
@@ -83,6 +74,8 @@ func (s *senders) GetDefaultSender() (Sender, error) {
 			s.agg.orchestratorManifestIn,
 			s.agg.eventPlatformIn,
 			s.agg.contLcycleIn,
+			s.agg.contImageIn,
+			s.agg.sbomIn,
 		)
 	})
 	return s.defaultSender, nil

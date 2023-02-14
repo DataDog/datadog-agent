@@ -1,8 +1,15 @@
 #include "kconfig.h"
-#include <linux/version.h>
-
+#include "ktypes.h"
+#include "bpf_tracing.h"
 #include "bpf_telemetry.h"
 #include "bpf_endian.h"
+
+#include <linux/version.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
+
+#include "defs.h"
 #include "conntrack.h"
 #include "conntrack-maps.h"
 #include "netns.h"

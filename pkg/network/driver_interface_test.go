@@ -20,10 +20,8 @@ import (
 type TestDriverHandleInfiniteLoop struct {
 	t *testing.T
 	// state variables
-	hasBeenCalled   bool
-	lastReturnBytes uint32
-	lastBufferSize  int
-	lastError       error
+	hasBeenCalled  bool
+	lastBufferSize int
 }
 
 func (tdh *TestDriverHandleInfiniteLoop) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
@@ -74,21 +72,12 @@ func TestConnectionStatsInfiniteLoop(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to create new driver interface")
 
-	_, _, err = di.GetConnectionStats(activeBuf, closedBuf, func(c *ConnectionStats) bool {
+	_, err = di.GetClosedConnectionStats(closedBuf, func(c *ConnectionStats) bool {
 		return true
 	})
 	require.NoError(t, err, "Failed to get connection stats")
-}
-
-type TestDriverHandleFiltersSuccess struct {
-	t *testing.T
-	// state variables
-	hasBeenCalled   bool
-	lastReturnBytes uint32
-	lastBufferSize  int
-	lastError       error
-}
-
-func (tdh *TestDriverHandleFiltersSuccess) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
-	return nil
+	_, err = di.GetOpenConnectionStats(activeBuf, func(c *ConnectionStats) bool {
+		return true
+	})
+	require.NoError(t, err, "Failed to get connection stats")
 }
