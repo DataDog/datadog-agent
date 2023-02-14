@@ -65,6 +65,7 @@ pull_test_dockers_arm64:
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
     # package all the dependencies
+    - ls -la $DEPENDENCIES
     - tar czvf $ARCHIVE_NAME $DEPENDENCIES
     - popd
   artifacts:
