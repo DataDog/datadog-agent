@@ -79,7 +79,7 @@ package_dependencies_x64:
 
 package_testsuites_arm64:
   extends:
-    - .package_testsuites
+    - .package_dependencies
   needs: ["tests_ebpf_arm64"]
   variables:
     ARCHIVE_NAME: "dependencies-arm64.tar.gz"
