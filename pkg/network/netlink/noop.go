@@ -37,12 +37,6 @@ func (*noOpConntracker) Close() {}
 
 func (*noOpConntracker) RefreshTelemetry() {}
 
-func (*noOpConntracker) GetStats() map[string]int64 {
-	return map[string]int64{
-		"noop_conntracker": 0,
-	}
-}
-
 func (c *noOpConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
 	return nil, nil
 }

@@ -34,6 +34,8 @@ const (
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
+
+	telemetryModuleName = "network_tracer.state"
 )
 
 // State takes care of handling the logic for:
@@ -85,7 +87,7 @@ type Delta struct {
 	DNSStats dns.StatsByKeyByNameByType
 }
 
-type telemetry struct {
+type stateTelemetry struct {
 	closedConnDropped     nettelemetry.StatGaugeWrapper
 	connDropped           nettelemetry.StatGaugeWrapper
 	statsUnderflows       nettelemetry.StatGaugeWrapper
@@ -96,16 +98,16 @@ type telemetry struct {
 	dnsPidCollisions      nettelemetry.StatGaugeWrapper
 }
 
-func newTelemetry() telemetry {
-	return telemetry{
-		closedConnDropped:     nettelemetry.NewStatGaugeWrapper("network_state", "closed_conn_dropped", []string{}, "desc"),
-		connDropped:           nettelemetry.NewStatGaugeWrapper("network_state", "conn_dropped", []string{}, "desc"),
-		statsUnderflows:       nettelemetry.NewStatGaugeWrapper("network_state", "stats_underflows", []string{}, "desc"),
-		statsCookieCollisions: nettelemetry.NewStatGaugeWrapper("network_state", "stats_cookie_collisions", []string{}, "desc"),
-		timeSyncCollisions:    nettelemetry.NewStatGaugeWrapper("network_state", "time_sync_collisions", []string{}, "desc"),
-		dnsStatsDropped:       nettelemetry.NewStatGaugeWrapper("network_state", "dns_stats_dropped", []string{}, "desc"),
-		httpStatsDropped:      nettelemetry.NewStatGaugeWrapper("network_state", "http_stats_dropped", []string{}, "desc"),
-		dnsPidCollisions:      nettelemetry.NewStatGaugeWrapper("network_state", "dns_pid_collisions", []string{}, "desc"),
+func newTelemetry() stateTelemetry {
+	return stateTelemetry{
+		closedConnDropped:     nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "closed_conn_dropped", []string{}, "desc"),
+		connDropped:           nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "conn_dropped", []string{}, "desc"),
+		statsUnderflows:       nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "stats_underflows", []string{}, "desc"),
+		statsCookieCollisions: nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "stats_cookie_collisions", []string{}, "desc"),
+		timeSyncCollisions:    nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "time_sync_collisions", []string{}, "desc"),
+		dnsStatsDropped:       nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "dns_stats_dropped", []string{}, "desc"),
+		httpStatsDropped:      nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "http_stats_dropped", []string{}, "desc"),
+		dnsPidCollisions:      nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "dns_pid_collisions", []string{}, "desc"),
 	}
 }
 
@@ -152,8 +154,8 @@ type networkState struct {
 
 	// clients is a map of the connection id string to the client structure
 	clients       map[string]*client
-	telemetry     telemetry // Monotonic state telemetry
-	lastTelemetry telemetry // Old telemetry state; used for logging
+	telemetry     stateTelemetry // Monotonic state telemetry
+	lastTelemetry stateTelemetry // Old telemetry state; used for logging
 
 	latestTimeEpoch uint64
 
@@ -637,16 +639,6 @@ func (ns *networkState) GetStats() map[string]interface{} {
 
 	return map[string]interface{}{
 		"clients": clientInfo,
-		"telemetry": map[string]int64{
-			"stats_underflows":        ns.telemetry.statsUnderflows.Load(),
-			"stats_cookie_collisions": ns.telemetry.statsCookieCollisions.Load(),
-			"closed_conn_dropped":     ns.telemetry.closedConnDropped.Load(),
-			"conn_dropped":            ns.telemetry.connDropped.Load(),
-			"time_sync_collisions":    ns.telemetry.timeSyncCollisions.Load(),
-			"dns_stats_dropped":       ns.telemetry.dnsStatsDropped.Load(),
-			"http_stats_dropped":      ns.telemetry.httpStatsDropped.Load(),
-			"dns_pid_collisions":      ns.telemetry.dnsPidCollisions.Load(),
-		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,
 	}

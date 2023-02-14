@@ -181,20 +181,6 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	}
 }
 
-func (g *gatewayLookup) GetStats() map[string]interface{} {
-	stats := make(map[string]interface{})
-	if g == nil {
-		return stats
-	}
-	stats["subnet_cache_size"] = g.subnetCacheSize.Load()
-	stats["subnet_cache_misses"] = g.subnetCacheMisses.Load()
-	stats["subnet_cache_lookups"] = g.subnetCacheLookups.Load()
-	stats["subnet_lookups"] = g.subnetLookups.Load()
-	stats["subnet_lookup_errors"] = g.subnetLookupErrors.Load()
-	stats["route_cache"] = g.routeCache.GetStats()
-	return stats
-}
-
 func (g *gatewayLookup) Close() {
 	g.rootNetNs.Close()
 	g.routeCache.Close()

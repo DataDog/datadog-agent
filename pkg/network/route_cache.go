@@ -20,8 +20,8 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -48,25 +48,27 @@ type routeCache struct {
 	router Router
 	ttl    time.Duration
 
-	size    nettelemetry.StatGaugeWrapper
-	misses  nettelemetry.StatGaugeWrapper
-	lookups nettelemetry.StatGaugeWrapper
-	expires nettelemetry.StatGaugeWrapper
+	size    telemetry.Gauge
+	misses  telemetry.Gauge
+	lookups telemetry.Gauge
+	expires telemetry.Gauge
 }
 
-const defaultTTL = 2 * time.Minute
+const (
+	defaultTTL                       = 2 * time.Minute
+	routeCacheTelemetryModuleName    = "network_tracer.gateway_lookup.route_cache"
+	netlinkRouterTelemetryModuleName = "network_tracer.gateway_lookup.route_cache.router"
+)
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
 type RouteCache interface {
 	Get(source, dest util.Address, netns uint32) (Route, bool)
-	GetStats() map[string]interface{}
 	Close()
 }
 
 // Router is an interface to get a route for a (source, destination, net ns) tuple
 type Router interface {
 	Route(source, dest util.Address, netns uint32) (Route, bool)
-	GetStats() map[string]interface{}
 	Close()
 }
 
@@ -86,10 +88,10 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 		router: router,
 		ttl:    ttl,
 
-		size:    nettelemetry.NewStatGaugeWrapper("route_cache", "size", []string{}, "description"),
-		misses:  nettelemetry.NewStatGaugeWrapper("route_cache", "misses", []string{}, "description"),
-		lookups: nettelemetry.NewStatGaugeWrapper("route_cache", "lookups", []string{}, "description"),
-		expires: nettelemetry.NewStatGaugeWrapper("route_cache", "expires", []string{}, "description"),
+		size:    telemetry.NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "description"),
+		misses:  telemetry.NewGauge(routeCacheTelemetryModuleName, "misses", []string{}, "description"),
+		lookups: telemetry.NewGauge(routeCacheTelemetryModuleName, "lookups", []string{}, "description"),
+		expires: telemetry.NewGauge(routeCacheTelemetryModuleName, "expires", []string{}, "description"),
 	}
 
 	return rc
@@ -135,16 +137,6 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 	return Route{}, false
 }
 
-func (c *routeCache) GetStats() map[string]interface{} {
-	stats := make(map[string]interface{})
-	stats["size"] = c.size.Load()
-	stats["misses"] = c.misses.Load()
-	stats["lookups"] = c.lookups.Load()
-	stats["expires"] = c.expires.Load()
-	stats["router"] = c.router.GetStats()
-	return stats
-}
-
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
 	k := routeKey{netns: netns, source: source, dest: dest}
 
@@ -173,14 +165,14 @@ type netlinkRouter struct {
 	ifcache  *lru.Cache
 	nlHandle *netlink.Handle
 
-	netlinkLookups nettelemetry.StatGaugeWrapper
-	netlinkErrors  nettelemetry.StatGaugeWrapper
-	netlinkMisses  nettelemetry.StatGaugeWrapper
+	netlinkLookups telemetry.Gauge
+	netlinkErrors  telemetry.Gauge
+	netlinkMisses  telemetry.Gauge
 
-	ifCacheLookups nettelemetry.StatGaugeWrapper
-	ifCacheMisses  nettelemetry.StatGaugeWrapper
-	ifCacheSize    nettelemetry.StatGaugeWrapper
-	ifCacheErrors  nettelemetry.StatGaugeWrapper
+	ifCacheLookups telemetry.Gauge
+	ifCacheMisses  telemetry.Gauge
+	ifCacheSize    telemetry.Gauge
+	ifCacheErrors  telemetry.Gauge
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
@@ -218,14 +210,14 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 		ifcache:  lru.New(128),
 		nlHandle: nlHandle,
 
-		netlinkLookups: nettelemetry.NewStatGaugeWrapper("netlink_router", "netlink_lookups", []string{}, "description"),
-		netlinkErrors:  nettelemetry.NewStatGaugeWrapper("netlink_router", "netlink_errors", []string{}, "description"),
-		netlinkMisses:  nettelemetry.NewStatGaugeWrapper("netlink_router", "netlink_misses", []string{}, "description"),
+		netlinkLookups: telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_lookups", []string{}, "description"),
+		netlinkErrors:  telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_errors", []string{}, "description"),
+		netlinkMisses:  telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_misses", []string{}, "description"),
 
-		ifCacheLookups: nettelemetry.NewStatGaugeWrapper("netlink_router", "if_cache_lookups", []string{}, "description"),
-		ifCacheMisses:  nettelemetry.NewStatGaugeWrapper("netlink_router", "if_cache_misses", []string{}, "description"),
-		ifCacheSize:    nettelemetry.NewStatGaugeWrapper("netlink_router", "if_cache_size", []string{}, "description"),
-		ifCacheErrors:  nettelemetry.NewStatGaugeWrapper("netlink_router", "if_cache_errors", []string{}, "description"),
+		ifCacheLookups: telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_lookups", []string{}, "description"),
+		ifCacheMisses:  telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_misses", []string{}, "description"),
+		ifCacheSize:    telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_size", []string{}, "description"),
+		ifCacheErrors:  telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_errors", []string{}, "description"),
 	}
 
 	return nr, nil
@@ -235,18 +227,6 @@ func (n *netlinkRouter) Close() {
 	n.ifcache.Clear()
 	unix.Close(n.ioctlFD)
 	n.nlHandle.Close()
-}
-
-func (n *netlinkRouter) GetStats() map[string]interface{} {
-	stats := make(map[string]interface{})
-	stats["netlink_lookups"] = n.netlinkLookups.Load()
-	stats["netlink_errors"] = n.netlinkErrors.Load()
-	stats["netlink_misses"] = n.netlinkMisses.Load()
-	stats["if_cache_lookups"] = n.ifCacheLookups.Load()
-	stats["if_cache_misses"] = n.ifCacheMisses.Load()
-	stats["if_cache_size"] = n.ifCacheSize.Load()
-	stats["if_cache_errors"] = n.ifCacheErrors.Load()
-	return stats
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {

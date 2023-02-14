@@ -22,8 +22,8 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,11 +89,11 @@ type Consumer struct {
 	streaming bool
 
 	// telemetry
-	enobufs     nettelemetry.StatGaugeWrapper
-	throttles   nettelemetry.StatGaugeWrapper
-	samplingPct nettelemetry.StatGaugeWrapper
-	readErrors  nettelemetry.StatGaugeWrapper
-	msgErrors   nettelemetry.StatGaugeWrapper
+	enobufs     telemetry.Gauge
+	throttles   telemetry.Gauge
+	samplingPct telemetry.Gauge
+	readErrors  telemetry.Gauge
+	msgErrors   telemetry.Gauge
 
 	netlinkSeqNumber    uint32
 	listenAllNamespaces bool
@@ -139,11 +139,11 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
-		enobufs:             nettelemetry.NewStatGaugeWrapper("consumer", "enobufs", []string{}, "description"),
-		throttles:           nettelemetry.NewStatGaugeWrapper("consumer", "throttles", []string{}, "description"),
-		samplingPct:         nettelemetry.NewStatGaugeWrapper("consumer", "samplingPct", []string{}, "description"),
-		readErrors:          nettelemetry.NewStatGaugeWrapper("consumer", "readErrors", []string{}, "description"),
-		msgErrors:           nettelemetry.NewStatGaugeWrapper("consumer", "msgErrors", []string{}, "description"),
+		enobufs:             telemetry.NewGauge("network_tracer.conntrack", "enobufs", []string{}, "description"),
+		throttles:           telemetry.NewGauge("network_tracer.conntrack", "throttles", []string{}, "description"),
+		samplingPct:         telemetry.NewGauge("network_tracer.conntrack", "samplingPct", []string{}, "description"),
+		readErrors:          telemetry.NewGauge("network_tracer.conntrack", "readErrors", []string{}, "description"),
+		msgErrors:           telemetry.NewGauge("network_tracer.conntrack", "msgErrors", []string{}, "description"),
 		recvLoopRunning:     atomic.NewBool(false),
 		rootNetNs:           ns,
 	}
@@ -435,17 +435,6 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 	})
 }
 
-// GetStats returns telemetry associated to the Consumer
-func (c *Consumer) GetStats() map[string]int64 {
-	return map[string]int64{
-		"enobufs":     c.enobufs.Load(),
-		"throttles":   c.throttles.Load(),
-		samplingPct:   c.samplingPct.Load(),
-		"read_errors": c.readErrors.Load(),
-		"msg_errors":  c.msgErrors.Load(),
-	}
-}
-
 // Stop the consumer
 func (c *Consumer) Stop() {
 	if c.conn != nil {
@@ -484,7 +473,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
-	c.samplingPct.Set(int64(samplingRate * 100.0))
+	c.samplingPct.Set(float64((samplingRate * 100.0)))
 	if c.samplingRate >= 1.0 {
 		return nil
 	}

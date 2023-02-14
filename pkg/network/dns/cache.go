@@ -12,19 +12,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type reverseDNSCache struct {
 	// Telemetry
-	length    telemetry.StatGaugeWrapper
-	lookups   telemetry.StatGaugeWrapper
-	resolved  telemetry.StatGaugeWrapper
-	added     telemetry.StatGaugeWrapper
-	expired   telemetry.StatGaugeWrapper
-	oversized telemetry.StatGaugeWrapper
+	length    telemetry.Gauge
+	lookups   telemetry.Gauge
+	resolved  telemetry.Gauge
+	added     telemetry.Gauge
+	expired   telemetry.Gauge
+	oversized telemetry.Gauge
 
 	mux  sync.Mutex
 	data map[util.Address]*dnsCacheVal
@@ -38,12 +38,12 @@ type reverseDNSCache struct {
 
 func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
-		length:            telemetry.NewStatGaugeWrapper("dns", "length", []string{}, "description"),
-		lookups:           telemetry.NewStatGaugeWrapper("dns", "lookups", []string{}, "description"),
-		resolved:          telemetry.NewStatGaugeWrapper("dns", "resolved", []string{}, "description"),
-		added:             telemetry.NewStatGaugeWrapper("dns", "added", []string{}, "description"),
-		expired:           telemetry.NewStatGaugeWrapper("dns", "expired", []string{}, "description"),
-		oversized:         telemetry.NewStatGaugeWrapper("dns", "oversized", []string{}, "description"),
+		length:            telemetry.NewGauge("dns", "length", []string{}, "description"),
+		lookups:           telemetry.NewGauge("dns", "lookups", []string{}, "description"),
+		resolved:          telemetry.NewGauge("dns", "resolved", []string{}, "description"),
+		added:             telemetry.NewGauge("dns", "added", []string{}, "description"),
+		expired:           telemetry.NewGauge("dns", "expired", []string{}, "description"),
+		oversized:         telemetry.NewGauge("dns", "oversized", []string{}, "description"),
 		data:              make(map[util.Address]*dnsCacheVal),
 		exit:              make(chan struct{}),
 		size:              size,
@@ -91,7 +91,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	}
 
 	// Update cache length for telemetry purposes
-	c.length.Set(int64(len(c.data)))
+	c.length.Set(float64((len(c.data))))
 
 	return true
 }
@@ -142,9 +142,9 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	}
 
 	// Update stats for telemetry
-	c.lookups.Add(int64(len(resolved) + len(unresolved)))
-	c.resolved.Add(int64(len(resolved)))
-	c.oversized.Add(int64(len(oversized)))
+	c.lookups.Add(float64((len(resolved) + len(unresolved))))
+	c.resolved.Add(float64(len(resolved)))
+	c.oversized.Add(float64(len(oversized)))
 
 	return resolved
 }
@@ -154,25 +154,26 @@ func (c *reverseDNSCache) Len() int {
 	return int(c.length.Load())
 }
 
-func (c *reverseDNSCache) Stats() map[string]int64 {
-	var (
-		lookups   = c.lookups.Load()
-		resolved  = c.resolved.Load()
-		added     = c.added.Load()
-		expired   = c.expired.Load()
-		oversized = c.oversized.Load()
-		ips       = c.length.Load()
-	)
+// func (c *reverseDNSCache) Stats() map[string]int64 {
+	// var (
+	// 	lookups   = c.lookups.Load()
+	// 	resolved  = c.resolved.Load()
+	// 	added     = c.added.Load()
+	// 	expired   = c.expired.Load()
+	// 	oversized = c.oversized.Load()
+	// 	ips       = c.length.Load()
+	// )
 
-	return map[string]int64{
-		"lookups":   lookups,
-		"resolved":  resolved,
-		"added":     added,
-		"expired":   expired,
-		"oversized": oversized,
-		"ips":       ips,
-	}
-}
+	// return map[string]int64{
+	// 	"lookups":   lookups,
+	// 	"resolved":  resolved,
+	// 	"added":     added,
+	// 	"expired":   expired,
+	// 	"oversized": oversized,
+	// 	"ips":       ips,
+	// }
+// 	return make(map[string]int64)
+// }
 
 func (c *reverseDNSCache) Close() {
 	c.exit <- struct{}{}

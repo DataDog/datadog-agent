@@ -23,6 +23,7 @@ import (
 const (
 	dnsCacheExpirationPeriod = 1 * time.Minute
 	dnsCacheSize             = 100000
+	telemetryModuleName = "network_tracer.dns"
 )
 
 var _ ReverseDNS = &socketFilterSnooper{}
@@ -83,11 +84,11 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &socketFilterSnooper{
-		decodingErrors: telemetry.NewStatGaugeWrapper("snooper", "decodingErrors", []string{}, ""),
-		truncatedPkts:  telemetry.NewStatGaugeWrapper("snooper", "truncatedPkts", []string{}, ""),
-		queries:        telemetry.NewStatGaugeWrapper("snooper", "queries", []string{}, ""),
-		successes:      telemetry.NewStatGaugeWrapper("snooper", "successes", []string{}, ""),
-		errors:         telemetry.NewStatGaugeWrapper("snooper", "errors", []string{}, ""),
+		decodingErrors: telemetry.NewStatGaugeWrapper(telemetryModuleName, "decodingErrors", []string{}, ""),
+		truncatedPkts:  telemetry.NewStatGaugeWrapper(telemetryModuleName, "truncatedPkts", []string{}, ""),
+		queries:        telemetry.NewStatGaugeWrapper(telemetryModuleName, "queries", []string{}, ""),
+		successes:      telemetry.NewStatGaugeWrapper(telemetryModuleName, "successes", []string{}, ""),
+		errors:         telemetry.NewStatGaugeWrapper(telemetryModuleName, "errors", []string{}, ""),
 
 		source:          source,
 		parser:          newDNSParser(source.PacketType(), cfg),
@@ -127,27 +128,27 @@ func (s *socketFilterSnooper) GetDNSStats() StatsByKeyByNameByType {
 	return s.statKeeper.GetAndResetAllStats()
 }
 
-// GetStats returns stats for use with telemetry
-func (s *socketFilterSnooper) GetStats() map[string]int64 {
-	stats := s.cache.Stats()
+// // GetStats returns stats for use with telemetry
+// func (s *socketFilterSnooper) GetStats() map[string]int64 {
+// 	stats := s.cache.Stats()
 
-	for key, value := range s.source.Stats() {
-		stats[key] = value
-	}
+// 	for key, value := range s.source.Stats() {
+// 		stats[key] = value
+// 	}
 
-	stats["decoding_errors"] = s.decodingErrors.Load()
-	stats["truncated_packets"] = s.truncatedPkts.Load()
-	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000 // do we need this
-	stats["queries"] = s.queries.Load()
-	stats["successes"] = s.successes.Load()
-	stats["errors"] = s.errors.Load()
-	if s.statKeeper != nil {
-		numStats, droppedStats := s.statKeeper.GetNumStats()
-		stats["num_stats"] = int64(numStats)
-		stats["dropped_stats"] = int64(droppedStats)
-	}
-	return stats
-}
+// 	stats["decoding_errors"] = s.decodingErrors.Load()
+// 	stats["truncated_packets"] = s.truncatedPkts.Load()
+// 	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000 // do we need this
+// 	stats["queries"] = s.queries.Load()
+// 	stats["successes"] = s.successes.Load()
+// 	stats["errors"] = s.errors.Load()
+// 	if s.statKeeper != nil {
+// 		numStats, droppedStats := s.statKeeper.GetNumStats()
+// 		stats["num_stats"] = int64(numStats)
+// 		stats["dropped_stats"] = int64(droppedStats)
+// 	}
+// 	return stats
+// }
 
 // Start starts the snooper (no-op currently)
 func (s *socketFilterSnooper) Start() error {
