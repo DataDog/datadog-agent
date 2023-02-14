@@ -85,13 +85,6 @@ func skipIfNotLinux(t *testing.T, _ testContext) {
 	}
 }
 
-// skipIfUsingNAT skips the test if we have a NAT rules applied.
-func skipIfUsingNAT(t *testing.T, ctx testContext) {
-	if ctx.targetAddress != ctx.serverAddress {
-		t.Skip("test is not supported when NAT is applied")
-	}
-}
-
 // composeSkips skips if one of the given filters is matched.
 func composeSkips(skippers ...func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
 	return func(t *testing.T, ctx testContext) {
@@ -158,7 +151,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 }
 
 func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := skipIfNotLinux
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    mysqlPort,
@@ -471,16 +464,12 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 }
 
 func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := skipIfNotLinux
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    postgresPort,
 		targetAddress: targetHost,
 	})
-
-	if clientHost != "127.0.0.1" {
-		t.Skip("postgres tests are not supported DNat")
-	}
 
 	postgresTeardown := func(t *testing.T, ctx testContext) {
 		db := ctx.extras["db"].(*bun.DB)
@@ -679,7 +668,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 }
 
 func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := skipIfNotLinux
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    mongoPort,
@@ -830,7 +819,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 }
 
 func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := skipIfNotLinux
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    redisPort,
@@ -985,7 +974,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 }
 
 func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := skipIfNotLinux
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    amqpPort,
@@ -1417,22 +1406,6 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 		}
 
 		time.Sleep(200 * time.Millisecond)
-	}
-
-	// If we didn't find both -> fail
-	if foundOutgoingWithProtocol || foundIncomingWithProtocol {
-		// We have found at least one.
-		// Checking if the reason for not finding the other is flakiness of npm
-		if !foundIncomingWithProtocol && len(incomingConns) == 0 {
-			t.Log("npm didn't find the incoming connections, not failing the test")
-			return
-		}
-
-		if !foundOutgoingWithProtocol && len(outgoingConns) == 0 {
-			t.Log("npm didn't find the outgoing connections, not failing the test")
-			return
-		}
-
 	}
 
 	t.Errorf("couldn't find incoming and outgoing connections with protocol %d for "+
