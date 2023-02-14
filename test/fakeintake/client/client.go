@@ -37,9 +37,7 @@ func (c *Client) GetFakePayloads(endpoint string) (rawPayloads [][]byte, err err
 	if err != nil {
 		return nil, err
 	}
-	response := api.GetPayloadResponse{
-		Payloads: [][]byte{},
-	}
+	var response api.APIFakeIntakePayloadsGETResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return nil, err

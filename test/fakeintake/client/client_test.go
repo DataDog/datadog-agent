@@ -28,7 +28,7 @@ func TestClient(t *testing.T) {
 			payloads = append(payloads, []byte(fmt.Sprintf("%d", len(routes))))
 			payloads = append(payloads, []byte(routes[0]))
 			// create fake response
-			resp, err := json.Marshal(api.GetPayloadResponse{
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsGETResponse{
 				Payloads: payloads,
 			})
 			require.NoError(t, err)
