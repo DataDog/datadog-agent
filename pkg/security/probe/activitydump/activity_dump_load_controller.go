@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package activitydump
 
 import (
 	"fmt"
@@ -60,7 +60,7 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 		0,
 		lc.adm.config.ActivityDumpRateLimiter,
 		time.Now(),
-		lc.adm.resolvers.TimeResolver,
+		lc.adm.timeResolver,
 	)
 	defaults.WaitListTimestampRaw = uint64(lc.adm.config.ActivityDumpCgroupWaitListTimeout)
 	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {

@@ -749,7 +749,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	}
 
 	if lastPid != 1 {
-		resolvers.ProcessResolver.countBrokenLineage()
+		resolvers.ProcessResolver.CountBrokenLineage()
 	}
 
 	return &ps

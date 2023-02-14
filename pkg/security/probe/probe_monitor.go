@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -26,7 +27,7 @@ type Monitor struct {
 
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
-	activityDumpManager *ActivityDumpManager
+	activityDumpManager *activitydump.ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
 	cgroupsMonitor      *CgroupsMonitor
@@ -52,7 +53,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	}
 
 	if p.Config.ActivityDumpEnabled {
-		m.activityDumpManager, err = NewActivityDumpManager(p, p.Config, p.StatsdClient, p.resolvers, p.kernelVersion, p.scrubber, p.Manager)
+		m.activityDumpManager, err = activitydump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
@@ -78,7 +79,7 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 }
 
 // GetActivityDumpManager returns the activity dump manager
-func (m *Monitor) GetActivityDumpManager() *ActivityDumpManager {
+func (m *Monitor) GetActivityDumpManager() *activitydump.ActivityDumpManager {
 	return m.activityDumpManager
 }
 

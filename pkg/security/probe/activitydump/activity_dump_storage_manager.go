@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package activitydump
 
 import (
 	"bytes"
@@ -60,23 +60,24 @@ func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 }
 
 // NewActivityDumpStorageManager returns a new instance of ActivityDumpStorageManager
-func NewActivityDumpStorageManager(p *Probe) (*ActivityDumpStorageManager, error) {
-	storageFactory := []func(p *Probe) (ActivityDumpStorage, error){
-		NewActivityDumpLocalStorage,
-		NewActivityDumpRemoteStorageForwarder,
-	}
-
+func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.ClientInterface, handler ActivityDumpHandler) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages:     make(map[config.StorageType]ActivityDumpStorage),
-		statsdClient: p.StatsdClient,
+		statsdClient: statsdClient,
 	}
-	for _, factory := range storageFactory {
-		storage, err := factory(p)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
-		}
-		manager.storages[storage.GetStorageType()] = storage
+
+	storage, err := NewActivityDumpLocalStorage(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
 	}
+	manager.storages[storage.GetStorageType()] = storage
+
+	storage, err = NewActivityDumpRemoteStorageForwarder(handler)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
+	}
+	manager.storages[storage.GetStorageType()] = storage
+
 	return manager, nil
 }
 

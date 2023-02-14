@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package activitydump
 
 import (
 	"bytes"
@@ -88,8 +88,8 @@ func (ad *ActivityDump) prepareGraphData(title string) utils.Graph {
 
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *utils.Graph) utils.GraphID {
 	var args string
-	if ad.adm != nil && ad.adm.resolvers != nil {
-		if argv, _ := ad.adm.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
+	if ad.adm != nil && ad.adm.processResolver != nil {
+		if argv, _ := ad.adm.processResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
 			args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
 			args = strings.ReplaceAll(args, "\n", " ")
 			args = strings.ReplaceAll(args, ">", "\\>")

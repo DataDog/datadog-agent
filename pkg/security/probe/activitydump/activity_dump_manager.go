@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package activitydump
 
 import (
 	"context"
@@ -29,13 +29,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-func areCGroupADsEnabled(c *config.Config) bool {
-	return c.ActivityDumpTracedCgroupsCount > 0
+// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
+type ActivityDumpHandler interface {
+	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
 }
 
 // ActivityDumpManager is used to manage ActivityDumps
@@ -45,10 +47,13 @@ type ActivityDumpManager struct {
 	statsdClient       statsd.ClientInterface
 	emptyDropped       *atomic.Uint64
 	dropMaxDumpReached *atomic.Uint64
-	fieldHandlers      *FieldHandlers
-	resolvers          *Resolvers
+	newEvent           func() *model.Event
+	processResolver    *resolvers.ProcessResolver
+	timeResolver       *resolvers.TimeResolver
+	tagsResolvers      *resolvers.TagsResolver
 	kernelVersion      *kernel.Version
 	manager            *manager.Manager
+	dumpHandler        ActivityDumpHandler
 
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
@@ -131,7 +136,7 @@ func (adm *ActivityDumpManager) cleanup() {
 	var timestamp uint64
 
 	for iterator.Next(&containerIDB, &timestamp) {
-		if time.Now().After(adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(timestamp)) {
+		if time.Now().After(adm.timeResolver.ResolveMonotonicTimestamp(timestamp)) {
 			if err := adm.cgroupWaitList.Delete(&containerIDB); err != nil {
 				seclog.Errorf("couldn't delete cgroup_wait_list entry for (%s): %v", string(containerIDB), err)
 			}
@@ -201,9 +206,21 @@ func (adm *ActivityDumpManager) resolveTags() {
 	}
 }
 
+// AddActivityDumpHandler set the probe activity dump handler
+func (adm *ActivityDumpManager) AddActivityDumpHandler(handler ActivityDumpHandler) {
+	adm.dumpHandler = handler
+}
+
+// HandleActivityDump sends an activity dump to the backend
+func (adm *ActivityDumpManager) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
+	if adm.dumpHandler != nil {
+		adm.dumpHandler.HandleActivityDump(dump)
+	}
+}
+
 // NewActivityDumpManager returns a new ActivityDumpManager instance
-func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd.ClientInterface, resolvers *Resolvers,
-	kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
+func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, processResolver *resolvers.ProcessResolver, timeResolver *resolvers.TimeResolver,
+	tagsResolver *resolvers.TagsResolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -229,11 +246,6 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		return nil, err
 	}
 
-	storageManager, err := NewActivityDumpStorageManager(p)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
-	}
-
 	limiter, err := simplelru.NewLRU(1024, func(workloadSelector string, count *atomic.Uint64) {
 	})
 	if err != nil {
@@ -245,8 +257,10 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		statsdClient:           statsdClient,
 		emptyDropped:           atomic.NewUint64(0),
 		dropMaxDumpReached:     atomic.NewUint64(0),
-		fieldHandlers:          p.fieldHandlers,
-		resolvers:              resolvers,
+		newEvent:               newEvent,
+		processResolver:        processResolver,
+		timeResolver:           timeResolver,
+		tagsResolvers:          tagsResolver,
 		kernelVersion:          kernelVersion,
 		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
@@ -256,8 +270,12 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		activityDumpsConfigMap: activityDumpsConfigMap,
 		snapshotQueue:          make(chan *ActivityDump, 100),
 		ignoreFromSnapshot:     make(map[string]bool),
-		storage:                storageManager,
 		dumpLimiter:            limiter,
+	}
+
+	adm.storage, err = NewActivityDumpStorageManager(config, statsdClient, adm)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
 	}
 
 	loadController, err := NewActivityDumpLoadController(adm)
@@ -324,7 +342,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 	}
 
 	// loop through the process cache entry tree and push traced pids if necessary
-	adm.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
+	adm.processResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
 
 	// Delay the activity dump snapshot to reduce the overhead on the main goroutine
 	select {
@@ -588,8 +606,8 @@ func (adm *ActivityDumpManager) SendStats() error {
 	return nil
 }
 
-// snapshotTracedCgroups snapshots the kernel space map of cgroups
-func (adm *ActivityDumpManager) snapshotTracedCgroups() {
+// SnapshotTracedCgroups snapshots the kernel space map of cgroups
+func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 	var err error
 	var event model.CgroupTracingEvent
 	containerIDB := make([]byte, model.ContainerIDLen)

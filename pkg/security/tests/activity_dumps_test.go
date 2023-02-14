@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
@@ -86,7 +86,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		// time.Sleep(time.Second * 60)
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *probe.ActivityDump) bool {
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
 			nodes := ad.FindMatchingNodes("syscall_tester")
 			if nodes == nil {
 				t.Fatalf("Node not found in activity dump: %+v", nodes)
@@ -97,7 +97,7 @@ func TestActivityDumps(t *testing.T) {
 			node := nodes[0]
 
 			// ProcessActivityNode content1
-			assert.Equal(t, probe.Runtime, node.GenerationType)
+			assert.Equal(t, activitydump.Runtime, node.GenerationType)
 			assert.Equal(t, 0, len(node.Children))
 			assert.Equal(t, 0, len(node.Files))
 			assert.Equal(t, 0, len(node.DNSNames))
@@ -165,7 +165,7 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *probe.ActivityDump) bool {
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
 			nodes := ad.FindMatchingNodes("syscall_tester")
 			if nodes == nil {
 				t.Fatalf("Node not found in activity dump: %+v", nodes)
@@ -209,7 +209,7 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *probe.ActivityDump) bool {
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
 			nodes := ad.FindMatchingNodes("nslookup")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
@@ -248,7 +248,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		tempPathParts := strings.Split(temp.Name(), "/")
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *probe.ActivityDump) bool {
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
 			nodes := ad.FindMatchingNodes("touch")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
@@ -289,7 +289,7 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *probe.ActivityDump) bool {
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
 			nodes := ad.FindMatchingNodes("syscall_tester")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
@@ -344,7 +344,7 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *probe.ActivityDump) bool {
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
 			nodes := ad.FindMatchingNodes("syscall_tester")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
@@ -433,7 +433,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 }
 
-func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, validator func(ad *probe.ActivityDump) bool) {
+func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, validator func(ad *activitydump.ActivityDump) bool) {
 	perExtOK := make(map[string]bool)
 	for _, format := range expectedFormats {
 		ext := fmt.Sprintf(".%s", format)
@@ -579,7 +579,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	}
 	defer dockerInstance.stop()
 
-	for activeEventTypes := probe.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
+	for activeEventTypes := activitydump.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
 		// add all event types to the dump
 		test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
 		time.Sleep(time.Second * 3)

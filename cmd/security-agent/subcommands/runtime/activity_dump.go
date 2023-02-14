@@ -10,18 +10,20 @@ package runtime
 
 import (
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
+	sysprobeconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -318,7 +320,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 
 	} else {
 		// encoding request will be handled locally
-		ad := sprobe.NewEmptyActivityDump()
+		ad := activitydump.NewEmptyActivityDump()
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {
@@ -337,7 +339,12 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 			ad.AddStorageRequest(request)
 		}
 
-		storage, err := sprobe.NewActivityDumpStorageManager(nil)
+		cfg, err := secconfig.NewConfig(&sysprobeconfig.Config{})
+		if err != nil {
+			return fmt.Errorf("couldn't load configuration: %w", err)
+
+		}
+		storage, err := activitydump.NewActivityDumpStorageManager(cfg, nil, nil)
 		if err != nil {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}

@@ -8,7 +8,7 @@
 
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
-package probe
+package activitydump
 
 import (
 	"bytes"
@@ -202,7 +202,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		adm.config.ActivityDumpCgroupWaitListTimeout,
 		adm.config.ActivityDumpRateLimiter,
 		now,
-		adm.resolvers.TimeResolver,
+		adm.timeResolver,
 	)
 	ad.LoadConfigCookie = eval.NewCookie()
 
@@ -327,8 +327,8 @@ func (ad *ActivityDump) SetLoadConfig(cookie uint32, config model.ActivityDumpLo
 	ad.LoadConfigCookie = cookie
 
 	// Update metadata
-	ad.DumpMetadata.Start = ad.adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.StartTimestampRaw)
-	ad.DumpMetadata.End = ad.adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
+	ad.DumpMetadata.Start = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.StartTimestampRaw)
+	ad.DumpMetadata.End = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
 }
 
 // SetTimeout updates the activity dump timeout
@@ -336,7 +336,7 @@ func (ad *ActivityDump) SetTimeout(timeout time.Duration) {
 	ad.LoadConfig.SetTimeout(timeout)
 
 	// Update metadata
-	ad.DumpMetadata.End = ad.adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
+	ad.DumpMetadata.End = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
 }
 
 // updateTracedPid traces a pid in kernel space
@@ -508,7 +508,7 @@ func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs() {
 
 	for len(openList) != 0 {
 		current := openList[len(openList)-1]
-		current.scrubAndReleaseArgsEnvs(ad.adm.resolvers.ProcessResolver)
+		current.scrubAndReleaseArgsEnvs(ad.adm.processResolver)
 		openList = append(openList[:len(openList)-1], current.Children...)
 	}
 }
@@ -644,7 +644,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
-			if root.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.resolvers) {
+			if root.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.processResolver) {
 				return root
 			}
 		}
@@ -666,7 +666,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
-			if child.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.resolvers) {
+			if child.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.processResolver) {
 				return child
 			}
 		}
@@ -836,7 +836,7 @@ func (ad *ActivityDump) resolveTags() error {
 	}
 
 	var err error
-	ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(ad.DumpMetadata.ContainerID)
+	ad.Tags, err = ad.adm.tagsResolvers.ResolveWithErr(ad.DumpMetadata.ContainerID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", ad.DumpMetadata.ContainerID, err)
 	}
@@ -1108,15 +1108,15 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *resolvers.Proc
 }
 
 // Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
-func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, resolvers *Resolvers) bool {
+func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, processResolver *resolvers.ProcessResolver) bool {
 
 	if pan.Process.Comm == entry.Comm && pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr &&
 		pan.Process.Credentials == entry.Credentials {
 
 		if matchArgs {
 
-			panArgs, _ := resolvers.ProcessResolver.GetProcessArgv(&pan.Process)
-			entryArgs, _ := resolvers.ProcessResolver.GetProcessArgv(&entry.Process)
+			panArgs, _ := processResolver.GetProcessArgv(&pan.Process)
+			entryArgs, _ := processResolver.GetProcessArgv(&entry.Process)
 			if len(panArgs) != len(entryArgs) {
 				return false
 			}
@@ -1237,7 +1237,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 }
 
 func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
-	evt := NewEvent(ad.adm.fieldHandlers)
+	evt := ad.adm.newEvent()
 	evt.Type = uint32(model.BindEventType)
 
 	evt.Bind.SyscallEvent.Retval = 0
@@ -1379,7 +1379,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 			continue
 		}
 
-		evt := NewEvent(ad.adm.fieldHandlers)
+		evt := ad.adm.newEvent()
 		evt.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
@@ -1393,8 +1393,8 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 		evt.Open.File.FileFields.Inode = stat.Ino
 		evt.Open.File.FileFields.UID = stat.Uid
 		evt.Open.File.FileFields.GID = stat.Gid
-		evt.Open.File.FileFields.MTime = uint64(ad.adm.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)))
-		evt.Open.File.FileFields.CTime = uint64(ad.adm.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec)))
+		evt.Open.File.FileFields.MTime = uint64(ad.adm.timeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)))
+		evt.Open.File.FileFields.CTime = uint64(ad.adm.timeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec)))
 
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs

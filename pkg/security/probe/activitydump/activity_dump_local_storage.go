@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package activitydump
 
 import (
 	"bytes"
@@ -62,12 +62,8 @@ type ActivityDumpLocalStorage struct {
 }
 
 // NewActivityDumpLocalStorage creates a new ActivityDumpLocalStorage instance
-func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
-	if p == nil {
-		return &ActivityDumpLocalStorage{}, nil
-	}
-
-	lru, err := simplelru.NewLRU(p.Config.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files []string) {
+func NewActivityDumpLocalStorage(cfg *config.Config) (ActivityDumpStorage, error) {
+	lru, err := simplelru.NewLRU(cfg.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files []string) {
 		if len(files) == 0 {
 			return
 		}
@@ -81,13 +77,13 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 	}
 
 	// snapshot the dumps in the default output directory
-	if len(p.Config.ActivityDumpLocalStorageDirectory) > 0 {
+	if len(cfg.ActivityDumpLocalStorageDirectory) > 0 {
 		// list all the files in the activity dump output directory
-		files, err := os.ReadDir(p.Config.ActivityDumpLocalStorageDirectory)
+		files, err := os.ReadDir(cfg.ActivityDumpLocalStorageDirectory)
 		if err != nil {
 			if os.IsNotExist(err) {
 				files = make([]os.DirEntry, 0)
-				if err = os.MkdirAll(p.Config.ActivityDumpLocalStorageDirectory, 0400); err != nil {
+				if err = os.MkdirAll(cfg.ActivityDumpLocalStorageDirectory, 0400); err != nil {
 					return nil, fmt.Errorf("couldn't create output directory for cgroup activity dumps: %w", err)
 				}
 			} else {

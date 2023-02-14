@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package activitydump
 
 import (
 	"bytes"
@@ -19,13 +19,13 @@ import (
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent
 type ActivityDumpRemoteStorageForwarder struct {
-	probe *Probe
+	activityDumpHandler ActivityDumpHandler
 }
 
 // NewActivityDumpRemoteStorageForwarder returns a new instance of ActivityDumpRemoteStorageForwarder
-func NewActivityDumpRemoteStorageForwarder(p *Probe) (ActivityDumpStorage, error) {
+func NewActivityDumpRemoteStorageForwarder(handler ActivityDumpHandler) (ActivityDumpStorage, error) {
 	return &ActivityDumpRemoteStorageForwarder{
-		probe: p,
+		activityDumpHandler: handler,
 	}, nil
 }
 
@@ -48,7 +48,9 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 	// override storage request so that it contains only the current persisted data
 	msg.Dump.Storage = []*api.StorageRequestMessage{request.ToStorageRequestMessage(ad.DumpMetadata.Name)}
 
-	storage.probe.DispatchActivityDump(msg)
+	if handler := storage.activityDumpHandler; handler != nil {
+		handler.HandleActivityDump(msg)
+	}
 
 	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, ad.GetSelectorStr())
 	return nil

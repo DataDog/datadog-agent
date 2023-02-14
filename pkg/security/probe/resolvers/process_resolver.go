@@ -240,7 +240,8 @@ func (p *ProcessResolver) NewProcessCacheEntry(pidContext model.PIDContext) *mod
 	return entry
 }
 
-func (p *ProcessResolver) countBrokenLineage() {
+// CountBrokenLineage increments the counter of broken lineage
+func (p *ProcessResolver) CountBrokenLineage() {
 	p.brokenLineage.Inc()
 }
 

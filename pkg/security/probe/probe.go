@@ -28,12 +28,12 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -48,11 +48,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 )
-
-// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
-type ActivityDumpHandler interface {
-	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
-}
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
@@ -97,9 +92,6 @@ type Probe struct {
 
 	// Ring
 	eventStream EventStream
-
-	// ActivityDumps section
-	activityDumpHandler ActivityDumpHandler
 
 	// Approvers / discarders section
 	Erpc                               *erpc.ERPC
@@ -296,8 +288,8 @@ func (p *Probe) Start() error {
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
-func (p *Probe) AddActivityDumpHandler(handler ActivityDumpHandler) {
-	p.activityDumpHandler = handler
+func (p *Probe) AddActivityDumpHandler(handler activitydump.ActivityDumpHandler) {
+	p.monitor.activityDumpManager.AddActivityDumpHandler(handler)
 }
 
 // AddEventHandler set the probe event handler
@@ -324,13 +316,6 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// Process after evaluation because some monitors need the DentryResolver to have been called first.
 	p.monitor.ProcessEvent(event)
-}
-
-// DispatchActivityDump sends an activity dump to the probe activity dump handler
-func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
-	if handler := p.activityDumpHandler; handler != nil {
-		handler.HandleActivityDump(dump)
-	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -1313,6 +1298,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
+	areCGroupADsEnabled := config.ActivityDumpTracedCgroupsCount > 0
+
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 		manager.ConstantEditor{
@@ -1361,7 +1348,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled(config)),
+			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
