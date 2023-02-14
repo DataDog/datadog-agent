@@ -6,17 +6,17 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package container
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// ContainerResolver is used to resolve the container context of the events
-type ContainerResolver struct{}
+// Resolver is used to resolve the container context of the events
+type Resolver struct{}
 
 // GetContainerID returns the container id of the given pid
-func (cr *ContainerResolver) GetContainerID(pid uint32) (utils.ContainerID, error) {
+func (cr *Resolver) GetContainerID(pid uint32) (utils.ContainerID, error) {
 	// Parse /proc/[pid]/task/[pid]/cgroup
 	return utils.GetProcContainerID(pid, pid)
 }

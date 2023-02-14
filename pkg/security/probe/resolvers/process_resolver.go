@@ -32,8 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -64,7 +65,7 @@ type ProcessResolver struct {
 	statsdClient statsd.ClientInterface
 	scrubber     *procutil.DataScrubber
 
-	containerResolver *ContainerResolver
+	containerResolver *container.Resolver
 	mountResolver     *MountResolver
 	cgroupResolver    *cgroup.CgroupResolver
 	userGroupResolver *user.UserGroupResolver
@@ -594,7 +595,7 @@ func (p *ProcessResolver) resolve(pid, tid uint32, inode uint64) *model.ProcessC
 		return entry
 	}
 
-	if p.state.Load() != resolvers.Snapshotted {
+	if p.state.Load() != netns.Snapshotted {
 		return nil
 	}
 
@@ -1269,7 +1270,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *mo
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *procutil.DataScrubber, containerResolver *ContainerResolver, mountResolver *MountResolver,
+	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *MountResolver,
 	cgroupResolver *cgroup.CgroupResolver, userGroupResolver *user.UserGroupResolver, timeResolver *stime.Resolver,
 	pathResolver *PathResolver, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
@@ -1285,7 +1286,7 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,
-		state:          atomic.NewInt64(resolvers.Snapshotting),
+		state:          atomic.NewInt64(netns.Snapshotting),
 		argsEnvsPool:   NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:      map[string]*atomic.Int64{},
 		cacheSize:      atomic.NewInt64(0),

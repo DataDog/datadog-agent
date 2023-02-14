@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
-	sresolvers "github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
@@ -35,7 +35,7 @@ import (
 type Resolvers struct {
 	manager           *manager.Manager
 	MountResolver     *resolvers.MountResolver
-	ContainerResolver *resolvers.ContainerResolver
+	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *user.UserGroupResolver
 	TagsResolver      *resolvers.TagsResolver
@@ -83,7 +83,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 
 	pathResolver := resolvers.NewPathResolver(dentryResolver, mountResolver)
 
-	containerResolver := &resolvers.ContainerResolver{}
+	containerResolver := &container.Resolver{}
 	processResolver, err := resolvers.NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
 		probe.scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, resolvers.NewProcessResolverOpts(probe.Config.EnvsWithValue))
 	if err != nil {
@@ -132,8 +132,8 @@ func (r *Resolvers) Snapshot() error {
 		return fmt.Errorf("unable to snapshot processes: %w", err)
 	}
 
-	r.ProcessResolver.SetState(sresolvers.Snapshotted)
-	r.NamespaceResolver.SetState(sresolvers.Snapshotted)
+	r.ProcessResolver.SetState(netns.Snapshotted)
+	r.NamespaceResolver.SetState(netns.Snapshotted)
 
 	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {
