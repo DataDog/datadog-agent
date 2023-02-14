@@ -43,9 +43,3 @@ var MockBundle = fxutil.Bundle(
 	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
 	sysprobeconfig.MockModule,
 )
-
-func UseSysProbeConfigForLog() fx.Option {
-	return fx.Decorate(func(config config.LogConfig, sysprobeconfig sysprobeconfig.Component) config.LogConfig {
-		return sysprobeconfig
-	})
-}

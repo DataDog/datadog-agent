@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -63,13 +62,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParamsWithoutSecrets(""),
-					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
-					LogParams:            log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile),
+				fx.Supply(config.NewAgentParamsWithoutSecrets("")),
+				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
+				fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				config.Module,
+				sysprobeconfig.Module,
+				// use system-probe config instead of agent config for logging
+				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+					return log.NewLogger(lc, params, sysprobeconfig)
 				}),
-				core.UseSysProbeConfigForLog(),
-				core.Bundle,
 			)
 		},
 	}
@@ -141,13 +142,15 @@ func StartSystemProbeWithDefaults() error {
 			return startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, sysprobeconfig)
 		},
 		// no config file path specification in this situation
-		fx.Supply(core.BundleParams{
-			ConfigParams:         config.NewAgentParamsWithoutSecrets(""),
-			SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath("")),
-			LogParams:            log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile),
+		fx.Supply(config.NewAgentParamsWithoutSecrets("")),
+		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""))),
+		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		config.Module,
+		sysprobeconfig.Module,
+		// use system-probe config instead of agent config for logging
+		fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+			return log.NewLogger(lc, params, sysprobeconfig)
 		}),
-		core.UseSysProbeConfigForLog(),
-		core.Bundle,
 	)
 }
 

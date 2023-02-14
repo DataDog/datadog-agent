@@ -9,10 +9,11 @@ import (
 	"context"
 	"errors"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
 )
 
 // logger implements the component
@@ -21,7 +22,12 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
-func newLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Component, error) {
+func newAgentLogger(lc fx.Lifecycle, params Params, config config.Component) (Component, error) {
+	return NewLogger(lc, params, config)
+}
+
+// NewLogger creates a log.Component using the provided config.LogConfig
+func NewLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Component, error) {
 	if params.logLevelFn == nil {
 		return nil, errors.New("must call one of core.BundleParams.LogForOneShot or LogForDaemon")
 	}

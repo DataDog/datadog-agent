@@ -48,7 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
 					LogParams:            log.LogForOneShot("SYS-PROBE", "off", false),
 				}),
-				core.UseSysProbeConfigForLog(),
+				// no need to provide sysprobe logger since LogForOneShot ignores config values
 				core.Bundle,
 			)
 		},
