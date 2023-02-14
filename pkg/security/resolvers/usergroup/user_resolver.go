@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package user
+package usergroup
 
 import (
 	"os/user"
@@ -15,14 +15,14 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
-// UserGroupResolver resolves user and group ids to names
-type UserGroupResolver struct {
+// Resolver resolves user and group ids to names
+type Resolver struct {
 	userCache  *lru.Cache[int, string]
 	groupCache *lru.Cache[int, string]
 }
 
 // ResolveUser resolves a user id to a username
-func (r *UserGroupResolver) ResolveUser(uid int) (string, error) {
+func (r *Resolver) ResolveUser(uid int) (string, error) {
 	cachedEntry, found := r.userCache.Get(uid)
 	if found {
 		return cachedEntry, nil
@@ -38,7 +38,7 @@ func (r *UserGroupResolver) ResolveUser(uid int) (string, error) {
 }
 
 // ResolveGroup resolves a group id to a group name
-func (r *UserGroupResolver) ResolveGroup(gid int) (string, error) {
+func (r *Resolver) ResolveGroup(gid int) (string, error) {
 	cachedEntry, found := r.groupCache.Get(gid)
 	if found {
 		return cachedEntry, nil
@@ -53,8 +53,8 @@ func (r *UserGroupResolver) ResolveGroup(gid int) (string, error) {
 	return groupname, nil
 }
 
-// NewUserGroupResolver instantiates a new user and group resolver
-func NewUserGroupResolver() (*UserGroupResolver, error) {
+// NewResolver instantiates a new user and group resolver
+func NewResolver() (*Resolver, error) {
 	userCache, err := lru.New[int, string](64)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func NewUserGroupResolver() (*UserGroupResolver, error) {
 		return nil, err
 	}
 
-	return &UserGroupResolver{
+	return &Resolver{
 		userCache:  userCache,
 		groupCache: groupCache,
 	}, nil

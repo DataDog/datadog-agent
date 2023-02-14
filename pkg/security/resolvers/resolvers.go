@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -43,7 +43,7 @@ type Resolvers struct {
 	MountResolver     *mount.Resolver
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
-	UserGroupResolver *user.UserGroupResolver
+	UserGroupResolver *usergroup.Resolver
 	TagsResolver      *tags.Resolver
 	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
@@ -65,7 +65,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	userGroupResolver, err := user.NewUserGroupResolver()
+	userGroupResolver, err := usergroup.NewResolver()
 	if err != nil {
 		return nil, err
 	}
