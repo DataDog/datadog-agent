@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package tags
 
 import (
 	"context"
@@ -39,13 +39,13 @@ func (n *nullTagger) Tag(entity string, cardinality collectors.TagCardinality) (
 	return nil, nil
 }
 
-// TagsResolver represents a cache resolver
-type TagsResolver struct {
+// Resolver represents a cache resolver
+type Resolver struct {
 	tagger Tagger
 }
 
 // Start the resolver
-func (t *TagsResolver) Start(ctx context.Context) error {
+func (t *Resolver) Start(ctx context.Context) error {
 	go func() {
 		if err := t.tagger.Init(ctx); err != nil {
 			log.Errorf("failed to init tagger: %s", err)
@@ -61,40 +61,40 @@ func (t *TagsResolver) Start(ctx context.Context) error {
 }
 
 // Resolve returns the tags for the given id
-func (t *TagsResolver) Resolve(id string) []string {
+func (t *Resolver) Resolve(id string) []string {
 	tags, _ := t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *TagsResolver) ResolveWithErr(id string) ([]string, error) {
+func (t *Resolver) ResolveWithErr(id string) ([]string, error) {
 	return t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *TagsResolver) GetValue(id string, tag string) string {
+func (t *Resolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
 // Stop the resolver
-func (t *TagsResolver) Stop() error {
+func (t *Resolver) Stop() error {
 	return t.tagger.Stop()
 }
 
-// NewTagsResolver returns a new tags resolver
-func NewTagsResolver(config *config.Config) *TagsResolver {
+// NewResolver returns a new tags resolver
+func NewResolver(config *config.Config) *Resolver {
 	if config.RemoteTaggerEnabled {
 		options, err := remote.NodeAgentOptions()
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
-			return &TagsResolver{
+			return &Resolver{
 				tagger: remote.NewTagger(options),
 			}
 		}
 	}
 
-	return &TagsResolver{
+	return &Resolver{
 		tagger: &nullTagger{},
 	}
 }

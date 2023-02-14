@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
@@ -40,7 +41,7 @@ type Resolvers struct {
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *user.UserGroupResolver
-	TagsResolver      *resolvers.TagsResolver
+	TagsResolver      *tags.Resolver
 	DentryResolver    *dentry.DentryResolver
 	ProcessResolver   *resolvers.ProcessResolver
 	NamespaceResolver *netns.Resolver
@@ -98,7 +99,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		ContainerResolver: containerResolver,
 		TimeResolver:      timeResolver,
 		UserGroupResolver: userGroupResolver,
-		TagsResolver:      resolvers.NewTagsResolver(config),
+		TagsResolver:      tags.NewResolver(config),
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
 		CgroupResolver:    cgroupsResolver,
