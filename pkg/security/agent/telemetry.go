@@ -73,7 +73,9 @@ func (t *telemetry) run(ctx context.Context, rsa *RuntimeSecurityAgent) {
 				rsa.storage.SendTelemetry()
 			}
 		case <-profileCounterTicker.C:
-			t.reportProfiledContainers()
+			if err := t.reportProfiledContainers(); err != nil {
+				log.Debugf("couldn't report profiled containers: %v", err)
+			}
 		}
 	}
 }
