@@ -27,7 +27,7 @@ func NewClient(fakeIntakeURL string) *Client {
 	}
 }
 
-func (c *Client) GetFakePayloads(endpoint string) (rawPayloads [][]byte, err error) {
+func (c *Client) getFakePayloads(endpoint string) (rawPayloads [][]byte, err error) {
 	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
 	if err != nil {
 		return nil, err

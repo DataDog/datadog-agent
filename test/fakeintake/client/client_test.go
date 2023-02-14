@@ -37,7 +37,7 @@ func TestClient(t *testing.T) {
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
-		payloads, err := client.GetFakePayloads("/foo/bar")
+		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 2, len(payloads))
 		assert.Equal(t, "1", string(payloads[0]))

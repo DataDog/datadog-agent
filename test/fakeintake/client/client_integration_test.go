@@ -21,7 +21,7 @@ func TestIntegrationClient(t *testing.T) {
 		defer fi.Stop()
 
 		client := NewClient("http://localhost:8080")
-		payloads, err := client.GetFakePayloads("/foo/bar")
+		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 0, len(payloads))
 	})
@@ -36,7 +36,7 @@ func TestIntegrationClient(t *testing.T) {
 		http.Post(fmt.Sprintf("%s%s", serverUrl, testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 
 		client := NewClient(serverUrl)
-		payloads, err := client.GetFakePayloads(testEndpoint)
+		payloads, err := client.getFakePayloads(testEndpoint)
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))
 		assert.Equal(t, "totoro|5|tag:valid,owner:pducolin", string(payloads[0]))
