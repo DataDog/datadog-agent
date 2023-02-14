@@ -31,25 +31,13 @@ DD_DD_URL: "http://localhost:8080"
 
 ### Locally
 
-1. cd to fakeintake root folder
+1. Run fakeintake
 
 ```bash
-cd ~/dd/datadog-agent/test/fakeintake
+go run $DATADOG_ROOT/datadog-agent/test/fakeintake/app/main.go
 ```
 
-2. Build the fakeintake app
-
-```bash
-go install -o build/fakeintake app/main.go
-```
-
-3. Run the fakeintake
-
-```bash
-./build/fakeintake
-```
-
-4. Configure Datadog Agent to use fakeintake
+2. Configure Datadog Agent to use fakeintake
 
 ```yaml
 # datadog.yaml
