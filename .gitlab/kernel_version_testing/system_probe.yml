@@ -18,7 +18,7 @@
   artifacts:
     expire_in: 1 day
     paths:
-      - $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
+      - $KITCHEN_DOCKERS
   variables:
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
 
@@ -39,8 +39,8 @@ pull_test_dockers_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
   script:
-    # Build dependencies directoru
-    - mkdir $DEPENDENCIES
+    # Build dependencies directory
+    - mkdir -p $DEPENDENCIES
     - pushd $DEPENDENCIES
     # copy clang and llc bins
     - mkdir -p $EMBEDDED_BIN
@@ -58,21 +58,20 @@ pull_test_dockers_arm64:
     - mkdir testjson
     - mkdir pkgjson
     # copy over docker images
-    - mkdir kitchen-dockers
-    - cp -R $KITCHEN_DOCKERS $DEPENDENCIES
+    - cp -R $KITCHEN_DOCKERS $DEPENDENCIES/kitchen-docker
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
     # package all the dependencies
     - ls -la $DEPENDENCIES
-    - tar czvf $ARCHIVE_NAME $DEPENDENCIES
+    - tar czvf ../$ARCHIVE_NAME dependencies
     - popd
   artifacts:
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/dependencies
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
     CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
     LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/llc-bpf
     GO_BIN: go/bin
@@ -90,7 +89,7 @@ package_dependencies_x64:
     - .package_dependencies
   needs: ["tests_ebpf_x64", "pull_test_dockers_x64"]
   variables:
-    ARCHIVE_NAME: "dependencies-x86_64.tar.gz"
+    ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
 
 package_dependencies_arm64:
@@ -98,7 +97,7 @@ package_dependencies_arm64:
     - .package_dependencies
   needs: ["tests_ebpf_arm64", "pull_test_dockers_arm64"]
   variables:
-    ARCHIVE_NAME: "dependencies-arm64.tar.gz"
+    ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
 
 
