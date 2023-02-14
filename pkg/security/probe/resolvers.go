@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/user"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -30,7 +32,7 @@ type Resolvers struct {
 	MountResolver     *resolvers.MountResolver
 	ContainerResolver *resolvers.ContainerResolver
 	TimeResolver      *resolvers.TimeResolver
-	UserGroupResolver *resolvers.UserGroupResolver
+	UserGroupResolver *user.UserGroupResolver
 	TagsResolver      *resolvers.TagsResolver
 	DentryResolver    *dentry.DentryResolver
 	ProcessResolver   *resolvers.ProcessResolver
@@ -52,7 +54,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	userGroupResolver, err := resolvers.NewUserGroupResolver()
+	userGroupResolver, err := user.NewUserGroupResolver()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +135,7 @@ func (r *Resolvers) Snapshot() error {
 		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}
 
-	if err := resolvers.SnapshotSELinux(selinuxStatusMap); err != nil {
+	if err := selinux.SnapshotSELinux(selinuxStatusMap); err != nil {
 		return err
 	}
 
