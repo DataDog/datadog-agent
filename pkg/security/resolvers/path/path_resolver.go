@@ -20,12 +20,12 @@ import (
 
 // Resolver describes a resolvers for path and file names
 type Resolver struct {
-	dentryResolver *dentry.DentryResolver
+	dentryResolver *dentry.Resolver
 	mountResolver  *mount.Resolver
 }
 
 // NewResolver returns a new path resolver
-func NewResolver(dentryResolver *dentry.DentryResolver, mountResolver *mount.Resolver) *Resolver {
+func NewResolver(dentryResolver *dentry.Resolver, mountResolver *mount.Resolver) *Resolver {
 	return &Resolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
 }
 

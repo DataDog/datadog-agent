@@ -182,7 +182,7 @@ func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
 // inodeDiscarders is used to issue eRPC discarder requests
 type inodeDiscarders struct {
 	erpc           *erpc.ERPC
-	dentryResolver *dentry.DentryResolver
+	dentryResolver *dentry.Resolver
 	rs             *rules.RuleSet
 	discarderEvent *model.Event
 	evalCtx        *eval.Context
@@ -193,7 +193,7 @@ type inodeDiscarders struct {
 	recentlyAddedEntries [maxRecentlyAddedCacheSize]InodeDiscarderEntry
 }
 
-func newInodeDiscarders(erpc *erpc.ERPC, dentryResolver *dentry.DentryResolver) *inodeDiscarders {
+func newInodeDiscarders(erpc *erpc.ERPC, dentryResolver *dentry.Resolver) *inodeDiscarders {
 	event := *eventZeroDiscarder
 
 	ctx := eval.NewContext(&event)
@@ -570,7 +570,7 @@ type DiscardersDump struct {
 	Stats  map[string]DiscarderStats `yaml:"stats"`
 }
 
-func dumpPidDiscarders(resolver *dentry.DentryResolver, pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
+func dumpPidDiscarders(resolver *dentry.Resolver, pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
 	var dumps []PidDiscarderDump
 
 	info, err := pidMap.Info()
@@ -601,7 +601,7 @@ func dumpPidDiscarders(resolver *dentry.DentryResolver, pidMap *ebpf.Map) ([]Pid
 	return dumps, nil
 }
 
-func dumpInodeDiscarders(resolver *dentry.DentryResolver, inodeMap *ebpf.Map) ([]InodeDiscarderDump, error) {
+func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]InodeDiscarderDump, error) {
 	var dumps []InodeDiscarderDump
 
 	info, err := inodeMap.Info()
@@ -674,7 +674,7 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]DiscarderStats, error)
 }
 
 // DumpDiscarders removes all the discarders
-func dumpDiscarders(resolver *dentry.DentryResolver, pidMap, inodeMap, statsFB, statsBB *ebpf.Map) (DiscardersDump, error) {
+func dumpDiscarders(resolver *dentry.Resolver, pidMap, inodeMap, statsFB, statsBB *ebpf.Map) (DiscardersDump, error) {
 	seclog.Debugf("Dumping discarders")
 
 	dump := DiscardersDump{

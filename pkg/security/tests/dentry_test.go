@@ -216,7 +216,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewDentryResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewDentryResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -354,7 +354,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewDentryResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -423,7 +423,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewDentryResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -45,7 +45,7 @@ type Resolvers struct {
 	TimeResolver      *time.Resolver
 	UserGroupResolver *user.UserGroupResolver
 	TagsResolver      *tags.Resolver
-	DentryResolver    *dentry.DentryResolver
+	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
 	NamespaceResolver *netns.Resolver
 	CgroupResolver    *cgroup.CgroupResolver
@@ -55,7 +55,7 @@ type Resolvers struct {
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC) (*Resolvers, error) {
-	dentryResolver, err := dentry.NewDentryResolver(config, statsdClient, eRPC)
+	dentryResolver, err := dentry.NewResolver(config, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
 	}
