@@ -94,8 +94,8 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 
 			filemanager := command.NewFileManager(remoteRunner)
 			_, err = filemanager.CopyFile(
-				fmt.Sprintf("%s/site-cookbooks-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
-				fmt.Sprintf("/tmp/site-cookbooks-%s.tar.gz", instance.Arch),
+				fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
+				fmt.Sprintf("/opt/kernel-version-testing/dependencies-%s.tar.gz", instance.Arch),
 				pulumi.DependsOn(scenarioDone.Dependencies),
 			)
 			if err != nil {

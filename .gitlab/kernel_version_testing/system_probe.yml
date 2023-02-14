@@ -1,32 +1,89 @@
-.package_testsuites:
+.pull_test_dockers:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  needs: []
+  tags: ["runner:docker"]
+  stage: functional_test
+  script:
+    # DockerHub login for build to limit rate limit when pulling base images
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    # Pull base images
+    - mkdir $KITCHEN_DOCKERS
+    - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - kitchen-dockers
+  variables:
+    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers
+
+pull_test_dockers_x64:
+  extends: .pull_test_dockers
+  variables:
+    ARCH: amd64
+
+pull_test_dockers_arm64:
+  extends: .pull_test_dockers
+  variables:
+    ARCH: arm64
+
+.package_dependencies:
   stage: kernel_version_testing
   rules:
     !reference [.on_system_probe_changes_or_manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
+  before_script:
+    - mkdir $DEPENDENCIES
+    - pushd $DEPENDENCIES
   script:
-    - pushd $DD_AGENT_TESTING_DIR
-    - tar czvf $ARCHIVE_NAME site-cookbooks
-    - ls -lh .
-    - popd
+    - mkdir -p $EMBEDDED_BIN
+    - cp $CLANG_BPF $EMBEDDED_BIN
+    - cp $LLC_BPF $EMBEDDED_BIN
+    - mkdir -p $EMBEDDED_INC
+    - mkdir -p $BTF_DIR
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    - mkdir $GO_BIN
+    - cp $GOTESTSUM $GO_BIN
+    - cp $TEST2JSON $GO_BIN
+    - mkdir junit
+    - mkdir testjson
+    - mkdir pkgjson
+    - mkdir kitchen-dockers
+    - cp -R $KITCHEN_DOCKERS $DEPENDENCIES
+    - cp -R site-cookbooks $DEPENDENCIES
+    - tar czvf $ARCHIVE_NAME $DEPENDENCIES
   artifacts:
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
-
-package_testsuites_x64:
-  extends:
-    - .package_testsuites
-  needs: ["tests_ebpf_x64"]
   variables:
-    ARCHIVE_NAME: "site-cookbooks-x86_64.tar.gz"
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/dependencies
+    CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/default/clang-bpf
+    LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/default/llc-bpf
+    GO_BIN: go/bin
+    GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/default/gotestsum
+    TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/default/test2json
+    EMBEDDED_BIN: opt/datadog-agent/embedded/bin
+    EMBEDDED_INC: opt/datadog-agent/embedded/include
+    BTF_DIR: system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers
+
+package_dependencies_x64:
+  extends:
+    - .package_dependencies
+  needs: ["tests_ebpf_x64", "pull_test_dockers_x64"]
+  variables:
+    ARCHIVE_NAME: "dependencies-x86_64.tar.gz"
+    ARCH: amd64
 
 package_testsuites_arm64:
   extends:
     - .package_testsuites
   needs: ["tests_ebpf_arm64"]
   variables:
-    ARCHIVE_NAME: "site-cookbooks-arm64.tar.gz"
+    ARCHIVE_NAME: "dependencies-arm64.tar.gz"
+    ARCH: arm64
 
 
 kernel_version_testing_system_probe_linux_x64_ec2:
