@@ -86,3 +86,7 @@ func (s *server) UdsListenerRunning() bool {
 func (s *server) ServerlessFlush() {
 	s.server.ServerlessFlush()
 }
+
+func (s *server) SetExtraTags(tags []string) {
+	s.server.SetExtraTags(tags)
+}

@@ -57,7 +57,7 @@ func TestNewServer(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
 	s := NewServer(false)
-	_ = s.Start(demux)
+	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	assert.NotNil(t, s)
 	assert.True(t, s.Started)
@@ -76,7 +76,7 @@ func TestStopServer(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
 	s := NewServer(false)
-	_ = s.Start(demux)
+	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	s.Stop()
 
@@ -137,7 +137,7 @@ func TestUDPReceive(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithOpts(opts)
 	defer demux.Stop(false)
 	s := NewServer(false)
-	_ = s.Start(demux)
+	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -425,7 +425,7 @@ func TestUDPForward(t *testing.T) {
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
 	s := NewServer(false)
-	_ = s.Start(demux)
+	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -465,7 +465,7 @@ func TestHistToDist(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
 	s := NewServer(false)
-	_ = s.Start(demux)
+	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 

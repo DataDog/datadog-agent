@@ -110,7 +110,7 @@ func (c *ServerlessMetricAgent) Stop() {
 func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
 	if c.IsReady() {
 		c.tags = tagArray
-		// c.dogStatsDServer.SetExtraTags(tagArray)
+		c.dogStatsDServer.SetExtraTags(tagArray)
 	}
 }
 

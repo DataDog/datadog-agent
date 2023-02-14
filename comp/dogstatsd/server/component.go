@@ -48,6 +48,9 @@ type Component interface {
 
 	// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
 	ServerlessFlush()
+
+	// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
+	SetExtraTags(tags []string)
 }
 
 // Mock implements mock-specific methods.
