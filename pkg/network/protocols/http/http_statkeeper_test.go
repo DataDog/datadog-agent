@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
