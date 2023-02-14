@@ -114,6 +114,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 		knownPids[pid] = struct{}{}
 	}
 
+	log.Debugf("Start process snapshot iteration")
 	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
 		pid := pe32.Th32ProcessID
 		ppid := pe32.Th32ParentProcessID
@@ -217,7 +218,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 		} else {
 			stats = &Stats{CreateTime: ctime}
 		}
-		log.Debugf("stats collected for pid:%d executable:%v stats:%v process_name:%s", pid, execPath, stats)
+		log.Debugf("stats collected for pid:%d executable:%v stats:%v", pid, execPath, stats)
 
 		delete(knownPids, pid)
 		procs[int32(pid)] = &Process{
@@ -229,6 +230,9 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			Username: cp.userName,
 		}
 	}
+
+	log.Debugf("completed process snapshot iteration of %d pids", len(procs))
+
 	if errCode := w32.GetLastError(); errCode != 0 {
 		log.Errorf("could not read all processes from snapshot errCode:%d", errCode)
 	}
