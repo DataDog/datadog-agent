@@ -51,7 +51,7 @@ pull_test_dockers_arm64:
     - mkdir -p $BTF_DIR
     - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
     # copy gotestsum and test2json
-    - mkdir $GO_BIN
+    - mkdir -p $GO_BIN
     - cp $GOTESTSUM $GO_BIN
     - cp $TEST2JSON $GO_BIN
     - mkdir junit
@@ -62,7 +62,7 @@ pull_test_dockers_arm64:
     - cp -R $KITCHEN_DOCKERS $DEPENDENCIES
     - cp -R site-cookbooks $DEPENDENCIES
     # copy system probe tests
-    - mkdir $SYSTEM_PROBE_TESTS
+    - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
     # package all the dependencies
     - tar czvf $ARCHIVE_NAME $DEPENDENCIES
