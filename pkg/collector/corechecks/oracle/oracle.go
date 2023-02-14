@@ -26,6 +26,22 @@ type Check struct {
 	db     *sqlx.DB
 }
 
+type Session struct {
+	Sid    int64  `db:"SID"`
+	Sql_id string `db:"SQL_ID"`
+}
+
+func (c *Check) SampleSession() error {
+	sessionSamples := []Session{}
+	err := c.db.Select(&sessionSamples, "SELECT sid, sql_id from V$SESSION")
+	if err != nil {
+		log.Errorf("Session sampling ", err)
+		return err
+	}
+	log.Tracef("orasample %#v", sessionSamples[15])
+	return nil
+}
+
 // Run executes the check.
 func (c *Check) Run() error {
 	sender, err := c.GetSender()
@@ -42,7 +58,8 @@ func (c *Check) Run() error {
 		}
 		c.db = db
 	}
-	return nil
+	err = c.SampleSession()
+	return err
 }
 
 // Connect establishes a connection to an Oracle instance and returns an open connection to the database.
@@ -57,6 +74,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	// connStr := fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
 	db, err := sqlx.Open("godror", connStr)
+	//db, err := sqlx.Connect("godror", connStr)
 	if err != nil {
 		log.Errorf("Failed to connect to Oracle instance | err=[%s]", err)
 		return nil, err
