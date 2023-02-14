@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -87,7 +87,7 @@ func NewNoisyProcessEvent(count uint64,
 
 func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
-	case resolvers.ErrTruncatedParents, resolvers.ErrTruncatedParentsERPC:
+	case dentry.ErrTruncatedParents, dentry.ErrTruncatedParentsERPC:
 		return model.CustomTruncatedParentsEventType
 	default:
 		return model.UnknownEventType

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -31,7 +32,7 @@ type Resolvers struct {
 	TimeResolver      *resolvers.TimeResolver
 	UserGroupResolver *resolvers.UserGroupResolver
 	TagsResolver      *resolvers.TagsResolver
-	DentryResolver    *resolvers.DentryResolver
+	DentryResolver    *dentry.DentryResolver
 	ProcessResolver   *resolvers.ProcessResolver
 	NamespaceResolver *resolvers.NamespaceResolver
 	CgroupsResolver   *resolvers.CgroupsResolver
@@ -41,7 +42,7 @@ type Resolvers struct {
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
-	dentryResolver, err := resolvers.NewDentryResolver(probe.Config, probe.StatsdClient, probe.Erpc)
+	dentryResolver, err := dentry.NewDentryResolver(probe.Config, probe.StatsdClient, probe.Erpc)
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package dentry
 
 import (
 	"errors"

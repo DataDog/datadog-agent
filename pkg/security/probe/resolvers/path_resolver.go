@@ -13,17 +13,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // PathResolver describes a resolvers for path and file names
 type PathResolver struct {
-	dentryResolver *DentryResolver
+	dentryResolver *dentry.DentryResolver
 	mountResolver  *MountResolver
 }
 
 // NewPathResolver returns a new path resolver
-func NewPathResolver(dentryResolver *DentryResolver, mountResolver *MountResolver) *PathResolver {
+func NewPathResolver(dentryResolver *dentry.DentryResolver, mountResolver *MountResolver) *PathResolver {
 	return &PathResolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
 }
 
