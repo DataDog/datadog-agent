@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 type serviceExtractorFn func(args []string) string
@@ -43,6 +44,7 @@ var _ metadata.Extractor = &ServiceExtractor{}
 type ServiceExtractor struct {
 	enabled      bool
 	serviceByPID map[int32]*serviceMetadata
+	scmMonitor   *winutil.SCMMonitor
 }
 
 type serviceMetadata struct {
@@ -56,6 +58,7 @@ func NewServiceExtractor() *ServiceExtractor {
 	return &ServiceExtractor{
 		enabled:      enabled,
 		serviceByPID: make(map[int32]*serviceMetadata),
+		scmMonitor:   winutil.GetServiceMonitor(),
 	}
 }
 
@@ -138,6 +141,16 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 		cmdline:        cmd,
 		serviceContext: "process_context:" + exe,
 	}
+}
+
+// GetWindowsServiceTags returns either the service info associated with the process
+func (d *ServiceExtractor) GetWindowsServiceTags(pid uint64) *winutil.ServiceInfo {
+	entry, err := d.scmMonitor.GetServiceInfo(pid)
+	if err != nil {
+		log.Debugf("Failed to gather serviceInfo from SCM: %v", err)
+		return nil
+	}
+	return entry
 }
 
 func removeFilePath(s string) string {

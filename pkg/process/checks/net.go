@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 var (
@@ -54,6 +56,7 @@ type ConnectionsCheck struct {
 	processData      *ProcessData
 
 	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
+	scmMonitor                  *winutil.SCMMonitor
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -339,7 +342,8 @@ func batchConnections(
 
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
-			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx)
+			svcInfo := serviceExtractor.GetWindowsServiceTags(c.Pid)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx, svcInfo)
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
@@ -448,7 +452,7 @@ func groupSize(total, maxBatchSize int) int32 {
 }
 
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
-func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string) []string {
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string, serviceInfo *winutil.ServiceInfo) []string {
 	tagCount := len(tagOffsets) + len(serviceCtx)
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
@@ -456,6 +460,13 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	}
 	if serviceCtx != "" {
 		tagsStr = append(tagsStr, serviceCtx)
+	}
+
+	// serviceInfo is only non-nil on windows
+	if serviceInfo != nil {
+		for _, serviceName := range serviceInfo.ServiceName {
+			tagsStr = append(tagsStr, fmt.Sprintf("service_context:%s", serviceName))
+		}
 	}
 
 	return tagsStr
