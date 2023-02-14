@@ -171,39 +171,41 @@ func (mr *MountResolver) syncCache(pids ...uint32) error {
 	return err
 }
 
-func (mr *MountResolver) finalizeChildren(parent *model.Mount) {
-	for _, mount := range mr.mounts {
-		if mount.ParentMountID == parent.MountID {
-			if _, exists := mr.mounts[mount.MountID]; exists {
-				mr.finalize(mount)
+func (mr *MountResolver) finalize(first *model.Mount) {
+	open_queue := make([]*model.Mount, 0, len(mr.mounts))
+	open_queue = append(open_queue, first)
+
+	for len(open_queue) != 0 {
+		curr, rest := open_queue[len(open_queue)-1], open_queue[:len(open_queue)-1]
+		open_queue = rest
+
+		// pre-work
+		delete(mr.mounts, curr.MountID)
+		mounts, exists := mr.devices[curr.Device]
+		if exists {
+			delete(mounts, curr.MountID)
+		}
+
+		// finalize children
+		for _, child := range mr.mounts {
+			if child.ParentMountID == curr.MountID {
+				if _, exists := mr.mounts[child.MountID]; exists {
+					open_queue = append(open_queue, child)
+				}
+			}
+		}
+
+		// finalize device
+		if !curr.IsOverlayFS() {
+			continue
+		}
+
+		for _, deviceMount := range mr.devices[curr.Device] {
+			if curr.Device == deviceMount.Device && curr.MountID != deviceMount.MountID {
+				open_queue = append(open_queue, deviceMount)
 			}
 		}
 	}
-}
-
-// finalizeDevice deletes Mount sharing the same device id for overlay fs mount
-func (mr *MountResolver) finalizeDevice(mount *model.Mount) {
-	if !mount.IsOverlayFS() {
-		return
-	}
-
-	for _, deviceMount := range mr.devices[mount.Device] {
-		if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID {
-			mr.finalize(deviceMount)
-		}
-	}
-}
-
-func (mr *MountResolver) finalize(mount *model.Mount) {
-	delete(mr.mounts, mount.MountID)
-
-	mounts, exists := mr.devices[mount.Device]
-	if exists {
-		delete(mounts, mount.MountID)
-	}
-
-	mr.finalizeChildren(mount)
-	mr.finalizeDevice(mount)
 }
 
 func (mr *MountResolver) delete(mount *model.Mount) {

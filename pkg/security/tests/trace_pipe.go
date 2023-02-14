@@ -16,16 +16,18 @@ package tests
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+
+	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-const tracePipeFile = "/sys/kernel/debug/tracing/trace_pipe"
-
-// TracePipe to read from /sys/kernel/debug/tracing/trace_pipe
+// TracePipe to read from /sys/kernel/[debug/]tracing/trace_pipe
 // Note that data can be read only once, i.e. if you have more than
 // one tracer / channel, only one will receive an event:
 // "Once data is read from this file, it is consumed, and will not be
@@ -53,7 +55,11 @@ type TraceEvent struct {
 
 // NewTracePipe instantiates a new trace pipe
 func NewTracePipe() (*TracePipe, error) {
-	f, err := os.Open(tracePipeFile)
+	traceFSPath := utilkernel.GetTraceFSMountPath()
+	if traceFSPath == "" {
+		return nil, errors.New("tracefs is not available")
+	}
+	f, err := os.Open(filepath.Join(traceFSPath, "trace_pipe"))
 	if err != nil {
 		return nil, err
 	}
