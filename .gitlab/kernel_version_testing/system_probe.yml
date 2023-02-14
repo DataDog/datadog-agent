@@ -39,23 +39,32 @@ pull_test_dockers_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
   script:
+    # Build dependencies directoru
     - mkdir $DEPENDENCIES
     - pushd $DEPENDENCIES
+    # copy clang and llc bins
     - mkdir -p $EMBEDDED_BIN
     - cp $CLANG_BPF $EMBEDDED_BIN
     - cp $LLC_BPF $EMBEDDED_BIN
     - mkdir -p $EMBEDDED_INC
+    # download and copy btf files
     - mkdir -p $BTF_DIR
     - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    # copy gotestsum and test2json
     - mkdir $GO_BIN
     - cp $GOTESTSUM $GO_BIN
     - cp $TEST2JSON $GO_BIN
     - mkdir junit
     - mkdir testjson
     - mkdir pkgjson
+    # copy over docker images
     - mkdir kitchen-dockers
     - cp -R $KITCHEN_DOCKERS $DEPENDENCIES
     - cp -R site-cookbooks $DEPENDENCIES
+    # copy system probe tests
+    - mkdir $SYSTEM_PROBE_TESTS
+    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
+    # package all the dependencies
     - tar czvf $ARCHIVE_NAME $DEPENDENCIES
     - popd
   artifacts:
@@ -73,6 +82,8 @@ pull_test_dockers_arm64:
     EMBEDDED_INC: opt/datadog-agent/embedded/include
     BTF_DIR: system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
+    SYSTEM_PROBE_TESTS: system-probe-tests
+    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
 
 package_dependencies_x64:
   extends:
