@@ -103,7 +103,11 @@ type ActivityDump struct {
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
 	brokenLineageDrop  *atomic.Uint64
-	countedByLimiter   bool
+	eventTypeDrop      *atomic.Uint64
+	validRootNodeDrop  *atomic.Uint64
+	bindFamilyDrop     *atomic.Uint64
+
+	countedByLimiter bool
 
 	shouldMergePaths bool
 	pathMergedCount  *atomic.Uint64
@@ -152,6 +156,9 @@ func NewEmptyActivityDump() *ActivityDump {
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
 		brokenLineageDrop:  atomic.NewUint64(0),
+		eventTypeDrop:      atomic.NewUint64(0),
+		validRootNodeDrop:  atomic.NewUint64(0),
+		bindFamilyDrop:     atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
 	}
@@ -542,6 +549,8 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 
 	// check if this event type is traced
 	if !ad.isEventTypeTraced(event) {
+		// should not happen
+		ad.eventTypeDrop.Inc()
 		return false
 	}
 
@@ -572,7 +581,7 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	}
 
 	// resolve fields
-	event.ResolveFields(true)
+	event.ResolveFieldsForAD()
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
@@ -642,6 +651,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// we're about to add a root process node, make sure this root node passes the root node sanitizer
 		if !ad.IsValidRootNode(entry) {
+			ad.validRootNodeDrop.Inc()
 			return node
 		}
 
@@ -767,6 +777,24 @@ func (ad *ActivityDump) SendStats() error {
 		}
 	}
 
+	if value := ad.eventTypeDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventTypeDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventTypeDrop, err)
+		}
+	}
+
+	if value := ad.validRootNodeDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpValidRootNodeDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpValidRootNodeDrop, err)
+		}
+	}
+
+	if value := ad.bindFamilyDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpBindFamilyDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpBindFamilyDrop, err)
+		}
+	}
+
 	if value := ad.pathMergedCount.Swap(0); value > 0 {
 		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), nil, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
@@ -813,28 +841,6 @@ func (ad *ActivityDump) resolveTags() error {
 		return fmt.Errorf("failed to resolve %s: %w", ad.DumpMetadata.ContainerID, err)
 	}
 
-	if !ad.countedByLimiter {
-		// check if we should discard this dump based on the manager dump limiter
-		limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
-		if limiterKey == ":" {
-			// wait for the tags
-			return nil
-		}
-
-		counter, ok := ad.adm.dumpLimiter.Get(limiterKey)
-		if !ok {
-			counter = atomic.NewUint64(0)
-			ad.adm.dumpLimiter.Add(limiterKey, counter)
-		}
-
-		if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
-			ad.finalize(true)
-			ad.adm.removeDump(ad)
-		} else {
-			ad.countedByLimiter = true
-			counter.Add(1)
-		}
-	}
 	return nil
 }
 
@@ -1441,7 +1447,7 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(evt) {
+	if sock.InsertBindEvent(ad, evt) {
 		newNode = true
 	}
 
@@ -1714,9 +1720,10 @@ type SocketNode struct {
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
-func (n *SocketNode) InsertBindEvent(evt *model.BindEvent) bool {
+func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent) bool {
 	// ignore non IPv4 / IPv6 bind events for now
 	if evt.AddrFamily != unix.AF_INET && evt.AddrFamily != unix.AF_INET6 {
+		ad.bindFamilyDrop.Inc()
 		return false
 	}
 	evtIP := evt.Addr.IPNet.IP.String()

@@ -58,9 +58,9 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from process",
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processutils.Fetcher = func() (processutils.Processes, error) {
+				processutils.FetchProcessesWithName = func(searchedName string) (processutils.Processes, error) {
 					return processutils.Processes{
-						42: processutils.NewCheckedFakeProcess(42, "buddy", []string{"--path=/home/root/hiya-buddy.txt"}),
+						processutils.NewProcessMetadata(42, 0, searchedName, []string{"--path=/home/root/hiya-buddy.txt"}, nil),
 					}, nil
 				}
 			},
@@ -70,7 +70,7 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from process missing process",
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processutils.Fetcher = func() (processutils.Processes, error) {
+				processutils.FetchProcessesWithName = func(searchedName string) (processutils.Processes, error) {
 					return processutils.Processes{}, nil
 				}
 			},
@@ -80,9 +80,9 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from process missing flag",
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processutils.Fetcher = func() (processutils.Processes, error) {
+				processutils.FetchProcessesWithName = func(searchedName string) (processutils.Processes, error) {
 					return processutils.Processes{
-						42: processutils.NewCheckedFakeProcess(42, "buddy", nil),
+						processutils.NewProcessMetadata(42, 0, searchedName, nil, nil),
 					}, nil
 				}
 			},
@@ -102,6 +102,8 @@ func TestResolveValueFrom(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			processutils.PurgeCache()
+
 			reporter := &mocks.Reporter{}
 			b, err := NewBuilder(reporter, WithHostRootMount("../resources/"))
 			assert.NoError(err)

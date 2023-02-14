@@ -15,14 +15,12 @@ var mmapProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/fget",
 			EBPFFuncName: "kretprobe_fget",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "tracepoint/syscalls/sys_enter_mmap",
 			EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap",
 		},
 	},

@@ -19,8 +19,8 @@ import (
 	"encoding"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 // MetricDataType is a timeseries-style metric type.

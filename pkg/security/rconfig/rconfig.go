@@ -45,7 +45,7 @@ var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
 func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyProvider, error) {
-	c, err := remote.NewGRPCClient(name, agentVersion.String(), []data.Product{data.ProductCWSDD, data.ProductCWSCustom}, securityAgentRCPollInterval)
+	c, err := remote.NewUnverifiedGRPCClient(name, agentVersion.String(), []data.Product{data.ProductCWSDD, data.ProductCWSCustom}, securityAgentRCPollInterval)
 	if err != nil {
 		return nil, err
 	}

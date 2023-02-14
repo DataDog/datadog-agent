@@ -6,6 +6,7 @@
 package sbom
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -62,16 +63,40 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
-	p.queue <- &model.SBOMEntity{
-		Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-		Id:                 img.ID,
-		GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
-		Tags:               img.RepoTags,
-		InUse:              true, // TODO: compute this field
-		GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
-		Sbom: &sbom.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
-		},
+	// In containerd some images are created without a repo digest, and it's
+	// also possible to remove repo digests manually.
+	// This means that the set of repos that we need to handle is the union of
+	// the repos present in the repo digests and the ones present in the repo
+	// tags.
+	repos := make(map[string]struct{})
+	for _, repoDigest := range img.RepoDigests {
+		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
+	}
+	for _, repoTag := range img.RepoTags {
+		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+	}
+
+	for repo := range repos {
+		id := repo + "@" + img.ID
+
+		tags := make([]string, 0, len(img.RepoTags))
+		for _, repoTag := range img.RepoTags {
+			if strings.HasPrefix(repoTag, repo+":") {
+				tags = append(tags, strings.SplitN(repoTag, ":", 2)[1])
+			}
+		}
+
+		p.queue <- &model.SBOMEntity{
+			Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+			Id:                 id,
+			GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
+			Tags:               tags,
+			InUse:              true, // TODO: compute this field
+			GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
+			Sbom: &sbom.SBOMEntity_Cyclonedx{
+				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
+			},
+		}
 	}
 }
 

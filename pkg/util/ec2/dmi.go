@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/google/uuid"
 )
 
@@ -26,6 +27,11 @@ func isBoardVendorEC2() bool {
 // On AWS Nitro instances dmi information contains the instanceID for the host. We check that the board vendor is
 // EC2 and that the board_asset_tag match an instanceID format before using it
 func getInstanceIDFromDMI() (string, error) {
+	// we don't want to collect anything on Fargate
+	if fargate.IsFargateInstance() {
+		return "", fmt.Errorf("host alias detection through DMI is disabled on Fargate")
+	}
+
 	if !config.Datadog.GetBool("ec2_use_dmi") {
 		return "", fmt.Errorf("'ec2_use_dmi' is disabled")
 	}
@@ -51,6 +57,11 @@ func getInstanceIDFromDMI() (string, error) {
 // Depending on the instance type either the DMI product UUID or the hypervisor UUID is available. In both case, if they
 // start with "ec2" we return true.
 func isEC2UUID() bool {
+	// if we have a board vendor we can skip this UUID check
+	if dmi.GetBoardVendor() != "" && !isBoardVendorEC2() {
+		return false
+	}
+
 	uuidData := dmi.GetProductUUID()
 	if uuidData == "" {
 		uuidData = dmi.GetHypervisorUUID()
