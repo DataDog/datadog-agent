@@ -27,7 +27,7 @@ import (
 // exported for testing purposes
 const (
 	DatadogMetricErrorConditionReason string = "Unable to fetch data from Datadog"
-	alwaysActiveAnnotation                   = "external-metrics.datadoghq.com/always-active"
+	alwaysActiveAnnotation            string = "external-metrics.datadoghq.com/always-active"
 )
 
 // DatadogMetricInternal is a flatten, easier to use, representation of `DatadogMetric` CRD
