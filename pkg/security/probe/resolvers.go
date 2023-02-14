@@ -17,13 +17,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
@@ -43,7 +43,7 @@ type Resolvers struct {
 	UserGroupResolver *user.UserGroupResolver
 	TagsResolver      *tags.Resolver
 	DentryResolver    *dentry.DentryResolver
-	ProcessResolver   *resolvers.ProcessResolver
+	ProcessResolver   *process.Resolver
 	NamespaceResolver *netns.Resolver
 	CgroupResolver    *cgroup.CgroupResolver
 	TCResolver        *tc.Resolver
@@ -87,8 +87,8 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	pathResolver := path.NewResolver(dentryResolver, mountResolver)
 
 	containerResolver := &container.Resolver{}
-	processResolver, err := resolvers.NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
-		probe.scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, resolvers.NewProcessResolverOpts(probe.Config.EnvsWithValue))
+	processResolver, err := process.NewResolver(probe.Manager, probe.Config, probe.StatsdClient,
+		probe.scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, process.NewResolverOpts(probe.Config.EnvsWithValue))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (r *Resolvers) snapshot() error {
 			continue
 		}
 
-		if resolvers.IsKThread(uint32(ppid), uint32(proc.Pid)) {
+		if process.IsKThread(uint32(ppid), uint32(proc.Pid)) {
 			continue
 		}
 

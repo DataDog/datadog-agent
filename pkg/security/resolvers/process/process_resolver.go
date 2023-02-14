@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package resolvers
+package process
 
 import (
 	"container/list"
@@ -52,13 +52,13 @@ const (
 	maxParallelArgsEnvs = 512 // == number of parallel starting processes
 )
 
-// ProcessResolverOpts options of resolver
-type ProcessResolverOpts struct {
+// ResolverOpts options of resolver
+type ResolverOpts struct {
 	envsWithValue map[string]bool
 }
 
-// ProcessResolver resolved process context
-type ProcessResolver struct {
+// Resolver resolved process context
+type Resolver struct {
 	sync.RWMutex
 	state *atomic.Int64
 
@@ -78,7 +78,7 @@ type ProcessResolver struct {
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
 	cacheSize        *atomic.Int64
-	opts             ProcessResolverOpts
+	opts             ResolverOpts
 
 	// stats
 	hitsStats      map[string]*atomic.Int64
@@ -185,7 +185,7 @@ func (p *ProcessCacheEntryPool) Put(pce *model.ProcessCacheEntry) {
 }
 
 // NewProcessCacheEntryPool returns a new ProcessCacheEntryPool pool
-func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
+func NewProcessCacheEntryPool(p *Resolver) *ProcessCacheEntryPool {
 	pcep := ProcessCacheEntryPool{pool: &sync.Pool{}}
 
 	pcep.pool.New = func() interface{} {
@@ -211,7 +211,7 @@ func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
 }
 
 // DequeueExited dequeue exited process
-func (p *ProcessResolver) DequeueExited() {
+func (p *Resolver) DequeueExited() {
 	p.Lock()
 	defer p.Unlock()
 
@@ -240,7 +240,7 @@ func (p *ProcessResolver) DequeueExited() {
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func (p *ProcessResolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
+func (p *Resolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext = pidContext
 	entry.Cookie = eval.NewCookie()
@@ -248,12 +248,12 @@ func (p *ProcessResolver) NewProcessCacheEntry(pidContext model.PIDContext) *mod
 }
 
 // CountBrokenLineage increments the counter of broken lineage
-func (p *ProcessResolver) CountBrokenLineage() {
+func (p *Resolver) CountBrokenLineage() {
 	p.brokenLineage.Inc()
 }
 
 // SendStats sends process resolver metrics
-func (p *ProcessResolver) SendStats() error {
+func (p *Resolver) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
 	}
@@ -328,7 +328,7 @@ func (p *ProcessResolver) SendStats() error {
 }
 
 // UpdateArgsEnvs updates arguments or environment variables of the given id
-func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
+func (p *Resolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 	entry := p.argsEnvsPool.GetFrom(event)
 	if list, found := p.argsEnvsCache.Get(event.ID); found {
 		list.Append(entry)
@@ -338,7 +338,7 @@ func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *ProcessResolver) AddForkEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) AddForkEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -346,7 +346,7 @@ func (p *ProcessResolver) AddForkEntry(entry *model.ProcessCacheEntry) {
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *ProcessResolver) AddExecEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) AddExecEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -354,7 +354,7 @@ func (p *ProcessResolver) AddExecEntry(entry *model.ProcessCacheEntry) {
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
-func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process, filledProc *process.FilledProcess) error {
+func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process, filledProc *process.FilledProcess) error {
 	// the provided process is a kernel process if its virtual memory size is null
 	if filledProc.MemInfo.VMS == 0 {
 		return fmt.Errorf("cannot snapshot kernel threads")
@@ -479,7 +479,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 }
 
 // retrieveExecFileFields fetches inode metadata from kernel space
-func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
+func (p *Resolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
 	fi, err := os.Stat(procExecPath)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary: %w", procExecPath, err)
@@ -510,7 +510,7 @@ func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.Fi
 	return &fileFields, nil
 }
 
-func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
+func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
 
@@ -526,7 +526,7 @@ func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 	p.cacheSize.Inc()
 }
 
-func (p *ProcessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -545,7 +545,7 @@ func (p *ProcessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
 	p.insertEntry(entry, prev)
 }
 
-func (p *ProcessResolver) insertExecEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		prev.Exec(entry)
@@ -554,7 +554,7 @@ func (p *ProcessResolver) insertExecEntry(entry *model.ProcessCacheEntry) {
 	p.insertEntry(entry, prev)
 }
 
-func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
+func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 	// Start by updating the exit timestamp of the pid cache entry
 	entry, ok := p.entryCache[pid]
 	if !ok {
@@ -576,7 +576,7 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // DeleteEntry tries to delete an entry in the process cache
-func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
+func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -584,14 +584,14 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+func (p *Resolver) Resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
 	return p.resolve(pid, tid, inode)
 }
 
-func (p *ProcessResolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+func (p *Resolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
@@ -618,7 +618,7 @@ func (p *ProcessResolver) resolve(pid, tid uint32, inode uint64) *model.ProcessC
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
+func (p *Resolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
@@ -652,7 +652,7 @@ func isBusybox(pathname string) bool {
 }
 
 // SetProcessSymlink resolves process file symlink path
-func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
+func (p *Resolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 	// TODO: busybox workaround only for now
 	if isBusybox(entry.FileEvent.PathnameStr) {
 		arg0, _ := p.GetProcessArgv0(&entry.Process)
@@ -666,7 +666,7 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 }
 
 // SetProcessFilesystem resolves process file system
-func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
+func (p *Resolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
 		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid, entry.ContainerID)
 		if err != nil {
@@ -679,20 +679,20 @@ func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (
 }
 
 // ApplyBootTime realign timestamp from the boot time
-func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
+func (p *Resolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 	entry.ExecTime = p.timeResolver.ApplyBootTime(entry.ExecTime)
 	entry.ForkTime = p.timeResolver.ApplyBootTime(entry.ForkTime)
 	entry.ExitTime = p.timeResolver.ApplyBootTime(entry.ExitTime)
 }
 
 // ResolveFromCache resolves cache entry from the cache
-func (p *ProcessResolver) ResolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+func (p *Resolver) ResolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 	return p.resolveFromCache(pid, tid, inode)
 }
 
-func (p *ProcessResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+func (p *Resolver) resolveFromCache(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	entry, exists := p.entryCache[pid]
 	if !exists {
 		return nil
@@ -712,7 +712,7 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32, inode uint64) *model
 }
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
-func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
+func (p *Resolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
 	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
 		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
 	}
@@ -740,13 +740,13 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 }
 
 // ResolveFromKernelMaps resolves the entry from the kernel maps
-func (p *ProcessResolver) ResolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *Resolver) ResolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 	return p.resolveFromKernelMaps(pid, tid)
 }
 
-func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *Resolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	model.ByteOrder.PutUint32(pidb, pid)
 
@@ -809,13 +809,13 @@ func IsKThread(ppid, pid uint32) bool {
 }
 
 // ResolveFromProcfs resolves the entry from procfs
-func (p *ProcessResolver) ResolveFromProcfs(pid uint32) *model.ProcessCacheEntry {
+func (p *Resolver) ResolveFromProcfs(pid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 	return p.resolveFromProcfs(pid, procResolveMaxDepth)
 }
 
-func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
+func (p *Resolver) resolveFromProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
 	if maxDepth < 1 || pid == 0 {
 		return nil
 	}
@@ -857,7 +857,7 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 }
 
 // SetProcessArgs set arguments to cache entry
-func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
+func (p *Resolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if entry, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		if pce.ArgsTruncated {
 			p.argsTruncated.Inc()
@@ -878,7 +878,7 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 }
 
 // GetProcessArgv returns the args of the event as an array
-func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
+func (p *Resolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil {
 		return nil, false
 	}
@@ -892,7 +892,7 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 }
 
 // GetProcessArgv0 returns the first arg of the event
-func (p *ProcessResolver) GetProcessArgv0(pr *model.Process) (string, bool) {
+func (p *Resolver) GetProcessArgv0(pr *model.Process) (string, bool) {
 	if pr.ArgsEntry == nil {
 		return "", false
 	}
@@ -906,7 +906,7 @@ func (p *ProcessResolver) GetProcessArgv0(pr *model.Process) (string, bool) {
 }
 
 // GetProcessScrubbedArgv returns the scrubbed args of the event as an array
-func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
+func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
 	if pr.ScrubbedArgvResolved {
 		return pr.ScrubbedArgv, pr.ScrubbedArgsTruncated
 	}
@@ -925,7 +925,7 @@ func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, b
 }
 
 // SetProcessEnvs set envs to cache entry
-func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
+func (p *Resolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if entry, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		if pce.EnvsTruncated {
 			p.envsTruncated.Inc()
@@ -946,7 +946,7 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 }
 
 // GetProcessEnvs returns the envs of the event
-func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
+func (p *Resolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
 		return nil, false
 	}
@@ -957,7 +957,7 @@ func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 }
 
 // GetProcessEnvp returns the envs of the event with their values
-func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
+func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
 		return nil, false
 	}
@@ -968,7 +968,7 @@ func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 }
 
 // SetProcessTTY resolves TTY and cache the result
-func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
+func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {
 		tty := utils.PidTTY(int32(pce.Pid))
 		pce.TTYName = tty
@@ -977,7 +977,7 @@ func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 }
 
 // SetProcessUsersGroups resolves and set users and groups
-func (p *ProcessResolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
+func (p *Resolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
 	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID))
 	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID))
 	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID))
@@ -988,14 +988,14 @@ func (p *ProcessResolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
 }
 
 // Get returns the cache entry for a specified pid
-func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
+func (p *Resolver) Get(pid uint32) *model.ProcessCacheEntry {
 	p.RLock()
 	defer p.RUnlock()
 	return p.entryCache[pid]
 }
 
 // UpdateUID updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateUID(pid uint32, e *model.Event) {
+func (p *Resolver) UpdateUID(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1014,7 +1014,7 @@ func (p *ProcessResolver) UpdateUID(pid uint32, e *model.Event) {
 }
 
 // UpdateGID updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateGID(pid uint32, e *model.Event) {
+func (p *Resolver) UpdateGID(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1033,7 +1033,7 @@ func (p *ProcessResolver) UpdateGID(pid uint32, e *model.Event) {
 }
 
 // UpdateCapset updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateCapset(pid uint32, e *model.Event) {
+func (p *Resolver) UpdateCapset(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1048,7 +1048,7 @@ func (p *ProcessResolver) UpdateCapset(pid uint32, e *model.Event) {
 }
 
 // Start starts the resolver
-func (p *ProcessResolver) Start(ctx context.Context) error {
+func (p *Resolver) Start(ctx context.Context) error {
 	var err error
 	if p.execFileCacheMap, err = managerhelper.Map(p.manager, "exec_file_cache"); err != nil {
 		return err
@@ -1067,7 +1067,7 @@ func (p *ProcessResolver) Start(ctx context.Context) error {
 	return nil
 }
 
-func (p *ProcessResolver) cacheFlush(ctx context.Context) {
+func (p *Resolver) cacheFlush(ctx context.Context) {
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
@@ -1099,7 +1099,7 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *ProcessResolver) SyncCache(proc *process.Process) bool {
+func (p *Resolver) SyncCache(proc *process.Process) bool {
 	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
 	// required.
 	p.Lock()
@@ -1114,7 +1114,7 @@ func (p *ProcessResolver) SyncCache(proc *process.Process) bool {
 	return ret
 }
 
-func (p *ProcessResolver) setAncestor(pce *model.ProcessCacheEntry) {
+func (p *Resolver) setAncestor(pce *model.ProcessCacheEntry) {
 	parent := p.entryCache[pce.PPid]
 	if parent != nil {
 		pce.SetAncestor(parent)
@@ -1122,7 +1122,7 @@ func (p *ProcessResolver) setAncestor(pce *model.ProcessCacheEntry) {
 }
 
 // syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.FilledProcess) (*model.ProcessCacheEntry, bool) {
+func (p *Resolver) syncCache(proc *process.Process, filledProc *process.FilledProcess) (*model.ProcessCacheEntry, bool) {
 	pid := uint32(proc.Pid)
 
 	// Check if an entry is already in cache for the given pid.
@@ -1172,7 +1172,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	return entry, true
 }
 
-func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
+func (p *Resolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
 	for entry != nil {
 		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
 		if _, exists := already[label]; !exists {
@@ -1205,7 +1205,7 @@ func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheE
 }
 
 // Dump create a temp file and dump the cache
-func (p *ProcessResolver) Dump(withArgs bool) (string, error) {
+func (p *Resolver) Dump(withArgs bool) (string, error) {
 	dump, err := os.CreateTemp("/tmp", "process-cache-dump-")
 	if err != nil {
 		return "", err
@@ -1232,24 +1232,24 @@ func (p *ProcessResolver) Dump(withArgs bool) (string, error) {
 }
 
 // GetCacheSize returns the cache size of the process resolver
-func (p *ProcessResolver) GetCacheSize() float64 {
+func (p *Resolver) GetCacheSize() float64 {
 	p.RLock()
 	defer p.RUnlock()
 	return float64(len(p.entryCache))
 }
 
 // GetEntryCacheSize returns the cache size of the process resolver
-func (p *ProcessResolver) GetEntryCacheSize() float64 {
+func (p *Resolver) GetEntryCacheSize() float64 {
 	return float64(p.cacheSize.Load())
 }
 
 // SetState sets the process resolver state
-func (p *ProcessResolver) SetState(state int64) {
+func (p *Resolver) SetState(state int64) {
 	p.state.Store(state)
 }
 
 // Walk iterates through the entire tree and call the provided callback on each entry
-func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -1259,7 +1259,7 @@ func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // NewProcessVariables returns a provider for variables attached to a process cache entry
-func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *model.ProcessCacheEntry) rules.VariableProvider {
+func (p *Resolver) NewProcessVariables(scoper func(ctx *eval.Context) *model.ProcessCacheEntry) rules.VariableProvider {
 	var variables *eval.ScopedVariables[*model.ProcessCacheEntry]
 	variables = eval.NewScopedVariables(scoper, func(key *model.ProcessCacheEntry) {
 		key.SetReleaseCallback(func() {
@@ -1270,17 +1270,17 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) *mo
 	return variables
 }
 
-// NewProcessResolver returns a new process resolver
-func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
+// NewResolver returns a new process resolver
+func NewResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
 	cgroupResolver *cgroup.CgroupResolver, userGroupResolver *user.UserGroupResolver, timeResolver *stime.Resolver,
-	pathResolver *spath.Resolver, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	pathResolver *spath.Resolver, opts ResolverOpts) (*Resolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	p := &ProcessResolver{
+	p := &Resolver{
 		manager:        manager,
 		config:         config,
 		statsdClient:   statsdClient,
@@ -1310,9 +1310,9 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 	return p, nil
 }
 
-// NewProcessResolverOpts returns a new set of process resolver options
-func NewProcessResolverOpts(envsWithValue []string) ProcessResolverOpts {
-	opts := ProcessResolverOpts{
+// NewResolverOpts returns a new set of process resolver options
+func NewResolverOpts(envsWithValue []string) ResolverOpts {
+	opts := ResolverOpts{
 		envsWithValue: make(map[string]bool, len(envsWithValue)),
 	}
 

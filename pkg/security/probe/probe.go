@@ -38,10 +38,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -620,7 +620,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if resolvers.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+		if process.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 			return
 		}
 
@@ -800,7 +800,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	if resolvers.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return
 	}
 

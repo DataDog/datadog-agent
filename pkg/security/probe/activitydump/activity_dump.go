@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1091,7 +1091,7 @@ func (pan *ProcessActivityNode) retain() {
 }
 
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
-func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *resolvers.ProcessResolver) {
+func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 	_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
 	envs, envsTruncated := resolver.GetProcessEnvs(&pan.Process)
 	pan.Process.Envs = envs
@@ -1109,7 +1109,7 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *resolvers.Proc
 }
 
 // Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
-func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, processResolver *resolvers.ProcessResolver) bool {
+func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, processResolver *sprocess.Resolver) bool {
 
 	if pan.Process.Comm == entry.Comm && pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr &&
 		pan.Process.Credentials == entry.Credentials {
