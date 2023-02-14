@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package reorderer
 
 import (
 	"context"
@@ -24,22 +24,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-const eventStreamMap = "events"
+const EventStreamMap = "events"
 
 // OrderedPerfMap implements the EventStream interface
 // using an eBPF perf map associated with a event reorder.
 type OrderedPerfMap struct {
-	perfMap           *manager.PerfMap
-	perfBufferMonitor *PerfBufferMonitor
-	reordererMonitor  *ReordererMonitor
-	reOrderer         *ReOrderer
-	recordPool        *RecordPool
+	perfMap          *manager.PerfMap
+	lostEventCounter LostEventCounter
+	reordererMonitor *ReordererMonitor
+	reOrderer        *ReOrderer
+	recordPool       *RecordPool
+}
+
+type LostEventCounter interface {
+	CountLostEvent(count uint64, perfMapName string, CPU int)
 }
 
 // Init the event stream.
 func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error {
 	var ok bool
-	if m.perfMap, ok = mgr.GetPerfMap(eventStreamMap); !ok {
+	if m.perfMap, ok = mgr.GetPerfMap(EventStreamMap); !ok {
 		return errors.New("couldn't find events perf map")
 	}
 
@@ -58,14 +62,14 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error
 
 func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	seclog.Tracef("lost %d events", count)
-	if m.perfBufferMonitor != nil {
-		m.perfBufferMonitor.CountLostEvent(count, perfMap.Name, CPU)
+	if m.lostEventCounter != nil {
+		m.lostEventCounter.CountLostEvent(count, perfMap.Name, CPU)
 	}
 }
 
 // SetMonitor set the monitor
-func (m *OrderedPerfMap) SetMonitor(perfBufferMonitor *PerfBufferMonitor) {
-	m.perfBufferMonitor = perfBufferMonitor
+func (m *OrderedPerfMap) SetMonitor(counter LostEventCounter) {
+	m.lostEventCounter = counter
 }
 
 // Start the event stream.
@@ -93,8 +97,8 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	}
 
 	return QuickInfo{
-		cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
-		timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+		Cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
+		Timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
 	}, nil
 }
 

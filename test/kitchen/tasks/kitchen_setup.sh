@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 rm -rf "$CI_PROJECT_DIR/kitchen_logs"
 rm -rf "$DD_AGENT_TESTING_DIR/.kitchen"

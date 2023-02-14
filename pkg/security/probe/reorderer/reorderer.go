@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package reorderer
 
 import (
 	"context"
@@ -211,7 +211,7 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 				if err != nil {
 					continue
 				}
-				tm = info.timestamp
+				tm = info.Timestamp
 			} else {
 				tm = lastTm
 			}
@@ -259,8 +259,8 @@ func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, m
 
 // QuickInfo represents the info quickly extractable from an event, that can be used for reordering
 type QuickInfo struct {
-	cpu       uint64
-	timestamp uint64
+	Cpu       uint64
+	Timestamp uint64
 }
 
 // QuickInfoExtractor represents a function that takes a record, and returns the quick infos
