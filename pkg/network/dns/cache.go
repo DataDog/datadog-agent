@@ -38,12 +38,12 @@ type reverseDNSCache struct {
 
 func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
-		length:            telemetry.NewStatGaugeWrapper("reverse_dns_cache", "length", []string{}, "description"),
-		lookups:           telemetry.NewStatGaugeWrapper("reverse_dns_cache", "lookups", []string{}, "description"),
-		resolved:          telemetry.NewStatGaugeWrapper("reverse_dns_cache", "resolved", []string{}, "description"),
-		added:             telemetry.NewStatGaugeWrapper("reverse_dns_cache", "added", []string{}, "description"),
-		expired:           telemetry.NewStatGaugeWrapper("reverse_dns_cache", "expired", []string{}, "description"),
-		oversized:         telemetry.NewStatGaugeWrapper("reverse_dns_cache", "oversized", []string{}, "description"),
+		length:            telemetry.NewStatGaugeWrapper("dns", "length", []string{}, "description"),
+		lookups:           telemetry.NewStatGaugeWrapper("dns", "lookups", []string{}, "description"),
+		resolved:          telemetry.NewStatGaugeWrapper("dns", "resolved", []string{}, "description"),
+		added:             telemetry.NewStatGaugeWrapper("dns", "added", []string{}, "description"),
+		expired:           telemetry.NewStatGaugeWrapper("dns", "expired", []string{}, "description"),
+		oversized:         telemetry.NewStatGaugeWrapper("dns", "oversized", []string{}, "description"),
 		data:              make(map[util.Address]*dnsCacheVal),
 		exit:              make(chan struct{}),
 		size:              size,
@@ -149,6 +149,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	return resolved
 }
 
+// TODO: remove, only used in tests now
 func (c *reverseDNSCache) Len() int {
 	return int(c.length.Load())
 }
@@ -160,7 +161,7 @@ func (c *reverseDNSCache) Stats() map[string]int64 {
 		added     = c.added.Load()
 		expired   = c.expired.Load()
 		oversized = c.oversized.Load()
-		ips       = int64(c.Len())
+		ips       = c.length.Load()
 	)
 
 	return map[string]int64{

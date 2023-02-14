@@ -703,7 +703,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case conntrackStats:
 			ret["conntrack"] = t.conntracker.GetStats() // done
 		case dnsStats:
-			ret["dns"] = t.reverseDNS.GetStats() // wip
+			ret["dns"] = t.reverseDNS.GetStats() // done, paths fixed
 		case epbfStats:
 			ret["ebpf"] = t.ebpfTracer.GetTelemetry() // done
 		case gatewayLookupStats:

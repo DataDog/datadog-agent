@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// var componentName = 
+
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
 	*afpacket.TPacket
@@ -68,10 +70,10 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 		TPacket:      rawSocket,
 		socketFilter: filter,
 		exit:         make(chan struct{}),
-		polls:        telemetry.NewStatGaugeWrapper("packet_source", "polls", []string{}, ""),
-		processed:    telemetry.NewStatGaugeWrapper("packet_source", "processed", []string{}, ""),
-		captured:     telemetry.NewStatGaugeWrapper("packet_source", "captured", []string{}, ""),
-		dropped:      telemetry.NewStatGaugeWrapper("packet_source", "dropped", []string{}, ""),
+		polls:        telemetry.NewStatGaugeWrapper("dns", "polls", []string{}, ""),
+		processed:    telemetry.NewStatGaugeWrapper("dns", "processed", []string{}, ""),
+		captured:     telemetry.NewStatGaugeWrapper("dns", "captured", []string{}, ""),
+		dropped:      telemetry.NewStatGaugeWrapper("dns", "dropped", []string{}, ""),
 	}
 	go ps.pollStats()
 
