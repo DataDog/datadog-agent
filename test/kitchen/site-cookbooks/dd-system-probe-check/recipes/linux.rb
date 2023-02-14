@@ -23,11 +23,13 @@ execute 'increase space' do
   command <<-EOF
     df -Th /tmp
 
-    dev_name=$(df -Th / | tail -n1 | awk '{print $1}')
-    fstype=$(df -Th / | tail -n1 | awk '{print $2}')
-    use=$(df -Th / | tail -n1 | awk '{print $6}' | tr -d %)
+    d=$(df -Th /tmp | tail -n1)
+    dev_name=$(echo $d | awk '{print $1}')
+    fstype=$(echo $d | awk '{print $2}')
+    use=$(echo $d | awk '{print $6}' | tr -d %)
 
     if [[ $use -lt 70 ]]; then
+       echo "skip because use $use < 70%"
        exit 0
     fi
 
