@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package runner
 
 import (
 	"fmt"
@@ -12,16 +12,18 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 type checkResult struct {
@@ -68,7 +70,11 @@ type Collector struct {
 	runRealTime bool
 
 	// Submits check payloads to datadog
-	submitter Submitter
+	Submitter Submitter
+}
+
+func (l *Collector) RunRealTime() bool {
+	return l.runRealTime
 }
 
 // NewCollector creates a new Collector
@@ -118,7 +124,7 @@ func (l *Collector) runCheck(c checks.Check) {
 	runCounter := l.nextRunCounter(c.Name())
 	start := time.Now()
 	// update the last collected timestamp for info
-	updateLastCollectTime(start)
+	status.UpdateLastCollectTime(start)
 
 	result, err := c.Run(l.nextGroupID, nil)
 	if err != nil {
@@ -137,7 +143,7 @@ func (l *Collector) runCheck(c checks.Check) {
 		checks.StoreCheckOutput(c.Name(), nil)
 	}
 
-	l.submitter.Submit(start, c.Name(), result.Payloads())
+	l.Submitter.Submit(start, c.Name(), result.Payloads())
 
 	if !c.Realtime() {
 		logCheckDuration(c.Name(), start, runCounter)
@@ -147,7 +153,7 @@ func (l *Collector) runCheck(c checks.Check) {
 func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOptions) {
 	start := time.Now()
 	// update the last collected timestamp for info
-	updateLastCollectTime(start)
+	status.UpdateLastCollectTime(start)
 
 	result, err := c.Run(l.nextGroupID, options)
 	if err != nil {
@@ -160,7 +166,7 @@ func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOpti
 		return
 	}
 
-	l.submitter.Submit(start, c.Name(), result.Payloads())
+	l.Submitter.Submit(start, c.Name(), result.Payloads())
 	if options.RunStandard {
 		// We are only updating the run counter for the standard check
 		// since RT checks are too frequent and we only log standard check
@@ -173,7 +179,7 @@ func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOpti
 	rtName := checks.RTName(c.Name())
 	rtPayloads := result.RealtimePayloads()
 
-	l.submitter.Submit(start, rtName, rtPayloads)
+	l.Submitter.Submit(start, rtName, rtPayloads)
 	if options.RunRealtime {
 		checks.StoreCheckOutput(rtName, rtPayloads)
 	}
@@ -213,8 +219,8 @@ const (
 	chunkMask           = 1<<chunkNumberOfBits - 1
 )
 
-func (l *Collector) run(exit chan struct{}) error {
-	err := l.submitter.Start()
+func (l *Collector) Run(exit chan struct{}) error {
+	err := l.Submitter.Start()
 	if err != nil {
 		return err
 	}
@@ -236,7 +242,7 @@ func (l *Collector) run(exit chan struct{}) error {
 			checkNames = append(checkNames, checks.RTProcessCheckName)
 		}
 	}
-	updateEnabledChecks(checkNames)
+	status.UpdateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
 
 	go util.HandleSignals(exit)
@@ -247,7 +253,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	go func() {
 		defer wg.Done()
 		<-exit
-		l.submitter.Stop()
+		l.Submitter.Stop()
 	}()
 
 	for _, c := range l.enabledChecks {
