@@ -76,33 +76,33 @@
 
 .kitchen_test_chef:
   script:
-    - bash -l tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_step_by_step:
   script:
-    - bash -l tasks/run-test-kitchen.sh step-by-step-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh step-by-step-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_install_script:
   script:
-    - bash -l tasks/run-test-kitchen.sh install-script-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh install-script-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_upgrade5:
   script:
-    - bash -l tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_upgrade6:
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::6")
-    - bash -l tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_upgrade7:
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
-    - bash -l tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_process_agent:
   script:
-    - bash -l tasks/run-test-kitchen.sh process-agent-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh process-agent-test $AGENT_MAJOR_VERSION
 
 # Kitchen: Agent flavor
 # -------------------------------
