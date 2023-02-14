@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -19,6 +20,7 @@ import (
 type telemetry struct {
 	containers            *common.ContainersTelemetry
 	runtimeSecurityClient *RuntimeSecurityClient
+	profiledContainers    map[profiledContainer]struct{}
 }
 
 func newTelemetry() (*telemetry, error) {
@@ -38,12 +40,25 @@ func newTelemetry() (*telemetry, error) {
 	}, nil
 }
 
+func (t *telemetry) registerProfiledContainer(name, tag string) {
+	entry := profiledContainer{
+		name: name,
+		tag:  tag,
+	}
+
+	if entry.isValid() {
+		t.profiledContainers[entry] = struct{}{}
+	}
+}
+
 func (t *telemetry) run(ctx context.Context, rsa *RuntimeSecurityAgent) {
 	log.Info("started collecting Runtime Security Agent telemetry")
 	defer log.Info("stopping Runtime Security Agent telemetry")
 
 	metricsTicker := time.NewTicker(1 * time.Minute)
 	defer metricsTicker.Stop()
+	profileCounterTicker := time.NewTicker(5 * time.Minute)
+	defer profileCounterTicker.Stop()
 
 	for {
 		select {
@@ -56,8 +71,48 @@ func (t *telemetry) run(ctx context.Context, rsa *RuntimeSecurityAgent) {
 			if rsa.storage != nil {
 				rsa.storage.SendTelemetry()
 			}
+		case <-profileCounterTicker.C:
+			t.reportProfiledContainers()
 		}
 	}
+}
+
+type profiledContainer struct {
+	name string
+	tag  string
+}
+
+func (pc *profiledContainer) isValid() bool {
+	return pc.name != "" && pc.tag != ""
+}
+
+func (t *telemetry) reportProfiledContainers() {
+	profiled := make(map[profiledContainer]bool)
+
+	for _, container := range t.containers.ListRunningContainers() {
+		entry := profiledContainer{
+			name: container.Image.Name,
+			tag:  container.Image.Tag,
+		}
+		if !entry.isValid() {
+			continue
+		}
+		profiled[entry] = false
+	}
+
+	for containerEntry := range t.profiledContainers {
+		profiled[containerEntry] = true
+	}
+
+	missing := make([]string, 0, len(profiled))
+	for entry, found := range profiled {
+		if !found {
+			missing = append(missing, fmt.Sprintf("%s:%s", entry.name, entry.tag))
+		}
+	}
+
+	log.Infof("not yet profiled workloads: %v", missing)
+	t.containers.Sender.Gauge(metrics.MetricActivityDumpNotYetProfiledWorkload, float64(len(missing)), "", nil)
 }
 
 func (t *telemetry) reportContainers() error {

@@ -201,6 +201,10 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		return
 	}
 
+	// register for telemetry for this container
+	imageName, imageTag := dump.GetImageNameTag()
+	rsa.telemetry.registerProfiledContainer(imageName, imageTag)
+
 	raw := bytes.NewBuffer(msg.GetData())
 
 	for _, requests := range dump.StorageRequests {
