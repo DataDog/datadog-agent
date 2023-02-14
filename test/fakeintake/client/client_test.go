@@ -25,6 +25,7 @@ func TestClient(t *testing.T) {
 
 			payloads := [][]byte{}
 
+			payloads = append(payloads, []byte(r.URL.Path))
 			payloads = append(payloads, []byte(fmt.Sprintf("%d", len(routes))))
 			payloads = append(payloads, []byte(routes[0]))
 			// create fake response
@@ -39,9 +40,10 @@ func TestClient(t *testing.T) {
 		client := NewClient(ts.URL)
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.NoError(t, err, "Error getting payloads")
-		assert.Equal(t, 2, len(payloads))
-		assert.Equal(t, "1", string(payloads[0]))
-		assert.Equal(t, "/foo/bar", string(payloads[1]))
+		assert.Equal(t, 3, len(payloads))
+		assert.Equal(t, "/fakeintake/payloads", string(payloads[0]))
+		assert.Equal(t, "1", string(payloads[1]))
+		assert.Equal(t, "/foo/bar", string(payloads[2]))
 	})
 
 	t.Run("should handle response with errors", func(t *testing.T) {
