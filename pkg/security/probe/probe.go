@@ -1162,11 +1162,11 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
 // flushes the network namespace in the network namespace resolver as well.
-func (p *Probe) FlushNetworkNamespace(namespace *NetworkNamespace) {
+func (p *Probe) FlushNetworkNamespace(namespace *resolvers.NetworkNamespace) {
 	p.resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
 
 	// cleanup internal structures
-	p.resolvers.TCResolver.FlushNetworkNamespaceID(namespace.nsID, p.Manager)
+	p.resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager)
 }
 
 func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
@@ -1440,6 +1440,19 @@ func (p *Probe) ensureConfigDefaults() {
 	if !p.Config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
 		p.Config.RuntimeCompiledConstantsEnabled = true
 	}
+}
+
+const (
+	netStructHasProcINum uint64 = 0
+	netStructHasNS       uint64 = 1
+)
+
+// getNetStructType returns whether the net structure has a namespace attribute
+func getNetStructType(kv *kernel.Version) uint64 {
+	if kv.IsRH7Kernel() {
+		return netStructHasProcINum
+	}
+	return netStructHasNS
 }
 
 // GetOffsetConstants returns the offsets and struct sizes constants

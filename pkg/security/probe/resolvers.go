@@ -36,7 +36,7 @@ type Resolvers struct {
 	TagsResolver      *resolvers.TagsResolver
 	DentryResolver    *resolvers.DentryResolver
 	ProcessResolver   *ProcessResolver
-	NamespaceResolver *NamespaceResolver
+	NamespaceResolver *resolvers.NamespaceResolver
 	CgroupsResolver   *resolvers.CgroupsResolver
 	TCResolver        *resolvers.TCResolver
 }
@@ -58,7 +58,9 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	namespaceResolver, err := NewNamespaceResolver(probe)
+	tcResolver := resolvers.NewTCResolver(config)
+
+	namespaceResolver, err := resolvers.NewNamespaceResolver(probe.Config, probe.Manager, probe.StatsdClient, probe.resolvers.TCResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +74,6 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	tcResolver := resolvers.NewTCResolver(config)
 
 	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
 		probe.scrubber, NewProcessResolverOpts(probe.Config.EnvsWithValue))
@@ -215,8 +215,8 @@ func (r *Resolvers) Snapshot() error {
 		return fmt.Errorf("unable to snapshot processes: %w", err)
 	}
 
-	r.ProcessResolver.SetState(snapshotted)
-	r.NamespaceResolver.SetState(snapshotted)
+	r.ProcessResolver.SetState(resolvers.Snapshotted)
+	r.NamespaceResolver.SetState(resolvers.Snapshotted)
 
 	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {

@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package resolvers
 
 import (
 	"context"
@@ -27,11 +27,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+)
+
+const (
+	Snapshotting = iota // Snapshotting describes the state where resolvers are being populated
+	Snapshotted         // Snapshotted describes the state where resolvers are fully populated
 )
 
 var (
@@ -44,18 +48,6 @@ var (
 	// flushNamespacesPeriod is the period at which the resolver checks if a namespace should be flushed
 	flushNamespacesPeriod = 30 * time.Second
 )
-
-const (
-	netStructHasProcINum uint64 = 0
-	netStructHasNS       uint64 = 1
-)
-
-func getNetStructType(kv *kernel.Version) uint64 {
-	if kv.IsRH7Kernel() {
-		return netStructHasProcINum
-	}
-	return netStructHasNS
-}
 
 // NetworkNamespace is used to hold a handle to a network namespace
 type NetworkNamespace struct {
@@ -78,6 +70,11 @@ type NetworkNamespace struct {
 	// interface in this namespace. The handle of this namespace will be released if we don't see an interface by the
 	// time this timeout expires.
 	lonelyTimeout time.Time
+}
+
+// ID returns the network namespace ID
+func (ns *NetworkNamespace) ID() uint32 {
+	return ns.nsID
 }
 
 // NewNetworkNamespace returns a new NetworkNamespace instance
@@ -148,7 +145,7 @@ func (nn *NetworkNamespace) getNamespaceHandleDup() (*os.File, error) {
 }
 
 // dequeueNetworkDevices dequeues the devices in the current network devices queue.
-func (nn *NetworkNamespace) dequeueNetworkDevices(probe *Probe) {
+func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *TCResolver, manager *manager.Manager) {
 	nn.Lock()
 	defer nn.Unlock()
 
@@ -165,7 +162,7 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(probe *Probe) {
 	defer handle.Close()
 
 	for _, queuedDevice := range nn.networkDevicesQueue {
-		_ = probe.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, probe.Manager)
+		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager)
 	}
 	nn.flushNetworkDevicesQueue()
 }
@@ -193,28 +190,28 @@ func (nn *NetworkNamespace) hasValidHandle() bool {
 // NamespaceResolver is used to store namespace handles
 type NamespaceResolver struct {
 	sync.Mutex
-	state   *atomic.Int64
-	probe   *Probe
-	client  statsd.ClientInterface
-	config  *config.Config
-	manager *manager.Manager
+	state      *atomic.Int64
+	tcResolver *TCResolver
+	client     statsd.ClientInterface
+	config     *config.Config
+	manager    *manager.Manager
 
 	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
 }
 
 // NewNamespaceResolver returns a new instance of NamespaceResolver
-func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
+func NewNamespaceResolver(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, tcResolver *TCResolver) (*NamespaceResolver, error) {
 	nr := &NamespaceResolver{
-		state:   atomic.NewInt64(0),
-		probe:   probe,
-		client:  probe.StatsdClient,
-		config:  probe.Config,
-		manager: probe.Manager,
+		state:      atomic.NewInt64(0),
+		client:     statsdClient,
+		config:     config,
+		manager:    manager,
+		tcResolver: tcResolver,
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(key uint32, value *NetworkNamespace) {
 		nr.flushNetworkNamespace(value)
-		nr.probe.resolvers.TCResolver.FlushNetworkNamespaceID(value.nsID, nr.probe.Manager)
+		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})
 	if err != nil {
 		return nil, err
@@ -265,10 +262,10 @@ func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *uti
 	}
 
 	// dequeue devices
-	netns.dequeueNetworkDevices(nr.probe)
+	netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
 
 	// if the snapshot process is still going on, we need to snapshot the namespace now, otherwise we'll miss it
-	if nr.GetState() == snapshotting {
+	if nr.GetState() == Snapshotting {
 		_ = nr.snapshotNetworkDevices(netns)
 	}
 	return netns, true
@@ -326,7 +323,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 			NetNS:   netns.nsID,
 		}
 
-		if err = nr.probe.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, nr.probe.Manager); err == nil {
+		if err = nr.tcResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, nr.manager); err == nil {
 			// ignore interfaces that are lazily deleted
 			if !nr.IsLazyDeletionInterface(device.Name) && attrs.HardwareAddr.String() != "" {
 				attachedDeviceCountNoLazyDeletion++
@@ -406,7 +403,7 @@ func (nr *NamespaceResolver) flushNamespaces(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			probesCount := nr.probe.resolvers.TCResolver.FlushInactiveProbes(nr.probe.Manager, nr.IsLazyDeletionInterface)
+			probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
 
 			// There is a possible race condition if we lose all network device creations but do notice the new network
 			// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
@@ -472,7 +469,7 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift(probesCount map[uint32
 				deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
 				if deviceCountNoLoopbackNoDummy == 0 {
 					nr.flushNetworkNamespace(netns)
-					nr.probe.resolvers.TCResolver.FlushNetworkNamespaceID(netns.nsID, nr.probe.Manager)
+					nr.tcResolver.FlushNetworkNamespaceID(netns.nsID, nr.manager)
 					netns.Unlock()
 					continue
 				}
@@ -586,7 +583,7 @@ func (nr *NamespaceResolver) dump(params *api.DumpNetworkNamespaceParams) []Netw
 				continue
 			}
 
-			ntl, err = nr.probe.Manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+			ntl, err = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 			if err == nil {
 				links, err = ntl.Sock.LinkList()
 				if err == nil {
