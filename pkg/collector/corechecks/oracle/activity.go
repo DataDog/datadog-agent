@@ -3,27 +3,45 @@ package oracle
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type Session struct {
+type OracleActivityRow struct {
 	Sid    int64  `db:"SID" json:"sid"`
 	Sql_id string `db:"SQL_ID" json:"sql_id,omitempty"`
 }
 
-type ActivityPayload struct {
-	Host               string    `json:"host"`
-	DDAgentVersion     string    `json:"ddagentversion"`
-	DDSource           string    `json:"ddsource"`
-	DBMType            string    `json:"dbm_type"`
-	CollectionInterval int       `json:"collection_interval"`
-	DDTags             []string  `json:"ddtags"`
-	Timestamp          int64     `json:"timestamp"`
-	OracleActivity     []Session `json:"oracle_activity"`
+// ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
+// easyjson:json
+type ActivitySnapshot struct {
+	Metadata
+	// Tags should be part of the common Metadata struct but because Activity payloads use a string array
+	// and samples use a comma-delimited list of tags in a single string, both flavors have to be handled differently
+	Tags               []string            `json:"ddtags,omitempty"`
+	CollectionInterval float64             `json:"collection_interval,omitempty"`
+	OracleActivityRows []OracleActivityRow `json:"oracle_activity,omitempty"`
+}
+
+// Metadata contains the metadata fields common to all events processed
+// easyjson:json
+type Metadata struct {
+	Timestamp      float64 `json:"timestamp,omitempty"`
+	Service        string  `json:"service,omitempty"`
+	Host           string  `json:"host,omitempty"`
+	Source         string  `json:"ddsource,omitempty"`
+	DBMType        string  `json:"dbm_type,omitempty"`
+	DDAgentVersion string  `json:"ddagentversion,omitempty"`
+}
+
+type MetricSender struct {
+	sender           aggregator.Sender
+	hostname         string
+	submittedMetrics int
 }
 
 func (c *Check) SampleSession() error {
-	sessionSamples := []Session{}
+	sessionSamples := []OracleActivityRow{}
 	err := c.db.Select(&sessionSamples, "SELECT sid, sql_id FROM v$session WHERE rownum < 5")
 	if err != nil {
 		log.Errorf("Session sampling ", err)
@@ -31,15 +49,15 @@ func (c *Check) SampleSession() error {
 	}
 	//log.Tracef("orasample %#v", sessionSamples)
 
-	payload := ActivityPayload{
-		Host:               "a",
-		DDAgentVersion:     "1",
-		DDSource:           "oracle",
-		DBMType:            "activity",
+	payload := ActivitySnapshot{
+		Metadata: Metadata{Timestamp: 1,
+			Host:           "a",
+			DDAgentVersion: "1",
+			Source:         "oracle",
+			DBMType:        "activity"},
 		CollectionInterval: 1,
-		DDTags:             []string{"Espresso", "Educative", "Shots"},
-		Timestamp:          1,
-		OracleActivity:     sessionSamples,
+		Tags:               []string{"Espresso", "Educative", "Shots"},
+		OracleActivityRows: sessionSamples,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -49,5 +67,12 @@ func (c *Check) SampleSession() error {
 	}
 	log.Tracef("JSON payload", string(payloadBytes))
 
+	sender, err := c.GetSender()
+	if err != nil {
+		log.Tracef("GetSender SampleSession ", string(payloadBytes))
+		return err
+	}
+	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
+	sender.Commit()
 	return nil
 }
