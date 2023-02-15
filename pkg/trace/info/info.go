@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
@@ -91,7 +92,7 @@ const (
 {{.Program}}
 {{.Banner}}
 
-  Not running (port {{.ReceiverPort}})
+  Not running or unreachable on 127.0.0.1:{{.DebugPort}}
 
 `
 
@@ -257,11 +258,16 @@ func InitInfo(conf *config.AgentConfig) error {
 			return
 		}
 
+		scrubbed, err := scrubber.ScrubBytes(buf)
+		if err != nil {
+			return
+		}
+
 		// We keep a static copy of the config, already marshalled and stored
 		// as a plain string. This saves the hassle of rebuilding it all the time
 		// and avoids race issues as the source object is never used again.
 		// Config is parsed at the beginning and never changed again, anyway.
-		expvar.Publish("config", infoString(string(buf)))
+		expvar.Publish("config", infoString(string(scrubbed)))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {
@@ -320,7 +326,7 @@ func getProgramBanner(version string) (string, string) {
 // If error is nil, means the program is running.
 // If not, it displays a pretty-printed message anyway (for support)
 func Info(w io.Writer, conf *config.AgentConfig) error {
-	url := fmt.Sprintf("http://%s:%d/debug/vars", conf.ReceiverHost, conf.ReceiverPort)
+	url := fmt.Sprintf("http://127.0.0.1:%d/debug/vars", conf.DebugServerPort)
 	client := http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -330,13 +336,13 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// debug further, this is where the expvar JSON should come from.
 		program, banner := getProgramBanner(conf.AgentVersion)
 		_ = notRunningTmpl.Execute(w, struct {
-			Banner       string
-			Program      string
-			ReceiverPort int
+			Banner    string
+			Program   string
+			DebugPort int
 		}{
-			Banner:       banner,
-			Program:      program,
-			ReceiverPort: conf.ReceiverPort,
+			Banner:    banner,
+			Program:   program,
+			DebugPort: conf.DebugServerPort,
 		})
 		return err
 	}

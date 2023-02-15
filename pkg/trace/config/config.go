@@ -426,6 +426,9 @@ type AgentConfig struct {
 
 	// Azure App Services
 	InAzureAppServices bool
+
+	// DebugServerPort defines the port used by the debug server
+	DebugServerPort int
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

@@ -149,7 +149,7 @@ func TestInfo(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -194,7 +194,7 @@ func TestWarning(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -228,7 +228,7 @@ func TestNotRunning(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -245,7 +245,7 @@ func TestNotRunning(t *testing.T) {
 	assert.Equal(len(lines[1]), len(lines[0]))
 	assert.Equal(len(lines[1]), len(lines[2]))
 	assert.Equal("", lines[3])
-	assert.Equal(fmt.Sprintf("  Not running (port %d)", port), lines[4])
+	assert.Equal(fmt.Sprintf("  Not running or unreachable on 127.0.0.1:%d", port), lines[4])
 	assert.Equal("", lines[5])
 	assert.Equal("", lines[6])
 }
@@ -267,7 +267,7 @@ func TestError(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -285,7 +285,7 @@ func TestError(t *testing.T) {
 	assert.Equal(len(lines[1]), len(lines[2]))
 	assert.Equal("", lines[3])
 	assert.Regexp(regexp.MustCompile(`^  Error: .*$`), lines[4])
-	assert.Equal(fmt.Sprintf("  URL: http://localhost:%d/debug/vars", port), lines[5])
+	assert.Equal(fmt.Sprintf("  URL: http://127.0.0.1:%d/debug/vars", port), lines[5])
 	assert.Equal("", lines[6])
 	assert.Equal("", lines[7])
 }
