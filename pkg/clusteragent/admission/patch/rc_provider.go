@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -65,22 +66,28 @@ func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan PatchRequest
 // process is the event handler called by the RC client on config updates
 func (rcp *remoteConfigProvider) process(update map[string]state.APMTracingConfig) {
 	log.Infof("Got %d updates from remote-config", len(update))
+	var valid, invalid float64
 	for path, config := range update {
 		log.Debugf("Parsing config %s from path %s", config.Config, path)
 		var req PatchRequest
 		err := json.Unmarshal(config.Config, &req)
 		if err != nil {
+			invalid++
 			log.Errorf("Error while parsing config: %v", err)
 			continue
 		}
 		log.Debugf("Patch request parsed %+v", req)
 		if err := req.Validate(rcp.clusterName); err != nil {
+			invalid++
 			log.Errorf("Skipping invalid patch request: %s", err)
 			continue
 		}
 		if ch, found := rcp.subscribers[req.K8sTarget.Kind]; found {
+			valid++
 			log.Debugf("Publishing patch request for target %s", req.K8sTarget)
 			ch <- req
 		}
 	}
+	metrics.RemoteConfigs.Set(valid)
+	metrics.InvalidRemoteConfigs.Set(invalid)
 }

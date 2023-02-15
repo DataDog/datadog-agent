@@ -1,13 +1,17 @@
-#include <linux/kconfig.h>
-
 #include "bpf_tracing.h"
-#include "tracer.h"
-#include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+#include "bpf_telemetry.h"
+
+#include "ktypes.h"
+#ifdef COMPILE_RUNTIME
+#include "kconfig.h"
+#endif
+
+#include "tracer.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "sockfd.h"
-#include "conn-tuple.h"
+#include "sock.h"
 #include "port_range.h"
 
 #include "protocols/classification/dispatcher-helpers.h"
@@ -54,10 +58,10 @@ int socket__http_filter(struct __sk_buff *skb) {
 }
 
 SEC("kprobe/tcp_sendmsg")
-int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
-    log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
+int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
+    log_debug("kprobe/tcp_sendmsg: sk=%llx\n", sk);
     // map connection tuple during SSL_do_handshake(ctx)
-    map_ssl_ctx_to_sock((struct sock *)PT_REGS_PARM1(ctx));
+    map_ssl_ctx_to_sock(sk);
 
     return 0;
 }
@@ -192,6 +196,7 @@ int uretprobe__SSL_read(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, len, LIBSSL);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -228,6 +233,7 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBSSL);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -279,6 +285,7 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
@@ -330,6 +337,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;
@@ -450,6 +458,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, read_len, LIBGNUTLS);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -487,6 +496,7 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBGNUTLS);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -711,15 +721,16 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    bpf_map_delete_elem(&go_tls_write_args, &call_key);
-
     conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         return 1;
     }
 
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
-    https_process(t, (void*) call_data_ptr->b_data, call_data_ptr->b_len, GO);
+    https_process(t, (void*) call_data_ptr->b_data, bytes_written, GO);
+
+    bpf_map_delete_elem(&go_tls_write_args, &call_key);
     return 0;
 }
 
@@ -800,15 +811,16 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    bpf_map_delete_elem(&go_tls_read_args, &call_key);
-
     conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 1;
     }
 
     log_debug("[go-tls-read] processing %s\n", call_data_ptr->b_data);
     https_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
+
+    bpf_map_delete_elem(&go_tls_read_args, &call_key);
     return 0;
 }
 
@@ -843,30 +855,23 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
 }
 
 static __always_inline void* get_tls_base(struct task_struct* task) {
-    u32 key = 0;
-    struct thread_struct *t = bpf_map_lookup_elem(&task_thread, &key);
-    if (t == NULL) {
-            return NULL;
-    }
-    if (bpf_probe_read_kernel(t, sizeof(struct thread_struct), &task->thread)) {
-        return NULL;
-    }
-
-#if defined(__x86_64__)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-    return (void*) t->fs;
-#else
-    return (void*) t->fsbase;
-#endif
-#elif defined(__aarch64__)
+#if defined(__TARGET_ARCH_x86)
+    // X86 (RUNTIME & CO-RE)
+    return (void *)BPF_CORE_READ(task, thread.fsbase);
+#elif defined(__TARGET_ARCH_arm64)
+    // ARM64
+#ifdef COMPILE_RUNTIME
+    // ARM64 (RUNTIME)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-    return (void*) t->tp_value;
+    return (void *)BPF_CORE_READ(task, thread.tp_value);
 #else
-    return (void*) t->uw.tp_value;
+    return (void *)BPF_CORE_READ(task, thread.uw.tp_value);
 #endif
 #else
-#error "Unsupported platform"
-#endif
+    // CO-RE ARM64
+    return NULL;
+#endif // CO-RE ARM64
+#endif // defined(__TARGET_ARCH_arm64)
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

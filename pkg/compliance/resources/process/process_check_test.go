@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -16,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
 	resource_test "github.com/DataDog/datadog-agent/pkg/compliance/resources/tests"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	assert "github.com/stretchr/testify/require"
 )
@@ -79,10 +79,17 @@ func (f *processFixture) run(t *testing.T) {
 	assert := assert.New(t)
 
 	if !f.useCache {
-		cache.Cache.Delete(processutils.ProcessCacheKey)
+		processutils.PurgeCache()
 	}
-	processutils.Fetcher = func() (processutils.Processes, error) {
-		return f.processes, nil
+	processutils.IsProcessMetadataValid = func(_ *processutils.ProcessMetadata) bool { return true }
+	processutils.FetchProcessesWithName = func(searchedName string) (processutils.Processes, error) {
+		var processes processutils.Processes
+		for _, p := range f.processes {
+			if p.Name == searchedName {
+				processes = append(processes, p)
+			}
+		}
+		return processes, nil
 	}
 
 	env := &mocks.Env{}
@@ -121,7 +128,7 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -151,8 +158,8 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc2", []string{"arg1", "--path=foo"}),
-				43: processutils.NewCheckedFakeProcess(43, "proc3", []string{"arg1", "--path=foo"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc2", []string{"arg1", "--path=foo"}, []string{}),
+				processutils.NewProcessMetadata(43, time.Now().UnixMilli(), "proc3", []string{"arg1", "--path=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed:    false,
@@ -176,7 +183,7 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--paths=foo"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--paths=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -216,7 +223,7 @@ func TestProcessCheckCache(t *testing.T) {
 		},
 		module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 		processes: processutils.Processes{
-			42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}),
 		},
 		expectReport: &compliance.Report{
 			Passed: true,

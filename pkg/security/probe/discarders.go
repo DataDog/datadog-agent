@@ -143,7 +143,7 @@ func newPidDiscarders(erpc *erpc.ERPC) *pidDiscarders {
 
 // InodeDiscarderMapEntry describes a map entry
 type InodeDiscarderMapEntry struct {
-	PathKey resolvers.PathKey
+	PathKey model.PathKey
 	IsLeaf  uint32
 	Padding uint32
 }

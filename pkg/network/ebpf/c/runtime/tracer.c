@@ -2,8 +2,22 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
-#include "tracer.h"
 
+#include <linux/tcp.h>
+#include <linux/version.h>
+#include <net/inet_sock.h>
+#include <net/net_namespace.h>
+#include <net/route.h>
+#include <net/tcp_states.h>
+#include <uapi/linux/if_ether.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/ptrace.h>
+#include <uapi/linux/udp.h>
+
+#include "tracer.h"
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -23,22 +37,10 @@
 #include "ipv6.h"
 #endif
 
-#include <linux/version.h>
-#include <net/inet_sock.h>
-#include <net/net_namespace.h>
-#include <net/route.h>
-#include <net/tcp_states.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/ptrace.h>
-#include <linux/tcp.h>
-#include <uapi/linux/udp.h>
-
 #ifndef LINUX_VERSION_CODE
 #error "kernel version not included?"
 #endif
 
-#include "conn-tuple.h"
 #include "sock.h"
 
 // This entry point is needed to bypass a memory limit on socket filters.
@@ -54,7 +56,9 @@ int socket__classifier_entry(struct __sk_buff *skb) {
 // The entrypoint for all packets.
 SEC("socket/classifier")
 int socket__classifier(struct __sk_buff *skb) {
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     protocol_classifier_entrypoint(skb);
+    #endif
     return 0;
 }
 

@@ -20,8 +20,6 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -34,14 +32,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -110,7 +109,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // (and NewTracer above)
 func newTracer(config *config.Config) (*Tracer, error) {
 	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+	if mounted, err := kernel.IsDebugFSOrTraceFSMounted(); !mounted {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
 
@@ -164,7 +163,8 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	if usmSupported {
 		bpfTelemetry = telemetry.NewEBPFTelemetry()
 	}
-	ebpfTracer, err := kprobe.New(config, constantEditors, bpfTelemetry)
+
+	ebpfTracer, err := connection.NewTracer(config, constantEditors, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -238,6 +238,7 @@ func (tr *Tracer) start() error {
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
+		tr.Stop()
 		return fmt.Errorf("could not start reverse dns monitor: %w", err)
 	}
 
@@ -309,16 +310,15 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	}
 
 	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
+		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
 			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
-	for probeName, funcName := range enabledProbes {
+	for funcName := range enabledProbes {
 		offsetOptions.ActivatedProbes = append(
 			offsetOptions.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probeName),
 					EBPFFuncName: funcName,
 					UID:          "offset",
 				},
@@ -728,7 +728,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	}
 
 	// merge with components already migrated to `network/telemetry`
-	for k, v := range telemetry.ReportExpvar() {
+	for k, v := range usmtelemetry.ReportExpvar() {
 		ret[k] = v
 	}
 

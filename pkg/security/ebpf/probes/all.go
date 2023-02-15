@@ -93,7 +93,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
 				EBPFFuncName: "sys_exit",
 			},
 		},
@@ -101,7 +100,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "kprobe/security_inode_getattr",
 				EBPFFuncName: "kprobe_security_inode_getattr",
 			},
 		},

@@ -1,7 +1,7 @@
 #ifndef __HTTP2_DEFS_H
 #define __HTTP2_DEFS_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "HTTP/2 Connection Preface" section
 #define HTTP2_MARKER_SIZE 24

@@ -74,6 +74,15 @@ func TestFormatProtocols(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "mysql protocol",
+			protocol: network.ProtocolMySQL,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolMySQL,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
