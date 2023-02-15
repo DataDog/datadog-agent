@@ -145,12 +145,24 @@ berks vendor ./cookbooks
 
 set +o pipefail
 
+RUN_LOG_LOCATION="${RUN_LOG_LOCATION:-/tmp/runlog}"
+
 # Initially test every suite, as we only generate those we want to run
 test_suites=".*"
 # This for loop retries kitchen tests failing because of infrastructure/networking issues
 for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
-  bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee "/tmp/runlog${attempt}"
+  echo df -h /
+  df -h /
+  echo df -h /tmp
+  df -h /tmp
+
+  bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee "${RUN_LOG_LOCATION}${attempt}"
   result=${PIPESTATUS[0]}
+
+  echo df -h /
+  df -h /
+  echo df -h /tmp
+  df -h /tmp
 
   # Before destroying the kitchen machines, get the list of failed suites,
   # as their status will be reset to non-failing once they're destroyed.
@@ -164,7 +176,7 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   destroy_result=$?
   set -e
 
-  # If the destory operation fails, it is not safe to continue running kitchen
+  # If the destroy operation fails, it is not safe to continue running kitchen
   # so we just exit with an infrastructure failure message.
   if [ "$destroy_result" -ne 0 ]; then
     echo "Failure while destroying kitchen infrastructure, skipping retries"
@@ -175,7 +187,7 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
       # if kitchen test succeeded, exit with 0
       exit 0
   else
-    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}"; then
+    if ! invoke kitchen.should-rerun-failed "${RUN_LOG_LOCATION}${attempt}"; then
       # if kitchen test failed and shouldn't be rerun, exit with 1
       exit 1
     else
