@@ -16,8 +16,6 @@
 #include <uapi/linux/udp.h>
 
 #include "tracer.h"
-#include "protocols/classification/tracer-maps.h"
-#include "protocols/classification/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -49,7 +47,7 @@
 // by using tail call.
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_PROG);
+    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_ENTRY_PROG);
     return 0;
 }
 
@@ -58,6 +56,15 @@ SEC("socket/classifier")
 int socket__classifier(struct __sk_buff *skb) {
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     protocol_classifier_entrypoint(skb);
+    #endif
+    return 0;
+}
+
+// The entrypoint for all packets.
+SEC("socket/classifier_cont")
+int socket__classifier_cont(struct __sk_buff *skb) {
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+    protocol_classifier_entrypoint_cont(skb);
     #endif
     return 0;
 }
