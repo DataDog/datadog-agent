@@ -30,6 +30,7 @@ type Check struct {
 func (c *Check) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
+		log.Error("Get sender Run")
 		return err
 	}
 	sender.Gauge("oracle.helloworld", 10, "", nil)
