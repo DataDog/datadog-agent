@@ -27,9 +27,9 @@ USM_EVENTS_INIT(<protocol>, <event_type>, <batch_size>);
 This will instantiate the necessary eBPF maps along with three functions:
 * `<protocol>_batch_enqueue`;
 * `<protocol>_batch_pop`[^2];
-* `<protocol>_flush_batch`;
+* `<protocol>_batch_flush`;
 
-Please note that `<protocol>_flush_batch` requires access to the
+Please note that `<protocol>_batch_flush` requires access to the
 `bpf_perf_event_output` helper, which is typically not available to socket
 filter programs. Because of that we recommend to call it from
 `netif_receive_skb` which is associated to the execution of socket filter programs:
@@ -37,7 +37,7 @@ filter programs. Because of that we recommend to call it from
 ```c
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
-    <protocol>_flush_batch(ctx);
+    <protocol>_batch_flush(ctx);
     return 0;
 }
 ```
