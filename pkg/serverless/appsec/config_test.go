@@ -10,12 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/appsec-internal-go/appsec"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestConfig(t *testing.T) {
 	expectedDefaultConfig := &Config{
-		rules:          []byte(staticRecommendedRule),
+		rules:          []byte(appsec.StaticRecommendedRules),
 		wafTimeout:     defaultWAFTimeout,
 		traceRateLimit: defaultTraceRate,
 		obfuscator: ObfuscatorConfig{
