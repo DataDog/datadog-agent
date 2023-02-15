@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/network"
@@ -60,26 +61,29 @@ var EventMonitor = module.Factory{
 			return nil, module.ErrNotEnabled
 		}
 
-		// TODO: check whether enabled in config
-		cws, err := secmodule.NewCWSConsumer(evm)
-		if err != nil {
-			return nil, err
+		if seccfg.RuntimeEnabled || seccfg.FIMEnabled {
+			cws, err := secmodule.NewCWSConsumer(evm)
+			if err != nil {
+				return nil, err
+			}
+			evm.RegisterEventConsumer(cws)
 		}
-		evm.RegisterEventConsumer(cws)
 
-		// TODO: check whether enabled in config
-		network, err := network.NewNetworkConsumer(evm)
-		if err != nil {
-			return nil, err
+		if coreconfig.SystemProbe.GetBool("event_monitoring_config.network_process.enabled") {
+			network, err := network.NewNetworkConsumer(evm)
+			if err != nil {
+				return nil, err
+			}
+			evm.RegisterEventConsumer(network)
 		}
-		evm.RegisterEventConsumer(network)
 
-		// TODO: check whether enabled in config
-		process, err := cprocess.NewProcessConsumer(evm)
-		if err != nil {
-			return nil, err
+		if coreconfig.SystemProbe.GetBool("event_monitoring_config.process.enabled") {
+			process, err := cprocess.NewProcessConsumer(evm)
+			if err != nil {
+				return nil, err
+			}
+			evm.RegisterEventConsumer(process)
 		}
-		evm.RegisterEventConsumer(process)
 
 		return evm, err
 	},
