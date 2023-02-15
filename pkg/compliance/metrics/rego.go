@@ -3,17 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package metrics
 
 import (
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/open-policy-agent/opa/metrics"
+	opametrics "github.com/open-policy-agent/opa/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cast"
 )
+
+func NewRegoTelemetry() *regoTelemetry {
+	return &regoTelemetry{
+		inner:      opametrics.New(),
+		counters:   make(map[string]*regoCounter),
+		timers:     make(map[string]*regoTimer),
+		histograms: make(map[string]*regoHistogram),
+	}
+}
 
 var registeredHistograms map[string]telemetry.Histogram
 
@@ -53,7 +62,7 @@ func registerCounter(name string) telemetry.Counter {
 }
 
 type regoCounter struct {
-	regoCounter metrics.Counter
+	regoCounter opametrics.Counter
 	ddCounter   telemetry.Counter
 }
 
@@ -72,7 +81,7 @@ func (c *regoCounter) Add(n uint64) {
 }
 
 type regoHistogram struct {
-	regoHistogram metrics.Histogram
+	regoHistogram opametrics.Histogram
 	ddHistogram   telemetry.Histogram
 }
 
@@ -86,7 +95,7 @@ func (h *regoHistogram) Update(n int64) {
 }
 
 type regoTimer struct {
-	regoTimer   metrics.Timer
+	regoTimer   opametrics.Timer
 	ddHistogram telemetry.Histogram
 }
 
@@ -110,17 +119,17 @@ func (t *regoTimer) Stop() int64 {
 
 type regoTelemetry struct {
 	sync.Mutex
-	inner      metrics.Metrics
+	inner      opametrics.Metrics
 	counters   map[string]*regoCounter
 	timers     map[string]*regoTimer
 	histograms map[string]*regoHistogram
 }
 
-func (m *regoTelemetry) Info() metrics.Info {
+func (m *regoTelemetry) Info() opametrics.Info {
 	return m.inner.Info()
 }
 
-func (m *regoTelemetry) Timer(name string) metrics.Timer {
+func (m *regoTelemetry) Timer(name string) opametrics.Timer {
 	m.Lock()
 	defer m.Unlock()
 	t, ok := m.timers[name]
@@ -135,7 +144,7 @@ func (m *regoTelemetry) Timer(name string) metrics.Timer {
 	return t
 }
 
-func (m *regoTelemetry) Histogram(name string) metrics.Histogram {
+func (m *regoTelemetry) Histogram(name string) opametrics.Histogram {
 	m.Lock()
 	defer m.Unlock()
 	h, ok := m.histograms[name]
@@ -150,7 +159,7 @@ func (m *regoTelemetry) Histogram(name string) metrics.Histogram {
 	return h
 }
 
-func (m *regoTelemetry) Counter(name string) metrics.Counter {
+func (m *regoTelemetry) Counter(name string) opametrics.Counter {
 	m.Lock()
 	defer m.Unlock()
 	c, ok := m.counters[name]
@@ -175,13 +184,4 @@ func (m *regoTelemetry) Clear() {
 
 func (m *regoTelemetry) MarshalJSON() ([]byte, error) {
 	return m.inner.MarshalJSON()
-}
-
-func newRegoTelemetry() *regoTelemetry {
-	return &regoTelemetry{
-		inner:      metrics.New(),
-		counters:   make(map[string]*regoCounter),
-		timers:     make(map[string]*regoTimer),
-		histograms: make(map[string]*regoHistogram),
-	}
 }

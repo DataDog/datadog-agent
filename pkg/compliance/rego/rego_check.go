@@ -18,7 +18,6 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/metrics"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"gopkg.in/yaml.v3"
@@ -27,9 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const regoEvaluator = "rego"
@@ -208,7 +209,7 @@ func (r *regoCheck) createQuery(moduleArgs []func(*rego.Rego), query string) []f
 	return moduleArgs
 }
 
-func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta, metrics metrics.Metrics) error {
+func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 
 	// rego modules and query
@@ -217,10 +218,7 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 		return err
 	}
 
-	if metrics != nil {
-		moduleArgs = append(moduleArgs, rego.Metrics(metrics))
-	}
-
+	moduleArgs = append(moduleArgs, rego.Metrics(metrics.NewRegoTelemetry()))
 	moduleArgs = append(moduleArgs, ruleModules...)
 
 	r.regoModuleArgs = r.createQuery(moduleArgs, query)
@@ -274,10 +272,32 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		return nil
 	}
 
-	for _, regoInput := range r.inputs {
+	resolveInput := func(regoInput *regoInput) (err error) {
+		start := time.Now()
+		var inputType string
+
+		defer func() {
+			client := env.StatsdClient()
+			regoInputKind := regoInput.Kind()
+			if client == nil || regoInputKind == compliance.KindConstants {
+				return
+			}
+			tags := []string{
+				"rule_id:" + r.ruleID,
+				"rule_input_type:" + string(regoInputKind),
+				"agent_version:" + version.AgentVersion,
+			}
+			if err := client.Count(metrics.MetricInputsHits, 1, tags, 1.0); err != nil {
+				log.Errorf("failed to send input metric: %v", err)
+			}
+			if err := client.Timing(metrics.MetricInputsDuration, time.Since(start), tags, 1.0); err != nil {
+				log.Errorf("failed to send input metric: %v", err)
+			}
+		}()
+
 		resolver, _, err := resourceKindToResolverAndFields(env, regoInput.Kind())
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), compliance.DefaultTimeout)
@@ -290,27 +310,26 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			regoMod := rego.New(append(regoInput.regoModuleArgs, rego.Input(input))...)
 			results, err := regoMod.Eval(ctx)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			if len(results) == 0 || len(results[0].Expressions) == 0 {
-				return nil, errors.New("failed to retrieve transformed resource")
+				return errors.New("failed to retrieve transformed resource")
 			}
 
 			if err := parseResource(&regoInput.ResourceCommon, results[0].Expressions[0].Value, string(regoInput.Kind())); err != nil {
-				return nil, err
+				return err
 			}
 		}
 
 		resolved, err := resolver(ctx, env, r.ruleID, regoInput.ResourceCommon, true)
 		if err != nil {
 			log.Warnf("failed to resolve input: %v", err)
-			continue
+			return nil
 		}
 
 		tagName := extractTagName(&regoInput.RegoInput)
 
-		var inputType string
 		if resolved != nil {
 			inputType = resolved.InputType()
 		}
@@ -320,11 +339,11 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 
 		inputType, err = regoInput.ValidateInputType(inputType)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if _, present := input[tagName]; present {
-			return nil, fmt.Errorf("already defined tag: `%s`", tagName)
+			return fmt.Errorf("already defined tag: `%s`", tagName)
 		}
 
 		switch res := resolved.(type) {
@@ -332,25 +351,25 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			switch inputType {
 			case "array":
 				if err := addArrayInput(tagName, nil); err != nil {
-					return nil, err
+					return err
 				}
 			case "object":
 				// objectsPerTags[tagName] = &struct{}{}
 				addObjectInput(tagName, &struct{}{})
 			default:
-				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
+				return fmt.Errorf("internal error, wrong input type `%s`", inputType)
 			}
 		case resources.ResolvedInstance:
 			switch inputType {
 			case "array":
 				if err := addArrayInput(tagName, res.RegoInput()); err != nil {
-					return nil, err
+					return err
 				}
 			case "object":
 				// objectsPerTags[tagName] = res.RegoInput()
 				addObjectInput(tagName, res.RegoInput())
 			default:
-				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
+				return fmt.Errorf("internal error, wrong input type `%s`", inputType)
 			}
 		case eval.Iterator:
 			// create an empty array as a base
@@ -367,22 +386,30 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			for ; !it.Done(); instanceCount++ {
 				instance, err = it.Next()
 				if err != nil {
-					return nil, err
+					return err
 				}
 
 				if inputType == "array" {
 					if err := addArrayInput(tagName, instance.RegoInput()); err != nil {
-						return nil, err
+						return err
 					}
 				}
 			}
 
 			if inputType == "object" {
 				if instanceCount != 1 {
-					return nil, fmt.Errorf("input `%s` returned %d entries, expected 1 with kind `%s`", string(regoInput.Kind()), instanceCount, inputType)
+					return fmt.Errorf("input `%s` returned %d entries, expected 1 with kind `%s`", string(regoInput.Kind()), instanceCount, inputType)
 				}
 				addObjectInput(tagName, instance.RegoInput())
 			}
+		}
+
+		return nil
+	}
+
+	for _, regoInput := range r.inputs {
+		if err := resolveInput(&regoInput); err != nil {
+			return nil, err
 		}
 	}
 

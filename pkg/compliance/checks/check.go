@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -178,6 +179,19 @@ func (c *complianceCheck) Run() error {
 		c.Reporter().Report(e)
 		if c.eventNotify != nil {
 			c.eventNotify(c.ruleID, e)
+		}
+
+		if client := c.StatsdClient(); client != nil {
+			tags := []string{
+				"rule_id:" + e.AgentRuleID,
+				"rule_result:" + e.Result,
+				"rule_evaluator:" + e.Evaluator,
+				"rule_framework_id:" + e.AgentFrameworkID,
+				"agent_version:" + e.AgentVersion,
+			}
+			if err := client.Gauge(metrics.MetricChecksStatuses, 1, tags, 1.0); err != nil {
+				log.Errorf("failed to send checks metric: %v", err)
+			}
 		}
 	}
 
