@@ -26,22 +26,6 @@ type Check struct {
 	db     *sqlx.DB
 }
 
-type Session struct {
-	Sid    int64  `db:"SID"`
-	Sql_id string `db:"SQL_ID"`
-}
-
-func (c *Check) SampleSession() error {
-	sessionSamples := []Session{}
-	err := c.db.Select(&sessionSamples, "SELECT sid, sql_id from V$SESSION")
-	if err != nil {
-		log.Errorf("Session sampling ", err)
-		return err
-	}
-	log.Tracef("orasample %#v", sessionSamples[15])
-	return nil
-}
-
 // Run executes the check.
 func (c *Check) Run() error {
 	sender, err := c.GetSender()
