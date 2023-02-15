@@ -11,11 +11,14 @@ package check
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
@@ -24,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -159,6 +163,24 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 
 	if checkArgs.dumpRegoInput != "" {
 		options = append(options, checks.WithRegoInputDumpPath(checkArgs.dumpRegoInput))
+	}
+
+	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
+	if metricsEnabled {
+		// Create a statsd Client
+		statsdAddr := os.Getenv("STATSD_URL")
+		if statsdAddr == "" {
+			// Retrieve statsd host and port from the datadog agent configuration file
+			statsdHost := pkgconfig.GetBindHost()
+			statsdPort := config.GetInt("dogstatsd_port")
+			statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+		}
+		statsdClient, err := ddgostatsd.New(statsdAddr)
+		if err != nil {
+			return log.Criticalf("Error creating statsd Client: %s", err)
+		}
+		defer statsdClient.Flush()
+		options = append(options, checks.WithStatsd(statsdClient))
 	}
 
 	options = append(options, checks.WithRegoEvalSkip(checkArgs.skipRegoEval))
