@@ -124,6 +124,18 @@ func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerC
 	return e.ID
 }
 
+// ResolveContainerCreatedAt resolves the container creation time of the event
+func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
+	if e.CreatedAt == 0 {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil && entry.ContainerID != "" {
+			if cgroup, _ := fh.resolvers.CGroupResolver.GetWorkload(entry.ContainerID); cgroup != nil {
+				e.CreatedAt = cgroup.GetCreationTime()
+			}
+		}
+	}
+	return int(e.CreatedAt)
+}
+
 // ResolveContainerTags resolves the container tags of the event
 func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ID != "" {
