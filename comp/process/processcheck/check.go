@@ -8,6 +8,8 @@ package processcheck
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 )
 
@@ -28,6 +30,9 @@ func (c *check) Name() string {
 
 type dependencies struct {
 	fx.In
+
+	CoreConfig     config.Component
+	SysProbeConfig sysprobeconfig.Component
 }
 
 func newCheck(deps dependencies) types.ProvidesCheck {

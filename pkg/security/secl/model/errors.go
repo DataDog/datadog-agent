@@ -7,6 +7,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -25,3 +26,13 @@ var (
 	// ErrIncorrectDataSize is returned when the data read size doesn't correspond to the expected one
 	ErrIncorrectDataSize = errors.New("incorrect data size")
 )
+
+// ErrInvalidKeyPath is returned when inode or mountid are not valid
+type ErrInvalidKeyPath struct {
+	Inode   uint64
+	MountID uint32
+}
+
+func (e *ErrInvalidKeyPath) Error() string {
+	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
+}

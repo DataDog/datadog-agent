@@ -1,7 +1,7 @@
 [
   {
     "container_id": "",
-    "language_name": "",
+    "language_name": "python",
     "language_version": null,
     "tracer_version": null,
     "runtime_id": "",
@@ -12,7 +12,7 @@
         "spans": [
           {
             "service": "integration-tests-service",
-            "name": "aws.lambda.cold_start",
+            "name": "aws.lambda",
             "resource": "integration-tests-extension-XXXXXX-trace-python",
             "trace_id": null,
             "span_id": null,
@@ -22,6 +22,58 @@
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
+              "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
+              "cold_start": "false",
+              "datadog_lambda": "X.X.X",
+              "dd_extension_version": "123",
+              "dd_trace": "X.X.X",
+              "env": "integration-tests-env",
+              "function.request.body": "testing request payload",
+              "function.response.body": "ok",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-python",
+              "function_version": "$LATEST",
+              "functionname": "integration-tests-extension-XXXXXX-trace-python",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "request_id": "null",
+              "resource_names": "integration-tests-extension-XXXXXX-trace-python",
+              "runtime": "python3.8",
+              "runtime-id": "null",
+              "service": "integration-tests-service",
+              "tagA": "valueA",
+              "tagB": "valueB",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "version": "integration-tests-version"
+            },
+            "metrics": {
+              "_dd.agent_psr": 1,
+              "_dd.tracer_kr": 1,
+              "_sampling_priority_v1": 1,
+              "_top_level": 1,
+              "function.response.statusCode": 200,
+              "system.pid": null
+            },
+            "type": "serverless"
+          },
+          {
+            "service": "integration-tests-service",
+            "name": "integration_test",
+            "resource": "integration-test",
+            "trace_id": null,
+            "span_id": null,
+            "parent_id": null,
+            "start": null,
+            "duration": null,
+            "error": 0,
+            "meta": {
+              "_dd.compute_stats": "1",
+              "_dd.origin": "lambda",
               "account_id": "425362996713",
               "architecture": "XXX",
               "aws_account": "425362996713",
@@ -33,17 +85,16 @@
               "region": "eu-west-1",
               "runtime": "python3.8",
               "service": "integration-tests-service",
+              "tagA": "valueA",
+              "tagB": "valueB",
               "taga": "valuea",
               "tagb": "valueb",
               "tagc": "valuec",
               "tagd": "valued",
               "version": "integration-tests-version"
             },
-            "metrics": {
-              "_sampling_priority_rate_v1": 1,
-              "_top_level": 1
-            },
-            "type": "serverless"
+            "metrics": null,
+            "type": ""
           }
         ],
         "tags": null,
@@ -163,7 +214,7 @@
   },
   {
     "container_id": "",
-    "language_name": "python",
+    "language_name": "",
     "language_version": null,
     "tracer_version": null,
     "runtime_id": "",
@@ -174,7 +225,7 @@
         "spans": [
           {
             "service": "integration-tests-service",
-            "name": "aws.lambda",
+            "name": "aws.lambda.cold_start",
             "resource": "integration-tests-extension-XXXXXX-trace-python",
             "trace_id": null,
             "span_id": null,
@@ -184,29 +235,17 @@
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
-              "_dd.origin": "lambda",
               "account_id": "425362996713",
               "architecture": "XXX",
               "aws_account": "425362996713",
-              "cold_start": "false",
-              "datadog_lambda": "X.X.X",
               "dd_extension_version": "123",
-              "dd_trace": "X.X.X",
               "env": "integration-tests-env",
-              "function.request.body": "testing request payload",
-              "function.response.body": "ok",
               "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-python",
-              "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-python",
               "memorysize": "1024",
               "region": "eu-west-1",
-              "request_id": "null",
-              "resource_names": "integration-tests-extension-XXXXXX-trace-python",
               "runtime": "python3.8",
-              "runtime-id": "null",
               "service": "integration-tests-service",
-              "tagA": "valueA",
-              "tagB": "valueB",
               "taga": "valuea",
               "tagb": "valueb",
               "tagc": "valuec",
@@ -214,49 +253,10 @@
               "version": "integration-tests-version"
             },
             "metrics": {
-              "_dd.agent_psr": 1,
-              "_dd.tracer_kr": 1,
-              "_sampling_priority_v1": 1,
-              "_top_level": 1,
-              "function.response.statusCode": 200,
-              "system.pid": null
+              "_sampling_priority_rate_v1": 1,
+              "_top_level": 1
             },
             "type": "serverless"
-          },
-          {
-            "service": "integration-tests-service",
-            "name": "integration_test",
-            "resource": "integration-test",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
-            "duration": null,
-            "error": 0,
-            "meta": {
-              "_dd.compute_stats": "1",
-              "_dd.origin": "lambda",
-              "account_id": "425362996713",
-              "architecture": "XXX",
-              "aws_account": "425362996713",
-              "dd_extension_version": "123",
-              "env": "integration-tests-env",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-python",
-              "functionname": "integration-tests-extension-XXXXXX-trace-python",
-              "memorysize": "1024",
-              "region": "eu-west-1",
-              "runtime": "python3.8",
-              "service": "integration-tests-service",
-              "tagA": "valueA",
-              "tagB": "valueB",
-              "taga": "valuea",
-              "tagb": "valueb",
-              "tagc": "valuec",
-              "tagd": "valued",
-              "version": "integration-tests-version"
-            },
-            "metrics": null,
-            "type": ""
           }
         ],
         "tags": null,

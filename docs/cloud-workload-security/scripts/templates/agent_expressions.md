@@ -146,7 +146,7 @@ Examples:
 
 The *file.rights* attribute can now be used in addition to *file.mode*. *file.mode* can hold values set by the kernel, while the *file.rights* only holds the values set by the user. These rights may be more familiar because they are in the `chmod` commands.
 
-## Event types
+## Event attributes
 
 {% for event_type in event_types %}
 {% if event_type.name == "*" %}
@@ -161,12 +161,54 @@ _This event type is experimental and may change in the future._
 {{ event_type.definition }}
 {% endif %}
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
+| Property | Definition |
+| -------- | ------------- |
 {% for property in event_type.properties %}
-| `{{ property.name }}` | {{ property.datatype }} | {{ property.definition }} | {{ property.constants }} |
+| [`{{ property.name }}`](#{{ property.doc_link }}) | {{ property.definition }} |
 {% endfor %}
 
+{% endfor %}
+
+## Attributes documentation
+
+{% for property_doc in properties_doc_list %}
+
+### `{{ property_doc.name }}` {% raw %}{#{% endraw %}{{ property_doc.link }}{% raw %}}{% endraw %}
+
+Type: {{ property_doc.datatype }}
+
+{% if property_doc.definition != "" %}
+Definition: {{ property_doc.definition }}
+{% endif %}
+
+{% if property_doc.prefixes|length > 1 %}
+`{{ property_doc.name }}` has {{ property_doc.prefixes|length }} possible prefixes:
+{% for prefix in property_doc.prefixes %}`{{ prefix }}`{% if not loop.last %} {% endif %}{% endfor %}
+
+{% endif %}
+{% if property_doc.constants != "" %}
+
+Constants: [{{ property_doc.constants }}](#{{ property_doc.constants_link }})
+
+{% endif %}
+
+{% if property_doc.examples|length > 0 %}
+
+{% for example in property_doc.examples %}
+
+Example:
+
+{% raw %}{{< code-block lang="javascript" >}}{% endraw %}
+
+{{ example.expression }}
+{% raw %}{{< /code-block >}}{% endraw %}
+
+{% if example.description != "" %}
+
+{{ example.description }}
+{% endif %}
+{% endfor %}
+{% endif %}
 {% endfor %}
 
 ## Constants
@@ -174,7 +216,7 @@ _This event type is experimental and may change in the future._
 Constants are used to improve the readability of your rules. Some constants are common to all architectures, others are specific to some architectures.
 
 {% for constants in constants_list %}
-### `{{ constants.name }}`
+### `{{ constants.name }}` {% raw %}{#{% endraw %}{{ constants.link }}{% raw %}}{% endraw %}
 
 {{ constants.definition }}
 

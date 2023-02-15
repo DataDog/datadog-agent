@@ -126,7 +126,9 @@ DEFAULT_MODULES = {
         "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
     "test/new-e2e": GoModule("test/new-e2e", condition=lambda: False, should_tag=False),
-    "pkg/quantile": GoModule("pkg/quantile", independent=True),
+    "test/fakeintake": GoModule(
+        "test/fakeintake", targets=["./server", "./client"], independent=True, should_tag=False
+    ),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/trace": GoModule("pkg/trace", independent=True),
     "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),

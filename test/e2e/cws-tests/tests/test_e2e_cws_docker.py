@@ -48,7 +48,7 @@ class TestE2EDocker(unittest.TestCase):
         desc = f"e2e test rule {test_id}"
         data = None
         agent_rule_name = f"e2e_agent_rule_{test_id}"
-        rc_enabled = os.getenv("DD_RC_KEY") != ""
+        rc_enabled = os.getenv("DD_RC_ENABLED") != ""
 
         with Step(msg=f"check agent rule({test_id}) creation", emoji=":straight_ruler:"):
             self.agent_rule_id = self.app.create_cws_agent_rule(
@@ -72,7 +72,6 @@ class TestE2EDocker(unittest.TestCase):
                 log_level="DEBUG",
                 tags=["tag1", "tag2"],
                 rc_enabled=rc_enabled,
-                rc_key=os.getenv("DD_RC_KEY"),
             )
             self.system_probe_config = gen_system_probe_config(
                 log_level="TRACE", log_patterns=["module.APIServer.*"], rc_enabled=rc_enabled

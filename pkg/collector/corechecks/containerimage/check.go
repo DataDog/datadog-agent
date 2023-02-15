@@ -29,9 +29,9 @@ func init() {
 
 // Config holds the container_image check configuration
 type Config struct {
-	chunkSize                  int `yaml:"chunk_size"`
-	newImagesMaxLatencySeconds int `yaml:"new_images_max_latency_seconds"`
-	periodicRefreshSeconds     int `yaml:"periodic_refresh_seconds"`
+	ChunkSize                  int `yaml:"chunk_size"`
+	NewImagesMaxLatencySeconds int `yaml:"new_images_max_latency_seconds"`
+	PeriodicRefreshSeconds     int `yaml:"periodic_refresh_seconds"`
 }
 
 type configValueRange struct {
@@ -75,9 +75,9 @@ func (c *Config) Parse(data []byte) error {
 		return err
 	}
 
-	validateValue(&c.chunkSize, chunkSizeValueRange)
-	validateValue(&c.newImagesMaxLatencySeconds, newImagesMaxLatencySecondsValueRange)
-	validateValue(&c.periodicRefreshSeconds, periodicRefreshSecondsValueRange)
+	validateValue(&c.ChunkSize, chunkSizeValueRange)
+	validateValue(&c.NewImagesMaxLatencySeconds, newImagesMaxLatencySecondsValueRange)
+	validateValue(&c.PeriodicRefreshSeconds, periodicRefreshSecondsValueRange)
 
 	return nil
 }
@@ -120,7 +120,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		return err
 	}
 
-	c.processor = newProcessor(sender, c.instance.chunkSize, time.Duration(c.instance.newImagesMaxLatencySeconds)*time.Second)
+	c.processor = newProcessor(sender, c.instance.ChunkSize, time.Duration(c.instance.NewImagesMaxLatencySeconds)*time.Second)
 
 	return nil
 }
@@ -140,7 +140,7 @@ func (c *Check) Run() error {
 		),
 	)
 
-	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.periodicRefreshSeconds) * time.Second)
+	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
 
 	for {
 		select {
