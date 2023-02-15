@@ -89,7 +89,7 @@ execute 'ensure conntrack is enabled' do
   action :run
 end
 
-if Chef::SystemProbeHelpers::arm?(node) and node[:platform] == 'centos'
+if node[:platform] == 'centos'
   package 'cloud-utils-growpart'
   package 'gdisk'
 
@@ -200,14 +200,10 @@ include_recipe "::docker_installation"
 script 'check space before dockers' do
   interpreter "bash"
   code <<-EOH
-    echo df -h /
-    df -h /
-    echo du -d 1 -h /
-    du -d 1 -h /
-    echo du -d 1 -h /mnt
-    du -d 1 -h /mnt
-    echo du -d 1 -h /tmp
-    du -d 1 -h /tmp
+    echo df -h /tmp
+    df -h /tmp
+    echo df -h /mnt
+    df -h /mnt
     echo lsblk
     lsblk
   EOH
@@ -241,14 +237,10 @@ end
 script 'check space after dockers' do
   interpreter "bash"
   code <<-EOH
-    echo df -h /
-    df -h /
-    echo du -d 1 -h /
-    du -d 1 -h /
-    echo du -d 1 -h /mnt
-    du -d 1 -h /mnt
-    echo du -d 1 -h /tmp
-    du -d 1 -h /tmp
+    echo df -h /tmp
+    df -h /tmp
+    echo df -h /mnt
+    df -h /mnt
     echo lsblk
     lsblk
   EOH
