@@ -220,11 +220,11 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"one_dump/one_overweight_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 				},
 			},
 			[]*ActivityDump{
-				{DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+				{DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 			},
 			[]*ActivityDump{},
 		},
@@ -264,19 +264,19 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"5_dumps/5_overweight_dumps",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "2"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "3"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "3"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "4"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "5"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "5"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 				},
 			},
 			[]*ActivityDump{
-				{DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+				{DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 				{DumpMetadata: DumpMetadata{Name: "2"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-				{DumpMetadata: DumpMetadata{Name: "3"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+				{DumpMetadata: DumpMetadata{Name: "3"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 				{DumpMetadata: DumpMetadata{Name: "4"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-				{DumpMetadata: DumpMetadata{Name: "5"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+				{DumpMetadata: DumpMetadata{Name: "5"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 			},
 			[]*ActivityDump{},
 		},
@@ -287,13 +287,13 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "1"}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "2"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "3"}},
-					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "4"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "4"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "5"}},
 				},
 			},
 			[]*ActivityDump{
 				{DumpMetadata: DumpMetadata{Name: "2"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-				{DumpMetadata: DumpMetadata{Name: "4"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+				{DumpMetadata: DumpMetadata{Name: "4"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 			},
 			[]*ActivityDump{
 				{DumpMetadata: DumpMetadata{Name: "1"}},
@@ -306,7 +306,7 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			fields{
 				activeDumps: []*ActivityDump{
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "2"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "2"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "3"}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "4"}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "5"}},
@@ -314,7 +314,7 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			},
 			[]*ActivityDump{
 				{DumpMetadata: DumpMetadata{Name: "1"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-				{DumpMetadata: DumpMetadata{Name: "2"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+				{DumpMetadata: DumpMetadata{Name: "2"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 			},
 			[]*ActivityDump{
 				{DumpMetadata: DumpMetadata{Name: "3", End: time.Now().Add(time.Minute)}},
@@ -330,12 +330,12 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "2"}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "3"}},
 					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "4"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "5"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+					{Mutex: &sync.Mutex{}, DumpMetadata: DumpMetadata{Name: "5"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 				},
 			},
 			[]*ActivityDump{
 				{DumpMetadata: DumpMetadata{Name: "4"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
-				{DumpMetadata: DumpMetadata{Name: "5"}, nodeStats: ActivityDumpNodeStats{processNodes: 2}},
+				{DumpMetadata: DumpMetadata{Name: "5"}, nodeStats: ActivityDumpNodeStats{processNodes: 3}},
 			},
 			[]*ActivityDump{
 				{DumpMetadata: DumpMetadata{Name: "1"}},
