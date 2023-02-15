@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	// MXW Temporary placeholder to show pkgs being added
+
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -137,6 +140,10 @@ func (s *Launcher) cleanup() {
 func (s *Launcher) scan() {
 	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
+
+	// Check how many files the Agent process has open and log a warning if the process is coming close to the OS file limit
+	fileStats := util.GetFileStats()
+	util.CheckFileStats(fileStats)
 
 	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), len(s.tailers))
 

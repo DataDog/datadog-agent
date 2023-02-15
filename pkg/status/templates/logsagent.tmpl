@@ -30,6 +30,12 @@ Logs Agent
   {{- end }}
 {{- end }}
 
+{{- if .file_stats }}
+  {{- range $metric_name, $metric_value := .file_stats }}
+    {{$metric_name}}: {{$metric_value}}
+  {{- end}}
+{{- end}}
+
 {{- if .errors }}
 
   Errors

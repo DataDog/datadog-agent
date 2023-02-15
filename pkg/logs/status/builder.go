@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Builder is used to build the status.
@@ -45,6 +46,7 @@ func (b *Builder) BuildStatus() Status {
 		Endpoints:     b.getEndpoints(),
 		Integrations:  b.getIntegrations(),
 		StatusMetrics: b.getMetricsStatus(),
+		FileStats:     b.getFileStats(),
 		Warnings:      b.getWarnings(),
 		Errors:        b.getErrors(),
 		UseHTTP:       b.getUseHTTP(),
@@ -173,4 +175,8 @@ func (b *Builder) getMetricsStatus() map[string]int64 {
 	metrics["BytesSent"] = b.logsExpVars.Get("BytesSent").(*expvar.Int).Value()
 	metrics["EncodedBytesSent"] = b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value()
 	return metrics
+}
+
+func (b *Builder) getFileStats() map[string]interface{} {
+	return util.GetFileStats()
 }
