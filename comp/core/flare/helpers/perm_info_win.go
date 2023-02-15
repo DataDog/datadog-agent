@@ -71,8 +71,10 @@ func getFileDacl(fileName string) (*winutil.Acl, winutil.AclSizeInformation, err
 
 // Currently we are supporting most common ACE types (denied and allowed)
 // more could be added in the future
-//   https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-ace_header
-//   https://learn.microsoft.com/en-us/windows/win32/secauthz/ace
+//
+//	https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-ace_header
+//	https://learn.microsoft.com/en-us/windows/win32/secauthz/ace
+//
 // ACCESS_ALLOWED_ACE and ACCESS_DENIED_ACE are the same and we can use winutil.AccessAllowedAce
 // and quickly bailout if other ACE type is used. We may extend it in the future
 func getAce(fileName string, acl *winutil.Acl, idx uint32) (*winutil.AccessAllowedAce, error) {
@@ -106,7 +108,8 @@ func sidToUserName(sid *windows.SID) string {
 // icacls.exe runs without arguments it will generate abbreviations legend). Compatibility is
 // not complete, e.g. no attempts to interpret directory rights, however numeric values of mask
 // are reported. More details can be found here
-//     https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
+//
+//	https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
 func accessMaskToStr(m uint32) string {
 	if (m & DD_FILE_FULL) == DD_FILE_FULL {
 		return "(F)"
@@ -146,7 +149,8 @@ func accessMaskToStr(m uint32) string {
 // This function attempts to generate the same rights abbreviation as built-in icacls.exe (when
 // icacls.exe runs without arguments it will generate abbreviations legend). Numeric values of flags
 // are reported. More details can be found here
-//     https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
+//
+//	https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
 func accessFlagToStr(f uint8) string {
 	if (f & windows.OBJECT_INHERIT_ACE) == windows.OBJECT_INHERIT_ACE {
 		return "(OI)"
