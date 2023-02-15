@@ -30,7 +30,7 @@
       - $CI_PROJECT_DIR/kitchen_logs
 
 .retrieve_test_dockers:
-  - S3_CP_CMD $S3_ARTIFACTS_URI/kitchen-dockers-$ARCH.tar.gz ./
+  - $S3_CP_CMD $S3_ARTIFACTS_URI/kitchen-dockers-$ARCH.tar.gz ./
   - tar xzvf kitchen-dockers-$ARCH.tar.gz
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
   - mv kitchen-dockers-$ARCH/* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
