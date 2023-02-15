@@ -159,7 +159,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 }
 
 func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := skipIfNotLinux
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    mysqlPort,
@@ -479,6 +479,10 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 		targetAddress: targetHost,
 	})
 
+	if clientHost != "127.0.0.1" {
+		t.Skip("postgres tests are not supported DNat")
+	}
+
 	postgresTeardown := func(t *testing.T, ctx testContext) {
 		db := ctx.extras["db"].(*bun.DB)
 		defer db.Close()
@@ -676,7 +680,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 }
 
 func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := skipIfNotLinux
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    mongoPort,
@@ -827,7 +831,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 }
 
 func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
-	skipFunc := skipIfNotLinux
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    redisPort,
