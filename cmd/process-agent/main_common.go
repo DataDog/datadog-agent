@@ -297,11 +297,9 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 	err = s.Shutdown()
 	if err != nil {
 		log.Criticalf("Failed to properly stop the process agent: %v", err)
-		return
 	} else {
 		log.Info("The process-agent has successfully been shut down")
 	}
-	return
 }
 
 // cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
