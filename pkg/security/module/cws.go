@@ -111,8 +111,12 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer,
 	api.RegisterSecurityModuleServer(evm.GRPCServer, c.apiServer)
 
 	// register as event handler
-	evm.Probe.AddEventHandler(model.UnknownEventType, c)
-	evm.Probe.AddCustomEventHandler(model.UnknownEventType, c)
+	if err := evm.Probe.AddEventHandler(model.UnknownEventType, c); err != nil {
+		return nil, err
+	}
+	if err := evm.Probe.AddCustomEventHandler(model.UnknownEventType, c); err != nil {
+		return nil, err
+	}
 
 	// Activity dumps related
 	evm.Probe.AddActivityDumpHandler(c)

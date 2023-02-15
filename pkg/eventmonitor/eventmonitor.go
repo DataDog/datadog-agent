@@ -79,9 +79,7 @@ func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler Ev
 		return errors.New("event type not allowed")
 	}
 
-	m.Probe.AddEventHandler(eventType, handler)
-
-	return nil
+	return m.Probe.AddEventHandler(eventType, handler)
 }
 
 // RegisterEventConsumer register an event module
