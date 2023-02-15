@@ -7,6 +7,7 @@ package utils
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -48,7 +49,6 @@ type ProcessMetadata struct {
 	Name       string
 	Cmdline    []string
 	Envs       []string
-	Exe        string
 
 	cacheTime time.Time
 }
@@ -80,14 +80,13 @@ func (p *ProcessMetadata) EnvsMap(filteredEnvs []string) map[string]string {
 }
 
 // NewProcessMetadata returns a new ProcessMetadata struct.
-func NewProcessMetadata(pid int32, createTime int64, name string, cmdline []string, envs []string, exe string) *ProcessMetadata {
+func NewProcessMetadata(pid int32, createTime int64, name string, cmdline []string, envs []string) *ProcessMetadata {
 	return &ProcessMetadata{
 		Pid:        pid,
 		CreateTime: createTime,
 		Name:       name,
 		Cmdline:    cmdline,
 		Envs:       envs,
-		Exe:        exe,
 
 		cacheTime: time.Now(),
 	}
@@ -102,13 +101,10 @@ func defaultFetchProcessesWithName(searchedName string) (Processes, error) {
 	for _, pid := range pids {
 		p, err := process.NewProcess(pid)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		name, err := p.Name()
-		if err != nil {
-			return nil, err
-		}
-		if name != searchedName {
+		if err != nil || name != searchedName {
 			continue
 		}
 		createTime, err := p.CreateTime()
@@ -120,14 +116,11 @@ func defaultFetchProcessesWithName(searchedName string) (Processes, error) {
 			return nil, err
 		}
 		envs, err := p.Environ()
-		if err != nil {
+		// NOTE(pierre): security-agent may be executed without the capabilities to get /proc/<pid>/environ
+		if err != nil && !os.IsPermission(err) {
 			return nil, err
 		}
-		exe, err := p.Exe()
-		if err != nil {
-			return nil, err
-		}
-		table = append(table, NewProcessMetadata(pid, createTime, name, cmdline, envs, exe))
+		table = append(table, NewProcessMetadata(pid, createTime, name, cmdline, envs))
 	}
 	return table, nil
 }
