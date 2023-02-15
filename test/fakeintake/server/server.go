@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package fakeintake
+package server
 
 import (
 	"context"
@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 type payload struct {
@@ -22,16 +24,16 @@ type payload struct {
 	data      []byte
 }
 
-type FakeIntake struct {
+type Server struct {
 	mu     sync.RWMutex
 	server http.Server
 
 	payloadStore map[string][]payload
 }
 
-// NewFakeIntake creates a new fake intake and starts it on localhost:5000
-func NewFakeIntake(port int) *FakeIntake {
-	fi := &FakeIntake{
+// NewServer creates a new fake intake server and starts it on localhost:port
+func NewServer(port int) *Server {
+	fi := &Server{
 		mu:           sync.RWMutex{},
 		payloadStore: map[string][]payload{},
 	}
@@ -50,7 +52,7 @@ func NewFakeIntake(port int) *FakeIntake {
 	return fi
 }
 
-func (fi *FakeIntake) start() {
+func (fi *Server) start() {
 	go func() {
 		err := fi.server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
@@ -60,7 +62,7 @@ func (fi *FakeIntake) start() {
 }
 
 // Stop Gracefully stop the http server
-func (fi *FakeIntake) Stop() error {
+func (fi *Server) Stop() error {
 	return fi.server.Shutdown(context.Background())
 }
 
@@ -68,7 +70,7 @@ type postPayloadResponse struct {
 	Errors []string `json:"errors"`
 }
 
-func (fi *FakeIntake) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
 	if req == nil {
 		response := buildPostResponse(errors.New("invalid request, nil request"))
 		writeHttpResponse(w, response)
@@ -134,11 +136,7 @@ func buildPostResponse(responseError error) httpResponse {
 	return ret
 }
 
-type getPayloadResponse struct {
-	Payloads [][]byte `json:"payloads"`
-}
-
-func (fi *FakeIntake) getPayloads(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
 	routes := req.URL.Query()["endpoint"]
 	if len(routes) == 0 {
 		writeHttpResponse(w, httpResponse{
@@ -154,7 +152,7 @@ func (fi *FakeIntake) getPayloads(w http.ResponseWriter, req *http.Request) {
 	payloads := fi.safeGetPayloads(route)
 
 	// build response
-	resp := getPayloadResponse{
+	resp := api.APIFakeIntakePayloadsGETResponse{
 		Payloads: payloads,
 	}
 	jsonResp, err := json.Marshal(resp)
@@ -175,7 +173,7 @@ func (fi *FakeIntake) getPayloads(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func (fi *FakeIntake) safeAppendPayload(route string, data []byte) {
+func (fi *Server) safeAppendPayload(route string, data []byte) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
 	if _, found := fi.payloadStore[route]; !found {
@@ -187,7 +185,7 @@ func (fi *FakeIntake) safeAppendPayload(route string, data []byte) {
 	})
 }
 
-func (fi *FakeIntake) safeGetPayloads(route string) [][]byte {
+func (fi *Server) safeGetPayloads(route string) [][]byte {
 	payloads := [][]byte{}
 	fi.mu.Lock()
 	defer fi.mu.Unlock()

@@ -270,7 +270,7 @@ func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey s
 	// Objects exists in both places (local store and K8S), we need to sync them
 	// Spec source of truth is Kubernetes object
 	// Status source of truth is our local store
-	datadogMetricInternal.UpdateFrom(datadogMetric.Spec)
+	datadogMetricInternal.UpdateFrom(*datadogMetric)
 	defer c.store.UnlockSet(datadogMetricInternal.ID, *datadogMetricInternal, ddmControllerStoreID)
 
 	if datadogMetricInternal.IsNewerThan(datadogMetric.Status) {

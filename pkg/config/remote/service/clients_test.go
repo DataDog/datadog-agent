@@ -37,18 +37,31 @@ func TestClients(t *testing.T) {
 	assert.Empty(t, clients.clients)
 }
 
-func TestNewActiveClientsRateLimit(t *testing.T) {
+func TestCacheBypassClientsRateLimit(t *testing.T) {
 	clock := clock.NewMock()
-	newActiveClients := newActiveClients{
-		clock:    clock,
-		requests: make(chan chan struct{}),
-		until:    clock.Now(),
+	cacheBypassClients := cacheBypassClients{
+		clock:         clock,
+		requests:      make(chan chan struct{}),
+		currentWindow: clock.Now(),
+		// Allows 3 bypass every 5 seconds
+		windowDuration: 5 * time.Second,
+		capacity:       3,
+		allowance:      3,
 	}
 
-	newActiveClients.setRateLimit(time.Hour)
-	assert.Equal(t, clock.Now().UTC().Add(defaultClientsTTL), newActiveClients.until)
-	newActiveClients.setRateLimit(5 * time.Second)
-	assert.Equal(t, clock.Now().UTC().Add(5*time.Second), newActiveClients.until)
-	newActiveClients.setRateLimit(time.Second)
-	assert.Equal(t, clock.Now().UTC().Add(defaultClientsTTL), newActiveClients.until)
+	// 3 bypass
+	assert.False(t, cacheBypassClients.Limit())
+	assert.False(t, cacheBypassClients.Limit())
+	assert.False(t, cacheBypassClients.Limit())
+	// bypass blocked
+	assert.True(t, cacheBypassClients.Limit())
+	assert.True(t, cacheBypassClients.Limit())
+
+	// Still blocked after 2 seconds, since we'rer still in the fixed window
+	clock.Add(2 * time.Second)
+	assert.True(t, cacheBypassClients.Limit())
+
+	// New window
+	clock.Add(4 * time.Second)
+	assert.False(t, cacheBypassClients.Limit())
 }

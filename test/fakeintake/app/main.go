@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Datadog/datadog-agent/test/fake-intake/fakeintake"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/server"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("⌛️ Starting fake intake")
-	fi := fakeintake.NewFakeIntake(8080)
+	fi := fakeintake.NewServer(8080)
 	fmt.Println("🏃 Fake intake running")
 
 	<-sigs
