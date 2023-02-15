@@ -8,6 +8,4 @@
 ---
 fixes:
   - |
-    Fixes a bug where some sketch payloads may not be submitted if an error occurs during serialization
-  - |
     Fixes a divide-by-zero panic when sketch serialization fails on the last metric of a given batch
