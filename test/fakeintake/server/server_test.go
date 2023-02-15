@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package fakeintake
+package server
 
 import (
 	"encoding/json"
@@ -13,14 +13,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 )
 
 const testFakeIntakePort = 8081
 
-func TestFakeIntake(t *testing.T) {
+func TestServer(t *testing.T) {
 	t.Run("should accept payloads on any route", func(t *testing.T) {
-		fi := NewFakeIntake(testFakeIntakePort)
+		fi := NewServer(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
@@ -33,7 +34,7 @@ func TestFakeIntake(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on any other route", func(t *testing.T) {
-		fi := NewFakeIntake(testFakeIntakePort)
+		fi := NewServer(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodGet, "/api/v1/validate", nil)
@@ -46,7 +47,7 @@ func TestFakeIntake(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
-		fi := NewFakeIntake(testFakeIntakePort)
+		fi := NewServer(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/foo", nil)
@@ -57,10 +58,10 @@ func TestFakeIntake(t *testing.T) {
 		fi.getPayloads(response, request)
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 
-		expectedResponse := getPayloadResponse{
+		expectedResponse := api.APIFakeIntakePayloadsGETResponse{
 			Payloads: [][]byte{},
 		}
-		actualResponse := getPayloadResponse{}
+		actualResponse := api.APIFakeIntakePayloadsGETResponse{}
 		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading response")
 		json.Unmarshal(body, &actualResponse)
@@ -69,7 +70,7 @@ func TestFakeIntake(t *testing.T) {
 	})
 
 	t.Run("should not accept GET requests on /fakeintake/payloads route without endpoint query parameter", func(t *testing.T) {
-		fi := NewFakeIntake(testFakeIntakePort)
+		fi := NewServer(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads", nil)
@@ -82,7 +83,7 @@ func TestFakeIntake(t *testing.T) {
 	})
 
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
-		fi := NewFakeIntake(testFakeIntakePort)
+		fi := NewServer(testFakeIntakePort)
 		defer fi.server.Close()
 
 		request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
@@ -108,13 +109,13 @@ func TestFakeIntake(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
-		expectedGETResponse := getPayloadResponse{
+		expectedGETResponse := api.APIFakeIntakePayloadsGETResponse{
 			Payloads: [][]byte{
 				[]byte("totoro|5|tag:valid,owner:pducolin"),
 				[]byte("totoro|7|tag:valid,owner:pducolin"),
 			},
 		}
-		actualGETResponse := getPayloadResponse{}
+		actualGETResponse := api.APIFakeIntakePayloadsGETResponse{}
 		body, err := io.ReadAll(getResponse.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
