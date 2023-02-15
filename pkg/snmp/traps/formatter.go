@@ -343,6 +343,11 @@ func formatValue(variable gosnmp.SnmpPDU) interface{} {
 	switch variable.Value.(type) {
 	case []byte:
 		return string(variable.Value.([]byte))
+	case string:
+		if variable.Type == gosnmp.ObjectIdentifier {
+			return NormalizeOID(variable.Value.(string))
+		}
+		return variable.Value
 	default:
 		return variable.Value
 	}
