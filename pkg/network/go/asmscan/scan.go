@@ -7,10 +7,8 @@ package asmscan
 
 import (
 	"debug/elf"
-	"encoding/hex"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 )
@@ -117,9 +115,7 @@ func FindARM64ReturnInstructions(data []byte) ([]uint64, error) {
 	cursor := 0
 	for cursor < len(data) {
 		instruction, err := arm64asm.Decode(data[cursor:])
-		ins := data[cursor : cursor+4]
 		if err != nil {
-			log.Warnf("failed to decode ARM 64 instruction (0x%s) at offset %d within function machine code: %s", hex.EncodeToString(ins), cursor, err)
 			cursor += 4
 			continue
 		}
