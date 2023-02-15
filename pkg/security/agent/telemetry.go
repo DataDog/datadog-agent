@@ -38,6 +38,7 @@ func newTelemetry() (*telemetry, error) {
 	return &telemetry{
 		containers:            containersTelemetry,
 		runtimeSecurityClient: runtimeSecurityClient,
+		profiledContainers:    make(map[profiledContainer]struct{}),
 	}, nil
 }
 
