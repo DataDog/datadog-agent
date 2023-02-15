@@ -23,6 +23,8 @@ script 'check space' do
     echo lsblk
     lsblk
   EOH
+  user "root"
+  live_stream true
 end
 
 # This will copy the whole file tree from COOKBOOK_NAME/files/default/tests
