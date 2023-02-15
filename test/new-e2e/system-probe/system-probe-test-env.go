@@ -92,6 +92,8 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 				return command.WaitForCloudInit(awsEnvironment.Ctx, r)
 			})
 
+			// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
+			// is mounted to all micro-vms. Each micro-vm extract the context on boot.
 			filemanager := command.NewFileManager(remoteRunner)
 			_, err = filemanager.CopyFile(
 				fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
