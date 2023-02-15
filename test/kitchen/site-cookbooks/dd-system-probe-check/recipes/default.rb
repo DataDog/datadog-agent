@@ -20,6 +20,8 @@ if !platform?('windows')
     end
   end
 
+  package 'gdisk'
+
   execute 'increase space' do
     command <<-EOF
       df -Th /
