@@ -220,14 +220,7 @@ if File.exists?('/sys/kernel/security/lockdown')
 end
 
 # system-probe common
-
-system_probe_tests_folder = '/tmp/system-probe-tests'
-
-directory system_probe_tests_folder do
-  recursive true
-end
-
-file "#{system_probe_tests_folder}/color_idx" do
+file "/tmp/color_idx" do
   content node[:color_idx].to_s
   mode 644
 end
