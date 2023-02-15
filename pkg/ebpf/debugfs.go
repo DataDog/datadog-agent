@@ -15,11 +15,15 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const telemetryModuleName = "network_tracer.kprobes"
 
 var myPid int
 
@@ -31,6 +35,7 @@ func init() {
 type KprobeStats struct {
 	Hits   int64
 	Misses int64
+	gauges map[string]telemetry.Gauge
 }
 
 // event name format is p|r_<funcname>_<uid>_<pid>
@@ -38,6 +43,13 @@ var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
 
 // KprobeProfile is the default path to the kprobe_profile file
 const KprobeProfile = "/sys/kernel/debug/tracing/kprobe_profile"
+
+func RefreshProbeStats() {
+	for {
+		GetProbeStats()
+		time.Sleep(time.Duration(5) * time.Second)
+	}
+}
 
 // GetProbeStats gathers stats about the # of kprobes triggered /missed by reading the kprobe_profile file
 func GetProbeStats() map[string]int64 {
@@ -70,11 +82,23 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 			event = parts[1]
 		}
 		event = strings.ToLower(event)
+		hitsKey := fmt.Sprintf("%s_hits", event)
+		missesKey := fmt.Sprintf("%s_misses", event)
+		setOrCreateGauge(st.gauges, hitsKey, float64(st.Hits))
+		setOrCreateGauge(st.gauges, missesKey, float64(st.Misses))
 		res[fmt.Sprintf("%s_hits", event)] = st.Hits
 		res[fmt.Sprintf("%s_misses", event)] = st.Misses
 	}
 
 	return res
+}
+
+// setOrCreateGauge checks the gauges map from the KprobeStats object for a Gauge. It creates the Gauge if it doesn't exist and sets it using val.
+func setOrCreateGauge(gauges map[string]telemetry.Gauge, key string, val float64) {
+	if _, ok := gauges[key]; !ok {
+		gauges[key] = telemetry.NewGauge(telemetryModuleName, key, []string{}, fmt.Sprintf("Gauge tracking value of %s", key))
+	}
+	gauges[key].Set(val)
 }
 
 // GetProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file

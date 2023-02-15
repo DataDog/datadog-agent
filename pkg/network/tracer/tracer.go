@@ -226,6 +226,8 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
+	go ddebpf.RefreshProbeStats()
+
 	return tr, nil
 }
 
@@ -420,6 +422,11 @@ func (t *Tracer) Stop() {
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
+
+	// Reset the global telemetry registry
+	// This has to be done to avoid panic in
+	// prometheus package in unit tests
+	telemetry.Reset()
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -710,7 +717,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case gatewayLookupStats:
 			// ret["gateway_lookup"] = t.gwLookup.GetStats() // done
 		case kprobesStats:
-			ret["kprobes"] = ddebpf.GetProbeStats() // wip
+			// ret["kprobes"] = ddebpf.GetProbeStats() // done
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"] // done
 		case tracerStats:
@@ -723,11 +730,11 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry() // wip
 			ret["tracer"] = tracerStats
 		case processCacheStats:
-			ret["process_cache"] = t.processCache.GetStats() // done
+			// ret["process_cache"] = t.processCache.GetStats() // done
 		case bpfMapStats:
-			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry() // done
+			// ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry() // done
 		case bpfHelperStats:
-			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry() // done
+			// ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry() // done
 		case httpStats:
 			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats() // done (lol)
 		}

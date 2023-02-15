@@ -40,17 +40,6 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
 	assert.Contains(t, names[destAddr], ToHostname(destName))
-
-	// Verify telemetry
-	stats := reverseDNS.GetStats()
-	assert.True(t, stats["ips"] >= 1)
-
-	if srcIP != destIP {
-		assert.Equal(t, int64(2), stats["lookups"])
-	} else {
-		assert.Equal(t, int64(1), stats["lookups"])
-	}
-	assert.Equal(t, int64(1), stats["resolved"])
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
@@ -418,9 +407,6 @@ func TestParsingError(t *testing.T) {
 	// Pass a byte array of size 1 which should result in parsing error
 	err = reverseDNS.processPacket(make([]byte, 1), time.Now())
 	require.NoError(t, err)
-	stats := reverseDNS.GetStats()
-	assert.True(t, stats["ips"] == 0)
-	assert.True(t, stats["decoding_errors"] == 1)
 }
 
 func TestDNSOverIPv6(t *testing.T) {

@@ -16,7 +16,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,6 +31,7 @@ const (
 	maxProcessQueueLen = 100
 	// maxProcessListSize is the max size of a processList
 	maxProcessListSize = 3
+	telemetryModuleName = "network_tracer.process_cache"
 )
 
 type process struct {
@@ -43,10 +44,10 @@ type process struct {
 type processList []*process
 
 type _processCacheStats struct {
-	cacheEvicts   telemetry.StatGaugeWrapper
-	cacheLength   telemetry.StatGaugeWrapper
-	eventsDropped telemetry.StatGaugeWrapper
-	eventsSkipped telemetry.StatGaugeWrapper
+	cacheEvicts   telemetry.Gauge
+	cacheLength   telemetry.Gauge
+	eventsDropped telemetry.Gauge
+	eventsSkipped telemetry.Gauge
 }
 
 type processCache struct {
@@ -83,10 +84,10 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
 		stats: _processCacheStats{
-			cacheEvicts:   telemetry.NewStatGaugeWrapper("process_cache", "cache_evicts", []string{}, "description"),
-			cacheLength:   telemetry.NewStatGaugeWrapper("process_cache", "cache_length", []string{}, "description"),
-			eventsDropped: telemetry.NewStatGaugeWrapper("process_cache", "events_dropped", []string{}, "description"),
-			eventsSkipped: telemetry.NewStatGaugeWrapper("process_cache", "events_skipped", []string{}, "description"),
+			cacheEvicts:   telemetry.NewGauge(telemetryModuleName, "cache_evicts", []string{}, "description"),
+			cacheLength:   telemetry.NewGauge(telemetryModuleName, "cache_length", []string{}, "description"),
+			eventsDropped: telemetry.NewGauge(telemetryModuleName, "events_dropped", []string{}, "description"),
+			eventsSkipped: telemetry.NewGauge(telemetryModuleName, "events_skipped", []string{}, "description"),
 		},
 	}
 
@@ -212,28 +213,9 @@ func (pc *processCache) add(p *process) {
 
 func (pc *processCache) RefreshTelemetry() map[string]interface{} {
 	for {
-		pc.stats.cacheLength.Set(int64(pc.cache.Len()))
+		pc.stats.cacheLength.Set(float64(pc.cache.Len()))
 		time.Sleep(time.Duration(5) * time.Second)
 	}
-}
-
-func (pc *processCache) GetStats() map[string]interface{} {
-	stats := map[string]interface{}{}
-	if pc == nil {
-		return stats
-	}
-
-	pc.Lock()
-	defer pc.Unlock()
-
-	pc.stats.cacheLength.Set(int64(pc.cache.Len())) // this was uint64, probably fine (not many pids)
-
-	stats["cache_evicts"] = pc.stats.cacheEvicts.Load()
-	stats["cache_length"] = pc.stats.cacheLength.Load()
-	stats["events_dropped"] = pc.stats.eventsDropped.Load()
-	stats["events_skipped"] = pc.stats.eventsSkipped.Load()
-
-	return stats
 }
 
 func (pc *processCache) Get(pid uint32, ts int64) (*process, bool) {

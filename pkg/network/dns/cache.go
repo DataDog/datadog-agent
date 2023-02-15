@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type reverseDNSCache struct {
 	// Telemetry
-	length    telemetry.Gauge
+	length    nettelemetry.StatGaugeWrapper
 	lookups   telemetry.Gauge
 	resolved  telemetry.Gauge
 	added     telemetry.Gauge
@@ -38,12 +39,12 @@ type reverseDNSCache struct {
 
 func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
-		length:            telemetry.NewGauge("dns", "length", []string{}, "description"),
-		lookups:           telemetry.NewGauge("dns", "lookups", []string{}, "description"),
-		resolved:          telemetry.NewGauge("dns", "resolved", []string{}, "description"),
-		added:             telemetry.NewGauge("dns", "added", []string{}, "description"),
-		expired:           telemetry.NewGauge("dns", "expired", []string{}, "description"),
-		oversized:         telemetry.NewGauge("dns", "oversized", []string{}, "description"),
+		length:            nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "length", []string{}, "description"),
+		lookups:           telemetry.NewGauge(telemetryModuleName, "lookups", []string{}, "description"),
+		resolved:          telemetry.NewGauge(telemetryModuleName, "resolved", []string{}, "description"),
+		added:             telemetry.NewGauge(telemetryModuleName, "added", []string{}, "description"),
+		expired:           telemetry.NewGauge(telemetryModuleName, "expired", []string{}, "description"),
+		oversized:         telemetry.NewGauge(telemetryModuleName, "oversized", []string{}, "description"),
 		data:              make(map[util.Address]*dnsCacheVal),
 		exit:              make(chan struct{}),
 		size:              size,
@@ -91,7 +92,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	}
 
 	// Update cache length for telemetry purposes
-	c.length.Set(float64((len(c.data))))
+	c.length.Set(int64((len(c.data))))
 
 	return true
 }
@@ -202,7 +203,7 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
-	c.expired.Set(int64(expired))
+	c.expired.Set(float64(expired))
 	c.length.Set(int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
