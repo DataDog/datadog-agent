@@ -86,8 +86,9 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 
 func TestSketchSeriesSplitEmptyPayload(t *testing.T) {
 	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
-	_, err := sl.SplitPayload(10)
-	require.Error(t, err)
+	pieces, err := sl.SplitPayload(10)
+	require.Len(t, pieces, 0)
+	require.Nil(t, err)
 }
 
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {

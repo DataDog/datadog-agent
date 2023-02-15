@@ -8,7 +8,6 @@ package metrics
 import (
 	"bytes"
 	"expvar"
-	"fmt"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/richardartoul/molecule"
@@ -326,7 +325,7 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 		sketches = append(sketches, ss)
 	}
 	if len(sketches) == 0 {
-		return nil, fmt.Errorf("Not possible to split payload since all sketches have been read already")
+		return []marshaler.AbstractMarshaler{}, nil
 	}
 	return sketches.SplitPayload(times)
 }
