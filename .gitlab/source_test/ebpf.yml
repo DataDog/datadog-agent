@@ -41,6 +41,7 @@
     - !reference [.retrieve_linux_go_tools_deps]
   script:
     - inv -e install-tools
+    - inv -e system-probe.object-files
     - invoke -e golangci-lint --build system-probe ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
     - invoke -e go.golangci_lint --targets=./plg/security/tests --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
@@ -101,7 +102,6 @@ tests_ebpf_arm64:
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re
     - !reference [.retrieve_sysprobe_deps]
   script:
-    - inv -e system-probe.object-files
     - !reference [.build_sysprobe_artifacts]
     - invoke -e security-agent.kitchen-prepare --skip-linters
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
