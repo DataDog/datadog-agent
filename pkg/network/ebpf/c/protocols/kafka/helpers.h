@@ -1,30 +1,10 @@
 #ifndef __KAFKA_HELPERS_H
 #define __KAFKA_HELPERS_H
 
-#include "bpf_endian.h"
-
+#include "protocols/helpers/big_endian.h"
 #include "protocols/kafka/defs.h"
 #include "protocols/kafka/maps.h"
 #include "protocols/kafka/types.h"
-
-// Template for read_big_endian_{s16, s32} methods. The function gets skb, offset and an out parameter of the relevant
-// type, verifies we do not exceed the packet's boundaries, and reads the relevant number from the packet. Eventually
-// we are converting the little-endian (default by the read) to big-endian. Return false if we exceeds boundaries, true
-// otherwise.
-#define READ_BIG_ENDIAN(type, transformer)                                                                  \
-    static __always_inline bool read_big_endian_##type(struct __sk_buff *skb, u32 offset, type *out) {      \
-        if (offset + sizeof(type) > skb->len) {                                                             \
-            return false;                                                                                   \
-        }                                                                                                   \
-        type val;                                                                                           \
-        bpf_memset(&val, 0, sizeof(type));                                                                  \
-        bpf_skb_load_bytes_with_telemetry(skb, offset, &val, sizeof(type));                                 \
-        *out = transformer(val);                                                                            \
-        return true;                                                                                        \
-    }
-
-READ_BIG_ENDIAN(s32, bpf_ntohl);
-READ_BIG_ENDIAN(s16, bpf_ntohs);
 
 // Wraps the mechanism of reading big-endian number (s16 or s32) from the packet, and increasing the offset.
 #define READ_BIG_ENDIAN_WRAPPER(type, name, skb, offset)    \
@@ -82,7 +62,7 @@ static __always_inline bool is_valid_client_id(struct __sk_buff *skb, u32 offset
 // 6. Correlation ID is not negative.
 // 7. The client ID size if not negative.
 static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *kafka_header) {
-    if (kafka_header->message_size < sizeof(kafka_header_t)) {
+    if (kafka_header->message_size < sizeof(kafka_header_t) || kafka_header->message_size  < 0) {
         return false;
     }
 
@@ -116,7 +96,7 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
         return false;
     }
 
-    return kafka_header->client_id_size >= 0;
+    return kafka_header->client_id_size >= -1;
 }
 
 static __always_inline void read_into_buffer_topic_name(char *buffer, struct __sk_buff *skb, u32 initial_offset) {
@@ -287,18 +267,20 @@ static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info
     kafka_header.correlation_id = bpf_ntohl(header_view->correlation_id);
     kafka_header.client_id_size = bpf_ntohs(header_view->client_id_size);
 
-    // Checking if the header is valid.
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
     }
 
     u32 offset = skb_info->data_off + sizeof(kafka_header_t);
     // Validate client ID
-    if (!is_valid_client_id(skb, offset, kafka_header.client_id_size)) {
-        return false;
+    // Client ID size can -1 if the client id is null.
+    if (kafka_header.client_id_size > 0) {
+        if (!is_valid_client_id(skb, offset, kafka_header.client_id_size)) {
+            return false;
+        }
+        offset += kafka_header.client_id_size;
     }
 
-    offset += kafka_header.client_id_size;
     return is_kafka_request(&kafka_header, skb, offset);
 }
 
