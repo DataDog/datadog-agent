@@ -350,8 +350,10 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			adm := &ActivityDumpManager{
 				activeDumps: tt.fields.activeDumps,
 				config: &config.Config{
-					ActivityDumpMaxDumpSize: func() int {
-						return 2048
+					CWSConfig: config.CWSConfig{
+						ActivityDumpMaxDumpSize: func() int {
+							return 2048
+						},
 					},
 				},
 				statsdClient:       &statsd.NoOpClient{},
