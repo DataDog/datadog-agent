@@ -179,7 +179,12 @@ func PrintRemoteConfigState(w io.Writer, s *pbgo.GetStateConfigResponse) {
 	fmt.Fprintln(w, "\n=== Remote config active clients ===")
 
 	for _, client := range s.ActiveClients {
-		fmt.Fprintf(w, "\n== Client %s ==\n%+v\n", client.Id, client)
+		fmt.Fprintf(w, "\n== Client %s ==\n%+v\n\tCapabilities: ", client.Id, client)
+		// Additional print of capabilities so it's more readable
+		for _, n := range client.Capabilities {
+			fmt.Printf("% 08b", n)
+		}
+		fmt.Println("")
 	}
 
 	if len(s.ActiveClients) == 0 {
