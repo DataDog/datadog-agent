@@ -197,7 +197,25 @@ end
 # Install relevant packages for docker
 include_recipe "::docker_installation"
 
-remote_directory "/tmp/kitchen-dockers" do
+script 'check space before dockers' do
+  interpreter "bash"
+  code <<-EOH
+    echo df -h /
+    df -h /
+    echo du -d 1 -h /
+    du -d 1 -h /
+    echo du -d 1 -h /mnt
+    du -d 1 -h /mnt
+    echo du -d 1 -h /tmp
+    du -d 1 -h /tmp
+    echo lsblk
+    lsblk
+  EOH
+  user "root"
+  live_stream true
+end
+
+remote_directory "/tmp/system-probe-tests/kitchen-dockers" do
   source 'dockers'
   files_owner 'root'
   files_group 'root'
@@ -208,7 +226,7 @@ end
 
 # Load docker images
 execute 'install docker-compose' do
-  cwd '/tmp/kitchen-dockers'
+  cwd '/tmp/system-probe-tests/kitchen-dockers'
   command <<-EOF
     for docker_file in $(ls); do
       echo docker load -i $docker_file
@@ -216,6 +234,24 @@ execute 'install docker-compose' do
       rm -rf $docker_file
     done
   EOF
+  user "root"
+  live_stream true
+end
+
+script 'check space after dockers' do
+  interpreter "bash"
+  code <<-EOH
+    echo df -h /
+    df -h /
+    echo du -d 1 -h /
+    du -d 1 -h /
+    echo du -d 1 -h /mnt
+    du -d 1 -h /mnt
+    echo du -d 1 -h /tmp
+    du -d 1 -h /tmp
+    echo lsblk
+    lsblk
+  EOH
   user "root"
   live_stream true
 end
