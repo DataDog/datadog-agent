@@ -41,6 +41,14 @@ var (
 				UID:          probeUID,
 			},
 		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           1,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierSocketContFilter,
+				UID:          probeUID,
+			},
+		},
 	}
 )
 

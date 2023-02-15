@@ -39,6 +39,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		if ClassificationSupported(c) {
 			enableProbe(enabled, probes.ProtocolClassifierEntrySocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierSocketContFilter)
 			enableProbe(enabled, probes.NetDevQueue)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
