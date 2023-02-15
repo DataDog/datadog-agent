@@ -72,8 +72,8 @@ func TestLogForDaemon_windows(t *testing.T) {
 	require.Equal(t, "unused", params.logFileFn(g)) // default log file, since log_file isn't set in g
 	require.Equal(t, "", params.logSyslogURIFn(g))  // always empty on Windows
 	require.Equal(t, false, params.logSyslogRFCFn(g))
-	require.Equal(t, true, params.logToConsoleFn(g))
-	require.Equal(t, false, params.logFormatJSONFn(g))
+	require.Equal(t, false, params.logToConsoleFn(g))  // not set in g
+	require.Equal(t, false, params.logFormatJSONFn(g)) // not set in g
 }
 
 func TestLogForDaemon_linux(t *testing.T) {
