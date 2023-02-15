@@ -78,8 +78,8 @@ func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 		exit:             make(chan struct{}),
 		maxSize:          maxStateMapSize,
 		maxStats:         maxStats,
-		lastNumStats:     telemetry.NewStatGaugeWrapper("dnsStatKeeper", "lastNumStats", []string{}, ""),
-		lastDroppedStats: telemetry.NewStatGaugeWrapper("dnsStatKeeper", "lastDroppedStats", []string{}, ""),
+		lastNumStats:     telemetry.NewStatGaugeWrapper("dnsStatKeeper", "last_num_stats", []string{}, ""),
+		lastDroppedStats: telemetry.NewStatGaugeWrapper("dnsStatKeeper", "last_dropped_stats", []string{}, ""),
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)

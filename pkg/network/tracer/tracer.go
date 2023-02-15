@@ -217,7 +217,6 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		go tr.processCache.RefreshTelemetry()
 
 		events.RegisterHandler(tr.processCache.handleProcessEvent)
 

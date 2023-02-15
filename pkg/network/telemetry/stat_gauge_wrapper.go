@@ -36,9 +36,7 @@ func (sgw *StatGaugeWrapper) Set(v int64) {
 }
 
 func (sgw *StatGaugeWrapper) Load() int64 {
-	stat := sgw.stat.Load()
-	sgw.gauge.Set(float64(stat))
-	return stat
+	return sgw.stat.Load()
 }
 
 func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) StatGaugeWrapper {

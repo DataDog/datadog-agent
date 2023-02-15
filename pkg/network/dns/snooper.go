@@ -84,8 +84,8 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &socketFilterSnooper{
-		decodingErrors: telemetry.NewStatGaugeWrapper(telemetryModuleName, "decodingErrors", []string{}, ""),
-		truncatedPkts:  telemetry.NewStatGaugeWrapper(telemetryModuleName, "truncatedPkts", []string{}, ""),
+		decodingErrors: telemetry.NewStatGaugeWrapper(telemetryModuleName, "decoding_errors", []string{}, ""),
+		truncatedPkts:  telemetry.NewStatGaugeWrapper(telemetryModuleName, "truncated_pkts", []string{}, ""),
 		queries:        telemetry.NewStatGaugeWrapper(telemetryModuleName, "queries", []string{}, ""),
 		successes:      telemetry.NewStatGaugeWrapper(telemetryModuleName, "successes", []string{}, ""),
 		errors:         telemetry.NewStatGaugeWrapper(telemetryModuleName, "errors", []string{}, ""),

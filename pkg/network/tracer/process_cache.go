@@ -122,6 +122,8 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		}
 	}()
 
+	go pc.RefreshTelemetry()
+
 	return pc, nil
 }
 
