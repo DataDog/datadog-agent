@@ -442,6 +442,8 @@ func (s *store) pull(ctx context.Context) {
 			}
 
 			s.ongoingPullsMut.Lock()
+			pullDuration := time.Now().Sub(s.ongoingPulls[id])
+			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
 			s.ongoingPulls[id] = time.Time{}
 			s.ongoingPullsMut.Unlock()
 		}(id, c)
