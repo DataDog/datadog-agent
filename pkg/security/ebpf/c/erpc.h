@@ -108,6 +108,7 @@ int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
     return 0;
 }
 
+#if USE_RING_BUFFER == 1
 int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
     if (!is_runtime_request()) {
         return 0;
@@ -117,6 +118,7 @@ int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
 
     return 0;
 }
+#endif
 
 int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
     u32 cmd = PT_REGS_PARM3(ctx);
@@ -171,8 +173,10 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
             return handle_expire_pid_discarder(data);
         case BUMP_DISCARDERS_REVISION:
             return handle_bump_discarders_revision(data);
+#if USE_RING_BUFFER == 1
         case GET_RINGBUF_USAGE:
             return handle_get_ringbuf_usage(data);
+#endif
     }
 
     return 0;
