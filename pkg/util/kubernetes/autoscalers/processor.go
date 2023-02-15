@@ -33,8 +33,6 @@ const (
 	maxCharactersPerChunk = 7000
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
 	extraQueryCharacters = 16
-	// maxTimeWindow is a safeguard to prevent the Cluster Agent from making queries on a large time window
-	maxTimeWindow = 24 * time.Hour
 )
 
 // DatadogClient abstracts the dependency on the Datadog api
@@ -184,9 +182,10 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	}
 
 	// Safeguard against large time window
-	if timeWindow > maxTimeWindow {
-		log.Warnf("Querying external metrics with a time window larger than: %v is not allowed, ceiling value", maxTimeWindow)
-		timeWindow = maxTimeWindow
+	configMaxTimeWindow := time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_time_window")) * time.Second
+	if timeWindow > configMaxTimeWindow {
+		log.Warnf("Querying external metrics with a time window larger than: %v is not allowed, ceiling value", configMaxTimeWindow)
+		timeWindow = configMaxTimeWindow
 	}
 
 	chunks := makeChunks(queries)

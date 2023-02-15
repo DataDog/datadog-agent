@@ -70,15 +70,21 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		return
 	}
 
-	queries, queriesMaxAge := getUniqueQueries(datadogMetrics)
-	log.Debugf("Starting refreshing external metrics with: %d queries", len(queries))
-
-	results, err := mr.processor.QueryExternalMetric(queries, queriesMaxAge)
+	queriesByTimeWindow := getUniqueQueriesByTimeWindow(datadogMetrics)
+	resultsByTimeWindow := make(map[time.Duration]map[string]autoscalers.Point)
 	globalError := false
-	// Check for global failure
-	if len(results) == 0 && err != nil {
-		globalError = true
-		log.Errorf("Unable to fetch external metrics: %v", err)
+
+	for timeWindow, queries := range queriesByTimeWindow {
+		log.Debugf("Starting refreshing external metrics with: %d queries (window: %d)", len(queries), timeWindow)
+
+		results, err := mr.processor.QueryExternalMetric(queries, timeWindow)
+		// Check for global failure
+		if len(results) == 0 && err != nil {
+			globalError = true
+			log.Errorf("Unable to fetch external metrics: %v", err)
+		}
+
+		resultsByTimeWindow[timeWindow] = results
 	}
 
 	// Update store with current results
@@ -92,6 +98,8 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		}
 
 		query := datadogMetric.Query()
+		results := resultsByTimeWindow[datadogMetric.TimeWindow]
+
 		if queryResult, found := results[query]; found {
 			log.Debugf("QueryResult from DD for %q: %v", query, queryResult)
 
@@ -134,21 +142,22 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 	}
 }
 
-func getUniqueQueries(datadogMetrics []model.DatadogMetricInternal) ([]string, time.Duration) {
-	var maxAge time.Duration
-	queries := make([]string, 0, len(datadogMetrics))
-	unique := make(map[string]struct{}, len(queries))
+func getUniqueQueriesByTimeWindow(datadogMetrics []model.DatadogMetricInternal) map[time.Duration][]string {
+	queriesByTimeWindow := make(map[time.Duration][]string)
+	unique := make(map[string]struct{}, len(datadogMetrics))
 	for _, datadogMetric := range datadogMetrics {
-		if datadogMetric.MaxAge > maxAge {
-			maxAge = datadogMetric.MaxAge
-		}
-
 		query := datadogMetric.Query()
-		if _, found := unique[query]; !found {
-			unique[query] = struct{}{}
-			queries = append(queries, query)
+		timeWindow := datadogMetric.TimeWindow
+		key := query + "-" + timeWindow.String()
+		if _, found := unique[key]; !found {
+			unique[key] = struct{}{}
+
+			if _, found := queriesByTimeWindow[timeWindow]; !found {
+				queriesByTimeWindow[timeWindow] = make([]string, 0)
+			}
+			queriesByTimeWindow[timeWindow] = append(queriesByTimeWindow[timeWindow], query)
 		}
 	}
 
-	return queries, maxAge
+	return queriesByTimeWindow
 }

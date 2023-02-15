@@ -52,7 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.43.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
+	github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56
 	github.com/DataDog/ebpf-manager v0.2.3
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
@@ -274,7 +274,7 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/DataDog/aptly v1.5.0 // indirect
-	github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6 // indirect
+	github.com/DataDog/extendeddaemonset v0.9.0-rc.2 // indirect
 	github.com/DataDog/gostackparse v0.5.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DisposaBoy/JsonConfigReader v0.0.0-20171218180944-5ea4d0ddac55 // indirect
@@ -557,11 +557,13 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
-
 require (
-	github.com/sigstore/rekor v1.0.1 // indirect
+	github.com/DataDog/datadog-api-client-go v1.7.0 // indirect
+	github.com/go-logr/zapr v1.2.0 // indirect
+	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
+	k8s.io/kube-aggregator v0.23.5 // indirect
+	k8s.io/kube-state-metrics v1.9.7 // indirect
 )
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe

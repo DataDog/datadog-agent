@@ -632,3 +632,19 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 		})
 	}
 }
+
+func TestGetUniqueQueriesByTimeWindow(t *testing.T) {
+	metrics := []model.DatadogMetricInternal{
+		model.NewDatadogMetricForTests("1", "system.cpu", time.Minute*1, time.Hour*2),
+		model.NewDatadogMetricForTests("2", "system.cpu", time.Minute*1, time.Hour*2),
+		model.NewDatadogMetricForTests("3", "system.mem", time.Minute*1, time.Hour*2),
+		model.NewDatadogMetricForTests("4", "system.mem", time.Minute*1, time.Minute*2),
+	}
+	metricsByTimeWindow := getUniqueQueriesByTimeWindow(metrics)
+	expected := map[time.Duration][]string{
+		time.Hour * 2:   {"system.cpu", "system.mem"},
+		time.Minute * 2: {"system.mem"},
+	}
+
+	assert.Equal(t, expected, metricsByTimeWindow)
+}

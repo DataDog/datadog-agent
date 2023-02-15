@@ -46,6 +46,7 @@ type DatadogMetricInternal struct {
 	UpdateTime           time.Time
 	Error                error
 	MaxAge               time.Duration
+	TimeWindow           time.Duration
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -61,6 +62,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		Autogen:              false,
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
 		MaxAge:               datadogMetric.Spec.MaxAge.Duration,
+		TimeWindow:           getSpecTimeWindow(datadogMetric.Spec),
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
@@ -102,6 +104,14 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 	return internal
 }
 
+func getSpecTimeWindow(spec datadoghq.DatadogMetricSpec) time.Duration {
+	timeWindow := spec.TimeWindow.Duration
+	if timeWindow == 0 {
+		timeWindow = spec.MaxAge.Duration
+	}
+	return timeWindow
+}
+
 func hasForceActiveAnnotation(metric datadoghq.DatadogMetric) bool {
 	if value, found := metric.Annotations[alwaysActiveAnnotation]; found {
 		enabled, err := strconv.ParseBool(value)
@@ -131,7 +141,23 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 	}
 }
 
-// Query returns the query that should be used to fetch metrics
+// NewDatadogMetricForTests creates a new internal metric for tests.
+func NewDatadogMetricForTests(id, query string, maxAge, timeWindow time.Duration) DatadogMetricInternal {
+	return DatadogMetricInternal{
+		ID:           id,
+		query:        query,
+		Valid:        false,
+		Active:       true,
+		AlwaysActive: false,
+		Deleted:      false,
+		Autogen:      true,
+		UpdateTime:   time.Now().UTC(),
+		MaxAge:       maxAge,
+		TimeWindow:   timeWindow,
+	}
+}
+
+// query returns the query that should be used to fetch metrics
 func (d *DatadogMetricInternal) Query() string {
 	if d.resolvedQuery != nil {
 		return *d.resolvedQuery
@@ -153,6 +179,7 @@ func (d *DatadogMetricInternal) UpdateFrom(current datadoghq.DatadogMetric) {
 	}
 	d.query = currentSpec.Query
 	d.MaxAge = currentSpec.MaxAge.Duration
+	d.TimeWindow = getSpecTimeWindow(currentSpec)
 	d.AlwaysActive = hasForceActiveAnnotation(current)
 }
 
