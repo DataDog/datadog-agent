@@ -44,7 +44,7 @@
     - inv -e system-probe.object-files
     - invoke -e golangci-lint --build system-probe ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e golangci-lint --targets=./plg/security/tests --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
+    - invoke -e golangci-lint --targets=./pkg/security/tests --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 
 .tests_windows_sysprobe:
   stage: source_test
