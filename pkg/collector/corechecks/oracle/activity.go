@@ -29,15 +29,15 @@ func (c *Check) SampleSession() error {
 		log.Errorf("Session sampling ", err)
 		return err
 	}
-	log.Tracef("orasample %#v", sessionSamples)
+	//log.Tracef("orasample %#v", sessionSamples)
 
 	payload := ActivityPayload{
 		Host:               "a",
 		DDAgentVersion:     "1",
-		DDSource:           "a",
-		DBMType:            "a",
+		DDSource:           "oracle",
+		DBMType:            "activity",
 		CollectionInterval: 1,
-		DDTags:             []string{"Edpresso", "Educative", "Shots"},
+		DDTags:             []string{"Espresso", "Educative", "Shots"},
 		Timestamp:          1,
 		OracleActivity:     sessionSamples,
 	}
