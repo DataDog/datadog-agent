@@ -5,10 +5,11 @@
 
 #include "protocols/events-types.h"
 
-/* USM_EVENTS_INIT defines two functions used for the purposes of buffering and sending
+/* USM_EVENTS_INIT defines three functions used for the purposes of buffering and sending
    data to userspace:
    1) <name>_batch_enqueue
-   1) <name>_batch_flush
+   2) <name>_batch_pop
+   3) <name>_batch_flush
    For more information of this please refer to
    pkg/networks/protocols/events/README.md */
 #define USM_EVENTS_INIT(name, value, batch_size)                                        \
