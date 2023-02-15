@@ -4,49 +4,22 @@ Exposes a catch-all API for Datadog Agent POST requests.
 
 ## Requirements
 
-* [Golang 1.19](https://go.dev/dl/)
+- [Golang 1.19](https://go.dev/dl/)
 
 ## How to run
 
-### Locally
-
-1. cd to fake-intake root folder
-
-```bash
-cd ~/dd/datadog-agent/test/fake-intake
-```
-
-2. Build the fake-intake app
-
-```bash
-go build
-```
-
-3. Run the fake-intake
-
-```bash
-./fake-intake
-```
-
-4. Configure Datadog Agent to use fake intake
-
-```yaml
-# datadog.yaml
-DD_DD_URL: "http://localhost:8080"
-```
-
 ### Docker
 
-1. cd to fake-intake root folder
+1. Pull the `fakeintake` container image from [the public registry](https://hub.docker.com/r/datadog/fakeintake/tags)
 
 ```bash
-cd ~/dd/datadog-agent/test/fake-intake
+docker pull datadog/fakeintake
 ```
 
 2. Start the docker container
 
 ```bash
-docker compose up
+docker run -i datadog/fakeintake
 ```
 
 3. Configure Datadog Agent to use fake intake
@@ -56,20 +29,37 @@ docker compose up
 DD_DD_URL: "http://localhost:8080"
 ```
 
+### Locally
+
+1. Run fakeintake
+
+```bash
+go run $DATADOG_ROOT/datadog-agent/test/fakeintake/app/main.go
+```
+
+2. Configure Datadog Agent to use fakeintake
+
+```yaml
+# datadog.yaml
+DD_DD_URL: "http://localhost:8080"
+```
+
 ## How to build
+
+The `fakeintake` container is built by the `datadog-agent` CI and available at https://hub.docker.com/r/datadog/fakeintake/tags. Here are the instructions to build a container locally, in case of changes to `fakeintake`.
 
 ### 🐳 Docker, locally
 
-1. Ensure you are using buildx `desktop-linux` driver
+1. `cd` to `fakeintake` root
 
 ```bash
-docker buildx create --use desktop-linux
+cd $DATADOG_ROOT/datadog-agent/test/fakeintake
 ```
 
-2. Build a new multi-arch image using `buildx`. This will allow the container to run on both MacOS M1 (arm64) and Linux (amd64).
+2. Build and run a new container image
 
 ```bash
-docker buildx build --push --platform linux/arm64/v8,linux/amd64 --tag <repo_name>/fake-intake:<tag> .
+docker compose up --force-recreate
 ```
 
 ## API
@@ -110,7 +100,7 @@ curl ${SERVICE_IP}/fake/payloads/api/V2/series
 
 #### Juniper Notebook
 
-Play with fake-intake in a Juniper Notebook
+Play with fakeintake in a Juniper Notebook
 
 ```python
 # POST payloads
@@ -145,13 +135,11 @@ for payload in data["payloads"]:
 
 ## Development in VSCode
 
-This is a sub-module within `datadog-agent`. VSCode will complain about the multiple `go.mod` files. While waiting for a full repo migration to go workspaces, create a go workspace file and add `test/fake-intake` to workspaces
+This is a sub-module within `datadog-agent`. VSCode will complain about the multiple `go.mod` files. While waiting for a full repo migration to go workspaces, create a go workspace file and add `test/fakeintake` to workspaces
 
 ```bash
 go work init
-go work use . ./test/fake-intake
+go work use . ./test/fakeintake
 ```
 
-> **Note**
-> `go.work` file is currently ignored in `datadog-agent`
-
+> **Note** `go.work` file is currently ignored in `datadog-agent`

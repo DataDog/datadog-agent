@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 
 ## Build
-FROM golang:1.19-buster AS build
+FROM golang:1.18-buster AS build
 
 WORKDIR /app
 
@@ -10,10 +10,11 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY fakeintake/*.go ./fakeintake/
-COPY *.go ./
+COPY server/*.go ./server/
+COPY api/*.go ./api/
+COPY app/*.go ./app/
 
-RUN go build -o /build
+RUN go build -o /build app/main.go
 
 ## Deploy
 FROM ubuntu:22.04
