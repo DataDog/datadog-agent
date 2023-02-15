@@ -171,6 +171,10 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcy
 		log.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
 	}
 
+	if !config.Datadog.GetBool("enable_sketch_stream_payload_serialization") {
+		log.Warn("'enable_sketch_stream_payload_serialization' is set to false which is not recommended. This option will be deprecated and removed in the future. If you need this option, please reach out to support or file an issue on github.com/DataDog/datadog-agent")
+	}
+
 	return s
 }
 
@@ -364,26 +368,20 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
 		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
-		if err == nil {
-			return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
-		} else if len(payloads) > 0 {
-			// Even if there was an error during the process, some payloads were created,
-			// submit these before doing fallback serialization
-			err = s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
-			if err != nil {
-				return err
-			}
+		if err != nil {
+			log.Errorf("dropping sketch payload: %v", err)
 		}
-		log.Warnf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
-	}
 
-	compress := true
-	splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
-	if err != nil {
-		return fmt.Errorf("dropping sketch payload: %s", err)
-	}
+		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+	} else {
+		compress := true
+		splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
+		if err != nil {
+			return fmt.Errorf("dropping sketch payload: %s", err)
+		}
 
-	return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
+		return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
+	}
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
