@@ -1,84 +1,17 @@
+# retro compatibility
+execute "/tmp/system-probe-tests symlink" do
+  command "ln -s /system-probe-tests /tmp/system-probe-tests"
+  live_stream true
+  action :run
+  ignore_failure false
+end
 
 execute "df -Th" do
-  command "df -Th /tmp"
+  command "df -Th"
   live_stream true
   action :run
   ignore_failure true
 end
-
-execute 'move tmp system probe data to root' do
-  command <<-EOF
-    df -Th /
-
-    mkdir /system-probe-tests
-    chmod 0777 /system-probe-tests
-    mv /tmp/system-probe-tests/* /system-probe-tests
-    rm -rf /tmp/system-probe-tests
-    ln -s /system-probe-tests /tmp/system-probe-tests
-  EOF
-  live_stream true
-  action :run
-  ignore_failure true
-end
-
-package 'growpart' do
-  case node[:platform]
-  when 'amazon', 'redhat', 'centos', 'fedora'
-    package_name 'cloud-utils-growpart'
-  else
-    package_name 'cloud-guest-utils'
-  end
-end
-
-#if Chef::SystemProbeHelpers::arm?(node) and node[:platform] == 'centos'
-#  package 'cloud-utils-growpart'
-#  package 'gdisk'
-
-execute 'increase space' do
-  command <<-EOF
-    df -Th /tmp
-
-    d=$(df -Th /tmp | tail -n1)
-    dev_name=$(echo $d | awk '{print $1}')
-    fstype=$(echo $d | awk '{print $2}')
-    avail=$(echo $d | awk '{print $5}' | tr -d G)
-    mnt=$(echo $d | awk '{print $7}')
-
-    if [[ $(awk "BEGIN {print 10.0<$avail}") -eq 1 ]]; then
-       echo "skip because use $avail > 10G"
-       exit 0
-    fi
-
-    if [[ ${dev_name} =~ ^/dev/mapper ]]; then
-       lvresize -L +4G ${dev_name}
-       if [[ ${fstype} = "xfs" ]]; then
-          xfs_growfs -d ${mnt}
-       else
-          resize2fs ${dev_name}
-       fi
-    fi
-    if [[ ${dev_name} =~ ^/dev/nvme ]]; then
-       disk=$(echo $dev_name | awk -Fp '{print $1}')
-       partnum=$(echo $dev_name | awk -Fp '{print $2}')
-
-       growpart ${disk} ${partnum}
-       if [[ ${fstype} = "xfs" ]]; then
-          xfs_growfs -d ${mnt}
-       else
-          resize2fs ${dev_name}
-       fi
-    fi
-    if [[ ${dev_name} =~ ^tmpfs ]]; then
-       mount -o remount,size=10G /tmp
-    fi
-
-    df -Th /tmp
-  EOF
-  user "root"
-  live_stream true
-  ignore_failure true
-end
-#end
 
 if platform?('centos')
   include_recipe '::old_vault'
@@ -165,24 +98,10 @@ kernel_module 'ipv6' do
 end
 execute 'sysctl net.ipv6.conf.all.disable_ipv6=0'
 
-
 execute 'ensure conntrack is enabled' do
   command "iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT"
   user "root"
   action :run
-end
-
-
-
-execute 'increase spaceallos' do
-  command <<-EOF
-    df -h /tmp
-
-    df -h /tmp
-  EOF
-  user "root"
-  live_stream true
-  ignore_failure true
 end
 
 execute 'disable firewalld on redhat' do
@@ -292,13 +211,4 @@ execute 'install docker-compose' do
   EOF
   user "root"
   live_stream true
-end
-
-
-
-execute "df -hafter" do
-  command "df -Th"
-  live_stream true
-  action :run
-  ignore_failure true
 end
