@@ -87,9 +87,9 @@ typedef struct {
 } http2_ctx_t;
 
 typedef struct {
+    char fragment[HTTP2_BUFFER_SIZE];
     __u16 offset;
     __u16 size;
-    char fragment[HTTP2_BUFFER_SIZE];
 } heap_buffer_t;
 
 typedef enum {

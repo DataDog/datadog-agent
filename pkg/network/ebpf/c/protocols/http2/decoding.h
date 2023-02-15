@@ -40,9 +40,9 @@ static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *ht
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
 // The error is errNeedMore if p doesn't contain a complete integer.
 static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 factor, __u8 *out){
-    const __u16 offset = heap_buffer->offset % HTTP2_BUFFER_SIZE;
+    __u16 offset = heap_buffer->offset % HTTP2_BUFFER_SIZE;
 
-    if (heap_buffer->size <= offset) {
+    if (heap_buffer->size-1 <= offset) {
         return false;
     }
     // TODO: verifier is happy now.
@@ -52,13 +52,24 @@ static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 facto
     __u8 current_char_as_number = heap_buffer->fragment[offset];
     current_char_as_number &= (1 << factor) - 1;
 
+    heap_buffer->offset = offset + 1;
     if (current_char_as_number < (1 << factor) - 1) {
-        heap_buffer->offset = offset + 1;
         *out = current_char_as_number;
         return true;
     }
 
-    // TODO: compare with original code if needed.
+    const u16 offset2 = heap_buffer->offset;
+    if (offset2 < heap_buffer->size-1 && offset2 < HTTP2_BUFFER_SIZE) {
+        const __u8 b = heap_buffer->fragment[offset2];
+        current_char_as_number += b & 127;
+        if ((b & 128 ) == 0) {
+            heap_buffer->offset = offset2 + 1;
+            *out = current_char_as_number;
+            return true;
+        }
+    }
+
+    // TODO: TBD
     return false;
 }
 
@@ -71,8 +82,8 @@ static __always_inline __u64 get_dynamic_counter(conn_tuple_t *tup) {
     return 0;
 }
 
-static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 *counter) {
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, counter, BPF_ANY);
+static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter) {
+    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_ANY);
 }
 
 // TODO: Fix documentation
@@ -117,7 +128,7 @@ static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iteratio
 static __always_inline __u8 parse_field_literal(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u64 counter = get_dynamic_counter(&iterations_key->tup);
     counter++;
-    set_dynamic_counter(&iterations_key->tup, &counter);
+    set_dynamic_counter(&iterations_key->tup, counter);
 
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 6, &index)) {
@@ -191,27 +202,27 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT; ++headers_index) {
         offset = heap_buffer->offset;
         if (buffer_size <= offset) {
-            log_debug("[http2] filter_relevant_headers abort 1 returned %lu %lu", buffer_size, offset);
             break;
         }
         if (HTTP2_BUFFER_SIZE <= offset) {
-            log_debug("[http2] filter_relevant_headers abort 2 returned %lu %lu", HTTP2_BUFFER_SIZE, offset);
             break;
         }
         offset %= HTTP2_BUFFER_SIZE;
         current_ch = heap_buffer->fragment[offset];
+
         if ((current_ch&128) != 0) {
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             interesting_headers += parse_field_indexed(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
-            log_debug("[http2] filter_relevant_headers in 3 returned %lu", interesting_headers);
+//            log_debug("[http2] filter_relevant_headers in 3 returned %lu", interesting_headers);
         } else if ((current_ch&192) == 64) {
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
+            log_debug("[http2] calling parse_field_literal");
             interesting_headers += parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
-            log_debug("[http2] filter_relevant_headers in 4 returned %lu", interesting_headers);
+//            log_debug("[http2] filter_relevant_headers in 4 returned %lu", interesting_headers);
         }
     }
 
