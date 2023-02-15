@@ -119,8 +119,8 @@ func addMemoryMetrics(t *testing.T, test *testModule, metrics map[string]*metric
 }
 
 func addModuleMetrics(test *testModule, ms map[string]*metric) {
-	test.module.SendStats()
-	test.module.SendStats()
+	test.eventMonitor.SendStats()
+	test.eventMonitor.SendStats()
 
 	fmt.Printf("Metrics:\n")
 
