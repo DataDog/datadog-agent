@@ -15,13 +15,6 @@ mitigated by properly configuring the `watermark` option when issuing the
 (eg. flush all buffered events) at a given moment in time[^1], which is a
 requirement for us.
 
-[^1]: this may be available in the near future since we could probably force
-wake-up events on the fly via `ioctl` calls, but this will likely require us to
-upstream changes to the `cilium/ebpf` library. There is a Jira card owned by
-`ebpf-platform` tracking this, and once this is available we could _greatly_
-simplify this package.
-
-
 ## How to use the library
 
 ### Kernel Side
@@ -31,8 +24,9 @@ simplify this package.
 USM_EVENTS_INIT(<protocol>, <event_type>, <batch_size>);
 ```
 
-This will instantiate the necessary eBPF maps along with two functions:
+This will instantiate the necessary eBPF maps along with three functions:
 * `<protocol>_batch_enqueue`;
+* `<protocol>_batch_pop`[^2];
 * `<protocol>_flush_batch`;
 
 Please note that `<protocol>_flush_batch` requires access to the
@@ -72,3 +66,14 @@ Aside from that, it is _recommended_ (though not strictly necessary) to call
 all buffered USM events can be sent to backend.
 
 For a complete integration example, please refer to `pkg/network/protocols/http/monitor.go`
+
+[^1]: this may be available in the near future since we could probably force
+wake-up events on the fly via `ioctl` calls, but this will likely require us to
+upstream changes to the `cilium/ebpf` library. There is a Jira card owned by
+`ebpf-platform` tracking this, and once this is available we could _greatly_
+simplify this package.
+
+[^2]: this function removes the last element inserted in a batch for a given CPU
+and its use should not be necessary in most cases. Currently we use it for HTTP
+monitoring as a way to prevent double flushing the same transaction to userspace.
+For more details see discussion in https://github.com/DataDog/datadog-agent/pull/15609
