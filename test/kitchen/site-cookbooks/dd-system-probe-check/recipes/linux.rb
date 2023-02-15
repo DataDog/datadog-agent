@@ -1,10 +1,3 @@
-# retro compatibility
-execute "/tmp/system-probe-tests symlink" do
-  command "ln -s /system-probe-tests /tmp/system-probe-tests"
-  live_stream true
-  action :run
-  ignore_failure false
-end
 
 execute "df -Th" do
   command "df -Th"

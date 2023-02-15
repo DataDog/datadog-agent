@@ -63,6 +63,7 @@ if !platform?('windows')
     live_stream true
     ignore_failure true
   end
+
 end
 
 
@@ -72,6 +73,14 @@ testdir = value_for_platform(
   'windows' => { 'default' => ::File.join(Chef::Config[:file_cache_path], 'system-probe-tests') },
   'default' => '/system-probe-tests'
 )
+
+# retro compatibility
+execute "/tmp/system-probe-tests symlink" do
+  command "ln -s /system-probe-tests /tmp/system-probe-tests"
+  live_stream true
+  action :run
+  ignore_failure false
+end
 
 remote_directory testdir do
   source 'tests'
