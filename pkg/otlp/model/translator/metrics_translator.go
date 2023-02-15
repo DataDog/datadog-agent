@@ -33,6 +33,22 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
+// runtimeMetricsMappings defines the mappings from OTel runtime metric names to their
+// equivalent Datadog runtime metric names
+var runtimeMetricsMappings = map[string]string{
+	"process.runtime.go.goroutines":        "runtime.go.num_goroutine",
+	"process.runtime.go.cgo.calls":         "runtime.go.num_cgo_call",
+	"process.runtime.go.lookups":           "runtime.go.mem_stats.lookups",
+	"process.runtime.go.mem.heap_alloc":    "runtime.go.mem_stats.heap_alloc",
+	"process.runtime.go.mem.heap_sys":      "runtime.go.mem_stats.heap_sys",
+	"process.runtime.go.mem.heap_idle":     "runtime.go.mem_stats.heap_idle",
+	"process.runtime.go.mem.heap_inuse":    "runtime.go.mem_stats.heap_inuse",
+	"process.runtime.go.mem.heap_released": "runtime.go.mem_stats.heap_released",
+	"process.runtime.go.mem.heap_objects":  "runtime.go.mem_stats.heap_objects",
+	"process.runtime.go.gc.pause_total_ns": "runtime.go.mem_stats.pause_total_ns",
+	"process.runtime.go.gc.count":          "runtime.go.mem_stats.num_gc",
+}
+
 const metricName string = "metric name"
 
 var _ source.Provider = (*noSourceProvider)(nil)
@@ -485,11 +501,11 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 			for k := 0; k < metricsArray.Len(); k++ {
 				md := metricsArray.At(k)
 
-				// Map metric to equivalent Datadog runtime metric if found
-				if ddruntimename, ok := runtimeMetricsMappings[md.Name()]; ok {
-					ddruntime := metricsArray.AppendEmpty()
-					md.CopyTo(ddruntime)
-					ddruntime.SetName(ddruntimename)
+				if v, ok := runtimeMetricsMappings[md.Name()]; ok {
+					// duplicate runtime metrics as Datadog runtime metrics
+					cp := metricsArray.AppendEmpty()
+					md.CopyTo(cp)
+					cp.SetName(v)
 				}
 
 				baseDims := &Dimensions{
