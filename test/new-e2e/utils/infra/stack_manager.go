@@ -60,14 +60,14 @@ func newStackManager(ctx context.Context) (*StackManager, error) {
 	}, nil
 }
 
-func getNewStack(ctx context.Context, name, project string, deployFunc pulumi.RunFunc, create bool) (auto.Stack, error) {
+func getNewStack(ctx context.Context, name, project string, deployFunc pulumi.RunFunc, failOnMissing bool) (auto.Stack, error) {
 	var newStack auto.Stack
 	var err error
 
-	if create {
-		newStack, err = auto.UpsertStackInlineSource(ctx, name, projectName, deployFunc)
-	} else {
+	if failOnMissing {
 		newStack, err = auto.SelectStackInlineSource(ctx, name, projectName, deployFunc)
+	} else {
+		newStack, err = auto.UpsertStackInlineSource(ctx, name, projectName, deployFunc)
 	}
 	if err != nil {
 		return auto.Stack{}, err
@@ -77,7 +77,7 @@ func getNewStack(ctx context.Context, name, project string, deployFunc pulumi.Ru
 }
 
 // GetStack creates or return a stack based on env+stack name
-func (sm *StackManager) GetStack(ctx context.Context, envName string, name string, config auto.ConfigMap, deployFunc pulumi.RunFunc, create bool) (auto.UpResult, error) {
+func (sm *StackManager) GetStack(ctx context.Context, envName string, name string, config auto.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (auto.UpResult, error) {
 	sm.lock.RLock()
 	defer sm.lock.RUnlock()
 
@@ -91,7 +91,7 @@ func (sm *StackManager) GetStack(ctx context.Context, envName string, name strin
 	stackID := stackID(envName, name)
 	stack := sm.stacks[stackID]
 	if stack == nil {
-		newStack, err := getNewStack(ctx, finalStackName, projectName, deployFunc, create)
+		newStack, err := getNewStack(ctx, finalStackName, projectName, deployFunc, failOnMissing)
 		if err != nil {
 			return auto.UpResult{}, err
 		}
