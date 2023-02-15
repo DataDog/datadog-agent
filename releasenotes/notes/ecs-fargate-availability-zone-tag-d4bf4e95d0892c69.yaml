@@ -13,4 +13,4 @@ enhancements:
 deprecations:
   - |
     Marked the "availability_zone" tag as deprecated for the Fargate
-    integration, in favor of "availability_zone".
+    integration, in favor of "availability-zone".
