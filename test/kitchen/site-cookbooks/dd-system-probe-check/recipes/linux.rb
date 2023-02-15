@@ -190,7 +190,7 @@ end
 # Install relevant packages for docker
 include_recipe "::docker_installation"
 
-remote_directory "/tmp/kitchen-dockers" do
+remote_directory "/kitchen-dockers" do
   source 'dockers'
   files_owner 'root'
   files_group 'root'
@@ -201,7 +201,7 @@ end
 
 # Load docker images
 execute 'install docker-compose' do
-  cwd '/tmp/kitchen-dockers'
+  cwd '/kitchen-dockers'
   command <<-EOF
     for docker_file in $(ls); do
       echo docker load -i $docker_file
