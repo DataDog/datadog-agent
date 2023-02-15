@@ -622,9 +622,9 @@ def test(
 
     if success:
         if skip_linters:
-            print(color_message(f"All tests passed", "green"))
+            print(color_message("All tests passed", "green"))
         else:
-            print(color_message(f"All tests and linters passed", "green"))
+            print(color_message("All tests and linters passed", "green"))
     else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
