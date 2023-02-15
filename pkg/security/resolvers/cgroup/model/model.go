@@ -34,6 +34,7 @@ type CacheEntry struct {
 	Deleted          *atomic.Bool
 	ID               string
 	Tags             []string
+	CreationTime     uint64
 	WorkloadSelector WorkloadSelector
 	PIDs             *simplelru.LRU[uint32, int8]
 }
@@ -97,4 +98,9 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 // NeedsTagsResolution returns true if this workload is missing its tags
 func (cgce *CacheEntry) NeedsTagsResolution() bool {
 	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsEmpty()
+}
+
+// GetCreationTime returns the root pid of a cgroup
+func (cgce *CacheEntry) GetCreationTime() uint64 {
+	return cgce.CreationTime
 }
