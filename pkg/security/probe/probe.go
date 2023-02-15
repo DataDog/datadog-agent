@@ -99,6 +99,9 @@ type Probe struct {
 	// Ring
 	eventStream EventStream
 
+	// ActivityDumps section
+	activityDumpHandler activitydump.ActivityDumpHandler
+
 	// Approvers / discarders section
 	Erpc                               *erpc.ERPC
 	erpcRequest                        *erpc.ERPCRequest
@@ -269,6 +272,10 @@ func (p *Probe) Init() error {
 		return err
 	}
 
+	if p.monitor.activityDumpManager != nil {
+		p.monitor.activityDumpManager.AddActivityDumpHandler(p.activityDumpHandler)
+	}
+
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
 	return nil
@@ -295,7 +302,7 @@ func (p *Probe) Start() error {
 
 // AddActivityDumpHandler set the probe activity dump handler
 func (p *Probe) AddActivityDumpHandler(handler activitydump.ActivityDumpHandler) {
-	p.monitor.activityDumpManager.AddActivityDumpHandler(handler)
+	p.activityDumpHandler = handler
 }
 
 // AddEventHandler set the probe event handler
