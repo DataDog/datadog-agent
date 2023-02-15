@@ -17,6 +17,7 @@ package proto
 //       conflicts with the pins set here.
 
 import (
+	_ "github.com/favadi/protoc-go-inject-tag"
 	_ "github.com/golang/mock/mockgen"
 	_ "github.com/golang/protobuf/protoc-gen-go"
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway"
