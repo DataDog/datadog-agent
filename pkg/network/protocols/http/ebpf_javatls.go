@@ -51,14 +51,17 @@ var _ subprogram = &JavaTLSProgram{}
 
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	if !c.EnableHTTPSMonitoring || !c.EnableJavaTLSSupport {
+		log.Warnf("java tls is not enabled as EnableHTTPSMonitoring: %v; EnableJavaTLSSupport: %v", c.EnableHTTPSMonitoring, c.EnableJavaTLSSupport)
 		return nil
 	}
 
-	javaUSMAgentArgs = c.JavaAgentArgs
 	if !c.EnableRuntimeCompiler {
 		log.Errorf("java TLS support requires runtime-compilation to be enabled")
 		return nil
 	}
+
+	log.Info("java tls is enabled ")
+	javaUSMAgentArgs = c.JavaAgentArgs
 	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
 	jar, err := os.Open(javaUSMAgentJarPath)
 	if err != nil {
@@ -81,7 +84,6 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 
 	p.manager.Probes = append(m.Probes,
 		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFSection:  "kprobe/do_vfs_ioctl",
 			EBPFFuncName: "kprobe__do_vfs_ioctl",
 			UID:          probeUID,
 		},
@@ -96,20 +98,14 @@ func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.ActivatedProbes = append(options.ActivatedProbes,
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "kprobe/do_vfs_ioctl",
 				EBPFFuncName: "kprobe__do_vfs_ioctl",
 				UID:          probeUID,
 			},
 		})
 }
 
-func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
-
-	probeList = append(probeList, manager.ProbeIdentificationPair{
-		EBPFSection:  "kprobe/do_vfs_ioctl",
-		EBPFFuncName: "kprobe__do_vfs_ioctl"})
-
-	return probeList
+func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
 func newJavaProcess(pid uint32) {
@@ -133,7 +129,6 @@ func (p *JavaTLSProgram) Start() {
 	})
 	if err != nil {
 		log.Errorf("process monitor Subscribe() error: %s", err)
-		return
 	}
 }
 
