@@ -682,16 +682,8 @@ const (
 )
 
 var allStats = []statsComp{
-	conntrackStats,
-	dnsStats,
-	epbfStats,
-	gatewayLookupStats,
-	kprobesStats,
 	stateStats,
 	tracerStats,
-	processCacheStats,
-	bpfHelperStats,
-	bpfMapStats,
 	httpStats,
 }
 
@@ -707,35 +699,15 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	ret := map[string]interface{}{}
 	for _, c := range comps {
 		switch c {
-		case conntrackStats:
-			// ret["conntrack"] = t.conntracker.GetStats() // done
-		case dnsStats:
-			// ret["dns"] = t.reverseDNS.GetStats() // done
-		case epbfStats:
-			// ret["ebpf"] = t.ebpfTracer.GetTelemetry() // done
-		case gatewayLookupStats:
-			// ret["gateway_lookup"] = t.gwLookup.GetStats() // done
-		case kprobesStats:
-			// ret["kprobes"] = ddebpf.GetProbeStats() // done
 		case stateStats:
-			ret["state"] = t.state.GetStats()["telemetry"] // done
+			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
 			tracerStats := make(map[string]interface{})
-			// tracerStats["skipped_conns"] = t.skippedConns.Load()
-			// tracerStats["closed_conns"] = t.closedConns.Load()
-			// tracerStats["conn_stats_map_size"] = t.connStatsMapSize.Load()
-			// tracerStats["expired_tcp_conns"] = t.expiredTCPConns.Load()
-			tracerStats["last_check"] = t.lastCheck.Load()         // keep this
-			tracerStats["runtime"] = runtime.Tracer.GetTelemetry() // wip
+			tracerStats["last_check"] = t.lastCheck.Load()
+			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
-		case processCacheStats:
-			// ret["process_cache"] = t.processCache.GetStats() // done
-		case bpfMapStats:
-			// ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry() // done
-		case bpfHelperStats:
-			// ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry() // done
 		case httpStats:
-			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats() // done (lol)
+			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats()
 		}
 	}
 

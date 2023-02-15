@@ -150,31 +150,9 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	return resolved
 }
 
-// TODO: remove, only used in tests now
 func (c *reverseDNSCache) Len() int {
 	return int(c.length.Load())
 }
-
-// func (c *reverseDNSCache) Stats() map[string]int64 {
-	// var (
-	// 	lookups   = c.lookups.Load()
-	// 	resolved  = c.resolved.Load()
-	// 	added     = c.added.Load()
-	// 	expired   = c.expired.Load()
-	// 	oversized = c.oversized.Load()
-	// 	ips       = c.length.Load()
-	// )
-
-	// return map[string]int64{
-	// 	"lookups":   lookups,
-	// 	"resolved":  resolved,
-	// 	"added":     added,
-	// 	"expired":   expired,
-	// 	"oversized": oversized,
-	// 	"ips":       ips,
-	// }
-// 	return make(map[string]int64)
-// }
 
 func (c *reverseDNSCache) Close() {
 	c.exit <- struct{}{}

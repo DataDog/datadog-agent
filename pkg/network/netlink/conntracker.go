@@ -203,42 +203,13 @@ func (ctr *realConntracker) RefreshTelemetry() {
 	}
 }
 
-// func (ctr *realConntracker) GetStats() map[string]int64 {
-	// only a few stats are locked
-	// ctr.RLock()
-	// size := ctr.cache.cache.Len()
-	// orphanSize := ctr.cache.orphans.Len()
-	// ctr.RUnlock()
-
-	// m := map[string]int64{
-	// 	"state_size":  int64(size),
-	// 	"orphan_size": int64(orphanSize),
-	// }
-
-	// gets := ctr.stats.gets.Load()
-	// getTimeTotal := ctr.stats.getTimeTotal.Load()
-	// m["gets_total"] = gets
-	// if gets != 0 {
-	// 	m["nanoseconds_per_get"] = getTimeTotal / gets
-	// }
-
-	// registers := ctr.stats.registers.Load()
-	// m["registers_total"] = registers
-	// registersTotalTime := ctr.stats.registersTotalTime.Load()
-	// if registers != 0 {
-	// 	m["nanoseconds_per_register"] = registersTotalTime / registers
-	// }
-
-	// unregisters := ctr.stats.unregisters.Load()
-	// unregisterTotalTime := ctr.stats.unregistersTotalTime.Load()
-	// m["unregisters_total"] = unregisters
-	// if unregisters != 0 {
-	// 	m["nanoseconds_per_unregister"] = unregisterTotalTime / unregisters
-	// }
-	// m["evicts_total"] = ctr.stats.evicts.Load()
-
-// 	return make(map[string]int64)
-// }
+func (ctr *realConntracker) setNanosPerRegister() {
+	registers := ctr.stats.registers.Load()
+	registersTotalTime := ctr.stats.registersTotalTime.Load()
+	if registers != 0 {
+		ctr.stats.nanoSecondsPerRegister.Set(float64(registersTotalTime / registers))
+	}
+}
 
 func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now().UnixNano()

@@ -60,9 +60,6 @@ type packetSource interface {
 	// If the cancel channel is closed, VisitPackets will stop reading.
 	VisitPackets(cancel <-chan struct{}, visitor func(data []byte, timestamp time.Time) error) error
 
-	// Stats returns a map of counters, meant to be reported as telemetry
-	Stats() map[string]int64
-
 	// PacketType returns the type of packet this source reads
 	PacketType() gopacket.LayerType
 
@@ -127,28 +124,6 @@ func (s *socketFilterSnooper) GetDNSStats() StatsByKeyByNameByType {
 	}
 	return s.statKeeper.GetAndResetAllStats()
 }
-
-// // GetStats returns stats for use with telemetry
-// func (s *socketFilterSnooper) GetStats() map[string]int64 {
-// 	stats := s.cache.Stats()
-
-// 	for key, value := range s.source.Stats() {
-// 		stats[key] = value
-// 	}
-
-// 	stats["decoding_errors"] = s.decodingErrors.Load()
-// 	stats["truncated_packets"] = s.truncatedPkts.Load()
-// 	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000 // do we need this
-// 	stats["queries"] = s.queries.Load()
-// 	stats["successes"] = s.successes.Load()
-// 	stats["errors"] = s.errors.Load()
-// 	if s.statKeeper != nil {
-// 		numStats, droppedStats := s.statKeeper.GetNumStats()
-// 		stats["num_stats"] = int64(numStats)
-// 		stats["dropped_stats"] = int64(droppedStats)
-// 	}
-// 	return stats
-// }
 
 // Start starts the snooper (no-op currently)
 func (s *socketFilterSnooper) Start() error {

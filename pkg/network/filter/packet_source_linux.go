@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// var componentName = 
+const telemetryModuleName = "network_tracer.dns"
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
@@ -70,10 +70,10 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 		TPacket:      rawSocket,
 		socketFilter: filter,
 		exit:         make(chan struct{}),
-		polls:        telemetry.NewStatGaugeWrapper("dns", "polls", []string{}, ""),
-		processed:    telemetry.NewStatGaugeWrapper("dns", "processed", []string{}, ""),
-		captured:     telemetry.NewStatGaugeWrapper("dns", "captured", []string{}, ""),
-		dropped:      telemetry.NewStatGaugeWrapper("dns", "dropped", []string{}, ""),
+		polls:        telemetry.NewStatGaugeWrapper(telemetryModuleName, "polls", []string{}, "desc"),
+		processed:    telemetry.NewStatGaugeWrapper(telemetryModuleName, "processed", []string{}, "desc"),
+		captured:     telemetry.NewStatGaugeWrapper(telemetryModuleName, "captured", []string{}, "desc"),
+		dropped:      telemetry.NewStatGaugeWrapper(telemetryModuleName, "dropped", []string{}, "desc"),
 	}
 	go ps.pollStats()
 
@@ -81,14 +81,14 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 }
 
 // Stats returns statistics about the AFPacketSource
-func (p *AFPacketSource) Stats() map[string]int64 {
-	return map[string]int64{
-		"socket_polls":      p.polls.Load(),
-		"packets_processed": p.processed.Load(),
-		"packets_captured":  p.captured.Load(),
-		"packets_dropped":   p.dropped.Load(),
-	}
-}
+// func (p *AFPacketSource) Stats() map[string]int64 {
+// 	return map[string]int64{
+// 		"socket_polls":      p.polls.Load(),
+// 		"packets_processed": p.processed.Load(),
+// 		"packets_captured":  p.captured.Load(),
+// 		"packets_dropped":   p.dropped.Load(),
+// 	}
+// }
 
 // VisitPackets starts reading packets from the source
 func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
