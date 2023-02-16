@@ -244,7 +244,8 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 	return nil
 }
 
-func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
+func (r *regoCheck) buildNormalInput(env env.Env) (ast.Value, error) {
+	statsClient := env.StatsdClient()
 	contextInput := r.buildContextInput(env)
 
 	input := make(map[string]interface{})
@@ -277,9 +278,8 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		var inputType string
 
 		defer func() {
-			client := env.StatsdClient()
 			regoInputKind := regoInput.Kind()
-			if client == nil || regoInputKind == compliance.KindConstants {
+			if statsClient == nil || regoInputKind == compliance.KindConstants {
 				return
 			}
 			tags := []string{
@@ -287,10 +287,10 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 				"rule_input_type:" + string(regoInputKind),
 				"agent_version:" + version.AgentVersion,
 			}
-			if err := client.Count(metrics.MetricInputsHits, 1, tags, 1.0); err != nil {
+			if err := statsClient.Count(metrics.MetricInputsHits, 1, tags, 1.0); err != nil {
 				log.Errorf("failed to send input metric: %v", err)
 			}
-			if err := client.Timing(metrics.MetricInputsDuration, time.Since(start), tags, 1.0); err != nil {
+			if err := statsClient.Timing(metrics.MetricInputsDuration, time.Since(start), tags, 1.0); err != nil {
 				log.Errorf("failed to send input metric: %v", err)
 			}
 		}()
@@ -413,7 +413,19 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		}
 	}
 
-	return input, nil
+	parsedInput, parsedInputSize, err := regoParseRawInput(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if statsClient != nil {
+		tags := []string{"rule_id:" + r.ruleID, "agent_version:" + version.AgentVersion}
+		if err := statsClient.Gauge(metrics.MetricInputsSize, float64(parsedInputSize), tags, 1.0); err != nil {
+			log.Errorf("failed to send input size metric: %v", err)
+		}
+	}
+
+	return parsedInput, nil
 }
 
 func extractTagName(input *compliance.RegoInput) string {
@@ -437,6 +449,22 @@ func buildMappedInputs(inputs []regoInput) map[string]compliance.RegoInput {
 		res[tagName] = input.RegoInput
 	}
 	return res
+}
+
+func regoParseRawInput(x interface{}) (ast.Value, int, error) {
+	bs, err := json.Marshal(x)
+	if err != nil {
+		return nil, 0, err
+	}
+	var v interface{}
+	if err := json.Unmarshal(bs, &v); err != nil {
+		return nil, 0, err
+	}
+	value, err := ast.InterfaceToValue(v)
+	if err != nil {
+		return nil, 0, err
+	}
+	return value, len(bs), nil
 }
 
 func roundTrip(inputs interface{}) (interface{}, error) {
@@ -525,18 +553,17 @@ func (r *regoCheck) Check(env env.Env) compliance.Reports {
 
 	log.Debugf("%s: rego check starting", r.ruleID)
 
-	var input eval.RegoInputMap
+	var input ast.Value
 	providedInput := env.ProvidedInput(r.ruleID)
 
+	var err error
 	if providedInput != nil {
-		input = providedInput
+		input, _, err = regoParseRawInput(providedInput)
 	} else {
-		normalInput, err := r.buildNormalInput(env)
-		if err != nil {
-			return buildRegoErrorReports(err)
-		}
-
-		input = normalInput
+		input, err = r.buildNormalInput(env)
+	}
+	if err != nil {
+		return buildRegoErrorReports(err)
 	}
 
 	log.Debugf("rego eval input: %+v", input)
@@ -555,7 +582,7 @@ func (r *regoCheck) Check(env env.Env) compliance.Reports {
 
 	args := make([]func(*rego.Rego), len(r.regoModuleArgs), len(r.regoModuleArgs)+2)
 	copy(args, r.regoModuleArgs)
-	args = append(args, rego.Input(input))
+	args = append(args, rego.ParsedInput(input))
 
 	regoMod := rego.New(args...)
 	results, err := regoMod.Eval(ctx)

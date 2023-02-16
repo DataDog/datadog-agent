@@ -185,7 +185,6 @@ func (c *complianceCheck) Run() error {
 			tags := []string{
 				"rule_id:" + e.AgentRuleID,
 				"rule_result:" + e.Result,
-				"rule_evaluator:" + e.Evaluator,
 				"rule_framework_id:" + e.AgentFrameworkID,
 				"agent_version:" + e.AgentVersion,
 			}
