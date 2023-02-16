@@ -7,6 +7,6 @@ script 'use mnt' do
   code <<-EOH
     mkdir -p #{mnt_path}/system-probe-tests
     chmod 0777 #{mnt_path}/system-probe-tests
-    ln -s #{mnt_path}/system-probe-tests /tmp/system-probe-tests
+    ln -s #{mnt_path}/system-probe-tests /system-probe-tests
   EOH
 end

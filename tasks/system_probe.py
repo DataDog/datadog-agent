@@ -207,20 +207,22 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
-    network_co_re_dir = os.path.join(network_c_dir, "co-re")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_co_re_flags = f"-I{network_co_re_dir} -Ipkg/network/ebpf/c"
     network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
-    network_co_re_programs = ["tracer-fentry"]
+    network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
         infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{prog}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
-    for prog in network_co_re_programs:
-        infile = os.path.join(network_co_re_dir, f"{prog}.c")
+    for prog_path in network_co_re_programs:
+        prog = os.path.basename(prog_path)
+        src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
+        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
+
+        infile = os.path.join(src_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
@@ -1359,6 +1361,10 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             docker_compose = yaml.safe_load(f.read())
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
+
+    # Java tests have dynamic images in docker-compose.yml
+    for image in ["openjdk:21-oraclelinux8"]:
+        images.add(image)
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))

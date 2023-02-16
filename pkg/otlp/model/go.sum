@@ -1,3 +1,5 @@
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.0 h1:vwDsR+BeruDFa66Bj+Y/aPBa4cweWwsNMKI04e9mPto=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.0/go.mod h1:qW+xU9EdDaoyRmNmEhYFGPgTqXjxIYB1V2B/L4BQ/18=
 github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8CwZNAY=
 github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
 github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=

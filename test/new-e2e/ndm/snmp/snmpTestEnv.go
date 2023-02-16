@@ -102,7 +102,7 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) 
 		composeDependencies = append(composeDependencies, fileCommands...)
 		_, err = agent.NewDockerAgentInstallation(vm.CommonEnvironment, vm.DockerManager, snmpCompose, envVars, pulumi.DependsOn(composeDependencies))
 		return err
-	})
+	}, false)
 
 	if err != nil {
 		return nil, err

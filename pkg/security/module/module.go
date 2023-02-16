@@ -24,14 +24,16 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
+	sapi "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -39,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -152,7 +153,7 @@ func (m *Module) Start() error {
 
 	// runtime security is disabled but might be used by other component like process
 	if !m.config.IsRuntimeEnabled() {
-		if m.config.EventMonitoring {
+		if m.config.IsEventMonitoringEnabled() {
 			// Currently select process related event type.
 			// TODO external monitors should be allowed to select the event types
 			return m.probe.SelectProbes([]eval.EventType{
@@ -553,7 +554,7 @@ func (m *Module) statsSender() {
 			}
 
 			// Event monitoring may run independently of CWS products
-			if m.config.NetworkProcessEventMonitoringEnabled || m.config.ProcessEventMonitoringEnabled {
+			if m.config.IsEventMonitoringEnabled() {
 				_ = m.statsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():

@@ -15,7 +15,6 @@ var signalProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/check_kill_permission",
 			EBPFFuncName: "kretprobe_check_kill_permission",
 		},
 	},
@@ -28,5 +27,12 @@ func getSignalProbes() []*manager.Probe {
 		},
 		SyscallFuncName: "kill",
 	}, Entry)...)
+	signalProbes = append(signalProbes, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/kill_pid_info",
+			EBPFFuncName: "kprobe_kill_pid_info",
+		},
+	})
 	return signalProbes
 }
