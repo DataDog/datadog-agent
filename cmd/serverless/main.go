@@ -268,7 +268,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		appsecSubProcessor, appsecProxyProcessor, err = appsec.New2(tags.GetRuntime())
+		appsecSubProcessor, appsecProxyProcessor, err = appsec.New(tags.GetRuntime())
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
 		}

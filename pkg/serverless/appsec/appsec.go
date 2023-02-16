@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func New2(lambdaRuntime string) (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, error) {
-	appsecInstance, err := New() // note that the assigned variable is in the parent scope
+func New(lambdaRuntime string) (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, error) {
+	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
 		return nil, nil, err
 	}
@@ -68,7 +68,7 @@ type AppSec struct {
 // env var. An error is returned when AppSec couldn't be started due to
 // compilation or configuration errors. When AppSec is not enabled, the returned
 // appsec instance is nil, along with a nil error (nil, nil return values).
-func New() (*AppSec, error) {
+func newAppSec() (*AppSec, error) {
 	// Check if appsec is enabled
 	if enabled, _, err := isEnabled(); err != nil {
 		return nil, err
