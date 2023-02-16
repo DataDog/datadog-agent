@@ -56,9 +56,9 @@ func GetFileStats() *FileStats {
 
 func CheckFileStats(stats *FileStats) {
 	// Log a warning if the ratio between the Agent's open files to the OS file limit is > 0.9, log an error if OS file limit is reached
-	if float64(stats.AgentOpenFiles/stats.OsFileLimit) > 0.9 {
+	if stats.AgentOpenFiles/stats.OsFileLimit > 0.9 {
 		log.Warnf("Agent process is close to OS file limit of %v. Agent process currently has %v files open.", stats.OsFileLimit, stats.AgentOpenFiles)
-	} else if float64(stats.AgentOpenFiles/stats.OsFileLimit) >= 1 {
+	} else if stats.AgentOpenFiles/stats.OsFileLimit >= 1 {
 		log.Errorf("Agent process is reaching OS open file limit: %v. This may be preventing log files from being tailed by the Agent. Consider increasing OS file limit.", stats.OsFileLimit)
 	}
 	log.Debugf("Agent process currently has %v files open. OS file limit is currently set to %v.", stats.AgentOpenFiles, stats.OsFileLimit)
