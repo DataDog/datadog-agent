@@ -6,6 +6,7 @@
 package oracle
 
 import (
+	"context"
 	"fmt"
 
 	_ "github.com/godror/godror"
@@ -16,14 +17,16 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Check represents one Oracle instance check.
 type Check struct {
 	core.CheckBase
-	config *config.CheckConfig
-	db     *sqlx.DB
+	config   *config.CheckConfig
+	db       *sqlx.DB
+	hostname string
 }
 
 // Run executes the check.
@@ -43,6 +46,15 @@ func (c *Check) Run() error {
 		}
 		c.db = db
 	}
+
+	if c.hostname == "" {
+		hostname, err := hostname.Get(context.TODO())
+		if err != nil {
+			return log.Errorf("Error while getting hostname: %v", err)
+		}
+		c.hostname = hostname
+	}
+
 	err = c.SampleSession()
 	return err
 }
