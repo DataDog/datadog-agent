@@ -7,6 +7,7 @@ package runner
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"testing"
 
 	"go.uber.org/fx"
@@ -25,6 +26,8 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
+	submitter submitter.Component
+
 	Checks   []checks.Check
 	HostInfo *checks.HostInfo
 	SysCfg   *sysconfig.Config
@@ -35,12 +38,7 @@ func newRunner(deps dependencies) (Component, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: Inject submitter as a component dependency once it is ready
-	c.Submitter, err = processRunner.NewSubmitter(deps.HostInfo.HostName, c.UpdateRTStatus)
-	if err != nil {
-		return nil, err
-	}
+	c.Submitter = deps.submitter
 
 	runner := &runner{
 		collector: c,

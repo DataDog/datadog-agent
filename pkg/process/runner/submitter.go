@@ -7,6 +7,7 @@ package runner
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"hash/fnv"
 	"net/http"
 	"os"
@@ -32,7 +33,7 @@ import (
 )
 
 type Submitter interface {
-	Submit(start time.Time, name string, messages []model.MessageBody)
+	Submit(start time.Time, name string, messages *types.Payload)
 	Start() error
 	Stop()
 }
@@ -190,17 +191,17 @@ func printStartMessage(hostname string, processAPIEndpoints, processEventsAPIEnd
 	log.Infof("Starting checkSubmitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
 }
 
-func (s *checkSubmitter) Submit(start time.Time, name string, messages []model.MessageBody) {
+func (s *checkSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
 	results := s.resultsQueueForCheck(name)
 	if name == checks.PodCheckName {
-		s.messagesToResultsQueue(start, checks.PodCheckName, messages[:len(messages)/2], results)
+		s.messagesToResultsQueue(start, checks.PodCheckName, messages.Message[:len(messages.Message)/2], results)
 		if s.orchestrator.IsManifestCollectionEnabled {
-			s.messagesToResultsQueue(start, checks.PodCheckManifestName, messages[len(messages)/2:], results)
+			s.messagesToResultsQueue(start, checks.PodCheckManifestName, messages.Message[len(messages.Message)/2:], results)
 		}
 		return
 	}
 
-	s.messagesToResultsQueue(start, name, messages, results)
+	s.messagesToResultsQueue(start, name, messages.Message, results)
 }
 
 func (s *checkSubmitter) Start() error {

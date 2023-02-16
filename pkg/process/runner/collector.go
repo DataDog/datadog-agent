@@ -7,6 +7,7 @@ package runner
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -149,7 +150,11 @@ func (l *Collector) runCheck(c checks.Check) {
 		checks.StoreCheckOutput(c.Name(), nil)
 	}
 
-	l.Submitter.Submit(start, c.Name(), result.Payloads())
+	msg := &types.Payload{
+		CheckName: c.Name(),
+		Message:   result.Payloads(),
+	}
+	l.Submitter.Submit(start, c.Name(), msg)
 
 	if !c.Realtime() {
 		logCheckDuration(c.Name(), start, runCounter)
@@ -172,7 +177,11 @@ func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOpti
 		return
 	}
 
-	l.Submitter.Submit(start, c.Name(), result.Payloads())
+	msg := &types.Payload{
+		CheckName: c.Name(),
+		Message:   result.Payloads(),
+	}
+	l.Submitter.Submit(start, c.Name(), msg)
 	if options.RunStandard {
 		// We are only updating the run counter for the standard check
 		// since RT checks are too frequent and we only log standard check
@@ -183,11 +192,12 @@ func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOpti
 	}
 
 	rtName := checks.RTName(c.Name())
-	rtPayloads := result.RealtimePayloads()
-
-	l.Submitter.Submit(start, rtName, rtPayloads)
+	msg = &types.Payload{
+		Message: result.RealtimePayloads(),
+	}
+	l.Submitter.Submit(start, rtName, msg)
 	if options.RunRealtime {
-		checks.StoreCheckOutput(rtName, rtPayloads)
+		checks.StoreCheckOutput(rtName, msg.Message)
 	}
 }
 

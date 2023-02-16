@@ -6,11 +6,14 @@
 package types
 
 import (
+	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/fx"
 )
 
 // Payload defines payload from the check
 type Payload struct {
+	CheckName string
+	Message   []model.MessageBody
 }
 
 // Check defines an interface implemented by checks
