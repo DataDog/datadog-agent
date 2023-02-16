@@ -54,7 +54,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForDaemon(LoggerName, "log_file", common.DefaultDCALogFile),
+					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", common.DefaultDCALogFile),
 				}),
 				core.Bundle,
 			)
