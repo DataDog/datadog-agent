@@ -177,6 +177,11 @@ func (b *Builder) getMetricsStatus() map[string]int64 {
 	return metrics
 }
 
-func (b *Builder) getFileStats() map[string]interface{} {
-	return util.GetFileStats()
+func (b *Builder) getFileStats() map[string]float64 {
+	fs := util.GetFileStats()
+	stats := map[string]float64{
+		"AgentProcessOpenFiles": fs.AgentOpenFiles,
+		"OSFileLimit":           fs.OsFileLimit,
+	}
+	return stats
 }

@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	// MXW Temporary placeholder to show pkgs being added
-
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 

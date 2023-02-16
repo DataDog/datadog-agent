@@ -53,14 +53,14 @@ type Integration struct {
 
 // Status provides some information about logs-agent.
 type Status struct {
-	IsRunning     bool                   `json:"is_running"`
-	Endpoints     []string               `json:"endpoints"`
-	StatusMetrics map[string]int64       `json:"metrics"`
-	FileStats     map[string]interface{} `json:"file_stats"`
-	Integrations  []Integration          `json:"integrations"`
-	Errors        []string               `json:"errors"`
-	Warnings      []string               `json:"warnings"`
-	UseHTTP       bool                   `json:"use_http"`
+	IsRunning     bool               `json:"is_running"`
+	Endpoints     []string           `json:"endpoints"`
+	StatusMetrics map[string]int64   `json:"metrics"`
+	FileStats     map[string]float64 `json:"file_stats"`
+	Integrations  []Integration      `json:"integrations"`
+	Errors        []string           `json:"errors"`
+	Warnings      []string           `json:"warnings"`
+	UseHTTP       bool               `json:"use_http"`
 }
 
 // Init instantiates the builder that builds the status on the fly.
