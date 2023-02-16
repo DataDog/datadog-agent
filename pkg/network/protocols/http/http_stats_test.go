@@ -21,28 +21,26 @@ func TestAddRequest(t *testing.T) {
 	stats.AddRequest(404, 15.0, 2, nil)
 	stats.AddRequest(405, 20.0, 3, nil)
 
-	for i := 100; i <= 500; i += 100 {
-		s := stats.stats(i)
-		if i == 400 {
-			if assert.NotNil(t, s) {
-				assert.Equal(t, 3, s.Count)
-				assert.Equal(t, 3.0, s.Latencies.GetCount())
+	assert.Nil(t, stats.Data[100])
+	assert.Nil(t, stats.Data[200])
+	assert.Nil(t, stats.Data[300])
+	assert.Nil(t, stats.Data[500])
+	s := stats.Data[400]
 
-				verifyQuantile(t, s.Latencies, 0.0, 10.0)  // min item
-				verifyQuantile(t, s.Latencies, 0.99, 15.0) // median
-				verifyQuantile(t, s.Latencies, 1.0, 20.0)  // max item
-			}
-		} else {
-			assert.Nil(t, s)
-		}
+	if assert.NotNil(t, s) {
+		assert.Equal(t, 3, s.Count)
+		assert.Equal(t, 3.0, s.Latencies.GetCount())
+
+		verifyQuantile(t, s.Latencies, 0.0, 10.0)  // min item
+		verifyQuantile(t, s.Latencies, 0.99, 15.0) // median
+		verifyQuantile(t, s.Latencies, 1.0, 20.0)  // max item
 	}
 }
 
 func TestCombineWith(t *testing.T) {
 	var stats RequestStats
-	for i := 100; i <= 500; i += 100 {
-		s := stats.stats(i)
-		assert.Nil(t, s)
+	for i := uint16(100); i <= 500; i += 100 {
+		assert.Nil(t, stats.Data[i])
 	}
 
 	var stats2, stats3, stats4 RequestStats
@@ -54,18 +52,18 @@ func TestCombineWith(t *testing.T) {
 	stats.CombineWith(&stats3)
 	stats.CombineWith(&stats4)
 
-	for i := 100; i <= 500; i += 100 {
-		s := stats.stats(i)
-		if i == 400 {
-			if assert.NotNil(t, s) {
-				assert.Equal(t, 3, s.Count)
-				verifyQuantile(t, s.Latencies, 0.0, 10.0)
-				verifyQuantile(t, s.Latencies, 0.5, 15.0)
-				verifyQuantile(t, s.Latencies, 1.0, 20.0)
-			}
-		} else {
-			assert.Nil(t, s)
-		}
+	assert.Nil(t, stats.Data[100])
+	assert.Nil(t, stats.Data[200])
+	assert.Nil(t, stats.Data[300])
+	assert.Nil(t, stats.Data[500])
+	s := stats.Data[400]
+
+	if assert.NotNil(t, s) {
+		assert.Equal(t, 3.0, s.Latencies.GetCount())
+
+		verifyQuantile(t, s.Latencies, 0.0, 10.0) // min item
+		verifyQuantile(t, s.Latencies, 0.5, 15.0) // median
+		verifyQuantile(t, s.Latencies, 1.0, 20.0) // max item
 	}
 }
 
