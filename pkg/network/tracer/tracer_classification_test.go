@@ -158,6 +158,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 }
 
 func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	t.Skip("skipping test due space issues in the CI")
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
