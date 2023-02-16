@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package runner
 
 import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []checks.Check) {
+func GetChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []checks.Check) {
 	rtChecksEnabled := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
 		checkCfg = append(checkCfg, checks.NewProcessCheck())

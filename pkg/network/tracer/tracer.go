@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -727,7 +728,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	}
 
 	// merge with components already migrated to `network/telemetry`
-	for k, v := range telemetry.ReportExpvar() {
+	for k, v := range usmtelemetry.ReportExpvar() {
 		ret[k] = v
 	}
 

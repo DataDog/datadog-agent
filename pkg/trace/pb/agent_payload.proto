@@ -3,6 +3,7 @@
 syntax = "proto3";
 
 package pb;
+option go_package = "github.com/DataDog/datadog-agent/pkg/trace/pb";
 
 import "tracer_payload.proto";
 

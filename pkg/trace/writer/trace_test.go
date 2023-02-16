@@ -9,13 +9,12 @@ import (
 	"compress/gzip"
 	"io"
 	"io/ioutil"
-	"reflect"
 	"runtime"
 	"sync"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -163,7 +162,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 		var found bool
 		for _, tracerPayload := range all.TracerPayloads {
 			for _, trace := range tracerPayload.Chunks {
-				if reflect.DeepEqual(trace, ss.TracerPayload.Chunks[0]) {
+				if proto.Equal(trace, ss.TracerPayload.Chunks[0]) {
 					found = true
 					break
 				}
@@ -412,6 +411,6 @@ func BenchmarkSpanProto(b *testing.B) {
 		},
 	}
 	for n := 0; n < b.N; n++ {
-		s.Marshal()
+		proto.Marshal(&s)
 	}
 }
