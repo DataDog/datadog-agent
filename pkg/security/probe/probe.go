@@ -313,13 +313,11 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	p.updateProbes([]eval.EventType{
+	return p.updateProbes([]eval.EventType{
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
 		model.ExecEventType.String(),
 	})
-
-	return nil
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
