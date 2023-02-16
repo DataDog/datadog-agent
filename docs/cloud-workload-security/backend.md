@@ -16,7 +16,7 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" filename="BACKEND_EVENT_JSON_SCHEMA" >}}
 {
-    "$id": "https://github.com/DataDog/datadog-agent/pkg/security/probe/event",
+    "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
     "$defs": {
         "BPFEvent": {
             "properties": {
