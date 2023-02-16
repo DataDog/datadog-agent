@@ -108,7 +108,11 @@ func TestProcessMonitoring(t *testing.T) {
 		_ = cmd.Run()
 
 		err := retry.Do(func() error {
-			if execCount+1 <= fc.exec && exitCount+1 <= fc.exit {
+			fc.RLock()
+			ok := execCount+1 <= fc.exec && exitCount+1 <= fc.exit
+			fc.RUnlock()
+
+			if ok {
 				return nil
 			}
 
