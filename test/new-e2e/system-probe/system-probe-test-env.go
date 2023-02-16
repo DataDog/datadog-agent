@@ -23,6 +23,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+type SystemProbeEnvOpts struct {
+	AmiID          string
+	Provision      bool
+	ShutdownPeriod int
+}
+
 type TestEnv struct {
 	context context.Context
 	envName string
@@ -41,7 +47,7 @@ var (
 	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
 )
 
-func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string) (*TestEnv, error) {
+func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
 		envName: "aws/sandbox",
@@ -87,10 +93,32 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 		}
 
+		var depends []pulumi.Resource
 		for _, instance := range scenarioDone.Instances {
 			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
 				return command.WaitForCloudInit(awsEnvironment.Ctx, r)
 			})
+
+			// if shutdown period specified then register a cron job
+			// to automatically shutdown the ec2 instance after desired
+			// interval. The microvm scenario sets the terminateOnShutdown
+			// attribute of the ec2 instance to true. Therefore the shutdown would
+			// trigger the automatic termination of the ec2 instance.
+			if opts.ShutdownPeriod > 0 {
+				shutdownRegisterArgs := command.Args{
+					Create: pulumi.Sprintf(
+						"(crontab -l 2>/dev/null; echo \"0 */%s * * * /usr/sbin/shutdown -h now\") | crontab -", opts.ShutdownPeriod,
+					),
+					Sudo: true,
+				}
+				shutdownRegisterDone, err := remoteRunner.Command("shutdown-"+instance.Arch, &shutdownRegisterArgs, pulumi.DependsOn(scenarioDone.Dependencies))
+				if err != nil {
+					return fmt.Errorf("failed to scheduel shutdown: %w", err)
+				}
+				depends = []pulumi.Resource{shutdownRegisterDone}
+			} else {
+				depends = scenarioDone.Dependencies
+			}
 
 			// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
 			// is mounted to all micro-vms. Each micro-vm extract the context on boot.
@@ -98,7 +126,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			_, err = filemanager.CopyFile(
 				fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
 				fmt.Sprintf("/opt/kernel-version-testing/dependencies-%s.tar.gz", instance.Arch),
-				pulumi.DependsOn(scenarioDone.Dependencies),
+				pulumi.DependsOn(depends),
 			)
 			if err != nil {
 				return fmt.Errorf("copy file: %w", err)

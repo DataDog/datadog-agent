@@ -13,8 +13,8 @@ import (
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
 
-func run(envName, securityGroups, subnets, x86InstanceType, armInstanceType string, destroy bool) error {
-	systemProbeEnv, err := systemProbe.NewTestEnv(envName, securityGroups, subnets, x86InstanceType, armInstanceType)
+func run(envName, securityGroups, subnets, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.SystemProbeEnvOpts) error {
+	systemProbeEnv, err := systemProbe.NewTestEnv(envName, securityGroups, subnets, x86InstanceType, armInstanceType, opts)
 	if err != nil {
 		return err
 	}
@@ -36,10 +36,19 @@ func main() {
 	subnetsPtr := flag.String("subnets", "", "aws subnets")
 	x86InstanceTypePtr := flag.String("instance-type-x86", "", "x86_64 instance type")
 	armInstanceTypePtr := flag.String("instance-type-arm", "", "arm64 instance type")
+	amiIDPtr := flag.String("ami-id", "", "ami for metal instance")
+	toProvisionPtr := flag.Bool("run-provision", true, "run provision step for metal instance")
+	shutdownPtr := flag.Int("shutdown-period", 0, "add cronjob to shutdown after specified hours")
 
 	flag.Parse()
 
-	err := run(*envNamePtr, *securityGroupsPtr, *subnetsPtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr)
+	opts := systemProbe.SystemProbeEnvOpts{
+		AmiID:          *amiIDPtr,
+		ShutdownPeriod: *shutdownPtr,
+		Provision:      *toProvisionPtr,
+	}
+
+	err := run(*envNamePtr, *securityGroupsPtr, *subnetsPtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)
 	if err != nil {
 		log.Fatal(err)
 	}
