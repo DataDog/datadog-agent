@@ -13,8 +13,8 @@ dependency 'pip3'
 dependency 'setuptools3'
 
 dependency 'snowflake-connector-python-py3'
-dependency 'confluent-kafka-python'
 dependency 'librdkafka'
+dependency 'confluent-kafka-python'
 
 
 if arm?
