@@ -529,7 +529,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 
 			// snapshot traced cgroups if a CgroupTracing event was lost
 			if pbm.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
-				pbm.probe.monitor.activityDumpManager.snapshotTracedCgroups()
+				pbm.probe.monitor.activityDumpManager.SnapshotTracedCgroups()
 			}
 		}
 	}
