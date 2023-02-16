@@ -64,16 +64,18 @@ func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
 }
 
 func TestProcessMonitoring(t *testing.T) {
+	var fc *FakeEventConsumer
 	test, err := newTestModule(t, nil, nil, testOpts{
 		disableRuntimeSecurity: true,
+		preStartCallback: func(test *testModule) {
+			fc = NewFakeEventConsumer(test.eventMonitor)
+			test.eventMonitor.RegisterEventConsumer(fc)
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
-
-	fc := NewFakeEventConsumer(test.eventMonitor)
-	test.eventMonitor.RegisterEventConsumer(fc)
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

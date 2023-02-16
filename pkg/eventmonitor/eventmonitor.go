@@ -137,7 +137,7 @@ func (m *EventMonitor) Start() error {
 		return err
 	}
 
-	// start event modules
+	// start event consumers
 	for _, em := range m.eventConsumers {
 		if err := em.Start(); err != nil {
 			log.Errorf("unable to start %s : %v", em.ID(), err)
@@ -152,7 +152,7 @@ func (m *EventMonitor) Start() error {
 
 // Close the module
 func (m *EventMonitor) Close() {
-	// stop event modules
+	// stop event consumers
 	for _, em := range m.eventConsumers {
 		em.Stop()
 	}

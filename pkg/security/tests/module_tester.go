@@ -201,6 +201,7 @@ type testOpts struct {
 	envsWithValue                       []string
 	disableAbnormalPathCheck            bool
 	disableRuntimeSecurity              bool
+	preStartCallback                    func(test *testModule)
 }
 
 func (s *stringSlice) String() string {
@@ -872,6 +873,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.eventMonitor.Probe.IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
+	}
+
+	if opts.preStartCallback != nil {
+		opts.preStartCallback(testMod)
 	}
 
 	if err := testMod.eventMonitor.Start(); err != nil {
