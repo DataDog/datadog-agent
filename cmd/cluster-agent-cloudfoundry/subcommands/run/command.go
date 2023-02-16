@@ -43,6 +43,10 @@ import (
 	"time"
 )
 
+const (
+	LoggerName = "CLUSTER"
+)
+
 // Commands returns a slice of subcommands for the 'cluster-agent-cloudfoundry' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	startCmd := &cobra.Command{
@@ -54,7 +58,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", common.DefaultDCALogFile),
+					LogParams:    log.LogForDaemon(LoggerName, "log_file", common.DefaultDCALogFile),
 				}),
 				core.Bundle,
 			)

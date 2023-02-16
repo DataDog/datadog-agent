@@ -36,7 +36,7 @@ const (
 	DefaultLogLevel = "off"
 )
 
-// Commands returns a slice of subcommands for the 'cluster-agent' command.
+// MakeCommand returns a `flare` command to be used by cluster-agent binaries.
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
