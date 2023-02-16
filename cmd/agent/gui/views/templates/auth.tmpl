@@ -18,8 +18,6 @@
       csrf = urlParam[i].substring(csrfPrefix.length);
     }
   }
-  console.log(authToken);
-  console.log(csrf);
   
   if (csrf == "{{ .csrf }}") {
     // Save auth token as a cookie
