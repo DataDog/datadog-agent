@@ -172,7 +172,7 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcy
 	}
 
 	if !config.Datadog.GetBool("enable_sketch_stream_payload_serialization") {
-		log.Warn("'enable_sketch_stream_payload_serialization' is set to false which is not recommended. This option will be deprecated and removed in the future. If you need this option, please reach out to support or file an issue on github.com/DataDog/datadog-agent")
+		log.Warn("'enable_sketch_stream_payload_serialization' is set to false which is not recommended. This option is deprecated and will removed in the future. If you need this option, please reach out to support")
 	}
 
 	return s
