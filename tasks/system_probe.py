@@ -1481,4 +1481,4 @@ def test_microvms(
     if destroy:
         args.append("--destroy")
 
-    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {' '.join(args)}")
+    ctx.run(f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {' '.join(args)} --shutdown-period 1")
