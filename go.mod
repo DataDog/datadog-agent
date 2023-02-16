@@ -151,7 +151,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/open-policy-agent/opa v0.49.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.70.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.71.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2
 	github.com/opencontainers/runtime-spec v1.0.3-0.20220311020903-6969a0a09ab1
@@ -167,7 +167,7 @@ require (
 	github.com/samber/lo v1.36.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0
-	github.com/shirou/gopsutil/v3 v3.22.12
+	github.com/shirou/gopsutil/v3 v3.23.1
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sirupsen/logrus v1.9.0
 	github.com/skydive-project/go-debouncer v1.0.0
@@ -193,14 +193,14 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.11.1
-	go.opentelemetry.io/collector v0.70.0
-	go.opentelemetry.io/collector/component v0.70.0
-	go.opentelemetry.io/collector/confmap v0.70.0
-	go.opentelemetry.io/collector/exporter/loggingexporter v0.70.0
-	go.opentelemetry.io/collector/exporter/otlpexporter v0.70.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rc4
-	go.opentelemetry.io/collector/processor/batchprocessor v0.70.0
-	go.opentelemetry.io/collector/receiver/otlpreceiver v0.70.0
+	go.opentelemetry.io/collector v0.71.0
+	go.opentelemetry.io/collector/component v0.71.0
+	go.opentelemetry.io/collector/confmap v0.71.0
+	go.opentelemetry.io/collector/exporter/loggingexporter v0.71.0
+	go.opentelemetry.io/collector/exporter/otlpexporter v0.71.0
+	go.opentelemetry.io/collector/pdata v1.0.0-rc5
+	go.opentelemetry.io/collector/processor/batchprocessor v0.71.0
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.71.0
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/dig v1.15.0
@@ -508,22 +508,22 @@ require (
 	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/collector/consumer v0.70.0 // indirect
-	go.opentelemetry.io/collector/featuregate v0.70.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.70.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.37.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.37.0 // indirect
-	go.opentelemetry.io/contrib/propagators/b3 v1.12.0 // indirect
-	go.opentelemetry.io/otel v1.11.2 // indirect
+	go.opentelemetry.io/collector/consumer v0.71.0 // indirect
+	go.opentelemetry.io/collector/featuregate v0.71.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.71.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.39.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.39.0 // indirect
+	go.opentelemetry.io/contrib/propagators/b3 v1.14.0 // indirect
+	go.opentelemetry.io/otel v1.13.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.2 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.2
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.7.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.2
-	go.opentelemetry.io/otel/exporters/prometheus v0.34.0 // indirect
-	go.opentelemetry.io/otel/metric v0.34.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.11.2
-	go.opentelemetry.io/otel/sdk/metric v0.34.0 // indirect
-	go.opentelemetry.io/otel/trace v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/prometheus v0.36.0 // indirect
+	go.opentelemetry.io/otel/metric v0.36.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.13.0
+	go.opentelemetry.io/otel/sdk/metric v0.36.0 // indirect
+	go.opentelemetry.io/otel/trace v1.13.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect
