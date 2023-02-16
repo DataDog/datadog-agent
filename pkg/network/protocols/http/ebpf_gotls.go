@@ -163,6 +163,11 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		return nil
 	}
 
+	if !HTTPSSupported(c) {
+		log.Errorf("goTLS not supported by this platform")
+		return nil
+	}
+
 	if !c.EnableRuntimeCompiler && !c.EnableCORE {
 		log.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
 		return nil
