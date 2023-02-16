@@ -110,11 +110,11 @@ static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iteratio
     // the index is starting from 1 so we decrease 62 in order to be equal to the given index.
     http2_ctx->dynamic_index.index = global_counter - (index - MAX_STATIC_TABLE_INDEX);
 
-    log_debug("[http2] global counter %llu; index %lu; final %lu", global_counter, index, http2_ctx->dynamic_index.index);
+    log_debug("[http2] global counter %llu; index %lu; final %lu\n", global_counter, index, http2_ctx->dynamic_index.index);
     if (bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index) == NULL) {
         return 0;
     }
-    log_debug("[http2] found dynamic value at %d for stream %lu", http2_ctx->dynamic_index.index, stream_id);
+    log_debug("[http2] found dynamic value at %d for stream %lu\n", http2_ctx->dynamic_index.index, stream_id);
 
     headers_to_process->index = http2_ctx->dynamic_index.index;
     headers_to_process->stream_id = stream_id;
@@ -220,7 +220,7 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            log_debug("[http2] calling parse_field_literal");
+            log_debug("[http2] calling parse_field_literal\n");
             interesting_headers += parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
 //            log_debug("[http2] filter_relevant_headers in 4 returned %lu", interesting_headers);
         }
@@ -286,7 +286,7 @@ static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk
 }
 
 static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u8 interesting_headers) {
-    log_debug("[http2] process_headers called with %lu", interesting_headers);
+    log_debug("[http2] process_headers called with %lu\n", interesting_headers);
     http2_stream_t *current_stream;
     http2_header_t *current_header;
     http2_stream_key_t *http2_stream_key_template = &http2_ctx->http2_stream_key;
@@ -306,7 +306,7 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
             break;
         }
 
-        log_debug("[http2] got stream");
+        log_debug("[http2] got stream\n");
         if (current_header->type == kStaticHeader) {
             // fetch static value
             static_table_entry_t* static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
@@ -381,6 +381,7 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
 
     // enqueue
     http2_batch_enqueue(current_stream);
+    bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
 }
 
 static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, struct http2_frame *current_frame_header) {
@@ -412,7 +413,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
     read_into_buffer_skb_http2((char*)frame_payload->fragment, skb, iterations_key->skb_info.data_off + HTTP2_FRAME_HEADER_SIZE);
 
     __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process->array, current_frame_header->stream_id, frame_payload);
-    log_debug("[http2] filter_relevant_headers returned %lu", interesting_headers);
+    log_debug("[http2] filter_relevant_headers returned %lu\n", interesting_headers);
     if (interesting_headers > 0) {
         process_headers(http2_ctx, headers_to_process->array, interesting_headers);
     }
@@ -420,10 +421,10 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
 
 static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx) {
     __u32 offset = iterations_key->skb_info.data_off;
-    log_debug("[http2] skb %p reading from %lu until %lu", skb, offset, skb->len);
+    log_debug("[http2] skb %p reading from %lu until %lu\n", skb, offset, skb->len);
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-        log_debug("[http2] skb %p abort 1", skb);
+        log_debug("[http2] skb %p abort 1\n", skb);
         return -1;
     }
 
