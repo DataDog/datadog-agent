@@ -9,3 +9,6 @@
 fixes:
   - |
     Fixes a divide-by-zero panic when sketch serialization fails on the last metric of a given batch
+
+deprecations:
+  - Configuration ``enable_sketch_stream_payload_serialization`` is now deprecated.
