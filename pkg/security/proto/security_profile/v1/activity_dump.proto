@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "pkg/security/adproto/v1";
+option go_package = "pkg/security/proto/security_profile/v1";
 
 package adproto;
 

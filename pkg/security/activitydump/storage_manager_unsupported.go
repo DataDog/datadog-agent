@@ -12,8 +12,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
 // ActivityDumpStorageManager is defined for unsupported platforms

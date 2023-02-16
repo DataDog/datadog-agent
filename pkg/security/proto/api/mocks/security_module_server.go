@@ -5,7 +5,7 @@ package mocks
 import (
 	context "context"
 
-	api "github.com/DataDog/datadog-agent/pkg/security/api"
+	api "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 
 	mock "github.com/stretchr/testify/mock"
 )
