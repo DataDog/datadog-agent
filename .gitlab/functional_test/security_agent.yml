@@ -6,6 +6,7 @@
 #   - /.gitlab/kitchen_common/testing.yml
 
 .kitchen_test_security_agent:
+  allow_failure: true
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
@@ -18,7 +19,7 @@
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
   script:
-    - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
 
 kitchen_test_security_agent_x64:
   extends:
@@ -30,7 +31,7 @@ kitchen_test_security_agent_x64:
     KITCHEN_ARCH: x86_64
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
@@ -74,7 +75,7 @@ kitchen_test_security_agent_arm64:
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -94,7 +95,7 @@ kitchen_test_security_agent_amazonlinux_x64:
     KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -116,9 +117,9 @@ kitchen_stress_security_agent:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   script:
-    - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"

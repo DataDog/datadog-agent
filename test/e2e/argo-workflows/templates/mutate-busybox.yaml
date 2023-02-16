@@ -130,6 +130,31 @@ spec:
                 image: busybox
                 name: busybox
 
+    - name: create-busybox-with-auto-instru-dotnet
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: busybox-auto-instru-dotnet
+            namespace: {{inputs.parameters.namespace}}
+            labels:
+              "app": "busybox"
+              "admission.datadoghq.com/enabled": "true"
+            annotations:
+              admission.datadoghq.com/dotnet-lib.custom-image: "ghcr.io/datadog/dd-trace-dotnet/dd-lib-dotnet-init:a43a0170de4c469864385fa2cc38cad48fb91bad" # TODO: Use the default repo when ready
+          spec:
+            containers:
+              - command:
+                  - sleep
+                  - "3600"
+                image: busybox
+                name: busybox
+
     - name: create
       inputs:
         parameters:
@@ -179,6 +204,12 @@ spec:
                   value: "{{inputs.parameters.namespace}}"
           - name: busybox-auto-instru-python
             template: create-busybox-with-auto-instru-python
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: busybox-auto-instru-dotnet
+            template: create-busybox-with-auto-instru-dotnet
             arguments:
               parameters:
                 - name: namespace
@@ -562,6 +593,56 @@ spec:
                   value: "/datadog-lib"
                 - name: target
                   value: busybox-auto-instru-python
+          - name: env-auto-instru-dotnet
+            template: test-env-value
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: envValue
+                  value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so"
+                - name: envKey
+                  value: CORECLR_PROFILER_PATH
+                - name: target
+                  value: busybox-auto-instru-dotnet
+          - name: env-ldpreload-auto-instru-dotnet
+            template: test-env-value
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: envValue
+                  value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so"
+                - name: envKey
+                  value: LD_PRELOAD
+                - name: target
+                  value: busybox-auto-instru-dotnet
+          - name: volume-mount-auto-instru-dotnet
+            template: test-volume-mount
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog-auto-instrumentation
+                - name: volumePath
+                  value: "/datadog-lib"
+                - name: withInitContainers
+                  value: "true"
+                - name: target
+                  value: busybox-auto-instru-dotnet
+          - name: empty-dir-auto-instru-dotnet
+            template: test-empty-dir
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog-auto-instrumentation
+                - name: volumePath
+                  value: "/datadog-lib"
+                - name: target
+                  value: busybox-auto-instru-dotnet
 
     - name: diagnose
       inputs:

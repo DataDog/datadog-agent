@@ -20,9 +20,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -41,7 +41,7 @@ type RuntimeSecurityAgent struct {
 	cancel               context.CancelFunc
 
 	// activity dump
-	storage *probe.ActivityDumpStorageManager
+	storage *activitydump.ActivityDumpStorageManager
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
@@ -56,7 +56,7 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 
-	storage, err := probe.NewSecurityAgentStorageManager()
+	storage, err := activitydump.NewSecurityAgentStorageManager()
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
 	// parse dump from message
-	dump, err := probe.NewActivityDumpFromMessage(msg.GetDump())
+	dump, err := activitydump.NewActivityDumpFromMessage(msg.GetDump())
 	if err != nil {
 		log.Errorf("%v", err)
 		return
