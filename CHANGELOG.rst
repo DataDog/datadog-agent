@@ -2,6 +2,21 @@
 Release Notes
 =============
 
+.. _Release Notes_7.42.2:
+
+7.42.2 / 6.42.2
+======
+
+.. _Release Notes_7.42.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-02-16
+
+- Please refer to the `7.42.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7422>`_ for the list of changes on the Core Checks
+
+
 .. _Release Notes_7.42.1:
 
 7.42.1 / 6.42.1
