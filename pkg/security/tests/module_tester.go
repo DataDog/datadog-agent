@@ -77,9 +77,14 @@ system_probe_config:
   enable_kernel_header_download: true
   enable_runtime_compiler: true
 
+event_monitoring_config:
+  process:
+    enabled: {{ .EventMonitoringProcessEnabled }}
+  network_process:
+    enabled: {{ .EventMonitoringNetworkEnabled }}
+
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
-  event_monitoring.enabled: {{ .EventMonitoringEnabled }}
   runtime_compilation:
     enabled: true
   remote_tagger: false
@@ -199,7 +204,8 @@ type testOpts struct {
 	envsWithValue                       []string
 	disableAbnormalPathCheck            bool
 	disableRuntimeSecurity              bool
-	enableEventMonitoring               bool
+	enableEventMonitoringProcess        bool
+	enableEventMonitoringNetwork        bool
 }
 
 func (s *stringSlice) String() string {
@@ -230,7 +236,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableEventMonitoring == opts.enableEventMonitoring
+		to.enableEventMonitoringProcess == opts.enableEventMonitoringProcess &&
+		to.enableEventMonitoringNetwork == opts.enableEventMonitoringNetwork
 }
 
 type testModule struct {
@@ -640,7 +647,7 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
+func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, err
@@ -704,23 +711,41 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"LogTags":                             logTags,
 		"EnvsWithValue":                       opts.envsWithValue,
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
-		"EventMonitoringEnabled":              opts.enableEventMonitoring,
+		"EventMonitoringProcessEnabled":       opts.enableEventMonitoringProcess,
+		"EventMonitoringNetworkEnabled":       opts.enableEventMonitoringNetwork,
 	}); err != nil {
 		return nil, err
 	}
 
-	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
+		ddConfig, err := os.OpenFile(path.Join(testDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
+		if err != nil {
+			return "", "", err
+		}
+		defer ddConfig.Close()
+
+		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
+		if err != nil {
+			return "", "", err
+		}
+		defer sysprobeConfig.Close()
+
+		_, err = io.Copy(sysprobeConfig, buffer)
+		if err != nil {
+			return "", "", err
+		}
+		return ddConfig.Name(), sysprobeConfig.Name(), nil
+	}()
 	if err != nil {
 		return nil, err
 	}
-	defer sysprobeConfig.Close()
 
-	_, err = io.Copy(sysprobeConfig, buffer)
+	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
+	agentConfig, err := sysconfig.New(sysprobeConfigName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -764,7 +789,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	config, err := genTestConfig(st.root, opts)
+	config, err := genTestConfig(st.root, opts, st.root)
 	if err != nil {
 		return nil, err
 	}
@@ -822,7 +847,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod})
+	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod, DontDiscardRuntime: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
@@ -1146,7 +1171,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1154,10 +1179,8 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if len(eventType) > 0 {
-			if event.GetEventType() != eventType[0] {
-				return
-			}
+		if event.GetEventType() != eventType {
+			return
 		}
 
 		select {
@@ -1642,7 +1665,6 @@ func TestMain(m *testing.M) {
 }
 
 func init() {
-	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")

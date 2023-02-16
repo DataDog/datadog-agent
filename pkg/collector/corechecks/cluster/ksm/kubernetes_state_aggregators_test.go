@@ -184,7 +184,7 @@ func Test_counterAggregator(t *testing.T) {
 				agg.accumulate(metric)
 			}
 
-			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.LabelJoins))
+			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
 
 			s.AssertNumberOfCalls(t, "Gauge", len(tt.expected))
 			for _, expected := range tt.expected {
@@ -295,7 +295,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				aggFailed.accumulate(metric)
 			}
 
-			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.LabelJoins))
+			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
 
 			s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, "", tt.expected.tags, tt.expected.message)
 			s.AssertNumberOfCalls(t, "ServiceCheck", 1)
@@ -308,7 +308,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				aggComplete.accumulate(metric)
 			}
 
-			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.LabelJoins))
+			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
 
 			s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, "", tt.expected.tags, tt.expected.message)
 			s.AssertNumberOfCalls(t, "ServiceCheck", 2)

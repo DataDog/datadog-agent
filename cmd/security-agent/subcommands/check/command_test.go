@@ -44,10 +44,18 @@ func TestCommands(t *testing.T) {
 
 	for _, test := range tests {
 		fxutil.TestOneShotSubcommand(t,
-			Commands(&command.GlobalParams{}),
+			SecurityAgentCommands(&command.GlobalParams{}),
 			test.cliInput,
 			RunCheck,
 			test.check,
 		)
+
+		// TODO:
+		//fxutil.TestOneShotSubcommand(t,
+		//	ClusterAgentCommands(&core.BundleParams{}),
+		//	test.cliInput,
+		//	RunCheck,
+		//	test.check,
+		//)
 	}
 }

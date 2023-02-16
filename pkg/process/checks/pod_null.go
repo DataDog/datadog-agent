@@ -12,8 +12,10 @@ import (
 	"fmt"
 )
 
-// Pod is a singleton PodCheck.
-var Pod = &PodCheck{}
+// NewPodCheck returns an instance of the Pod check
+func NewPodCheck() Check {
+	return &PodCheck{}
+}
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {

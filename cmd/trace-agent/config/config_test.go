@@ -438,6 +438,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(c.LogThrottling)
 	assert.True(c.OTLPReceiver.SpanNameAsResourceName)
 	assert.Equal(map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, c.OTLPReceiver.SpanNameRemappings)
+	assert.Equal(88.4, c.OTLPReceiver.ProbabilisticSampling)
 
 	noProxy := true
 	if _, ok := os.LookupEnv("NO_PROXY"); ok {
@@ -747,6 +748,16 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("0.0.0.0", cfg.ReceiverHost)
 	})
 
+	env = "DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "12.3")
+		cfg, err := LoadConfigFile("./testdata/undocumented.yaml")
+		assert.NoError(err)
+		assert.Equal(12.3, cfg.OTLPReceiver.ProbabilisticSampling)
+	})
+
 	for _, envKey := range []string{
 		"DD_IGNORE_RESOURCE", // deprecated
 		"DD_APM_IGNORE_RESOURCES",
@@ -832,6 +843,17 @@ func TestLoadEnv(t *testing.T) {
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `["bad1:value with a space","bad2:value with spaces"]`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}, {K: "bad2", V: "value with spaces"}})
 	})
 
 	for _, envKey := range []string{

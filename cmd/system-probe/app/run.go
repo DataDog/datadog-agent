@@ -10,12 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -116,7 +115,7 @@ func run(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	err := manager.ConfigureAutoExit(mainCtx)
+	err := manager.ConfigureAutoExit(mainCtx, ddconfig.SystemProbe)
 	if err != nil {
 		return log.Criticalf("Unable to configure auto-exit, err: %w", err)
 	}
@@ -133,19 +132,25 @@ func isValidPort(port int) bool {
 
 // StartSystemProbe Initializes the system-probe process
 func StartSystemProbe() error {
+	// load datadog.yaml config for some CWS code that requires it
+	err := config.SetupOptionalDatadogConfig()
+	if err != nil {
+		return log.Criticalf("unable to set up datadog.yaml configuration: %v", err)
+	}
+
 	cfg, err := config.New(configPath)
 	if err != nil {
-		return log.Criticalf("Failed to create agent config: %s", err)
+		return log.Criticalf("unable to set up system-probe.yaml configuration: %s", err)
 	}
 
 	err = ddconfig.SetupLogger(
 		loggerName,
 		cfg.LogLevel,
 		cfg.LogFile,
-		ddconfig.GetSyslogURI(),
-		ddconfig.Datadog.GetBool("syslog_rfc"),
-		ddconfig.Datadog.GetBool("log_to_console"),
-		ddconfig.Datadog.GetBool("log_format_json"),
+		ddconfig.GetSyslogURIFromConfig(ddconfig.SystemProbe),
+		ddconfig.SystemProbe.GetBool("syslog_rfc"),
+		ddconfig.SystemProbe.GetBool("log_to_console"),
+		ddconfig.SystemProbe.GetBool("log_format_json"),
 	)
 	if err != nil {
 		return log.Criticalf("failed to setup configured logger: %s", err)
@@ -155,14 +160,14 @@ func StartSystemProbe() error {
 	log.Infof("running system-probe with version: %s", versionString())
 	color.NoColor = false
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(ddconfig.SystemProbe); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if ddconfig.Datadog.GetBool("system_probe_config.memory_controller.enabled") {
-		memoryPressureLevels := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
-		memoryThresholds := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.thresholds")
-		hierarchy := ddconfig.Datadog.GetString("system_probe_config.memory_controller.hierarchy")
+	if ddconfig.SystemProbe.GetBool("system_probe_config.memory_controller.enabled") {
+		memoryPressureLevels := ddconfig.SystemProbe.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
+		memoryThresholds := ddconfig.SystemProbe.GetStringMapString("system_probe_config.memory_controller.thresholds")
+		hierarchy := ddconfig.SystemProbe.GetString("system_probe_config.memory_controller.hierarchy")
 		memoryMonitor, err = utils.NewMemoryMonitor(hierarchy, ddconfig.IsContainerized(), memoryPressureLevels, memoryThresholds)
 		if err != nil {
 			log.Warnf("Can't set up memory controller: %v", err)
@@ -194,8 +199,10 @@ func StartSystemProbe() error {
 		}
 	}
 
-	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
-		return log.Criticalf("Error configuring statsd: %s", err)
+	if cfg.StatsdPort > 0 {
+		if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
+			return log.Criticalf("Error configuring statsd: %s", err)
+		}
 	}
 
 	// if a debug port is specified, we expose the default handler to that port

@@ -10,9 +10,9 @@ package http
 
 /*
 #include "../../ebpf/c/tracer.h"
-#include "../../ebpf/c/protocols/tags-types.h"
-#include "../../ebpf/c/protocols/http-types.h"
-#include "../../ebpf/c/protocols/protocol-classification-defs.h"
+#include "../../ebpf/c/protocols/tls/tags-types.h"
+#include "../../ebpf/c/protocols/http/types.h"
+#include "../../ebpf/c/protocols/classification/defs.h"
 */
 import "C"
 
@@ -36,6 +36,7 @@ const (
 	ProtocolPostgres ProtocolType = C.PROTOCOL_POSTGRES
 	ProtocolAMQP     ProtocolType = C.PROTOCOL_AMQP
 	ProtocolRedis    ProtocolType = C.PROTOCOL_REDIS
+	ProtocolMySQL    ProtocolType = C.PROTOCOL_MYSQL
 	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
 )
 

@@ -11,6 +11,8 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 )
 
@@ -20,6 +22,9 @@ type submitter struct {
 
 type dependencies struct {
 	fx.In
+
+	CoreConfig     config.Component
+	SysProbeConfig sysprobeconfig.Component
 }
 
 func newSubmitter(deps dependencies) (Component, error) {
@@ -27,7 +32,6 @@ func newSubmitter(deps dependencies) (Component, error) {
 }
 
 func (s *submitter) Submit(start time.Time, checkName string, payload *types.Payload) {
-
 }
 
 func (s *submitter) Start() error {

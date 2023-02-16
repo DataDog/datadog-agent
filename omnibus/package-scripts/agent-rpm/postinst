@@ -38,5 +38,6 @@ fi
 chown root:root ${INSTALL_DIR}/embedded/bin/system-probe
 chown root:root ${INSTALL_DIR}/embedded/bin/security-agent
 chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/ebpf
+chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/java
 
 exit 0

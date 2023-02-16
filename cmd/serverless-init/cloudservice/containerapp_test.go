@@ -21,9 +21,10 @@ func TestGetContainerAppTags(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"app_name": "test_app_name",
-		"origin":   "containerapp",
-		"region":   "eastus",
-		"revision": "test_revision",
+		"app_name":   "test_app_name",
+		"origin":     "containerapp",
+		"region":     "eastus",
+		"revision":   "test_revision",
+		"_dd.origin": "containerapp",
 	}, tags)
 }

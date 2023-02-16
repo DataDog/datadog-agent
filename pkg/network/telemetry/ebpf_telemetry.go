@@ -14,11 +14,13 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -324,7 +326,20 @@ func patchEBPFTelemetry(m *manager.Manager, newIns asm.Instruction, specs []*ebp
 				continue
 			}
 
-			*ins = newIns
+			*ins = newIns.WithMetadata(ins.Metadata)
 		}
 	}
+}
+
+func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIdentificationPair) error {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return err
+	}
+	activateBPFTelemetry := kv >= kernel.VersionCode(4, 14, 0)
+	m.InstructionPatcher = func(m *manager.Manager) error {
+		return PatchEBPFTelemetry(m, activateBPFTelemetry, undefinedProbes)
+	}
+
+	return nil
 }

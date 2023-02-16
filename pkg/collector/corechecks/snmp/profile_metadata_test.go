@@ -564,14 +564,16 @@ profiles:
   ],
   "links": [
         {
+            "id": "profile-metadata:1.2.3.4:101.1",
+            "source_type": "lldp",
             "local": {
                 "device": {
-                    "id": "profile-metadata:1.2.3.4",
-                    "id_type": "ndm"
+                    "dd_id": "profile-metadata:1.2.3.4"
                 },
                 "interface": {
-                    "id": "profile-metadata:1.2.3.4:1",
-                    "id_type": "ndm"
+                    "dd_id": "profile-metadata:1.2.3.4:1",
+                    "id": "82:a5:6e:a5:c9:01",
+                    "id_type": "mac_address"
                 }
             },
             "remote": {
@@ -590,14 +592,16 @@ profiles:
             }
         },
         {
+            "id": "profile-metadata:1.2.3.4:102.2",
+            "source_type": "lldp",
             "local": {
                 "device": {
-                    "id": "profile-metadata:1.2.3.4",
-                    "id_type": "ndm"
+                    "dd_id": "profile-metadata:1.2.3.4"
                 },
                 "interface": {
-                    "id": "profile-metadata:1.2.3.4:2",
-                    "id_type": "ndm"
+                    "dd_id": "profile-metadata:1.2.3.4:2",
+                    "id": "82:a5:6e:a5:c9:02",
+                    "id_type": "mac_address"
                 }
             },
             "remote": {

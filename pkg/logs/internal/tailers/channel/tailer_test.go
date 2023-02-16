@@ -15,40 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-func TestComputeServiceName(t *testing.T) {
-	assert.Equal(t, "agent", computeServiceName(nil, "toto"))
-	lambdaConfig := &config.Lambda{}
-	assert.Equal(t, "my-service-name", computeServiceName(lambdaConfig, "my-service-name"))
-	assert.Equal(t, "my-service-name", computeServiceName(lambdaConfig, "MY-SERVICE-NAME"))
-	assert.Equal(t, "", computeServiceName(lambdaConfig, ""))
-}
-
-func TestComputeServiceNameFromCloudRunRevision(t *testing.T) {
-	t.Setenv("K_REVISION", "version-abc")
-	t.Setenv("K_SERVICE", "superService")
-	assert.Equal(t, "service-value", computeServiceName(nil, "service-value"))
-	assert.Equal(t, "superservice", computeServiceName(nil, ""))
-}
-
-func TestNotServerlessModeKVersionUndefined(t *testing.T) {
-	t.Setenv("K_SERVICE", "superService")
-	assert.False(t, isServerlessOrigin(nil))
-}
-
-func TestNotServerlessModeKServiceUndefined(t *testing.T) {
-	t.Setenv("K_REVISION", "version-abc")
-	assert.False(t, isServerlessOrigin(nil))
-}
-
-func TestServerlessModeCloudRun(t *testing.T) {
-	t.Setenv("K_REVISION", "version-abc")
-	t.Setenv("K_SERVICE", "superService")
-	assert.True(t, isServerlessOrigin(nil))
-}
-
-func TestServerlessModeLambda(t *testing.T) {
-	lambdaConfig := &config.Lambda{}
-	assert.True(t, isServerlessOrigin(lambdaConfig))
+func TestComputeServiceNameOrderOfPrecedent(t *testing.T) {
+	assert.Equal(t, "agent", getServiceName())
+	t.Setenv("CONTAINER_APP_NAME", "CONTAINER-app-name")
+	assert.Equal(t, "container-app-name", getServiceName())
+	t.Setenv("K_SERVICE", "CLOUD-run-service-name")
+	assert.Equal(t, "cloud-run-service-name", getServiceName())
+	t.Setenv("DD_SERVICE", "DD-service-name")
+	assert.Equal(t, "dd-service-name", getServiceName())
 }
 
 func TestBuildMessageNoLambda(t *testing.T) {

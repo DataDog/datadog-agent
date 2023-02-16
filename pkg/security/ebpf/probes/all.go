@@ -46,10 +46,12 @@ func init() {
 		numCPU = 1
 	}
 
-	if numCPU < 64 {
-		defaultEventsRingBufferSize = uint32(64 * 256 * os.Getpagesize())
+	if numCPU <= 16 {
+		defaultEventsRingBufferSize = uint32(8 * 256 * os.Getpagesize())
+	} else if numCPU <= 64 {
+		defaultEventsRingBufferSize = uint32(16 * 256 * os.Getpagesize())
 	} else {
-		defaultEventsRingBufferSize = uint32(128 * 256 * os.Getpagesize())
+		defaultEventsRingBufferSize = uint32(32 * 256 * os.Getpagesize())
 	}
 }
 
@@ -91,7 +93,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
 				EBPFFuncName: "sys_exit",
 			},
 		},
@@ -99,7 +100,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "kprobe/security_inode_getattr",
 				EBPFFuncName: "kprobe_security_inode_getattr",
 			},
 		},

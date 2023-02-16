@@ -7,22 +7,17 @@ package compliance
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
-	"strings"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -34,7 +29,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	complianceCmd.AddCommand(complianceEventCommand(globalParams))
-	complianceCmd.AddCommand(check.Commands(globalParams)...)
+	complianceCmd.AddCommand(check.SecurityAgentCommands(globalParams)...)
 
 	return []*cobra.Command{complianceCmd}
 }
@@ -80,16 +75,16 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return eventCmd
 }
 
-func eventRun(log complog.Component, config compconfig.Component, eventArgs *cliParams) error {
+func eventRun(log log.Component, config config.Component, eventArgs *cliParams) error {
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := common.NewLogContextCompliance()
+	endpoints, dstContext, err := command.NewLogContextCompliance(log)
 	if err != nil {
 		return err
 	}
 
-	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
+	runPath := config.GetString("compliance_config.run_path")
 	reporter, err := event.NewLogReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
 	if err != nil {
 		return fmt.Errorf("failed to set up compliance log reporter: %w", err)

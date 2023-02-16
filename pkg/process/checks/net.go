@@ -26,9 +26,6 @@ import (
 )
 
 var (
-	// Connections is a singleton ConnectionsCheck.
-	Connections = &ConnectionsCheck{}
-
 	// LocalResolver is a singleton LocalResolver
 	LocalResolver = &resolver.LocalResolver{}
 
@@ -38,6 +35,11 @@ var (
 	// ProcessAgentClientID process-agent unique ID
 	ProcessAgentClientID = "process-agent-unique-id"
 )
+
+// NewConnectionsCheck returns an instance of the ConnectionsCheck.
+func NewConnectionsCheck() Check {
+	return &ConnectionsCheck{}
+}
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {

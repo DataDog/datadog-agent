@@ -72,11 +72,6 @@ func dstIPHigh(tup *driver.ConnTupleType) uint64 {
 // driverHttpTX interface
 //
 
-// ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
-func (tx *WinHttpTransaction) ReqFragment() []byte {
-	return tx.RequestFragment[:]
-}
-
 func (tx *WinHttpTransaction) StatusClass() int {
 	return statusClass(tx.Txn.ResponseStatusCode)
 }
@@ -85,32 +80,15 @@ func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
-func (tx *WinHttpTransaction) isIPV4() bool {
-	return isIPV4(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcIPLow() uint64 {
-	return srcIPLow(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcIPHigh() uint64 {
-	return srcIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcPort() uint16 {
-	return tx.Txn.Tup.CliPort
-}
-
-func (tx *WinHttpTransaction) DstIPLow() uint64 {
-	return dstIPLow(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) DstIPHigh() uint64 {
-	return dstIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) DstPort() uint16 {
-	return tx.Txn.Tup.SrvPort
+func (tx *WinHttpTransaction) ConnTuple() KeyTuple {
+	return KeyTuple{
+		SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
+		SrcIPLow:  srcIPLow(&tx.Txn.Tup),
+		DstIPHigh: dstIPHigh(&tx.Txn.Tup),
+		DstIPLow:  dstIPLow(&tx.Txn.Tup),
+		SrcPort:   tx.Txn.Tup.CliPort,
+		DstPort:   tx.Txn.Tup.SrvPort,
+	}
 }
 
 func (tx *WinHttpTransaction) Method() Method {
@@ -198,12 +176,8 @@ func (tx *WinHttpTransaction) RequestStarted() uint64 {
 	return tx.Txn.RequestStarted
 }
 
-func (tx *WinHttpTransaction) RequestMethod() uint32 {
-	return tx.Txn.RequestMethod
-}
-
-func (tx *WinHttpTransaction) SetRequestMethod(m uint32) {
-	tx.Txn.RequestMethod = m
+func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
+	tx.Txn.RequestMethod = uint32(m)
 }
 
 // below is copied from pkg/trace/stats/statsraw.go

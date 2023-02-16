@@ -71,16 +71,9 @@ BPF_HASH_MAP(udp_port_bindings, port_binding_t, __u32, 0)
 /* Similar to pending_sockets this is used for capturing state between the call and return of the bind() system call.
  *
  * Keys: the PID returned by bpf_get_current_pid_tgid()
- * Values: the args of the bind call being instrumented.
+ * Values: the args of the bind call  being instrumented.
  */
 BPF_HASH_MAP(pending_bind, __u64, bind_syscall_args_t, 8192)
-
-/* Similar to pending_sockets this is used for capturing state between the call and return of the tcp_retransmit_skb() system call.
- *
- * Keys: the PID returned by bpf_get_current_pid_tgid()
- * Values: the args of the tcp_retransmit_skb call being instrumented.
- */
-BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
 
 /* This map is used for telemetry in kernelspace
  * only key 0 is used
@@ -98,5 +91,12 @@ BPF_HASH_MAP(do_sendfile_args, __u64, struct sock *, 1024)
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
+
+// This entry point is needed to bypass a memory limit on socket filters.
+// There is a limitation on number of instructions can be attached to a socket filter,
+// as we classify more protocols, we reached that limit, thus we workaround it
+// by using tail call.
+#define CLASSIFICATION_PROG 0
+BPF_PROG_ARRAY(classification_progs, 1)
 
 #endif

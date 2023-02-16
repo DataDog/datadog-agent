@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
-//MacroID - ID of a Macro
+// MacroID - ID of a Macro
 type MacroID = string
 
 // Macro - Macro object identified by an `ID` containing a SECL `Expression`
@@ -57,7 +57,7 @@ func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error
 			Value: value,
 		}
 
-		evaluator.AppendFieldValues(fieldValue)
+		evaluator.Values.AppendFieldValue(fieldValue)
 	}
 
 	if err := evaluator.Compile(DefaultStringCmpOpts); err != nil {

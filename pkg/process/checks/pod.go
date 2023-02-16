@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -22,9 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// Pod is a singleton PodCheck.
-var Pod = &PodCheck{
-	config: oconfig.NewDefaultOrchestratorConfig(),
+// NewPodCheck returns an instance of the Pod check
+func NewPodCheck() Check {
+	return &PodCheck{
+		config: oconfig.NewDefaultOrchestratorConfig(),
+	}
 }
 
 // PodCheck is a check that returns container metadata and stats.
@@ -86,7 +90,7 @@ func (c *PodCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, erro
 		Cfg:                c.config,
 		HostName:           c.hostInfo.HostName,
 		MsgGroupID:         groupID,
-		NodeType:           orchestrator.K8sPod,
+		NodeType:           model.K8SResource_POD,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
 	}
 

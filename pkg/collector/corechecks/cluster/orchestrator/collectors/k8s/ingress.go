@@ -10,12 +10,12 @@ package k8s
 
 import (
 	"context"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
@@ -54,7 +54,7 @@ func NewIngressCollector() *IngressCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "ingresses",
-			NodeType:                  orchestrator.K8sIngress,
+			NodeType:                  model.K8SResource_INGRESS,
 			Version:                   "networking.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),

@@ -17,9 +17,11 @@ import (
 	"strconv"
 	"strings"
 
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -82,6 +84,30 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
+
+	// Ignore the config from file if it's overridden by an empty config or by
+	// a different config for the same check.  If
+	// `logs_config.cca_in_ad` is set, this is not necessary as the
+	// relevant services will filter out these configs.
+	if !util.CcaInAD() {
+		if tpl.Provider == names.File && svc.GetCheckNames(ctx) != nil {
+			checkNames := svc.GetCheckNames(ctx)
+			lenCheckNames := len(checkNames)
+			if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
+				// Empty check names on k8s annotations or container labels override the check config from file
+				// Used to deactivate unneeded OOTB autodiscovery checks defined in files
+				// The checkNames slice is considered empty also if it contains one single empty string
+				return resolvedConfig, fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
+			}
+			for _, checkName := range checkNames {
+				if tpl.Name == checkName {
+					// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or container labels)
+					return resolvedConfig, fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
+				}
+			}
+
+		}
+	}
 
 	if resolvedConfig.IsCheckConfig() && !svc.IsReady(ctx) {
 		return resolvedConfig, errors.New("unable to resolve, service not ready")
@@ -289,8 +315,6 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 	return parser.marshal(&tree)
 }
 
-var ipv6Re = regexp.MustCompile(`^[0-9a-f:]+$`)
-
 // resolveStringWithTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
 // It delegates all the work to resolveStringWithAdHocTemplateVars and implements only the following trick:
 // for `‰host‰` patterns, if the value of the variable is an IPv6 *and* it appears in an URL context, then it is surrounded by square brackets.
@@ -304,7 +328,7 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 		if k == "host" {
 			adHocTemplateVars[k] = func(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 				host, err := getHost(ctx, tplVar, svc)
-				if ipv6Re.MatchString(host) {
+				if apiutil.IsIPv6(host) {
 					isThereAnIPv6Host = true
 					if tplVar != "" {
 						return fmt.Sprintf("‰host_%s‰", tplVar), nil

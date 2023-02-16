@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -22,7 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,6 +35,8 @@ const (
 	maximalMaxBackoffTime = 90 * time.Second
 	minBackoffFactor      = 2.0
 	recoveryInterval      = 2
+
+	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
 )
 
 // ConfigUpdater defines the interface that an agent client uses to get config updates
@@ -52,6 +58,8 @@ type Client struct {
 	agentName    string
 	agentVersion string
 	products     []string
+
+	clusterName string
 
 	pollInterval      time.Duration
 	lastUpdateError   error
@@ -75,8 +83,11 @@ type agentGRPCConfigFetcher struct {
 	client pbgo.AgentSecureClient
 }
 
-func newAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
-	c, err := grpc.GetDDAgentSecureClient(context.Background())
+// NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
+func NewAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
+	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), grpc.WithDefaultCallOptions(
+		grpc.MaxCallRecvMsgSize(maxMessageSize),
+	))
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +122,7 @@ func NewClient(agentName string, updater ConfigUpdater, agentVersion string, pro
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
 func NewGRPCClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	grpcClient, err := newAgentGRPCConfigFetcher()
+	grpcClient, err := NewAgentGRPCConfigFetcher()
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +130,9 @@ func NewGRPCClient(agentName string, agentVersion string, products []data.Produc
 	return newClient(agentName, grpcClient, true, agentVersion, products, pollInterval)
 }
 
-// NewUnverifiedClient creates a new client that does not perform any TUF verification
-func NewUnverifiedClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	grpcClient, err := newAgentGRPCConfigFetcher()
+// NewUnverifiedGRPCClient creates a new client that does not perform any TUF verification
+func NewUnverifiedGRPCClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher()
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +163,18 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	backoffPolicy := backoff.NewPolicy(minBackoffFactor, pollInterval.Seconds(),
 		maximalMaxBackoffTime.Seconds(), recoveryInterval, false)
 
+	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
+	// relying on remote config to identify this RC client to be able to write predicates for config routing
+	clusterName := ""
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		hname, err := hostname.Get(context.TODO())
+		if err != nil {
+			log.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
+		} else {
+			clusterName = clustername.GetClusterName(context.TODO(), hname)
+		}
+	}
+
 	ctx, close := context.WithCancel(context.Background())
 
 	return &Client{
@@ -161,6 +184,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		close:               close,
 		agentName:           agentName,
 		agentVersion:        agentVersion,
+		clusterName:         clusterName,
 		products:            data.ProductListToString(products),
 		state:               repository,
 		pollInterval:        pollInterval,
@@ -392,8 +416,9 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			IsAgent:  true,
 			IsTracer: false,
 			ClientAgent: &pbgo.ClientAgent{
-				Name:    c.agentName,
-				Version: c.agentVersion,
+				Name:        c.agentName,
+				Version:     c.agentVersion,
+				ClusterName: c.clusterName,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,
