@@ -409,7 +409,7 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 		}, nil
 	}
 
-	if err := a.module.RunSelfTest(false); err != nil {
+	if _, err := a.module.RunSelfTest(false); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),
