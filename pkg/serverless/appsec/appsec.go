@@ -11,12 +11,49 @@
 package appsec
 
 import (
+	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/go-libddwaf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func New2(lambdaRuntime string) (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, error) {
+	appsecInstance, err := New() // note that the assigned variable is in the parent scope
+	if err != nil {
+		return nil, nil, err
+	}
+	if appsecInstance == nil {
+		return nil, nil, nil // appsec disabled
+	}
+
+	switch {
+	case strings.Contains(lambdaRuntime, "nodejs") || strings.Contains(lambdaRuntime, "python"):
+		// NodeJS and Python are currently supported by monitoring the invocations
+		// through the runtime API.
+		log.Debug("appsec: starting the runtime api proxy monitoring for ", lambdaRuntime)
+		lp := &httpsec.ProxyLifecycleProcessor{
+			SubProcessor: httpsec.NewProxyProcessor(appsecInstance),
+		}
+		// start the experimental proxy if enabled
+		proxy.Start(
+			"127.0.0.1:9000",
+			"127.0.0.1:9001",
+			lp,
+		)
+		log.Debug("appsec: runtime api proxy started successfully")
+		return nil, lp, nil
+
+	default:
+		// Other runtimes are supported with the extension's universal instrumentation lifecycle subprocessor
+		lp := httpsec.NewInvocationSubProcessor(appsecInstance)
+		log.Info("appsec: started successfully")
+		return lp, nil, nil
+	}
+}
 
 type AppSec struct {
 	cfg *Config

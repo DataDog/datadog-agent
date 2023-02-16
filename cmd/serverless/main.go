@@ -267,17 +267,14 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// start appsec
 	var (
-		httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
-		appsecInstance      *appsec.AppSec
+		appsecSubProcessor   *httpsec.InvocationSubProcessor
+		appsecProxyProcessor *httpsec.ProxyLifecycleProcessor
 	)
 	go func() {
 		defer wg.Done()
-		appsecInstance, err = appsec.New() // note that the assigned variable is in the parent scope
+		appsecSubProcessor, appsecProxyProcessor, err = appsec.New2(tags.GetRuntime())
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
-		} else if appsecInstance != nil {
-			log.Info("appsec: started successfully")
-			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsecInstance) // note that the assigned variable is in the parent scope
 		}
 	}()
 
@@ -296,52 +293,21 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	log.Debug("Setting ColdStartSpanCreator on Daemon")
 	serverlessDaemon.SetColdStartSpanCreator(coldStartSpanCreator)
 
+	ta := serverlessDaemon.TraceAgent.Get()
+
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
 	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:            serverlessDaemon.ExtraTags,
 		Demux:                serverlessDaemon.MetricAgent.Demux,
-		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
+		ProcessTrace:         ta.Process,
 		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
-		SubProcessor:         httpsecSubProcessor,
+		SubProcessor:         appsecSubProcessor, // Universal Instrumentation API mode - nil in the runtime api proxy mode
 	}
 
-	// NodeJS- and Python-specific support for AppSec: monitor the invocation through the runtime API monitoring until
-	// these tracers support the extension's universal instrumentation API
-	// TODO: remove the following block when the python and nodejs tracers support the extension universal instrumentation api
-	if rt := tags.GetRuntime(); appsecInstance != nil && (strings.Contains(rt, "nodejs") || strings.Contains(rt, "python")) {
-		log.Debug("appsec: starting the runtime api proxy monitoring for ", rt)
-		httpsecSubProcessor := httpsec.NewProxyProcessor(appsecInstance)
-		lp := &httpsec.ProxyLifecycleProcessor{
-			SubProcessor: httpsecSubProcessor,
-		}
-		serverlessDaemon.InvocationProcessor = lp
-
-		// start the experimental proxy if enabled
-		proxy.Start(
-			"127.0.0.1:9000",
-			"127.0.0.1:9001",
-			lp,
-		)
-
-		ta := serverlessDaemon.TraceAgent.Get()
-		modifySpan := ta.ModifySpan
-		ta.ModifySpan = func(span *pb.Span) {
-			if modifySpan != nil {
-				modifySpan(span)
-			}
-			// Add appsec tags to the aws lambda function root span
-			if span.Name != "aws.lambda" || span.Type != "serverless" {
-				return
-			}
-			if currentReqId, spanReqId := serverlessDaemon.ExecutionContext.GetCurrentState().LastRequestID, span.Meta["request_id"]; currentReqId != spanReqId {
-				log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
-				return
-			}
-			log.Debug("appsec: found service entry span to add appsec tags")
-			lp.SpanModifier(span)
-		}
-		log.Debug("appsec: runtime api proxy started successfully")
+	if appsecProxyProcessor != nil {
+		// Runtime API proxy mode
+		ta.ModifySpan = appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.ModifySpan)
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
 		// start the experimental proxy if enabled
 		log.Debug("Starting the experimental runtime api proxy")

@@ -13,10 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// ProxyLifecycleProcessor is a ProxyLifecycleProcessor implementation
+// ProxyLifecycleProcessor is a LifecycleProcessor implementation allowing to support
+// NodeJS and Python by monitoring the runtime api calls until they support the
+// universal instrumentation api.
 type ProxyLifecycleProcessor struct {
 	SubProcessor *ProxyProcessor
 }
@@ -190,6 +193,28 @@ func (p *ProxyProcessor) SpanModifier(s *pb.Span) {
 	if events := p.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
 		setSecurityEventsTags(span, events, reqHeaders, nil)
 		// TODO: invocCtx.SetSamplingPriority(sampler.PriorityUserKeep)
+	}
+}
+
+type ExecutionContext interface {
+	LastRequestID() string
+}
+
+func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modifySpan func(*pb.Span)) func(*pb.Span) {
+	return func(span *pb.Span) {
+		if modifySpan != nil {
+			modifySpan(span)
+		}
+		// Add appsec tags to the aws lambda function root span
+		if span.Name != "aws.lambda" || span.Type != "serverless" {
+			return
+		}
+		if currentReqId, spanReqId := ctx.LastRequestID(), span.Meta["request_id"]; currentReqId != spanReqId {
+			log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
+			return
+		}
+		log.Debug("appsec: found service entry span to add appsec tags")
+		lp.SpanModifier(span)
 	}
 }
 
