@@ -107,7 +107,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			if opts.ShutdownPeriod > 0 {
 				shutdownRegisterArgs := command.Args{
 					Create: pulumi.Sprintf(
-						"(crontab -l 2>/dev/null; echo \"0 */%s * * * /usr/sbin/shutdown -h now\") | crontab -", opts.ShutdownPeriod,
+						"bash -c '(crontab -l 2>/dev/null; echo \"0 */%d * * * /usr/sbin/shutdown -h now\") | crontab -'", opts.ShutdownPeriod,
 					),
 					Sudo: true,
 				}
