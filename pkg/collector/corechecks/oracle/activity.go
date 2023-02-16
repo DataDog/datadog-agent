@@ -2,14 +2,16 @@ package oracle
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type OracleActivityRow struct {
-	Sid   int64  `db:"SID" json:"sid"`
-	SqlID string `db:"SQL_ID" json:"sql_id,omitempty"`
+	SessionID int64  `db:"SID" json:"sid"`
+	SqlID     string `db:"SQL_ID" json:"sql_id,omitempty"`
 }
 
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
@@ -49,14 +51,17 @@ func (c *Check) SampleSession() error {
 	}
 	//log.Tracef("orasample %#v", sessionSamples)
 
+	agentVersion, _ := version.Agent()
+
 	payload := ActivitySnapshot{
-		Metadata: Metadata{Timestamp: 1,
-			Host:           "a",
-			DDAgentVersion: "1",
+		Metadata: Metadata{
+			Timestamp:      float64(time.Now().UnixMilli()),
+			Host:           c.hostname,
+			DDAgentVersion: agentVersion.GetNumberAndPre(),
 			Source:         "oracle",
 			DBMType:        "activity"},
 		CollectionInterval: 1,
-		Tags:               []string{"Espresso", "Educative", "Shots"},
+		Tags:               []string{},
 		OracleActivityRows: sessionSamples,
 	}
 
