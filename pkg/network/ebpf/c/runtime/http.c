@@ -860,18 +860,10 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
     return (void *)BPF_CORE_READ(task, thread.fsbase);
 #elif defined(__TARGET_ARCH_arm64)
     // ARM64
-#ifdef COMPILE_RUNTIME
-    // ARM64 (RUNTIME)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-    return (void *)BPF_CORE_READ(task, thread.tp_value);
-#else
     return (void *)BPF_CORE_READ(task, thread.uw.tp_value);
-#endif
 #else
-    // CO-RE ARM64
-    return NULL;
-#endif // CO-RE ARM64
-#endif // defined(__TARGET_ARCH_arm64)
+    #error "Unsupported platform"
+#endif
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version
