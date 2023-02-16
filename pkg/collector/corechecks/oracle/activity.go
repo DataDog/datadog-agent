@@ -8,8 +8,8 @@ import (
 )
 
 type OracleActivityRow struct {
-	Sid    int64  `db:"SID" json:"sid"`
-	Sql_id string `db:"SQL_ID" json:"sql_id,omitempty"`
+	Sid   int64  `db:"SID" json:"sid"`
+	SqlID string `db:"SQL_ID" json:"sql_id,omitempty"`
 }
 
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
