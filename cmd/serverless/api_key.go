@@ -8,9 +8,11 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
 
+	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -77,7 +79,9 @@ func readAPIKeyFromKMS(cipherText string) (string, error) {
 	if cipherText == "" {
 		return "", nil
 	}
-	sess, err := session.NewSession(nil)
+	sess, err := session.NewSession(aws.NewConfig().WithHTTPClient(&http.Client{
+		Transport: datadogHttp.CreateHTTPTransport(),
+	}))
 	if err != nil {
 		return "", err
 	}
@@ -102,12 +106,15 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 		return "", err
 	}
 
-	sess, err := session.NewSession(nil)
+	sess, err := session.NewSession(aws.NewConfig().WithHTTPClient(&http.Client{
+		Transport: datadogHttp.CreateHTTPTransport(),
+	}))
 	if err != nil {
 		return "", err
 	}
 
 	secretsManagerClient := secretsmanager.New(sess, aws.NewConfig().WithRegion(region))
+
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
 

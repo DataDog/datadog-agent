@@ -123,7 +123,11 @@ def gen_mocks(ctx):
             "Reporter",
             "Scheduler",
         ],
-        "./pkg/security/api": ["SecurityModuleServer", "SecurityModuleClient", "SecurityModule_GetProcessEventsClient"],
+        "./pkg/security/proto/api": [
+            "SecurityModuleServer",
+            "SecurityModuleClient",
+            "SecurityModule_GetProcessEventsClient",
+        ],
     }
 
     for path, names in interfaces.items():
@@ -568,8 +572,12 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
-    ctx.run("cp ./pkg/security/probe/serializers_easyjson.mock ./pkg/security/probe/serializers_easyjson.go")
-    ctx.run("cp ./pkg/security/probe/activity_dump_easyjson.mock ./pkg/security/probe/activity_dump_easyjson.go")
+    ctx.run(
+        "cp ./pkg/security/serializers/serializers_easyjson.mock ./pkg/security/serializers/serializers_easyjson.go"
+    )
+    ctx.run(
+        "cp ./pkg/security/activitydump/activity_dump_easyjson.mock ./pkg/security/activitydump/activity_dump_easyjson.go"
+    )
     ctx.run("go generate ./pkg/security/...")
 
 
@@ -624,8 +632,8 @@ def generate_cws_proto(ctx):
 
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.3.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
 
             plugin_opts = " ".join(
@@ -638,15 +646,16 @@ def generate_cws_proto(ctx):
 
             # Activity Dumps
             ad_pool_opts = " ".join(
-                f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in ad_pool_structs
+                f"--go-vtproto_opt=pool=pkg/security/proto/security_profile/v1.{struct_name}"
+                for struct_name in ad_pool_structs
             )
             ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/adproto/v1/activity_dump.proto"
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/proto/security_profile/v1/activity_dump.proto"
             )
 
             # API
             ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/api/api.proto"
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
             )
 
     for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):

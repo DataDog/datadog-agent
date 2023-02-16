@@ -69,6 +69,12 @@ func TestPipelineStatsEndpoint(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, url.String(), "https://trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
 	assert.Equal(t, key, "test_api_key")
+
+	cfg.Endpoints = []*config.Endpoint{{Host: "trace.agent.datadoghq.com", APIKey: "test_api_key"}}
+	url, key, err = pipelineStatsEndpoint(&cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, url.String(), "trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
+	assert.Equal(t, key, "test_api_key")
 }
 
 func TestPipelineStatsProxyHandler(t *testing.T) {

@@ -148,6 +148,43 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "nominal case: dotnet",
+			pod:  fakePod("dotnet-pod"),
+			libsToInject: []libInfo{
+				{
+					lang:  "dotnet",
+					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
+				},
+			},
+			expectedEnvKey: "CORECLR_PROFILER",
+			expectedEnvVal: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+			wantErr:        false,
+		},
+		{
+			name: "CORECLR_ENABLE_PROFILING not empty",
+			pod:  fakePodWithEnvValue("dotnet-pod", "CORECLR_PROFILER", "predefined"),
+			libsToInject: []libInfo{
+				{
+					lang:  "dotnet",
+					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
+				},
+			},
+			expectedEnvKey: "CORECLR_PROFILER",
+			expectedEnvVal: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+			wantErr:        false,
+		},
+		{
+			name: "CORECLR_ENABLE_PROFILING set via ValueFrom",
+			pod:  fakePodWithEnvFieldRefValue("dotnet-pod", "CORECLR_PROFILER", "path"),
+			libsToInject: []libInfo{
+				{
+					lang:  "dotnet",
+					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

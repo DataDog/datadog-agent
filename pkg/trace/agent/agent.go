@@ -497,7 +497,10 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	filteredChunk = pt.TraceChunk
 	if !sampled {
 		filteredChunk = new(pb.TraceChunk)
-		*filteredChunk = *pt.TraceChunk
+		filteredChunk.Priority = pt.TraceChunk.GetPriority()
+		filteredChunk.Origin = pt.TraceChunk.GetOrigin()
+		filteredChunk.Spans = pt.TraceChunk.GetSpans()
+		filteredChunk.Tags = pt.TraceChunk.GetTags()
 		filteredChunk.DroppedTrace = true
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
