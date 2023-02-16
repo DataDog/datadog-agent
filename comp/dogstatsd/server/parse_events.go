@@ -44,8 +44,8 @@ type dogstatsdEvent struct {
 }
 
 type eventHeader struct {
-	titleLength int
-	textLength  int
+	titleLength int64
+	textLength  int64
 }
 
 var (
@@ -109,8 +109,8 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	}
 
 	return eventHeader{
-		titleLength: int(titleLength),
-		textLength:  int(textLength),
+		titleLength: titleLength,
+		textLength:  textLength,
 	}, nil
 }
 
@@ -184,7 +184,7 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		return dogstatsdEvent{}, err
 	}
 
-	if len(rawEvent) < header.textLength+header.titleLength+1 {
+	if int64(len(rawEvent)) < header.textLength+header.titleLength+1 {
 		return dogstatsdEvent{}, fmt.Errorf("invalid event")
 	}
 
@@ -198,7 +198,7 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		alertType: alertTypeInfo,
 	}
 
-	if len(rawEvent) == header.textLength+header.titleLength+1 {
+	if int64(len(rawEvent)) == header.textLength+header.titleLength+1 {
 		return event, nil
 	}
 
