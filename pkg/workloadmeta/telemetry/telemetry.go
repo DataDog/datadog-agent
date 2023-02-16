@@ -56,6 +56,17 @@ var (
 		commonOpts,
 	)
 
+	// PullDuration measures the time that it takes to pull from the
+	// workloadmeta collectors.
+	PullDuration = telemetry.NewHistogramWithOpts(
+		subsystem,
+		"pull_duration",
+		[]string{"collector_id"},
+		"The time it takes to pull from the collectors (in seconds)",
+		[]float64{0.25, 0.5, 0.75, 1, 2, 5, 10, 15, 30, 45, 60},
+		commonOpts,
+	)
+
 	// NotificationsSent tracks the number of notifications sent from the
 	// workloadmeta store to its subscribers. Note that each notification can
 	// include multiple events.
