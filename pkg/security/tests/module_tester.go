@@ -112,6 +112,9 @@ runtime_security_config:
 {{if .DisableApprovers}}
   enable_approvers: false
 {{end}}
+{{if .DisableDiscarders}}
+  enable_discarders: false
+{{end}}
   erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
   map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
   self_test:
@@ -685,6 +688,7 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*sysconfig.Config
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                     dir,
 		"DisableApprovers":                    opts.disableApprovers,
+		"DisableDiscarders":                   opts.disableDiscarders,
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
 		"ActivityDumpCgroupDumpTimeout":       opts.activityDumpCgroupDumpTimeout,
@@ -818,10 +822,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	t.Log("Instantiating a new security module")
 
 	statsdClient := NewStatsdClient()
-
-	if opts.disableApprovers {
-		config.EnableApprovers = false
-	}
 
 	testMod = &testModule{
 		config:        config,

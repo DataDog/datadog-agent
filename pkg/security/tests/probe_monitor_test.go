@@ -156,7 +156,7 @@ func TestTruncatedParentsERPC(t *testing.T) {
 func TestNoisyProcess(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID: "path_test",
-		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
+		// use the basename as an approver. The rule won't match as the parent folder differs but we will get the event because of the approver.
 		Expression: `open.file.path == "{{.Root}}/do_not_match/test-open"`,
 	}
 
