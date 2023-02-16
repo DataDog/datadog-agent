@@ -117,7 +117,11 @@ def gen_mocks(ctx):
             "Reporter",
             "Scheduler",
         ],
-        "./pkg/security/proto/api": ["SecurityModuleServer", "SecurityModuleClient", "SecurityModule_GetProcessEventsClient"],
+        "./pkg/security/proto/api": [
+            "SecurityModuleServer",
+            "SecurityModuleClient",
+            "SecurityModule_GetProcessEventsClient",
+        ],
     }
 
     for path, names in interfaces.items():
@@ -636,7 +640,8 @@ def generate_cws_proto(ctx):
 
             # Activity Dumps
             ad_pool_opts = " ".join(
-                f"--go-vtproto_opt=pool=pkg/security/proto/security_profile/v1.{struct_name}" for struct_name in ad_pool_structs
+                f"--go-vtproto_opt=pool=pkg/security/proto/security_profile/v1.{struct_name}"
+                for struct_name in ad_pool_structs
             )
             ctx.run(
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/proto/security_profile/v1/activity_dump.proto"
