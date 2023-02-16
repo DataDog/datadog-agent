@@ -21,6 +21,11 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
+// NewTemporaryLogger returns a logger component instance.
+func NewTemporaryLogger() Component {
+	return &logger{}
+}
+
 func newLogger(lc fx.Lifecycle, params Params, config config.Component) (Component, error) {
 	if params.logLevelFn == nil {
 		return nil, errors.New("must call one of core.BundleParams.LogForOneShot or LogForDaemon")

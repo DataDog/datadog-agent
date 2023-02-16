@@ -32,6 +32,21 @@ type dependencies struct {
 	Params Params
 }
 
+// OverrideConfig is used to provide an initial configuration before dependencies are fulfilled.
+// This is useful in tests if your component reads the config in the constructor. Provide an
+// initial config implementation at app startup: `fx.Supply(configComponent.InitConfig{Cfg: cfg})`
+// with the desired default values.
+type OverrideConfig struct {
+	Config config.Config
+}
+
+type mockDependencies struct {
+	fx.In
+
+	Params         Params
+	OverrideConfig OverrideConfig
+}
+
 func newConfig(deps dependencies) (Component, error) {
 	warnings, err := setupConfig(deps)
 	if err != nil {
@@ -51,33 +66,40 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func newMock(deps dependencies, t testing.TB) Component {
+func newMock(deps mockDependencies, t testing.TB) Component {
 	old := config.Datadog
-	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
+	if deps.OverrideConfig.Config == nil {
+
+		config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
+
+		// call InitConfig to set defaults.
+		config.InitConfig(config.Datadog)
+
+		// Viper's `GetXxx` methods read environment variables at the time they are
+		// called, if those names were passed explicitly to BindEnv*(), so we must
+		// also strip all `DD_` environment variables for the duration of the test.
+		oldEnv := os.Environ()
+		for _, kv := range oldEnv {
+			if strings.HasPrefix(kv, "DD_") {
+				kvslice := strings.SplitN(kv, "=", 2)
+				os.Unsetenv(kvslice[0])
+			}
+		}
+		t.Cleanup(func() {
+			for _, kv := range oldEnv {
+				kvslice := strings.SplitN(kv, "=", 2)
+				os.Setenv(kvslice[0], kvslice[1])
+			}
+		})
+
+	} else {
+		config.Datadog = deps.OverrideConfig.Config
+	}
+
 	c := &cfg{
 		Config:   config.Datadog,
 		warnings: &config.Warnings{},
 	}
-
-	// call InitConfig to set defaults.
-	config.InitConfig(config.Datadog)
-
-	// Viper's `GetXxx` methods read environment variables at the time they are
-	// called, if those names were passed explicitly to BindEnv*(), so we must
-	// also strip all `DD_` environment variables for the duration of the test.
-	oldEnv := os.Environ()
-	for _, kv := range oldEnv {
-		if strings.HasPrefix(kv, "DD_") {
-			kvslice := strings.SplitN(kv, "=", 2)
-			os.Unsetenv(kvslice[0])
-		}
-	}
-	t.Cleanup(func() {
-		for _, kv := range oldEnv {
-			kvslice := strings.SplitN(kv, "=", 2)
-			os.Setenv(kvslice[0], kvslice[1])
-		}
-	})
 
 	// swap the existing config back at the end of the test.
 	t.Cleanup(func() { config.Datadog = old })

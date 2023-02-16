@@ -6,7 +6,7 @@
 //go:build serverless
 // +build serverless
 
-package dogstatsd
+package server
 
 import (
 	"context"

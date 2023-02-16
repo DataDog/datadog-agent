@@ -45,7 +45,7 @@ func newMockLogger(t testing.TB, lc fx.Lifecycle) (Component, error) {
 	}})
 
 	// install the logger into pkg/util/log
-	log.SetupLogger(iface, "trace")
+	log.SetupLogger(iface, "off")
 
 	return &logger{}, nil
 }

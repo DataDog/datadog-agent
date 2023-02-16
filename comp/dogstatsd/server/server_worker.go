@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dogstatsd
+package server
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -18,7 +18,7 @@ var (
 )
 
 type worker struct {
-	server *Server
+	server *server
 	// the batcher will be responsible of batching a few samples / events / service
 	// checks and it will automatically forward them to the aggregator, meaning that
 	// the flushing logic to the aggregator is actually in the batcher.
@@ -31,7 +31,7 @@ type worker struct {
 	samples metrics.MetricSampleBatch
 }
 
-func newWorker(s *Server) *worker {
+func newWorker(s *server) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer)

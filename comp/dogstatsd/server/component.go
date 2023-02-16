@@ -63,8 +63,7 @@ var Module = fxutil.Component(
 	fx.Provide(newServer),
 )
 
-// TODO: Create a mock version once dogstatsd server is migrated
 // MockModule defines the fx options for the mock component.
-// var MockModule = fxutil.Component(
-// fx.Provide(newMock),
-// )
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)

@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dogstatsd
+package server
 
 import (
 	"bytes"
 	"fmt"
 	"math"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 type eventPriority int
@@ -208,7 +208,7 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		optionalField, optionalFields = nextField(optionalFields)
 		event, err = p.applyEventOptionalField(event, optionalField)
 		if err != nil {
-			log.Warnf("invalid event optional field: %v", err)
+			log.NewTemporaryLogger().Warnf("invalid event optional field: %v", err)
 		}
 	}
 	return event, nil

@@ -19,6 +19,6 @@ var Bundle = fxutil.Bundle(
 
 // TODO: Create a mock version once dogstatsd server is migrated
 // MockBundle defines the mock fx options for this bundle.
-// var MockBundle = fxutil.Bundle(
-// 	server.Module,
-// )
+var MockBundle = fxutil.Bundle(
+	server.MockModule,
+)
