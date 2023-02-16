@@ -13,7 +13,6 @@ build do
   license "Apache-2.0"
   license_file "./LICENSE.txt"
 
-
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
   else
