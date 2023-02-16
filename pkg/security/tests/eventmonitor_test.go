@@ -11,6 +11,7 @@ package tests
 import (
 	"errors"
 	"os/exec"
+	"sync"
 	"testing"
 
 	"github.com/avast/retry-go/v4"
@@ -21,6 +22,7 @@ import (
 )
 
 type FakeEventConsumer struct {
+	sync.RWMutex
 	exec int
 	fork int
 	exit int
@@ -48,6 +50,9 @@ func (fc *FakeEventConsumer) Stop() {
 }
 
 func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
+	fc.Lock()
+	defer fc.Unlock()
+
 	switch event.GetEventType() {
 	case model.ExecEventType:
 		fc.exec++
@@ -81,7 +86,11 @@ func TestProcessMonitoring(t *testing.T) {
 		_ = cmd.Run()
 
 		err := retry.Do(func() error {
-			if forkCount+1 <= fc.fork {
+			fc.RLock()
+			ok := forkCount+1 <= fc.fork
+			fc.RUnlock()
+
+			if ok {
 				return nil
 			}
 
