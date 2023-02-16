@@ -369,7 +369,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	if s.enableSketchProtobufStream {
 		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
 		if err != nil {
-			log.Errorf("dropping sketch payload: %v", err)
+			return fmt.Errorf("dropping sketch payload: %v", err)
 		}
 
 		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
