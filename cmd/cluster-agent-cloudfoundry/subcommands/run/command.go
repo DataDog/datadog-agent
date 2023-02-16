@@ -43,10 +43,6 @@ import (
 	"time"
 )
 
-const (
-	LoggerName = "CLUSTER"
-)
-
 // Commands returns a slice of subcommands for the 'cluster-agent-cloudfoundry' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	startCmd := &cobra.Command{

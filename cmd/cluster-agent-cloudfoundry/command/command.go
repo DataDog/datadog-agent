@@ -19,6 +19,10 @@ import (
 	"os"
 )
 
+const (
+	LoggerName = "CLUSTER"
+)
+
 // GlobalParams contains the values of agent-global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents
