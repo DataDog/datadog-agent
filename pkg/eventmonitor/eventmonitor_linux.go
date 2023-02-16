@@ -9,25 +9,9 @@
 package eventmonitor
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"net"
 	"os"
-	"sync"
-	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"golang.org/x/exp/slices"
-	"google.golang.org/grpc"
-
-	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func (m *EventMonitor) getListener() (net.Listener, error) {
@@ -38,5 +22,5 @@ func (m *EventMonitor) getListener() (net.Listener, error) {
 	if err := os.Chmod(m.secconfig.SocketPath, 0700); err != nil {
 		return nil, err
 	}
-	return len, nil
+	return ln, nil
 }

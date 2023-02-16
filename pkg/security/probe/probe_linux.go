@@ -44,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -1238,16 +1237,22 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p := &Probe{
 		Opts:                 opts,
 		Config:               config,
-		approvers:            make(map[eval.EventType]activeApprovers),
-		managerOptions:       ebpf.NewDefaultOptions(),
+		StatsdClient:         opts.StatsdClient,
+		
 		ctx:                  ctx,
 		cancelFnc:            cancel,
-		Erpc:                 nerpc,
-		erpcRequest:          &erpc.ERPCRequest{},
-		StatsdClient:         opts.StatsdClient,
+		
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
 		event:                &model.Event{},
+
+		PlatformProbe : PlatformProbe {
+			Erpc:                 nerpc,
+			erpcRequest:          &erpc.ERPCRequest{},
+			
+			approvers:            make(map[eval.EventType]activeApprovers),
+			managerOptions:       ebpf.NewDefaultOptions(),
+		},
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
