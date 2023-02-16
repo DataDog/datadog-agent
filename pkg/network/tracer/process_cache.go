@@ -16,8 +16,8 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +30,7 @@ var defaultFilteredEnvs = []string{
 const (
 	maxProcessQueueLen = 100
 	// maxProcessListSize is the max size of a processList
-	maxProcessListSize = 3
+	maxProcessListSize  = 3
 	telemetryModuleName = "network_tracer.process_cache"
 )
 

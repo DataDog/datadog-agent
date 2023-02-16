@@ -23,7 +23,7 @@ import (
 const (
 	dnsCacheExpirationPeriod = 1 * time.Minute
 	dnsCacheSize             = 100000
-	telemetryModuleName = "network_tracer.dns"
+	telemetryModuleName      = "network_tracer.dns"
 )
 
 var _ ReverseDNS = &socketFilterSnooper{}

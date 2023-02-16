@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	perfReceivedStat = "closed_conn_polling_received"
-	perfLostStat     = "closed_conn_polling_lost"
+	perfReceivedStat    = "closed_conn_polling_received"
+	perfLostStat        = "closed_conn_polling_lost"
 	telemetryModuleName = "network_tracer.ebpf"
 )
 

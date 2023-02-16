@@ -638,7 +638,7 @@ func (ns *networkState) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"clients": clientInfo,
+		"clients":            clientInfo,
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,
 	}
