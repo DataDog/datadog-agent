@@ -98,15 +98,20 @@ type uptaneClient interface {
 // NewService instantiates a new remote configuration management service
 func NewService() (*Service, error) {
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
-	refreshInterval := config.Datadog.GetDuration("remote_configuration.refresh_interval")
-	if refreshInterval == 0 {
-		refreshInterval = defaultRefreshInterval
+
+	var refreshInterval time.Duration
+	if config.Datadog.IsSet("remote_configuration.refresh_interval") {
+		refreshInterval = config.Datadog.GetDuration("remote_configuration.refresh_interval")
+	} else {
 		refreshIntervalOverrideAllowed = true
+		refreshInterval = defaultRefreshInterval
 	}
 
+	// Either invalid (which resolves to 0) or was explicitly set below minimal. If it was invalid there would
+	// be an additional error message describing the failure to parse the value.
 	if refreshInterval < minimalRefreshInterval {
-		log.Warnf("remote_configuration.refresh_interval is set to %v which is below the minimum of %v", refreshInterval, minimalRefreshInterval)
-		refreshInterval = minimalRefreshInterval
+		log.Warnf("remote_configuration.refresh_interval is set to %v which is below the minimum of %v - using default refresh interval %v", refreshInterval, minimalRefreshInterval, defaultRefreshInterval)
+		refreshInterval = defaultRefreshInterval
 		refreshIntervalOverrideAllowed = true
 	}
 
