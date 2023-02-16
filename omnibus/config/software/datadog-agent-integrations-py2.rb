@@ -10,8 +10,8 @@ name 'datadog-agent-integrations-py2'
 
 dependency 'datadog-agent'
 dependency 'pip2'
-dependency 'confluent-kafka-python'
-dependency 'librdkafka'
+
+
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
   # to compile from source, it requires the `pg_config` executable present on the $PATH
@@ -62,7 +62,7 @@ blacklist_folders = [
 
 # package names of dependencies that won't be added to the Agent Python environment
 blacklist_packages = Array.new
-blacklist_packages.push(/^confluent-kafka==/)
+
 
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
