@@ -53,7 +53,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	for key, stats := range stats {
 		assert.Equal(t, "/testpath", key.Path.Content[:9])
 		for i := 0; i < 5; i++ {
-			s := stats.stats((i + 1) * 100)
+			s := stats.Data[uint16((i+1)*100)]
 			require.NotNil(t, s)
 			assert.Equal(t, 2, s.Count)
 			assert.Equal(t, 2.0, s.Latencies.GetCount())
@@ -156,7 +156,7 @@ func TestPathProcessing(t *testing.T) {
 		require.Len(t, stats, 1)
 		for key, metrics := range stats {
 			assert.Equal(t, "/prefix/users/?", key.Path.Content)
-			s := metrics.stats(statusCode)
+			s := metrics.Data[uint16(statusCode)]
 			require.NotNil(t, s)
 			assert.Equal(t, 3, s.Count)
 		}
@@ -187,7 +187,7 @@ func TestPathProcessing(t *testing.T) {
 		require.Len(t, stats, 1)
 		for key, metrics := range stats {
 			assert.Equal(t, "/users/?/payment/?", key.Path.Content)
-			s := metrics.stats(statusCode)
+			s := metrics.Data[uint16(statusCode)]
 			require.NotNil(t, s)
 			assert.Equal(t, 2, s.Count)
 		}
