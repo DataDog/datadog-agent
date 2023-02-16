@@ -7,11 +7,12 @@ package run
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
-func initRuntimeSettings() error {
+func initRuntimeSettings(server dogstatsdServer.Component) error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
 		return err
@@ -22,7 +23,7 @@ func initRuntimeSettings() error {
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate("runtime_block_profile_rate")); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(settings.DsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(&settings.DsdStatsRuntimeSetting{Server: server}); err != nil {
 		return err
 	}
 	if err := commonsettings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
