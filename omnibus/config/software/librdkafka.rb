@@ -1,10 +1,11 @@
 name "librdkafka"
 default_version "2.0.2"
 
-version "2.0.2" do
-  source url: "https://github.com/confluentinc/librdkafka/archive/refs/tags/v2.0.2.tar.gz"
-  source sha256: "f321bcb1e015a34114c83cf1aa7b99ee260236aab096b85c003170c90a47ca9d"
-end
+source :url => "https://github.com/confluentinc/librdkafka/archive/refs/tags/v#{version}.tar.gz",
+       :sha256 => "f321bcb1e015a34114c83cf1aa7b99ee260236aab096b85c003170c90a47ca9d",
+       :extract => :seven_zip
+
+relative_path "librdkafka-#{version}"
 
 build do
   license "BSD-style"
