@@ -19,6 +19,8 @@ type StatsTelemetrySenderMock struct{}
 
 func (m StatsTelemetrySenderMock) Count(metric string, value float64, hostname string, tags []string) {
 }
+func (m StatsTelemetrySenderMock) CountNoIndex(metric string, value float64, hostname string, tags []string) {
+}
 func (m StatsTelemetrySenderMock) Gauge(metric string, value float64, hostname string, tags []string) {
 }
 func (m StatsTelemetrySenderMock) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {

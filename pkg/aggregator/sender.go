@@ -24,6 +24,7 @@ type Sender interface {
 	GaugeNoIndex(metric string, value float64, hostname string, tags []string)
 	Rate(metric string, value float64, hostname string, tags []string)
 	Count(metric string, value float64, hostname string, tags []string)
+	CountNoIndex(metric string, value float64, hostname string, tags []string)
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
 	MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool)
 	Counter(metric string, value float64, hostname string, tags []string)
@@ -306,6 +307,11 @@ func (s *checkSender) Rate(metric string, value float64, hostname string, tags [
 // Count should be used to count a number of events that occurred during the check run
 func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, false)
+}
+
+// Count should be used to count a number of events that occurred during the check run
+func (s *checkSender) CountNoIndex(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, true)
 }
 
 // MonotonicCount should be used to track the increase of a monotonic raw counter

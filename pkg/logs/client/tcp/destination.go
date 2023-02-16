@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,6 +30,7 @@ type Destination struct {
 	shouldRetry         bool
 	retryLock           sync.Mutex
 	lastRetryError      error
+	provider            *telemetry.StatsTelemetryProvider
 }
 
 // NewDestination returns a new destination.
@@ -43,6 +45,7 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		lastRetryError:      nil,
+		provider:            telemetry.GetStatsTelemetryProvider(),
 	}
 }
 
@@ -101,6 +104,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		metrics.LogsSent.Add(1)
 		metrics.TlmLogsSent.Inc()
+		d.provider.CountNoIndex("datadog.logs_agent.logs_sent", 1, nil)
 		metrics.BytesSent.Add(int64(payload.UnencodedSize))
 		metrics.TlmBytesSent.Add(float64(payload.UnencodedSize))
 		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
@@ -121,6 +125,7 @@ func (d *Destination) incrementErrors(drop bool) {
 		host := d.connManager.endpoint.Host
 		metrics.DestinationLogsDropped.Add(host, 1)
 		metrics.TlmLogsDropped.Inc(host)
+		d.provider.CountNoIndex("datadog.logs_agent.logs_dropped", 1, nil)
 	}
 	metrics.DestinationErrors.Add(1)
 	metrics.TlmDestinationErrors.Inc()

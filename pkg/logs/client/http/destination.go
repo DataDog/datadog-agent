@@ -239,6 +239,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
 		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
+		d.provider.CountNoIndex("datadog.logs_agent.logs_sent", float64(len(payload.Messages)), nil)
 		output <- payload
 		return
 	}
