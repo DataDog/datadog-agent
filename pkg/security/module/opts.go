@@ -8,14 +8,7 @@
 
 package module
 
-import (
-	"github.com/DataDog/datadog-go/v5/statsd"
-)
-
-// TODO Split this
 // Opts define module options
 type Opts struct {
-	StatsdClient       statsd.ClientInterface
-	EventSender        EventSender
-	DontDiscardRuntime bool
+	EventSender EventSender
 }

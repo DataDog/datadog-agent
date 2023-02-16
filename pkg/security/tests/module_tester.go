@@ -842,7 +842,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.disableRuntimeSecurity {
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor)
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, module.Opts{EventSender: testMod})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
@@ -906,7 +906,6 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb 
 	defer tm.eventHandlers.RUnlock()
 
 	switch ev := event.(type) {
-	case *model.Event:
 	case *events.CustomEvent:
 		if tm.eventHandlers.onCustomSendEvent != nil {
 			tm.eventHandlers.onCustomSendEvent(rule, ev)

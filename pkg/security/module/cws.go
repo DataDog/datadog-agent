@@ -453,16 +453,6 @@ func (c *CWSConsumer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() 
 	}
 }
 
-// SendProcessEvent sends a process event using the provided EventSender interface
-func (c *CWSConsumer) SendProcessEvent(data []byte) {
-	c.eventSender.SendProcessEventData(data)
-}
-
-// SendProcessEventData implements the EventSender interface forwarding a process event to the APIServer
-func (c *CWSConsumer) SendProcessEventData(data []byte) {
-	c.apiServer.SendProcessEvent(data)
-}
-
 // HandleActivityDump sends an activity dump to the backend
 func (c *CWSConsumer) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
 	c.apiServer.SendActivityDump(dump)
