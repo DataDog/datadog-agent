@@ -1,0 +1,16 @@
+global_config_source = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0RhdGFEb2cvZ2l0aHViLW1ldGFkYXRhL21hc3Rlci9qaXJhLnRvbWw="
+jira_statuses = [
+  "TODO",
+  "Testing",
+  "Done",
+]
+ignored_labels = [
+  "changelog/no-changelog",
+  "qa/skip-qa",
+]
+
+[teams."Agent Metrics Logs"]
+jira_project = "AML"
+jira_issue_type = "Task"
+github_team = "agent-metrics-logs"
+github_labels = ["team/agent-metrics-logs"]
