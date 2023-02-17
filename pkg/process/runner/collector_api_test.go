@@ -566,11 +566,11 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
 	}
-	c, err := NewCollectorWithChecks([]checks.Check{check}, true)
+	c, err := NewCollectorWithChecks([]checks.Check{check}, true, nil)
 	check.Init(nil, hostInfo)
 	assert.NoError(t, err)
 
-	c.Submitter, err = NewSubmitter(hostInfo.HostName, c.UpdateRTStatus)
+	c.Submitter, err = NewSubmitter(hostInfo.HostName)
 	require.NoError(t, err)
 
 	err = c.Run()

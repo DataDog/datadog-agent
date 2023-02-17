@@ -19,7 +19,7 @@ import (
 
 // submitter implements the Component.
 type submitter struct {
-	s processRunner.Submitter
+	s *processRunner.CheckSubmitter
 }
 
 type dependencies struct {
@@ -30,7 +30,7 @@ type dependencies struct {
 }
 
 func newSubmitter(deps dependencies) (Component, error) {
-	s, err := processRunner.NewSubmitter(deps.HostInfo.HostName, nil)
+	s, err := processRunner.NewSubmitter(deps.HostInfo.HostName)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +59,10 @@ func (s *submitter) Start() error {
 
 func (s *submitter) Stop() {
 	s.s.Stop()
+}
+
+func (s *submitter) GetRTNotifierChan() <-chan types.RTResponse {
+	return s.s.GetRTNotifierChan()
 }
 
 func newMock(deps dependencies, t testing.TB) Component {

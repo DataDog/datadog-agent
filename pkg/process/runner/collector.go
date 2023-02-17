@@ -75,6 +75,9 @@ type Collector struct {
 
 	// Submits check payloads to datadog
 	Submitter Submitter
+
+	// listens for when to enable and disable realtime mode
+	rtNotifierChan <-chan types.RTResponse
 }
 
 func (l *Collector) RunRealTime() bool {
@@ -82,7 +85,7 @@ func (l *Collector) RunRealTime() bool {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
+func NewCollector(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*Collector, error) {
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 
 	cfg := &checks.SysProbeConfig{}
@@ -100,11 +103,11 @@ func NewCollector(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCh
 		}
 	}
 
-	return NewCollectorWithChecks(enabledChecks, runRealTime)
+	return NewCollectorWithChecks(enabledChecks, runRealTime, rtNotifierChan)
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(checks []checks.Check, runRealTime bool) (*Collector, error) {
+func NewCollectorWithChecks(checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*Collector, error) {
 	orchestrator := oconfig.NewDefaultOrchestratorConfig()
 	if err := orchestrator.Load(); err != nil {
 		return nil, err
@@ -123,7 +126,8 @@ func NewCollectorWithChecks(checks []checks.Check, runRealTime bool) (*Collector
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  atomic.NewBool(false),
 
-		runRealTime: runRealTime,
+		runRealTime:    runRealTime,
+		rtNotifierChan: rtNotifierChan,
 	}, nil
 }
 
@@ -236,13 +240,10 @@ const (
 )
 
 func (l *Collector) Run() error {
-	err := l.Submitter.Start()
-	if err != nil {
-		return err
-	}
+	realTimeAllowed := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 
 	checkNamesLength := len(l.enabledChecks)
-	if !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+	if realTimeAllowed {
 		// checkNamesLength is double when realtime checks is enabled as we append the Process real time name
 		// as well as the original check name
 		checkNamesLength = checkNamesLength * 2
@@ -254,12 +255,16 @@ func (l *Collector) Run() error {
 
 		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
 		// process_rt doesn't show up in the enabled checks
-		if check.Name() == checks.ProcessCheckName && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+		if check.Name() == checks.ProcessCheckName && realTimeAllowed {
 			checkNames = append(checkNames, checks.RTProcessCheckName)
 		}
 	}
 	status.UpdateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
+
+	if realTimeAllowed && l.rtNotifierChan != nil {
+		l.listenForRTUpdates()
+	}
 
 	for _, c := range l.enabledChecks {
 		runner, err := l.runnerForCheck(c)
@@ -280,6 +285,26 @@ func (l *Collector) Run() error {
 	}
 
 	return nil
+}
+
+func (l *Collector) listenForRTUpdates() {
+	l.wg.Add(1)
+	go func() {
+		defer l.wg.Done()
+
+		for {
+			select {
+			case response, ok := <-l.rtNotifierChan:
+				if !ok {
+					return
+				}
+
+				l.UpdateRTStatus(response)
+			case <-l.stop:
+				return
+			}
+		}
+	}()
 }
 
 func (l *Collector) runnerForCheck(c checks.Check) (func(), error) {
@@ -405,7 +430,6 @@ func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
 func (l *Collector) Stop() {
 	close(l.stop)
 	l.wg.Wait()
-	l.Submitter.Stop()
 }
 
 func (l *Collector) GetChecks() []checks.Check {

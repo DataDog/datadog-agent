@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -272,7 +273,6 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) {
 	go util.HandleSignals(exit)
 
-	var s fx.Shutdowner
 	app := fx.New(
 		fx.Supply(
 			syscfg,
@@ -280,21 +280,24 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 			enabledChecks,
 		),
 		runnerComp.Module,
+		submitter.Module,
+
+		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
 		// Invoke the runner to call its start hook
 		fx.Invoke(func(runnerComp.Component) {}),
-		fx.Populate(&s),
 	)
 	err := app.Start(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %v", err)
+		fx.VisualizeError(err)
 		return
 	}
 
 	// Set up an exit channel
 	<-exit
-	err = s.Shutdown()
+	err = app.Stop(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to properly stop the process agent: %v", err)
 	} else {

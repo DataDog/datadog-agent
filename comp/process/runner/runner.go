@@ -7,12 +7,12 @@ package runner
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"testing"
 
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
@@ -26,7 +26,7 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	submitter submitter.Component
+	Submitter submitter.Component
 
 	Checks   []checks.Check
 	HostInfo *checks.HostInfo
@@ -34,11 +34,11 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := processRunner.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks)
+	c, err := processRunner.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks, deps.Submitter.GetRTNotifierChan())
 	if err != nil {
 		return nil, err
 	}
-	c.Submitter = deps.submitter
+	c.Submitter = deps.Submitter
 
 	runner := &runner{
 		collector: c,

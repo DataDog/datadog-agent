@@ -6,8 +6,9 @@
 package types
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/fx"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 // Payload defines payload from the check
@@ -29,3 +30,5 @@ type ProvidesCheck struct {
 
 	Check Check `group:"check"`
 }
+
+type RTResponse []*model.CollectorStatus

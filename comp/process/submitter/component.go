@@ -8,9 +8,10 @@
 package submitter
 
 import (
-	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/process/types"
+	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,6 +20,8 @@ import (
 // Component is the component type.
 type Component interface {
 	processRunner.Submitter
+
+	GetRTNotifierChan() <-chan types.RTResponse
 }
 
 // Mock implements mock-specific methods.
