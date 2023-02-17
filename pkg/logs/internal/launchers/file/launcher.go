@@ -139,10 +139,6 @@ func (s *Launcher) scan() {
 	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
 
-	// Check how many files the Agent process has open and log a warning if the process is coming close to the OS file limit
-	fileStats := util.GetFileStats()
-	util.CheckFileStats(fileStats)
-
 	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), len(s.tailers))
 
 	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
@@ -186,6 +182,14 @@ func (s *Launcher) scan() {
 		}
 
 		filesTailed[scanKey] = true
+
+		// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
+		fileStats, err := util.GetProcessFileStats()
+		if err != nil {
+			continue
+		} else {
+			CheckProcessTelemetry(fileStats)
+		}
 	}
 
 	for scanKey, tailer := range s.tailers {
@@ -431,4 +435,14 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern))
+}
+
+func CheckProcessTelemetry(stats *util.ProcessFileStats) {
+	// Log a warning if the ratio between the Agent's open files to the OS file limit is > 0.9, log an error if OS file limit is reached
+	if stats.AgentOpenFiles/stats.OsFileLimit > 0.9 {
+		log.Warnf("Agent process is close to OS file limit of %v. Agent process currently has %v files open.", stats.OsFileLimit, stats.AgentOpenFiles)
+	} else if stats.AgentOpenFiles/stats.OsFileLimit >= 1 {
+		log.Errorf("Agent process is reaching OS open file limit: %v. This may be preventing log files from being tailed by the Agent. Consider increasing OS file limit.", stats.OsFileLimit)
+	}
+	log.Debugf("Agent process currently has %v files open. OS file limit is currently set to %v.", stats.AgentOpenFiles, stats.OsFileLimit)
 }
