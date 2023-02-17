@@ -140,7 +140,7 @@ kitchen_test_system_probe_linux_arm64:
         KITCHEN_OSVERS: "debian-10,debian-11"
         KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-78,rhel-83"
+        KITCHEN_OSVERS: "centos-79,rhel-83"
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
         KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
