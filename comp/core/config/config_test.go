@@ -47,6 +47,7 @@ func TestMockConfig(t *testing.T) {
 
 	fxutil.Test(t, fx.Options(
 		fx.Supply(Params{}),
+		fx.Supply(OverrideConfig{}),
 		MockModule,
 	), func(config Component) {
 		// values aren't set from env..
