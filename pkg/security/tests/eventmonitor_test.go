@@ -49,6 +49,24 @@ func (fc *FakeEventConsumer) Start() error {
 func (fc *FakeEventConsumer) Stop() {
 }
 
+func (fc *FakeEventConsumer) GetForkCount() int {
+	fc.RLock()
+	defer fc.RUnlock()
+	return fc.fork
+}
+
+func (fc *FakeEventConsumer) GetExitCount() int {
+	fc.RLock()
+	defer fc.RUnlock()
+	return fc.exit
+}
+
+func (fc *FakeEventConsumer) GetExecCount() int {
+	fc.RLock()
+	defer fc.RUnlock()
+	return fc.exec
+}
+
 func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
 	fc.Lock()
 	defer fc.Unlock()
@@ -83,16 +101,12 @@ func TestProcessMonitoring(t *testing.T) {
 	}
 
 	t.Run("fork", func(t *testing.T) {
-		forkCount := fc.fork
+		forkCount := fc.GetForkCount()
 		cmd := exec.Command(syscallTester, "fork")
 		_ = cmd.Run()
 
 		err := retry.Do(func() error {
-			fc.RLock()
-			ok := forkCount+1 <= fc.fork
-			fc.RUnlock()
-
-			if ok {
+			if forkCount+1 <= fc.GetForkCount() {
 				return nil
 			}
 
@@ -102,19 +116,15 @@ func TestProcessMonitoring(t *testing.T) {
 	})
 
 	t.Run("exec-exit", func(t *testing.T) {
-		execCount := fc.exec
-		exitCount := fc.exit
+		execCount := fc.GetExecCount()
+		exitCount := fc.GetExitCount()
 
 		lsExecutable := which(t, "ls")
 		cmd := exec.Command(lsExecutable, "-l")
 		_ = cmd.Run()
 
 		err := retry.Do(func() error {
-			fc.RLock()
-			ok := execCount+1 <= fc.exec && exitCount+1 <= fc.exit
-			fc.RUnlock()
-
-			if ok {
+			if execCount+1 <= fc.GetExecCount() && exitCount+1 <= fc.GetExitCount() {
 				return nil
 			}
 
