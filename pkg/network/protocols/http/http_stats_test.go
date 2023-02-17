@@ -16,16 +16,25 @@ import (
 )
 
 func TestAddRequest(t *testing.T) {
-	var stats RequestStats
-	stats.AddRequest(400, 10.0, 1, nil)
-	stats.AddRequest(404, 15.0, 2, nil)
+	t.Run("status code", func(t *testing.T) {
+		testAddRequest(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testAddRequest(t, false)
+	})
+}
+
+func testAddRequest(t *testing.T, aggregateByStatusCode bool) {
+	stats := NewRequestStats(aggregateByStatusCode)
+	stats.AddRequest(405, 10.0, 1, nil)
+	stats.AddRequest(405, 15.0, 2, nil)
 	stats.AddRequest(405, 20.0, 3, nil)
 
 	assert.Nil(t, stats.Data[100])
 	assert.Nil(t, stats.Data[200])
 	assert.Nil(t, stats.Data[300])
 	assert.Nil(t, stats.Data[500])
-	s := stats.Data[400]
+	s := stats.Data[stats.NormalizeStatusCode(405)]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 3, s.Count)
