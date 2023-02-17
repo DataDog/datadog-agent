@@ -257,3 +257,7 @@ func parseFloat64(rawFloat []byte) (float64, error) {
 func parseInt64(rawInt []byte) (int64, error) {
 	return strconv.ParseInt(*(*string)(unsafe.Pointer(&rawInt)), 10, 64)
 }
+
+func parseInt(rawInt []byte) (int, error) {
+	return strconv.Atoi(*(*string)(unsafe.Pointer(&rawInt)))
+}

@@ -8,7 +8,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"math"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 )
@@ -44,8 +43,8 @@ type dogstatsdEvent struct {
 }
 
 type eventHeader struct {
-	titleLength int64
-	textLength  int64
+	titleLength int
+	textLength  int
 }
 
 var (
@@ -92,8 +91,8 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	rawTextLength := rawLengths[sepIndex+1:]
 
 	// Convert title length to workable type and do a basic validity check on value
-	titleLength, err := parseInt64(rawTitleLength)
-	if err != nil || titleLength < 0 || titleLength > int64(math.MaxInt) {
+	titleLength, err := parseInt(rawTitleLength)
+	if err != nil || titleLength < 0 {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
 
@@ -103,8 +102,8 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	}
 
 	// Convert text length to workable type and do a basic validity check on value
-	textLength, err := parseInt64(rawTextLength)
-	if err != nil || textLength < 0 || textLength > int64(math.MaxInt) {
+	textLength, err := parseInt(rawTextLength)
+	if err != nil || textLength < 0 {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
 
@@ -184,7 +183,7 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		return dogstatsdEvent{}, err
 	}
 
-	if int64(len(rawEvent)) < header.textLength+header.titleLength+1 {
+	if len(rawEvent) < header.textLength+header.titleLength+1 {
 		return dogstatsdEvent{}, fmt.Errorf("invalid event")
 	}
 
@@ -198,7 +197,7 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		alertType: alertTypeInfo,
 	}
 
-	if int64(len(rawEvent)) == header.textLength+header.titleLength+1 {
+	if len(rawEvent) == header.textLength+header.titleLength+1 {
 		return event, nil
 	}
 
