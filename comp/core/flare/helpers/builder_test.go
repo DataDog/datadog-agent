@@ -261,13 +261,13 @@ func TestRegisterDirPerm(t *testing.T) {
 	fb.RegisterDirPerm(root)
 
 	expectedPaths := []string{
-		fmt.Sprintf("%s", root),
-		fmt.Sprintf("%s/test1", root),
-		fmt.Sprintf("%s/test2", root),
-		fmt.Sprintf("%s/depth1", root),
-		fmt.Sprintf("%s/depth1/test3", root),
-		fmt.Sprintf("%s/depth1/depth2", root),
-		fmt.Sprintf("%s/depth1/depth2/test4", root),
+		filepath.Join(root),
+		filepath.Join(root, "test1"),
+		filepath.Join(root, "test2"),
+		filepath.Join(root, "depth1"),
+		filepath.Join(root, "depth1", "test3"),
+		filepath.Join(root, "depth1", "depth2"),
+		filepath.Join(root, "depth1", "depth2", "test4"),
 	}
 
 	require.Len(t, fb.permsInfos, len(expectedPaths))
