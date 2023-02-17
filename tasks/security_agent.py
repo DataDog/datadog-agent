@@ -786,6 +786,8 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
 
 
+# TODO: this task does the same thing as system-probe.print-failed-tests.
+# They could be refactored to have the logic in only one place.
 @task
 def print_failed_tests(_, output_dir):
     """
