@@ -29,6 +29,7 @@ type InstanceConfig struct {
 	Password    string `yaml:"password"`
 	TnsAlias    string `yaml:"tns_alias"`
 	TnsAdmin    string `yaml:"tns_admin"`
+	DBM         bool
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
