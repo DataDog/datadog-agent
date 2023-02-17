@@ -7,7 +7,6 @@ package runner
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/process/types"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -17,6 +16,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
