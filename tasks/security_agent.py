@@ -719,7 +719,7 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, local=False):
+def kitchen_prepare(ctx, local=False, skip_linters=False):
     """
     Compile test suite for kitchen
     """
@@ -737,9 +737,10 @@ def kitchen_prepare(ctx, local=False):
         race=True,
         output=testsuite_out_path,
         nikos_embedded_path=nikos_embedded_path,
+        skip_linters=skip_linters,
     )
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
-    build_stress_tests(ctx, output=stresssuite_out_path)
+    build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
 
     # Copy clang binaries
     for bin in ["clang-bpf", "llc-bpf"]:
