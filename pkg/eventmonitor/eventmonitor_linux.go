@@ -11,7 +11,6 @@ package eventmonitor
 import (
 	"net"
 	"os"
-
 )
 
 func (m *EventMonitor) getListener() (net.Listener, error) {
@@ -23,4 +22,10 @@ func (m *EventMonitor) getListener() (net.Listener, error) {
 		return nil, err
 	}
 	return ln, nil
+}
+
+func (m *EventMonitor) init() error {
+	// force socket cleanup of previous socket not cleanup
+
+	os.Remove(m.secconfig.SocketPath)
 }
