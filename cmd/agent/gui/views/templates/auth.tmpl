@@ -5,7 +5,7 @@
 </head>
 <script>
   // Extract authToken and csrf from a given URL query.
-  let urlParam = location.search.substring(1).split("?");
+  let urlParam = location.search.substring(1).split("&");
   const authTokenPrefix = "authToken=";
   const csrfPrefix = "csrf=";
   let authToken = "";
