@@ -108,14 +108,14 @@ tests_ebpf_arm64:
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 prepare_ebpf_functional_tests_arm64:
-  extends: .prepare_ebpf_functional_tests:
+  extends: .prepare_ebpf_functional_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
 
 prepare_ebpf_functional_tests_x64:
-  extends: .prepare_ebpf_functional_tests:
+  extends: .prepare_ebpf_functional_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:main"]
   variables:
