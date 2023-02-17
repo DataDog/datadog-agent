@@ -58,11 +58,11 @@ const tracerModuleName = "network_tracer"
 // If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 // to determine whether a connection is truly closed or not
 var (
-	skippedConns   = newGauge(tracerModuleName, "skipped_conns", "description")
-	expiredTCPConns   = newGauge(tracerModuleName, "expired_tcp_conns", "description")
-	closedConns = newGaugeWrapper(tracerModuleName, "closed_conns", "description")
+	skippedConns     = newGauge(tracerModuleName, "skipped_conns", "description")
+	expiredTCPConns  = newGauge(tracerModuleName, "expired_tcp_conns", "description")
+	closedConns      = newGaugeWrapper(tracerModuleName, "closed_conns", "description")
 	connStatsMapSize = newGauge(tracerModuleName, "conn_stats_map_size", "description")
-	lastCheck = newGaugeWrapper(tracerModuleName, "last_check", "description")
+	lastCheck        = newGaugeWrapper(tracerModuleName, "last_check", "description")
 )
 
 // Tracer implements the functionality of the network tracer
@@ -201,7 +201,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
-		bpfTelemetry:     bpfTelemetry,
+		bpfTelemetry:               bpfTelemetry,
 	}
 
 	if config.EnableProcessEventMonitoring {

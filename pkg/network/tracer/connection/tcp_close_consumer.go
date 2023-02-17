@@ -21,15 +21,15 @@ import (
 )
 
 const (
-	perfReceivedStat    = "closed_conn_polling_received"
-	perfLostStat        = "closed_conn_polling_lost"
+	perfReceivedStat        = "closed_conn_polling_received"
+	perfLostStat            = "closed_conn_polling_lost"
 	closeConsumerModuleName = "network_tracer_ebpf"
 )
 
 // Telemetry
 var (
 	perfReceived = telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "description")
-	perfLost = telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "description")
+	perfLost     = telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "description")
 )
 
 type tcpCloseConsumer struct {

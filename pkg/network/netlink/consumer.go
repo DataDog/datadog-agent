@@ -126,11 +126,11 @@ func newGauge(name string, help string, tags ...string) telemetry.Gauge {
 
 // Telemetry
 var (
-	enobufs = newGauge("enobufs", "description")
-	throttles = newGauge("throttles", "description")
+	enobufs     = newGauge("enobufs", "description")
+	throttles   = newGauge("throttles", "description")
 	samplingPct = newGauge("sampling_pct", "description")
-	readErrors = newGauge("read_errors", "description")
-	msgErrors = newGauge("msg_errors", "description")
+	readErrors  = newGauge("read_errors", "description")
+	msgErrors   = newGauge("msg_errors", "description")
 )
 
 // NewConsumer creates a new Conntrack event consumer.

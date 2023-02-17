@@ -57,23 +57,23 @@ func newGaugeWrapper(subsystem string, name string, help string, tags ...string)
 }
 
 var (
-	gets = newGaugeWrapper(ebpfConntrackerModuleName, "gets_total", "description")
-	nanoSecondsPerGet = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_get", "description")
+	gets                     = newGaugeWrapper(ebpfConntrackerModuleName, "gets_total", "description")
+	nanoSecondsPerGet        = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_get", "description")
 	nanoSecondsPerUnregister = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_unregister", "description")
-	registersTotal = newGauge(ebpfConntrackerModuleName, "registers_total", "description")
+	registersTotal           = newGauge(ebpfConntrackerModuleName, "registers_total", "description")
 )
 
 type ebpfConntrackerStats struct {
-	getTotalTime             *atomic.Int64
-	unregisters              *atomic.Int64
-	unregistersTotalTime     *atomic.Int64
+	getTotalTime         *atomic.Int64
+	unregisters          *atomic.Int64
+	unregistersTotalTime *atomic.Int64
 }
 
 func newEbpfConntrackerStats() ebpfConntrackerStats {
 	return ebpfConntrackerStats{
-		getTotalTime:             atomic.NewInt64(0),
-		unregisters:              atomic.NewInt64(0),
-		unregistersTotalTime:     atomic.NewInt64(0),
+		getTotalTime:         atomic.NewInt64(0),
+		unregisters:          atomic.NewInt64(0),
+		unregistersTotalTime: atomic.NewInt64(0),
 	}
 }
 

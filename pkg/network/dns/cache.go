@@ -20,16 +20,15 @@ import (
 
 // Telemetry
 var (
-	length    = nettelemetry.NewStatGaugeWrapper(dnsModuleName, "length", []string{}, "description")
-	lookups   = telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "description")
+	length        = nettelemetry.NewStatGaugeWrapper(dnsModuleName, "length", []string{}, "description")
+	lookups       = telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "description")
 	resolved_tel  = telemetry.NewGauge(dnsModuleName, "resolved", []string{}, "description")
-	added     = telemetry.NewGauge(dnsModuleName, "added", []string{}, "description")
+	added         = telemetry.NewGauge(dnsModuleName, "added", []string{}, "description")
 	expired_tel   = telemetry.NewGauge(dnsModuleName, "expired", []string{}, "description")
 	oversized_tel = telemetry.NewGauge(dnsModuleName, "oversized", []string{}, "description")
 )
 
 type reverseDNSCache struct {
-
 	mux  sync.Mutex
 	data map[util.Address]*dnsCacheVal
 	exit chan struct{}
@@ -109,7 +108,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	var (
 		resolved   = make(map[util.Address][]Hostname)
 		unresolved = make(map[util.Address]struct{})
-		oversize  = make(map[util.Address]struct{})
+		oversize   = make(map[util.Address]struct{})
 	)
 
 	collectNamesForIP := func(addr util.Address) {

@@ -56,19 +56,19 @@ const (
 )
 
 var (
-	size = telemetry.NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "description")
-	misses = telemetry.NewGauge(routeCacheTelemetryModuleName, "misses", []string{}, "description")
+	size    = telemetry.NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "description")
+	misses  = telemetry.NewGauge(routeCacheTelemetryModuleName, "misses", []string{}, "description")
 	lookups = telemetry.NewGauge(routeCacheTelemetryModuleName, "lookups", []string{}, "description")
 	expires = telemetry.NewGauge(routeCacheTelemetryModuleName, "expires", []string{}, "description")
 
 	netlinkLookups = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_lookups", []string{}, "description")
-	netlinkErrors = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_errors", []string{}, "description")
-	netlinkMisses = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_misses", []string{}, "description")
+	netlinkErrors  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_errors", []string{}, "description")
+	netlinkMisses  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_misses", []string{}, "description")
 
 	ifCacheLookups = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_lookups", []string{}, "description")
-	ifCacheMisses = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_misses", []string{}, "description")
-	ifCacheSize = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_size", []string{}, "description")
-	ifCacheErrors = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_errors", []string{}, "description")
+	ifCacheMisses  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_misses", []string{}, "description")
+	ifCacheSize    = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_size", []string{}, "description")
+	ifCacheErrors  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_errors", []string{}, "description")
 )
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
