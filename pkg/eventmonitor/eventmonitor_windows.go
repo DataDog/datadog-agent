@@ -20,3 +20,7 @@ func (m *EventMonitor) getListener() (net.Listener, error) {
 	}
 	return ln, nil
 }
+
+func (m *EventMonitor) init() error {
+	return nil
+}

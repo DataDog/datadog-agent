@@ -91,9 +91,10 @@ func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 
 // Init initializes the module
 func (m *EventMonitor) Init() error {
-	// force socket cleanup of previous socket not cleanup
-	os.Remove(m.secconfig.SocketPath)
 
+	if err := m.init(); err != nil {
+		return err
+	}
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
 	if err := m.Probe.Init(); err != nil {
@@ -106,10 +107,9 @@ func (m *EventMonitor) Init() error {
 // Start the module
 func (m *EventMonitor) Start() error {
 	ln, err := m.getListener()
-	if err = os.Chmod(m.secconfig.SocketPath, 0700); err != nil {
-		return fmt.Errorf("unable to register security runtime module: %w", err)
+	if err != nil {
+		return err
 	}
-
 	m.netListener = ln
 
 	m.wg.Add(1)

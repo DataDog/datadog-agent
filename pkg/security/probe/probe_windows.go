@@ -14,10 +14,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"golang.org/x/time/rate"
 )
 
 type PlatformProbe struct {
+	pm      *procmon.WinProcmon
+	onStart chan *procmon.ProcessStartNotification
+	onStop  chan *procmon.ProcessStopNotification
 }
 
 // AddEventHandler set the probe event handler
@@ -27,6 +32,11 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 
 // Init initializes the probe
 func (p *Probe) Init() error {
+	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop)
+	if err != nil {
+		return nil
+	}
+	p.pm = pm
 	return nil
 }
 
@@ -37,6 +47,22 @@ func (p *Probe) Setup() error {
 
 // Start processing events
 func (p *Probe) Start() error {
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case start := <-p.onStart:
+				log.Infof("Start notification: %v", start)
+			case stop := <-p.onStop:
+				log.Infof("Stop notification: %v", stop)
+
+			}
+		}
+	}()
+	p.pm.Start()
 	return nil
 }
 
@@ -49,6 +75,9 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
+	p.pm.Stop()
+	p.cancelFnc()
+	p.wg.Wait()
 	return nil
 }
 
@@ -83,6 +112,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		event:                &model.Event{},
+		PlatformProbe: PlatformProbe{
+			onStart: make(chan *procmon.ProcessStartNotification),
+			onStop:  make(chan *procmon.ProcessStopNotification),
+		},
 	}
 	return p, nil
 }

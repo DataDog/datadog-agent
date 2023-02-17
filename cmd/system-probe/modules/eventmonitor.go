@@ -7,6 +7,7 @@ package modules
 
 import (
 	"os"
+	"runtime"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -58,12 +59,13 @@ var EventMonitor = module.Factory{
 		}
 
 		// TODO: check whether enabled in config
-		cws, err := secmodule.NewCWSConsumer(evm)
-		if err != nil {
-			return nil, err
+		if runtime.GOOS != "windows" {
+			cws, err := secmodule.NewCWSConsumer(evm)
+			if err != nil {
+				return nil, err
+			}
+			evm.RegisterEventConsumer(cws)
 		}
-		evm.RegisterEventConsumer(cws)
-
 		// TODO: check whether enabled in config
 		network, err := network.NewNetworkConsumer(evm)
 		if err != nil {
