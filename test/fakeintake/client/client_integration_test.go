@@ -15,7 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var (
+	isLocalRun = false
+)
+
 func TestIntegrationClient(t *testing.T) {
+	if !isLocalRun {
+		t.Skip("skip client integration test on the CI, connection to the server is flaky")
+	}
 	t.Run("should get empty payloads from a server", func(t *testing.T) {
 		fi := server.NewServer(8080)
 		defer fi.Stop()

@@ -55,18 +55,20 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 	}
 
 	// insert tagger tags
-	tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), collectors.HighCardinality)
+	taggerTags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), collectors.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for pod: %s", err)
 		skip = true
 		return
 	}
 
+	m.Tags = append(m.Tags, taggerTags...)
+
 	// additional tags
-	m.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(m.Status)))
+	m.Tags = append(m.Tags, fmt.Sprintf("pod_status:%s", strings.ToLower(m.Status)))
 
 	// tags that should be on the tagger
-	if len(tags) == 0 {
+	if len(taggerTags) == 0 {
 		// Tags which should be on the tagger
 		for _, volume := range r.Spec.Volumes {
 			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {

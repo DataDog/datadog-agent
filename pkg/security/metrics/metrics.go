@@ -434,6 +434,13 @@ var (
 	PathResolutionTag = "resolution:path"
 	// AllResolutionsTags is the list of resolution tags
 	AllResolutionsTags = []string{SegmentResolutionTag, ParentResolutionTag, PathResolutionTag}
+
+	// ProcessSourceEventTags is assigned to metrics for process cache entries created from events
+	ProcessSourceEventTags = []string{"type:event"}
+	// ProcessSourceKernelMapsTags is assigned to metrics for process cache entries populated from kernel maps
+	ProcessSourceKernelMapsTags = []string{KernelMapsTag}
+	// ProcessSourceProcTags is assigned to metrics for process cache entries populated from /proc data
+	ProcessSourceProcTags = []string{ProcFSTag}
 )
 
 func newRuntimeMetric(name string) string {

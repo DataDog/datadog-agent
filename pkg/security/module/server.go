@@ -23,13 +23,14 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -480,7 +481,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 
 func marshalEvent(event Event, probe *sprobe.Probe) ([]byte, error) {
 	if ev, ok := event.(*model.Event); ok {
-		return sprobe.MarshalEvent(ev, probe)
+		return serializers.MarshalEvent(ev, probe.GetResolvers())
 	}
 
 	if m, ok := event.(easyjson.Marshaler); ok {

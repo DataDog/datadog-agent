@@ -21,7 +21,6 @@ import (
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,6 +48,10 @@ type checkPayload struct {
 
 // Collector will collect metrics from the local system and ship to the backend.
 type Collector struct {
+	// required for being able to start and stop the collector
+	wg   *sync.WaitGroup
+	stop chan struct{}
+
 	// true if real-time is enabled
 	realTimeEnabled *atomic.Bool
 
@@ -78,16 +81,16 @@ func (l *Collector) RunRealTime() bool {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
+func NewCollector(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 
 	cfg := &checks.SysProbeConfig{}
-	if syscfg != nil && syscfg.Enabled {
+	if sysCfg != nil && sysCfg.Enabled {
 		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-		_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := sysCfg.EnabledModules[sysconfig.ProcessModule]
 		cfg.ProcessModuleEnabled = processModuleEnabled
-		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
-		cfg.SystemProbeAddress = syscfg.SocketAddress
+		cfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = sysCfg.SocketAddress
 	}
 
 	for _, c := range enabledChecks {
@@ -107,6 +110,9 @@ func NewCollectorWithChecks(checks []checks.Check, runRealTime bool) (*Collector
 	}
 
 	return &Collector{
+		wg:   &sync.WaitGroup{},
+		stop: make(chan struct{}),
+
 		rtIntervalCh:  make(chan time.Duration),
 		orchestrator:  orchestrator,
 		groupID:       atomic.NewInt32(rand.Int31()),
@@ -219,7 +225,7 @@ const (
 	chunkMask           = 1<<chunkNumberOfBits - 1
 )
 
-func (l *Collector) Run(exit chan struct{}) error {
+func (l *Collector) Run() error {
 	err := l.Submitter.Start()
 	if err != nil {
 		return err
@@ -245,32 +251,18 @@ func (l *Collector) Run(exit chan struct{}) error {
 	status.UpdateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
 
-	go util.HandleSignals(exit)
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-exit
-		l.Submitter.Stop()
-	}()
-
 	for _, c := range l.enabledChecks {
-		runner, err := l.runnerForCheck(c, exit)
+		runner, err := l.runnerForCheck(c)
 		if err != nil {
 			return fmt.Errorf("error starting check %s: %s", c.Name(), err)
 		}
 
-		wg.Add(1)
+		l.wg.Add(1)
 		go func() {
-			defer wg.Done()
+			defer l.wg.Done()
 			runner()
 		}()
 	}
-
-	<-exit
-	wg.Wait()
 
 	for _, check := range l.enabledChecks {
 		log.Debugf("Cleaning up %s check", check.Name())
@@ -280,9 +272,9 @@ func (l *Collector) Run(exit chan struct{}) error {
 	return nil
 }
 
-func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), error) {
+func (l *Collector) runnerForCheck(c checks.Check) (func(), error) {
 	if !l.runRealTime || !c.SupportsRunOptions() {
-		return l.basicRunner(c, exit), nil
+		return l.basicRunner(c), nil
 	}
 
 	rtName := checks.RTName(c.Name())
@@ -310,7 +302,7 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 		checks.RunnerConfig{
 			CheckInterval:  interval,
 			RtInterval:     rtInterval,
-			ExitChan:       exit,
+			ExitChan:       l.stop,
 			RtIntervalChan: l.rtIntervalCh,
 			RtEnabled: func() bool {
 				return l.realTimeEnabled.Load()
@@ -322,7 +314,7 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 	)
 }
 
-func (l *Collector) basicRunner(c checks.Check, exit chan struct{}) func() {
+func (l *Collector) basicRunner(c checks.Check) func() {
 	return func() {
 		// Run the check the first time to prime the caches.
 		if !c.Realtime() {
@@ -344,7 +336,7 @@ func (l *Collector) basicRunner(c checks.Check, exit chan struct{}) func() {
 					ticker.Stop()
 					ticker = time.NewTicker(d)
 				}
-			case _, ok := <-exit:
+			case _, ok := <-l.stop:
 				if !ok {
 					return
 				}
@@ -398,6 +390,16 @@ func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
 		}
 		log.Infof("real time interval updated to %s", l.realTimeInterval)
 	}
+}
+
+func (l *Collector) Stop() {
+	close(l.stop)
+	l.wg.Wait()
+	l.Submitter.Stop()
+}
+
+func (l *Collector) GetChecks() []checks.Check {
+	return l.enabledChecks
 }
 
 // getContainerCount returns the number of containers in the message body
