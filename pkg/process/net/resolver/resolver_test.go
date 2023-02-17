@@ -11,8 +11,9 @@ package resolver
 import (
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 func TestLocalResolver(t *testing.T) {
@@ -175,6 +176,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Port: 1234,
 				},
 				IntraHost: true,
+				Direction: model.ConnectionDirection_incoming,
 			},
 			expectedLaddrID: "foo3",
 			expectedRaddrID: "",
@@ -193,6 +195,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Port: 1235,
 				},
 				IntraHost: true,
+				Direction: model.ConnectionDirection_outgoing,
 			},
 			expectedLaddrID: "foo5",
 			expectedRaddrID: "foo3",
@@ -211,6 +214,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Port: 1235,
 				},
 				IntraHost: true,
+				Direction: model.ConnectionDirection_outgoing,
 			},
 			expectedLaddrID: "foo5",
 			expectedRaddrID: "",
@@ -228,6 +232,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "10.1.1.1",
 					Port: 1235,
 				},
+				Direction: model.ConnectionDirection_outgoing,
 				IntraHost: false,
 			},
 			expectedLaddrID: "",
@@ -246,6 +251,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1240,
 				},
+				Direction: model.ConnectionDirection_outgoing,
 				IntraHost: true,
 			},
 			expectedLaddrID: "",
@@ -264,6 +270,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1250,
 				},
+				Direction: model.ConnectionDirection_outgoing,
 				IntraHost: true,
 			},
 			expectedLaddrID: "foo6",
@@ -282,6 +289,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1260,
 				},
+				Direction: model.ConnectionDirection_incoming,
 				IntraHost: true,
 			},
 			expectedLaddrID: "foo7",

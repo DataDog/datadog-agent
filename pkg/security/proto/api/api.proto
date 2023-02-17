@@ -1,0 +1,200 @@
+syntax = "proto3";
+
+option go_package = "pkg/security/proto/api";
+
+package api;
+
+message GetEventParams {}
+
+message SecurityEventMessage {
+    string RuleID = 1;
+    bytes Data = 2;
+    repeated string Tags = 3;
+    string Service = 4;
+}
+
+message GetProcessEventParams{}
+
+message SecurityProcessEventMessage {
+    bytes Data = 1;
+}
+
+message DumpProcessCacheParams {
+    bool WithArgs = 1;
+}
+
+message SecurityDumpProcessCacheMessage {
+    string Filename = 1;
+}
+
+message DumpNetworkNamespaceParams {
+    bool SnapshotInterfaces = 1;
+}
+
+message DumpNetworkNamespaceMessage {
+    string error = 1;
+    string DumpFilename = 2;
+    string GraphFilename = 3;
+}
+
+message GetConfigParams {}
+
+message SecurityConfigMessage {
+    bool RuntimeEnabled = 1;
+    bool FIMEnabled = 2;
+}
+
+message RunSelfTestParams {}
+
+message ReloadPoliciesParams{}
+
+message ReloadPoliciesResultMessage{}
+
+message SecuritySelfTestResultMessage {
+    bool Ok = 1;
+    string Error = 2;
+}
+
+message GetStatusParams {}
+
+message ConstantValueAndSource {
+    string ID = 1;
+    uint64 Value = 2;
+    string Source = 3;
+}
+
+message SelfTestsStatus {
+    string LastTimestamp = 1;
+    repeated string Success = 2;
+    repeated string Fails = 3;
+}
+
+message Status {
+    EnvironmentStatus Environment = 1;
+    SelfTestsStatus SelfTests = 2;
+}
+
+message ConstantFetcherStatus {
+    repeated string Fetchers = 1;
+    repeated ConstantValueAndSource Values = 2;
+}
+
+message EnvironmentStatus {
+    repeated string Warnings = 1;
+    ConstantFetcherStatus Constants = 2;
+    string KernelLockdown = 3;
+    bool UseMmapableMaps = 4;
+    bool UseRingBuffer = 5;
+}
+
+/*Discarders*/
+message DumpDiscardersParams{}
+
+message DumpDiscardersMessage{
+    string DumpFilename = 1;
+}
+
+// Activity dump requests
+
+message StorageRequestParams {
+    string LocalStorageDirectory = 1;
+    repeated string LocalStorageFormats = 2;
+    bool LocalStorageCompression = 3;
+    repeated string RemoteStorageFormats = 4;
+    bool RemoteStorageCompression = 5;
+}
+
+message ActivityDumpParams {
+    string comm = 1;
+    int32 timeout = 2;
+    bool DifferentiateArgs = 4;
+    StorageRequestParams Storage = 5;
+}
+
+message ActivityDumpMetadataMessage {
+    string AgentVersion = 1;
+    string AgentCommit = 2;
+    string KernelVersion = 3;
+    string LinuxDistribution = 4;
+    string Arch = 5;
+
+    string Name = 6;
+    string ProtobufVersion = 7;
+    bool DifferentiateArgs = 8;
+    string Comm = 9;
+    string ContainerID = 10;
+    string Start = 11;
+    string Timeout = 12;
+    uint64 Size = 13;
+    string Serialization = 14;
+}
+
+message StorageRequestMessage {
+    string Type = 1;
+    string Format = 2;
+    bool Compression = 3;
+    string File = 4;
+}
+
+message ActivityDumpMessage {
+    string Host = 1;
+    string Source = 2;
+    string Service = 3;
+    repeated string Tags = 4;
+    repeated StorageRequestMessage Storage = 5;
+    ActivityDumpMetadataMessage Metadata = 6;
+    string Error = 7;
+}
+
+message ActivityDumpListParams {}
+
+message ActivityDumpListMessage {
+    repeated ActivityDumpMessage Dumps = 1;
+    string Error = 2;
+}
+
+message ActivityDumpStopParams {
+    string Name = 1;
+    string ContainerID = 2;
+    string Comm = 3;
+}
+
+message ActivityDumpStopMessage {
+    string Error = 1;
+}
+
+message TranscodingRequestParams {
+    string ActivityDumpFile = 1;
+    StorageRequestParams Storage = 2;
+}
+
+message TranscodingRequestMessage {
+    string Error = 1;
+    repeated StorageRequestMessage Storage = 2;
+}
+
+message ActivityDumpStreamParams {}
+
+message ActivityDumpStreamMessage {
+    ActivityDumpMessage Dump = 1;
+    bytes Data = 3;
+}
+
+service SecurityModule {
+    rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
+    rpc GetProcessEvents(GetProcessEventParams) returns (stream SecurityProcessEventMessage) {}
+    rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
+    rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
+    rpc GetStatus(GetStatusParams) returns (Status) {}
+    rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
+    rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
+    rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
+    rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}
+
+    // Activity dumps
+    rpc DumpActivity(ActivityDumpParams) returns (ActivityDumpMessage) {}
+    rpc ListActivityDumps(ActivityDumpListParams) returns (ActivityDumpListMessage) {}
+    rpc StopActivityDump(ActivityDumpStopParams) returns (ActivityDumpStopMessage) {}
+    rpc TranscodingRequest(TranscodingRequestParams) returns (TranscodingRequestMessage) {}
+    rpc GetActivityDumpStream(ActivityDumpStreamParams) returns (stream ActivityDumpStreamMessage) {}
+}
