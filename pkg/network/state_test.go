@@ -1527,7 +1527,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 			intraHost: true,
 		},
 		{
-			name: "local connection with nat on both sides",
+			name: "local connection with nat on both sides (outgoing)",
 			conn: ConnectionStats{
 				Source:    util.AddressFromString("1.1.1.1"),
 				Dest:      util.AddressFromString("169.254.169.254"),
@@ -1545,7 +1545,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 			intraHost: true,
 		},
 		{
-			name: "local connection with nat on both sides",
+			name: "local connection with nat on both sides (incoming)",
 			conn: ConnectionStats{
 				Source:    util.AddressFromString("127.0.0.1"),
 				Dest:      util.AddressFromString("1.1.1.1"),
