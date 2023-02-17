@@ -573,6 +573,9 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	c.Submitter, err = NewSubmitter(hostInfo.HostName)
 	require.NoError(t, err)
 
+	err = c.Submitter.Start()
+	require.NoError(t, err)
+
 	err = c.Run()
 	require.NoError(t, err)
 
