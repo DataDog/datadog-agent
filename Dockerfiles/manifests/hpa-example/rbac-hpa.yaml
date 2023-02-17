@@ -37,6 +37,7 @@ spec:
   service:
     name: datadog-custom-metrics-server
     namespace: default
+    port: 8443
   version: v1beta1
 ---
 apiVersion: rbac.authorization.k8s.io/v1
