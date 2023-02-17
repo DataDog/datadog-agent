@@ -20,7 +20,7 @@ import (
 )
 
 func newMockCheck(t testing.TB, name string) *checkMocks.Check {
-	// TODO: Change this to use check componenet once checks are migrated
+	// TODO: Change this to use check component once checks are migrated
 	mockCheck := checkMocks.NewCheck(t)
 	mockCheck.On("Init", mock.Anything, mock.Anything).Return(nil)
 	mockCheck.On("Name").Return(name)
