@@ -37,8 +37,7 @@ typedef enum {
 } __attribute__ ((packed)) protocol_t;
 
 typedef enum {
-    CLASSIFICATION_ENTRY_PROG = 0,
-    CLASSIFICATION_CONT_PROG,
+    CLASSIFICATION_CONT_PROG = 0,
     // Add before this value.
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;

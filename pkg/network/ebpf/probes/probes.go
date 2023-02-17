@@ -27,9 +27,7 @@ const (
 
 	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
 	ProtocolClassifierEntrySocketFilter ProbeFuncName = "socket__classifier_entry"
-	// ProtocolClassifierSocketFilter runs a classifier algorithm as a socket filter
-	ProtocolClassifierSocketFilter     ProbeFuncName = "socket__classifier"
-	ProtocolClassifierSocketContFilter ProbeFuncName = "socket__classifier_cont"
+	ProtocolClassifierSocketContFilter  ProbeFuncName = "socket__classifier_cont"
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	// belongs (but hidden) for it.

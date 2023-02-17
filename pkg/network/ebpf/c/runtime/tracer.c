@@ -41,26 +41,14 @@
 
 #include "sock.h"
 
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_ENTRY_PROG);
-    return 0;
-}
-
-// The entrypoint for all packets.
-SEC("socket/classifier")
-int socket__classifier(struct __sk_buff *skb) {
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     protocol_classifier_entrypoint(skb);
     #endif
     return 0;
 }
 
-// The entrypoint for all packets.
 SEC("socket/classifier_cont")
 int socket__classifier_cont(struct __sk_buff *skb) {
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
