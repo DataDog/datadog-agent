@@ -74,12 +74,14 @@ testdir = value_for_platform(
   'default' => '/system-probe-tests'
 )
 
-# retro compatibility
-execute "/tmp/system-probe-tests symlink" do
-  command "ln -s /system-probe-tests /tmp/system-probe-tests"
-  live_stream true
-  action :run
-  ignore_failure false
+if !platform?('windows')
+    # retro compatibility
+    execute "/tmp/system-probe-tests symlink" do
+      command "ln -s /system-probe-tests /tmp/system-probe-tests"
+      live_stream true
+      action :run
+      ignore_failure false
+    end
 end
 
 remote_directory testdir do
