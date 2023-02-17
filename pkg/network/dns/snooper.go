@@ -23,22 +23,23 @@ import (
 const (
 	dnsCacheExpirationPeriod = 1 * time.Minute
 	dnsCacheSize             = 100000
-	telemetryModuleName      = "network_tracer.dns"
+	dnsModuleName            = "network_tracer_dns"
+)
+
+// Telemetry
+var (
+	decodingErrors = telemetry.NewStatGaugeWrapper(dnsModuleName, "decoding_errors", []string{}, "")
+	truncatedPkts  = telemetry.NewStatGaugeWrapper(dnsModuleName, "truncated_pkts", []string{}, "")
+	// DNS telemetry, values calculated *till* the last tick in pollStats
+	queries_tel        = telemetry.NewStatGaugeWrapper(dnsModuleName, "queries", []string{}, "")
+	successes_tel      = telemetry.NewStatGaugeWrapper(dnsModuleName, "successes", []string{}, "")
+	errors_tel         = telemetry.NewStatGaugeWrapper(dnsModuleName, "errors", []string{}, "")
 )
 
 var _ ReverseDNS = &socketFilterSnooper{}
 
 // socketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type socketFilterSnooper struct {
-	// Telemetry
-	decodingErrors telemetry.StatGaugeWrapper
-	truncatedPkts  telemetry.StatGaugeWrapper
-
-	// DNS telemetry, values calculated *till* the last tick in pollStats
-	queries   telemetry.StatGaugeWrapper
-	successes telemetry.StatGaugeWrapper
-	errors    telemetry.StatGaugeWrapper
-
 	source          packetSource
 	parser          *dnsParser
 	cache           *reverseDNSCache
@@ -81,12 +82,6 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &socketFilterSnooper{
-		decodingErrors: telemetry.NewStatGaugeWrapper(telemetryModuleName, "decoding_errors", []string{}, ""),
-		truncatedPkts:  telemetry.NewStatGaugeWrapper(telemetryModuleName, "truncated_pkts", []string{}, ""),
-		queries:        telemetry.NewStatGaugeWrapper(telemetryModuleName, "queries", []string{}, ""),
-		successes:      telemetry.NewStatGaugeWrapper(telemetryModuleName, "successes", []string{}, ""),
-		errors:         telemetry.NewStatGaugeWrapper(telemetryModuleName, "errors", []string{}, ""),
-
 		source:          source,
 		parser:          newDNSParser(source.PacketType(), cfg),
 		cache:           cache,
@@ -155,9 +150,9 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
-			s.truncatedPkts.Inc()
+			truncatedPkts.Inc()
 		default:
-			s.decodingErrors.Inc()
+			decodingErrors.Inc()
 		}
 		return nil
 	}
@@ -168,11 +163,11 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 
 	if pktInfo.pktType == successfulResponse {
 		s.cache.Add(t)
-		s.successes.Inc()
+		successes_tel.Inc()
 	} else if pktInfo.pktType == failedResponse {
-		s.errors.Inc()
+		errors_tel.Inc()
 	} else {
-		s.queries.Inc()
+		queries_tel.Inc()
 	}
 
 	return nil
@@ -210,9 +205,9 @@ func (s *socketFilterSnooper) logDNSStats() {
 	for {
 		select {
 		case <-ticker.C:
-			queries = s.queries.Load()
-			successes = s.successes.Load()
-			errors = s.errors.Load()
+			queries = queries_tel.Load()
+			successes = successes_tel.Load()
+			errors = errors_tel.Load()
 			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries-lastQueries, successes-lastSuccesses, errors-lastErrors)
 			lastQueries = queries
 			lastSuccesses = successes

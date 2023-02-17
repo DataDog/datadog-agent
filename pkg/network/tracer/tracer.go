@@ -42,6 +42,28 @@ import (
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
+const tracerModuleName = "network_tracer"
+
+// Telemetry
+// Will track the count of expired TCP connections
+// We are manually expiring TCP connections because it seems that we are losing some TCP close events
+// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
+// states are set to `TCP_CLOSE_WAIT`, `TCP_CLOSE` and `TCP_FIN_WAIT1` we should probably also track `tcp_time_wait`
+// However there are some caveats by doing that:
+// - `tcp_set_state` does not have access to the PID of the connection => we have to remove the PID from the connection tuple (which can lead to issues)
+// - We will have multiple probes that can trigger for the same connection close event => we would have to add something to dedupe those
+// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
+// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
+//
+// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
+// to determine whether a connection is truly closed or not
+var (
+	skippedConns   = newGauge(tracerModuleName, "skipped_conns", "description")
+	expiredTCPConns   = newGauge(tracerModuleName, "expired_tcp_conns", "description")
+	closedConns = newGaugeWrapper(tracerModuleName, "closed_conns", "description")
+	connStatsMapSize = newGauge(tracerModuleName, "conn_stats_map_size", "description")
+	lastCheck = newGaugeWrapper(tracerModuleName, "last_check", "description")
+)
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
@@ -52,25 +74,6 @@ type Tracer struct {
 	httpMonitor  *http.Monitor
 	ebpfTracer   connection.Tracer
 	bpfTelemetry *nettelemetry.EBPFTelemetry
-
-	// Telemetry
-	skippedConns telemetry.Gauge
-	// Will track the count of expired TCP connections
-	// We are manually expiring TCP connections because it seems that we are losing some TCP close events
-	// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
-	// states are set to `TCP_CLOSE_WAIT`, `TCP_CLOSE` and `TCP_FIN_WAIT1` we should probably also track `tcp_time_wait`
-	// However there are some caveats by doing that:
-	// - `tcp_set_state` does not have access to the PID of the connection => we have to remove the PID from the connection tuple (which can lead to issues)
-	// - We will have multiple probes that can trigger for the same connection close event => we would have to add something to dedupe those
-	// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
-	// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
-	//
-	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
-	// to determine whether a connection is truly closed or not
-	expiredTCPConns  telemetry.Gauge
-	closedConns      nettelemetry.StatGaugeWrapper
-	connStatsMapSize telemetry.Gauge
-	lastCheck        nettelemetry.StatGaugeWrapper
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -200,12 +203,6 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
-
-		skippedConns:     telemetry.NewGauge("network_tracer", "skipped_conns", []string{}, "description"),
-		expiredTCPConns:  telemetry.NewGauge("network_tracer", "expired_tcp_conns", []string{}, "description"),
-		closedConns:      nettelemetry.NewStatGaugeWrapper("network_tracer", "closed_conns", []string{}, "description"),
-		connStatsMapSize: telemetry.NewGauge("network_tracer", "conn_stats_map_size", []string{}, "description"),
-		lastCheck:        nettelemetry.NewStatGaugeWrapper("network_tracer", "last_check", []string{}, "description"),
 		bpfTelemetry:     bpfTelemetry,
 	}
 
@@ -233,6 +230,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 // start starts the tracer. This function is present to separate
 // the creation from the start of the tracer for tests
 func (tr *Tracer) start() error {
+	telemetry.Reset()
 	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
@@ -369,8 +367,8 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	}
 
 	connections = connections[rejected:]
-	t.closedConns.Add(int64(len(connections)))
-	t.skippedConns.Add(float64(rejected))
+	closedConns.Add(int64(len(connections)))
+	skippedConns.Add(float64(rejected))
 	t.state.StoreClosedConnections(connections)
 }
 
@@ -453,7 +451,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	rctm := t.getRuntimeCompilationTelemetry()
 	khfr := int32(kernel.HeaderProvider.GetResult())
 	coretm := ddebpf.GetCORETelemetryByAsset()
-	t.lastCheck.Set(time.Now().Unix())
+	lastCheck.Set(time.Now().Unix())
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,
@@ -479,7 +477,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicKprobesTriggered: kprobeStats.Hits,
 		network.MonotonicKprobesMissed:    kprobeStats.Misses,
 		network.ConnsBpfMapSize:           int64(mapSize),
-		network.MonotonicConnsClosed:      t.closedConns.Load(),
+		network.MonotonicConnsClosed:      closedConns.Load(),
 	}
 
 	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats)
@@ -565,14 +563,14 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, *c)
 			if c.Type == network.TCP {
-				t.expiredTCPConns.Inc()
+				expiredTCPConns.Inc()
 			}
-			t.closedConns.Inc()
+			closedConns.Inc()
 			return false
 		}
 
 		if t.shouldSkipConnection(c) {
-			t.skippedConns.Inc()
+			skippedConns.Inc()
 			return false
 		}
 		return true
@@ -600,7 +598,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
 		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
-	t.connStatsMapSize.Set(float64(entryCount))
+	connStatsMapSize.Set(float64(entryCount))
 
 	// Remove expired entries
 	t.removeEntries(expired)
@@ -703,7 +701,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
 			tracerStats := make(map[string]interface{})
-			tracerStats["last_check"] = t.lastCheck.Load()
+			tracerStats["last_check"] = lastCheck.Load()
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		case httpStats:

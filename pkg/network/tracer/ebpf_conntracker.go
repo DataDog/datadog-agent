@@ -31,7 +31,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -44,25 +44,36 @@ var tuplePool = sync.Pool{
 	},
 }
 
+const ebpfConntrackerModuleName = "ebpf_conntracker"
+
+func newGauge(subsystem string, name string, help string, tags ...string) telemetry.Gauge {
+	return telemetry.NewGaugeWithOpts(ebpfConntrackerModuleName, name,
+		append([]string{}, tags...), help, telemetry.Options{NoDoubleUnderscoreSep: true})
+}
+
+func newGaugeWrapper(subsystem string, name string, help string, tags ...string) nettelemetry.StatGaugeWrapper {
+	return nettelemetry.NewStatGaugeWrapper(ebpfConntrackerModuleName, name,
+		append([]string{}, tags...), help)
+}
+
+var (
+	gets = newGaugeWrapper(ebpfConntrackerModuleName, "gets_total", "description")
+	nanoSecondsPerGet = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_get", "description")
+	nanoSecondsPerUnregister = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_unregister", "description")
+	registersTotal = newGauge(ebpfConntrackerModuleName, "registers_total", "description")
+)
+
 type ebpfConntrackerStats struct {
-	gets                     errtelemetry.StatGaugeWrapper
 	getTotalTime             *atomic.Int64
 	unregisters              *atomic.Int64
 	unregistersTotalTime     *atomic.Int64
-	nanoSecondsPerGet        telemetry.Gauge
-	nanoSecondsPerUnregister telemetry.Gauge
-	registersTotal           telemetry.Gauge
 }
 
 func newEbpfConntrackerStats() ebpfConntrackerStats {
 	return ebpfConntrackerStats{
-		gets:                     errtelemetry.NewStatGaugeWrapper("ebpf_conntracker", "gets_total", []string{}, "description"),
 		getTotalTime:             atomic.NewInt64(0),
 		unregisters:              atomic.NewInt64(0),
 		unregistersTotalTime:     atomic.NewInt64(0),
-		nanoSecondsPerGet:        telemetry.NewGauge("ebpf_conntracker", "nanoseconds_per_get", []string{}, "description"),
-		nanoSecondsPerUnregister: telemetry.NewGauge("ebpf_conntracker", "nanoseconds_per_unregister", []string{}, "description"),
-		registersTotal:           telemetry.NewGauge("ebpf_conntracker", "registers_total", []string{}, "description"),
 	}
 }
 
@@ -80,7 +91,7 @@ type ebpfConntracker struct {
 }
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
 	// eBPF conntrack require nf_conntrack symbols
 	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
@@ -242,10 +253,10 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	}
 	defer tuplePool.Put(dst)
 
-	e.stats.gets.Inc()
+	gets.Inc()
 	e.stats.getTotalTime.Add(time.Now().Sub(start).Nanoseconds())
-	if gets := e.stats.gets.Load(); gets > 0 {
-		e.stats.nanoSecondsPerGet.Set(float64(e.stats.getTotalTime.Load() / gets))
+	if gets := gets.Load(); gets > 0 {
+		nanoSecondsPerGet.Set(float64(e.stats.getTotalTime.Load() / gets))
 	}
 	return &network.IPTranslation{
 		ReplSrcIP:   dst.SourceAddress(),
@@ -297,7 +308,7 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	e.stats.unregisters.Inc()
 	e.stats.unregistersTotalTime.Add(time.Now().Sub(start).Nanoseconds())
 	if unregisters := e.stats.unregisters.Load(); unregisters > 0 {
-		e.stats.nanoSecondsPerUnregister.Set(float64(e.stats.unregistersTotalTime.Load() / unregisters))
+		nanoSecondsPerUnregister.Set(float64(e.stats.unregistersTotalTime.Load() / unregisters))
 	}
 }
 
@@ -307,7 +318,7 @@ func (e *ebpfConntracker) RefreshTelemetry() {
 		if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 			log.Tracef("error retrieving the telemetry struct: %s", err)
 		} else {
-			e.stats.registersTotal.Set(float64(telemetry.Registers))
+			registersTotal.Set(float64(telemetry.Registers))
 		}
 		time.Sleep(time.Duration(5) * time.Second)
 	}
@@ -399,10 +410,10 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 	}
 	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	mgr.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		return nettelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
 	}
 
-	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(mgr)
+	telemetryMapKeys := nettelemetry.BuildTelemetryKeys(mgr)
 
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {

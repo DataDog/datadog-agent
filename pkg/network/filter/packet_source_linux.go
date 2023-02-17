@@ -24,7 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const telemetryModuleName = "network_tracer.dns"
+const telemetryModuleName = "network_tracer_dns"
+
+// Telemetry
+var (
+	polls     = telemetry.NewStatGaugeWrapper(telemetryModuleName, "polls", []string{}, "desc")
+	processed = telemetry.NewStatGaugeWrapper(telemetryModuleName, "processed", []string{}, "desc")
+	captured  = telemetry.NewStatGaugeWrapper(telemetryModuleName, "captured", []string{}, "desc")
+	dropped   = telemetry.NewStatGaugeWrapper(telemetryModuleName, "dropped", []string{}, "desc")
+)
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
@@ -32,12 +40,6 @@ type AFPacketSource struct {
 	socketFilter *manager.Probe
 
 	exit chan struct{}
-
-	// telemetry
-	polls     telemetry.StatGaugeWrapper
-	processed telemetry.StatGaugeWrapper
-	captured  telemetry.StatGaugeWrapper
-	dropped   telemetry.StatGaugeWrapper
 }
 
 // NewPacketSource creates an AFPacketSource using the provided BPF filter
@@ -70,25 +72,11 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 		TPacket:      rawSocket,
 		socketFilter: filter,
 		exit:         make(chan struct{}),
-		polls:        telemetry.NewStatGaugeWrapper(telemetryModuleName, "polls", []string{}, "desc"),
-		processed:    telemetry.NewStatGaugeWrapper(telemetryModuleName, "processed", []string{}, "desc"),
-		captured:     telemetry.NewStatGaugeWrapper(telemetryModuleName, "captured", []string{}, "desc"),
-		dropped:      telemetry.NewStatGaugeWrapper(telemetryModuleName, "dropped", []string{}, "desc"),
 	}
 	go ps.pollStats()
 
 	return ps, nil
 }
-
-// Stats returns statistics about the AFPacketSource
-// func (p *AFPacketSource) Stats() map[string]int64 {
-// 	return map[string]int64{
-// 		"socket_polls":      p.polls.Load(),
-// 		"packets_processed": p.processed.Load(),
-// 		"packets_captured":  p.captured.Load(),
-// 		"packets_dropped":   p.dropped.Load(),
-// 	}
-// }
 
 // VisitPackets starts reading packets from the source
 func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
@@ -153,10 +141,10 @@ func (p *AFPacketSource) pollStats() {
 				continue
 			}
 
-			p.polls.Add(sourceStats.Polls - prevPolls)
-			p.processed.Add(sourceStats.Packets - prevProcessed)
-			p.captured.Add(int64(socketStats.Packets()) - prevCaptured)
-			p.dropped.Add(int64(socketStats.Drops()) - prevDropped)
+			polls.Add(sourceStats.Polls - prevPolls)
+			processed.Add(sourceStats.Packets - prevProcessed)
+			captured.Add(int64(socketStats.Packets()) - prevCaptured)
+			dropped.Add(int64(socketStats.Drops()) - prevDropped)
 
 			prevPolls = sourceStats.Polls
 			prevProcessed = sourceStats.Packets

@@ -17,7 +17,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,8 +29,15 @@ var defaultFilteredEnvs = []string{
 const (
 	maxProcessQueueLen = 100
 	// maxProcessListSize is the max size of a processList
-	maxProcessListSize  = 3
-	telemetryModuleName = "network_tracer.process_cache"
+	maxProcessListSize     = 3
+	processCacheModuleName = "network_tracer_process_cache"
+)
+
+var (
+	cacheEvicts   = newGauge(processCacheModuleName, "cache_evicts", "description")
+	cacheLength   = newGauge(processCacheModuleName, "cache_length", "description")
+	eventsDropped = newGauge(processCacheModuleName, "events_dropped", "description")
+	eventsSkipped = newGauge(processCacheModuleName, "events_skipped", "description")
 )
 
 type process struct {
@@ -42,13 +48,6 @@ type process struct {
 }
 
 type processList []*process
-
-type _processCacheStats struct {
-	cacheEvicts   telemetry.Gauge
-	cacheLength   telemetry.Gauge
-	eventsDropped telemetry.Gauge
-	eventsSkipped telemetry.Gauge
-}
 
 type processCache struct {
 	sync.Mutex
@@ -68,8 +67,6 @@ type processCache struct {
 	in      chan *process
 	stopped chan struct{}
 	stop    sync.Once
-
-	stats _processCacheStats
 }
 
 type processCacheKey struct {
@@ -83,12 +80,6 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		cacheByPid:   map[uint32]processList{},
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
-		stats: _processCacheStats{
-			cacheEvicts:   telemetry.NewGauge(telemetryModuleName, "cache_evicts", []string{}, "description"),
-			cacheLength:   telemetry.NewGauge(telemetryModuleName, "cache_length", []string{}, "description"),
-			eventsDropped: telemetry.NewGauge(telemetryModuleName, "events_dropped", []string{}, "description"),
-			eventsSkipped: telemetry.NewGauge(telemetryModuleName, "events_skipped", []string{}, "description"),
-		},
 	}
 
 	for _, e := range filteredEnvs {
@@ -137,7 +128,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 
 	p := pc.processEvent(entry)
 	if p == nil {
-		pc.stats.eventsSkipped.Add(1)
+		eventsSkipped.Add(1)
 		return
 	}
 
@@ -145,7 +136,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	case pc.in <- p:
 	default:
 		// dropped
-		pc.stats.eventsDropped.Add(1)
+		eventsDropped.Add(1)
 	}
 }
 
@@ -209,13 +200,13 @@ func (pc *processCache) add(p *process) {
 	pc.cacheByPid[p.Pid] = pl.update(p)
 
 	if evicted {
-		pc.stats.cacheEvicts.Add(1)
+		cacheEvicts.Add(1)
 	}
 }
 
 func (pc *processCache) RefreshTelemetry() map[string]interface{} {
 	for {
-		pc.stats.cacheLength.Set(float64(pc.cache.Len()))
+		cacheLength.Set(float64(pc.cache.Len()))
 		time.Sleep(time.Duration(5) * time.Second)
 	}
 }

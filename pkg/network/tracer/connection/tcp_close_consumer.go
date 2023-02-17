@@ -23,7 +23,13 @@ import (
 const (
 	perfReceivedStat    = "closed_conn_polling_received"
 	perfLostStat        = "closed_conn_polling_lost"
-	telemetryModuleName = "network_tracer.ebpf"
+	closeConsumerModuleName = "network_tracer_ebpf"
+)
+
+// Telemetry
+var (
+	perfReceived = telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "description")
+	perfLost = telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "description")
 )
 
 type tcpCloseConsumer struct {
@@ -32,10 +38,6 @@ type tcpCloseConsumer struct {
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
 	once         sync.Once
-
-	// Telemetry
-	perfReceived telemetry.Gauge
-	perfLost     telemetry.Gauge
 }
 
 func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
@@ -44,8 +46,6 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, ba
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
-		perfReceived: telemetry.NewGauge(telemetryModuleName, perfReceivedStat, []string{}, "description"),
-		perfLost:     telemetry.NewGauge(telemetryModuleName, perfLostStat, []string{}, "description"),
 	}
 	return c, nil
 }
@@ -88,7 +88,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					return
 				}
 
-				c.perfReceived.Inc()
+				perfReceived.Inc()
 				batch := netebpf.ToBatch(batchData.Data)
 				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
 				closedCount += c.buffer.Len()
@@ -99,7 +99,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				c.perfLost.Add(float64(lc))
+				perfLost.Add(float64(lc))
 				lostCount += netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {

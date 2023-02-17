@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const telemetryModuleName = "network_tracer.kprobes"
+const kProbeTelemetryName = "network_tracer_kprobes"
 
 var myPid int
 
@@ -96,7 +96,7 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 // setOrCreateGauge checks the gauges map from the KprobeStats object for a Gauge. It creates the Gauge if it doesn't exist and sets it using val.
 func setOrCreateGauge(gauges map[string]telemetry.Gauge, key string, val float64) {
 	if _, ok := gauges[key]; !ok {
-		gauges[key] = telemetry.NewGauge(telemetryModuleName, key, []string{}, fmt.Sprintf("Gauge tracking value of %s", key))
+		gauges[key] = telemetry.NewGauge(kProbeTelemetryName, key, []string{}, fmt.Sprintf("Gauge tracking value of %s", key))
 	}
 	gauges[key].Set(val)
 }

@@ -18,14 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Telemetry
+var (
+	length    = nettelemetry.NewStatGaugeWrapper(dnsModuleName, "length", []string{}, "description")
+	lookups   = telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "description")
+	resolved_tel  = telemetry.NewGauge(dnsModuleName, "resolved", []string{}, "description")
+	added     = telemetry.NewGauge(dnsModuleName, "added", []string{}, "description")
+	expired_tel   = telemetry.NewGauge(dnsModuleName, "expired", []string{}, "description")
+	oversized_tel = telemetry.NewGauge(dnsModuleName, "oversized", []string{}, "description")
+)
+
 type reverseDNSCache struct {
-	// Telemetry
-	length    nettelemetry.StatGaugeWrapper
-	lookups   telemetry.Gauge
-	resolved  telemetry.Gauge
-	added     telemetry.Gauge
-	expired   telemetry.Gauge
-	oversized telemetry.Gauge
 
 	mux  sync.Mutex
 	data map[util.Address]*dnsCacheVal
@@ -39,12 +42,6 @@ type reverseDNSCache struct {
 
 func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
-		length:            nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "length", []string{}, "description"),
-		lookups:           telemetry.NewGauge(telemetryModuleName, "lookups", []string{}, "description"),
-		resolved:          telemetry.NewGauge(telemetryModuleName, "resolved", []string{}, "description"),
-		added:             telemetry.NewGauge(telemetryModuleName, "added", []string{}, "description"),
-		expired:           telemetry.NewGauge(telemetryModuleName, "expired", []string{}, "description"),
-		oversized:         telemetry.NewGauge(telemetryModuleName, "oversized", []string{}, "description"),
 		data:              make(map[util.Address]*dnsCacheVal),
 		exit:              make(chan struct{}),
 		size:              size,
@@ -85,14 +82,14 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
 			}
 		} else {
-			c.added.Inc()
+			added.Inc()
 			// flag as in use, so mapping survives until next time connections are queried, in case TTL is shorter
 			c.data[addr] = &dnsCacheVal{names: map[Hostname]time.Time{translation.dns: deadline}, inUse: true}
 		}
 	}
 
 	// Update cache length for telemetry purposes
-	c.length.Set(int64((len(c.data))))
+	length.Set(int64((len(c.data))))
 
 	return true
 }
@@ -112,7 +109,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	var (
 		resolved   = make(map[util.Address][]Hostname)
 		unresolved = make(map[util.Address]struct{})
-		oversized  = make(map[util.Address]struct{})
+		oversize  = make(map[util.Address]struct{})
 	)
 
 	collectNamesForIP := func(addr util.Address) {
@@ -124,7 +121,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 			return
 		}
 
-		if _, ok := oversized[addr]; ok {
+		if _, ok := oversize[addr]; ok {
 			return
 		}
 
@@ -132,7 +129,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 		if len(names) == 0 {
 			unresolved[addr] = struct{}{}
 		} else if len(names) == c.maxDomainsPerIP {
-			oversized[addr] = struct{}{}
+			oversize[addr] = struct{}{}
 		} else {
 			resolved[addr] = names
 		}
@@ -143,15 +140,15 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	}
 
 	// Update stats for telemetry
-	c.lookups.Add(float64((len(resolved) + len(unresolved))))
-	c.resolved.Add(float64(len(resolved)))
-	c.oversized.Add(float64(len(oversized)))
+	lookups.Add(float64((len(resolved) + len(unresolved))))
+	resolved_tel.Add(float64(len(resolved)))
+	oversized_tel.Add(float64(len(oversize)))
 
 	return resolved
 }
 
 func (c *reverseDNSCache) Len() int {
-	return int(c.length.Load())
+	return int(length.Load())
 }
 
 func (c *reverseDNSCache) Close() {
@@ -181,8 +178,8 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
-	c.expired.Set(float64(expired))
-	c.length.Set(int64(total))
+	expired_tel.Set(float64(expired))
+	length.Set(int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Now().Sub(now), total, expired,

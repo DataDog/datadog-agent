@@ -47,11 +47,6 @@ const (
 	// netlinkBufferSize is size (in bytes) of the Netlink socket receive buffer
 	// We set it to a large enough size to support bursts of Conntrack events.
 	netlinkBufferSize = 1024 * 1024
-
-	// telemetry field name used to designate the rate at which conntrack events are sampled.
-	// a value of 100 means all events are processed, whereas 0 means that all events
-	// are rejected
-	samplingPct = "sampling_pct"
 )
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
@@ -89,11 +84,11 @@ type Consumer struct {
 	streaming bool
 
 	// telemetry
-	enobufs     telemetry.Gauge
-	throttles   telemetry.Gauge
-	samplingPct telemetry.Gauge
-	readErrors  telemetry.Gauge
-	msgErrors   telemetry.Gauge
+	// enobufs     telemetry.Gauge
+	// throttles   telemetry.Gauge
+	// samplingPct telemetry.Gauge
+	// readErrors  telemetry.Gauge
+	// msgErrors   telemetry.Gauge
 
 	netlinkSeqNumber    uint32
 	listenAllNamespaces bool
@@ -124,6 +119,20 @@ func (e *Event) Done() {
 	}
 }
 
+func newGauge(name string, help string, tags ...string) telemetry.Gauge {
+	return telemetry.NewGauge(telemetryModuleName, name,
+		append([]string{}, tags...), help)
+}
+
+// Telemetry
+var (
+	enobufs = newGauge("enobufs", "description")
+	throttles = newGauge("throttles", "description")
+	samplingPct = newGauge("sampling_pct", "description")
+	readErrors = newGauge("read_errors", "description")
+	msgErrors = newGauge("msg_errors", "description")
+)
+
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
 func NewConsumer(cfg *config.Config) (*Consumer, error) {
@@ -139,11 +148,6 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
-		enobufs:             telemetry.NewGauge("network_tracer.conntrack", "enobufs", []string{}, "description"),
-		throttles:           telemetry.NewGauge("network_tracer.conntrack", "throttles", []string{}, "description"),
-		samplingPct:         telemetry.NewGauge("network_tracer.conntrack", "samplingPct", []string{}, "description"),
-		readErrors:          telemetry.NewGauge("network_tracer.conntrack", "readErrors", []string{}, "description"),
-		msgErrors:           telemetry.NewGauge("network_tracer.conntrack", "msgErrors", []string{}, "description"),
 		recvLoopRunning:     atomic.NewBool(false),
 		rootNetNs:           ns,
 	}
@@ -473,7 +477,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
-	c.samplingPct.Set(float64((samplingRate * 100.0)))
+	samplingPct.Set(float64((samplingRate * 100.0)))
 	if c.samplingRate >= 1.0 {
 		return nil
 	}
@@ -482,7 +486,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	sampler, _ := GenerateBPFSampler(c.samplingRate)
 	err = c.socket.SetBPF(sampler)
 	if err != nil {
-		c.samplingPct.Set(0)
+		samplingPct.Set(0)
 		return fmt.Errorf("failed to attach BPF filter: %w", err)
 	}
 
@@ -521,9 +525,9 @@ ReadLoop:
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				c.enobufs.Inc()
+				enobufs.Inc()
 			default:
-				c.readErrors.Inc()
+				readErrors.Inc()
 			}
 		}
 
@@ -535,7 +539,7 @@ ReadLoop:
 		// Messages with error codes are simply skipped
 		for _, m := range msgs {
 			if err := checkMessage(m); err != nil {
-				c.msgErrors.Inc()
+				msgErrors.Inc()
 				continue ReadLoop
 			}
 		}
@@ -566,9 +570,9 @@ func (c *Consumer) receiveAndDiscard() {
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				c.enobufs.Inc()
+				enobufs.Inc()
 			default:
-				c.readErrors.Inc()
+				readErrors.Inc()
 			}
 		}
 		if done {
@@ -599,7 +603,7 @@ func (c *Consumer) throttle(numMessages int) error {
 	if !c.breaker.IsOpen() {
 		return nil
 	}
-	c.throttles.Inc()
+	throttles.Inc()
 
 	// Close current socket
 	c.conn.Close()

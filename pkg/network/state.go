@@ -23,6 +23,18 @@ var (
 	_ State = &networkState{}
 )
 
+// Telemetry
+var (
+	// closedConnDropped     = nettelemetry.NewStatGaugeWrapper(stateModuleName, "closed_conn_dropped", []string{}, "desc")
+	// connDropped           = nettelemetry.NewStatGaugeWrapper(stateModuleName, "conn_dropped", []string{}, "desc")
+	// statsUnderflows       = nettelemetry.NewStatGaugeWrapper(stateModuleName, "stats_underflows", []string{}, "desc")
+	// statsCookieCollisions = nettelemetry.NewStatGaugeWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "desc")
+	// timeSyncCollisions    = nettelemetry.NewStatGaugeWrapper(stateModuleName, "time_sync_collisions", []string{}, "desc")
+	// dnsStatsDropped       = nettelemetry.NewStatGaugeWrapper(stateModuleName, "dns_stats_dropped", []string{}, "desc")
+	// httpStatsDropped      = nettelemetry.NewStatGaugeWrapper(stateModuleName, "http_stats_dropped", []string{}, "desc")
+	// dnsPidCollisions      = nettelemetry.NewStatGaugeWrapper(stateModuleName, "dns_pid_collisions", []string{}, "desc")
+)
+
 const (
 	// DEBUGCLIENT is the ClientID for debugging
 	DEBUGCLIENT = "-1"
@@ -35,7 +47,7 @@ const (
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
 
-	telemetryModuleName = "network_tracer.state"
+	stateModuleName = "network_tracer_state"
 )
 
 // State takes care of handling the logic for:
@@ -100,14 +112,14 @@ type stateTelemetry struct {
 
 func newTelemetry() stateTelemetry {
 	return stateTelemetry{
-		closedConnDropped:     nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "closed_conn_dropped", []string{}, "desc"),
-		connDropped:           nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "conn_dropped", []string{}, "desc"),
-		statsUnderflows:       nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "stats_underflows", []string{}, "desc"),
-		statsCookieCollisions: nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "stats_cookie_collisions", []string{}, "desc"),
-		timeSyncCollisions:    nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "time_sync_collisions", []string{}, "desc"),
-		dnsStatsDropped:       nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "dns_stats_dropped", []string{}, "desc"),
-		httpStatsDropped:      nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "http_stats_dropped", []string{}, "desc"),
-		dnsPidCollisions:      nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "dns_pid_collisions", []string{}, "desc"),
+		closedConnDropped:     nettelemetry.NewStatGaugeWrapper(stateModuleName, "closed_conn_dropped", []string{}, "desc"),
+		connDropped:           nettelemetry.NewStatGaugeWrapper(stateModuleName, "conn_dropped", []string{}, "desc"),
+		statsUnderflows:       nettelemetry.NewStatGaugeWrapper(stateModuleName, "stats_underflows", []string{}, "desc"),
+		statsCookieCollisions: nettelemetry.NewStatGaugeWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "desc"),
+		timeSyncCollisions:    nettelemetry.NewStatGaugeWrapper(stateModuleName, "time_sync_collisions", []string{}, "desc"),
+		dnsStatsDropped:       nettelemetry.NewStatGaugeWrapper(stateModuleName, "dns_stats_dropped", []string{}, "desc"),
+		httpStatsDropped:      nettelemetry.NewStatGaugeWrapper(stateModuleName, "http_stats_dropped", []string{}, "desc"),
+		dnsPidCollisions:      nettelemetry.NewStatGaugeWrapper(stateModuleName, "dns_pid_collisions", []string{}, "desc"),
 	}
 }
 

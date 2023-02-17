@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -71,7 +70,21 @@ type Tracer interface {
 const (
 	defaultClosedChannelSize = 500
 	ProbeUID                 = "net"
-	componentName            = "network_tracer.ebpf"
+	connTracerModuleName     = "network_tracer_ebpf"
+)
+
+var (
+	tcpConns4         = telemetry.NewGauge(connTracerModuleName, "tcp_conns4", []string{}, "desc")
+	udpConns4         = telemetry.NewGauge(connTracerModuleName, "udp_conns4", []string{}, "desc")
+	tcpConns6         = telemetry.NewGauge(connTracerModuleName, "tcp_conns6", []string{}, "desc")
+	udpConns6         = telemetry.NewGauge(connTracerModuleName, "udp_conns6", []string{}, "desc")
+	tcpFailedConnects = telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "desc")
+	tcpSentMiscounts  = telemetry.NewGauge(connTracerModuleName, "tcp_sent_miscounts", []string{}, "desc")
+	missedTcpClose    = telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "desc")
+	missedUdpClose    = telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "desc")
+	UdpSendsProcessed = telemetry.NewGauge(connTracerModuleName, "udp_sends_processed", []string{}, "desc")
+	UdpSendsMissed    = telemetry.NewGauge(connTracerModuleName, "udp_sends_missed", []string{}, "desc")
+	UdpDroppedConns   = telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "desc")
 )
 
 type tracer struct {
@@ -87,42 +100,10 @@ type tracer struct {
 	pidCollisions *atomic.Int64
 	removeTuple   *netebpf.ConnTuple
 
-	telemetry tracerTelemetry
-
 	closeTracer func()
 	stopOnce    sync.Once
 
 	ebpfTracerType TracerType
-}
-
-type tracerTelemetry struct {
-	tcpConns4         telemetry.Gauge
-	tcpConns6         telemetry.Gauge
-	udpConns4         telemetry.Gauge
-	udpConns6         telemetry.Gauge
-	tcpFailedConnects telemetry.Gauge
-	tcpSentMiscounts  telemetry.Gauge
-	missedTcpClose    telemetry.Gauge
-	missedUdpClose    telemetry.Gauge
-	UdpSendsProcessed telemetry.Gauge
-	UdpSendsMissed    telemetry.Gauge
-	UdpDroppedConns   telemetry.Gauge
-}
-
-func newTelemetry() tracerTelemetry {
-	return tracerTelemetry{
-		tcpConns4:         telemetry.NewGauge(componentName, "tcp_conns4", []string{}, "desc"),
-		udpConns4:         telemetry.NewGauge(componentName, "udp_conns4", []string{}, "desc"),
-		tcpConns6:         telemetry.NewGauge(componentName, "tcp_conns6", []string{}, "desc"),
-		udpConns6:         telemetry.NewGauge(componentName, "udp_conns6", []string{}, "desc"),
-		tcpFailedConnects: telemetry.NewGauge(componentName, "tcp_failed_connects", []string{}, "desc"),
-		tcpSentMiscounts:  telemetry.NewGauge(componentName, "tcp_sent_miscounts", []string{}, "desc"),
-		missedTcpClose:    telemetry.NewGauge(componentName, "missed_tcp_close", []string{}, "desc"),
-		missedUdpClose:    telemetry.NewGauge(componentName, "missed_udp_close", []string{}, "desc"),
-		UdpSendsProcessed: telemetry.NewGauge(componentName, "udp_sends_processed", []string{}, "desc"),
-		UdpSendsMissed:    telemetry.NewGauge(componentName, "udp_sends_missed", []string{}, "desc"),
-		UdpDroppedConns:   telemetry.NewGauge(componentName, "udp_dropped_conns", []string{}, "desc"),
-	}
 }
 
 // NewTracer creates a new tracer
@@ -193,7 +174,6 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		closeConsumer:  closeConsumer,
 		pidCollisions:  atomic.NewInt64(0),
 		removeTuple:    &netebpf.ConnTuple{},
-		telemetry:      newTelemetry(),
 		closeTracer:    closeTracerFn,
 		ebpfTracerType: tracerType,
 	}
@@ -312,39 +292,39 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
-	t.telemetry.assign(tcp4, tcp6, udp4, udp6)
+	updateTelemtry(tcp4, tcp6, udp4, udp6)
 
 	return nil
 }
 
-func (t *tracerTelemetry) assign(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
-	t.tcpConns4.Set(tcp4)
-	t.tcpConns6.Set(tcp6)
-	t.udpConns4.Set(udp4)
-	t.udpConns6.Set(udp6)
+func updateTelemtry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
+	tcpConns4.Set(tcp4)
+	tcpConns6.Set(tcp6)
+	udpConns4.Set(udp4)
+	udpConns6.Set(udp6)
 }
 
-func (t *tracerTelemetry) removeConnection(conn *network.ConnectionStats) {
+func removeConnection(conn *network.ConnectionStats) {
 	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
 		if isTCP {
-			t.tcpConns6.Dec()
+			tcpConns6.Dec()
 		} else {
-			t.udpConns6.Dec()
+			udpConns6.Dec()
 		}
 	case network.AFINET:
 		if isTCP {
-			t.tcpConns4.Dec()
+			tcpConns4.Dec()
 		} else {
-			t.udpConns4.Dec()
+			udpConns4.Dec()
 		}
 	}
 }
 
-func (t *tracerTelemetry) get() map[string]interface{} {
-	return atomicstats.Report(t)
-}
+// func (t *tracerTelemetry) get() map[string]interface{} {
+// 	return atomicstats.Report(t)
+// }
 
 func (t *tracer) Remove(conn *network.ConnectionStats) error {
 	t.removeTuple.Sport = conn.SPort
@@ -375,7 +355,7 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 		return err
 	}
 
-	t.telemetry.removeConnection(conn)
+	removeConnection(conn)
 
 	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
 	t.removeTuple.Pid = 0
@@ -412,13 +392,13 @@ func (t *tracer) RefreshProbeTelemetry() {
 func (t *tracer) refreshProbeTelemetry() {
 	telemetry := t.getEBPFTelemetry()
 
-	t.telemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
-	t.telemetry.tcpSentMiscounts.Set(float64(telemetry.Tcp_sent_miscounts))
-	t.telemetry.missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
-	t.telemetry.missedUdpClose.Set(float64(telemetry.Missed_udp_close))
-	t.telemetry.UdpSendsProcessed.Set(float64(telemetry.Udp_sends_processed))
-	t.telemetry.UdpSendsMissed.Set(float64(telemetry.Udp_sends_missed))
-	t.telemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
+	tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
+	tcpSentMiscounts.Set(float64(telemetry.Tcp_sent_miscounts))
+	missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
+	missedUdpClose.Set(float64(telemetry.Missed_udp_close))
+	UdpSendsProcessed.Set(float64(telemetry.Udp_sends_processed))
+	UdpSendsMissed.Set(float64(telemetry.Udp_sends_missed))
+	UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
