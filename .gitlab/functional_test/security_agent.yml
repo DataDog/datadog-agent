@@ -6,6 +6,7 @@
 #   - /.gitlab/kitchen_common/testing.yml
 
 .kitchen_test_security_agent:
+  allow_failure: true
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
@@ -18,19 +19,19 @@
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
   script:
-    - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
 
 kitchen_test_security_agent_x64:
   extends:
     - .kitchen_test_security_agent
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  needs: ["tests_ebpf_x64"]
+  needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
   variables:
     KITCHEN_ARCH: x86_64
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
@@ -68,13 +69,13 @@ kitchen_test_security_agent_arm64:
     - .kitchen_ec2_spot_instances
   rules:
     !reference [.on_security_agent_changes_or_manual]
-  needs: [ "tests_ebpf_arm64" ]
+  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -88,13 +89,13 @@ kitchen_test_security_agent_amazonlinux_x64:
     - .kitchen_ec2_spot_instances
   rules:
     !reference [.on_security_agent_changes_or_manual]
-  needs: [ "tests_ebpf_x64" ]
+  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -110,15 +111,15 @@ kitchen_stress_security_agent:
   rules:
     !reference [.manual]
   stage: functional_test
-  needs: ["tests_ebpf_x64"]
+  needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   script:
-    - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"

@@ -54,7 +54,7 @@ func TestPayloadChunking(t *testing.T) {
 	for i := 0; i < payloadCount+1; i++ {
 		select {
 		case p := <-r.Out():
-			if v, ok := p.(pb.AgentPayload); ok {
+			if v, ok := p.(*pb.AgentPayload); ok {
 				// ok
 				for _, tracerPayload := range v.TracerPayloads {
 					got += len(tracerPayload.Chunks)

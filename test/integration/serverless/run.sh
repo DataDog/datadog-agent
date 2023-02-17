@@ -148,6 +148,7 @@ trace_functions=(
     "trace-go"
     "trace-csharp"
     "trace-proxy"
+    #"otlp-python"
 )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")

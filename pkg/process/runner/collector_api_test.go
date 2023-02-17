@@ -563,31 +563,22 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	}
 	setOrchestratorEndpointsForTest(mockConfig, orchestratorEndpoints...)
 
-	exit := make(chan struct{})
-
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
 	}
 	c, err := NewCollectorWithChecks([]checks.Check{check}, true)
 	check.Init(nil, hostInfo)
-
 	assert.NoError(t, err)
-	s, err := NewSubmitter(hostInfo.HostName, c.UpdateRTStatus)
-	require.NoError(t, err)
-	c.Submitter = s
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := c.Run(exit)
-		require.NoError(t, err)
-	}()
+	c.Submitter, err = NewSubmitter(hostInfo.HostName, c.UpdateRTStatus)
+	require.NoError(t, err)
+
+	err = c.Run()
+	require.NoError(t, err)
 
 	tc(c, ep)
 
-	close(exit)
-	wg.Wait()
+	c.Stop()
 }
 
 type testCheck struct {

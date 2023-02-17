@@ -234,19 +234,19 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 	read += n
 
-	// Unmarshal linux_binprm_t
-	if len(data) < 16 {
-		return 0, ErrNotEnoughData
+	// interpreter part
+	var pathKey PathKey
+
+	n, err = pathKey.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
 	}
+	read += n
 
 	// TODO: Is there a better way to determine if there's no interpreter?
-	inode, mountID := ByteOrder.Uint64(data[read:read+8]), ByteOrder.Uint32(data[read+8:read+12])
-	if e.FileEvent.Inode != inode || e.FileEvent.MountID != mountID {
-		e.LinuxBinprm.FileEvent.Inode, e.LinuxBinprm.FileEvent.MountID = inode, mountID
-		e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
+	if e.FileEvent.Inode != pathKey.Inode || e.FileEvent.MountID != pathKey.MountID {
+		e.LinuxBinprm.FileEvent.PathKey = pathKey
 	}
-
-	read += 16
 
 	if len(data[read:]) < 16 {
 		return 0, ErrNotEnoughData
@@ -316,31 +316,46 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	return MaxArgEnvSize + 8, nil
 }
 
+func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	p.Inode = ByteOrder.Uint64(data[0:8])
+	p.MountID = ByteOrder.Uint32(data[8:12])
+	p.PathID = ByteOrder.Uint32(data[12:16])
+
+	return 16, nil
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
-	e.Inode = ByteOrder.Uint64(data[0:8])
-	e.MountID = ByteOrder.Uint32(data[8:12])
-	e.PathID = ByteOrder.Uint32(data[12:16])
-	e.Flags = int32(ByteOrder.Uint32(data[16:20]))
+
+	n, err := e.PathKey.UnmarshalBinary(data)
+	if err != nil {
+		return n, err
+	}
+	data = data[n:]
+
+	e.Flags = int32(ByteOrder.Uint32(data[0:4]))
 
 	// +4 for padding
 
-	e.UID = ByteOrder.Uint32(data[24:28])
-	e.GID = ByteOrder.Uint32(data[28:32])
-	e.NLink = ByteOrder.Uint32(data[32:36])
-	e.Mode = ByteOrder.Uint16(data[36:38])
+	e.UID = ByteOrder.Uint32(data[8:12])
+	e.GID = ByteOrder.Uint32(data[12:16])
+	e.NLink = ByteOrder.Uint32(data[16:20])
+	e.Mode = ByteOrder.Uint16(data[20:22])
 
 	// +2 for padding
 
-	timeSec := ByteOrder.Uint64(data[40:48])
-	timeNsec := ByteOrder.Uint64(data[48:56])
+	timeSec := ByteOrder.Uint64(data[24:32])
+	timeNsec := ByteOrder.Uint64(data[32:40])
 	e.CTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
-	timeSec = ByteOrder.Uint64(data[56:64])
-	timeNsec = ByteOrder.Uint64(data[64:72])
+	timeSec = ByteOrder.Uint64(data[40:48])
+	timeNsec = ByteOrder.Uint64(data[48:56])
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
 	return 72, nil
