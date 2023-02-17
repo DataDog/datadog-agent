@@ -61,6 +61,14 @@ type ResolverOpts struct {
 	envsWithValue map[string]bool
 }
 
+type processCacheEntrySource uint64
+
+const (
+	processCacheEntryFromEvent     processCacheEntrySource = 1
+	processCacheEntryFromKernelMap processCacheEntrySource = 2
+	processCacheEntryFromProcFS    processCacheEntrySource = 3
+)
+
 // Resolver resolved process context
 type Resolver struct {
 	sync.RWMutex
@@ -85,16 +93,18 @@ type Resolver struct {
 	opts             ResolverOpts
 
 	// stats
-	hitsStats      map[string]*atomic.Int64
-	missStats      *atomic.Int64
-	addedEntries   *atomic.Int64
-	flushedEntries *atomic.Int64
-	pathErrStats   *atomic.Int64
-	argsTruncated  *atomic.Int64
-	argsSize       *atomic.Int64
-	envsTruncated  *atomic.Int64
-	envsSize       *atomic.Int64
-	brokenLineage  *atomic.Int64
+	hitsStats                 map[string]*atomic.Int64
+	missStats                 *atomic.Int64
+	addedEntriesFromEvent     *atomic.Int64
+	addedEntriesFromKernelMap *atomic.Int64
+	addedEntriesFromProcFS    *atomic.Int64
+	flushedEntries            *atomic.Int64
+	pathErrStats              *atomic.Int64
+	argsTruncated             *atomic.Int64
+	argsSize                  *atomic.Int64
+	envsTruncated             *atomic.Int64
+	envsSize                  *atomic.Int64
+	brokenLineage             *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *model.ArgsEnvsCacheEntry]
@@ -280,9 +290,21 @@ func (p *Resolver) SendStats() error {
 		}
 	}
 
-	if count := p.addedEntries.Swap(0); count > 0 {
-		if err := p.statsdClient.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
+	if count := p.addedEntriesFromEvent.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverAdded, count, metrics.ProcessSourceEventTags, 1.0); err != nil {
 			return fmt.Errorf("failed to send process_resolver added entries metric: %w", err)
+		}
+	}
+
+	if count := p.addedEntriesFromKernelMap.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverAdded, count, metrics.ProcessSourceKernelMapsTags, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver added entries from kernel map metric: %w", err)
+		}
+	}
+
+	if count := p.addedEntriesFromProcFS.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverAdded, count, metrics.ProcessSourceProcTags, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver added entries from kernel map metric: %w", err)
 		}
 	}
 
@@ -346,7 +368,7 @@ func (p *Resolver) AddForkEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertForkEntry(entry)
+	p.insertForkEntry(entry, processCacheEntryFromEvent)
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
@@ -354,7 +376,7 @@ func (p *Resolver) AddExecEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(entry)
+	p.insertExecEntry(entry, processCacheEntryFromEvent)
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
@@ -514,7 +536,7 @@ func (p *Resolver) retrieveExecFileFields(procExecPath string) (*model.FileField
 	return &fileFields, nil
 }
 
-func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
+func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin processCacheEntrySource) {
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
 
@@ -526,11 +548,19 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 		p.cgroupResolver.AddPID1(entry.ContainerID, entry.Pid)
 	}
 
-	p.addedEntries.Inc()
+	switch origin {
+	case processCacheEntryFromEvent:
+		p.addedEntriesFromEvent.Inc()
+	case processCacheEntryFromKernelMap:
+		p.addedEntriesFromKernelMap.Inc()
+	case processCacheEntryFromProcFS:
+		p.addedEntriesFromProcFS.Inc()
+	}
+
 	p.cacheSize.Inc()
 }
 
-func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin processCacheEntrySource) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -546,16 +576,16 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry) {
 		parent.Fork(entry)
 	}
 
-	p.insertEntry(entry, prev)
+	p.insertEntry(entry, prev, origin)
 }
 
-func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin processCacheEntrySource) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		prev.Exec(entry)
 	}
 
-	p.insertEntry(entry, prev)
+	p.insertEntry(entry, prev, origin)
 }
 
 func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -799,11 +829,11 @@ func (p *Resolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEnt
 	}
 
 	if entry.ExecTime.IsZero() {
-		p.insertForkEntry(entry)
+		p.insertForkEntry(entry, processCacheEntryFromKernelMap)
 		return entry
 	}
 
-	p.insertExecEntry(entry)
+	p.insertExecEntry(entry, processCacheEntryFromKernelMap)
 	return entry
 }
 
@@ -1149,7 +1179,7 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *process.FilledPr
 
 	p.setAncestor(entry)
 
-	p.insertEntry(entry, p.entryCache[pid])
+	p.insertEntry(entry, p.entryCache[pid], processCacheEntryFromProcFS)
 
 	// insert new entry in kernel maps
 	procCacheEntryB := make([]byte, 224)
@@ -1285,32 +1315,34 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	}
 
 	p := &Resolver{
-		manager:           manager,
-		config:            config,
-		statsdClient:      statsdClient,
-		scrubber:          scrubber,
-		entryCache:        make(map[uint32]*model.ProcessCacheEntry),
-		opts:              opts,
-		argsEnvsCache:     argsEnvsCache,
-		state:             atomic.NewInt64(Snapshotting),
-		argsEnvsPool:      NewArgsEnvsPool(maxArgsEnvResidents),
-		hitsStats:         map[string]*atomic.Int64{},
-		cacheSize:         atomic.NewInt64(0),
-		missStats:         atomic.NewInt64(0),
-		addedEntries:      atomic.NewInt64(0),
-		flushedEntries:    atomic.NewInt64(0),
-		pathErrStats:      atomic.NewInt64(0),
-		argsTruncated:     atomic.NewInt64(0),
-		argsSize:          atomic.NewInt64(0),
-		envsTruncated:     atomic.NewInt64(0),
-		envsSize:          atomic.NewInt64(0),
-		brokenLineage:     atomic.NewInt64(0),
-		containerResolver: containerResolver,
-		mountResolver:     mountResolver,
-		cgroupResolver:    cgroupResolver,
-		userGroupResolver: userGroupResolver,
-		timeResolver:      timeResolver,
-		pathResolver:      pathResolver,
+		manager:                   manager,
+		config:                    config,
+		statsdClient:              statsdClient,
+		scrubber:                  scrubber,
+		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
+		opts:                      opts,
+		argsEnvsCache:             argsEnvsCache,
+		state:                     atomic.NewInt64(Snapshotting),
+		argsEnvsPool:              NewArgsEnvsPool(maxArgsEnvResidents),
+		hitsStats:                 map[string]*atomic.Int64{},
+		cacheSize:                 atomic.NewInt64(0),
+		missStats:                 atomic.NewInt64(0),
+		addedEntriesFromEvent:     atomic.NewInt64(0),
+		addedEntriesFromKernelMap: atomic.NewInt64(0),
+		addedEntriesFromProcFS:    atomic.NewInt64(0),
+		flushedEntries:            atomic.NewInt64(0),
+		pathErrStats:              atomic.NewInt64(0),
+		argsTruncated:             atomic.NewInt64(0),
+		argsSize:                  atomic.NewInt64(0),
+		envsTruncated:             atomic.NewInt64(0),
+		envsSize:                  atomic.NewInt64(0),
+		brokenLineage:             atomic.NewInt64(0),
+		containerResolver:         containerResolver,
+		mountResolver:             mountResolver,
+		cgroupResolver:            cgroupResolver,
+		userGroupResolver:         userGroupResolver,
+		timeResolver:              timeResolver,
+		pathResolver:              pathResolver,
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
