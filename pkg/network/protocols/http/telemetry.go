@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

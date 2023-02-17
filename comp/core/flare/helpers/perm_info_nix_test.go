@@ -25,8 +25,12 @@ func createPermsTestFile(t *testing.T) (string, string, string) {
 	f2 := filepath.Join(tempDir, "file_2")
 	f3 := filepath.Join(tempDir, "file_3")
 
+	// Because of umask the rights for newly created file might not be the one we asked for. We enforce it with
+	// os.Chmod.
 	os.WriteFile(f1, nil, 0765)
+	os.Chmod(f1, 0765)
 	os.WriteFile(f2, nil, 0400)
+	os.Chmod(f2, 0400)
 	return f1, f2, f3
 }
 
@@ -42,7 +46,7 @@ func TestPermsFileAdd(t *testing.T) {
 	require.Len(t, pi, 3)
 
 	assert.Equal(t, f1, pi[f1].path)
-	assert.Equal(t, "-rwxrw----", pi[f1].mode)
+	assert.Equal(t, "-rwxrw-r-x", pi[f1].mode)
 	assert.NotNil(t, pi[f1].owner)
 	assert.NotNil(t, pi[f1].group)
 	assert.Nil(t, pi[f1].err)

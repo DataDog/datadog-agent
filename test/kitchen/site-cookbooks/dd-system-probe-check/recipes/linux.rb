@@ -1,3 +1,11 @@
+
+execute "df -Th" do
+  command "df -Th"
+  live_stream true
+  action :run
+  ignore_failure true
+end
+
 if platform?('centos')
   include_recipe '::old_vault'
 end
@@ -89,28 +97,6 @@ execute 'ensure conntrack is enabled' do
   action :run
 end
 
-if Chef::SystemProbeHelpers::arm?(node) and node[:platform] == 'centos'
-  package 'cloud-utils-growpart'
-  package 'gdisk'
-
-  execute 'increase space' do
-    command <<-EOF
-      df -h /tmp
-
-      dev_name=$(df -h / | tail -n1 | awk '{print $1}')
-      dev_name=$(python3 -c "print(' '.join('$dev_name'.rsplit('p', 1)))")
-      dev_name_array=($dev_name)
-
-      growpart ${dev_name_array[0]} ${dev_name_array[1]}
-      xfs_growfs -d /
-      df -h /tmp
-    EOF
-    user "root"
-    live_stream true
-    ignore_failure true
-  end
-end
-
 execute 'disable firewalld on redhat' do
   command "systemctl disable --now firewalld"
   user "root"
@@ -197,7 +183,7 @@ end
 # Install relevant packages for docker
 include_recipe "::docker_installation"
 
-remote_directory "/tmp/kitchen-dockers" do
+remote_directory "/kitchen-dockers" do
   source 'dockers'
   files_owner 'root'
   files_group 'root'
@@ -208,7 +194,7 @@ end
 
 # Load docker images
 execute 'install docker-compose' do
-  cwd '/tmp/kitchen-dockers'
+  cwd '/kitchen-dockers'
   command <<-EOF
     for docker_file in $(ls); do
       echo docker load -i $docker_file
