@@ -166,13 +166,11 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	ebpfTracer, err := connection.NewTracer(config, constantEditors, bpfTelemetry)
-	go ebpfTracer.RefreshProbeTelemetry()
 	if err != nil {
 		return nil, err
 	}
 
 	conntracker, err := newConntracker(config, bpfTelemetry)
-	go conntracker.RefreshTelemetry()
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +228,6 @@ func newTracer(config *config.Config) (*Tracer, error) {
 // start starts the tracer. This function is present to separate
 // the creation from the start of the tracer for tests
 func (tr *Tracer) start() error {
-	telemetry.Reset()
 	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
@@ -277,6 +274,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 		}
 		return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 	}
+	go c.RefreshTelemetry()
 	return c, nil
 }
 

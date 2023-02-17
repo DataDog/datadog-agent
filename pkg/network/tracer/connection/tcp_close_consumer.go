@@ -29,7 +29,7 @@ const (
 // Telemetry
 var (
 	perfReceived = telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "description")
-	perfLost = telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "description")
+	perfLost = telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "description")
 )
 
 type tcpCloseConsumer struct {

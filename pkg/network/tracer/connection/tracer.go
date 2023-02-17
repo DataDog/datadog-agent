@@ -199,6 +199,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		tr.Stop()
 		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
 	}
+	go tr.RefreshProbeTelemetry()
 
 	return tr, nil
 }
