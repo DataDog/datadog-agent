@@ -106,25 +106,25 @@ func isTraceFSMounted() bool {
 	_, err := os.Stat("/sys/kernel/tracing/kprobe_events")
 	if err != nil {
 		if os.IsPermission(err) {
-			seclog.Errorf("eBPF not supported, does not have permission to access tracefs")
+			seclog.Infof("eBPF not supported, does not have permission to access tracefs kprobe_events (/sys/kernel/tracing/kprobe_events)")
 			return false
 		} else if os.IsNotExist(err) {
-			seclog.Errorf("tracefs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t tracefs none /sys/kernel/tracing\" to mount tracefs")
+			seclog.Infof("tracefs is not mounted in /sys/kernel/tracing/ and is needed for eBPF-based checks, run \"sudo mount -t tracefs none /sys/kernel/tracing\" to mount tracefs")
 			return false
 		} else {
-			seclog.Errorf("an error occurred while accessing tracefs: %s", err)
+			seclog.Infof("an error occurred while accessing tracefs sysfs entry (/sys/kernel/tracing/kprobe_events): %s", err)
 			return false
 		}
 	}
 
 	mi, err := GetMountPoint("/sys/kernel/tracing/kprobe_events")
 	if err != nil {
-		seclog.Errorf("unable to detect tracefs mount point: %s", err)
+		seclog.Infof("unable to detect tracefs mount point (/sys/kernel/tracing/): %s", err)
 		return false
 	}
 
 	if mi.FSType != "tracefs" {
-		seclog.Errorf("kprobe_events mount point(%s): wrong fs type(%s)", mi.Mountpoint, mi.FSType)
+		seclog.Infof("kprobe_events mount point(%s): wrong fs type(%s)", mi.Mountpoint, mi.FSType)
 		return false
 	}
 
@@ -133,7 +133,7 @@ func isTraceFSMounted() bool {
 		options := strings.Split(mi.Options, ",")
 		for _, option := range options {
 			if option == "ro" {
-				seclog.Errorf("kprobe_events mount point(%s) is in read-only mode", mi.Mountpoint)
+				seclog.Infof("tracefs mount point(%s) is in read-only mode", mi.Mountpoint)
 				return false
 			}
 		}

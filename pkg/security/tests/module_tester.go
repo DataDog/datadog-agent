@@ -43,15 +43,17 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -434,7 +436,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
-	eventJSON, err := sprobe.MarshalEvent(event, probe)
+	eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -523,7 +525,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := sprobe.MarshalEvent(event, probe)
+		eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -1020,7 +1022,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := sprobe.MarshalEvent(ev, tm.probe)
+	b, err := serializers.MarshalEvent(ev, tm.probe.GetResolvers())
 	return string(b), err
 }
 
@@ -1699,7 +1701,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 	return dumps, nil
 }
 
-func (tm *testModule) DecodeActivityDump(path string) (*sprobe.ActivityDump, error) {
+func (tm *testModule) DecodeActivityDump(path string) (*activitydump.ActivityDump, error) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return nil, errors.New("No monitor")
@@ -1710,7 +1712,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*sprobe.ActivityDump, err
 		return nil, errors.New("No activity dump manager")
 	}
 
-	ad := sprobe.NewActivityDump(adm)
+	ad := activitydump.NewActivityDump(adm)
 	if ad == nil {
 		return nil, errors.New("Creation of new activity dump fails")
 	}
@@ -1870,7 +1872,7 @@ func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *
 }
 
 //nolint:deadcode,unused
-func searchForOpen(ad *sprobe.ActivityDump) bool {
+func searchForOpen(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Files) > 0 {
 			return true
@@ -1880,7 +1882,7 @@ func searchForOpen(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForDns(ad *sprobe.ActivityDump) bool {
+func searchForDns(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.DNSNames) > 0 {
 			return true
@@ -1890,7 +1892,7 @@ func searchForDns(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForBind(ad *sprobe.ActivityDump) bool {
+func searchForBind(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Sockets) > 0 {
 			return true
@@ -1900,7 +1902,7 @@ func searchForBind(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForSyscalls(ad *sprobe.ActivityDump) bool {
+func searchForSyscalls(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Syscalls) > 0 {
 			return true
@@ -1910,7 +1912,7 @@ func searchForSyscalls(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*sprobe.ActivityDump, error) {
+func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*activitydump.ActivityDump, error) {
 	var fileProtobuf string
 	// decode the dump
 	for _, file := range id.OutputFiles {

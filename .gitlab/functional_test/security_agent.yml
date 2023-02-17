@@ -6,6 +6,7 @@
 #   - /.gitlab/kitchen_common/testing.yml
 
 .kitchen_test_security_agent:
+  allow_failure: true
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor

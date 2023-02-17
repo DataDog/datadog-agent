@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -32,9 +31,6 @@ var (
 
 	// Coll is the global collector instance
 	Coll *collector.Collector
-
-	// DSD is the global dogstatsd instance
-	DSD *dogstatsd.Server
 
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
