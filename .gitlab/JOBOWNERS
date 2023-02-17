@@ -10,6 +10,7 @@ build_vcpkg_deps                     @DataDog/windows-agent
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
 tests_ebpf                           @DataDog/ebpf-platform
+prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
 
 # Golang dependency list generation (currently disabled)
