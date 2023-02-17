@@ -134,7 +134,7 @@ platforms:
       default_key_platforms = ["ubuntu-22-04"]
       use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
 
-      ed25519_platforms = []
+      ed25519_platforms = ["rhel-91"]
       use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
 
       vm_password = ENV['SERVER_PASSWORD']
