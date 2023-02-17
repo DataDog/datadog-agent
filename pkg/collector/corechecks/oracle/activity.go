@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -58,7 +59,7 @@ func (c *Check) SampleSession() error {
 			Timestamp:      float64(time.Now().UnixMilli()),
 			Host:           c.hostname,
 			DDAgentVersion: agentVersion.GetNumberAndPre(),
-			Source:         "oracle",
+			Source:         common.IntegrationName,
 			DBMType:        "activity"},
 		CollectionInterval: 1,
 		Tags:               []string{},

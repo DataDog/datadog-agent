@@ -24,9 +24,10 @@ import (
 // Check represents one Oracle instance check.
 type Check struct {
 	core.CheckBase
-	config   *config.CheckConfig
-	db       *sqlx.DB
-	hostname string
+	config     *config.CheckConfig
+	db         *sqlx.DB
+	hostname   string
+	dbmEnabled bool
 }
 
 // Run executes the check.
@@ -50,13 +51,17 @@ func (c *Check) Run() error {
 	if c.hostname == "" {
 		hostname, err := hostname.Get(context.TODO())
 		if err != nil {
-			return log.Errorf("Error while getting hostname: %v", err)
+			return log.Errorf("getting hostname: %v", err)
 		}
 		c.hostname = hostname
 	}
 
-	err = c.SampleSession()
-	return err
+	if c.dbmEnabled {
+		err = c.SampleSession()
+		return log.Errorf("Sampling session: %v", err)
+	}
+
+	return nil
 }
 
 // Connect establishes a connection to an Oracle instance and returns an open connection to the database.
@@ -102,6 +107,12 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	if err := c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source); err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
+
+	c.dbmEnabled = false
+	if c.config.DBM {
+		c.dbmEnabled = true
+	}
+
 	return nil
 }
 
