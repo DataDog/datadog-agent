@@ -182,14 +182,6 @@ func (s *Launcher) scan() {
 		}
 
 		filesTailed[scanKey] = true
-
-		// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
-		fileStats, err := util.GetProcessFileStats()
-		if err != nil {
-			continue
-		} else {
-			CheckProcessTelemetry(fileStats)
-		}
 	}
 
 	for scanKey, tailer := range s.tailers {
@@ -219,6 +211,14 @@ func (s *Launcher) scan() {
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+
+	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
+	fileStats, err := util.GetProcessFileStats()
+	if err != nil {
+		return
+	} else {
+		CheckProcessTelemetry(fileStats)
+	}
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
