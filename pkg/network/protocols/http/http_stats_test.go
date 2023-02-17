@@ -47,25 +47,36 @@ func testAddRequest(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestCombineWith(t *testing.T) {
-	var stats RequestStats
+	t.Run("status code", func(t *testing.T) {
+		testCombineWith(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testCombineWith(t, false)
+	})
+}
+
+func testCombineWith(t *testing.T, aggregateByStatusCode bool) {
+	stats := NewRequestStats(aggregateByStatusCode)
 	for i := uint16(100); i <= 500; i += 100 {
 		assert.Nil(t, stats.Data[i])
 	}
 
-	var stats2, stats3, stats4 RequestStats
-	stats2.AddRequest(400, 10.0, 2, nil)
-	stats3.AddRequest(404, 15.0, 3, nil)
+	stats2 := NewRequestStats(aggregateByStatusCode)
+	stats3 := NewRequestStats(aggregateByStatusCode)
+	stats4 := NewRequestStats(aggregateByStatusCode)
+	stats2.AddRequest(405, 10.0, 2, nil)
+	stats3.AddRequest(405, 15.0, 3, nil)
 	stats4.AddRequest(405, 20.0, 4, nil)
 
-	stats.CombineWith(&stats2)
-	stats.CombineWith(&stats3)
-	stats.CombineWith(&stats4)
+	stats.CombineWith(stats2)
+	stats.CombineWith(stats3)
+	stats.CombineWith(stats4)
 
 	assert.Nil(t, stats.Data[100])
 	assert.Nil(t, stats.Data[200])
 	assert.Nil(t, stats.Data[300])
 	assert.Nil(t, stats.Data[500])
-	s := stats.Data[400]
+	s := stats.Data[stats.NormalizeStatusCode(405)]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 3.0, s.Latencies.GetCount())

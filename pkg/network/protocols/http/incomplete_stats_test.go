@@ -47,7 +47,7 @@ func TestOrphanEntries(t *testing.T) {
 		completeTX := complete[0]
 		path, _ := completeTX.Path(make([]byte, 256))
 		assert.Equal(t, "/foo/bar", string(path))
-		assert.Equal(t, 200, completeTX.StatusCode())
+		assert.Equal(t, uint16(200), completeTX.StatusCode())
 	})
 
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
