@@ -13,6 +13,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
@@ -26,7 +27,8 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	Submitter submitter.Component
+	Submitter  submitter.Component
+	RTNotifier <-chan types.RTResponse
 
 	Checks   []checks.Check
 	HostInfo *checks.HostInfo
@@ -34,7 +36,7 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := processRunner.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks, deps.Submitter.GetRTNotifierChan())
+	c, err := processRunner.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks, deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}

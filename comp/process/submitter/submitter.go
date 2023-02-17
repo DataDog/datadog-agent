@@ -7,7 +7,6 @@ package submitter
 
 import (
 	"context"
-	"testing"
 	"time"
 
 	"go.uber.org/fx"
@@ -29,10 +28,17 @@ type dependencies struct {
 	HostInfo *checks.HostInfo
 }
 
-func newSubmitter(deps dependencies) (Component, error) {
+type result struct {
+	fx.Out
+
+	RTResponseNotifier <-chan types.RTResponse
+	Submitter          Component
+}
+
+func newSubmitter(deps dependencies) (result, error) {
 	s, err := processRunner.NewSubmitter(deps.HostInfo.HostName)
 	if err != nil {
-		return nil, err
+		return result{}, err
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -44,8 +50,11 @@ func newSubmitter(deps dependencies) (Component, error) {
 			return nil
 		},
 	})
-	return &submitter{
-		s: s,
+	return result{
+		Submitter: &submitter{
+			s: s,
+		},
+		RTResponseNotifier: s.GetRTNotifierChan(),
 	}, nil
 }
 
@@ -59,12 +68,4 @@ func (s *submitter) Start() error {
 
 func (s *submitter) Stop() {
 	s.s.Stop()
-}
-
-func (s *submitter) GetRTNotifierChan() <-chan types.RTResponse {
-	return s.s.GetRTNotifierChan()
-}
-
-func newMock(deps dependencies, t testing.TB) Component {
-	return nil
 }
