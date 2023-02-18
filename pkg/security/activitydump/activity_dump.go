@@ -15,6 +15,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"io"
 	"net"
 	"os"
@@ -36,7 +37,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"

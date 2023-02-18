@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
+	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -28,34 +29,41 @@ type Monitor struct {
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
 	activityDumpManager *activitydump.ActivityDumpManager
+	activityDumpConfig  *adconfig.Config
 	runtimeMonitor      *RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
 	cgroupsMonitor      *CgroupsMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
-func NewMonitor(p *Probe) (*Monitor, error) {
-	var err error
-	m := &Monitor{
-		probe: p,
+func NewMonitor(p *Probe, cfg *adconfig.Config) *Monitor {
+	return &Monitor{
+		probe:              p,
+		activityDumpConfig: cfg,
 	}
+}
+
+// Init initializes the monitor
+func (m *Monitor) Init() error {
+	var err error
+	p := m.probe
 
 	// instantiate a new load controller
 	m.loadController, err = NewLoadController(p)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// instantiate a new event statistics monitor
 	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create the events statistics monitor: %w", err)
+		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
 	if p.Config.ActivityDumpEnabled {
-		m.activityDumpManager, err = activitydump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
+		m.activityDumpManager, err = activitydump.NewActivityDumpManager(m.activityDumpConfig, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
+			return fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
 	}
 
@@ -65,12 +73,12 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 
 	m.discarderMonitor, err = NewDiscarderMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
+		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
 
 	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
 
-	return m, nil
+	return nil
 }
 
 // GetPerfBufferMonitor returns the perf buffer monitor
@@ -219,4 +227,8 @@ func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.TranscodingRequest(params)
+}
+
+func (m *Monitor) GetActivityDumpTracedEventTypes() []model.EventType {
+	return m.activityDumpConfig.ActivityDumpTracedEventTypes
 }

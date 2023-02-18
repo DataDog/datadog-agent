@@ -10,11 +10,11 @@ package activitydump
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"time"
 
 	"github.com/cilium/ebpf"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"

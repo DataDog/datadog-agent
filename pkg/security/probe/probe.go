@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,10 +30,10 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -286,7 +287,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	p.monitor, err = NewMonitor(p)
+	err = p.monitor.Init()
 	if err != nil {
 		return err
 	}
@@ -963,7 +964,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	if p.Config.ActivityDumpEnabled {
-		for _, e := range p.Config.ActivityDumpTracedEventTypes {
+		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
 			if e.String() == eventType {
 				return true
 			}
@@ -1010,7 +1011,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 
 	// ActivityDumps
 	if p.Config.ActivityDumpEnabled {
-		for _, e := range p.Config.ActivityDumpTracedEventTypes {
+		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
 			if e == model.SyscallsEventType {
 				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 				break
@@ -1325,13 +1326,20 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.ensureConfigDefaults()
 
+	adcfg, err := adconfig.NewConfig()
+	if err != nil {
+		return nil, fmt.Errorf("invalid activity dump configuration: %w", err)
+	}
+
+	p.monitor = NewMonitor(p, adcfg)
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,
-		p.Config.ActivityDumpTracedCgroupsCount,
+		adcfg.ActivityDumpTracedCgroupsCount,
 		useMmapableMaps,
 		useRingBuffers,
 		uint32(p.Config.EventStreamBufferSize),
@@ -1342,7 +1350,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	if p.Config.ActivityDumpEnabled {
-		for _, e := range p.Config.ActivityDumpTracedEventTypes {
+		for _, e := range adcfg.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
 				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
@@ -1363,7 +1371,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
-	areCGroupADsEnabled := config.ActivityDumpTracedCgroupsCount > 0
+	areCGroupADsEnabled := adcfg.ActivityDumpTracedCgroupsCount > 0
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1421,7 +1429,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "syscall_monitor_event_period",
-			Value: uint64(p.Config.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
+			Value: uint64(adcfg.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
 	)
 
@@ -1629,4 +1637,12 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
+}
+
+func (p *Probe) IsNetworkEnabled() bool {
+	return p.Config.NetworkEnabled
+}
+
+func (p *Probe) StatsPollingInterval() time.Duration {
+	return p.Config.StatsPollingInterval
 }

@@ -23,7 +23,6 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SecurityModuleClient interface {
 	GetEvents(ctx context.Context, in *GetEventParams, opts ...grpc.CallOption) (SecurityModule_GetEventsClient, error)
-	GetProcessEvents(ctx context.Context, in *GetProcessEventParams, opts ...grpc.CallOption) (SecurityModule_GetProcessEventsClient, error)
 	DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error)
 	GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error)
 	GetStatus(ctx context.Context, in *GetStatusParams, opts ...grpc.CallOption) (*Status, error)
@@ -73,38 +72,6 @@ type securityModuleGetEventsClient struct {
 
 func (x *securityModuleGetEventsClient) Recv() (*SecurityEventMessage, error) {
 	m := new(SecurityEventMessage)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *securityModuleClient) GetProcessEvents(ctx context.Context, in *GetProcessEventParams, opts ...grpc.CallOption) (SecurityModule_GetProcessEventsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &SecurityModule_ServiceDesc.Streams[1], "/api.SecurityModule/GetProcessEvents", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &securityModuleGetProcessEventsClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type SecurityModule_GetProcessEventsClient interface {
-	Recv() (*SecurityProcessEventMessage, error)
-	grpc.ClientStream
-}
-
-type securityModuleGetProcessEventsClient struct {
-	grpc.ClientStream
-}
-
-func (x *securityModuleGetProcessEventsClient) Recv() (*SecurityProcessEventMessage, error) {
-	m := new(SecurityProcessEventMessage)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -211,7 +178,7 @@ func (c *securityModuleClient) TranscodingRequest(ctx context.Context, in *Trans
 }
 
 func (c *securityModuleClient) GetActivityDumpStream(ctx context.Context, in *ActivityDumpStreamParams, opts ...grpc.CallOption) (SecurityModule_GetActivityDumpStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &SecurityModule_ServiceDesc.Streams[2], "/api.SecurityModule/GetActivityDumpStream", opts...)
+	stream, err := c.cc.NewStream(ctx, &SecurityModule_ServiceDesc.Streams[1], "/api.SecurityModule/GetActivityDumpStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +214,6 @@ func (x *securityModuleGetActivityDumpStreamClient) Recv() (*ActivityDumpStreamM
 // for forward compatibility
 type SecurityModuleServer interface {
 	GetEvents(*GetEventParams, SecurityModule_GetEventsServer) error
-	GetProcessEvents(*GetProcessEventParams, SecurityModule_GetProcessEventsServer) error
 	DumpProcessCache(context.Context, *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error)
 	GetConfig(context.Context, *GetConfigParams) (*SecurityConfigMessage, error)
 	GetStatus(context.Context, *GetStatusParams) (*Status, error)
@@ -270,9 +236,6 @@ type UnimplementedSecurityModuleServer struct {
 
 func (UnimplementedSecurityModuleServer) GetEvents(*GetEventParams, SecurityModule_GetEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetEvents not implemented")
-}
-func (UnimplementedSecurityModuleServer) GetProcessEvents(*GetProcessEventParams, SecurityModule_GetProcessEventsServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetProcessEvents not implemented")
 }
 func (UnimplementedSecurityModuleServer) DumpProcessCache(context.Context, *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpProcessCache not implemented")
@@ -341,27 +304,6 @@ type securityModuleGetEventsServer struct {
 }
 
 func (x *securityModuleGetEventsServer) Send(m *SecurityEventMessage) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _SecurityModule_GetProcessEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetProcessEventParams)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(SecurityModuleServer).GetProcessEvents(m, &securityModuleGetProcessEventsServer{stream})
-}
-
-type SecurityModule_GetProcessEventsServer interface {
-	Send(*SecurityProcessEventMessage) error
-	grpc.ServerStream
-}
-
-type securityModuleGetProcessEventsServer struct {
-	grpc.ServerStream
-}
-
-func (x *securityModuleGetProcessEventsServer) Send(m *SecurityProcessEventMessage) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -640,11 +582,6 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetEvents",
 			Handler:       _SecurityModule_GetEvents_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "GetProcessEvents",
-			Handler:       _SecurityModule_GetProcessEvents_Handler,
 			ServerStreams: true,
 		},
 		{

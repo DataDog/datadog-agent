@@ -13,12 +13,6 @@ message SecurityEventMessage {
     string Service = 4;
 }
 
-message GetProcessEventParams{}
-
-message SecurityProcessEventMessage {
-    bytes Data = 1;
-}
-
 message DumpProcessCacheParams {
     bool WithArgs = 1;
 }
@@ -183,7 +177,6 @@ message ActivityDumpStreamMessage {
 
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
-    rpc GetProcessEvents(GetProcessEventParams) returns (stream SecurityProcessEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}

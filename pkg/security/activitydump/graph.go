@@ -11,10 +11,10 @@ package activitydump
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"strings"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )

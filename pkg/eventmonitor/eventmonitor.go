@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+// +build linux
+
 package eventmonitor
 
 import (
@@ -15,16 +18,19 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	statsdPoolSize = 64
 )
 
 var (
@@ -32,12 +38,12 @@ var (
 	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExitEventType}
 )
 
-// EventMonitor represents the system-probe module for runtime monitoring
+// EventMonitor represents the system-probe module for kernel event monitoring
 type EventMonitor struct {
 	sync.RWMutex
 	Probe *probe.Probe
 
-	Config       *sysconfig.Config
+	Config       *config.Config
 	StatsdClient statsd.ClientInterface
 	GRPCServer   *grpc.Server
 
@@ -48,9 +54,9 @@ type EventMonitor struct {
 	eventConsumers []EventConsumer
 	netListener    net.Listener
 	wg             sync.WaitGroup
-	// TODO should be remove after migration to a common section
-	secconfig *config.Config
 }
+
+var _ module.Module = &EventMonitor{}
 
 // EventConsumer defines an event consumer
 type EventConsumer interface {
@@ -64,7 +70,7 @@ type EventTypeHandler interface {
 	probe.EventHandler
 }
 
-// Register the runtime security agent module
+// Register the event monitoring module
 func (m *EventMonitor) Register(_ *module.Router) error {
 	if err := m.Init(); err != nil {
 		return err
@@ -73,7 +79,7 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// AddEventTypeHandler register an event handler
+// AddEventTypeHandler registers an event handler
 func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
 	if !slices.Contains(allowedEventTypes, eventType) {
 		return errors.New("event type not allowed")
@@ -82,7 +88,7 @@ func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler Ev
 	return m.Probe.AddEventHandler(eventType, handler)
 }
 
-// RegisterEventConsumer register an event module
+// RegisterEventConsumer registers an event consumer
 func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
@@ -90,7 +96,7 @@ func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 // Init initializes the module
 func (m *EventMonitor) Init() error {
 	// force socket cleanup of previous socket not cleanup
-	os.Remove(m.secconfig.SocketPath)
+	os.Remove(m.Config.SocketPath)
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
@@ -103,12 +109,13 @@ func (m *EventMonitor) Init() error {
 
 // Start the module
 func (m *EventMonitor) Start() error {
-	ln, err := net.Listen("unix", m.secconfig.SocketPath)
+	ln, err := net.Listen("unix", m.Config.SocketPath)
 	if err != nil {
-		return fmt.Errorf("unable to register security runtime module: %w", err)
+		return fmt.Errorf("unable to register event monitoring module: %w", err)
 	}
-	if err := os.Chmod(m.secconfig.SocketPath, 0700); err != nil {
-		return fmt.Errorf("unable to register security runtime module: %w", err)
+
+	if err := os.Chmod(m.Config.SocketPath, 0700); err != nil {
+		return fmt.Errorf("unable to register event monitoring module: %w", err)
 	}
 
 	m.netListener = ln
@@ -140,7 +147,7 @@ func (m *EventMonitor) Start() error {
 	// start event consumers
 	for _, em := range m.eventConsumers {
 		if err := em.Start(); err != nil {
-			log.Errorf("unable to start %s : %v", em.ID(), err)
+			log.Errorf("unable to start %s event consumer: %v", em.ID(), err)
 		}
 	}
 
@@ -163,7 +170,7 @@ func (m *EventMonitor) Close() {
 
 	if m.netListener != nil {
 		m.netListener.Close()
-		os.Remove(m.secconfig.SocketPath)
+		os.Remove(m.Config.SocketPath)
 	}
 
 	m.cancelFnc()
@@ -189,7 +196,7 @@ func (m *EventMonitor) sendStats() {
 func (m *EventMonitor) statsSender() {
 	defer m.wg.Done()
 
-	statsTicker := time.NewTicker(m.secconfig.StatsPollingInterval)
+	statsTicker := time.NewTicker(m.Config.StatsPollingInterval)
 	defer statsTicker.Stop()
 
 	for {
@@ -218,22 +225,23 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 	return debug
 }
 
-// NewModule instantiates a runtime security system-probe module
-func NewEventMonitor(sysProbeConfig *sysconfig.Config, statsdClient statsd.ClientInterface, probeOpts probe.Opts) (*EventMonitor, error) {
-	secconfig, err := config.NewConfig(sysProbeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("invalid event monitoring configuration: %w", err)
-	}
-
-	probe, err := probe.NewProbe(secconfig, probeOpts)
+// NewEventMonitor instantiates an event monitoring system-probe module
+func NewEventMonitor(config *config.Config) (*EventMonitor, error) {
+	probe, err := probe.NewProbe(config, probe.Opts{})
 	if err != nil {
 		return nil, err
+	}
+
+	statsdClient, err := getStatsdClient(config)
+	if err != nil {
+		log.Info("Unable to init statsd client")
+		return nil, module.ErrNotEnabled
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	return &EventMonitor{
-		Config:       sysProbeConfig,
+		Config:       config,
 		Probe:        probe,
 		StatsdClient: statsdClient,
 		GRPCServer:   grpc.NewServer(),
@@ -241,6 +249,14 @@ func NewEventMonitor(sysProbeConfig *sysconfig.Config, statsdClient statsd.Clien
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
 		sendStatsChan: make(chan chan bool, 1),
-		secconfig:     secconfig,
 	}, nil
+}
+
+func getStatsdClient(cfg *config.Config) (statsd.ClientInterface, error) {
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		statsdAddr = cfg.StatsdAddr
+	}
+
+	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
 }
