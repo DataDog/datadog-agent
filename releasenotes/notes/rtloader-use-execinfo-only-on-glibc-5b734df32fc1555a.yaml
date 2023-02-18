@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    rtloader: Use execinfo only on glibc to fix builds on
-    C libraries like musl.
+    rtloader: Use `execinfo` only if provided to fix builds on
+    C libraries like `musl`.
 
