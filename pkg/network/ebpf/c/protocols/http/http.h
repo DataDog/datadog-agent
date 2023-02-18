@@ -61,26 +61,38 @@ static __always_inline void http_parse_data(char const *p, http_packet_t *packet
     }
 }
 
-static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_t *skb_info) {
-    if (!skb_info || !skb_info->tcp_seq) {
+static __always_inline bool http_closed(skb_info_t *skb_info) {
+    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST));
+}
+
+// The purpose of http_seen_before is to is to avoid re-processing certain TCP segments.
+// We only care about 3 types of segments:
+// * A segment with the beginning of a request (packet_type == HTTP_REQUEST);
+// * A segment with the beginning of a response (packet_type == HTTP_RESPONSE);
+// * A segment with a (FIN|RST) flag set;
+static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_t *skb_info, http_packet_t packet_type) {
+    if (!skb_info)
         return false;
-    }
 
-    // check if we've seen this TCP segment before. this can happen in the
-    // context of localhost traffic where the same TCP segment can be seen
-    // multiple times coming in and out from different interfaces
-    return http->tcp_seq == skb_info->tcp_seq;
-}
+    if (packet_type != HTTP_REQUEST && packet_type != HTTP_RESPONSE && !http_closed(skb_info))
+        return false;
 
-static __always_inline void http_update_seen_before(http_transaction_t *http, skb_info_t *skb_info) {
-    if (!skb_info || !skb_info->tcp_seq) {
-        return;
-    }
+    if (http_closed(skb_info))
+        // Override sequence number with a special sentinel value
+        // This is done so we consider
+        // Server -> FIN(sequence=x) -> Client
+        // And
+        // Client -> FIN(sequence=y) -> Server
+        // To be the same thing in order to avoid flushing the same transaction twice to userspace
+        skb_info->tcp_seq = HTTP_TERMINATING;
 
-    log_debug("http_update_seen_before: htx=%llx old_seq=%d seq=%d\n", http, http->tcp_seq, skb_info->tcp_seq);
+    if (http->tcp_seq == skb_info->tcp_seq)
+        return true;
+
+    // Update map entry with latest TCP sequence number
     http->tcp_seq = skb_info->tcp_seq;
+    return false;
 }
-
 
 static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *http, http_packet_t packet_type) {
     if (packet_type == HTTP_PACKET_UNKNOWN) {
@@ -98,10 +110,6 @@ static __always_inline bool http_should_flush_previous_state(http_transaction_t 
         (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
-static __always_inline bool http_closed(skb_info_t *skb_info) {
-    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST));
-}
-
 static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
     char *buffer = (char *)http_stack->request_fragment;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
@@ -109,7 +117,7 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
     http_parse_data(buffer, &packet_type, &method);
 
     http_transaction_t *http = http_fetch_state(http_stack, packet_type);
-    if (!http || http_seen_before(http, skb_info)) {
+    if (!http || http_seen_before(http, skb_info, packet_type)) {
         return 0;
     }
 
@@ -121,10 +129,8 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
     log_debug("http_process: type=%d method=%d\n", packet_type, method);
     if (packet_type == HTTP_REQUEST) {
         http_begin_request(http, method, buffer);
-        http_update_seen_before(http, skb_info);
     } else if (packet_type == HTTP_RESPONSE) {
         http_begin_response(http, buffer);
-        http_update_seen_before(http, skb_info);
     }
 
     http->tags |= tags;
@@ -135,15 +141,7 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     if (http_closed(skb_info)) {
         http_batch_enqueue(http);
-        long ret = bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
-        if (ret < 0) {
-            // unlikely: this means that we're dealing with a localhost request
-            // whose FIN packets were processed concurrently; to avoid double
-            // flushing it, we use the return value of `bpf_map_delete_elem` as
-            // a synchronization lock and remove the element from the batch if
-            // the deletion fails;
-            http_batch_pop();
-        }
+        bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
     }
 
     return 0;

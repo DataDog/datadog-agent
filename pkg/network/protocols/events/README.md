@@ -24,9 +24,8 @@ requirement for us.
 USM_EVENTS_INIT(<protocol>, <event_type>, <batch_size>);
 ```
 
-This will instantiate the necessary eBPF maps along with three functions:
+This will instantiate the necessary eBPF maps along with two functions:
 * `<protocol>_batch_enqueue`;
-* `<protocol>_batch_pop`[^2];
 * `<protocol>_batch_flush`;
 
 Please note that `<protocol>_batch_flush` requires access to the
@@ -72,8 +71,3 @@ wake-up events on the fly via `ioctl` calls, but this will likely require us to
 upstream changes to the `cilium/ebpf` library. There is a Jira card owned by
 `ebpf-platform` tracking this, and once this is available we could _greatly_
 simplify this package.
-
-[^2]: this function removes the last element inserted in a batch for a given CPU
-and its use should not be necessary in most cases. Currently we use it for HTTP
-monitoring as a way to prevent double flushing the same transaction to userspace.
-For more details see discussion in https://github.com/DataDog/datadog-agent/pull/15609

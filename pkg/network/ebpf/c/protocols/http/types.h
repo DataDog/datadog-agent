@@ -12,6 +12,10 @@
 // _________^
 #define HTTP_STATUS_OFFSET 9
 
+// Pseudo TCP sequence number representing a segment with a FIN or RST flags set
+// For more information see `http_seen_before`
+#define HTTP_TERMINATING 0xFFFFFFFF
+
 // This is needed to reduce code size on multiple copy opitmizations that were made in
 // the http eBPF program.
 _Static_assert((HTTP_BUFFER_SIZE % 8) == 0, "HTTP_BUFFER_SIZE must be a multiple of 8.");

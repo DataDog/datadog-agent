@@ -5,11 +5,10 @@
 
 #include "protocols/events-types.h"
 
-/* USM_EVENTS_INIT defines three functions used for the purposes of buffering and sending
+/* USM_EVENTS_INIT defines two functions used for the purposes of buffering and sending
    data to userspace:
    1) <name>_batch_enqueue
-   2) <name>_batch_pop
-   3) <name>_batch_flush
+   2) <name>_batch_flush
    For more information of this please refer to
    pkg/networks/protocols/events/README.md */
 #define USM_EVENTS_INIT(name, value, batch_size)                                        \
@@ -100,21 +99,6 @@
         if (name##_batch_full(batch)) {                                                 \
             batch_state->idx++;                                                         \
         }                                                                               \
-    }                                                                                   \
-                                                                                        \
-    static __always_inline void name##_batch_pop() {                                    \
-        u32 zero = 0;                                                                   \
-        batch_state_t *batch_state =  bpf_map_lookup_elem(&name##_batch_state, &zero);  \
-        if (batch_state == NULL) {                                                      \
-            return;                                                                     \
-        }                                                                               \
-                                                                                        \
-        batch_key_t key = get_batch_key(batch_state->idx);                              \
-        batch_data_t *batch = bpf_map_lookup_elem(&name##_batches, &key);               \
-        if (batch == NULL || batch->len == 0) {                                         \
-            return;                                                                     \
-        }                                                                               \
-        batch->len--;                                                                   \
     }                                                                                   \
 
 static __always_inline batch_key_t get_batch_key(u64 batch_idx) {
