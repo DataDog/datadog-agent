@@ -32,6 +32,7 @@ add_library(datadog-agent-rtloader SHARED
 find_library(EXECINFO execinfo)
 if(EXECINFO)
     target_link_libraries(datadog-agent-rtloader execinfo)
+    add_compile_definitions(HAS_BACKTRACE_LIB)
 endif()
 endif()
 
