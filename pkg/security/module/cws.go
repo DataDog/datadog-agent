@@ -68,10 +68,7 @@ type CWSConsumer struct {
 
 // Init initializes the module with options
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer, error) {
-	config, err := config.NewConfig(evm.Config)
-	if err != nil {
-		return nil, fmt.Errorf("invalid security runtime module configuration: %w", err)
-	}
+	config := config.NewConfig()
 
 	selfTester, err := selftests.NewSelfTester()
 	if err != nil {
@@ -252,7 +249,7 @@ func (c *CWSConsumer) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if c.config.NetworkEnabled {
+	if c.probe.IsNetworkEnabled() {
 		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
 				enabled[eventType] = true
@@ -477,7 +474,7 @@ func (c *CWSConsumer) sendStats() {
 func (c *CWSConsumer) statsSender() {
 	defer c.wg.Done()
 
-	statsTicker := time.NewTicker(c.config.StatsPollingInterval)
+	statsTicker := time.NewTicker(c.probe.StatsPollingInterval())
 	defer statsTicker.Stop()
 
 	heartbeatTicker := time.NewTicker(15 * time.Second)

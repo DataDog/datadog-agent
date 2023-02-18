@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
+	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -180,7 +181,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		&cliParams.localStorageFormats,
 		flags.Format,
 		[]string{},
-		fmt.Sprintf("local storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
+		fmt.Sprintf("local storage output formats. Available options are %v.", adconfig.AllStorageFormats()),
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.remoteStorageCompression,
@@ -192,7 +193,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		&cliParams.remoteStorageFormats,
 		flags.RemoteFormat,
 		[]string{},
-		fmt.Sprintf("remote storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
+		fmt.Sprintf("remote storage output formats. Available options are %v.", adconfig.AllStorageFormats()),
 	)
 
 	return []*cobra.Command{activityDumpGenerateDumpCmd}
@@ -240,7 +241,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 		&cliParams.localStorageFormats,
 		flags.Format,
 		[]string{},
-		fmt.Sprintf("local storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
+		fmt.Sprintf("local storage output formats. Available options are %v.", adconfig.AllStorageFormats()),
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&cliParams.remoteStorageCompression,
@@ -252,7 +253,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 		&cliParams.remoteStorageFormats,
 		flags.RemoteFormat,
 		[]string{},
-		fmt.Sprintf("remote storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
+		fmt.Sprintf("remote storage output formats. Available options are %v.", adconfig.AllStorageFormats()),
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&cliParams.remoteRequest,
@@ -331,7 +332,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 			return err
 		}
 
-		storageRequests, err := secconfig.ParseStorageRequests(parsedRequests)
+		storageRequests, err := adconfig.ParseStorageRequests(parsedRequests)
 		if err != nil {
 			return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
 		}
@@ -400,13 +401,13 @@ func listActivityDumps(log log.Component, config config.Component) error {
 
 func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageRequestParams, error) {
 	// parse local storage formats
-	_, err := secconfig.ParseStorageFormats(activityDumpArgs.localStorageFormats)
+	_, err := adconfig.ParseStorageFormats(activityDumpArgs.localStorageFormats)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse local storage formats %v: %v", activityDumpArgs.localStorageFormats, err)
 	}
 
 	// parse remote storage formats
-	_, err = secconfig.ParseStorageFormats(activityDumpArgs.remoteStorageFormats)
+	_, err = adconfig.ParseStorageFormats(activityDumpArgs.remoteStorageFormats)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse remote storage formats %v: %v", activityDumpArgs.remoteStorageFormats, err)
 	}

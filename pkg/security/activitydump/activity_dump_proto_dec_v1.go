@@ -9,9 +9,9 @@
 package activitydump
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )

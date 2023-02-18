@@ -11,12 +11,12 @@ package tests
 import (
 	"bytes"
 	_ "embed"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
 //go:embed testdata/adv1.protobuf
