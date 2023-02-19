@@ -38,10 +38,6 @@ func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "http", debug)
 }
 
-func ReadKafkaModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "kafka", debug)
-}
-
 func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "dns", debug)
 }
