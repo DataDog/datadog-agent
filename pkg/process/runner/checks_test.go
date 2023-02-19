@@ -233,7 +233,7 @@ func TestDisableRealTime(t *testing.T) {
 			enabledChecks := GetChecks(&sysconfig.Config{}, true)
 			assert.EqualValues(tc.expectedChecks, getCheckNames(enabledChecks))
 
-			c, err := NewCollector(nil, &checks.HostInfo{}, enabledChecks, nil)
+			c, err := NewRunner(nil, &checks.HostInfo{}, enabledChecks, nil)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.RunRealTime())
 		})

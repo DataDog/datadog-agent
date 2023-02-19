@@ -35,7 +35,7 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := processRunner.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks, deps.RTNotifier)
+	c, err := processRunner.NewRunner(deps.SysCfg, deps.HostInfo, deps.Checks, deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}

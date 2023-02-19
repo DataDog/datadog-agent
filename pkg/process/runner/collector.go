@@ -87,8 +87,8 @@ func (l *CheckRunner) RunRealTime() bool {
 	return l.runRealTime
 }
 
-// NewCollector creates a new CheckRunner
-func NewCollector(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+// NewRunner creates a new CheckRunner
+func NewRunner(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 
 	cfg := &checks.SysProbeConfig{}
