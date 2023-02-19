@@ -380,6 +380,7 @@ func New() *Config {
 			cfg.Set(join(spNS, "enable_runtime_compiler"), true)
 			c.EnableRuntimeCompiler = true
 		}
+
 		if !cfg.IsSet(join(spNS, "enable_kernel_header_download")) {
 			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
 			c.EnableKernelHeaderDownload = true
