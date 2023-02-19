@@ -112,6 +112,7 @@ static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iteratio
 
     log_debug("[http2] global counter %llu; index %lu; final %lu\n", global_counter, index, http2_ctx->dynamic_index.index);
     if (bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index) == NULL) {
+        log_debug("[http2] unable to find the dynamic value! tasik1!");
         return 0;
     }
     log_debug("[http2] found dynamic value at %d for stream %lu\n", http2_ctx->dynamic_index.index, stream_id);
@@ -215,14 +216,11 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             interesting_headers += parse_field_indexed(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
-//            log_debug("[http2] filter_relevant_headers in 3 returned %lu", interesting_headers);
         } else if ((current_ch&192) == 64) {
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            log_debug("[http2] calling parse_field_literal\n");
             interesting_headers += parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
-//            log_debug("[http2] filter_relevant_headers in 4 returned %lu", interesting_headers);
         }
     }
 
@@ -372,6 +370,11 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
 
     if (!current_stream->request_end_of_stream) {
         current_stream->request_end_of_stream = true;
+        return;
+    }
+
+    // TODO: remove it
+    if (current_stream->path_size == 0){
         return;
     }
 
