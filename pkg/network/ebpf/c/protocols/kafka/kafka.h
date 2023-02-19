@@ -9,8 +9,6 @@
 #include "../events.h"
 #include "kafka_parsing.h"
 
-//#include <uapi/linux/ptrace.h>
-
 // forward declaration
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction);

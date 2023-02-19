@@ -25,12 +25,12 @@
 //// This determines the size of the payload fragment that is captured for each HTTP request
 #define KAFKA_BUFFER_SIZE (8 * 40) // 320
 
+// This is needed to reduce code size on multiple copy optimizations that were made in
+// the http eBPF program.
+_Static_assert((KAFKA_BUFFER_SIZE % 8) == 0, "KAFKA_BUFFER_SIZE must be a multiple of 8.");
+
 //// This controls the number of Kafka transactions read from userspace at a time
 #define KAFKA_BATCH_SIZE 15
-// KAFKA_BATCH_PAGES controls how many `kafka_batch_t` instances exist for each CPU core
-// It's desirable to set this >= 1 to allow batch insertion and flushing to happen independently
-// without risk of overriding data.
-#define KAFKA_BATCH_PAGES 3
 
 #define KAFKA_PROG 0
 
