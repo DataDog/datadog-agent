@@ -194,14 +194,11 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		log.Info("gateway lookup enabled")
 	}
 
-	//kafkaMonitor := newKafkaMonitor(config, bpfTelemetry)
-
 	tr := &Tracer{
-		config:      config,
-		state:       state,
-		reverseDNS:  newReverseDNS(config),
-		httpMonitor: newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
-		//kafkaMonitor:               kafkaMonitor,
+		config:                     config,
+		state:                      state,
+		reverseDNS:                 newReverseDNS(config),
+		httpMonitor:                newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -737,8 +734,6 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
 		case httpStats:
 			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats()
-			//case kafkaStats:
-			//	ret["kafka"] = t.kafkaMonitor.GetKafkaStats()
 		}
 	}
 
@@ -780,30 +775,18 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 
 // DebugEBPFMaps returns all maps registered in the eBPF manager
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
-	mapString := ""
 	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
 	if err != nil {
 		return "", err
 	}
-	mapString += "tracer:\n" + tracerMaps
-
-	if t.httpMonitor != nil {
-		httpMaps, err := t.httpMonitor.DumpMaps(maps...)
-		if err != nil {
-			return "", err
-		}
-		mapString += "\nhttp_monitor:\n" + httpMaps
+	if t.httpMonitor == nil {
+		return "tracer:\n" + tracerMaps, nil
 	}
-
-	//if t.kafkaMonitor != nil {
-	//	kafkaMaps, err := t.kafkaMonitor.DumpMaps(maps...)
-	//	if err != nil {
-	//		return "", err
-	//	}
-	//	mapString += "\nkafka_monitor:\n" + kafkaMaps
-	//}
-
-	return mapString, nil
+	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
+	if err != nil {
+		return "", err
+	}
+	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
 }
 
 // connectionExpired returns true if the passed in connection has expired
@@ -928,29 +911,3 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 	}
 	return monitor
 }
-
-//func newKafkaMonitor(c *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) *kafka.Monitor {
-//	if !c.EnableKafkaMonitoring {
-//		return nil
-//	}
-//
-//	monitor, err := kafka.NewMonitor(c, bpfTelemetry)
-//	if err != nil {
-//		log.Errorf("could not instantiate kafka monitor: %s", err)
-//		return nil
-//	}
-//
-//	err = monitor.Start()
-//	if errors.Is(err, syscall.ENOMEM) {
-//		log.Error("could not enable kafka monitoring: not enough memory to attach kafka ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
-//		return nil
-//	}
-//
-//	if err != nil {
-//		log.Errorf("could not enable kafka monitoring: %s", err)
-//		return nil
-//	}
-//
-//	log.Info("kafka monitoring enabled")
-//	return monitor
-//}

@@ -8,13 +8,13 @@ package network
 import (
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

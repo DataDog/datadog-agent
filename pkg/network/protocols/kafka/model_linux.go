@@ -46,8 +46,3 @@ func (tx *EbpfKafkaTx) TopicName() string {
 func (tx *EbpfKafkaTx) APIKey() uint16 {
 	return tx.Request_api_key
 }
-
-//// Transactions returns the slice of Kafka transactions embedded in the batch
-//func (batch *kafkaBatch) Transactions() []ebpfKafkaTx {
-//	return batch.Txs[:]
-//}

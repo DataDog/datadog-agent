@@ -55,13 +55,6 @@ func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
 	}
 }
 
-const NumOfAPIKeys = 2
-
-//// RequestStats stores stats for Kafka requests to a particular path
-//type RequestStats struct {
-//	RequestStat
-//}
-
 // RequestStat stores stats for Kafka requests to a particular key
 type RequestStat struct {
 	Count int
