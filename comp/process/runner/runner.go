@@ -28,7 +28,7 @@ type dependencies struct {
 	Lc fx.Lifecycle
 
 	Submitter  submitter.Component
-	RTNotifier <-chan types.RTResponse
+	RTNotifier <-chan types.RTResponse `optional:"true"`
 
 	Checks   []checks.Check
 	HostInfo *checks.HostInfo
