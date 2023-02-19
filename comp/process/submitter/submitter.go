@@ -7,6 +7,8 @@ package submitter
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
+	"testing"
 	"time"
 
 	"go.uber.org/fx"
@@ -68,4 +70,8 @@ func (s *submitter) Start() error {
 
 func (s *submitter) Stop() {
 	s.s.Stop()
+}
+
+func newMock(deps dependencies, t testing.TB) Component {
+	return mocks.NewSubmitter(t)
 }
