@@ -72,6 +72,6 @@ func (s *submitter) Stop() {
 	s.s.Stop()
 }
 
-func newMock(deps dependencies, t testing.TB) Component {
+func newMock(t testing.TB) Component {
 	return mocks.NewSubmitter(t)
 }
