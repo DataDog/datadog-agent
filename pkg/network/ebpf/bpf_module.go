@@ -30,18 +30,22 @@ func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, er
 	return ebpfReader, nil
 }
 
+// ReadBPFModule from the asset file
 func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "tracer", debug)
 }
 
+// ReadHTTPModule from the asset file
 func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "http", debug)
 }
 
+// ReadDNSModule from the asset file
 func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "dns", debug)
 }
 
+// ReadOffsetBPFModule from the asset file
 func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "offset-guess", debug)
 }

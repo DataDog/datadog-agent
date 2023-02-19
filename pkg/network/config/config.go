@@ -240,7 +240,7 @@ func New() *Config {
 		Config: *ebpf.NewConfig(),
 
 		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
-		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
+		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")) || cfg.GetBool(join(dataStreamsNamespace, "enabled")),
 		DataStreamsEnabled:       cfg.GetBool(join(dataStreamsNamespace, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
@@ -368,18 +368,6 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	if c.ServiceMonitoringEnabled || c.DataStreamsEnabled {
-		if !cfg.IsSet(join(spNS, "enable_runtime_compiler")) {
-			cfg.Set(join(spNS, "enable_runtime_compiler"), true)
-			c.EnableRuntimeCompiler = true
-		}
-
-		if !cfg.IsSet(join(spNS, "enable_kernel_header_download")) {
-			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
-			c.EnableKernelHeaderDownload = true
-		}
-	}
-
 	if c.ServiceMonitoringEnabled {
 		cfg.Set(join(netNS, "enable_http_monitoring"), true)
 		c.EnableHTTPMonitoring = true
@@ -387,11 +375,15 @@ func New() *Config {
 			cfg.Set(join(netNS, "enable_https_monitoring"), true)
 			c.EnableHTTPSMonitoring = true
 		}
-	}
 
-	if c.DataStreamsEnabled {
-		cfg.Set(join(netNS, "enable_kafka_monitoring"), true)
-		c.EnableKafkaMonitoring = true
+		if !cfg.IsSet(join(spNS, "enable_runtime_compiler")) {
+			cfg.Set(join(spNS, "enable_runtime_compiler"), true)
+			c.EnableRuntimeCompiler = true
+		}
+		if !cfg.IsSet(join(spNS, "enable_kernel_header_download")) {
+			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
+			c.EnableKernelHeaderDownload = true
+		}
 	}
 
 	if c.EnableProcessEventMonitoring {
