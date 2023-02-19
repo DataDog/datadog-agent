@@ -26,9 +26,10 @@ type ModuleName string
 
 const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
-	Namespace = "system_probe_config"
-	spNS      = Namespace
-	smNS      = "service_monitoring_config"
+	Namespace    = "system_probe_config"
+	spNS         = Namespace
+	smNS         = "service_monitoring_config"
+	dsmNamespace = "data_streams_config"
 
 	defaultConnsMessageBatchSize = 600
 	maxConnsMessageBatchSize     = 1000
@@ -175,6 +176,7 @@ func load() (*Config, error) {
 	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
 	npmEnabled := cfg.GetBool("network_config.enabled")
 	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
+	dsmEnabled := cfg.GetBool(key(dsmNamespace, "enabled"))
 
 	if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
@@ -185,7 +187,7 @@ func load() (*Config, error) {
 		npmEnabled = true
 	}
 
-	if npmEnabled || usmEnabled {
+	if npmEnabled || usmEnabled || dsmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {

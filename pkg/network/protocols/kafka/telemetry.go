@@ -17,21 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type telemetry struct {
+type Telemetry struct {
 	then *atomic.Int64
 
 	totalHits *libtelemetry.Metric
-	dropped   *libtelemetry.Metric // this happens when kafkaStatKeeper reaches capacity
+	dropped   *libtelemetry.Metric // this happens when KafkaStatKeeper reaches capacity
 }
 
-func newTelemetry() (*telemetry, error) {
+func NewTelemetry() (*Telemetry, error) {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.kafka",
 		libtelemetry.OptExpvar,
 		libtelemetry.OptMonotonic,
 	)
 
-	t := &telemetry{
+	t := &Telemetry{
 		then: atomic.NewInt64(time.Now().Unix()),
 
 		// these metrics are also exported as statsd metrics
@@ -42,12 +42,12 @@ func newTelemetry() (*telemetry, error) {
 	return t, nil
 }
 
-func (t *telemetry) count(tx *ebpfKafkaTx) {
+func (t *Telemetry) Count(tx *EbpfKafkaTx) {
 	_ = tx
 	t.totalHits.Add(1)
 }
 
-func (t *telemetry) log() {
+func (t *Telemetry) Log() {
 	now := time.Now().Unix()
 	then := t.then.Swap(now)
 

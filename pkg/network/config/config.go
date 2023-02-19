@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	spNS  = "system_probe_config"
-	netNS = "network_config"
-	smNS  = "service_monitoring_config"
-	evNS  = "event_monitoring_config"
+	spNS                 = "system_probe_config"
+	netNS                = "network_config"
+	smNS                 = "service_monitoring_config"
+	dataStreamsNamespace = "data_streams_config"
+	evNS                 = "event_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -40,6 +41,9 @@ type Config struct {
 
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
+
+	// DataStreamsEnabled is whether the data streams feature is enabled or not
+	DataStreamsEnabled bool
 
 	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
 	CollectTCPConns bool
@@ -237,6 +241,7 @@ func New() *Config {
 
 		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
+		DataStreamsEnabled:       cfg.GetBool(join(dataStreamsNamespace, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
 		TCPConnTimeout:   2 * time.Minute,
@@ -363,14 +368,7 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	if c.ServiceMonitoringEnabled {
-		cfg.Set(join(netNS, "enable_http_monitoring"), true)
-		c.EnableHTTPMonitoring = true
-		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
-			cfg.Set(join(netNS, "enable_https_monitoring"), true)
-			c.EnableHTTPSMonitoring = true
-		}
-
+	if c.ServiceMonitoringEnabled || c.DataStreamsEnabled {
 		if !cfg.IsSet(join(spNS, "enable_runtime_compiler")) {
 			cfg.Set(join(spNS, "enable_runtime_compiler"), true)
 			c.EnableRuntimeCompiler = true
@@ -380,6 +378,20 @@ func New() *Config {
 			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
 			c.EnableKernelHeaderDownload = true
 		}
+	}
+
+	if c.ServiceMonitoringEnabled {
+		cfg.Set(join(netNS, "enable_http_monitoring"), true)
+		c.EnableHTTPMonitoring = true
+		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
+			cfg.Set(join(netNS, "enable_https_monitoring"), true)
+			c.EnableHTTPSMonitoring = true
+		}
+	}
+
+	if c.DataStreamsEnabled {
+		cfg.Set(join(netNS, "enable_kafka_monitoring"), true)
+		c.EnableKafkaMonitoring = true
 	}
 
 	if c.EnableProcessEventMonitoring {

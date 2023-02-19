@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"math"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -48,12 +47,12 @@ const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config       *config.Config
-	state        network.State
-	conntracker  netlink.Conntracker
-	reverseDNS   dns.ReverseDNS
-	httpMonitor  *http.Monitor
-	kafkaMonitor *kafka.Monitor
+	config      *config.Config
+	state       network.State
+	conntracker netlink.Conntracker
+	reverseDNS  dns.ReverseDNS
+	httpMonitor *http.Monitor
+	//kafkaMonitor *kafka.Monitor
 	ebpfTracer   connection.Tracer
 	bpfTelemetry *telemetry.EBPFTelemetry
 
@@ -195,12 +194,14 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		log.Info("gateway lookup enabled")
 	}
 
+	//kafkaMonitor := newKafkaMonitor(config, bpfTelemetry)
+
 	tr := &Tracer{
-		config:                     config,
-		state:                      state,
-		reverseDNS:                 newReverseDNS(config),
-		httpMonitor:                newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
-		kafkaMonitor:               newKafkaMonitor(config, bpfTelemetry),
+		config:      config,
+		state:       state,
+		reverseDNS:  newReverseDNS(config),
+		httpMonitor: newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
+		//kafkaMonitor:               kafkaMonitor,
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -426,7 +427,7 @@ func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
-	t.kafkaMonitor.Stop()
+	//t.kafkaMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
 }
@@ -444,7 +445,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	active := t.activeBuffer.Connections()
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), t.kafkaMonitor.GetKafkaStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), t.httpMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
@@ -736,8 +737,8 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
 		case httpStats:
 			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats()
-		case kafkaStats:
-			ret["kafka"] = t.kafkaMonitor.GetKafkaStats()
+			//case kafkaStats:
+			//	ret["kafka"] = t.kafkaMonitor.GetKafkaStats()
 		}
 	}
 
@@ -794,13 +795,13 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 		mapString += "\nhttp_monitor:\n" + httpMaps
 	}
 
-	if t.kafkaMonitor != nil {
-		kafkaMaps, err := t.kafkaMonitor.DumpMaps(maps...)
-		if err != nil {
-			return "", err
-		}
-		mapString += "\nkafka_monitor:\n" + kafkaMaps
-	}
+	//if t.kafkaMonitor != nil {
+	//	kafkaMaps, err := t.kafkaMonitor.DumpMaps(maps...)
+	//	if err != nil {
+	//		return "", err
+	//	}
+	//	mapString += "\nkafka_monitor:\n" + kafkaMaps
+	//}
 
 	return mapString, nil
 }
@@ -922,31 +923,34 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 	}
 
 	log.Info("http monitoring enabled")
+	if c.EnableKafkaMonitoring {
+		log.Info("kafka monitoring enabled")
+	}
 	return monitor
 }
 
-func newKafkaMonitor(c *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) *kafka.Monitor {
-	if !c.EnableKafkaMonitoring {
-		return nil
-	}
-
-	monitor, err := kafka.NewMonitor(c, bpfTelemetry)
-	if err != nil {
-		log.Errorf("could not instantiate http monitor: %s", err)
-		return nil
-	}
-
-	err = monitor.Start()
-	if errors.Is(err, syscall.ENOMEM) {
-		log.Error("could not enable kafka monitoring: not enough memory to attach kafka ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
-		return nil
-	}
-
-	if err != nil {
-		log.Errorf("could not enable kafka monitoring: %s", err)
-		return nil
-	}
-
-	log.Info("kafka monitoring enabled")
-	return monitor
-}
+//func newKafkaMonitor(c *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) *kafka.Monitor {
+//	if !c.EnableKafkaMonitoring {
+//		return nil
+//	}
+//
+//	monitor, err := kafka.NewMonitor(c, bpfTelemetry)
+//	if err != nil {
+//		log.Errorf("could not instantiate kafka monitor: %s", err)
+//		return nil
+//	}
+//
+//	err = monitor.Start()
+//	if errors.Is(err, syscall.ENOMEM) {
+//		log.Error("could not enable kafka monitoring: not enough memory to attach kafka ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+//		return nil
+//	}
+//
+//	if err != nil {
+//		log.Errorf("could not enable kafka monitoring: %s", err)
+//		return nil
+//	}
+//
+//	log.Info("kafka monitoring enabled")
+//	return monitor
+//}

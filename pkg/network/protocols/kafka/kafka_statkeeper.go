@@ -13,26 +13,26 @@ import (
 	"sync"
 )
 
-type kafkaStatKeeper struct {
+type KafkaStatKeeper struct {
 	stats      map[Key]*RequestStat
 	statsMutex sync.RWMutex
 	maxEntries int
-	telemetry  *telemetry
+	telemetry  *Telemetry
 }
 
-func newKafkaStatkeeper(c *config.Config, telemetry *telemetry) *kafkaStatKeeper {
-	return &kafkaStatKeeper{
+func NewKafkaStatkeeper(c *config.Config, telemetry *Telemetry) *KafkaStatKeeper {
+	return &KafkaStatKeeper{
 		stats:      make(map[Key]*RequestStat),
 		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
 	}
 }
 
-func (statKeeper *kafkaStatKeeper) Process(tx *ebpfKafkaTx) {
+func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
 	statKeeper.add(tx)
 }
 
-func (statKeeper *kafkaStatKeeper) add(transaction *ebpfKafkaTx) {
+func (statKeeper *KafkaStatKeeper) add(transaction *EbpfKafkaTx) {
 	key := Key{
 		RequestAPIKey:  transaction.Request_api_key,
 		RequestVersion: transaction.Request_api_version,
@@ -60,7 +60,7 @@ func (statKeeper *kafkaStatKeeper) add(transaction *ebpfKafkaTx) {
 	requestStats.Count++
 }
 
-func (statKeeper *kafkaStatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
+func (statKeeper *KafkaStatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 	statKeeper.statsMutex.RLock()
 	defer statKeeper.statsMutex.RUnlock()
 	ret := statKeeper.stats // No deep copy needed since `statKeeper.stats` gets reset

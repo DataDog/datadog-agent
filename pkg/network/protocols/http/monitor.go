@@ -11,6 +11,7 @@ package http
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"syscall"
 	"unsafe"
 
@@ -35,11 +36,17 @@ var (
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	consumer       *events.Consumer
-	ebpfProgram    *ebpfProgram
+	consumer    *events.Consumer
+	ebpfProgram *ebpfProgram
+
 	telemetry      *telemetry
 	statkeeper     *httpStatKeeper
 	processMonitor *monitor.ProcessMonitor
+
+	// Kafka related
+	kafkaConsumer   *events.Consumer
+	kafkaTelemetry  *kafka.Telemetry
+	kafkaStatkeeper *kafka.KafkaStatKeeper
 
 	// termination
 	closeFilterFn func()
@@ -98,12 +105,23 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
 
+	// Kafka related
+	kafkaTelemetry, err := kafka.NewTelemetry()
+	if err != nil {
+		closeFilterFn()
+		return nil, err
+	}
+	kafkaStatkeeper := kafka.NewKafkaStatkeeper(c, kafkaTelemetry)
+
 	return &Monitor{
 		ebpfProgram:    mgr,
 		telemetry:      telemetry,
 		closeFilterFn:  closeFilterFn,
 		statkeeper:     statkeeper,
 		processMonitor: processMonitor,
+
+		kafkaTelemetry:  kafkaTelemetry,
+		kafkaStatkeeper: kafkaStatkeeper,
 	}, nil
 }
 
@@ -138,6 +156,17 @@ func (m *Monitor) Start() error {
 	}
 	m.consumer.Start()
 
+	// Kafka related
+	m.kafkaConsumer, err = events.NewConsumer(
+		"kafka",
+		m.ebpfProgram.Manager.Manager,
+		m.kafkaProcess,
+	)
+	if err != nil {
+		return err
+	}
+	m.kafkaConsumer.Start()
+
 	err = m.ebpfProgram.Start()
 	if err != nil {
 		return err
@@ -171,6 +200,17 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 	return m.statkeeper.GetAndResetAllStats()
 }
 
+// GetKafkaStats returns a map of Kafka stats
+func (m *Monitor) GetKafkaStats() map[kafka.Key]*kafka.RequestStat {
+	if m == nil {
+		return nil
+	}
+
+	m.kafkaConsumer.Sync()
+	m.kafkaTelemetry.Log()
+	return m.kafkaStatkeeper.GetAndResetAllStats()
+}
+
 // Stop HTTP monitoring
 func (m *Monitor) Stop() {
 	if m == nil {
@@ -187,6 +227,12 @@ func (m *Monitor) process(data []byte) {
 	tx := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
 	m.telemetry.count(tx)
 	m.statkeeper.Process(tx)
+}
+
+func (m *Monitor) kafkaProcess(data []byte) {
+	tx := (*kafka.EbpfKafkaTx)(unsafe.Pointer(&data[0]))
+	m.kafkaTelemetry.Count(tx)
+	m.kafkaStatkeeper.Process(tx)
 }
 
 // DumpMaps dumps the maps associated with the monitor

@@ -1,7 +1,7 @@
-#ifndef __KAFKA_HELPERS_H
-#define __KAFKA_HELPERS_H
+#ifndef __KAFKA_PARSING_H
+#define __KAFKA_PARSING_H
 
-#include "kafka-types.h"
+#include "types.h"
 
 // Forward declaration
 static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka_transaction);

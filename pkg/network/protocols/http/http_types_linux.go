@@ -48,6 +48,7 @@ const (
 	ProtocolUnknown  ProtocolType = 0x1
 	ProtocolHTTP     ProtocolType = 0x2
 	ProtocolHTTP2    ProtocolType = 0x3
+	ProtocolKafka    ProtocolType = 0x5
 	ProtocolTLS      ProtocolType = 0x4
 	ProtocolMONGO    ProtocolType = 0x6
 	ProtocolPostgres ProtocolType = 0x7

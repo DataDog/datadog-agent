@@ -18,8 +18,6 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/kafka.o $CI_PROJECT_DIR/.tmp/binary-ebpf/kafka.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/kafka-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/kafka-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http-debug.o
@@ -29,7 +27,6 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-fentry.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/http.c $CI_PROJECT_DIR/.tmp/binary-ebpf/http.c
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/kafka.c $CI_PROJECT_DIR/.tmp/binary-ebpf/kafka.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c

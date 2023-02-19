@@ -4,13 +4,44 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "tracer.h"
-#include "kafka-types.h"
-#include "kafka-helpers.h"
-#include "events.h"
+#include "types.h"
+#include "helpers.h"
+#include "../events.h"
+#include "kafka_parsing.h"
 
-#include <uapi/linux/ptrace.h>
+//#include <uapi/linux/ptrace.h>
+
+// forward declaration
+static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
+static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction);
 
 USM_EVENTS_INIT(kafka, kafka_transaction_batch_entry_t, KAFKA_BATCH_SIZE);
+
+SEC("socket/kafka_filter")
+int socket__kafka_filter(struct __sk_buff* skb) {
+    skb_info_t skb_info;
+    u32 zero = 0;
+    kafka_transaction_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        log_debug("socket__kafka_filter: kafka_transaction state is NULL\n");
+        return 0;
+    }
+    bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
+
+    if (!read_conn_tuple_skb(skb, &skb_info, &kafka->base.tup)) {
+        return 0;
+    }
+
+    if (!kafka_allow_packet(kafka, skb, &skb_info)) {
+        return 0;
+    }
+
+    normalize_tuple(&kafka->base.tup);
+
+    read_into_buffer_skb((char *)kafka->request_fragment, skb, &skb_info);
+    kafka_process(kafka);
+    return 0;
+}
 
 static __always_inline bool kafka_seen_before(kafka_transaction_t *kafka, skb_info_t *skb_info) {
     if (!skb_info || !skb_info->tcp_seq) {

@@ -11,6 +11,7 @@
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
+#include "protocols/kafka/helpers.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
@@ -42,7 +43,7 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
-static __always_inline void classify_protocol_for_dispatcher(protocol_t *protocol, conn_tuple_t *tup, const char *buf, __u32 size) {
+static __always_inline void classify_protocol_for_dispatcher(protocol_t *protocol, conn_tuple_t *tup, const char *buf, __u32 size, struct __sk_buff *skb, skb_info_t *skb_info) {
     if (protocol == NULL || *protocol != PROTOCOL_UNKNOWN) {
         return;
     }
@@ -51,6 +52,8 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
+    } else if (skb != NULL && skb_info != NULL && is_kafka(skb, skb_info, buf, size)) {
+        *protocol = PROTOCOL_KAFKA;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }
@@ -89,7 +92,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
         const size_t payload_length = skb->len - skb_info.data_off;
         const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-        classify_protocol_for_dispatcher(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
+        classify_protocol_for_dispatcher(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size, skb, &skb_info);
         log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
         // If there has been a change in the classification, save the new protocol.
         if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
@@ -104,6 +107,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         // dispatch if possible
+        log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
         bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
     }
 }

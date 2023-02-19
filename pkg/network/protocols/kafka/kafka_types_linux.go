@@ -15,7 +15,7 @@ type kafkaConnTuple struct {
 	Metadata uint32
 }
 
-type ebpfKafkaTx struct {
+type EbpfKafkaTx struct {
 	Tup                                kafkaConnTuple
 	Request_api_key                    uint16
 	Request_api_version                uint16
@@ -23,15 +23,6 @@ type ebpfKafkaTx struct {
 	Tcp_seq                            uint32
 	Current_offset_in_request_fragment uint32
 	Topic_name                         [80]int8
-}
-type kafkaBatch struct {
-	Idx uint64
-	Pos uint8
-	Txs [15]ebpfKafkaTx
-}
-type kafkaBatchKey struct {
-	Cpu uint32
-	Num uint32
 }
 
 const (

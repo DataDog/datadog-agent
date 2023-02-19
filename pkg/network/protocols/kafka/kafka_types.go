@@ -10,15 +10,16 @@ package kafka
 
 /*
 #include "../../ebpf/c/tracer.h"
-#include "../../ebpf/c/protocols/kafka-types.h"
+#include "../../ebpf/c/protocols/kafka/types.h"
 */
 import "C"
 
 type kafkaConnTuple C.conn_tuple_t
 
-type ebpfKafkaTx C.kafka_transaction_batch_entry_t
-type kafkaBatch C.kafka_batch_t
-type kafkaBatchKey C.kafka_batch_key_t
+type EbpfKafkaTx C.kafka_transaction_batch_entry_t
+
+//type kafkaBatch C.kafka_batch_t
+//type kafkaBatchKey C.kafka_batch_key_t
 
 const (
 	KAFKABatchSize  = C.KAFKA_BATCH_SIZE

@@ -43,6 +43,8 @@ const (
 	// the accept syscall).
 	maxActive = 128
 	probeUID  = "http"
+
+	kafkaLastTCPSeqPerConnectionMap = "kafka_last_tcp_seq_per_connection"
 )
 
 type ebpfProgram struct {
@@ -93,6 +95,13 @@ var tailCalls = []manager.TailCallRoute{
 		Key:           uint32(ProtocolHTTP),
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			EBPFFuncName: "socket__http_filter",
+		},
+	},
+	{
+		ProgArrayName: protocolDispatcherProgramsMap,
+		Key:           uint32(ProtocolKafka),
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFFuncName: "socket__kafka_filter",
 		},
 	},
 }
@@ -278,6 +287,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 			EditorFlag: manager.EditMaxEntries,
 		},
+		kafkaLastTCPSeqPerConnectionMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
 	options.TailCallRouter = tailCalls
@@ -311,6 +325,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	// configure event stream
 	events.Configure("http", e.Manager.Manager, &options)
+	events.Configure("kafka", e.Manager.Manager, &options)
 
 	return e.InitWithOptions(buf, options)
 }
