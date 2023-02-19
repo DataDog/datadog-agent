@@ -18,13 +18,6 @@ typedef struct {
 
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 
-// This struct is used in the map lookup that returns the active batch for a certain CPU core
-typedef struct {
-    __u32 cpu;
-    // page_num can be obtained from (kafka_batch_state_t->idx % KAFKA_BATCHES_PER_CPU)
-    __u32 page_num;
-} kafka_batch_key_t;
-
 typedef struct {
     conn_tuple_t tup;
 
@@ -45,23 +38,5 @@ typedef struct {
     char request_fragment[KAFKA_BUFFER_SIZE];
     kafka_transaction_batch_entry_t base;
 } kafka_transaction_t;
-
-//typedef struct {
-//    // idx is a monotonic counter used for uniquely determining a batch within a CPU core
-//    // this is useful for detecting race conditions that result in a batch being overridden
-//    // before it gets consumed from userspace
-//    __u64 idx;
-//    // idx_to_flush is used to track which batches were flushed to userspace
-//    // * if idx_to_flush == idx, the current index is still being appended to;
-//    // * if idx_to_flush < idx, the batch at idx_to_notify needs to be sent to userspace;
-//    // (note that idx will never be less than idx_to_flush);
-//    __u64 idx_to_flush;
-//} kafka_batch_state_t;
-//
-//typedef struct {
-//    __u64 idx;
-//    __u8 pos;
-//    kafka_transaction_batch_entry_t txs[KAFKA_BATCH_SIZE];
-//} kafka_batch_t;
 
 #endif

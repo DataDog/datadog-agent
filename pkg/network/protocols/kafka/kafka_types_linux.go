@@ -26,9 +26,5 @@ type EbpfKafkaTx struct {
 }
 
 const (
-	KAFKABatchSize  = 0xf
-	KAFKABatchPages = 0x3
 	KAFKABufferSize = 0x140
-
-	kafkaProg = 0x0
 )

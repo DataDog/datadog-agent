@@ -12,7 +12,7 @@
 // _________^
 #define HTTP_STATUS_OFFSET 9
 
-// This is needed to reduce code size on multiple copy opitmizations that were made in
+// This is needed to reduce code size on multiple copy optimizations that were made in
 // the http eBPF program.
 _Static_assert((HTTP_BUFFER_SIZE % 8) == 0, "HTTP_BUFFER_SIZE must be a multiple of 8.");
 
