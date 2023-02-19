@@ -69,9 +69,8 @@ type CheckSubmitter struct {
 
 	forwarderRetryMaxQueueBytes int
 
-	// Callback for setting realtime mode. If this is nil realtime mode is never toggled.
-	updateRTStatusCallback func([]*model.CollectorStatus)
-	rtNotifierChan         chan types.RTResponse
+	// Channel for notifying the submitter to enable/disbale realtime mode
+	rtNotifierChan chan types.RTResponse
 }
 
 func NewSubmitter(hostname string) (*CheckSubmitter, error) {
