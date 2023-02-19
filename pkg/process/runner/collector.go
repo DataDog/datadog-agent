@@ -47,8 +47,11 @@ type checkPayload struct {
 	headers http.Header
 }
 
-// Collector will collect metrics from the local system and ship to the backend.
-type Collector struct {
+type Runner interface {
+}
+
+// CheckRunner will collect metrics from the local system and ship to the backend.
+type CheckRunner struct {
 	// required for being able to start and stop the collector
 	wg   *sync.WaitGroup
 	stop chan struct{}
@@ -80,12 +83,12 @@ type Collector struct {
 	rtNotifierChan <-chan types.RTResponse
 }
 
-func (l *Collector) RunRealTime() bool {
+func (l *CheckRunner) RunRealTime() bool {
 	return l.runRealTime
 }
 
-// NewCollector creates a new Collector
-func NewCollector(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*Collector, error) {
+// NewCollector creates a new CheckRunner
+func NewCollector(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 
 	cfg := &checks.SysProbeConfig{}
@@ -106,14 +109,14 @@ func NewCollector(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCh
 	return NewCollectorWithChecks(enabledChecks, runRealTime, rtNotifierChan)
 }
 
-// NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*Collector, error) {
+// NewCollectorWithChecks creates a new CheckRunner
+func NewCollectorWithChecks(checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
 	orchestrator := oconfig.NewDefaultOrchestratorConfig()
 	if err := orchestrator.Load(); err != nil {
 		return nil, err
 	}
 
-	return &Collector{
+	return &CheckRunner{
 		wg:   &sync.WaitGroup{},
 		stop: make(chan struct{}),
 
@@ -131,7 +134,7 @@ func NewCollectorWithChecks(checks []checks.Check, runRealTime bool, rtNotifierC
 	}, nil
 }
 
-func (l *Collector) runCheck(c checks.Check) {
+func (l *CheckRunner) runCheck(c checks.Check) {
 	runCounter := l.nextRunCounter(c.Name())
 	start := time.Now()
 	// update the last collected timestamp for info
@@ -165,7 +168,7 @@ func (l *Collector) runCheck(c checks.Check) {
 	}
 }
 
-func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOptions) {
+func (l *CheckRunner) runCheckWithRealTime(c checks.Check, options *checks.RunOptions) {
 	start := time.Now()
 	// update the last collected timestamp for info
 	status.UpdateLastCollectTime(start)
@@ -205,7 +208,7 @@ func (l *Collector) runCheckWithRealTime(c checks.Check, options *checks.RunOpti
 	}
 }
 
-func (l *Collector) nextRunCounter(name string) int32 {
+func (l *CheckRunner) nextRunCounter(name string) int32 {
 	runCounter := int32(1)
 	if rc, ok := l.runCounters.Load(name); ok {
 		runCounter = rc.(int32) + 1
@@ -226,7 +229,7 @@ func logCheckDuration(name string, start time.Time, runCounter int32) {
 	}
 }
 
-func (l *Collector) nextGroupID() int32 {
+func (l *CheckRunner) nextGroupID() int32 {
 	return l.groupID.Inc()
 }
 
@@ -239,7 +242,7 @@ const (
 	chunkMask           = 1<<chunkNumberOfBits - 1
 )
 
-func (l *Collector) Run() error {
+func (l *CheckRunner) Run() error {
 	realTimeAllowed := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 
 	checkNamesLength := len(l.enabledChecks)
@@ -287,7 +290,7 @@ func (l *Collector) Run() error {
 	return nil
 }
 
-func (l *Collector) listenForRTUpdates() {
+func (l *CheckRunner) listenForRTUpdates() {
 	l.wg.Add(1)
 	go func() {
 		defer l.wg.Done()
@@ -307,7 +310,7 @@ func (l *Collector) listenForRTUpdates() {
 	}()
 }
 
-func (l *Collector) runnerForCheck(c checks.Check) (func(), error) {
+func (l *CheckRunner) runnerForCheck(c checks.Check) (func(), error) {
 	if !l.runRealTime || !c.SupportsRunOptions() {
 		return l.basicRunner(c), nil
 	}
@@ -349,7 +352,7 @@ func (l *Collector) runnerForCheck(c checks.Check) (func(), error) {
 	)
 }
 
-func (l *Collector) basicRunner(c checks.Check) func() {
+func (l *CheckRunner) basicRunner(c checks.Check) func() {
 	return func() {
 		// Run the check the first time to prime the caches.
 		if !c.Realtime() {
@@ -380,7 +383,7 @@ func (l *Collector) basicRunner(c checks.Check) func() {
 	}
 }
 
-func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
+func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 	// If realtime mode is disabled in the config, do not change the real time status.
 	if !l.runRealTime {
 		return
@@ -427,12 +430,12 @@ func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
 	}
 }
 
-func (l *Collector) Stop() {
+func (l *CheckRunner) Stop() {
 	close(l.stop)
 	l.wg.Wait()
 }
 
-func (l *Collector) GetChecks() []checks.Check {
+func (l *CheckRunner) GetChecks() []checks.Check {
 	return l.enabledChecks
 }
 

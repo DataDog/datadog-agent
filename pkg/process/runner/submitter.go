@@ -69,7 +69,7 @@ type CheckSubmitter struct {
 
 	forwarderRetryMaxQueueBytes int
 
-	// Channel for notifying the submitter to enable/disbale realtime mode
+	// Channel for notifying the submitter to enable/disable realtime mode
 	rtNotifierChan chan types.RTResponse
 }
 

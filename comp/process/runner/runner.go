@@ -20,7 +20,7 @@ import (
 
 // runner implements the Component.
 type runner struct {
-	collector *processRunner.Collector
+	collector *processRunner.CheckRunner
 }
 
 type dependencies struct {
