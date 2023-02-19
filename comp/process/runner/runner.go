@@ -7,7 +7,6 @@ package runner
 
 import (
 	"context"
-	"testing"
 
 	"go.uber.org/fx"
 
@@ -66,9 +65,4 @@ func (r *runner) Stop(context.Context) error {
 func (r *runner) GetChecks() []checks.Check {
 	// TODO: Change this to use `types.Check` once checks are migrated to components
 	return r.collector.GetChecks()
-}
-
-func newMock(deps dependencies, t testing.TB) Component {
-	// TODO
-	return nil
 }
