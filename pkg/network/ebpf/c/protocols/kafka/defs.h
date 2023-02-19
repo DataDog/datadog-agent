@@ -16,12 +16,6 @@
 // Reference: https://kafka.apache.org/protocol.html#protocol_messages
 #define KAFKA_MIN_SIZE 12
 
-// The maximum request API version for fetch request is 13
-// The maximum request API version for produce is 9
-// So setting it to the maximum between the 2
-// Reference: https://kafka.apache.org/protocol.html#protocol_messages
-#define KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION 13
-
 //// This determines the size of the payload fragment that is captured for each HTTP request
 #define KAFKA_BUFFER_SIZE (8 * 40) // 320
 

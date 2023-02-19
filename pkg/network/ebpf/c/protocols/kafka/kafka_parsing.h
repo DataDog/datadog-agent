@@ -43,13 +43,27 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     if (!kafka_read_big_endian_int16(kafka_transaction, &request_api_version)) {
         return false;
     }
+
     log_debug("kafka: request_api_version: %d\n", request_api_version);
-    if (request_api_version < 0 || request_api_version > KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION) {
-        return false;
-    }
-    if ((request_api_version == 0) && (request_api_key == KAFKA_PRODUCE)) {
-        // We have seen some false positives when both request_api_version and request_api_key are 0,
-        // so dropping support for this case
+    switch (request_api_key) {
+    case KAFKA_FETCH:
+        if (request_api_version > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+            // Fetch request version 12 and above is not supported.
+            return false;
+        }
+        break;
+    case KAFKA_PRODUCE:
+        if (request_api_version == 0) {
+            // We have seen some false positives when both request_api_version and request_api_key are 0,
+            // so dropping support for this case
+            return false;
+        } else if (request_api_version > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+            // Produce request version 9 and above is not supported.
+            return false;
+        }
+        break;
+    default:
+        // We are only interested in fetch and produce requests
         return false;
     }
     kafka_transaction->base.request_api_version = request_api_version;
