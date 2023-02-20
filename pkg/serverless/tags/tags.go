@@ -205,12 +205,6 @@ func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 	return runtime
 }
 
-// GetRuntime returns the lambda execution environment from the AWS_EXECUTION_ENV
-// environment variable provided to the running runtime process.
-func GetRuntime() string {
-	return getRuntime("/proc", "/etc", runtimeVar)
-}
-
 func getRuntime(procPath string, osReleasePath string, varName string) string {
 	foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
 	runtime := cleanRuntimes(foundRuntimes)

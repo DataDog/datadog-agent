@@ -3,25 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build serverless
-// +build serverless
-
 // Package appsec provides a simple Application Security Monitoring API for
 // serverless.
 package appsec
 
 import (
-	"strings"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	"github.com/DataDog/go-libddwaf"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/go-libddwaf"
+	"github.com/pkg/errors"
 )
 
-func New(lambdaRuntime string) (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, error) {
+func New() (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, error) {
 	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
 		return nil, nil, err
@@ -30,11 +29,18 @@ func New(lambdaRuntime string) (*httpsec.InvocationSubProcessor, *httpsec.ProxyL
 		return nil, nil, nil // appsec disabled
 	}
 
+	var rtProxyMode bool
+	if rtProxyModeEnv := os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY"); rtProxyModeEnv != "" {
+		rtProxyMode, err = strconv.ParseBool(rtProxyModeEnv)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "parsing error of the environment variable DD_EXPERIMENTAL_ENABLE_PROXY")
+		}
+	}
+
 	switch {
-	case strings.Contains(lambdaRuntime, "nodejs") || strings.Contains(lambdaRuntime, "python"):
+	case rtProxyMode:
 		// NodeJS and Python are currently supported by monitoring the invocations
 		// through the runtime API.
-		log.Debug("appsec: starting the runtime api proxy monitoring for ", lambdaRuntime)
 		lp := &httpsec.ProxyLifecycleProcessor{
 			SubProcessor: httpsec.NewProxyProcessor(appsecInstance),
 		}
@@ -44,7 +50,7 @@ func New(lambdaRuntime string) (*httpsec.InvocationSubProcessor, *httpsec.ProxyL
 			"127.0.0.1:9001",
 			lp,
 		)
-		log.Debug("appsec: runtime api proxy started successfully")
+		log.Debug("appsec: started successfully using the runtime api proxy monitoring mode")
 		return nil, lp, nil
 
 	default:

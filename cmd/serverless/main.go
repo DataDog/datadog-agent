@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
-	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -268,7 +267,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		appsecSubProcessor, appsecProxyProcessor, err = appsec.New(tags.GetRuntime())
+		appsecSubProcessor, appsecProxyProcessor, err = appsec.New()
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
 		}
