@@ -157,7 +157,7 @@ function loadStatus(page) {
       // Get the trace-agent status
       sendMessage("agent/getConfig/apm_config.receiver_port", "", "GET",
           function(data, status, xhr) {
-              var apmPort = data["apm_config.debug_server.port"];
+              var apmPort = data["apm_config.debug.port"];
               if (apmPort == null) {
                   apmPort = "5012";
               }

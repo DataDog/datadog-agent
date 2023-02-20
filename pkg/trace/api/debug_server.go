@@ -41,7 +41,7 @@ func NewDebugServer(conf *config.AgentConfig) *DebugServer {
 // Start configures and starts the http server
 func (ds *DebugServer) Start() {
 	if ds.conf.DebugServerPort == 0 {
-		log.Debug("Debug server is disabled by config (apm_config.debug_server.port: 0).")
+		log.Debug("Debug server is disabled by config (apm_config.debug.port: 0).")
 		return
 	}
 	ds.server = &http.Server{

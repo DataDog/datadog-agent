@@ -427,7 +427,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "evp_proxy_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
 	}
-	c.DebugServerPort = coreconfig.Datadog.GetInt("apm_config.debug_server.port")
+	c.DebugServerPort = coreconfig.Datadog.GetInt("apm_config.debug.port")
 	return nil
 }
 
