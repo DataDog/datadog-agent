@@ -17,13 +17,16 @@ import (
 )
 
 // RunJavaVersion run class under java version
-func RunJavaVersion(t *testing.T, version string, class string) {
+func RunJavaVersion(t *testing.T, version string, class string, waitFor *regexp.Regexp) {
 	t.Helper()
+	if waitFor == nil {
+		regexp.MustCompile("loading TestAgentLoaded.agentmain.*")
+	}
 
 	dir, _ := testutil.CurDir()
 	env := []string{
 		"IMAGE_VERSION=" + version,
 		"ENTRYCLASS=" + class,
 	}
-	protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, regexp.MustCompile("loading TestAgentLoaded.agentmain.*"), protocolsUtils.DefaultTimeout)
+	protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, protocolsUtils.DefaultTimeout)
 }

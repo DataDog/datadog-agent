@@ -599,6 +599,7 @@ func TestJavaInjection(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableRuntimeCompiler = true
 	cfg.EnableJavaTLSSupport = true
 
 	dir, _ := testutil.CurDir()
@@ -675,7 +676,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait", regexp.MustCompile("loading TestAgentLoaded.agentmain.*"))
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 
 				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
@@ -687,6 +688,37 @@ func TestJavaInjection(t *testing.T) {
 				_, err := os.Stat(testfile)
 				require.NoError(t, err)
 				os.Remove(testfile)
+			},
+		},
+		{
+			// Test the java jdk client https request is working
+			name: "java_jdk_client",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wget https://www.google.com", regexp.MustCompile("Response code = .*"))
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				// Iterate through active connections until we find connection created above
+				var httpReqStats *http.RequestStats
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for key, stats := range payload.HTTP {
+						if key.Path.Content == "/" {
+							httpReqStats = stats
+							return true
+						}
+					}
+
+					return false
+				}, 3*time.Second, 1000*time.Millisecond, "couldn't find http connection matching: %s", "server")
+
+				t.Logf("%#+v", httpReqStats)
 			},
 		},
 	}
