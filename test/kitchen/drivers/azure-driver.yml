@@ -41,7 +41,10 @@ provisioner:
   # (necessary for FIPS tests which reboot to enable FIPS mode)
   max_retries: 3
   wait_for_retry: 90
-  retry_on_exit_code: [20, 35, 213]
+  retry_on_exit_code:
+    - 20
+    - 35
+    - 213
   client_rb:
     client_fork: false
 
