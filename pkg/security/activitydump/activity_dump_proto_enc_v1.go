@@ -13,6 +13,7 @@ import (
 
 	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"golang.org/x/text/runes"
 )
 
 func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
@@ -131,16 +132,13 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 
 		Credentials: credentialsToProto(&p.Credentials),
 
-		Args:          make([]string, len(p.ScrubbedArgv)),
+		Args:          copyAndEscape(p.ScrubbedArgv),
 		Argv0:         p.Argv0,
 		ArgsTruncated: p.ArgsTruncated,
 
-		Envs:          make([]string, len(p.Envs)),
+		Envs:          copyAndEscape(p.Envs),
 		EnvsTruncated: p.EnvsTruncated,
 	}
-
-	copy(ppi.Args, p.ScrubbedArgv)
-	copy(ppi.Envs, p.Envs)
 
 	return ppi
 }
@@ -286,4 +284,12 @@ func timestampToProto(t *time.Time) uint64 {
 		return 0
 	}
 	return uint64(t.UnixNano())
+}
+
+func copyAndEscape(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, value := range in {
+		out = append(out, runes.ReplaceIllFormed().String(value))
+	}
+	return out
 }
