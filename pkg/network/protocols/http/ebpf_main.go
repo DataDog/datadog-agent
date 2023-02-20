@@ -10,11 +10,13 @@ package http
 
 import (
 	"fmt"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 	"math"
 	"strings"
+
+	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -110,7 +112,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
-			{Name: http2InFlightMap},
 			{Name: sslSockByCtxMap},
 			{Name: protocolDispatcherProgramsMap},
 			{Name: "ssl_read_args"},
@@ -191,26 +192,32 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureManager(e.Manager)
 	}
 
+	var err error
 	if e.cfg.EnableCORE {
-		assetName := getAssetName("http", e.cfg.BPFDebug)
-		err := ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+		err = e.initCORE()
 		if err == nil {
 			return nil
 		}
+
 		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
-			return handleInitError(fmt.Errorf("co-re load failed: %w", err))
+			return fmt.Errorf("co-re load failed: %w", err)
+		}
+		log.Warnf("co-re load failed. attempting fallback: %s", err)
+	}
+
+	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
+		err = e.initRuntimeCompiler()
+		if err == nil {
+			return nil
 		}
 
-		log.Errorf("co-re load failed: %s. attempting fallback.", err)
+		if !e.cfg.AllowPrecompiledFallback {
+			return fmt.Errorf("runtime compilation failed: %w", err)
+		}
+		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
-	buf, err := getBytecode(e.cfg)
-	if err != nil {
-		return err
-	}
-	defer buf.Close()
-
-	return e.init(buf, manager.Options{})
+	return e.initPrebuilt()
 }
 
 func (e *ebpfProgram) Start() error {
@@ -235,6 +242,29 @@ func (e *ebpfProgram) Close() error {
 		s.Stop()
 	}
 	return err
+}
+
+func (e *ebpfProgram) initCORE() error {
+	assetName := getAssetName("http", e.cfg.BPFDebug)
+	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+}
+
+func (e *ebpfProgram) initRuntimeCompiler() error {
+	bc, err := getRuntimeCompiledHTTP(e.cfg)
+	if err != nil {
+		return err
+	}
+	defer bc.Close()
+	return e.init(bc, manager.Options{})
+}
+
+func (e *ebpfProgram) initPrebuilt() error {
+	bc, err := netebpf.ReadHTTPModule(e.cfg.BPFDir, e.cfg.BPFDebug)
+	if err != nil {
+		return err
+	}
+	defer bc.Close()
+	return e.init(bc, manager.Options{})
 }
 
 func (e *ebpfProgram) setupMapCleaner() {
@@ -331,27 +361,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	events.Configure("http2", e.Manager.Manager, &options)
 
 	return e.InitWithOptions(buf, options)
-}
-
-func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
-	if c.EnableRuntimeCompiler {
-		bc, err = getRuntimeCompiledHTTP(c)
-		if err != nil {
-			if !c.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network http tracer: %w", err)
-			}
-			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
-		}
-	}
-
-	if bc == nil {
-		bc, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
-		if err != nil {
-			return nil, fmt.Errorf("could not read bpf module: %s", err)
-		}
-	}
-
-	return
 }
 
 func getAssetName(module string, debug bool) string {

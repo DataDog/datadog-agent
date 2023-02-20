@@ -41,7 +41,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
-	github.com/DataDog/agent-payload/v5 v5.0.67
+	github.com/DataDog/agent-payload/v5 v5.0.72
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.43.0-rc.3
@@ -75,7 +75,7 @@ require (
 	github.com/alecthomas/repr v0.2.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
-	github.com/avast/retry-go/v4 v4.3.2
+	github.com/avast/retry-go/v4 v4.3.3
 	github.com/aws/aws-lambda-go v1.37.0
 	github.com/aws/aws-sdk-go v1.44.171
 	github.com/beevik/ntp v0.3.0
@@ -89,7 +89,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.4
-	github.com/containerd/containerd v1.6.15
+	github.com/containerd/containerd v1.6.16
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.2
 	github.com/coreos/go-semver v0.3.0
@@ -109,6 +109,7 @@ require (
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.2.6
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
+	github.com/go-sql-driver/mysql v1.7.0
 	github.com/gobwas/glob v0.2.3
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/gogo/protobuf v1.3.2
@@ -149,7 +150,7 @@ require (
 	github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.48.0
+	github.com/open-policy-agent/opa v0.49.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.70.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2
@@ -209,15 +210,15 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 	golang.org/x/exp v0.0.0-20230202163644-54bba9f4231b
-	golang.org/x/net v0.5.0
+	golang.org/x/net v0.6.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.4.0
-	golang.org/x/text v0.6.0
+	golang.org/x/sys v0.5.0
+	golang.org/x/text v0.7.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.5.0
+	golang.org/x/tools v0.6.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6
-	google.golang.org/grpc v1.52.0
+	google.golang.org/grpc v1.52.3
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
@@ -514,15 +515,20 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.37.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.12.0 // indirect
 	go.opentelemetry.io/otel v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.2
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.7.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.2
 	go.opentelemetry.io/otel/exporters/prometheus v0.34.0 // indirect
 	go.opentelemetry.io/otel/metric v0.34.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.11.2 // indirect
+	go.opentelemetry.io/otel/sdk v1.11.2
 	go.opentelemetry.io/otel/sdk/metric v0.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.11.2 // indirect
+	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
-	golang.org/x/mod v0.7.0 // indirect
+	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/oauth2 v0.3.0 // indirect
-	golang.org/x/term v0.4.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/api v0.103.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

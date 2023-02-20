@@ -22,6 +22,7 @@ const (
 	ProtocolPostgres     = ProtocolType(model.ProtocolType_protocolPostgres)
 	ProtocolAMQP         = ProtocolType(model.ProtocolType_protocolAMQP)
 	ProtocolRedis        = ProtocolType(model.ProtocolType_protocolRedis)
+	ProtocolMySQL        = ProtocolType(model.ProtocolType_protocolMySQL)
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 		ProtocolPostgres:     {},
 		ProtocolAMQP:         {},
 		ProtocolRedis:        {},
+		ProtocolMySQL:        {},
 	}
 )
 
