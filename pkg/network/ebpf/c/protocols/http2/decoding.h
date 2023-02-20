@@ -39,7 +39,7 @@ static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *ht
 //
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
 // The error is errNeedMore if p doesn't contain a complete integer.
-static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 factor, __u8 *out){
+static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 factor, __u8 *out, u32 stream_id){
     __u16 offset = heap_buffer->offset % HTTP2_BUFFER_SIZE;
 
     if (heap_buffer->size-1 <= offset) {
@@ -49,7 +49,8 @@ static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 facto
     if (HTTP2_BUFFER_SIZE-1 <= offset) {
         return false;
     }
-    __u8 current_char_as_number = heap_buffer->fragment[offset];
+    const __u8 current_char_as_number_s = heap_buffer->fragment[offset];
+    __u8 current_char_as_number = current_char_as_number_s;
     current_char_as_number &= (1 << factor) - 1;
 
     heap_buffer->offset = offset + 1;
@@ -70,6 +71,7 @@ static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 facto
     }
 
     // TODO: TBD
+    log_debug("[http2]: bug 1 - %d %lu", current_char_as_number_s, stream_id);
     return false;
 }
 
@@ -90,7 +92,7 @@ static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter
 // parse_field_indexed is handling the case which the header frame is part of the static table.
 static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u8 index = 0;
-    if (!read_var_int(heap_buffer, 7, &index)) {
+    if (!read_var_int(heap_buffer, 7, &index, stream_id)) {
         return 0;
     }
 
@@ -132,7 +134,7 @@ static __always_inline __u8 parse_field_literal(http2_iterations_key_t *iteratio
     set_dynamic_counter(&iterations_key->tup, counter);
 
     __u8 index = 0;
-    if (!read_var_int(heap_buffer, 6, &index)) {
+    if (!read_var_int(heap_buffer, 6, &index, stream_id)) {
         return 0;
     }
 
@@ -143,14 +145,14 @@ static __always_inline __u8 parse_field_literal(http2_iterations_key_t *iteratio
         // TODO, if index != 0, that's weird.
         if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
             str_len = 0;
-            if (!read_var_int(heap_buffer, 6, &str_len)) {
+            if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
                 return 0;
             }
             heap_buffer->offset += str_len;
 
             if (index == 0) {
                 str_len = 0;
-                if (!read_var_int(heap_buffer, 6, &str_len)) {
+                if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
                     return 0;
                 }
                 heap_buffer->offset += str_len;
@@ -161,7 +163,7 @@ static __always_inline __u8 parse_field_literal(http2_iterations_key_t *iteratio
 
 
     str_len = 0;
-    if (!read_var_int(heap_buffer, 6, &str_len)) {
+    if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
         return 0;
     }
 
@@ -221,6 +223,8 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
             interesting_headers += parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+        } else {
+            log_debug("[http2]: bug 2 - %d %lu", current_ch, stream_id);
         }
     }
 
@@ -284,7 +288,7 @@ static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk
 }
 
 static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u8 interesting_headers) {
-    log_debug("[http2] process_headers called with %lu\n", interesting_headers);
+//    log_debug("[http2] process_headers called with %lu\n", interesting_headers);
     http2_stream_t *current_stream;
     http2_header_t *current_header;
     http2_stream_key_t *http2_stream_key_template = &http2_ctx->http2_stream_key;
@@ -304,7 +308,7 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
             break;
         }
 
-        log_debug("[http2] got stream\n");
+//        log_debug("[http2] got stream\n");
         if (current_header->type == kStaticHeader) {
             // fetch static value
             static_table_entry_t* static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
@@ -416,7 +420,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
     read_into_buffer_skb_http2((char*)frame_payload->fragment, skb, iterations_key->skb_info.data_off + HTTP2_FRAME_HEADER_SIZE);
 
     __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process->array, current_frame_header->stream_id, frame_payload);
-    log_debug("[http2] filter_relevant_headers returned %lu\n", interesting_headers);
+//    log_debug("[http2] filter_relevant_headers returned %lu\n", interesting_headers);
     if (interesting_headers > 0) {
         process_headers(http2_ctx, headers_to_process->array, interesting_headers);
     }
@@ -424,10 +428,10 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
 
 static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx) {
     __u32 offset = iterations_key->skb_info.data_off;
-    log_debug("[http2] skb %p reading from %lu until %lu\n", skb, offset, skb->len);
+//    log_debug("[http2] skb %p reading from %lu until %lu\n", skb, offset, skb->len);
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-        log_debug("[http2] skb %p abort 1\n", skb);
+//        log_debug("[http2] skb %p abort 1\n", skb);
         return -1;
     }
 
@@ -440,7 +444,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
 
     struct http2_frame current_frame = {};
     if (!read_http2_frame_header2(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
-        log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
+//        log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
         return -1;
     }
 
