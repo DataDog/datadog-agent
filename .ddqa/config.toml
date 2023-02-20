@@ -20,3 +20,9 @@ jira_project = "AML"
 jira_issue_type = "Task"
 github_team = "universal-service-monitoring"
 github_labels = ["team/usm"]
+
+[teams."Network Device Monitoring"]
+jira_project = "NDM"
+jira_issue_type = "Task"
+github_team = "network-device-monitoring"
+github_labels = ["team/network-device-monitoring"]
