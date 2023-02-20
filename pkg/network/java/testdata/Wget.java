@@ -14,11 +14,24 @@ public class Wget {
             System.out.println("Wget <url>");
             System.exit(1);
         }
+
         try {
             System.out.println("waiting 11 seconds");
             // sleep 10 seconds before doing the request, as the process need to be injected
             Thread.sleep(11000);
+        } catch (InterruptedException intException) {
+            intException.printStackTrace();
+            System.exit(1);
+        }
 
+        for(;;) {
+        try {
+            try {
+            Thread.sleep(2000);
+        } catch (InterruptedException intException) {
+            intException.printStackTrace();
+            System.exit(1);
+        }
             url = new URL(args[0]);
             HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
             System.out.println("Response code = " + connection.getResponseCode());
@@ -30,13 +43,12 @@ public class Wget {
                     System.out.println(input);
                 }
             }
+            connection.disconnect();//getInputStream().close();
 
         } catch (IOException urlException) {
             urlException.printStackTrace();
             System.exit(1);
-        } catch (InterruptedException intException) {
-            intException.printStackTrace();
-            System.exit(1);
+        }
         }
     }
  
