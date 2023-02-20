@@ -29,14 +29,14 @@ const eventSendBuffer = 5
 
 // SubscribeToEvents allows a package to subscribe to events from the event stream.
 // A unique subscriber name should be provided.
-func (d *DockerUtil) SubscribeToEvents(name string, filter *containers.Filter) (<-chan *ContainerEvent, <-chan *ImageEvent, <-chan error, error) {
+func (d *DockerUtil) SubscribeToEvents(name string, filter *containers.Filter) (<-chan *ContainerEvent, <-chan *ImageEvent, error) {
 	sub, err := d.eventState.subscribe(name, filter)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	go d.dispatchEvents(sub)
-	return sub.containerEventsChan, sub.imageEventsChan, sub.errorChan, err
+	return sub.containerEventsChan, sub.imageEventsChan, err
 }
 
 func (e *eventStreamState) subscribe(name string, filter *containers.Filter) (*eventSubscriber, error) {
@@ -51,7 +51,6 @@ func (e *eventStreamState) subscribe(name string, filter *containers.Filter) (*e
 		name:                name,
 		containerEventsChan: make(chan *ContainerEvent, eventSendBuffer),
 		imageEventsChan:     make(chan *ImageEvent, eventSendBuffer),
-		errorChan:           make(chan error, 1), // TODO: remove errorChan once design is stable
 		cancelChan:          make(chan struct{}),
 		filter:              filter,
 	}
@@ -148,7 +147,6 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 		}
 	}
 	cancelFunc()
-	close(sub.errorChan)
 	close(sub.containerEventsChan)
 }
 

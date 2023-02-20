@@ -11,7 +11,6 @@ package docker
 import (
 	"context"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -45,7 +44,6 @@ type collector struct {
 	dockerUtil        *docker.DockerUtil
 	containerEventsCh <-chan *docker.ContainerEvent
 	imageEventsCh     <-chan *docker.ImageEvent
-	errCh             <-chan error
 }
 
 func init() {
@@ -72,7 +70,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		log.Warnf("Can't get pause container filter, no filtering will be applied: %v", err)
 	}
 
-	c.containerEventsCh, c.imageEventsCh, c.errCh, err = c.dockerUtil.SubscribeToEvents(componentName, filter)
+	c.containerEventsCh, c.imageEventsCh, err = c.dockerUtil.SubscribeToEvents(componentName, filter)
 	if err != nil {
 		return err
 	}
@@ -115,15 +113,6 @@ func (c *collector) stream(ctx context.Context) {
 			if err != nil {
 				log.Warnf(err.Error())
 			}
-
-		case err := <-c.errCh:
-			if err != nil && err != io.EOF {
-				log.Errorf("stopping collection: %s", err)
-			}
-
-			cancel()
-
-			return
 
 		case <-ctx.Done():
 			var err error
