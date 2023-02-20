@@ -21,5 +21,5 @@ func RunKafkaServer(t *testing.T, serverAddr, serverPort string) {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*Started socket server acceptors and processors.*"))
+	protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*Started socket server acceptors and processors.*"), protocolsUtils.DefaultTimeout)
 }

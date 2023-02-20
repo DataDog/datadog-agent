@@ -177,7 +177,6 @@ func load() (*Config, error) {
 	npmEnabled := cfg.GetBool("network_config.enabled")
 	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
 	dsmEnabled := cfg.GetBool(key(dsmNamespace, "enabled"))
-	usmEnabled = usmEnabled || dsmEnabled
 
 	if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
