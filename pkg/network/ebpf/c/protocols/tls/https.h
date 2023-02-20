@@ -50,6 +50,7 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
 
         // try classifying the protocol if no prior identification exists
         if (cur_fragment_protocol_ptr == NULL) {
+            // In this context, we don't have access to the __sk_buff and skb_info_t structs, so we pass NULL for both parameters.
             classify_protocol_for_dispatcher(&cur_fragment_protocol, &http.tup, http.request_fragment, len, NULL, NULL);
             // If there has been a change in the classification, save the new protocol.
             if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
