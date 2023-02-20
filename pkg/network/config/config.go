@@ -368,7 +368,9 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	if c.ServiceMonitoringEnabled || c.DataStreamsEnabled {
+	c.ServiceMonitoringEnabled = c.ServiceMonitoringEnabled || c.DataStreamsEnabled
+
+	if c.ServiceMonitoringEnabled {
 		cfg.Set(join(netNS, "enable_http_monitoring"), true)
 		c.EnableHTTPMonitoring = true
 		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
