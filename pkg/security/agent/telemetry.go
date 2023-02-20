@@ -22,9 +22,10 @@ type telemetry struct {
 	containers            *common.ContainersTelemetry
 	runtimeSecurityClient *RuntimeSecurityClient
 	profiledContainers    map[profiledContainer]struct{}
+	logProfiledWorkloads  bool
 }
 
-func newTelemetry() (*telemetry, error) {
+func newTelemetry(logProfiledWorkloads bool) (*telemetry, error) {
 	runtimeSecurityClient, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
@@ -39,6 +40,7 @@ func newTelemetry() (*telemetry, error) {
 		containers:            containersTelemetry,
 		runtimeSecurityClient: runtimeSecurityClient,
 		profiledContainers:    make(map[profiledContainer]struct{}),
+		logProfiledWorkloads:  logProfiledWorkloads,
 	}, nil
 }
 
@@ -120,10 +122,10 @@ func (t *telemetry) reportProfiledContainers() error {
 		profiled[entry] = false
 	}
 
-	finishProfiling := make([]string, 0)
+	doneProfiling := make([]string, 0)
 	for containerEntry := range t.profiledContainers {
 		profiled[containerEntry] = true
-		finishProfiling = append(finishProfiling, fmt.Sprintf("%s:%s", containerEntry.name, containerEntry.tag))
+		doneProfiling = append(doneProfiling, fmt.Sprintf("%s:%s", containerEntry.name, containerEntry.tag))
 	}
 
 	missing := make([]string, 0, len(profiled))
@@ -133,8 +135,8 @@ func (t *telemetry) reportProfiledContainers() error {
 		}
 	}
 
-	if len(missing) > 0 {
-		log.Infof("not yet profiled workloads (%d/%d): %v; finished profiling: %v", len(missing), len(profiled), missing, finishProfiling)
+	if t.logProfiledWorkloads && len(missing) > 0 {
+		log.Infof("not yet profiled workloads (%d/%d): %v; finished profiling: %v", len(missing), len(profiled), missing, doneProfiling)
 	}
 	t.containers.Sender.Gauge(metrics.MetricActivityDumpNotYetProfiledWorkload, float64(len(missing)), "", nil)
 	return nil
