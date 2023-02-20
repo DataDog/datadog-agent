@@ -45,6 +45,7 @@ func TestSanity(t *testing.T) {
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableKafkaMonitoring = true
 	cfg.BPFDebug = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
@@ -118,6 +119,7 @@ func TestLoadKafkaBinary(t *testing.T) {
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableKafkaMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
@@ -133,6 +135,7 @@ func TestLoadKafkaDebugBinary(t *testing.T) {
 	cfg.BPFDebug = true
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableKafkaMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
@@ -149,6 +152,7 @@ func TestProduceClientIdEmptyString(t *testing.T) {
 	cfg.BPFDebug = true
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableKafkaMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
@@ -206,6 +210,7 @@ func TestManyProduceRequests(t *testing.T) {
 	cfg.BPFDebug = true
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableKafkaMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
@@ -264,6 +269,7 @@ func TestHTTPAndKafka(t *testing.T) {
 	cfg.BPFDebug = true
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableKafkaMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
@@ -334,7 +340,7 @@ func TestHTTPAndKafka(t *testing.T) {
 	}
 }
 
-func TestEnableUSMOnly(t *testing.T) {
+func TestEnableHTTPOnly(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
 	kafka.RunKafkaServer(t, "127.0.0.1", "9092")

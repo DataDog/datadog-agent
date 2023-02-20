@@ -11,7 +11,6 @@ package http
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"syscall"
 	"unsafe"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -44,6 +44,7 @@ type Monitor struct {
 	processMonitor *monitor.ProcessMonitor
 
 	// Kafka related
+	kafkaEnabled    bool
 	kafkaConsumer   *events.Consumer
 	kafkaTelemetry  *kafka.Telemetry
 	kafkaStatkeeper *kafka.KafkaStatKeeper
@@ -105,24 +106,32 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
 
-	// Kafka related
-	kafkaTelemetry, err := kafka.NewTelemetry()
-	if err != nil {
-		closeFilterFn()
-		return nil, err
-	}
-	kafkaStatkeeper := kafka.NewKafkaStatkeeper(c, kafkaTelemetry)
-
-	return &Monitor{
+	httpMonitor := &Monitor{
 		ebpfProgram:    mgr,
 		telemetry:      telemetry,
 		closeFilterFn:  closeFilterFn,
 		statkeeper:     statkeeper,
 		processMonitor: processMonitor,
+	}
 
-		kafkaTelemetry:  kafkaTelemetry,
-		kafkaStatkeeper: kafkaStatkeeper,
-	}, nil
+	if c.EnableKafkaMonitoring {
+		// Kafka related
+		kafkaTelemetry, err := kafka.NewTelemetry()
+		if err != nil {
+			closeFilterFn()
+			return nil, err
+		}
+		kafkaStatkeeper := kafka.NewKafkaStatkeeper(c, kafkaTelemetry)
+		httpMonitor.kafkaEnabled = true
+		httpMonitor.kafkaTelemetry = kafkaTelemetry
+		httpMonitor.kafkaStatkeeper = kafkaStatkeeper
+	} else {
+		httpMonitor.kafkaEnabled = false
+		httpMonitor.kafkaTelemetry = nil
+		httpMonitor.kafkaStatkeeper = nil
+	}
+
+	return httpMonitor, nil
 }
 
 // Start consuming HTTP events
@@ -156,16 +165,17 @@ func (m *Monitor) Start() error {
 	}
 	m.consumer.Start()
 
-	// Kafka related
-	m.kafkaConsumer, err = events.NewConsumer(
-		"kafka",
-		m.ebpfProgram.Manager.Manager,
-		m.kafkaProcess,
-	)
-	if err != nil {
-		return err
+	if m.kafkaEnabled {
+		m.kafkaConsumer, err = events.NewConsumer(
+			"kafka",
+			m.ebpfProgram.Manager.Manager,
+			m.kafkaProcess,
+		)
+		if err != nil {
+			return err
+		}
+		m.kafkaConsumer.Start()
 	}
-	m.kafkaConsumer.Start()
 
 	err = m.ebpfProgram.Start()
 	if err != nil {
@@ -202,7 +212,7 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 
 // GetKafkaStats returns a map of Kafka stats
 func (m *Monitor) GetKafkaStats() map[kafka.Key]*kafka.RequestStat {
-	if m == nil {
+	if m == nil || m.kafkaEnabled == false {
 		return nil
 	}
 
@@ -220,6 +230,9 @@ func (m *Monitor) Stop() {
 	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
 	m.consumer.Stop()
+	if m.kafkaEnabled {
+		m.kafkaConsumer.Stop()
+	}
 	m.closeFilterFn()
 }
 

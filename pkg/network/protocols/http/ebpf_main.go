@@ -151,6 +151,18 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	if openSSLProg != nil {
 		subprograms = append(subprograms, openSSLProg)
 	}
+
+	// If Kafka monitoring is enabled, the kafka parsing function is added to the dispatcher mechanism.
+	if c.EnableKafkaMonitoring {
+		tailCalls = append(tailCalls, manager.TailCallRoute{
+			ProgArrayName: protocolDispatcherProgramsMap,
+			Key:           uint32(ProtocolKafka),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "socket__kafka_filter",
+			},
+		})
+	}
+
 	program := &ebpfProgram{
 		Manager:         errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:             c,
@@ -315,19 +327,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		},
 	}
 
-	/*
-		If Kafka monitoring is enabled, the kafka parsing function is added to the dispatcher mechanism.
-		However, if Kafka monitoring is not enabled, loading the program will cause a verifier issue and should be avoided.
-	*/
-	if e.cfg.EnableKafkaMonitoring {
-		tailCalls = append(tailCalls, manager.TailCallRoute{
-			ProgArrayName: protocolDispatcherProgramsMap,
-			Key:           uint32(ProtocolKafka),
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "socket__kafka_filter",
-			},
-		})
-	} else {
+	//	If Kafka monitoring is not enabled, loading the program will cause a verifier issue and should be avoided.
+	if !e.cfg.EnableKafkaMonitoring {
 		options.ExcludedFunctions = []string{"socket__kafka_filter"}
 	}
 
