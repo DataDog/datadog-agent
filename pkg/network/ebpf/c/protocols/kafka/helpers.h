@@ -280,8 +280,6 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
 static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_LENGTH);
 
-    log_debug("kafka: is_kafka\n");
-
     const kafka_header_t *header_view = (kafka_header_t *)buf;
     kafka_header_t kafka_header;
     bpf_memset(&kafka_header, 0, sizeof(kafka_header));
