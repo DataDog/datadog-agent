@@ -11,7 +11,10 @@ package http
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"io"
+	nethttp "net/http"
 	"testing"
 	"time"
 
@@ -254,5 +257,84 @@ func TestManyProduceRequests(t *testing.T) {
 			require.FailNow(t, "Expecting only produce requests")
 		}
 		require.Equal(t, numberOfIterations, kafkaStat.Count)
+	}
+}
+
+func TestHTTPAndKafka(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	kafka.RunKafkaServer(t, "127.0.0.1", "9092")
+
+	cfg := config.New()
+	cfg.BPFDebug = true
+	// We don't have a way of enabling kafka without http at the moment
+	cfg.EnableHTTPMonitoring = true
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
+
+	seeds := []string{"localhost:9092"}
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(seeds...),
+		kgo.DefaultProduceTopic(defaultTopicName),
+		kgo.MaxVersions(kversion.V2_5_0()),
+	)
+	require.NoError(t, err)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	err = client.Ping(ctxTimeout)
+	cancel()
+	defer client.Close()
+	require.NoError(t, err)
+
+	// Create the topic
+	adminClient := kadm.NewClient(client)
+	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	_, err = adminClient.CreateTopics(ctxTimeout, 1, 1, nil, defaultTopicName)
+	cancel()
+	require.NoError(t, err)
+
+	record := &kgo.Record{Topic: defaultTopicName, Value: []byte("Hello Kafka!")}
+	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	err = client.ProduceSync(ctxTimeout, record).FirstErr()
+	cancel()
+	require.NoError(t, err, "record had a produce error while synchronously producing")
+
+	serverAddr := "localhost:8081"
+	srvDoneFn := testutil.HTTPServer(t, "localhost:8081", testutil.Options{})
+	httpClient := nethttp.Client{}
+
+	req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
+	require.NoError(t, err)
+
+	expectedOccurrences := 10
+	for i := 0; i < expectedOccurrences; i++ {
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		// Have to read the response body to ensure the client will be able to properly close the connection.
+		io.ReadAll(resp.Body)
+		resp.Body.Close()
+	}
+	srvDoneFn()
+
+	// Wait for the kafka monitor to process the Kafka traffic
+	time.Sleep(time.Second * 2)
+
+	occurrences := 0
+	require.Eventually(t, func() bool {
+		httpStats := monitor.GetHTTPStats()
+		occurrences += countRequestOccurrences(httpStats, req)
+		return occurrences == expectedOccurrences
+	}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
+
+	kafkaStats := monitor.GetKafkaStats()
+	// We expect 2 occurrences for each connection as we are working with a docker for now
+	require.Equal(t, 2, len(kafkaStats))
+	for kafkaKey, kafkaStat := range kafkaStats {
+		if kafkaKey.RequestAPIKey != kafka.ProduceAPIKey {
+			require.FailNow(t, "Expecting only produce requests")
+		}
+		require.Equal(t, 1, kafkaStat.Count)
 	}
 }
