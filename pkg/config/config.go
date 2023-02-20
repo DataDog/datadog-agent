@@ -1148,6 +1148,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 
 	// Serverless Agent
