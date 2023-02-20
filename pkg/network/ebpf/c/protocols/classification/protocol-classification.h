@@ -112,7 +112,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_CONT_PROG);
+    bpf_tail_call_compat_with_telemetry(skb, &classification_progs, CLASSIFICATION_CONT_PROG);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_cont(struct __sk_buff *skb) {

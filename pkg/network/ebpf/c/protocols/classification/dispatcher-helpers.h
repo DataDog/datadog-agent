@@ -104,7 +104,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         // dispatch if possible
-        bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
+        bpf_tail_call_compat_with_telemetry(skb, &protocols_progs, cur_fragment_protocol);
     }
 }
 

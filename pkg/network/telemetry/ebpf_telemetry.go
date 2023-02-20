@@ -34,12 +34,13 @@ const (
 	readKernelIndx
 	skbLoadBytes
 	perfEventOutput
+	tailCallIndx
 )
 
 var ebpfMapOpsErrorsGauge = telemetry.NewGauge("ebpf_map_ops", "errors", []string{"map_name", "error"}, "Failures of map operations for a specific ebpf map reported per error.")
 var ebpfHelperErrorsGauge = telemetry.NewGauge("ebpf_helpers", "errors", []string{"helper", "probe_name", "error"}, "Failures of bpf helper operations reported per helper per error for each probe.")
 
-var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
+var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output", tailCallIndx: "bpf_tail_call_compat"}
 
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.

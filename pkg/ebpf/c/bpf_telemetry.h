@@ -44,15 +44,13 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define MK_FN_INDX(fn) FN_INDX_##fn
 
 #define FN_INDX_bpf_probe_read read_indx
-
 #define FN_INDX_bpf_probe_read_kernel read_kernel_indx
 #define FN_INDX_bpf_probe_read_kernel_str read_kernel_indx
-
 #define FN_INDX_bpf_probe_read_user read_user_indx
 #define FN_INDX_bpf_probe_read_user_str read_user_indx
-
 #define FN_INDX_bpf_skb_load_bytes skb_load_bytes
 #define FN_INDX_bpf_perf_event_output perf_event_output
+#define FN_INDX_bpf_tail_call_compat tail_call_indx
 
 #define helper_with_telemetry(fn, ...)                                                          \
     ({                                                                                          \
@@ -116,5 +114,8 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 
 #define bpf_perf_event_output_with_telemetry(...) \
     helper_with_telemetry(bpf_perf_event_output, __VA_ARGS__)
+
+#define bpf_tail_call_compat_with_telemetry(...) \
+    helper_with_telemetry(bpf_tail_call_compat, __VA_ARGS__)
 
 #endif // BPF_TELEMETRY_H

@@ -7,5 +7,5 @@ type MapErrTelemetry struct {
 	Count [64]uint64
 }
 type HelperErrTelemetry struct {
-	Count [320]uint64
+	Count [384]uint64
 }
