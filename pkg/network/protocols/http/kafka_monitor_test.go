@@ -36,11 +36,6 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 	}
 }
 
-/*
-TODO tests:
-* Enable USM, make sure kafka monitoring is not enabled
-*/
-
 // This test loads the Kafka binary, produce and fetch kafka messages and verifies that we capture them
 func TestSanity(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
@@ -337,4 +332,53 @@ func TestHTTPAndKafka(t *testing.T) {
 		}
 		require.Equal(t, 1, kafkaStat.Count)
 	}
+}
+
+func TestEnableUSMOnly(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	kafka.RunKafkaServer(t, "127.0.0.1", "9092")
+
+	cfg := config.New()
+	cfg.BPFDebug = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableKafkaMonitoring = false
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
+
+	seeds := []string{"localhost:9092"}
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(seeds...),
+		kgo.DefaultProduceTopic(defaultTopicName),
+		kgo.MaxVersions(kversion.V1_0_0()),
+	)
+	require.NoError(t, err)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	err = client.Ping(ctxTimeout)
+	cancel()
+	defer client.Close()
+	require.NoError(t, err)
+
+	// Create the topic
+	adminClient := kadm.NewClient(client)
+	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	_, err = adminClient.CreateTopics(ctxTimeout, 1, 1, nil, defaultTopicName)
+	cancel()
+	require.NoError(t, err)
+
+	record := &kgo.Record{Topic: defaultTopicName, Value: []byte("Hello Kafka!")}
+	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	err = client.ProduceSync(ctxTimeout, record).FirstErr()
+	cancel()
+	require.NoError(t, err, "record had a produce error while synchronously producing")
+
+	// Wait for the kafka monitor to process the Kafka traffic
+	time.Sleep(time.Second * 2)
+
+	kafkaStats := monitor.GetKafkaStats()
+	// We expect 2 occurrences for each connection as we are working with a docker for now
+	require.Equal(t, 0, len(kafkaStats))
 }
