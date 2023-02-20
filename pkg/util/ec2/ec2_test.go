@@ -166,8 +166,6 @@ func TestGetHostAliases(t *testing.T) {
 			config.Mock(t)
 			if tc.disableDMI {
 				config.Datadog.Set("ec2_use_dmi", false)
-			} else {
-				config.Datadog.Set("ec2_use_dmi", true)
 			}
 
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -460,9 +458,6 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 }
 
 func TestGetNTPHostsDMI(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
-
 	setupDMIForEC2(t)
 	defer resetPackageVars()
 	metadataURL = ""
@@ -472,9 +467,6 @@ func TestGetNTPHostsDMI(t *testing.T) {
 }
 
 func TestGetNTPHostsEC2UUID(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
-
 	dmi.SetupMock(t, "ec2something", "", "", "")
 	defer resetPackageVars()
 	metadataURL = ""
@@ -546,9 +538,6 @@ func TestMetadataSourceIMDS(t *testing.T) {
 }
 
 func TestMetadataSourceUUID(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
-
 	ctx := context.Background()
 
 	metadataURL = ""
@@ -568,9 +557,6 @@ func TestMetadataSourceUUID(t *testing.T) {
 }
 
 func TestMetadataSourceDMI(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
-
 	ctx := context.Background()
 
 	metadataURL = ""
@@ -582,9 +568,6 @@ func TestMetadataSourceDMI(t *testing.T) {
 }
 
 func TestMetadataSourceDMIPreventFallback(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
-
 	ctx := context.Background()
 
 	metadataURL = ""

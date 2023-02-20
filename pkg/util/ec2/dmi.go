@@ -57,10 +57,6 @@ func getInstanceIDFromDMI() (string, error) {
 // Depending on the instance type either the DMI product UUID or the hypervisor UUID is available. In both case, if they
 // start with "ec2" we return true.
 func isEC2UUID() bool {
-	if !config.Datadog.GetBool("ec2_use_dmi") {
-		return false
-	}
-
 	// if we have a board vendor we can skip this UUID check
 	if dmi.GetBoardVendor() != "" && !isBoardVendorEC2() {
 		return false
