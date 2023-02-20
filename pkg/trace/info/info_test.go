@@ -27,6 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
+var clearAddEp = map[string][]string{
+	"ep": {"aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"},
+}
+
+var scrubbedAddEp = map[string][]string{
+	"ep": {"***************************abbbb", "***********************************abbbb"},
+}
+
 type testServerHandler struct {
 	t *testing.T
 }
@@ -124,6 +132,10 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
 	conf.Proxy = nil
+	conf.EVPProxy.APIKey = "evp_api_key"
+	conf.EVPProxy.ApplicationKey = "evp_app_key"
+	conf.EVPProxy.AdditionalEndpoints = clearAddEp
+	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
@@ -376,6 +388,15 @@ func TestInfoConfig(t *testing.T) {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.TelemetryConfig.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
 	}
+	assert.Equal("", confCopy.EVPProxy.APIKey, "EVP API Key should *NEVER* be exported")
+	conf.EVPProxy.APIKey = ""
+	assert.Equal("", confCopy.EVPProxy.ApplicationKey, "EVP APP Key should *NEVER* be exported")
+	conf.EVPProxy.ApplicationKey = ""
+
+	// Any key-like data should scrubbed
+	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
+	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
+
 	conf.ContainerTags = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
@@ -515,4 +536,18 @@ func TestPublishRateLimiterStats(t *testing.T) {
 			"RecentTracesSeen":    3.0,
 			"RecentTracesDropped": 4.0,
 		})
+}
+
+func TestScrubCreds(t *testing.T) {
+	assert := assert.New(t)
+	conf := testInit(t)
+	assert.NotNil(conf)
+
+	confExpvar := expvar.Get("config").String()
+	var got config.AgentConfig
+	err := json.Unmarshal([]byte(confExpvar), &got)
+	assert.NoError(err)
+
+	assert.EqualValues(got.EVPProxy.AdditionalEndpoints, scrubbedAddEp)
+	assert.EqualValues(got.ProfilingProxy.AdditionalEndpoints, scrubbedAddEp)
 }
