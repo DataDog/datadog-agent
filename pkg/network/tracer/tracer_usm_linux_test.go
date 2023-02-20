@@ -603,14 +603,11 @@ func TestJavaInjection(t *testing.T) {
 	cfg.EnableJavaTLSSupport = true
 
 	dir, _ := testutil.CurDir()
-	{ // create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
-		agentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
-		require.NoError(t, err)
-		defer os.RemoveAll(agentDir)
-		cfg.JavaDir = agentDir
-		_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/agent-usm.jar")
-		require.NoError(t, err)
-	}
+	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
+	agentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
+	require.NoError(t, err)
+	defer os.RemoveAll(agentDir)
+	cfg.JavaDir = agentDir
 
 	// testContext shares the context of a given test.
 	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
@@ -635,6 +632,8 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				_, err := nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/agent-usm.jar")
+				require.NoError(t, err)
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
@@ -645,7 +644,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
+				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait", regexp.MustCompile("loading TestAgentLoaded.agentmain.*"))
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 
 				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
@@ -666,6 +665,8 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				_, err := nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/agent-usm.jar")
+				require.NoError(t, err)
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
@@ -692,33 +693,33 @@ func TestJavaInjection(t *testing.T) {
 		},
 		{
 			// Test the java jdk client https request is working
-			name: "java_jdk_client",
+			name: "java_jdk_client_httpbin",
 			context: testContext{
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				// install the real USM agent
+				_, err := nettestutil.RunCommand("install -m444 " + dir + "/../java/agent-usm.jar " + agentDir + "/agent-usm.jar")
+				require.NoError(t, err)
+
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wget https://www.google.com", regexp.MustCompile("Response code = .*"))
+				javatestutil.RunJavaHost(t, "Wget", []string{"https://httpbin.org/anything/java-tls-request"}, regexp.MustCompile("Response code = .*"))
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				time.Sleep(time.Second)
 
 				// Iterate through active connections until we find connection created above
-				var httpReqStats *http.RequestStats
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
-					for key, stats := range payload.HTTP {
-						if key.Path.Content == "/" {
-							httpReqStats = stats
+					for key := range payload.HTTP {
+						if key.Path.Content == "/anything/java-tls-request" {
 							return true
 						}
 					}
 
 					return false
-				}, 3*time.Second, 1000*time.Millisecond, "couldn't find http connection matching: %s", "server")
-
-				t.Logf("%#+v", httpReqStats)
+				}, 3*time.Second, 200*time.Millisecond, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
 			},
 		},
 	}
