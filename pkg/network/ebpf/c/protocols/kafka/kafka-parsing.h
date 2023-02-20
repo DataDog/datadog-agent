@@ -1,5 +1,5 @@
-#ifndef __KAFKA_H
-#define __KAFKA_H
+#ifndef __KAFKA_PARSING
+#define __KAFKA_PARSING
 
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"

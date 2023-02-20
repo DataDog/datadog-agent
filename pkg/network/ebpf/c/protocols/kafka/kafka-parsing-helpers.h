@@ -1,5 +1,5 @@
-#ifndef __KAFKA_PARSING_H
-#define __KAFKA_PARSING_H
+#ifndef __KAFKA_PARSING_HELPERS
+#define __KAFKA_PARSING_HELPERS
 
 #include "types.h"
 
