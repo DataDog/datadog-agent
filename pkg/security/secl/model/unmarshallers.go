@@ -16,11 +16,11 @@ import (
 
 const (
 	// EventFlagsAsync async event
-	EventFlagsAsync = 1
+	EventFlagsAsync = 1 << 0
 	// EventFlagsSavedByAD saved by ad
-	EventFlagsSavedByAD = 1 << 2
+	EventFlagsSavedByAD = 1 << 1
 	// EventFlagsActivityDumpSample an AD sample
-	EventFlagsActivityDumpSample = 1 << 3
+	EventFlagsActivityDumpSample = 1 << 2
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -88,11 +88,7 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 
 	e.TimestampRaw = ByteOrder.Uint64(data[8:16])
 	e.Type = ByteOrder.Uint32(data[16:20])
-
-	flags := ByteOrder.Uint32(data[20:24])
-	e.Async = flags&EventFlagsAsync > 0
-	e.IsActivityDumpSample = flags&EventFlagsActivityDumpSample > 0
-	e.SavedByActivityDumps = flags&EventFlagsSavedByAD > 0
+	e.Flags = ByteOrder.Uint32(data[20:24])
 
 	return 24, nil
 }

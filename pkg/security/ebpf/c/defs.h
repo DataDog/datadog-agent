@@ -228,9 +228,9 @@ enum event_type
 };
 
 enum {
-    EVENT_FLAGS_ASYNC = 1, // async, mostly io_uring
-    EVENT_FLAGS_SAVED_BY_AD = 1<<2, // event send because of activity dump
-    EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1<<3,
+    EVENT_FLAGS_ASYNC = 1<<0, // async, mostly io_uring
+    EVENT_FLAGS_SAVED_BY_AD = 1<<1, // event send because of activity dump
+    EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1<<2, // event is a AD sample
 };
 
 struct kevent_t {

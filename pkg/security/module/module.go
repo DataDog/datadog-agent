@@ -430,7 +430,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *model.Event) {
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
-	if event.SavedByActivityDumps {
+	if event.IsSavedByActivityDumps() {
 		return
 	}
 

@@ -442,3 +442,8 @@ func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
 	}
 	return ev.Timestamp
 }
+
+// ResolveAsync resolves the async flag
+func (fh *FieldHandlers) ResolveAsync(ev *model.Event) bool {
+	return ev.Flags&model.EventFlagsAsync > 0
+}
