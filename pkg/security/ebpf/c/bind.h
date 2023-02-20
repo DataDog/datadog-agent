@@ -58,7 +58,7 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_BIND)) {
-            event.event.is_activity_dump_sample = 1;
+            event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
         }
     }
 

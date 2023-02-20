@@ -14,6 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+const (
+	// EventFlagsAsync async event
+	EventFlagsAsync = 1
+	// EventFlagsSavedByAD saved by ad
+	EventFlagsSavedByAD = 1 << 2
+	// EventFlagsActivityDumpSample an AD sample
+	EventFlagsActivityDumpSample = 1 << 3
+)
+
 func validateReadSize(size, read int) (int, error) {
 	if size != read {
 		return 0, ErrIncorrectDataSize
@@ -79,10 +88,11 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 
 	e.TimestampRaw = ByteOrder.Uint64(data[8:16])
 	e.Type = ByteOrder.Uint32(data[16:20])
-	e.Async = data[20] != 0
-	e.SavedByActivityDumps = data[21] != 0
-	e.IsActivityDumpSample = data[22] != 0
-	// padding 1 byte
+
+	flags := ByteOrder.Uint32(data[20:24])
+	e.Async = flags&EventFlagsAsync > 0
+	e.IsActivityDumpSample = flags&EventFlagsActivityDumpSample > 0
+	e.SavedByActivityDumps = flags&EventFlagsSavedByAD > 0
 
 	return 24, nil
 }
