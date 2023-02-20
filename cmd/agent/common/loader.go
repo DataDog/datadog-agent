@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -25,7 +26,7 @@ import (
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, confdPath string) {
+func LoadComponents(ctx context.Context, confdPath string) error {
 	var catalog workloadmeta.CollectorCatalog
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		catalog = workloadmeta.ClusterAgentCatalog
@@ -35,6 +36,13 @@ func LoadComponents(ctx context.Context, confdPath string) {
 
 	store := workloadmeta.CreateGlobalStore(catalog)
 	store.Start(ctx)
+
+	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
+	if err != nil {
+		return err
+	} else if sbomScanner != nil {
+		sbomScanner.Start(ctx)
+	}
 
 	var t tagger.Tagger
 
@@ -72,4 +80,5 @@ func LoadComponents(ctx context.Context, confdPath string) {
 	// setup autodiscovery. must be done after the tagger is initialized
 	// because of subscription to metadata store.
 	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())
+	return nil
 }

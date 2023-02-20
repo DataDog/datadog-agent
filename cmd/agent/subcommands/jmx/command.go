@@ -230,7 +230,9 @@ func runJmxCommandConsole(log log.Component, config config.Component, cliParams 
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}
 
-	common.LoadComponents(context.Background(), config.GetString("confd_path"))
+	if err := common.LoadComponents(context.Background(), config.GetString("confd_path")); err != nil {
+		return err
+	}
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

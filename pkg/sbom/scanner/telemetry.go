@@ -3,19 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build trivy
-// +build trivy
+package scanner
 
-package trivy
-
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
 
 const (
 	subsystem        = "trivy"
 	sourceContainerd = "containerd"
-	typeDaemon       = "daemon"
-	typeFilesystem   = "filesystem"
-	reasonDiskSpace  = "disk_space"
 )
 
 var (
