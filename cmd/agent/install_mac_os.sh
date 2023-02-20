@@ -239,7 +239,7 @@ function plist_modify_user_group() {
     ## to insert user/group into the xml file, we'll find the last "</dict>" occurrence and insert before it
     closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
     # there's no way to do in-place sed without a backup file on an arbitrary MacOS version
-    $sudo_cmd sed -i .backup -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|" -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|" "$plist_file"
+    $sudo_cmd sed -i.backup -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|" -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|" "$plist_file"
     $sudo_cmd rm "${plist_file}.backup"
 }
 
