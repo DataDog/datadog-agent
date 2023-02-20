@@ -22,7 +22,7 @@ if ohai["platform"] != "windows"
   python_configure = ["./configure",
                       "--prefix=#{install_dir}/embedded",
                       "--with-ssl=#{install_dir}/embedded",
-                      "--with-ensurepip=yes"] # We upgrade pip later, in the pip3 software definition
+                      "--with-ensurepip=no"] # pip is installed separately by its own software def
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",
@@ -88,9 +88,5 @@ else
 
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
     command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
-
-    # Install pip
-    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
-    command "#{python} -m ensurepip"
   end
 end
