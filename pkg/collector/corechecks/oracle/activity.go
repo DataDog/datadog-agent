@@ -55,7 +55,7 @@ const ACTIVITY_QUERY = `SELECT
     CASE WHEN state = 'WAITING' THEN
 		event
 	ELSE
-		'on-cpu'
+		'CPU'
 	END event,
     wait_class,
 	sql_text,
