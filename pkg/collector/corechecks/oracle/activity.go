@@ -1,6 +1,7 @@
 package oracle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/godror/godror"
 )
 
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
@@ -53,7 +55,8 @@ const ACTIVITY_QUERY = `SELECT
     event,
     wait_class,
 	sql_text
-FROM sys.dd_session`
+FROM sys.dd_session
+WHERE module != 'datadog agent' and action != 'session sampling' or module is null or action is null`
 
 type OracleActivityRow struct {
 	SessionID             int64   `db:"SID" json:"sid,omitempty"`
@@ -98,7 +101,14 @@ type MetricSender struct {
 
 func (c *Check) SampleSession() error {
 	sessionSamples := []OracleActivityRow{}
-	err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
+	// err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
+
+	err := c.db.SelectContext(
+		godror.ContextWithTraceTag(context.Background(), godror.TraceTag{
+			Module: "datadog agent",
+			Action: "session sampling",
+		}), &sessionSamples, ACTIVITY_QUERY)
+
 	if err != nil {
 		log.Errorf("Session sampling ", err)
 		return err
@@ -123,7 +133,7 @@ func (c *Check) SampleSession() error {
 		log.Error("Error marshalling device metadata: %s", err)
 		return err
 	}
-	fmt.Println("JSONBB  payload", string(payloadBytes))
+	fmt.Println("JSON payload", string(payloadBytes))
 
 	sender, err := c.GetSender()
 	if err != nil {
