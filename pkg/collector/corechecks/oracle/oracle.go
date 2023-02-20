@@ -25,11 +25,12 @@ import (
 // Check represents one Oracle instance check.
 type Check struct {
 	core.CheckBase
-	config       *config.CheckConfig
-	db           *sqlx.DB
-	hostname     string
-	dbmEnabled   bool
-	agentVersion string
+	config        *config.CheckConfig
+	db            *sqlx.DB
+	hostname      string
+	dbmEnabled    bool
+	agentVersion  string
+	checkInterval float64
 }
 
 // Run executes the check.
@@ -117,6 +118,8 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 
 	agentVersion, _ := version.Agent()
 	c.agentVersion = agentVersion.GetNumberAndPre()
+
+	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 
 	return nil
 }

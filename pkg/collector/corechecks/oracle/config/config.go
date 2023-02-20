@@ -15,8 +15,9 @@ import (
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
-	GlobalCustomQueries []MetricConfig `yaml:"global_custom_metrics"`
-	Service             string         `yaml:"service"`
+	GlobalCustomQueries   []MetricConfig `yaml:"global_custom_metrics"`
+	Service               string         `yaml:"service"`
+	MinCollectionInterval int            `yaml:"min_collection_interval"`
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -29,7 +30,7 @@ type InstanceConfig struct {
 	Password    string `yaml:"password"`
 	TnsAlias    string `yaml:"tns_alias"`
 	TnsAdmin    string `yaml:"tns_admin"`
-	DBM         bool
+	DBM         bool   `yaml:"dbm"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.

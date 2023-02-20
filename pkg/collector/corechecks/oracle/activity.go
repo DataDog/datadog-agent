@@ -129,7 +129,7 @@ func (c *Check) SampleSession() error {
 			DBMType:        "activity",
 			DDAgentVersion: c.agentVersion,
 		},
-		CollectionInterval: 1,
+		CollectionInterval: c.checkInterval,
 		Tags:               []string{},
 		OracleActivityRows: sessionSamples,
 	}
