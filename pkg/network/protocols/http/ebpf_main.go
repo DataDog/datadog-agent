@@ -96,13 +96,6 @@ var tailCalls = []manager.TailCallRoute{
 			EBPFFuncName: "socket__http_filter",
 		},
 	},
-	{
-		ProgArrayName: protocolDispatcherProgramsMap,
-		Key:           uint32(ProtocolKafka),
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "socket__kafka_filter",
-		},
-	},
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
@@ -322,6 +315,22 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		},
 	}
 
+	/*
+		If Kafka monitoring is enabled, the kafka parsing function is added to the dispatcher mechanism.
+		However, if Kafka monitoring is not enabled, loading the program will cause a verifier issue and should be avoided.
+	*/
+	if e.cfg.EnableKafkaMonitoring {
+		tailCalls = append(tailCalls, manager.TailCallRoute{
+			ProgArrayName: protocolDispatcherProgramsMap,
+			Key:           uint32(ProtocolKafka),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "socket__kafka_filter",
+			},
+		})
+	} else {
+		options.ExcludedFunctions = []string{"socket__kafka_filter"}
+	}
+
 	options.TailCallRouter = tailCalls
 	options.ActivatedProbes = []manager.ProbesSelector{
 		&manager.ProbeSelector{
@@ -353,6 +362,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	// configure event stream
 	events.Configure("http", e.Manager.Manager, &options)
+	// Regardless of whether Kafka is enabled or not, it's necessary to configure the batch map as it's present in the HTTP binary
 	events.Configure("kafka", e.Manager.Manager, &options)
 
 	return e.InitWithOptions(buf, options)
