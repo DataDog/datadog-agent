@@ -26,4 +26,5 @@ const (
 	ProcmonNotifyStart = C.DD_NOTIFY_START
 )
 
+type DDProcessNotifyType C.enum__dd_notify_type
 type DDProcessNotification C.struct__dd_process_notification
