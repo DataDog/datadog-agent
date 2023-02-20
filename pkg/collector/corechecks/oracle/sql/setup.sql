@@ -9,6 +9,7 @@ SELECT
     s.ksusepnm as program,
     DECODE(BITAND(s.ksuseflg, 19), 17, 'BACKGROUND', 1, 'USER', 2, 'RECURSIVE', '?') as type,
     s.ksusesqi as sql_id,
+    sq.force_matching_signature as force_matching_signature,
     s.ksusesph as sql_plan_hash_value,
     s.ksusesesta as sql_exec_start,
     s.ksuseapp as module,
@@ -42,7 +43,7 @@ SELECT
     ) as STATE,
     e.kslednam as event,
     e.ksledclass as wait_class,
-    sq.sql_text as sql_text
+    sq.sql_text as sql_text,
     c.name as pdb_name
   FROM
     x$ksuse s,
