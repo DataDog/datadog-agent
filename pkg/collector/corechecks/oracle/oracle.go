@@ -19,15 +19,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Check represents one Oracle instance check.
 type Check struct {
 	core.CheckBase
-	config     *config.CheckConfig
-	db         *sqlx.DB
-	hostname   string
-	dbmEnabled bool
+	config       *config.CheckConfig
+	db           *sqlx.DB
+	hostname     string
+	dbmEnabled   bool
+	agentVersion string
 }
 
 // Run executes the check.
@@ -112,6 +114,9 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	if c.config.DBM {
 		c.dbmEnabled = true
 	}
+
+	agentVersion, _ := version.Agent()
+	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	return nil
 }
