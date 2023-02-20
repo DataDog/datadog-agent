@@ -12,7 +12,6 @@ static __always_inline int16_t read_big_endian_int16(const char* buf);
 static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, int32_t* result);
 static __always_inline int32_t read_big_endian_int32(const char* buf);
 
-// Checking if the buffer represents kafka message
 static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_transaction) {
     char *request_fragment = kafka_transaction->request_fragment;
     if (request_fragment == NULL) {

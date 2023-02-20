@@ -22,7 +22,7 @@
 #include "protocols/http/buffer.h"
 #include "protocols/tls/https.h"
 #include "protocols/tls/tags-types.h"
-#include "protocols/kafka/kafka.h"
+#include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3
 

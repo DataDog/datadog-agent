@@ -5,9 +5,8 @@
 #include "bpf_telemetry.h"
 #include "tracer.h"
 #include "types.h"
-#include "helpers.h"
+#include "kafka-parsing-helpers.h"
 #include "../events.h"
-#include "kafka_parsing.h"
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
