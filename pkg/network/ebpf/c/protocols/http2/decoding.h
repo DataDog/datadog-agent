@@ -42,7 +42,7 @@ static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *ht
 static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 factor, __u8 *out, u32 stream_id){
     __u16 offset = heap_buffer->offset % HTTP2_BUFFER_SIZE;
 
-    if (heap_buffer->size-1 <= offset) {
+    if (heap_buffer->size <= offset) {
         return false;
     }
     // TODO: verifier is happy now.
@@ -60,7 +60,7 @@ static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 facto
     }
 
     const u16 offset2 = heap_buffer->offset;
-    if (offset2 < heap_buffer->size-1 && offset2 < HTTP2_BUFFER_SIZE) {
+    if (offset2 < heap_buffer->size && offset2 < HTTP2_BUFFER_SIZE) {
         const __u8 b = heap_buffer->fragment[offset2];
         current_char_as_number += b & 127;
         if ((b & 128 ) == 0) {
@@ -88,23 +88,30 @@ static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter
     bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_ANY);
 }
 
+typedef enum {
+    HEADER_ERROR = 0,
+    HEADER_NOT_INTERESTING,
+    HEADER_INTERESTING,
+} parse_result_t;
+
 // TODO: Fix documentation
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
+static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 7, &index, stream_id)) {
-        return 0;
+        log_debug("http2 error stream %lu; offset %lu", stream_id, heap_buffer->offset);
+        return HEADER_ERROR;
     }
 
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
     if (index < MAX_STATIC_TABLE_INDEX) {
         if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
-            return 0;
+            return HEADER_NOT_INTERESTING;
         }
         headers_to_process->index = index;
         headers_to_process->stream_id = stream_id;
         headers_to_process->type = kStaticHeader;
-        return 1;
+        return HEADER_INTERESTING;
     }
 
     __u64 global_counter = get_dynamic_counter(&iterations_key->tup);
@@ -112,30 +119,30 @@ static __always_inline __u8 parse_field_indexed(http2_iterations_key_t *iteratio
     // the index is starting from 1 so we decrease 62 in order to be equal to the given index.
     http2_ctx->dynamic_index.index = global_counter - (index - MAX_STATIC_TABLE_INDEX);
 
-    log_debug("[http2] global counter %llu; index %lu; final %lu\n", global_counter, index, http2_ctx->dynamic_index.index);
+//    log_debug("[http2] global counter %llu; index %lu; final %lu\n", global_counter, index, http2_ctx->dynamic_index.index);
     if (bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index) == NULL) {
-        log_debug("[http2] unable to find the dynamic value! tasik1!");
-        return 0;
+//        log_debug("[http2] unable to find the dynamic value! tasik1!");
+        return HEADER_NOT_INTERESTING;
     }
-    log_debug("[http2] found dynamic value at %d for stream %lu\n", http2_ctx->dynamic_index.index, stream_id);
+//    log_debug("[http2] found dynamic value at %d for stream %lu\n", http2_ctx->dynamic_index.index, stream_id);
 
     headers_to_process->index = http2_ctx->dynamic_index.index;
     headers_to_process->stream_id = stream_id;
     headers_to_process->type = kDynamicHeader;
 
-    return 1;
+    return HEADER_INTERESTING;
 }
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline __u8 parse_field_literal(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
+static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u64 counter = get_dynamic_counter(&iterations_key->tup);
     counter++;
     set_dynamic_counter(&iterations_key->tup, counter);
 
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 6, &index, stream_id)) {
-        return 0;
+        return HEADER_ERROR;
     }
 
     __u8 str_len = 0;
@@ -146,37 +153,37 @@ static __always_inline __u8 parse_field_literal(http2_iterations_key_t *iteratio
         if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
             str_len = 0;
             if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
-                return 0;
+                return HEADER_ERROR;
             }
             heap_buffer->offset += str_len;
 
             if (index == 0) {
                 str_len = 0;
                 if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
-                    return 0;
+                    return HEADER_ERROR;
                 }
                 heap_buffer->offset += str_len;
             }
-            return 0;
+            return HEADER_NOT_INTERESTING;
         }
     }
 
 
     str_len = 0;
     if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
-        return 0;
+        return HEADER_ERROR;
     }
 
     if (str_len >= HTTP2_MAX_PATH_LEN || index != 5){
         heap_buffer->offset += str_len;
-        return 0;
+        return HEADER_NOT_INTERESTING;
     }
 
     const __u16 offset = heap_buffer->offset < HTTP2_BUFFER_SIZE - 1 ? heap_buffer->offset : HTTP2_BUFFER_SIZE - 1;
     heap_buffer->offset += str_len;
 
     if (offset >= HTTP2_BUFFER_SIZE - HTTP2_MAX_PATH_LEN) {
-        return 0;
+        return HEADER_NOT_INTERESTING;
     }
     dynamic_table_entry_t dynamic_value = {};
     dynamic_value.string_len = str_len;
@@ -191,7 +198,7 @@ static __always_inline __u8 parse_field_literal(http2_iterations_key_t *iteratio
     headers_to_process->index = counter - 1;
     headers_to_process->stream_id = stream_id;
     headers_to_process->type = kDynamicHeader;
-    return 1;
+    return HEADER_INTERESTING;
 }
 
 // This function reads the http2 headers frame.
@@ -200,6 +207,7 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
     __u16 offset = 0;
     __u8 interesting_headers = 0;
     const __u16 buffer_size = heap_buffer->size;
+    parse_result_t res;
 
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT; ++headers_index) {
@@ -217,12 +225,22 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            interesting_headers += parse_field_indexed(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+            res = parse_field_indexed(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+            if (res == HEADER_ERROR) {
+                log_debug("http2 error 1; stream %lu offset %d", stream_id, heap_buffer->offset);
+                break;
+            }
+            interesting_headers += res == HEADER_INTERESTING;
         } else if ((current_ch&192) == 64) {
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            interesting_headers += parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+            res = parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+            if (res == HEADER_ERROR) {
+                log_debug("http2 error 2; stream %lu offset %d", stream_id, heap_buffer->offset);
+                break;
+            }
+            interesting_headers += res == HEADER_INTERESTING;
         } else {
             log_debug("[http2]: bug 2 - %d %lu", current_ch, stream_id);
         }
