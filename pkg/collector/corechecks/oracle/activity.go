@@ -58,7 +58,8 @@ const ACTIVITY_QUERY = `SELECT
 		'on-cpu'
 	END event,
     wait_class,
-	sql_text
+	sql_text,
+	pdb_name
 FROM sys.dd_session
 WHERE 
 	( module != 'datadog agent' and action != 'session sampling' or module is null or action is null) 
@@ -88,6 +89,7 @@ type OracleActivityRow struct {
 	Event                 *string `db:"EVENT" json:"event,omitempty"`
 	WaitClass             *string `db:"WAIT_CLASS" json:"wait_class,omitempty"`
 	SqlText               *string `db:"SQL_TEXT" json:"sql_text,omitempty"`
+	PdbName               *string `db:"PDB_NAME" json:"pdb_name,omitempty"`
 }
 
 // Metadata contains the metadata fields common to all events processed
