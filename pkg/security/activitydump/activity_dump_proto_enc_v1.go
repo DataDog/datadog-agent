@@ -288,8 +288,9 @@ func timestampToProto(t *time.Time) uint64 {
 
 func copyAndEscape(in []string) []string {
 	out := make([]string, 0, len(in))
+	transformer := runes.ReplaceIllFormed()
 	for _, value := range in {
-		out = append(out, runes.ReplaceIllFormed().String(value))
+		out = append(out, transformer.String(value))
 	}
 	return out
 }
