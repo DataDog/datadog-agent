@@ -25,5 +25,5 @@ func RunJavaVersion(t *testing.T, version string, class string) {
 		"IMAGE_VERSION=" + version,
 		"ENTRYCLASS=" + class,
 	}
-	protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, regexp.MustCompile("loading TestAgentLoaded.agentmain.*"))
+	protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, regexp.MustCompile("loading TestAgentLoaded.agentmain.*"), protocolsUtils.DefaultTimeout)
 }

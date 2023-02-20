@@ -198,4 +198,4 @@ tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
 *.DotSettings.user
 
 # e2e test intake generated binary
-test/fake-intake/fake-intake
+test/fakeintake/build/*

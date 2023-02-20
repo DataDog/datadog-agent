@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

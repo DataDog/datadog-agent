@@ -198,6 +198,7 @@ int uretprobe__SSL_read(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, len, LIBSSL);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -234,6 +235,7 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBSSL);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -285,6 +287,7 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
@@ -336,6 +339,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;
@@ -456,6 +460,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, read_len, LIBGNUTLS);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -493,6 +498,7 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBGNUTLS);
+    http_flush_batch(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -717,15 +723,16 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    bpf_map_delete_elem(&go_tls_write_args, &call_key);
-
     conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         return 1;
     }
 
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
-    https_process(t, (void*) call_data_ptr->b_data, call_data_ptr->b_len, GO);
+    https_process(t, (void*) call_data_ptr->b_data, bytes_written, GO);
+
+    bpf_map_delete_elem(&go_tls_write_args, &call_key);
     return 0;
 }
 
@@ -806,15 +813,16 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    bpf_map_delete_elem(&go_tls_read_args, &call_key);
-
     conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 1;
     }
 
     log_debug("[go-tls-read] processing %s\n", call_data_ptr->b_data);
     https_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
+
+    bpf_map_delete_elem(&go_tls_read_args, &call_key);
     return 0;
 }
 

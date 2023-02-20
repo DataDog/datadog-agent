@@ -627,7 +627,6 @@ var _ Entity = &ECSTask{}
 type ContainerImageMetadata struct {
 	EntityID
 	EntityMeta
-	ShortName    string
 	RepoTags     []string
 	RepoDigests  []string
 	MediaType    string

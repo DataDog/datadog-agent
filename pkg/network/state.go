@@ -705,6 +705,13 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	return data
 }
 
+func isDNAT(c *ConnectionStats) bool {
+	return c.Direction == OUTGOING &&
+		c.IPTranslation != nil &&
+		(c.IPTranslation.ReplSrcIP.Compare(c.Dest.Addr) != 0 ||
+			c.IPTranslation.ReplSrcPort != c.DPort)
+}
+
 func (ns *networkState) determineConnectionIntraHost(connections []ConnectionStats) {
 	type connKey struct {
 		Address util.Address
@@ -729,10 +736,28 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 		return key
 	}
 
+	type dnatKey struct {
+		src, dst     util.Address
+		sport, dport uint16
+		_type        ConnectionType
+	}
+
+	dnats := make(map[dnatKey]struct{}, len(connections)/2)
 	lAddrs := make(map[connKey]struct{}, len(connections))
-	for _, conn := range connections {
-		k := newConnKey(&conn, false)
+	for i := range connections {
+		conn := &connections[i]
+		k := newConnKey(conn, false)
 		lAddrs[k] = struct{}{}
+
+		if isDNAT(conn) {
+			dnats[dnatKey{
+				src:   conn.Source,
+				sport: conn.SPort,
+				dst:   conn.IPTranslation.ReplSrcIP,
+				dport: conn.IPTranslation.ReplSrcPort,
+				_type: conn.Type,
+			}] = struct{}{}
+		}
 	}
 
 	// do not use range value here since it will create a copy of the ConnectionStats object
@@ -747,7 +772,9 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
-		if conn.IntraHost && conn.Direction == INCOMING {
+		if conn.IntraHost &&
+			conn.Direction == INCOMING &&
+			conn.IPTranslation != nil {
 			// Remove ip translation from incoming local connections
 			// this is necessary for local connections because of
 			// the way we store conntrack entries in the conntrack
@@ -758,7 +785,21 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 			// This is because we store both the origin and reply
 			// (and map them to each other) in the conntrack cache
 			// in system-probe.
-			conn.IPTranslation = nil
+
+			// check if this connection is also dnat'ed before
+			// zero'ing out the ip translation
+			// note: src/dst address/port are reversed since
+			// we are looking for the outgoing side of this
+			// incoming connection
+			if _, ok := dnats[dnatKey{
+				src:   conn.Dest,
+				sport: conn.DPort,
+				dst:   conn.Source,
+				dport: conn.SPort,
+				_type: conn.Type,
+			}]; ok {
+				conn.IPTranslation = nil
+			}
 		}
 	}
 }
