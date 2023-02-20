@@ -99,7 +99,6 @@ typedef enum {
 static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 7, &index, stream_id)) {
-        log_debug("http2 error stream %lu; offset %lu", stream_id, heap_buffer->offset);
         return HEADER_ERROR;
     }
 
@@ -119,12 +118,12 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
     // the index is starting from 1 so we decrease 62 in order to be equal to the given index.
     http2_ctx->dynamic_index.index = global_counter - (index - MAX_STATIC_TABLE_INDEX);
 
-//    log_debug("[http2] global counter %llu; index %lu; final %lu\n", global_counter, index, http2_ctx->dynamic_index.index);
     if (bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index) == NULL) {
 //        log_debug("[http2] unable to find the dynamic value! tasik1!");
         return HEADER_NOT_INTERESTING;
     }
-//    log_debug("[http2] found dynamic value at %d for stream %lu\n", http2_ctx->dynamic_index.index, stream_id);
+    log_debug("[http2] global counter %llu; index %lu; final %lu\n", global_counter, index, http2_ctx->dynamic_index.index);
+    log_debug("[http2] found dynamic value at %d for stream %lu\n", http2_ctx->dynamic_index.index, stream_id);
 
     headers_to_process->index = http2_ctx->dynamic_index.index;
     headers_to_process->stream_id = stream_id;
@@ -191,6 +190,7 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
     // create the new dynamic value which will be added to the internal table.
     bpf_memcpy(dynamic_value.buffer, &heap_buffer->fragment[offset % HTTP2_BUFFER_SIZE], HTTP2_MAX_PATH_LEN);
 
+    log_debug("http2 saving in dynamic table stream %lu; index %d", stream_id, counter-1);
     http2_ctx->dynamic_index.index = counter - 1;
     bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
@@ -369,11 +369,14 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
                     break;
                 }
             }
+            log_debug("http2 static header; stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
         } else if (current_header->type == kDynamicHeader) {
+            log_debug("http2 dynamic header; stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
             http2_ctx->dynamic_index.index = current_header->index;
 //            log_debug("[http2] %d looking finalize dynamic value at %d", iteration, current_header->index);
             dynamic_table_entry_t* dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index);
             if (dynamic_value == NULL) {
+                log_debug("http2 error dynamic header; stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
                 // report error
                 break;
             }
@@ -397,9 +400,11 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
 
     // TODO: remove it
     if (current_stream->path_size == 0){
+        log_debug("http2 path size bug stream %lu", http2_stream_key_template->stream_id);
         return;
     }
 
+    log_debug("http2 enqueue stream %lu", http2_stream_key_template->stream_id);
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
     current_stream->tup = http2_stream_key_template->tup;

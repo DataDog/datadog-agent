@@ -11,7 +11,7 @@
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 30
+#define HTTP2_MAX_HEADERS_COUNT 20
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
@@ -99,7 +99,7 @@ typedef enum {
 
 typedef struct {
     __u32 stream_id;
-    __u8 index;
+    __u32 index;
     http2_header_type_t type;
 } http2_header_t;
 
