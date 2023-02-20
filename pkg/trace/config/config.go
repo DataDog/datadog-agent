@@ -267,9 +267,9 @@ type EVPProxy struct {
 	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
 	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
-	ApplicationKey string
+	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
