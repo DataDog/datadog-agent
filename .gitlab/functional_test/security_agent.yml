@@ -78,7 +78,6 @@ kitchen_test_security_agent_arm64:
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2_spot_instances
   rules:
-    !reference [.on_main]
     !reference [.on_security_agent_changes_or_manual]
   needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64" ]
   variables:
@@ -99,7 +98,6 @@ kitchen_test_security_agent_amazonlinux_x64:
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2_spot_instances
   rules:
-    !reference [.on_main]
     !reference [.on_security_agent_changes_or_manual]
   needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
   variables:

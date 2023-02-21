@@ -752,6 +752,7 @@ workflow:
   - <<: *if_testing_cleanup
 
 .on_security_agent_changes_or_manual:
+  - <<: *if_main_branch
   - changes:
       - pkg/ebpf/**/*
       - pkg/security/**/*
