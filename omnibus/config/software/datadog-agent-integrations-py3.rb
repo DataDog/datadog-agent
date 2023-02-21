@@ -10,7 +10,6 @@ name 'datadog-agent-integrations-py3'
 
 dependency 'datadog-agent'
 dependency 'pip3'
-dependency 'setuptools3'
 
 dependency 'snowflake-connector-python-py3'
 
@@ -118,8 +117,10 @@ build do
 
   # aliases for pip
   if windows?
+    pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   else
+    pip = "#{install_dir}/embedded/bin/pip3"
     python = "#{install_dir}/embedded/bin/python3"
   end
 
@@ -143,10 +144,10 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{python} -m pip download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
-    command "#{python} -m pip download --dest #{build_deps_dir} setuptools==66.1.1", :env => pre_build_env # Version from ./setuptools3.rb
-    command "#{python} -m pip install wheel==0.38.4", :env => pre_build_env
-    command "#{python} -m pip install pip-tools==6.12.1", :env => pre_build_env
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
+    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env # Version from ./setuptools3.rb
+    command "#{pip} install wheel==0.38.4", :env => pre_build_env
+    command "#{pip} install pip-tools==6.4.0", :env => pre_build_env
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
@@ -266,10 +267,10 @@ build do
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
       end
     else
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
-      command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
+      command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
+      command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
+      command "#{pip} install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => nix_build_env
       # Pip-compiling seperately each lib that needs a custom build installation
@@ -295,7 +296,7 @@ build do
         command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/agent_#{lib}_requirements-py3.txt", :env => env
       end
       # Then we install the rest (already installed libraries will be ignored) with the main flags
-      command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
+      command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
 
     #
@@ -304,7 +305,7 @@ build do
 
     # Create a constraint file after installing all the core dependencies and before any integration
     # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-    command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
+    command "#{pip} freeze > #{install_dir}/#{final_constraints_file}"
 
     if windows?
         cached_wheels_dir = "#{windows_safe_path(wheel_build_dir)}\\.cached"
@@ -373,7 +374,7 @@ build do
         command "#{python} -m pip install --no-deps --no-index " \
           " --find-links #{windows_safe_path(cached_wheels_dir)} -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
       else
-        command "#{python} -m pip install --no-deps --no-index " \
+        command "#{pip} install --no-deps --no-index " \
           "--find-links #{cached_wheels_dir} -r #{cached_wheels_dir}/found.txt"
       end
     end
@@ -385,7 +386,11 @@ build do
       # get list of integration wheels already installed from cache
       installed_list = Array.new
       if cache_bucket != ''
-        installed_out = `#{python} -m pip list --format json`
+        if windows?
+          installed_out = `#{python} -m pip list --format json`
+        else
+          installed_out = `#{pip} list --format json`
+        end
         if $?.exitstatus == 0
           installed = JSON.parse(installed_out)
           installed.each do |package|
@@ -449,10 +454,11 @@ build do
 
         if windows?
           command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+          command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         else
-          command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+          command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+          command "#{pip} install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         end
-        command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
           command "inv -e agent.upload-integration-to-cache " \
             "--python 3 --bucket #{cache_bucket} " \
@@ -467,7 +473,11 @@ build do
 
       # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
       uninstall_buildtime_deps.each do |dep|
-        command "#{python} -m pip uninstall -y #{dep}"
+        if windows?
+          command "#{python} -m pip uninstall -y #{dep}"
+        else
+          command "#{pip} uninstall -y #{dep}"
+        end
       end
     end
 
@@ -483,7 +493,11 @@ build do
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-      command "#{python} -m pip check"
+      if windows?
+        command "#{python} -m pip check"
+      else
+        command "#{pip} check"
+      end
     end
   end
 
