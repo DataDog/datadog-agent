@@ -62,7 +62,7 @@ type Suite[Env any] struct {
 	stackDef       *StackDefinition[Env]
 	destroyEnv     bool
 
-	// These fields are initialized in SetupTest
+	// These fields are initialized in SetupSuite
 	suite.Suite
 	Env              *Env
 	auth             client.Authentification
@@ -100,12 +100,12 @@ func KeepEnv[Env any]() func(*Suite[Env]) {
 	return func(p *Suite[Env]) { p.destroyEnv = false }
 }
 
-// SetupTest method is run before each test in the suite.
+// SetupSuite method will run before the tests in the suite are run.
 // This function is called by [testify Suite].
 // Note: Having initialization code in this function allows `NewSuite` to not
 // return an error in order to write a single line for
 // `suite.Run(t, &vmSuite{Suite: e2e.NewSuite(...)})`
-func (suite *Suite[Env]) SetupTest() {
+func (suite *Suite[Env]) SetupSuite() {
 	require := require.New(suite.T())
 
 	// Check if the Env type is correct otherwise raises an error before creating the env.

@@ -17,14 +17,19 @@ type Authentification struct {
 
 func CheckEnvStructValid[Env any]() error {
 	var env Env
-	_, err := getStackInitializers(&env)
+	_, err := getFields(&env)
 	return err
 }
 
 func CallStackInitializers[Env any](auth *Authentification, env *Env, upResult auto.UpResult) error {
-	initializers, err := getStackInitializers(env)
+	fields, err := getFields(env)
 
-	for _, initializer := range initializers {
+	for _, field := range fields {
+		initializer := field.stackInitializer
+		if reflect.TypeOf(initializer).Kind() == reflect.Ptr && reflect.ValueOf(initializer).IsNil() {
+			return fmt.Errorf("the field %v of %v is nil", field.name, reflect.TypeOf(env))
+		}
+
 		if err = initializer.setStack(auth, upResult); err != nil {
 			return err
 		}
@@ -33,8 +38,13 @@ func CallStackInitializers[Env any](auth *Authentification, env *Env, upResult a
 	return err
 }
 
-func getStackInitializers[Env any](env *Env) ([]stackInitializer, error) {
-	var stackInitializers []stackInitializer
+type field struct {
+	stackInitializer stackInitializer
+	name             string
+}
+
+func getFields[Env any](env *Env) ([]field, error) {
+	var fields []field
 	envValue := reflect.ValueOf(*env)
 	envType := reflect.TypeOf(*env)
 	exportedFields := make(map[string]struct{})
@@ -51,7 +61,7 @@ func getStackInitializers[Env any](env *Env) ([]stackInitializer, error) {
 	for i := 0; i < envValue.NumField(); i++ {
 		fieldName := envValue.Type().Field(i).Name
 		if _, found := exportedFields[fieldName]; !found {
-			return nil, fmt.Errorf("the field %v is not exported", fieldName)
+			return nil, fmt.Errorf("the field %v in %v is not exported", fieldName, envType)
 		}
 
 		initializer, ok := envValue.Field(i).Interface().(stackInitializer)
@@ -63,7 +73,10 @@ func getStackInitializers[Env any](env *Env) ([]stackInitializer, error) {
 				upResultDeserializerType,
 			)
 		}
-		stackInitializers = append(stackInitializers, initializer)
+		fields = append(fields, field{
+			stackInitializer: initializer,
+			name:             fieldName,
+		})
 	}
-	return stackInitializers, nil
+	return fields, nil
 }
