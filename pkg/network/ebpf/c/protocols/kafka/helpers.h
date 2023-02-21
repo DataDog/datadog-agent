@@ -211,7 +211,7 @@ static __always_inline bool get_topic_offset_from_produce_request(const kafka_he
 }
 
 // Getting the offset the topic name in the fetch request.
-static __always_inline u32 get_topic_offset_from_fetch_request(const kafka_header_t *kafka_header, struct __sk_buff *skb) {
+static __always_inline u32 get_topic_offset_from_fetch_request(const kafka_header_t *kafka_header) {
     // replica_id => INT32
     // max_wait_ms => INT32
     // min_bytes => INT32
@@ -246,7 +246,7 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         }
         break;
     case KAFKA_FETCH:
-        offset += get_topic_offset_from_fetch_request(kafka_header, skb);
+        offset += get_topic_offset_from_fetch_request(kafka_header);
         break;
     default:
         return false;
@@ -254,7 +254,7 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     return validate_first_topic_name(skb, offset);
 }
 
-// Checks if the packet represents kafka communication.
+// Checks if the packet represents a kafka request.
 static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_LENGTH);
 
@@ -273,12 +273,14 @@ static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info
 
     u32 offset = skb_info->data_off + sizeof(kafka_header_t);
     // Validate client ID
-    // Client ID size can -1 if the client id is null.
+    // Client ID size can be equal to '-1' if the client id is null.
     if (kafka_header.client_id_size > 0) {
         if (!is_valid_client_id(skb, offset, kafka_header.client_id_size)) {
             return false;
         }
         offset += kafka_header.client_id_size;
+    } else if (kafka_header.client_id_size < -1) {
+        return false;
     }
 
     return is_kafka_request(&kafka_header, skb, offset);

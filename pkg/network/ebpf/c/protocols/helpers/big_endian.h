@@ -1,5 +1,5 @@
-#ifndef __HELPERS_H
-#define __HELPERS_H
+#ifndef __BIG_ENDIAN_HELPERS_H
+#define __BIG_ENDIAN_HELPERS_H
 
 #include "bpf_endian.h"
 
