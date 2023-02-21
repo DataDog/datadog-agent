@@ -106,11 +106,11 @@ func NewRunner(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCheck
 		}
 	}
 
-	return NewCollectorWithChecks(enabledChecks, runRealTime, rtNotifierChan)
+	return NewRunnerWithChecks(enabledChecks, runRealTime, rtNotifierChan)
 }
 
-// NewCollectorWithChecks creates a new CheckRunner
-func NewCollectorWithChecks(checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+// NewRunnerWithChecks creates a new CheckRunner
+func NewRunnerWithChecks(checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
 	orchestrator := oconfig.NewDefaultOrchestratorConfig()
 	if err := orchestrator.Load(); err != nil {
 		return nil, err

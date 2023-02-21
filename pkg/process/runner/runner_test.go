@@ -15,6 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
@@ -217,4 +218,10 @@ func TestCollectorRunCheck(t *testing.T) {
 	submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
 
 	c.runCheck(check)
+}
+
+// TestSubmitterDoesntBlockOnRTUpdate tests notifyRTStatusChange to ensure that we never block if the channel is filled up
+func TestSubmitterDoesntBlockOnRTUpdate(*testing.T) {
+	emptyChan := make(chan<- types.RTResponse)
+	notifyRTStatusChange(emptyChan, types.RTResponse{})
 }

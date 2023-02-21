@@ -381,10 +381,7 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 
 			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
 				if updateRTStatus {
-					select {
-					case s.rtNotifierChan <- statuses:
-					default: // Never block on the rtNotifierChan in case the runner has somehow stopped
-					}
+					notifyRTStatusChange(s.rtNotifierChan, statuses)
 				}
 			}
 		}
@@ -533,4 +530,11 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 	}
 
 	return false
+}
+
+func notifyRTStatusChange(rtNotifierChan chan<- types.RTResponse, statuses types.RTResponse) {
+	select {
+	case rtNotifierChan <- statuses:
+	default: // Never block on the rtNotifierChan in case the runner has somehow stopped
+	}
 }
