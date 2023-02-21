@@ -58,7 +58,11 @@ const ACTIVITY_QUERY = `SELECT
 	ELSE
 		'CPU'
 	END event,
-    wait_class,
+	CASE WHEN state = 'WAITING' THEN
+    	wait_class
+	ELSE
+		'CPU'
+	END wait_class,
 	sql_text,
 	pdb_name
 FROM sys.dd_session
