@@ -208,8 +208,8 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 	var dsdServer dogstatsdServer.Component
 	// run startAgent in an app, so that the log and config components get initialized
-	return fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component) error {
-		dsdServer = server		
+	err := fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component) error {
+		dsdServer = server
 		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server)
 	},
 		// no config file path specification in this situation
