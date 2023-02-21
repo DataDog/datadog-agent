@@ -300,8 +300,9 @@ function plist_modify_user_group() {
     done
 
     ## to insert user/group into the xml file, we'll find the last "</dict>" occurrence and insert before it
+    i_cmd="$(sed_inplace_arg)"
     closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
-    $sudo_cmd sed "$(sed_inplace_arg)" -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|" -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|" "$plist_file"
+    $sudo_cmd sh -c "sed $i_cmd -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|\" -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|\" \"$plist_file\""
 }
 
 # # Install the agent
