@@ -109,6 +109,10 @@ func newUtilizationTrackerWithClock(
 		}
 
 		pollingWindowDuration := currentTime.Sub(ut.windowStart)
+		if pollingWindowDuration == 0 {
+			return 0.0
+		}
+
 		ut.windowStart = currentTime
 
 		utilization := float64(ut.busyDuration) / float64(pollingWindowDuration)
