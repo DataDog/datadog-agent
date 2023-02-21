@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -77,8 +78,8 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 	// So the final appsec monitoring logic moved to the SpanModifier instead and we use it as "invocation end" event.
 }
 
-func (lp *ProxyLifecycleProcessor) SpanModifier(span *pb.Span) {
-	lp.SubProcessor.SpanModifier(span)
+func (lp *ProxyLifecycleProcessor) SpanModifier(chunk *pb.TraceChunk, span *pb.Span) {
+	lp.SubProcessor.SpanModifier(chunk, span)
 }
 
 // ProxyProcessor type allows to monitor lamdba invocations receiving HTTP-based
@@ -104,7 +105,7 @@ func (p *ProxyProcessor) OnInvokeStart(invocationEvent interface{}) {
 	p.invocationEvent = invocationEvent
 }
 
-func (p *ProxyProcessor) SpanModifier(s *pb.Span) {
+func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
 	if p.invocationEvent == nil {
 		log.Debug("appsec: ignoring unsupported lamdba event")
 		return // skip: unsupported event
@@ -192,7 +193,7 @@ func (p *ProxyProcessor) SpanModifier(s *pb.Span) {
 
 	if events := p.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
 		setSecurityEventsTags(span, events, reqHeaders, nil)
-		// TODO: invocCtx.SetSamplingPriority(sampler.PriorityUserKeep)
+		chunk.Priority = int32(sampler.PriorityUserKeep)
 	}
 }
 
@@ -200,10 +201,10 @@ type ExecutionContext interface {
 	LastRequestID() string
 }
 
-func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modifySpan func(*pb.Span)) func(*pb.Span) {
-	return func(span *pb.Span) {
+func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modifySpan func(*pb.TraceChunk, *pb.Span)) func(*pb.TraceChunk, *pb.Span) {
+	return func(chunk *pb.TraceChunk, span *pb.Span) {
 		if modifySpan != nil {
-			modifySpan(span)
+			modifySpan(chunk, span)
 		}
 		// Add appsec tags to the aws lambda function root span
 		if span.Name != "aws.lambda" || span.Type != "serverless" {
@@ -214,7 +215,7 @@ func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modify
 			return
 		}
 		log.Debug("appsec: found service entry span to add appsec tags")
-		lp.SpanModifier(span)
+		lp.SpanModifier(chunk, span)
 	}
 }
 
