@@ -53,6 +53,13 @@ func (ec *ExecutionContext) GetCurrentState() State {
 	}
 }
 
+// LastRequestID return the last seen request identifier through the extension API.
+func (ec *ExecutionContext) LastRequestID() string {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	return ec.lastRequestID
+}
+
 // SetFromInvocation sets the execution context based on an invocation
 func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 	ec.m.Lock()
