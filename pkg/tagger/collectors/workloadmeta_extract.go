@@ -335,7 +335,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
 		taskTags.AddLow("region", task.Region)
-		taskTags.AddLow("availability_zone", task.AvailabilityZone)
+		taskTags.AddLow("availability_zone", task.AvailabilityZone) // Deprecated
+		taskTags.AddLow("availability-zone", task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {
 		addResourceTags(taskTags, task.ContainerInstanceTags)
 		addResourceTags(taskTags, task.Tags)

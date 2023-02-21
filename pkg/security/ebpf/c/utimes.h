@@ -73,7 +73,6 @@ int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
 
     struct utimes_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
         .atime = syscall->setattr.atime,
         .mtime = syscall->setattr.mtime,
         .file = syscall->setattr.file,
