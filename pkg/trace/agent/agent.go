@@ -68,7 +68,8 @@ type Agent struct {
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
 
-	// ModifySpan will be called on all spans, if non-nil, along with the corresponding trace chunk.
+	// ModifySpan will be called on all non-nil spans of received trace chunks.
+	// Note that any modification of the trace chunk could be overwritten by subsequent ModifySpan calls.
 	ModifySpan func(*pb.TraceChunk, *pb.Span)
 
 	// In takes incoming payloads to be processed by the agent.
