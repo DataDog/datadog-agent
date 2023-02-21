@@ -1180,6 +1180,7 @@ core,github.com/prometheus/client_model/go,Apache-2.0,Copyright 2012-2015 The Pr
 core,github.com/prometheus/common/expfmt,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/model,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/common/version,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/procfs,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/procfs/internal/fs,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/procfs/internal/util,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
