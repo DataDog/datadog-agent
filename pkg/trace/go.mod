@@ -34,7 +34,7 @@ require (
 	go.uber.org/atomic v1.10.0
 	golang.org/x/sys v0.4.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	google.golang.org/grpc v1.52.0
+	google.golang.org/grpc v1.52.3
 	google.golang.org/protobuf v1.28.1
 	k8s.io/apimachinery v0.23.8
 )
