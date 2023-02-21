@@ -214,9 +214,7 @@ func (s *Launcher) scan() {
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := util.GetProcessFileStats()
-	if err != nil {
-		return
-	} else {
+	if err == nil {
 		CheckProcessTelemetry(fileStats)
 	}
 }
@@ -438,11 +436,10 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 }
 
 func CheckProcessTelemetry(stats *util.ProcessFileStats) {
-	// Log a warning if the ratio between the Agent's open files to the OS file limit is > 0.9, log an error if OS file limit is reached
 	if stats.AgentOpenFiles/stats.OsFileLimit > 0.9 {
 		log.Warnf("Agent process is close to OS file limit of %v. Agent process currently has %v files open.", stats.OsFileLimit, stats.AgentOpenFiles)
 	} else if stats.AgentOpenFiles/stats.OsFileLimit >= 1 {
-		log.Errorf("Agent process is reaching OS open file limit: %v. This may be preventing log files from being tailed by the Agent. Consider increasing OS file limit.", stats.OsFileLimit)
+		log.Errorf("Agent process has reached the OS open file limit: %v. This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.", stats.OsFileLimit)
 	}
 	log.Debugf("Agent process currently has %v files open. OS file limit is currently set to %v.", stats.AgentOpenFiles, stats.OsFileLimit)
 }
