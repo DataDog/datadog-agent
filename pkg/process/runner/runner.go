@@ -439,6 +439,10 @@ func (l *CheckRunner) GetChecks() []checks.Check {
 	return l.enabledChecks
 }
 
+func (l *CheckRunner) IsRealTimeEnabled() bool {
+	return l.realTimeEnabled.Load()
+}
+
 // getContainerCount returns the number of containers in the message body
 func getContainerCount(mb model.MessageBody) int {
 	switch v := mb.(type) {

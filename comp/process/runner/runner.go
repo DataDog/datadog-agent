@@ -19,7 +19,7 @@ import (
 
 // runner implements the Component.
 type runner struct {
-	collector *processRunner.CheckRunner
+	runner *processRunner.CheckRunner
 }
 
 type dependencies struct {
@@ -42,7 +42,7 @@ func newRunner(deps dependencies) (Component, error) {
 	c.Submitter = deps.Submitter
 
 	runner := &runner{
-		collector: c,
+		runner: c,
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -54,15 +54,20 @@ func newRunner(deps dependencies) (Component, error) {
 }
 
 func (r *runner) Run(context.Context) error {
-	return r.collector.Run()
+	return r.runner.Run()
 }
 
 func (r *runner) Stop(context.Context) error {
-	r.collector.Stop()
+	r.runner.Stop()
 	return nil
+}
+
+// IsRealtimeEnabled
+func (r *runner) IsRealtimeEnabled() bool {
+	return r.runner.IsRealTimeEnabled()
 }
 
 func (r *runner) GetChecks() []checks.Check {
 	// TODO: Change this to use `types.Check` once checks are migrated to components
-	return r.collector.GetChecks()
+	return r.runner.GetChecks()
 }

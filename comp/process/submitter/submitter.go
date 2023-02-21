@@ -8,6 +8,7 @@ package submitter
 import (
 	"context"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
+	"github.com/stretchr/testify/mock"
 	"testing"
 	"time"
 
@@ -73,5 +74,7 @@ func (s *submitter) Stop() {
 }
 
 func newMock(t testing.TB) Component {
-	return mocks.NewSubmitter(t)
+	s := mocks.NewSubmitter(t)
+	s.On("Submit", mock.Anything, mock.Anything, mock.Anything)
+	return s
 }
