@@ -710,6 +710,25 @@ func (ad *ActivityDump) FindMatchingNodes(comm string) []*ProcessActivityNode {
 	return res
 }
 
+// GetImageNameTag returns the image name and tag for the profiled container
+func (ad *ActivityDump) GetImageNameTag() (string, string) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	var imageName, imageTag string
+	for _, tag := range ad.Tags {
+		if tag_name, tag_value, valid := strings.Cut(tag, ":"); valid {
+			switch tag_name {
+			case "image_name":
+				imageName = tag_value
+			case "image_tag":
+				imageTag = tag_value
+			}
+		}
+	}
+	return imageName, imageTag
+}
+
 // GetSelectorStr returns a string representation of the profile selector
 func (ad *ActivityDump) GetSelectorStr() string {
 	ad.Lock()
