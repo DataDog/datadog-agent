@@ -213,6 +213,9 @@ var (
 	// MetricActivityDumpDropMaxDumpReached is the name of the metric used to report that an activity dump was dropped because the maximum amount of dumps for a workload was reached
 	// Tags: -
 	MetricActivityDumpDropMaxDumpReached = newRuntimeMetric(".activity_dump.drop_max_dump_reached")
+	// MetricActivityDumpNotYetProfiledWorkload is the name of the metric used to report the count of workload not yet profiled
+	// Tags: -
+	MetricActivityDumpNotYetProfiledWorkload = newAgentMetric(".activity_dump.not_yet_profiled_workload")
 
 	// Namespace resolver metrics
 
@@ -434,6 +437,13 @@ var (
 	PathResolutionTag = "resolution:path"
 	// AllResolutionsTags is the list of resolution tags
 	AllResolutionsTags = []string{SegmentResolutionTag, ParentResolutionTag, PathResolutionTag}
+
+	// ProcessSourceEventTags is assigned to metrics for process cache entries created from events
+	ProcessSourceEventTags = []string{"type:event"}
+	// ProcessSourceKernelMapsTags is assigned to metrics for process cache entries populated from kernel maps
+	ProcessSourceKernelMapsTags = []string{KernelMapsTag}
+	// ProcessSourceProcTags is assigned to metrics for process cache entries populated from /proc data
+	ProcessSourceProcTags = []string{ProcFSTag}
 )
 
 func newRuntimeMetric(name string) string {
