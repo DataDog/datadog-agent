@@ -76,7 +76,7 @@ type StackDefinition[Env any] struct {
 }
 
 // NewSuite creates a new Suite.
-// stackName is the name of the stack and should be unique.
+// stackName is the name of the stack and should be unique across suites.
 // stackDef is the stack definition.
 // options are optional parameters for example [e2e.KeepEnv].
 func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
