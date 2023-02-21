@@ -222,5 +222,5 @@ func (sw *slidingWindow) average() float64 {
 		totalVal += bucketVal
 	}
 
-	return totalVal / float64(sw.numBucketsUsed)
+	return totalVal / float64(sw.numBuckets)
 }
