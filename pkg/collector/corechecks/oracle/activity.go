@@ -64,7 +64,7 @@ const ACTIVITY_QUERY = `SELECT
 FROM sys.dd_session
 WHERE 
 	( module != 'datadog agent' and action != 'session sampling' or module is null or action is null) 
-	AND NOT (state = 'WAITING' and wait_class = 'Idle')`
+	AND NOT (state = 'WAITING' and wait_class = 'Idle' and event != 'fbar timer')`
 
 type OracleActivityRow struct {
 	SessionID              uint64  `db:"SID" json:"sid,omitempty"`
