@@ -1,2 +1,2 @@
 service_monitoring_config:
-  enable_http_status_code_aggregation: true
+  enable_http_stats_by_status_code: true

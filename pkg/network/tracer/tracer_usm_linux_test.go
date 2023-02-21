@@ -111,7 +111,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatusCodeAggregation = aggregateByStatusCode
+	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
 	tr := setupTracer(t, cfg)
 
 	// Start an HTTP server on localhost:8080

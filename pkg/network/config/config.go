@@ -216,9 +216,9 @@ type Config struct {
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
 
-	// EnableHTTPStatusCodeAggregation specifies if the HTTP stats should be aggregated by the actual status code
+	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
 	// instead of the status code family.
-	EnableHTTPStatusCodeAggregation bool
+	EnableHTTPStatsByStatusCode bool
 }
 
 func join(pieces ...string) string {
@@ -296,10 +296,10 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
-		EnableJavaTLSSupport:            cfg.GetBool(join(smNS, "enable_java_tls_support")),
-		JavaAgentArgs:                   cfg.GetString(join(smNS, "java_agent_args")),
-		EnableGoTLSSupport:              cfg.GetBool(join(smNS, "enable_go_tls_support")),
-		EnableHTTPStatusCodeAggregation: cfg.GetBool(join(smNS, "enable_http_status_code_aggregation")),
+		EnableJavaTLSSupport:        cfg.GetBool(join(smNS, "enable_java_tls_support")),
+		JavaAgentArgs:               cfg.GetString(join(smNS, "java_agent_args")),
+		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "enable_go_tls_support")),
+		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}
 
 	if runtime.GOOS == "windows" {

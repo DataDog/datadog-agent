@@ -45,7 +45,7 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 		incomplete:                      newIncompleteBuffer(c, telemetry),
 		maxEntries:                      c.MaxHTTPStatsBuffered,
 		replaceRules:                    c.HTTPReplaceRules,
-		enableHTTPStatusCodeAggregation: c.EnableHTTPStatusCodeAggregation,
+		enableHTTPStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
 		buffer:                          make([]byte, getPathBufferSize(c)),
 		interned:                        make(map[string]string),
 		telemetry:                       telemetry,
