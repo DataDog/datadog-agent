@@ -50,6 +50,32 @@ func TestConfigScrubbedValidYaml(t *testing.T) {
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
 
+func TestConfigScrubbedYaml(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "conf_multiline.yaml")
+	inputConfData, err := os.ReadFile(inputConf)
+	require.NoError(t, err)
+
+	outputConf := filepath.Join(wd, "test", "conf_multiline_scrubbed.yaml")
+	outputConfData, err := os.ReadFile(outputConf)
+	require.NoError(t, err)
+
+	cleaned, err := ScrubYaml([]byte(inputConfData))
+	require.Nil(t, err)
+
+	// First test that the a scrubbed yaml is still a valid yaml
+	var out interface{}
+	err = yaml.Unmarshal(cleaned, &out)
+	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
+
+	// We replace windows line break by linux so the tests pass on every OS
+	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
+	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
+
+	assert.Equal(t, trimmedOutput, trimmedCleaned)
+}
+
 func TestConfigStripApiKey(t *testing.T) {
 	assertClean(t,
 		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,

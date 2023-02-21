@@ -82,7 +82,7 @@ func getFullConfig(cfg ddconfig.Config, namespaces ...string) http.HandlerFunc {
 			return
 		}
 
-		scrubbed, err := scrubber.ScrubBytes(runtimeConfig)
+		scrubbed, err := scrubber.ScrubYaml(runtimeConfig)
 		if err != nil {
 			log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
 			body, _ := json.Marshal(map[string]string{"error": err.Error()})
