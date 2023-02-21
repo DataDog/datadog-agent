@@ -134,8 +134,17 @@ func (c *complianceCheck) Run() error {
 	resourceQuadIDs := make(map[resourceQuadID]bool)
 
 	for _, report := range reports {
+		ruleID := c.ruleID
+
+		// NOTE(pierre): XCCDF checks report multiple rules in one batch. This does not really
+		// cope with the current architecture where each check report for one agent rule. For now we
+		// use the Data map to pass this information and rewrite the agent_rule_id in place.
+		if xccdfRuleID, ok := report.Data["xccdf_rule_id"].(string); ok {
+			ruleID = xccdfRuleID
+		}
+
 		if report.Error != nil {
-			log.Debugf("%s: check run failed: %v", c.ruleID, report.Error)
+			log.Debugf("%s: check run failed: %v", ruleID, report.Error)
 			if !report.UserProvidedError {
 				err = report.Error
 			}
@@ -146,7 +155,7 @@ func (c *complianceCheck) Run() error {
 		resource := c.reportToResource(report)
 
 		quadID := resourceQuadID{
-			AgentRuleID:      c.ruleID,
+			AgentRuleID:      ruleID,
 			AgentFrameworkID: c.suiteMeta.Framework,
 			ResourceID:       resource.ID,
 			ResourceType:     resource.Type,
@@ -175,7 +184,7 @@ func (c *complianceCheck) Run() error {
 			ExpireAt:         c.computeExpireAt(),
 		}
 
-		log.Debugf("%s: reporting [%s] [%s] [%s]", c.ruleID, e.Result, e.ResourceID, e.ResourceType)
+		log.Debugf("%s: reporting [%s] [%s] [%s]", ruleID, e.Result, e.ResourceID, e.ResourceType)
 
 		c.Reporter().Report(e)
 		if c.eventNotify != nil {
