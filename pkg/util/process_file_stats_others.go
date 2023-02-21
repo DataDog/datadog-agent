@@ -3,9 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !linux
+// +build !linux
+
 package util
 
-type ProcessFileStats struct {
-	AgentOpenFiles float64 `json:"agent_open_files"`
-	OsFileLimit    float64 `json:"os_file_limit"`
+import "github.com/go-openapi/errors"
+
+func GetProcessFileStats() (*ProcessFileStats, error) {
+	return nil, errors.NotImplemented("This function is only implemented for Linux-based OSes.")
 }
