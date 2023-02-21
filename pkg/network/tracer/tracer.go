@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -110,7 +111,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // (and NewTracer above)
 func newTracer(config *config.Config) (*Tracer, error) {
 	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+	if mounted, err := kernel.IsDebugFSOrTraceFSMounted(); !mounted {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
 
@@ -721,7 +722,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	}
 
 	// merge with components already migrated to `network/telemetry`
-	for k, v := range nettelemetry.ReportExpvar() {
+	for k, v := range usmtelemetry.ReportExpvar() {
 		ret[k] = v
 	}
 

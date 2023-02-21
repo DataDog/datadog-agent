@@ -26,6 +26,7 @@ include:
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
+  - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
@@ -48,10 +49,6 @@ default:
       - stuck_or_timeout_failure
       - unknown_failure
       - api_failure
-
-workflow:
-  rules:
-    - if: $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
 
 stages:
   - maintenance_jobs
@@ -142,7 +139,7 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v12605723-c5447ff
+  DATADOG_AGENT_BUILDIMAGES: v13321514-644fed4
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
   DATADOG_AGENT_WINBUILDIMAGES: v12605723-c5447ff
   DATADOG_AGENT_ARMBUILDIMAGES: v12605723-c5447ff
@@ -171,7 +168,6 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   USE_CACHING_PROXY_RUBY: "true"
-  USE_CACHING_PROXY_PYTHON: "true"
   CLANG_LLVM_VER: 12.0.1
 
 #
@@ -260,6 +256,26 @@ variables:
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+
+#
+# Workflow rules
+# Rules used to define whether a pipeline should run, and with which variables
+#
+
+workflow:
+  rules:
+    - <<: *if_main_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+    - <<: *if_release_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+    - <<: *if_deploy
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+    - if: $CI_COMMIT_TAG == null
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -736,6 +752,7 @@ variables:
   - <<: *if_testing_cleanup
 
 .on_security_agent_changes_or_manual:
+  - <<: *if_main_branch
   - changes:
       - pkg/ebpf/**/*
       - pkg/security/**/*

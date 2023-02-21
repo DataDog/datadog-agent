@@ -11,12 +11,13 @@ package http
 import (
 	"time"
 
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type telemetry struct {
-	then libtelemetry.StatGaugeWrapper
+	then nettelemetry.StatGaugeWrapper
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
@@ -35,7 +36,7 @@ func newTelemetry() (*telemetry, error) {
 	)
 
 	t := &telemetry{
-		then:         libtelemetry.NewStatGaugeWrapper("usm", "then", []string{}, "description"),
+		then:         nettelemetry.NewStatGaugeWrapper("usm", "then", []string{}, "description"),
 		hits1XX:      metricGroup.NewMetric("hits1xx"),
 		hits2XX:      metricGroup.NewMetric("hits2xx"),
 		hits3XX:      metricGroup.NewMetric("hits3xx"),

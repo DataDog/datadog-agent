@@ -1269,7 +1269,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	assert.EqualValues(t, 0, conns[0].Last.RecvBytes)
 
 	// Ensure we don't have underflows / unordered conns
-	assert.Zero(t, state.telemetry.statsUnderflows)
+	assert.Zero(t, statsUnderflows)
 
 	assert.Len(t, state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns, 0)
 }
@@ -1511,7 +1511,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 			intraHost: true,
 		},
 		{
-			name: "local connection with nat on both sides",
+			name: "local connection with nat on both sides (outgoing)",
 			conn: ConnectionStats{
 				Source:    util.AddressFromString("1.1.1.1"),
 				Dest:      util.AddressFromString("169.254.169.254"),
@@ -1529,7 +1529,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 			intraHost: true,
 		},
 		{
-			name: "local connection with nat on both sides",
+			name: "local connection with nat on both sides (incoming)",
 			conn: ConnectionStats{
 				Source:    util.AddressFromString("127.0.0.1"),
 				Dest:      util.AddressFromString("1.1.1.1"),

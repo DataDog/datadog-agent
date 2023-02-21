@@ -10,6 +10,7 @@ package flare
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {
@@ -32,7 +34,11 @@ func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
 }
 
 func getLinuxKprobeEvents(fb flarehelpers.FlareBuilder) error {
-	return fb.CopyFile("/sys/kernel/debug/tracing/kprobe_events")
+	traceFSPath := utilkernel.GetTraceFSMountPath()
+	if traceFSPath == "" {
+		return errors.New("tracefs not available")
+	}
+	return fb.CopyFile(filepath.Join(traceFSPath, "kprobe_events"))
 }
 
 func getLinuxPid1MountInfo(fb flarehelpers.FlareBuilder) error {
@@ -98,9 +104,17 @@ func getLinuxDmesg(fb flarehelpers.FlareBuilder) error {
 }
 
 func getLinuxTracingAvailableEvents(fb flarehelpers.FlareBuilder) error {
-	return fb.CopyFile("/sys/kernel/debug/tracing/available_events")
+	traceFSPath := utilkernel.GetTraceFSMountPath()
+	if traceFSPath == "" {
+		return errors.New("tracefs not available")
+	}
+	return fb.CopyFile(filepath.Join(traceFSPath, "available_events"))
 }
 
 func getLinuxTracingAvailableFilterFunctions(fb flarehelpers.FlareBuilder) error {
-	return fb.CopyFile("/sys/kernel/debug/tracing/available_filter_functions")
+	traceFSPath := utilkernel.GetTraceFSMountPath()
+	if traceFSPath == "" {
+		return errors.New("tracefs not available")
+	}
+	return fb.CopyFile(filepath.Join(traceFSPath, "available_filter_functions"))
 }
