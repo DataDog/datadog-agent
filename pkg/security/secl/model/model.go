@@ -471,13 +471,11 @@ type FileFields struct {
 	CTime uint64 `field:"change_time"`                                                 // SECLDoc[change_time] Definition:`Change time of the file`
 	MTime uint64 `field:"modification_time"`                                           // SECLDoc[modification_time] Definition:`Modification time of the file`
 
-	MountID      uint32 `field:"mount_id"`                                             // SECLDoc[mount_id] Definition:`Mount ID of the file`
-	Inode        uint64 `field:"inode"`                                                // SECLDoc[inode] Definition:`Inode of the file`
-	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer"` // SECLDoc[in_upper_layer] Definition:`Indicator of the file layer, for example, in an OverlayFS`
+	PathKey
+	InUpperLayer bool `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer"` // SECLDoc[in_upper_layer] Definition:`Indicator of the file layer, for example, in an OverlayFS`
 
-	NLink  uint32 `field:"-" json:"-"`
-	PathID uint32 `field:"-" json:"-"`
-	Flags  int32  `field:"-" json:"-"`
+	NLink uint32 `field:"-" json:"-"`
+	Flags int32  `field:"-" json:"-"`
 }
 
 // IsFileless return whether it is a file less access
@@ -979,6 +977,40 @@ type VethPairEvent struct {
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+}
+
+// PathKey identifies an entry in the dentry cache
+type PathKey struct {
+	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
+	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
+	PathID  uint32 `field:"-"`
+}
+
+func (p *PathKey) Write(buffer []byte) {
+	ByteOrder.PutUint64(buffer[0:8], p.Inode)
+	ByteOrder.PutUint32(buffer[8:12], p.MountID)
+	ByteOrder.PutUint32(buffer[12:16], p.PathID)
+}
+
+// IsNull returns true if a key is invalid
+func (p *PathKey) IsNull() bool {
+	return p.Inode == 0 && p.MountID == 0
+}
+
+func (p *PathKey) String() string {
+	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (p *PathKey) MarshalBinary() ([]byte, error) {
+	if p.IsNull() {
+		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
+	}
+
+	buff := make([]byte, 16)
+	p.Write(buff)
+
+	return buff, nil
 }
 
 // ExtraFieldHandlers handlers not hold by any field

@@ -124,7 +124,7 @@ func TestRegoInputCheck(t *testing.T) {
 				},
 			},
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{"FOO=foo", "BAR=bar"}, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{"FOO=foo", "BAR=bar"}),
 			},
 			expectedInput: `
 				{

@@ -119,7 +119,6 @@ type File struct {
 // Fields & functions available for Process
 const (
 	ProcessFieldName    = "process.name"
-	ProcessFieldExe     = "process.exe"
 	ProcessFieldCmdLine = "process.cmdLine"
 	ProcessFieldFlags   = "process.flags"
 
