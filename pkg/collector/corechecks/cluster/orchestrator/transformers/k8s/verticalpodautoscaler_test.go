@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	autoscaling "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 func TestExtractVerticalPodAutoscaler(t *testing.T) {
@@ -106,6 +107,13 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 							Status:             corev1.ConditionTrue,
 							LastTransitionTime: exampleTime,
 						},
+						{
+							Type:               v1.NoPodsMatched,
+							Status:             corev1.ConditionTrue,
+							LastTransitionTime: exampleTime,
+							Reason:             "NoPodsMatched",
+							Message:            "No pods match this VPA object",
+						},
 					},
 				},
 			},
@@ -147,7 +155,7 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 				},
 				Status: &model.VerticalPodAutoscalerStatus{
 					LastRecommendedDate: exampleTime.Unix(),
-					Recommendations: []*model.ContainerRecommendations{
+					Recommendations: []*model.ContainerRecommendation{
 						{
 							ContainerName: "TestContainer",
 							Target: &model.ResourceList{
@@ -170,6 +178,20 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 									"cpu": float64(4),
 								},
 							},
+						},
+					},
+					Conditions: []*model.VPACondition{
+						{
+							ConditionType:      "RecommendationProvided",
+							ConditionStatus:    "True",
+							LastTransitionTime: exampleTime.Unix(),
+						},
+						{
+							ConditionType:      "NoPodsMatched",
+							ConditionStatus:    "True",
+							LastTransitionTime: exampleTime.Unix(),
+							Reason:             "NoPodsMatched",
+							Message:            "No pods match this VPA object",
 						},
 					},
 				},

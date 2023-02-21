@@ -9,10 +9,11 @@
 package k8s
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
 
 // ExtractVerticalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Vertical Pod Autoscaler resource.
@@ -116,15 +117,16 @@ func extractVerticalPodAutoscalerStatus(s *v1.VerticalPodAutoscalerStatus) *mode
 		}
 	}
 	status.Recommendations = extractContainerRecommendations(s.Recommendation.ContainerRecommendations)
+	status.Conditions = extractContainerConditions(s.Conditions)
 	return &status
 }
 
 // extractContainerRecommendations converts Kuberentes Recommendations to our protobuf model
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L245
-func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*model.ContainerRecommendations {
-	recs := []*model.ContainerRecommendations{}
+func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*model.ContainerRecommendation {
+	recs := []*model.ContainerRecommendation{}
 	for _, r := range cr {
-		rec := model.ContainerRecommendations{
+		rec := model.ContainerRecommendation{
 			ContainerName:  r.ContainerName,
 			Target:         extractResourceList(&r.Target),
 			LowerBound:     extractResourceList(&r.LowerBound),
@@ -134,4 +136,21 @@ func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*m
 		recs = append(recs, &rec)
 	}
 	return recs
+}
+
+// extractContainerConditions converts Kuberentes Conditions to our protobuf model
+// https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L295
+func extractContainerConditions(cr []v1.VerticalPodAutoscalerCondition) []*model.VPACondition {
+	con := []*model.VPACondition{}
+	for _, r := range cr {
+		rec := model.VPACondition{
+			ConditionType:      string(r.Type),
+			ConditionStatus:    string(r.Status),
+			LastTransitionTime: r.LastTransitionTime.Unix(),
+			Reason:             r.Reason,
+			Message:            r.Message,
+		}
+		con = append(con, &rec)
+	}
+	return con
 }

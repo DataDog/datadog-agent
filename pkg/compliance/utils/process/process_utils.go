@@ -6,206 +6,201 @@
 package utils
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/process"
-
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/shirou/gopsutil/v3/process"
 )
-
-// CheckedProcess represents a process with potentially overridden fields
-type CheckedProcess struct {
-	inner        *process.Process
-	pid          int32
-	name         string
-	exe          string
-	cmdLineSlice []string
-}
-
-// NewCheckedProcess returns a new checked process, based on a real process object
-func NewCheckedProcess(p *process.Process) *CheckedProcess {
-	return &CheckedProcess{
-		inner:        p,
-		pid:          p.Pid,
-		name:         "",
-		cmdLineSlice: nil,
-	}
-}
-
-// NewCheckedFakeProcess returns a new checked process, based on a fake object
-func NewCheckedFakeProcess(pid int32, name string, cmdLineSlice []string) *CheckedProcess {
-	return &CheckedProcess{
-		inner:        nil,
-		pid:          pid,
-		name:         name,
-		cmdLineSlice: cmdLineSlice,
-	}
-}
-
-// Pid returns the pid stored in this checked process
-func (p *CheckedProcess) Pid() int32 {
-	return p.pid
-}
-
-// Name returns the name stored in this checked process
-func (p *CheckedProcess) Name() string {
-	if p.name != "" || p.inner == nil {
-		return p.name
-	}
-
-	innerName, err := p.inner.Name()
-	if err != nil {
-		log.Warnf("failed to fetch process (pid=%d) name: %v", p.pid, err)
-		return ""
-	}
-	p.name = innerName
-	return innerName
-}
-
-// Exe returns the executable path stored in this checked process
-func (p *CheckedProcess) Exe() string {
-	if p.exe != "" || p.inner == nil {
-		return p.exe
-	}
-
-	innerExe, err := p.inner.Exe()
-	if err != nil {
-		if errors.Is(err, fs.ErrPermission) {
-			log.Debugf("failed to fetch process (pid=%d) exe: %v", p.pid, err)
-		} else {
-			log.Warnf("failed to fetch process (pid=%d) exe: %v", p.pid, err)
-		}
-		return ""
-	}
-	p.exe = innerExe
-	return innerExe
-}
-
-// CmdlineSlice returns the cmd line slice stored in this checked process
-func (p *CheckedProcess) CmdlineSlice() []string {
-	if p.cmdLineSlice != nil || p.inner == nil {
-		return p.cmdLineSlice
-	}
-
-	innerCmdLine, err := p.inner.CmdlineSlice()
-	if err != nil {
-		log.Warnf("failed to fetch process (pid=%d) cmdline: %v", p.pid, err)
-		return nil
-	}
-	p.cmdLineSlice = innerCmdLine
-	return innerCmdLine
-}
-
-// Processes holds process info indexed per PID
-type Processes map[int32]*CheckedProcess
 
 const (
-	// ProcessCacheKey is the global cache key to use for compliance processes
-	ProcessCacheKey string = "compliance-processes"
+	// processCacheMaxAge is the cache TTL used for caching process tables by name
+	processCacheMaxAge = 5 * time.Minute
 )
 
-var (
-	// Fetcher is a singleton function to fetch the active processes
-	Fetcher = fetchProcesses
-)
+var processTablesCache *simplelru.LRU[string, Processes]
 
-// FindProcessesByName returned the list of processes with the specified name
-func (p Processes) FindProcessesByName(name string) []*CheckedProcess {
-	return p.FindProcesses(func(p *CheckedProcess) bool {
-		return p.Name() == name
-	})
+func init() {
+	processTablesCache, _ = simplelru.NewLRU[string, Processes](16, nil)
 }
 
-// FindProcesses returned the list of processes matching a specific function
-func (p Processes) FindProcesses(matchFunc func(*CheckedProcess) bool) []*CheckedProcess {
-	var results = make([]*CheckedProcess, 0)
-	for _, process := range p {
-		if matchFunc(process) {
-			results = append(results, process)
-		}
-	}
+// FetchProcessesWithName scans the the list of processes with the specified name.
+// Overridable for tests and mocks purposes.
+var FetchProcessesWithName = defaultFetchProcessesWithName
 
-	return results
+// IsProcessMetadataValid returns whether or not the cached ProcessMetadata is in sync
+// with the system proc table. By default it will checks that a process with the
+// same PID still exists and that the process create time is the same.
+// Overridable for tests and mocks purposes.
+var IsProcessMetadataValid = defaultIsProcessMetadataValid
+
+// Processes is a list of ProcessMetadata
+type Processes []*ProcessMetadata
+
+// ProcessMetadata holds the metadata of a process required by our compliance rules. It is
+// used as a caching layer to avoid having to fetch the system processes on every rule
+// evaluation.
+type ProcessMetadata struct {
+	Pid        int32
+	CreateTime int64
+	Name       string
+	Cmdline    []string
+	Envs       []string
+
+	cacheTime time.Time
 }
 
-func fetchProcesses() (Processes, error) {
-	inners, err := process.Processes()
-	if err != nil {
-		return nil, err
-	}
-
-	res := make(map[int32]*CheckedProcess, len(inners))
-	for _, p := range inners {
-		res[p.Pid] = NewCheckedProcess(p)
-	}
-	return res, nil
-}
-
-// GetProcesses returns all the processes in cache that do not exceed a specified duration
-func GetProcesses(maxAge time.Duration) (Processes, error) {
-	if value, found := cache.Cache.Get(ProcessCacheKey); found {
-		return value.(Processes), nil
-	}
-
-	log.Debug("Updating process cache")
-	rawProcesses, err := Fetcher()
-	if err != nil {
-		return nil, err
-	}
-
-	cache.Cache.Set(ProcessCacheKey, rawProcesses, maxAge)
-	return rawProcesses, nil
-}
-
-// ParseProcessCmdLine parses command lines arguments into a map of flags and options.
+// CmdlineFlags parses command lines arguments into a map of flags and options.
 // Parsing is far from being exhaustive, however for now it works sufficiently well
 // for standard flag style command args.
-func ParseProcessCmdLine(args []string) map[string]string {
-	results := make(map[string]string, 0)
-	pendingFlagValue := false
+func (p *ProcessMetadata) CmdlineFlags() map[string]string {
+	return parseCmdLineFlags(p.Cmdline)
+}
 
-	for i, arg := range args {
+// EnvsMap returns a map of the requested environment variables in this checked process
+func (p *ProcessMetadata) EnvsMap(filteredEnvs []string) map[string]string {
+	envsMap := make(map[string]string, len(filteredEnvs))
+	if len(filteredEnvs) == 0 {
+		return envsMap
+	}
+	for _, envValue := range p.Envs {
+		for _, envName := range filteredEnvs {
+			prefix := envName + "="
+			if strings.HasPrefix(envValue, prefix) {
+				envsMap[envName] = strings.TrimPrefix(envValue, prefix)
+			} else if envValue == envName {
+				envsMap[envName] = ""
+			}
+		}
+	}
+	return envsMap
+}
+
+// NewProcessMetadata returns a new ProcessMetadata struct.
+func NewProcessMetadata(pid int32, createTime int64, name string, cmdline []string, envs []string) *ProcessMetadata {
+	return &ProcessMetadata{
+		Pid:        pid,
+		CreateTime: createTime,
+		Name:       name,
+		Cmdline:    cmdline,
+		Envs:       envs,
+
+		cacheTime: time.Now(),
+	}
+}
+
+func defaultFetchProcessesWithName(searchedName string) (Processes, error) {
+	pids, err := process.Pids()
+	if err != nil {
+		return nil, err
+	}
+	var table Processes
+	for _, pid := range pids {
+		p, err := process.NewProcess(pid)
+		if err != nil {
+			continue
+		}
+		name, err := p.Name()
+		if err != nil || name != searchedName {
+			continue
+		}
+		createTime, err := p.CreateTime()
+		if err != nil {
+			return nil, err
+		}
+		cmdline, err := p.CmdlineSlice()
+		if err != nil {
+			return nil, err
+		}
+		envs, err := p.Environ()
+		// NOTE(pierre): security-agent may be executed without the capabilities to get /proc/<pid>/environ
+		if err != nil && !os.IsPermission(err) {
+			return nil, err
+		}
+		table = append(table, NewProcessMetadata(pid, createTime, name, cmdline, envs))
+	}
+	return table, nil
+}
+
+func defaultIsProcessMetadataValid(p *ProcessMetadata) bool {
+	if time.Since(p.cacheTime) > processCacheMaxAge {
+		return false
+	}
+	proc, err := process.NewProcess(p.Pid)
+	if err != nil {
+		return false
+	}
+	createTime, err := proc.CreateTime()
+	if err != nil {
+		return false
+	}
+	return createTime == p.CreateTime
+}
+
+func parseCmdLineFlags(cmdline []string) map[string]string {
+	flagsMap := make(map[string]string, 0)
+	pendingFlagValue := false
+	for i, arg := range cmdline {
 		if strings.HasPrefix(arg, "-") {
 			parts := strings.SplitN(arg, "=", 2)
-
 			// We have -xxx=yyy, considering the flag completely resolved
 			if len(parts) == 2 {
-				results[parts[0]] = parts[1]
+				flagsMap[parts[0]] = parts[1]
 			} else {
-				results[parts[0]] = ""
+				flagsMap[parts[0]] = ""
 				pendingFlagValue = true
 			}
 		} else {
 			if pendingFlagValue {
-				results[args[i-1]] = arg
+				flagsMap[cmdline[i-1]] = arg
 			} else {
-				results[arg] = ""
+				flagsMap[arg] = ""
 			}
 		}
 	}
+	return flagsMap
+}
 
-	return results
+// FindProcessesByName returns a list of *ProcessMetadata matching the given name.
+func FindProcessesByName(searchedName string) (Processes, error) {
+	processTableMatching, ok := processTablesCache.Get(searchedName)
+	if ok {
+		for _, p := range processTableMatching {
+			if !IsProcessMetadataValid(p) {
+				ok = false
+				break
+			}
+		}
+	}
+	if !ok {
+		processTable, err := FetchProcessesWithName(searchedName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch processes: %w", err)
+		}
+		processTablesCache.Add(searchedName, processTable)
+		processTableMatching = processTable
+	}
+	return processTableMatching, nil
+}
+
+// PurgeCache cleans up the process table cache.
+func PurgeCache() {
+	processTablesCache.Purge()
 }
 
 // ValueFromProcessFlag returns the first process with the specified name and flag
-func ValueFromProcessFlag(name string, flag string, cacheValidity time.Duration) (interface{}, error) {
+func ValueFromProcessFlag(name, flag string) (interface{}, error) {
 	log.Debugf("Resolving value from process: %s, flag %s", name, flag)
-
-	processes, err := GetProcesses(cacheValidity)
+	matchedProcesses, err := FindProcessesByName(name)
 	if err != nil {
-		return "", fmt.Errorf("unable to fetch processes: %w", err)
+		return nil, err
 	}
-
-	matchedProcesses := processes.FindProcessesByName(name)
-	for _, mp := range matchedProcesses {
-		flagValues := ParseProcessCmdLine(mp.CmdlineSlice())
-		return flagValues[flag], nil
+	if len(matchedProcesses) == 0 {
+		return "", fmt.Errorf("failed to find process: %s", name)
 	}
-
-	return "", fmt.Errorf("failed to find process: %s", name)
+	flagValues := matchedProcesses[0].CmdlineFlags()
+	return flagValues[flag], nil
 }

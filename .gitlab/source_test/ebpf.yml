@@ -20,8 +20,11 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/oom-kill.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tcp-queue-length.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-fentry.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/http.c $CI_PROJECT_DIR/.tmp/binary-ebpf/http.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
@@ -33,26 +36,15 @@
 .tests_linux_ebpf:
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/.tmp/binary-ebpf
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re
-    - !reference [.retrieve_sysprobe_deps]
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
     - invoke -e golangci-lint --build system-probe ./pkg
-    - !reference [.build_sysprobe_artifacts]
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e security-agent.kitchen-prepare
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
+    - invoke -e golangci-lint --targets=./pkg/security/tests --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 
 .tests_windows_sysprobe:
   stage: source_test
@@ -85,6 +77,7 @@ tests_ebpf_x64:
   tags: ["runner:main"]
   variables:
     ARCH: amd64
+    TASK_ARCH: x64
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
@@ -92,9 +85,45 @@ tests_ebpf_arm64:
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
+    TASK_ARCH: arm64
+
+.prepare_ebpf_functional_tests:
+  stage: source_test
+  needs: ["go_deps"]
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/.tmp/binary-ebpf
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re
+    - inv -e install-tools
+    - !reference [.retrieve_sysprobe_deps]
+  script:
+    - !reference [.build_sysprobe_artifacts]
+    - invoke -e security-agent.kitchen-prepare --skip-linters
+    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
+    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
+
+prepare_ebpf_functional_tests_arm64:
+  extends: .prepare_ebpf_functional_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+
+prepare_ebpf_functional_tests_x64:
+  extends: .prepare_ebpf_functional_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:main"]
+  variables:
+    ARCH: amd64
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
+

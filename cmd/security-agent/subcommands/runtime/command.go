@@ -13,31 +13,35 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 	"io"
 	"os"
 	"path"
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -48,7 +52,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -475,14 +478,7 @@ func checkPoliciesInner(dir string) error {
 		return err
 	}
 
-	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
-	if err != nil {
-		return err
-	}
-
-	rsa := sprobe.NewRuleSetApplier(cfg, nil)
-
-	report, err := rsa.Apply(ruleSet, approvers)
+	report, err := sprobe.NewApplyRuleSetReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}
@@ -664,7 +660,20 @@ func reloadRuntimePolicies(log log.Component, config config.Component) error {
 	return nil
 }
 
-func newRuntimeReporter(log log.Component, config config.Component, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
+type reporter struct {
+	logSource *sources.LogSource
+	logChan   chan *message.Message
+}
+
+func (r *reporter) ReportRaw(content []byte, service string, tags ...string) {
+	origin := message.NewOrigin(r.logSource)
+	origin.SetTags(tags)
+	origin.SetService(service)
+	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
+	r.logChan <- msg
+}
+
+func newRuntimeReporter(log log.Component, config config.Component, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
@@ -684,7 +693,11 @@ func newRuntimeReporter(log log.Component, config config.Component, stopper star
 			Source: sourceName,
 		},
 	)
-	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
+	logChan := pipelineProvider.NextPipelineChan()
+	return &reporter{
+		logSource: logSource,
+		logChan:   logChan,
+	}, nil
 }
 
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
@@ -694,9 +707,11 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 		return nil, nil
 	}
 
+	logProfiledWorkloads := config.GetBool("runtime_security_config.log_profiled_workloads")
+
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname)
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname, logProfiledWorkloads)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}

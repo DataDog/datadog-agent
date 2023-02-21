@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
@@ -314,8 +315,6 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 	return parser.marshal(&tree)
 }
 
-var ipv6Re = regexp.MustCompile(`^[0-9a-f:]+$`)
-
 // resolveStringWithTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
 // It delegates all the work to resolveStringWithAdHocTemplateVars and implements only the following trick:
 // for `‰host‰` patterns, if the value of the variable is an IPv6 *and* it appears in an URL context, then it is surrounded by square brackets.
@@ -329,7 +328,7 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 		if k == "host" {
 			adHocTemplateVars[k] = func(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 				host, err := getHost(ctx, tplVar, svc)
-				if ipv6Re.MatchString(host) {
+				if apiutil.IsIPv6(host) {
 					isThereAnIPv6Host = true
 					if tplVar != "" {
 						return fmt.Sprintf("‰host_%s‰", tplVar), nil

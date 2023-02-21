@@ -1,12 +1,13 @@
 #ifndef __PROTOCOL_CLASSIFICATION_DEFS_H
 #define __PROTOCOL_CLASSIFICATION_DEFS_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 #include "protocols/amqp/defs.h"
 #include "protocols/http/classification-defs.h"
 #include "protocols/http2/defs.h"
 #include "protocols/mongo/defs.h"
+#include "protocols/mysql/defs.h"
 #include "protocols/redis/defs.h"
 #include "protocols/sql/defs.h"
 
@@ -26,12 +27,19 @@ typedef enum {
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
     PROTOCOL_MONGO = 6,
-    PROTOCOL_POSTGRES = 7,
-    PROTOCOL_AMQP = 8,
-    PROTOCOL_REDIS = 9,
+    PROTOCOL_POSTGRES,
+    PROTOCOL_AMQP,
+    PROTOCOL_REDIS,
+    PROTOCOL_MYSQL,
     //  Add new protocols before that line.
     MAX_PROTOCOLS,
     __MAX_UINT8 = 255,
 } __attribute__ ((packed)) protocol_t;
+
+typedef enum {
+    CLASSIFICATION_CONT_PROG = 0,
+    // Add before this value.
+    CLASSIFICATION_PROG_MAX,
+} classification_prog_t;
 
 #endif

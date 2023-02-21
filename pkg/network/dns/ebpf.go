@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
-const funcName = "socket__dns_filter"
 const probeUID = "dns"
 
 type ebpfProgram struct {
@@ -39,8 +38,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  probes.SocketDNSFilter,
-					EBPFFuncName: funcName,
+					EBPFFuncName: probes.SocketDNSFilter,
 					UID:          probeUID,
 				},
 			},
@@ -77,8 +75,7 @@ func (e *ebpfProgram) Init() error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  probes.SocketDNSFilter,
-					EBPFFuncName: funcName,
+					EBPFFuncName: probes.SocketDNSFilter,
 					UID:          probeUID,
 				},
 			},

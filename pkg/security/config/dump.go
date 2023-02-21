@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
 func init() {

@@ -119,7 +119,6 @@ type File struct {
 // Fields & functions available for Process
 const (
 	ProcessFieldName    = "process.name"
-	ProcessFieldExe     = "process.exe"
 	ProcessFieldCmdLine = "process.cmdLine"
 	ProcessFieldFlags   = "process.flags"
 
@@ -129,7 +128,8 @@ const (
 
 // Process describes a process resource
 type Process struct {
-	Name string `yaml:"name"`
+	Name string   `yaml:"name"`
+	Envs []string `yaml:"envs,omitempty"`
 }
 
 // Fields & functions available for KubernetesResource

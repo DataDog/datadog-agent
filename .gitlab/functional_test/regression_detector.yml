@@ -10,9 +10,8 @@ single-machine-performance-regression_detector:
     paths:
       - submission_metadata
   variables:
-    GIT_STRATEGY: clone # pull the whole repo so we can compute baseline SHA
-    SMP_VERSION: 0.6.6-rc1
-    LADING_VERSION: 0.11.2
+    SMP_VERSION: 0.7.1
+    LADING_VERSION: 0.12.0
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
     REPLICAS: 10
@@ -21,12 +20,13 @@ single-machine-performance-regression_detector:
   # At present we require two artifacts to exist for the 'baseline' and the
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main
-  # merge pipeline run. This is solved in Vector by building Vector twice each
-  # Regression Detector run but remains an unsolved problem for
-  # datadog-agent. So, we allow failure for now.
+  # merge pipeline run. This is solved in datadog-agent by updating a file in S3
+  # with the SHA of the latest passing build from main. It's solved in Vector by
+  # building Vector twice for each Regression Detector run.
   #
-  # _Unfortunately_ this also means that if the Regression Detector finds a
-  # performance issue with a PR it will not be flagged.
+  # We allow failure for now. _Unfortunately_ this also means that if the
+  # Regression Detector finds a performance issue with a PR it will not be
+  # flagged.
   allow_failure: true
   script:
     # Setup AWS credentials for single-machine-performance AWS account
@@ -40,11 +40,11 @@ single-machine-performance-regression_detector:
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
-    # Submit job, using the current main SHA as baseline. This will have been
-    # previously submitted in a separate pipeline run. The comparison will have
-    # been submitted in this pipeline run.
-    - git fetch origin main:main
-    - BASELINE_SHA=$(git rev-parse main)
+    # Submit job, using the SHA of the last successful main commit as baseline.
+    # This will have been built in a separate pipeline run. The comparison will
+    # have been built previously in this pipeline run.
+    - aws --profile ${AWS_NAMED_PROFILE} s3 cp --only-show-errors s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/latest_main_sha .latest_main_sha
+    - BASELINE_SHA=$(cat .latest_main_sha)
     - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
@@ -63,7 +63,6 @@ single-machine-performance-regression_detector:
             --comparison-sha ${CI_COMMIT_SHA}
             --target-name datadog-agent
             --target-command "/bin/entrypoint.sh"
-            --target-inherit-environment
             --target-environment-variables "DD_HOSTNAME=smp-regression,DD_DD_URL=http://127.0.0.1:9092,DD_API_KEY=00000001"
             --target-config-dir test/regression/
             --target-cpu-allotment ${CPUS}

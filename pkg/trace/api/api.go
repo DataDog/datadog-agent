@@ -379,7 +379,7 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header) *info.TagStat
 func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp *pb.TracerPayload, ranHook bool, err error) {
 	switch v {
 	case v01:
-		var spans []pb.Span
+		var spans []*pb.Span
 		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, false, err
 		}
@@ -775,11 +775,11 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 	}
 }
 
-func traceChunksFromSpans(spans []pb.Span) []*pb.TraceChunk {
+func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
 	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
-		byID[s.TraceID] = append(byID[s.TraceID], &s)
+		byID[s.TraceID] = append(byID[s.TraceID], s)
 	}
 	for _, t := range byID {
 		traceChunks = append(traceChunks, &pb.TraceChunk{
