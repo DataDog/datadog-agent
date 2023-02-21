@@ -50,7 +50,7 @@ type Resolvers struct {
 	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
 	NamespaceResolver *netns.Resolver
-	CgroupResolver    *cgroup.Resolver
+	CGroupResolver    *cgroup.Resolver
 	TCResolver        *tc.Resolver
 	PathResolver      *path.Resolver
 	SBOMResolver      *sbom.Resolver
@@ -86,10 +86,12 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver(sbomResolver)
+	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
 	}
+	_ = cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent)
+	_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
 
 	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
 	if err != nil {
@@ -114,7 +116,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		TagsResolver:      tagsResolver,
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
-		CgroupResolver:    cgroupsResolver,
+		CGroupResolver:    cgroupsResolver,
 		TCResolver:        tcResolver,
 		ProcessResolver:   processResolver,
 		PathResolver:      pathResolver,
@@ -139,6 +141,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
+	r.CGroupResolver.Start(ctx)
 	r.SBOMResolver.Start(ctx)
 	return r.NamespaceResolver.Start(ctx)
 }

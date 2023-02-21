@@ -12,13 +12,30 @@ import (
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+// WorkloadSelector is a selector used to uniquely indentify the image of a workload
+type WorkloadSelector struct {
+	Image string
+	Tag   string
+}
+
+// IsEmpty returns true if the selector is set
+func (ws *WorkloadSelector) IsEmpty() bool {
+	return len(ws.Tag) != 0 && len(ws.Image) != 0
+}
 
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
 	sync.RWMutex
-	ID   string
-	PIDs *simplelru.LRU[uint32, int8]
+	Deleted          *atomic.Bool
+	ID               string
+	Tags             []string
+	WorkloadSelector WorkloadSelector
+	PIDs             *simplelru.LRU[uint32, int8]
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
@@ -29,8 +46,9 @@ func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
 	}
 
 	newCGroup := CacheEntry{
-		ID:   id,
-		PIDs: pidsLRU,
+		Deleted: atomic.NewBool(false),
+		ID:      id,
+		PIDs:    pidsLRU,
 	}
 
 	for _, pid := range pids {
@@ -53,4 +71,22 @@ func (cgce *CacheEntry) RemoveRootPID(pid uint32) {
 	defer cgce.Unlock()
 
 	cgce.PIDs.Remove(pid)
+}
+
+// SetTags sets the tags for the provided workload
+func (cgce *CacheEntry) SetTags(tags []string) {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	cgce.Tags = tags
+	cgce.WorkloadSelector.Image = utils.GetTagValue("image_name", cgce.Tags)
+	cgce.WorkloadSelector.Tag = utils.GetTagValue("image_tag", cgce.Tags)
+	if len(cgce.WorkloadSelector.Image) != 0 && len(cgce.WorkloadSelector.Tag) == 0 {
+		cgce.WorkloadSelector.Tag = "latest"
+	}
+}
+
+// NeedsTagsResolution returns true if this workload is missing its tags
+func (cgce *CacheEntry) NeedsTagsResolution() bool {
+	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsEmpty()
 }

@@ -9,31 +9,106 @@
 package cgroup
 
 import (
+	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
+type CGroupEvent int
+
+const (
+	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
+	WorkloadSelectorResolved CGroupEvent = iota
+	// CGroupDeleted is used to notify that a cgroup was deleted
+	CGroupDeleted
+	// CGroupMaxEvent is used cap the event ID
+	CGroupMaxEvent
+)
+
+// CGroupListener is used to propagate CGroup events
+type CGroupListener func(workload *cgroupModel.CacheEntry)
+
 // Resolver defines a cgroup monitor
 type Resolver struct {
 	sync.RWMutex
-	workloads    *simplelru.LRU[string, *cgroupModel.CacheEntry]
-	sbomResolver *sbom.Resolver
+	workloads            *simplelru.LRU[string, *cgroupModel.CacheEntry]
+	tagsResolver         *tags.Resolver
+	workloadsWithoutTags chan *cgroupModel.CacheEntry
+
+	listeners map[CGroupEvent][]CGroupListener
+}
+
+// NewResolver returns a new cgroups monitor
+func NewResolver(tagsResolver *tags.Resolver) (*Resolver, error) {
+	cr := &Resolver{
+		tagsResolver:         tagsResolver,
+		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
+		listeners:            make(map[CGroupEvent][]CGroupListener),
+	}
+	workloads, err := simplelru.NewLRU[string, *cgroupModel.CacheEntry](1024, func(key string, value *cgroupModel.CacheEntry) {
+		value.Deleted.Store(true)
+
+		for _, l := range cr.listeners[CGroupDeleted] {
+			l(value)
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	cr.workloads = workloads
+	return cr, nil
+}
+
+// Start starts the goroutine of the SBOM resolver
+func (cr *Resolver) Start(ctx context.Context) {
+	go func() {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		delayerTick := time.NewTicker(10 * time.Second)
+		defer delayerTick.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-delayerTick.C:
+				select {
+				case workload := <-cr.workloadsWithoutTags:
+					cr.checkTags(workload)
+				default:
+				}
+
+			}
+		}
+	}()
+}
+
+// RegisterListener registers a CGroup event listener
+func (cr *Resolver) RegisterListener(event CGroupEvent, listener CGroupListener) error {
+	if event >= CGroupMaxEvent || event < 0 {
+		return fmt.Errorf("invalid CGroupEvent: %v", event)
+	}
+	if cr.listeners != nil {
+		cr.listeners[event] = append(cr.listeners[event], listener)
+	} else {
+		return fmt.Errorf("a CGroupListener was inserted before initialization")
+	}
+	return nil
 }
 
 // AddPID associates a container id and a pid which is expected to be the pid 1
 func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
-
-	// if !process.IsContainerRoot() {
-	// 	return
-	// }
 
 	entry, exists := cr.workloads.Get(process.ContainerID)
 	if exists {
@@ -52,10 +127,48 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	// add the new CGroup to the cache
 	cr.workloads.Add(process.ContainerID, newCGroup)
 
-	if cr.sbomResolver != nil {
-		// a new entry was created, notify the SBOM resolver that it should create a new entry too
-		cr.sbomResolver.Retain(process.ContainerID, newCGroup)
+	// fetch the tags of the workload one first time
+	if len(newCGroup.ID) != 0 {
+		_ = cr.fetchTags(newCGroup)
 	}
+
+	// check the tags of this workload
+	cr.checkTags(newCGroup)
+}
+
+// checkTags checks if the tags of a workload were properly set
+func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
+	if workload.Deleted.Load() {
+		// nothing to do
+		return
+	}
+
+	// check if the workload tags were found
+	if workload.NeedsTagsResolution() {
+		// this is a container, try to resolve its tags now
+		_ = cr.fetchTags(workload)
+
+		// push to the workloadsWithoutTags chan so that its tags can be resolved later
+		select {
+		case cr.workloadsWithoutTags <- workload:
+		default:
+		}
+	} else {
+		// notify listeners
+		for _, l := range cr.listeners[WorkloadSelectorResolved] {
+			l(workload)
+		}
+	}
+}
+
+// fetchTags fetches tags for the provided workload
+func (cr *Resolver) fetchTags(workload *cgroupModel.CacheEntry) error {
+	newTags, err := cr.tagsResolver.ResolveWithErr(workload.ID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve %s: %w", workload.ID, err)
+	}
+	workload.SetTags(newTags)
+	return nil
 }
 
 // GetWorkload returns the workload referenced by the provided ID
@@ -114,19 +227,4 @@ func (cr *Resolver) Len() int {
 	defer cr.RUnlock()
 
 	return cr.workloads.Len()
-}
-
-// NewResolver returns a new cgroups monitor
-func NewResolver(sbomResolver *sbom.Resolver) (*Resolver, error) {
-	workloads, err := simplelru.NewLRU[string, *cgroupModel.CacheEntry](1024, func(key string, value *cgroupModel.CacheEntry) {
-		// notify the SBOM resolver that the CGroupCacheEntry was ejected
-		sbomResolver.Delete(key)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &Resolver{
-		workloads:    workloads,
-		sbomResolver: sbomResolver,
-	}, nil
 }
