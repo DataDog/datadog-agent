@@ -21,6 +21,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	pkgReport "github.com/aquasecurity/trivy/pkg/report"
 	"github.com/aquasecurity/trivy/pkg/result"
@@ -90,6 +91,7 @@ func (c *TrivyCollector) initScannerConfig(opts flag.Options) (ScannerConfig, ty
 			OnlyDirs:          opts.OnlyDirs,
 			Offline:           opts.OfflineScan,
 			NoProgress:        opts.NoProgress || opts.Quiet,
+			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
 		},
 	}, scanOptions, nil
 }
