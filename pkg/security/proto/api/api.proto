@@ -42,6 +42,7 @@ message GetConfigParams {}
 message SecurityConfigMessage {
     bool RuntimeEnabled = 1;
     bool FIMEnabled = 2;
+    bool ActivityDumpEnabled = 3;
 }
 
 message RunSelfTestParams {}

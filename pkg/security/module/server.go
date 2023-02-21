@@ -390,8 +390,9 @@ func (a *APIServer) Start(ctx context.Context) {
 func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
 	if a.cfg != nil {
 		return &api.SecurityConfigMessage{
-			FIMEnabled:     a.cfg.FIMEnabled,
-			RuntimeEnabled: a.cfg.RuntimeEnabled,
+			FIMEnabled:          a.cfg.FIMEnabled,
+			RuntimeEnabled:      a.cfg.RuntimeEnabled,
+			ActivityDumpEnabled: a.cfg.ActivityDumpEnabled,
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil
