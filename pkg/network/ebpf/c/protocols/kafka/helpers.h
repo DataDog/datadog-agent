@@ -103,12 +103,12 @@ static __always_inline void read_into_buffer_topic_name(char *buffer, struct __s
     u64 offset = (u64)initial_offset;
 
 #define BLK_SIZE (16)
-    const u32 len = TOPIC_NAME_MAX_STRING_SIZE < (skb->len - (u32)offset) ? (u32)offset + TOPIC_NAME_MAX_STRING_SIZE : skb->len;
+    const u32 len = TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE < (skb->len - (u32)offset) ? (u32)offset + TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE : skb->len;
 
     unsigned i = 0;
 
-#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE / BLK_SIZE)
-    for (; i < (TOPIC_NAME_MAX_STRING_SIZE / BLK_SIZE); i++) {
+#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE / BLK_SIZE)
+    for (; i < (TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE / BLK_SIZE); i++) {
         if (offset + BLK_SIZE - 1 >= len) { break; }
 
         bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
@@ -123,7 +123,7 @@ static __always_inline void read_into_buffer_topic_name(char *buffer, struct __s
     // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
     // and thus the verifier is able to ensure that we are in-bound.
     void *buf = &buffer[i * BLK_SIZE];
-    if (i * BLK_SIZE >= TOPIC_NAME_MAX_STRING_SIZE) {
+    if (i * BLK_SIZE >= TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE) {
         return;
     } else if (offset + 14 < len) {
         bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 15);
@@ -158,14 +158,14 @@ static __always_inline void read_into_buffer_topic_name(char *buffer, struct __s
     }
 }
 
-// Reads the first topic name (can be multiple), up to TOPIC_NAME_MAX_STRING_SIZE bytes from the given offset, and
+// Reads the first topic name (can be multiple), up to TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE bytes from the given offset, and
 // verifies if it is valid, namely, composed only from characters from [a-zA-Z0-9._-].
 static __always_inline bool validate_first_topic_name(struct __sk_buff *skb, u32 offset) {
     // Skipping number of entries for now
     offset += sizeof(s32);
 
     READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
-    if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_STRING_SIZE) {
+    if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
 
@@ -174,12 +174,12 @@ static __always_inline bool validate_first_topic_name(struct __sk_buff *skb, u32
     if (topic_name == NULL) {
         return false;
     }
-    bpf_memset(topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+    bpf_memset(topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE);
 
     read_into_buffer_topic_name((char *)topic_name, skb, offset);
     offset += topic_name_size;
 
-    CHECK_STRING_COMPOSED_OF_ASCII(TOPIC_NAME_MAX_STRING_SIZE, topic_name_size, topic_name);
+    CHECK_STRING_COMPOSED_OF_ASCII(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
 }
 
 // Getting the offset (out parameter) of the first topic name in the produce request.
