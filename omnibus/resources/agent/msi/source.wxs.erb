@@ -339,6 +339,7 @@
             <?if $(var.IncludeSysprobe) = true ?>
               <Directory Id="DRIVER" Name="driver">
                 <Merge Id="ddnpminstall" SourceFile="$(var.BinFiles)\ddnpm.msm" DiskId="1" Language="1033" />
+                <Merge Id="ddprocmoninstall" SourceFile="$(var.BinFiles)\ddprocmon.msm" DiskId="1" Language="1033" />
               </Directory>
               <Component Id="DATADOGSYSPROBESERVICE" Guid="5D41ECDB-B91E-4802-878C-CDBA84721623">
                 <File Id="system_probe.exe"
@@ -522,6 +523,7 @@
                   AllowAdvertise="no"
         >
           <MergeRef Id="ddnpminstall"/>
+          <MergeRef Id="ddprocmoninstall"/>
           <Condition Level="1"><![CDATA[NPM OR (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
         </Feature>
       <?endif ?>

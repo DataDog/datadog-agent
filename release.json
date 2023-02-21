@@ -14,6 +14,9 @@
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.3.0",
         "WINDOWS_DDNPM_SHASUM": "36f28fabf3c3466d48265920c9c05ac25d04b9a812c1c3cbdf3933e2bec50233",
+        "WINDOWS_DDPROCMON_DRIVER": "testsigned",
+        "WINDOWS_DDPROCMON_VERSION": "0.1.1.git.6.acdef44",
+        "WINDOWS_DDPROCMON_SHASUM": "a4d1f6d4c8b36dd745cb4c4bb611d59f8dab5fac599593b481016425991b4b2f",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
@@ -26,6 +29,9 @@
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.3.0",
         "WINDOWS_DDNPM_SHASUM": "36f28fabf3c3466d48265920c9c05ac25d04b9a812c1c3cbdf3933e2bec50233",
+        "WINDOWS_DDPROCMON_DRIVER": "testsigned",
+        "WINDOWS_DDPROCMON_VERSION": "0.1.1.git.6.acdef44",
+        "WINDOWS_DDPROCMON_SHASUM": "a4d1f6d4c8b36dd745cb4c4bb611d59f8dab5fac599593b481016425991b4b2f",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "release-a6": {
