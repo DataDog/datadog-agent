@@ -15,6 +15,12 @@ jira_issue_type = "Task"
 github_team = "agent-metrics-logs"
 github_labels = ["team/agent-metrics-logs"]
 
+[teams."Agent Shared Components"]
+jira_project = "ASC"
+jira_issue_type = "Task"
+github_team = "agent-shared-components"
+github_labels = ["team/agent-shared-components"]
+
 [teams."Universal Service Monitoring"]
 jira_project = "AML"
 jira_issue_type = "Task"
