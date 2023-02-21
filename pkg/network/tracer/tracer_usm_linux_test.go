@@ -76,7 +76,7 @@ func javaTLSSupported(t *testing.T) bool {
 }
 
 func goTLSSupported() bool {
-	cfg := config.New()
+	cfg := testConfig()
 	return runtime.GOARCH == "amd64" && cfg.EnableRuntimeCompiler
 }
 
@@ -777,14 +777,14 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	}
 
 	t.Run("new process (runtime compilation)", func(t *testing.T) {
-		cfg := config.New()
+		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
 		testHTTPGoTLSCaptureNewProcess(t, cfg)
 	})
 
 	t.Run("already running process (runtime compilation)", func(t *testing.T) {
-		cfg := config.New()
+		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
 		testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
@@ -794,7 +794,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
 	// and running the CO-RE tests as well
 	t.Run("new process (co-re)", func(t *testing.T) {
-		cfg := config.New()
+		cfg := testConfig()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
@@ -802,7 +802,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 
 	t.Run("already running process (co-re)", func(t *testing.T) {
-		cfg := config.New()
+		cfg := testConfig()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
