@@ -5,7 +5,16 @@
 
 package config
 
+import "github.com/DataDog/datadog-agent/pkg/util/winutil"
+
 var (
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
 )
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultConfPath = pd
+	}
+}
