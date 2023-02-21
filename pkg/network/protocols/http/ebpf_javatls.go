@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/java"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
@@ -41,6 +43,7 @@ var (
 )
 
 type JavaTLSProgram struct {
+	cfg            *config.Config
 	manager        *nettelemetry.Manager
 	processMonitor *monitor.ProcessMonitor
 	cleanupExec    func()
@@ -67,6 +70,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
+		cfg:            c,
 		processMonitor: mon,
 	}
 }
@@ -90,6 +94,11 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 }
 
 func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
+	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
+		Type:       ebpf.Hash,
+		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		EditorFlag: manager.EditMaxEntries,
+	}
 	options.ActivatedProbes = append(options.ActivatedProbes,
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
