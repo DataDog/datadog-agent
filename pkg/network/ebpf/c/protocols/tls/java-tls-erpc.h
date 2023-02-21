@@ -14,8 +14,6 @@ enum erpc_message_type {
     CLOSE_CONNECTION
 };
 
-static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags);
-
 int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void *data) {
     const bool val = true;
     u32 bytes_read = 0;
