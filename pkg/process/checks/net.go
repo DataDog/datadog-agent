@@ -342,7 +342,7 @@ func batchConnections(
 
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
-			svcInfo := serviceExtractor.GetWindowsServiceTags(c.Pid)
+			svcInfo := serviceExtractor.GetWindowsServiceTags(uint64(c.Pid))
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx, svcInfo)
 
 			if len(tagsStr) > 0 {
@@ -452,7 +452,7 @@ func groupSize(total, maxBatchSize int) int32 {
 }
 
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
-func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string, serviceInfo *winutil.ServiceInfo) []string {
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string, serviceInfo *parser.WindowsServiceInfo) []string {
 	tagCount := len(tagOffsets) + len(serviceCtx)
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
@@ -465,7 +465,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	// serviceInfo is only non-nil on windows
 	if serviceInfo != nil {
 		for _, serviceName := range serviceInfo.ServiceName {
-			tagsStr = append(tagsStr, fmt.Sprintf("service_context:%s", serviceName))
+			tagsStr = append(tagsStr, fmt.Sprintf("scm_context:%s", serviceName))
 		}
 	}
 

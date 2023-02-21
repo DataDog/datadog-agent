@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 type serviceExtractorFn func(args []string) string
@@ -44,12 +43,17 @@ var _ metadata.Extractor = &ServiceExtractor{}
 type ServiceExtractor struct {
 	enabled      bool
 	serviceByPID map[int32]*serviceMetadata
-	scmMonitor   *winutil.SCMMonitor
+	scmScraper   *scmScraper
 }
 
 type serviceMetadata struct {
 	cmdline        []string
 	serviceContext string
+}
+
+type WindowsServiceInfo struct {
+	ServiceName []string
+	DisplayName []string
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
@@ -58,7 +62,7 @@ func NewServiceExtractor() *ServiceExtractor {
 	return &ServiceExtractor{
 		enabled:      enabled,
 		serviceByPID: make(map[int32]*serviceMetadata),
-		scmMonitor:   winutil.GetServiceMonitor(),
+		scmScraper:   newSCMScraper(),
 	}
 }
 
@@ -144,10 +148,10 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 }
 
 // GetWindowsServiceTags returns either the service info associated with the process
-func (d *ServiceExtractor) GetWindowsServiceTags(pid uint64) *winutil.ServiceInfo {
-	entry, err := d.scmMonitor.GetServiceInfo(pid)
+func (d *ServiceExtractor) GetWindowsServiceTags(pid uint64) *WindowsServiceInfo {
+	entry, err := d.scmScraper.getServiceInfo(pid)
 	if err != nil {
-		log.Debugf("Failed to gather serviceInfo from SCM: %v", err)
+		log.Warn("Failed to gather serviceInfo from SCM: %v", err)
 		return nil
 	}
 	return entry
