@@ -11,8 +11,8 @@ package http
 import (
 	"time"
 
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

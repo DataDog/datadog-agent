@@ -165,7 +165,7 @@ type networkState struct {
 	sync.Mutex
 
 	// clients is a map of the connection id string to the client structure
-	clients       map[string]*client
+	clients map[string]*client
 	// telemetry     stateTelemetry // Monotonic state telemetry
 	lastTelemetry stateTelemetry // Old telemetry state; used for logging
 
@@ -182,7 +182,7 @@ type networkState struct {
 // NewState creates a new network state
 func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int) State {
 	return &networkState{
-		clients:        map[string]*client{},
+		clients: map[string]*client{},
 		// telemetry:      stateTelemetry{},
 		clientExpiry:   clientExpiry,
 		maxClosedConns: maxClosedConns,
@@ -314,7 +314,7 @@ func (ns *networkState) logTelemetry() {
 
 	// Flush log line if any metric is non-zero
 	if statsUnderflowsDelta > 0 || statsCookieCollisionsDelta > 0 || closedConnDroppedDelta > 0 || connDroppedDelta > 0 || timeSyncCollisionsDelta > 0 ||
-	dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 || dnsPidCollisionsDelta > 0 {
+		dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 || dnsPidCollisionsDelta > 0 {
 		s := "state telemetry: "
 		s += " [%d stats stats_underflows]"
 		s += " [%d stats cookie collisions]"
@@ -657,10 +657,10 @@ func (ns *networkState) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"clients":            clientInfo,
+		"clients": clientInfo,
 		"telemetry": map[string]int64{
-			"closed_conn_dropped":     closedConnDropped.Load(),
-			"conn_dropped":            connDropped.Load(),
+			"closed_conn_dropped": closedConnDropped.Load(),
+			"conn_dropped":        connDropped.Load(),
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,

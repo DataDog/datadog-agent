@@ -26,11 +26,11 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -412,14 +412,14 @@ func (t *tracer) refreshProbeTelemetry() {
 func (t *tracer) GetTelemetry() map[string]int64 {
 	closeStats := t.closeConsumer.GetStats()
 	telemetry := t.getEBPFTelemetry()
-	if (telemetry == nil) {
+	if telemetry == nil {
 		return map[string]int64{}
 	}
 
 	return map[string]int64{
-		"closed_conn_polling_lost":     closeStats[perfLostStat],
-		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
-		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
+		"closed_conn_polling_lost": closeStats[perfLostStat],
+		"udp_sends_processed":      int64(telemetry.Udp_sends_processed),
+		"udp_sends_missed":         int64(telemetry.Udp_sends_missed),
 	}
 }
 
