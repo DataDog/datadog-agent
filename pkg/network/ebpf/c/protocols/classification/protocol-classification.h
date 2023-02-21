@@ -107,20 +107,50 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 
     protocol_t cur_fragment_protocol = classify_http_protocols(request_fragment, final_fragment_size);
-    if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
-        cur_fragment_protocol = classify_queue_protocols(skb, &skb_info, request_fragment, final_fragment_size);
-    }
     // If there has been a change in the classification, save the new protocol.
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-
         save_protocol(&skb_tup, cur_fragment_protocol);
         return;
     }
 
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_CONT_PROG);
+    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_QUEUES_PROG);
 }
 
-__maybe_unused static __always_inline void protocol_classifier_entrypoint_cont(struct __sk_buff *skb) {
+__maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t skb_tup = {0};
+
+    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
+    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
+        return;
+    }
+
+    // Get the buffer the fragment will be read into from a per-cpu array map.
+    // This will avoid doing unaligned stack access while parsing the protocols,
+    // which is forbidden and will make the verifier fail.
+    const u32 key = 0;
+    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
+    if (request_fragment == NULL) {
+        log_debug("could not get classification buffer from map");
+        return;
+    }
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+
+    const size_t payload_length = skb->len - skb_info.data_off;
+    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
+
+    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &skb_info, request_fragment, final_fragment_size);
+    // If there has been a change in the classification, save the new protocol.
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        save_protocol(&skb_tup, cur_fragment_protocol);
+        return;
+    }
+
+    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_DBS_PROG);
+}
+
+__maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
     conn_tuple_t skb_tup = {0};
 
@@ -151,4 +181,5 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_cont(s
         save_protocol(&skb_tup, cur_fragment_protocol);
     }
 }
+
 #endif

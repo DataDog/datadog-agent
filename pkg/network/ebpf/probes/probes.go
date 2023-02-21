@@ -26,8 +26,9 @@ const (
 	TCPv6ConnectReturn ProbeFuncName = "kretprobe__tcp_v6_connect"
 
 	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
-	ProtocolClassifierEntrySocketFilter ProbeFuncName = "socket__classifier_entry"
-	ProtocolClassifierSocketContFilter  ProbeFuncName = "socket__classifier_cont"
+	ProtocolClassifierEntrySocketFilter  ProbeFuncName = "socket__classifier_entry"
+	ProtocolClassifierQueuesSocketFilter ProbeFuncName = "socket__classifier_queues"
+	ProtocolClassifierDBsSocketFilter    ProbeFuncName = "socket__classifier_dbs"
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	// belongs (but hidden) for it.

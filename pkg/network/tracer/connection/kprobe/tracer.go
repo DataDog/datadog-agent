@@ -35,9 +35,17 @@ var (
 	tailCalls = []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationCont,
+			Key:           netebpf.ClassificationQueues,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierSocketContFilter,
+				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationDBs,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
 				UID:          probeUID,
 			},
 		},
