@@ -32,3 +32,9 @@ jira_project = "OTEL"
 jira_issue_type = "Task"
 github_team = "opentelemetry"
 github_labels = ["team/opentelemetry"]
+
+[teams."eBPF Platform"]
+jira_project = "EBPF"
+jira_issue_type = "Task"
+github_team = "ebpf-platform"
+github_labels = ["team/ebpf-platform"]
