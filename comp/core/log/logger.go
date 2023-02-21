@@ -21,8 +21,19 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
-// NewTemporaryLogger returns a logger component instance.
-func NewTemporaryLogger() Component {
+// NewTemporaryLogger returns a logger component instance. It assumes the logger has already been
+// initialized beforehand.
+//
+// This function should be used when all these conditions are true:
+// - You write or update code which uses a lot of logging.
+// - You want the code to be components ready.
+// - logger.Component cannot be injected.
+//
+// It should not be used when:
+// - You add few logging functions.
+// - When the instance of logger.Component is reachable in less than 5 stack frames.
+// - It doesn't make the migration to log.Component easier.
+func NewTemporaryLoggerWithoutInit() Component {
 	return &logger{}
 }
 

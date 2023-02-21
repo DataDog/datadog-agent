@@ -38,15 +38,11 @@ var Bundle = fxutil.Bundle(
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
-	fx.Supply(config.Params{}),
 	fx.Supply(config.OverrideConfig{}),
-	config.MockModule,
-	fx.Supply(log.Params{}),
-	log.MockModule,
-	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
-	sysprobeconfig.MockModule,
+	fx.Options(MockBundleNeedsOverrideConfig),
 )
 
+// MockBundleNeedsOverrideConfig defines the mock fx options for this bundle but requires an OverrideConfig dependency
 var MockBundleNeedsOverrideConfig = fxutil.Bundle(
 	fx.Supply(config.Params{}),
 	config.MockModule,

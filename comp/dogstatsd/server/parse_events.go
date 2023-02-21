@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type eventPriority int
@@ -207,7 +207,7 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		optionalField, optionalFields = nextField(optionalFields)
 		event, err = p.applyEventOptionalField(event, optionalField)
 		if err != nil {
-			log.NewTemporaryLogger().Warnf("invalid event optional field: %v", err)
+			log.Warnf("invalid event optional field: %v", err)
 		}
 	}
 	return event, nil

@@ -6,8 +6,8 @@
 package server
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 )
@@ -80,7 +80,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 		}
 
 		i.strings = make(map[string]string)
-		log.NewTemporaryLogger().Debug("clearing the string interner cache")
+		log.Debug("clearing the string interner cache")
 
 	}
 
