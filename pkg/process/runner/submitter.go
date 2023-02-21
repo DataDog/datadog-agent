@@ -315,8 +315,8 @@ func (s *CheckSubmitter) Stop() {
 	s.eventForwarder.Stop()
 
 	close(s.exit)
-	close(s.rtNotifierChan)
 	s.wg.Wait()
+	close(s.rtNotifierChan)
 }
 
 func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {

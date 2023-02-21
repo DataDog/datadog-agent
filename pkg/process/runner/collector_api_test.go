@@ -575,13 +575,13 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 
 	err = c.Submitter.Start()
 	require.NoError(t, err)
+	defer c.Submitter.Stop()
 
 	err = c.Run()
 	require.NoError(t, err)
+	defer c.Stop()
 
 	tc(c, ep)
-
-	c.Stop()
 }
 
 type testCheck struct {
