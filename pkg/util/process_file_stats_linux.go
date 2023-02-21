@@ -15,7 +15,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-// getProcessFileStats returns the number of file handles the Agent process has open
+// GetProcessFileStats returns the number of file handles the Agent process has open
 func GetProcessFileStats() (*ProcessFileStats, error) {
 	stats := ProcessFileStats{}
 

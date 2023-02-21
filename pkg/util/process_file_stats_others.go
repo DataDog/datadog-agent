@@ -8,8 +8,6 @@
 
 package util
 
-import "github.com/go-openapi/errors"
-
 func GetProcessFileStats() (*ProcessFileStats, error) {
-	return nil, errors.NotImplemented("This function is only implemented for Linux-based OSes.")
+	return nil, util.ErrNotImplemented
 }
