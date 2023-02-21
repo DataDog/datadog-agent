@@ -14,7 +14,4 @@ features:
     of the OS file limit, and the ERROR log will appear when the Core Agent
     has reached 100% of the OS file limit. In the status.log, fields 
     CoreAgentProcessOpenFiles and OSFileLimit are being added to the Logs
-    Agent section. 
-issues:
-  - |
-    This feature is currently only being implemented for Linux-based hosts.
+    Agent section. This feature is currently for Linux only.
