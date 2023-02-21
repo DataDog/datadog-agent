@@ -9,6 +9,6 @@
 
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 #define CLIENT_ID_SIZE_TO_VALIDATE 30
-#define TOPIC_NAME_MAX_STRING_SIZE 80
+#define TOPIC_NAME_MAX_STRING_SIZE 48 // 16 * 3. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
 
 #endif
