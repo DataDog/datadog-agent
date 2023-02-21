@@ -45,13 +45,13 @@ type RuntimeSecurityAgent struct {
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(hostname string, logProfiledWorkloads bool) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	telemetry, err := newTelemetry()
+	telemetry, err := newTelemetry(logProfiledWorkloads)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
@@ -200,6 +200,10 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		log.Errorf("%v", err)
 		return
 	}
+
+	// register for telemetry for this container
+	imageName, imageTag := dump.GetImageNameTag()
+	rsa.telemetry.registerProfiledContainer(imageName, imageTag)
 
 	raw := bytes.NewBuffer(msg.GetData())
 

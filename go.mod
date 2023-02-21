@@ -230,13 +230,13 @@ require (
 	k8s.io/apiextensions-apiserver v0.25.5
 	k8s.io/apimachinery v0.25.5
 	k8s.io/apiserver v0.25.5
-	k8s.io/autoscaler/vertical-pod-autoscaler v0.10.0
+	k8s.io/autoscaler/vertical-pod-autoscaler v0.12.0
 	k8s.io/client-go v0.25.5
 	k8s.io/cri-api v0.25.5 // Cannot be upgraded to 0.26 without lossing CRI API v1alpha2
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
-	k8s.io/kube-state-metrics/v2 v2.4.2
+	k8s.io/kube-state-metrics/v2 v2.7.0
 	k8s.io/kubelet v0.25.5
 	k8s.io/metrics v0.25.5
 	k8s.io/utils v0.0.0-20221108210102-8e77b1f39fe2
@@ -573,6 +573,11 @@ replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompat
 replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c
+
+// Replace kube-state-metrics repo until https://github.com/kubernetes/kube-state-metrics/pull/1994 is merged and cherry-pick on v2.7.1
+// Else we will need to wait v2.9.0 release.
+// the current version corresponds to the `dd-release-2.7` branch
+replace k8s.io/kube-state-metrics/v2 => github.com/datadog/kube-state-metrics/v2 v2.2.2-0.20230217083638-a9a9c0ff16f4
 
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
