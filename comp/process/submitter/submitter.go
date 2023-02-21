@@ -7,16 +7,16 @@ package submitter
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
-	"github.com/stretchr/testify/mock"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
 )
 
 // submitter implements the Component.
