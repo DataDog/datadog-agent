@@ -18,7 +18,7 @@ func NotOfValue(value interface{}) (interface{}, error) {
 	case int:
 		return ^v, nil
 	case string:
-		return RandString(256), nil
+		return fmt.Sprintf("@$%s$@", v), nil
 	case bool:
 		return !v, nil
 	}
