@@ -243,7 +243,9 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 		allowedLabels[collector] = []string{"*"}
 	}
 
-	builder.WithAllowLabels(allowedLabels)
+	if err = builder.WithAllowLabels(allowedLabels); err != nil {
+		return err
+	}
 
 	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 	// Equivalent to configuring --metric-annotations-allowlist.
@@ -263,7 +265,7 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 		namespaces = options.DefaultNamespaces
 	}
 
-	builder.WithNamespaces(namespaces, "")
+	builder.WithNamespaces(namespaces)
 
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
 	if err != nil {

@@ -119,7 +119,6 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
 	}
 	bodyLen := strconv.Itoa(len(body))
 	for _, endpoint := range f.endpoints {
-		fmt.Println(endpoint)
 		req, err := http.NewRequest("POST", endpoint.Host, bytes.NewReader(body))
 		if err != nil {
 			continue

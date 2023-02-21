@@ -13,6 +13,7 @@ import (
 	"compress/zlib"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	jsoniter "github.com/json-iterator/go"
@@ -68,6 +69,42 @@ func TestCompressorSimple(t *testing.T) {
 	p, err := c.Close()
 	require.NoError(t, err)
 	require.Equal(t, "{[A,A,A,A,A]}", payloadToString(p))
+}
+
+// With an empty payload, AddItem should never return "ErrPayloadFull"
+// ErrItemTooBig is a more appropriate error code if the item cannot
+// be added to an empty compressor
+func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
+	checkAddItemErrCode := func(maxPayloadSize, maxUncompressedSize, dataLen int) {
+		c, err := NewCompressor(
+			&bytes.Buffer{}, &bytes.Buffer{},
+			maxPayloadSize, maxUncompressedSize,
+			[]byte("{["), []byte("]}"), []byte(","))
+		require.NoError(t, err)
+
+		payload := strings.Repeat("A", dataLen)
+		err = c.AddItem([]byte(payload))
+		if err != nil {
+			// Only possible values for AddItem error codes are ErrPayloadFull and ErrItemTooBig
+			// But with an empty compressor, only ErrItemTooBig should be returned
+			require.ErrorIs(t, err, ErrItemTooBig)
+		}
+	}
+
+	// While some of these values may look like they should fit, they currently don't due to a combination
+	// of due to overhead in the payload (header and footer) and the CompressBound calculation
+	t.Run("Edge Case from real world", func(t *testing.T) {
+		checkAddItemErrCode(2_621_440, 4_194_304, 2_620_896)
+	})
+
+	t.Run("Other values from iterative testing", func(t *testing.T) {
+		checkAddItemErrCode(17, 32, 1)
+		checkAddItemErrCode(19, 35, 4)
+		checkAddItemErrCode(23, 43, 12)
+		checkAddItemErrCode(44, 71, 39)
+		checkAddItemErrCode(1110, 1129, 1098)
+		checkAddItemErrCode(11100, 11119, 11085)
+	})
 }
 
 func TestOnePayloadSimple(t *testing.T) {

@@ -23,11 +23,11 @@ func getEmptyDDSketch() []byte {
 
 // ClientStatsTests contains a suite of tests for testing the stats endpoint.
 var ClientStatsTests = []struct {
-	In  pb.ClientStatsPayload
-	Out []pb.StatsPayload
+	In  *pb.ClientStatsPayload
+	Out []*pb.StatsPayload
 }{
 	{
-		In: pb.ClientStatsPayload{
+		In: &pb.ClientStatsPayload{
 			Hostname:  "testhost",
 			Env:       "testing",
 			Version:   "0.1-alpha",
@@ -56,7 +56,7 @@ var ClientStatsTests = []struct {
 				},
 			},
 		},
-		Out: []pb.StatsPayload{{
+		Out: []*pb.StatsPayload{{
 			AgentHostname:  "agent-hostname",
 			AgentEnv:       "agent-env",
 			AgentVersion:   "6.0.0",
@@ -97,7 +97,7 @@ var ClientStatsTests = []struct {
 		},
 	},
 	{
-		In: pb.ClientStatsPayload{
+		In: &pb.ClientStatsPayload{
 			Hostname:  "testhost",
 			Env:       "testing",
 			Version:   "0.1-alpha",
@@ -153,7 +153,7 @@ var ClientStatsTests = []struct {
 				},
 			},
 		},
-		Out: []pb.StatsPayload{
+		Out: []*pb.StatsPayload{
 			{
 				AgentHostname:  "agent-hostname",
 				AgentEnv:       "agent-env",
