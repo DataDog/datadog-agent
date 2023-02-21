@@ -43,9 +43,6 @@ type KprobeStats struct {
 // event name format is p|r_<funcname>_<uid>_<pid>
 var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
 
-// KprobeProfile is the default path to the kprobe_profile file
-const KprobeProfile = "/sys/kernel/debug/tracing/kprobe_profile"
-
 func RefreshProbeStats() {
 	for {
 		GetProbeStats()
