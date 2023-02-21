@@ -117,4 +117,10 @@ typedef struct {
     skb_info_t skb_info;
 } http2_iterations_key_t;
 
+typedef enum {
+    HEADER_ERROR = 0,
+    HEADER_NOT_INTERESTING,
+    HEADER_INTERESTING,
+} parse_result_t;
+
 #endif

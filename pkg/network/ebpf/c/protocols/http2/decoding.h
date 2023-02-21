@@ -15,6 +15,7 @@
 
 USM_EVENTS_INIT(http2, http2_stream_t, HTTP2_BATCH_SIZE);
 
+// http2_fetch_stream returns the current http2 in flight stream.
 static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *http2_stream_key) {
     http2_stream_t *http2_stream_ptr = bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
     if (http2_stream_ptr != NULL) {
@@ -38,7 +39,6 @@ static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *ht
 // n must always be between 1 and 8.
 //
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
-// The error is errNeedMore if p doesn't contain a complete integer.
 static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 factor, __u8 *out, u32 stream_id){
     __u16 offset = heap_buffer->offset % HTTP2_BUFFER_SIZE;
 
@@ -75,6 +75,7 @@ static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 facto
     return false;
 }
 
+//get_dynamic_counter returns the current dynamic counter by the conn tup.
 static __always_inline __u64 get_dynamic_counter(conn_tuple_t *tup) {
     // global counter is the counter which help us with the calc of the index in our internal hpack dynamic table
     __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
@@ -84,15 +85,10 @@ static __always_inline __u64 get_dynamic_counter(conn_tuple_t *tup) {
     return 0;
 }
 
+// set_dynamic_counter is updating the current dynamic counter of the given tup.
 static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter) {
     bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_ANY);
 }
-
-typedef enum {
-    HEADER_ERROR = 0,
-    HEADER_NOT_INTERESTING,
-    HEADER_INTERESTING,
-} parse_result_t;
 
 // TODO: Fix documentation
 // parse_field_indexed is handling the case which the header frame is part of the static table.
