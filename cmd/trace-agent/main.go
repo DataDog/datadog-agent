@@ -8,16 +8,12 @@ package main
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/command"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultLogFile = "/var/log/datadog/trace-agent.log"
 
 func main() {
-
-	if err := command.MakeRootCommand(defaultLogFile).Execute(); err != nil {
-		log.Error(err)
-		os.Exit(-1)
-	}
+	os.Exit(runcmd.Run(command.MakeRootCommand(defaultLogFile)))
 }

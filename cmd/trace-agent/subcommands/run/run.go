@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package start
+package run
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -49,14 +49,21 @@ const messageAgentDisabled = `trace-agent not enabled. Set the environment varia
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
 to your datadog.yaml. Exiting...`
 
-// Run is the entrypoint of our code, which starts the agent.
-func Run(ctx context.Context) {
-	if flags.Version {
-		fmt.Println(version.AgentVersion)
-		return
-	}
+type RunParams struct {
+	subcommands.GlobalParams
 
-	cfg, err := cmdconfig.LoadConfigFile(flags.ConfigPath)
+	// PIDFilePath contains the value of the --pidfile flag.
+	PIDFilePath string
+	// CPUProfile contains the value for the --cpu-profile flag.
+	CPUProfile string
+	// MemProfile contains the value for the --mem-profile flag.
+	MemProfile string
+}
+
+// Run is the entrypoint of our code, which starts the agent.
+func runAgent(ctx context.Context, cliParams *RunParams) error {
+
+	cfg, err := cmdconfig.LoadConfigFile(cliParams.ConfPath)
 	if err != nil {
 		fmt.Println(err) // TODO: remove me
 		if err == config.ErrMissingAPIKey {
@@ -67,23 +74,16 @@ func Run(ctx context.Context) {
 			// http://supervisord.org/subprocess.html#process-states
 			time.Sleep(5 * time.Second)
 
-			// Don't use os.Exit() method here, even with os.Exit(0) the Service Control Manager
-			// on Windows will consider the process failed and log an error in the Event Viewer and
-			// attempt to restart the process.
-			return
+			// osutil.Exitf was used here prior; now that fx handles the process not sure if that makes
+			// sense. Return err for now and experiment. this was particularly relevant on windows
+			// and how the Windows Service Manager handled service errors and restarts.
+			return err
 		}
-		osutil.Exitf("%v", err)
+		return err
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
-		osutil.Exitf("%v", err)
-	}
-
-	if flags.Info {
-		if err := info.Info(os.Stdout, cfg); err != nil {
-			osutil.Exitf("Failed to print info: %s", err)
-		}
-		return
+		return err
 	}
 
 	telemetryCollector := telemetry.NewCollector(cfg)
@@ -111,13 +111,13 @@ func Run(ctx context.Context) {
 		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 		// http://supervisord.org/subprocess.html#process-states
 		time.Sleep(5 * time.Second)
-		return
+		return nil
 	}
 
 	defer watchdog.LogOnPanic()
 
-	if flags.CPUProfile != "" {
-		f, err := os.Create(flags.CPUProfile)
+	if cliParams.CPUProfile != "" {
+		f, err := os.Create(cliParams.CPUProfile)
 		if err != nil {
 			log.Error(err)
 		}
@@ -126,16 +126,16 @@ func Run(ctx context.Context) {
 		defer pprof.StopCPUProfile()
 	}
 
-	if flags.PIDFilePath != "" {
-		err := pidfile.WritePID(flags.PIDFilePath)
+	if cliParams.PIDFilePath != "" {
+		err := pidfile.WritePID(cliParams.PIDFilePath)
 		if err != nil {
 			telemetryCollector.SendStartupError(telemetry.CantWritePIDFile, err)
 			log.Criticalf("Error writing PID file, exiting: %v", err)
 			os.Exit(1)
 		}
 
-		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), flags.PIDFilePath)
-		defer os.Remove(flags.PIDFilePath)
+		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), cliParams.PIDFilePath)
+		defer os.Remove(cliParams.PIDFilePath)
 	}
 
 	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
@@ -145,14 +145,13 @@ func Run(ctx context.Context) {
 	err = manager.ConfigureAutoExit(ctx, coreconfig.Datadog)
 	if err != nil {
 		telemetryCollector.SendStartupError(telemetry.CantSetupAutoExit, err)
-		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
-		return
+		return fmt.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
 	err = metrics.Configure(cfg, []string{"version:" + version.AgentVersion})
 	if err != nil {
 		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
-		osutil.Exitf("cannot configure dogstatsd: %v", err)
+		return fmt.Errorf("cannot configure dogstatsd: %v", err)
 	}
 	defer metrics.Flush()
 	defer timing.Stop()
@@ -204,7 +203,7 @@ func Run(ctx context.Context) {
 		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.RemoteConfigHandler(r, rcClient, cfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.ConfigHandler(r, rcClient, cfg) },
 		})
 	}
 
@@ -232,8 +231,8 @@ func Run(ctx context.Context) {
 	agnt.Run()
 
 	// collect memory profile
-	if flags.MemProfile != "" {
-		f, err := os.Create(flags.MemProfile)
+	if cliParams.CPUProfile != "" {
+		f, err := os.Create(cliParams.MemProfile)
 		if err != nil {
 			log.Error("Could not create memory profile: ", err)
 		}
@@ -247,6 +246,8 @@ func Run(ctx context.Context) {
 		}
 		f.Close()
 	}
+
+	return nil
 }
 
 type corelogger struct{}

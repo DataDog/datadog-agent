@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package start
+package run
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
@@ -22,44 +23,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type CLIParams struct {
-	ConfPath string
-	PIDPath  string
-}
+// MakeCommand returns the start subcommand for the 'trace-agent' command.
+func MakeCommand(globalParamsGetter func() subcommands.GlobalParams) *cobra.Command {
 
-// MakeCommand returns the start subcommand for the 'dogstatsd' command.
-func MakeCommand(defaultLogFile string) *cobra.Command {
-	cliParams := &CLIParams{}
-	startCmd := &cobra.Command{
-		Use:   "start",
-		Short: "Start Datadog trace-agent.",
-		Long:  `Runs the trace-agent in the foreground`,
+	cliParams := &RunParams{
+		GlobalParams: globalParamsGetter(),
+	}
+	runCmd := &cobra.Command{
+		Use:   "run",
+		Short: "Start datadog trace-agent.",
+		Long: `
+The Datadog trace-agent aggregates, samples, and forwards traces to datadog
+submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
-			return RunTraceAgentFct(cliParams, "", defaultLogFile, Start)
+			return RunTraceAgentFct(cliParams, "", Start)
 		},
 	}
 
-	// local flags
-	startCmd.PersistentFlags().StringVarP(&cliParams.ConfPath, "config", "c", "", "path to directory containing datadog.yaml")
-	startCmd.PersistentFlags().StringVarP(&cliParams.PIDPath, "pid", "p", "", "path for the PID file to be created")
+	runCmd.PersistentFlags().StringVarP(&cliParams.PIDFilePath, "pidfile", "p", "", "path for the PID file to be created")
+	runCmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "f", "",
+		"enables CPU profiling and specifies profile path.")
+	runCmd.PersistentFlags().StringVarP(&cliParams.MemProfile, "mem-profile", "m", "",
+		"enables memory profiling and specifies profilh.")
 
-	return startCmd
+	return runCmd
 }
 
 type Params struct {
 	DefaultLogFile string
 }
 
-func RunTraceAgentFct(cliParams *CLIParams, defaultConfPath string, defaultLogFile string, fct interface{}) error {
-	params := &Params{
-		DefaultLogFile: defaultLogFile,
-	}
+func RunTraceAgentFct(cliParams *RunParams, defaultConfPath string, fct interface{}) error {
+	params := &Params{}
+
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
 		fx.Supply(params),
 		fx.Supply(config.NewParams(
 			defaultConfPath,
-			config.WithConfFilePath(cliParams.ConfPath),
 			config.WithConfigLoadSecrets(false),
 			config.WithConfigMissingOK(true),
 			config.WithConfigName("trace-agent")),
@@ -68,7 +69,7 @@ func RunTraceAgentFct(cliParams *CLIParams, defaultConfPath string, defaultLogFi
 	)
 }
 
-func Start(cliParams *CLIParams, config config.Component, params *Params) error {
+func Start(cliParams *RunParams, config config.Component) error {
 	// Entrypoint here
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -85,7 +86,7 @@ func Start(cliParams *CLIParams, config config.Component, params *Params) error 
 		handleSignal(cancelFunc)
 	}()
 
-	Run(ctx)
+	runAgent(ctx, cliParams)
 
 	return nil
 }

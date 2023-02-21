@@ -8,7 +8,9 @@ package command
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/start"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/info"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 )
 
@@ -17,32 +19,36 @@ import (
 // by the root command, unlike other agents which are managed
 // with subcommands.
 func MakeRootCommand(defaultLogFile string) *cobra.Command {
-
-	cliParams := &start.CLIParams{}
-
-	// traceAgentCmd is the root command
-	traceAgentCmd := &cobra.Command{
-		Use:   "trace-agent [command]",
-		Short: "Datadog trace-agent at your service.",
-		Long: `
-The Datadog trace-agent aggregates, samples, and forwards traces to datadog
-submitted by tracers loaded into your application.`,
-		RunE: func(*cobra.Command, []string) error {
-			return start.RunTraceAgentFct(cliParams, "", defaultLogFile, start.Start)
-		},
+	globalParams := subcommands.GlobalParams{
+		ConfigName: "datadog",
 	}
 
-	traceAgentCmd.PersistentFlags().StringVarP(&cliParams.ConfPath, "config", "c", "", "path to directory containing datadog.yaml")
-	traceAgentCmd.PersistentFlags().StringVarP(&cliParams.PIDPath, "pid", "p", "", "path for the PID file to be created")
+	commands := makeCommands(&globalParams)
+	traceAgentCmd := *commands[0] // first command in the slice is run() command
+	// shallow copy should suffice
+	traceAgentCmd.Use = "trace-agent [command]"
+	traceAgentCmd.Short = "Datadog trace-agent at your service."
 
-	for _, cmd := range makeCommands(defaultLogFile) {
+	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", "", "path to directory containing datadog.yaml")
+
+	for _, cmd := range commands {
 		traceAgentCmd.AddCommand(cmd)
 	}
 
-	return traceAgentCmd
-
+	return &traceAgentCmd
 }
 
-func makeCommands(defaultLogFile string) []*cobra.Command {
-	return []*cobra.Command{start.MakeCommand(defaultLogFile), version.MakeCommand("trace-agent")}
+func makeCommands(globalParams *subcommands.GlobalParams) []*cobra.Command {
+	globalConfGetter := func() subcommands.GlobalParams {
+		return subcommands.GlobalParams{
+			ConfPath:   globalParams.ConfPath,
+			ConfigName: globalParams.ConfigName,
+			LoggerName: "TRACE",
+		}
+	}
+	return []*cobra.Command{
+		run.MakeCommand(globalConfGetter), // should always be first in the slice
+		info.MakeCommand(globalConfGetter),
+		version.MakeCommand("trace-agent"),
+	}
 }
