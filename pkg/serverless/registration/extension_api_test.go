@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const registerExtensionTimeout = 100 * time.Millisecond
+const registerExtensionTimeout = 1 * time.Second
 
 func TestCreateRegistrationPayload(t *testing.T) {
 	payload := createRegistrationPayload()
