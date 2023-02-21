@@ -633,13 +633,23 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 				returnType = "[]" + returnType
 			}
 
-			handler := fmt.Sprintf("%s(ev *Event, e *%s) %s", field.Handler, field.Struct, returnType)
+			var handler string
+			if field.Prefix == "" {
+				handler = fmt.Sprintf("%s(ev *Event) %s", field.Handler, returnType)
+			} else {
+				handler = fmt.Sprintf("%s(ev *Event, e *%s) %s", field.Handler, field.Struct, returnType)
+			}
 
 			if _, exists := handlers[handler]; exists {
 				continue
 			}
 
-			name := "e" + strings.TrimPrefix(field.Name, field.Prefix)
+			var name string
+			if field.Prefix == "" {
+				name = "ev." + field.Name
+			} else {
+				name = "e" + strings.TrimPrefix(field.Name, field.Prefix)
+			}
 
 			if field.ReturnType == "int" {
 				if field.IsArray {

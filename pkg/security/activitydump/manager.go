@@ -513,7 +513,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
 func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
 	// is this event sampled for activity dumps ?
-	if !event.IsActivityDumpSample {
+	if !event.IsActivityDumpSample() {
 		return
 	}
 
