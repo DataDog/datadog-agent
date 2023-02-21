@@ -245,7 +245,9 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 					},
 					ResourcePolicies: []*model.ContainerResourcePolicy{},
 				},
-				Status: &model.VerticalPodAutoscalerStatus{},
+				Status: &model.VerticalPodAutoscalerStatus{
+					Conditions: []*model.VPACondition{},
+				},
 			},
 		},
 		"minimum-required-inner-resourcepolicy": {
@@ -322,6 +324,7 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 				},
 				Status: &model.VerticalPodAutoscalerStatus{
 					Recommendations: nil,
+					Conditions:      []*model.VPACondition{},
 				},
 			},
 		},

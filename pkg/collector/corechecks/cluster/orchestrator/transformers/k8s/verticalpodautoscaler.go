@@ -48,6 +48,9 @@ func extractVerticalPodAutoscalerSpec(s *v1.VerticalPodAutoscalerSpec) *model.Ve
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L149
 func extractContainerResourcePolicies(p *v1.PodResourcePolicy) []*model.ContainerResourcePolicy {
 	policies := []*model.ContainerResourcePolicy{}
+	if p == nil {
+		return policies
+	}
 
 	for _, policy := range p.ContainerPolicies {
 		m := model.ContainerResourcePolicy{
