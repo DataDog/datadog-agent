@@ -298,7 +298,8 @@ type Custom struct {
 
 // Xccdf describe a XCCDF based benchmark
 type Xccdf struct {
-	Name    string `yaml:"name"`
-	Profile string `yaml:"profile"`
-	Rule    string `yaml:"rule"`
+	Name    string   `yaml:"name"`
+	Profile string   `yaml:"profile"`
+	Rule    string   `yaml:"rule"`
+	Rules   []string `yaml:"rules,omitempty"`
 }

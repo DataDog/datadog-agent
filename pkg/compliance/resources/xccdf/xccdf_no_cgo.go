@@ -57,8 +57,15 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 		args = append(args, "--profile", xccdf.Profile)
 	}
 
-	if xccdf.Rule != "" {
-		args = append(args, "--rule", xccdf.Rule)
+	var rules []string
+	if res.Xccdf.Rule != "" {
+		rules = []string{res.Xccdf.Rule}
+	} else {
+		rules = res.Xccdf.Rules
+	}
+
+	for _, rule := range rules {
+		args = append(args, "--rule", rule)
 	}
 
 	args = append(args, res.Xccdf.Name)
@@ -88,9 +95,7 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 	var instances []resources.ResolvedInstance
 	for _, testResult := range doc.Benchmark.TestResult {
 		for _, ruleResult := range testResult.RuleResult {
-			if xccdf.Rule != "" && ruleResult.Idref != xccdf.Rule {
-				continue
-			}
+			ruleRef := ruleResult.Idref
 			var result string
 			switch ruleResult.Result {
 			case XCCDF_RESULT_PASS:
@@ -99,14 +104,16 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 				result = "failing"
 			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
 				result = "error"
-			case XCCDF_RESULT_NOT_APPLICABLE, XCCDF_RESULT_NOT_CHECKED, XCCDF_RESULT_NOT_SELECTED:
+			case XCCDF_RESULT_NOT_APPLICABLE:
+			case XCCDF_RESULT_NOT_CHECKED, XCCDF_RESULT_NOT_SELECTED:
 			}
 			if result != "" {
 				instances = append(instances, resources.NewResolvedInstance(
 					eval.NewInstance(eval.VarMap{}, eval.FunctionMap{}, eval.RegoInputMap{
 						"name":   e.Hostname(),
 						"result": result,
-					}), ruleResult.Idref, ""))
+						"rule":   ruleRef,
+					}), e.Hostname(), "host"))
 			}
 		}
 	}
