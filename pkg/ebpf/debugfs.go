@@ -26,16 +26,17 @@ import (
 const kProbeTelemetryName = "network_tracer_kprobes"
 
 var myPid int
+var gauges map[string]telemetry.Gauge
 
 func init() {
 	myPid = manager.Getpid()
+	gauges = make(map[string]telemetry.Gauge)
 }
 
 // KprobeStats is the count of hits and misses for a kprobe/kretprobe
 type KprobeStats struct {
 	Hits   int64
 	Misses int64
-	gauges map[string]telemetry.Gauge
 }
 
 // event name format is p|r_<funcname>_<uid>_<pid>
@@ -84,10 +85,10 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 		event = strings.ToLower(event)
 		hitsKey := fmt.Sprintf("%s_hits", event)
 		missesKey := fmt.Sprintf("%s_misses", event)
-		setOrCreateGauge(st.gauges, hitsKey, float64(st.Hits))
-		setOrCreateGauge(st.gauges, missesKey, float64(st.Misses))
-		res[fmt.Sprintf("%s_hits", event)] = st.Hits
-		res[fmt.Sprintf("%s_misses", event)] = st.Misses
+		setOrCreateGauge(gauges, hitsKey, float64(st.Hits))
+		setOrCreateGauge(gauges, missesKey, float64(st.Misses))
+		res[hitsKey] = st.Hits
+		res[missesKey] = st.Misses
 	}
 
 	return res

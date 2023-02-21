@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -56,6 +57,8 @@ type Tracer interface {
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
+	// GetTelemetry returns relevant telemetry.
+	GetTelemetry() map[string]int64
 	// RefreshProbeTelemetry sets the prometheus gauges to the current values of the underlying stats
 	RefreshProbeTelemetry()
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
@@ -82,8 +85,8 @@ var (
 	tcpSentMiscounts  = telemetry.NewGauge(connTracerModuleName, "tcp_sent_miscounts", []string{}, "desc")
 	missedTcpClose    = telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "desc")
 	missedUdpClose    = telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "desc")
-	UdpSendsProcessed = telemetry.NewGauge(connTracerModuleName, "udp_sends_processed", []string{}, "desc")
-	UdpSendsMissed    = telemetry.NewGauge(connTracerModuleName, "udp_sends_missed", []string{}, "desc")
+	UdpSendsProcessed = nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "desc")
+	UdpSendsMissed    = nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "desc")
 	UdpDroppedConns   = telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "desc")
 )
 
@@ -371,7 +374,7 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	mp, _, err := t.m.GetMap(string(probes.TelemetryMap))
 	if err != nil {
 		log.Warnf("error retrieving telemetry map: %s", err)
-		return &netebpf.Telemetry{}
+		return nil
 	}
 
 	telemetry := &netebpf.Telemetry{}
@@ -379,27 +382,45 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 		// This can happen if we haven't initialized the telemetry object yet
 		// so let's just use a trace log
 		log.Tracef("error retrieving the telemetry struct: %s", err)
+		return nil
 	}
 	return telemetry
 }
 
 func (t *tracer) RefreshProbeTelemetry() {
 	for {
-		t.refreshProbeTelemetry()
 		time.Sleep(time.Duration(5) * time.Second)
+		t.refreshProbeTelemetry()
 	}
 }
 
 func (t *tracer) refreshProbeTelemetry() {
 	telemetry := t.getEBPFTelemetry()
+	if telemetry == nil {
+		return
+	}
 
 	tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
 	tcpSentMiscounts.Set(float64(telemetry.Tcp_sent_miscounts))
 	missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
 	missedUdpClose.Set(float64(telemetry.Missed_udp_close))
-	UdpSendsProcessed.Set(float64(telemetry.Udp_sends_processed))
-	UdpSendsMissed.Set(float64(telemetry.Udp_sends_missed))
+	UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
+	UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
 	UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
+}
+
+func (t *tracer) GetTelemetry() map[string]int64 {
+	closeStats := t.closeConsumer.GetStats()
+	telemetry := t.getEBPFTelemetry()
+	if (telemetry == nil) {
+		return map[string]int64{}
+	}
+
+	return map[string]int64{
+		"closed_conn_polling_lost":     closeStats[perfLostStat],
+		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
+		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
+	}
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.

@@ -312,6 +312,28 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	}
 }
 
+func (e *ebpfConntracker) GetStats() map[string]int64 {
+	m := map[string]int64{
+		"state_size": 0,
+	}
+	telemetry := &netebpf.ConntrackTelemetry{}
+	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+		log.Tracef("error retrieving the telemetry struct: %s", err)
+	} else {
+		m["registers_total"] = int64(telemetry.Registers)
+	}
+	return m
+}
+
+// func (e *ebpfConntracker) getEbpfTelemetry() int64 {
+// 	telemetry := &netebpf.ConntrackTelemetry{}
+// 	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+// 		log.Tracef("error retrieving the telemetry struct: %s", err)
+// 	} else {
+// 		return int64(telemetry.Registers)
+// 	}
+// }
+
 func (e *ebpfConntracker) RefreshTelemetry() {
 	for {
 		telemetry := &netebpf.ConntrackTelemetry{}

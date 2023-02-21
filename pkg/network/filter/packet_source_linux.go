@@ -78,6 +78,13 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 	return ps, nil
 }
 
+// Stats returns statistics about the AFPacketSource
+func (p *AFPacketSource) Stats() map[string]int64 {
+	return map[string]int64{
+		"packets_processed": processed.Load(),
+	}
+}
+
 // VisitPackets starts reading packets from the source
 func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
 	for {

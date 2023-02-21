@@ -15,6 +15,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -29,7 +30,7 @@ const (
 // Telemetry
 var (
 	perfReceived = telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "description")
-	perfLost     = telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "description")
+	perfLost     = nettelemetry.NewStatGaugeWrapper(closeConsumerModuleName, perfLostStat, []string{}, "description")
 )
 
 type tcpCloseConsumer struct {
@@ -58,6 +59,12 @@ func (c *tcpCloseConsumer) FlushPending() {
 	wait := make(chan struct{})
 	c.requests <- wait
 	<-wait
+}
+
+func (c *tcpCloseConsumer) GetStats() map[string]int64 {
+	return map[string]int64{
+		perfLostStat: perfLost.Load(),
+	}
 }
 
 func (c *tcpCloseConsumer) Stop() {
@@ -99,7 +106,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				perfLost.Add(float64(lc))
+				perfLost.Add(int64(lc))
 				lostCount += netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {

@@ -495,7 +495,6 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 	if pp, ok := dnsStats["packets_processed"]; ok {
 		tm[network.MonotonicDNSPacketsProcessed] = pp
 	}
-
 	if ds, ok := dnsStats["dropped_stats"]; ok {
 		tm[network.DNSStatsDropped] = ds
 	}
@@ -678,8 +677,16 @@ const (
 )
 
 var allStats = []statsComp{
+	conntrackStats,
+	dnsStats,
+	epbfStats,
+	gatewayLookupStats,
+	kprobesStats,
 	stateStats,
 	tracerStats,
+	processCacheStats,
+	bpfHelperStats,
+	bpfMapStats,
 	httpStats,
 }
 
@@ -695,6 +702,12 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	ret := map[string]interface{}{}
 	for _, c := range comps {
 		switch c {
+		case conntrackStats:
+			ret["conntrack"] = t.conntracker.GetStats()
+		case dnsStats:
+			ret["dns"] = t.reverseDNS.GetStats()
+		case epbfStats:
+			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
