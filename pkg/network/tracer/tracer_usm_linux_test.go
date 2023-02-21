@@ -602,11 +602,13 @@ func TestJavaInjection(t *testing.T) {
 	cfg.EnableJavaTLSSupport = true
 
 	dir, _ := testutil.CurDir()
+	legacyJavaDir := cfg.JavaDir
 	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
-	agentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
+	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
 	require.NoError(t, err)
-	defer os.RemoveAll(agentDir)
-	cfg.JavaDir = agentDir
+	defer os.RemoveAll(fakeAgentDir)
+	_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + fakeAgentDir + "/agent-usm.jar")
+	require.NoError(t, err)
 
 	// testContext shares the context of a given test.
 	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
@@ -631,8 +633,7 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				_, err := nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/agent-usm.jar")
-				require.NoError(t, err)
+				cfg.JavaDir = fakeAgentDir
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
@@ -664,8 +665,7 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				_, err := nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/agent-usm.jar")
-				require.NoError(t, err)
+				cfg.JavaDir = fakeAgentDir
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
@@ -697,10 +697,7 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				// install the real USM agent
-				_, err := nettestutil.RunCommand("install -m444 " + dir + "/../java/agent-usm.jar " + agentDir + "/agent-usm.jar")
-				require.NoError(t, err)
-
+				cfg.JavaDir = legacyJavaDir
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				javatestutil.RunJavaHost(t, "Wget", []string{"https://httpbin.org/anything/java-tls-request"}, regexp.MustCompile("Response code = .*"))
@@ -728,10 +725,7 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				// install the real USM agent
-				_, err := nettestutil.RunCommand("install -m444 " + dir + "/../java/agent-usm.jar " + agentDir + "/agent-usm.jar")
-				require.NoError(t, err)
-
+				cfg.JavaDir = legacyJavaDir
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
