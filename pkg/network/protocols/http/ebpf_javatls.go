@@ -53,8 +53,8 @@ type JavaTLSProgram struct {
 var _ subprogram = &JavaTLSProgram{}
 
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
-	if !c.EnableHTTPSMonitoring || !c.EnableJavaTLSSupport {
-		log.Warnf("java tls is not enabled as EnableHTTPSMonitoring: %v; EnableJavaTLSSupport: %v", c.EnableHTTPSMonitoring, c.EnableJavaTLSSupport)
+	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
+		log.Warnf("java tls is not enabled as EnableJavaTLSSupport: %v; EnableHTTPSMonitoring: %v; HTTPSSupported(): %v", c.EnableJavaTLSSupport, c.EnableHTTPSMonitoring, HTTPSSupported(c))
 		return nil
 	}
 
