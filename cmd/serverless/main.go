@@ -289,6 +289,10 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	serverlessDaemon.SetColdStartSpanCreator(coldStartSpanCreator)
 
 	ta := serverlessDaemon.TraceAgent.Get()
+	if ta == nil {
+		log.Error("Unexpected nil instance of the trace-agent")
+		return
+	}
 
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
 	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
