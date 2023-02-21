@@ -722,6 +722,37 @@ func TestJavaInjection(t *testing.T) {
 				}, 3*time.Second, 200*time.Millisecond, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
 			},
 		},
+		{
+			// Test the java jdk client https request is working
+			name: "java_jdk_client_httpbin_docker_java15",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				// install the real USM agent
+				_, err := nettestutil.RunCommand("install -m444 " + dir + "/../java/agent-usm.jar " + agentDir + "/agent-usm.jar")
+				require.NoError(t, err)
+
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for key := range payload.HTTP {
+						if key.Path.Content == "/anything/java-tls-request" {
+							return true
+						}
+					}
+
+					return false
+				}, 3*time.Second, 200*time.Millisecond, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
