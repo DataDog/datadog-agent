@@ -490,3 +490,19 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	config.SetTypeByDefaultValue(true)
 	return &config
 }
+
+// CopyConfig copies the internal config to the current config. This should only be used in tests as replacing
+// the global config reference is unsafe.
+func (c *safeConfig) CopyConfig(cfg Config) {
+	c.Lock()
+	defer c.Unlock()
+
+	if cfg, ok := cfg.(*safeConfig); ok {
+		c.Viper = cfg.Viper
+		c.envPrefix = cfg.envPrefix
+		c.envKeyReplacer = cfg.envKeyReplacer
+		c.configEnvVars = cfg.configEnvVars
+		return
+	}
+	panic("Replacement config must be an instance of safeConfig")
+}

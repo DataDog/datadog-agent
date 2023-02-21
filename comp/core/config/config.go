@@ -67,10 +67,11 @@ func (c *cfg) Warnings() *config.Warnings {
 }
 
 func newMock(deps mockDependencies, t testing.TB) Component {
-	old := config.Datadog
+	backupConfig := config.NewConfig("", "", strings.NewReplacer())
+	backupConfig.CopyConfig(config.Datadog)
 	if deps.OverrideConfig.Config == nil {
 
-		config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
+		config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
 
 		// call InitConfig to set defaults.
 		config.InitConfig(config.Datadog)
@@ -93,7 +94,7 @@ func newMock(deps mockDependencies, t testing.TB) Component {
 		})
 
 	} else {
-		config.Datadog = deps.OverrideConfig.Config
+		config.Datadog.CopyConfig(deps.OverrideConfig.Config)
 	}
 
 	c := &cfg{
@@ -102,7 +103,7 @@ func newMock(deps mockDependencies, t testing.TB) Component {
 	}
 
 	// swap the existing config back at the end of the test.
-	t.Cleanup(func() { config.Datadog = old })
+	t.Cleanup(func() { config.Datadog.CopyConfig(backupConfig) })
 
 	return c
 }
