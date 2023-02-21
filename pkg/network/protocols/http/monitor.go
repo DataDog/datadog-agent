@@ -24,7 +24,6 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -186,7 +185,6 @@ func (m *Monitor) Stop() {
 
 func (m *Monitor) process(data []byte) {
 	tx := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
-	log.Infof("HTTP_TX: %+v", tx)
 	m.telemetry.count(tx)
 	m.statkeeper.Process(tx)
 }

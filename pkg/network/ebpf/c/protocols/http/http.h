@@ -71,13 +71,15 @@ static __always_inline bool http_closed(skb_info_t *skb_info) {
 // * A segment with the beginning of a response (packet_type == HTTP_RESPONSE);
 // * A segment with a (FIN|RST) flag set;
 static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_t *skb_info, http_packet_t packet_type) {
-    if (!skb_info)
+    if (!skb_info) {
         return false;
+    }
 
-    if (packet_type != HTTP_REQUEST && packet_type != HTTP_RESPONSE && !http_closed(skb_info))
+    if (packet_type != HTTP_REQUEST && packet_type != HTTP_RESPONSE && !http_closed(skb_info)) {
         return false;
+    }
 
-    if (http_closed(skb_info))
+    if (http_closed(skb_info)) {
         // Override sequence number with a special sentinel value
         // This is done so we consider
         // Server -> FIN(sequence=x) -> Client
@@ -85,9 +87,11 @@ static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_
         // Client -> FIN(sequence=y) -> Server
         // To be the same thing in order to avoid flushing the same transaction twice to userspace
         skb_info->tcp_seq = HTTP_TERMINATING;
+    }
 
-    if (http->tcp_seq == skb_info->tcp_seq)
+    if (http->tcp_seq == skb_info->tcp_seq) {
         return true;
+    }
 
     // Update map entry with latest TCP sequence number
     http->tcp_seq = skb_info->tcp_seq;
