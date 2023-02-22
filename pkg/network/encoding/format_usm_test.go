@@ -48,6 +48,15 @@ func TestFormatProtocols(t *testing.T) {
 			},
 		},
 		{
+			name:     "kafka protocol",
+			protocol: network.ProtocolKafka,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolKafka,
+				},
+			},
+		},
+		{
 			name:     "amqp protocol",
 			protocol: network.ProtocolAMQP,
 			want: &model.ProtocolStack{
