@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    No longer increments tcp retransmit count when the retransmit fails.
+    No longer increments TCP retransmit count when the retransmit fails.
