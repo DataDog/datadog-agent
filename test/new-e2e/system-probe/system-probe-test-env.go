@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/DataDog/test-infra-definitions/aws"
 	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microvms"
@@ -36,7 +36,6 @@ type SystemProbeEnvOpts struct {
 
 type TestEnv struct {
 	context context.Context
-	envName string
 	name    string
 
 	ARM64InstanceIP  string
@@ -56,12 +55,10 @@ var (
 func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
-		envName: "aws/sandbox",
 		name:    fmt.Sprintf("microvm-scenario-%s", name),
 	}
 
-	awsManager := credentials.NewManager()
-	sshkey, err := awsManager.GetCredential(credentials.AWSSSMStore, "ci.datadog-agent.aws_ec2_kitchen_ssh_key")
+	sshkey, err := runner.GetProfile().SecretStore().Get("aws_ec2_kitchen_ssh_key")
 	if err != nil {
 		return nil, fmt.Errorf("aws get credential: %w", err)
 	}
@@ -76,7 +73,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 
 	stackManager := infra.GetStackManager()
 
-	config := auto.ConfigMap{
+	config := runner.ConfigMap{
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
 		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: "datadog-agent-kitchen"},
@@ -94,7 +91,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
 	}
 
-	_, upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
+	_, upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 		awsEnvironment, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return fmt.Errorf("aws new environment: %w", err)
@@ -174,5 +171,5 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 }
 
 func (testEnv *TestEnv) Destroy() error {
-	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.envName, testEnv.name)
+	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.name)
 }

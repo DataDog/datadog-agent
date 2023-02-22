@@ -129,3 +129,25 @@ k8s-e2e-otlp-main:
   #   - dev_master-a7
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=otlp
+
+.new_e2e_template:
+  stage: e2e
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:a58cc31c
+  tags: ["arch:amd64"]
+  before_script:
+  # Setup AWS Credentials
+    - mkdir -p ~/.aws
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.agent-qa-profile --with-decryption --query "Parameter.Value" --out text >> ~/.aws/config
+    - export AWS_PROFILE=agent-qa-ci
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  script:
+    - inv -e new-e2e-tests.run --targets $TARGETS
+
+new-e2e-containers:
+  extends: .new_e2e_template
+  # needs:
+  #   - dev_master-a6
+  #   - dev_master-a7
+  dependencies: []
+  variables:
+    TARGETS: ./containers

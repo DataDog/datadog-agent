@@ -29,7 +29,6 @@ type e2eSuite struct {
 
 func TestE2ESuite(t *testing.T) {
 	suite.Run(t, &e2eSuite{Suite: NewSuite("my-test", &StackDefinition[MyEnv]{
-		EnvCloudName: "aws/sandbox",
 		EnvFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
 			vm, err := ec2vm.NewUnixEc2VM(ctx, ec2vm.WithOS(os.AmazonLinuxOS, commonos.AMD64Arch))
 			if err != nil {
