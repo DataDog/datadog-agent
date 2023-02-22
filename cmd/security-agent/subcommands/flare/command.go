@@ -65,10 +65,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func requestFlare(log log.Component, config config.Component, params *cliParams) error {
-	warnings := config.Warnings()
-	if warnings != nil && warnings.Err != nil {
-		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
-	}
+	flare.DisplayWarnings(config.Warnings())
 	if params.customerEmail == "" {
 		var err error
 		params.customerEmail, err = input.AskForEmail()

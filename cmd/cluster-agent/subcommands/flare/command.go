@@ -75,10 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
-	warnings := config.Warnings()
-	if warnings != nil && warnings.Err != nil {
-		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
-	}
+	flare.DisplayWarnings(config.Warnings())
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
