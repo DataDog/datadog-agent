@@ -23,10 +23,11 @@ bundle config set --local gemfile './Gemfile.local'
 
 `bundle install`
 
-Note: you might run into an error building the `nio4r` native extensions. You
-should be able to get around that by setting the build cflags for the gem
-in bundler:
- ` bundle config build.nio4r --with-cflags="-std=c99" `
+Note: When building on M1 you might run into an error installing `ffi-yajl` gem. You should be able to get around that by setting the build `ldflags` for this gem in bundler (see [this Github Issue](https://github.com/chef/ffi-yajl/issues/115)):
+```bash
+bundle config build.ffi-yajl --with-ldflags="-Wl,-undefined,dynamic_lookup"
+```
+
 
 #### Azure
 
