@@ -196,7 +196,10 @@ func (lc *LambdaLogsCollector) processMessage(
 	if lc.enhancedMetricsEnabled {
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, lc.lastRequestID == lc.coldstartRequestID)
 		if message.logType == logTypeFunction && !lc.outOfMemory {
-			lc.outOfMemory = serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, lc.demux)
+			lc.outOfMemory = serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord)
+			if lc.outOfMemory {
+				serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.time, tags, lc.demux)
+			}
 		}
 		if message.logType == logTypePlatformReport {
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
