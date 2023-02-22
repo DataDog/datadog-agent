@@ -70,8 +70,6 @@ static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 facto
         }
     }
 
-    // TODO: TBD
-    log_debug("[http2]: bug 1 - %d %lu", current_char_as_number_s, stream_id);
     return false;
 }
 
@@ -90,7 +88,6 @@ static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter
     bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_ANY);
 }
 
-// TODO: Fix documentation
 // parse_field_indexed is handling the case which the header frame is part of the static table.
 static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u8 index = 0;
@@ -118,9 +115,6 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
 //        log_debug("[http2] unable to find the dynamic value! tasik1!");
         return HEADER_NOT_INTERESTING;
     }
-    log_debug("[http2] global counter %llu; index %lu; final %lu\n", global_counter, index, http2_ctx->dynamic_index.index);
-    log_debug("[http2] found dynamic value at %d for stream %lu\n", http2_ctx->dynamic_index.index, stream_id);
-
     headers_to_process->index = http2_ctx->dynamic_index.index;
     headers_to_process->stream_id = stream_id;
     headers_to_process->type = kDynamicHeader;
@@ -186,7 +180,6 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
     // create the new dynamic value which will be added to the internal table.
     bpf_memcpy(dynamic_value.buffer, &heap_buffer->fragment[offset % HTTP2_BUFFER_SIZE], HTTP2_MAX_PATH_LEN);
 
-    log_debug("http2 saving in dynamic table stream %lu; index %d", stream_id, counter-1);
     http2_ctx->dynamic_index.index = counter - 1;
     bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
@@ -223,7 +216,6 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             res = parse_field_indexed(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
             if (res == HEADER_ERROR) {
-                log_debug("http2 error 1; stream %lu offset %d", stream_id, heap_buffer->offset);
                 break;
             }
             interesting_headers += res == HEADER_INTERESTING;
@@ -233,12 +225,9 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
             res = parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
             if (res == HEADER_ERROR) {
-                log_debug("http2 error 2; stream %lu offset %d", stream_id, heap_buffer->offset);
                 break;
             }
             interesting_headers += res == HEADER_INTERESTING;
-        } else {
-            log_debug("[http2]: bug 2 - %d %lu", current_ch, stream_id);
         }
     }
 
@@ -302,7 +291,6 @@ static __always_inline void read_into_buffer_skb_http2(char *buffer, struct __sk
 }
 
 static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u8 interesting_headers) {
-//    log_debug("[http2] process_headers called with %lu\n", interesting_headers);
     http2_stream_t *current_stream;
     http2_header_t *current_header;
     http2_stream_key_t *http2_stream_key_template = &http2_ctx->http2_stream_key;
@@ -322,12 +310,11 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
             break;
         }
 
-//        log_debug("[http2] got stream\n");
         if (current_header->type == kStaticHeader) {
             // fetch static value
             static_table_entry_t* static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
             if (static_value == NULL) {
-                // report error
+                log_debug("http2 error static header was not found for stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
                 break;
             }
 
@@ -365,15 +352,11 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
                     break;
                 }
             }
-            log_debug("http2 static header; stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
         } else if (current_header->type == kDynamicHeader) {
-            log_debug("http2 dynamic header; stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
             http2_ctx->dynamic_index.index = current_header->index;
-//            log_debug("[http2] %d looking finalize dynamic value at %d", iteration, current_header->index);
             dynamic_table_entry_t* dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index);
             if (dynamic_value == NULL) {
-                log_debug("http2 error dynamic header; stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
-                // report error
+                log_debug("http2 error dynamic header was not found for stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
                 break;
             }
             // TODO: reuse same struct
@@ -439,7 +422,6 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
     read_into_buffer_skb_http2((char*)frame_payload->fragment, skb, iterations_key->skb_info.data_off + HTTP2_FRAME_HEADER_SIZE);
 
     __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process->array, current_frame_header->stream_id, frame_payload);
-//    log_debug("[http2] filter_relevant_headers returned %lu\n", interesting_headers);
     if (interesting_headers > 0) {
         process_headers(http2_ctx, headers_to_process->array, interesting_headers);
     }
@@ -447,10 +429,8 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
 
 static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx) {
     __u32 offset = iterations_key->skb_info.data_off;
-//    log_debug("[http2] skb %p reading from %lu until %lu\n", skb, offset, skb->len);
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-//        log_debug("[http2] skb %p abort 1\n", skb);
         return -1;
     }
 
@@ -463,7 +443,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
 
     struct http2_frame current_frame = {};
     if (!read_http2_frame_header2(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
-//        log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
+        log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
         return -1;
     }
 
