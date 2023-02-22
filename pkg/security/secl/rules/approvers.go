@@ -44,11 +44,7 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Fi
 		return false, err
 	}
 
-	if origResult && !notResult {
-		return true, nil
-	}
-
-	return false, nil
+	return origResult && !notResult, nil
 }
 
 func bitmaskCombinations(bitmasks []int) []int {
