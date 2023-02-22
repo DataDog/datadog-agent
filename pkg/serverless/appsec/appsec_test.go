@@ -3,15 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build serverless
-// +build serverless
-
-package appsec_test
+package appsec
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/go-libddwaf"
 	"github.com/stretchr/testify/require"
 )
@@ -21,18 +19,31 @@ func TestNew(t *testing.T) {
 		t.Skip("host not supported by appsec", err)
 	}
 
-	t.Run("appsec disabled", func(t *testing.T) {
-		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "false")
-		asm, _ := appsec.New()
-		require.Nil(t, asm)
-	})
-
-	t.Run("appsec enabled", func(t *testing.T) {
-		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-		asm, err := appsec.New()
-		require.NoError(t, err)
-		require.NotNil(t, asm)
-	})
+	for _, appsecEnabled := range []bool{true, false} {
+		appsecEnabledStr := strconv.FormatBool(appsecEnabled)
+		for _, proxyEnabled := range []bool{true, false} {
+			proxyEnabledStr := strconv.FormatBool(proxyEnabled)
+			t.Run(fmt.Sprintf("new/%s/%s", appsecEnabledStr, proxyEnabledStr), func(t *testing.T) {
+				t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", appsecEnabledStr)
+				t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", proxyEnabledStr)
+				lp, pp, err := New()
+				switch {
+				case !appsecEnabled:
+					require.Nil(t, lp)
+					require.Nil(t, pp)
+				case proxyEnabled:
+					require.Nil(t, lp)
+					require.NotNil(t, pp)
+				case !proxyEnabled:
+					require.NotNil(t, lp)
+					require.Nil(t, pp)
+				default:
+					panic("unexpected case")
+				}
+				require.NoError(t, err)
+			})
+		}
+	}
 }
 
 func TestMonitor(t *testing.T) {
@@ -41,7 +52,7 @@ func TestMonitor(t *testing.T) {
 	}
 
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-	asm, err := appsec.New()
+	asm, err := newAppSec()
 	require.NoError(t, err)
 	require.Nil(t, err)
 

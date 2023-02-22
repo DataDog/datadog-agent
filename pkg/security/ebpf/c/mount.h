@@ -317,7 +317,6 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
 
     struct mount_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
         .mountfields.mount_id = get_mount_mount_id(syscall->mount.src_mnt),
         .mountfields.group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .mountfields.device = get_mount_dev(syscall->mount.src_mnt),
