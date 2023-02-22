@@ -45,21 +45,21 @@ type OOMKillProbe struct {
 
 func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	if cfg.EnableCORE {
-		probe, err := loadCOREProbe(cfg)
+		probe, err := loadOOMKillCOREProbe(cfg)
 		if err == nil {
-			return probe, err
+			return probe, nil
 		}
 
 		if !cfg.AllowRuntimeCompiledFallback {
-			return nil, fmt.Errorf("error loading CO-RE oom-kill probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation.", err)
+			return nil, fmt.Errorf("error loading CO-RE oom-kill probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
 		}
 		log.Warnf("error loading CO-RE oom-kill probe: %s. falling back to runtime compiled probe", err)
 	}
 
-	return loadRuntimeCompiledProbe(cfg)
+	return loadOOMKillRuntimeCompiledProbe(cfg)
 }
 
-func loadCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
@@ -81,7 +81,7 @@ func loadCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	return probe, nil
 }
 
-func loadRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func getCFlags(config *ebpf.Config) []string {
 func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*OOMKillProbe, error) {
 	m := &manager.Manager{
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/oom_kill_process", EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"}},
 		},
 		Maps: []*manager.Map{
 			{Name: "oom_stats"},

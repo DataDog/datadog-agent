@@ -12,6 +12,7 @@ package ebpf
 #include "./c/tracer.h"
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
+#include "./c/protocols/classification/defs.h"
 */
 import "C"
 
@@ -29,6 +30,7 @@ type BindSyscallArgs C.bind_syscall_args_t
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
+type _Ctype_struct_sockaddr uint64
 
 type TCPState uint8
 
@@ -46,3 +48,11 @@ const (
 )
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+const SizeofBatch = C.sizeof_batch_t
+
+type ClassificationProgram = uint32
+
+const (
+	ClassificationQueues ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
+	ClassificationDBs    ClassificationProgram = C.CLASSIFICATION_DBS_PROG
+)

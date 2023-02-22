@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/DataDog/datadog-agent/pkg/security/probe/event",
+  "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
   "$defs": {
     "BPFEvent": {
       "properties": {
@@ -527,10 +527,10 @@
     },
     "MountEvent": {
       "properties": {
-        "mountpoint": {
+        "mp": {
           "$ref": "#/$defs/File"
         },
-        "source": {
+        "root": {
           "$ref": "#/$defs/File"
         },
         "mount_id": {
@@ -551,16 +551,16 @@
         "fs_type": {
           "type": "string"
         },
-        "mountpoint_path": {
+        "mountpoint.path": {
           "type": "string"
         },
-        "mountsource_path": {
+        "source.path": {
           "type": "string"
         },
-        "mountpoint_path_error": {
+        "mountpoint.path_error": {
           "type": "string"
         },
-        "mountsource_path_error": {
+        "source.path_error": {
           "type": "string"
         }
       },

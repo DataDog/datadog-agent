@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +23,6 @@ type telemetry struct {
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
 	totalHits    *libtelemetry.Metric
-	misses       *libtelemetry.Metric // this happens when we can't cope with the rate of events
 	dropped      *libtelemetry.Metric // this happens when httpStatKeeper reaches capacity
 	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
 	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
@@ -48,7 +47,6 @@ func newTelemetry() (*telemetry, error) {
 
 		// these metrics are also exported as statsd metrics
 		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
-		misses:    metricGroup.NewMetric("misses", libtelemetry.OptStatsd),
 		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
 		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
@@ -57,26 +55,20 @@ func newTelemetry() (*telemetry, error) {
 	return t, nil
 }
 
-func (t *telemetry) aggregate(txs []httpTX, err error) {
-	for _, tx := range txs {
-		switch tx.StatusClass() {
-		case 100:
-			t.hits1XX.Add(1)
-		case 200:
-			t.hits2XX.Add(1)
-		case 300:
-			t.hits3XX.Add(1)
-		case 400:
-			t.hits4XX.Add(1)
-		case 500:
-			t.hits5XX.Add(1)
-		}
-		t.totalHits.Add(1)
+func (t *telemetry) count(tx httpTX) {
+	switch tx.StatusClass() {
+	case 100:
+		t.hits1XX.Add(1)
+	case 200:
+		t.hits2XX.Add(1)
+	case 300:
+		t.hits3XX.Add(1)
+	case 400:
+		t.hits4XX.Add(1)
+	case 500:
+		t.hits5XX.Add(1)
 	}
-
-	if err == errLostBatch {
-		t.misses.Add(int64(len(txs)))
-	}
+	t.totalHits.Add(1)
 }
 
 func (t *telemetry) log() {
@@ -84,7 +76,6 @@ func (t *telemetry) log() {
 	then := t.then.Swap(now)
 
 	totalRequests := t.totalHits.Delta()
-	misses := t.misses.Delta()
 	dropped := t.dropped.Delta()
 	rejected := t.rejected.Delta()
 	malformed := t.malformed.Delta()
@@ -92,11 +83,9 @@ func (t *telemetry) log() {
 	elapsed := now - then
 
 	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
+		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
 		totalRequests,
 		float64(totalRequests)/float64(elapsed),
-		misses,
-		float64(misses)/float64(elapsed),
 		dropped,
 		float64(dropped)/float64(elapsed),
 		rejected,

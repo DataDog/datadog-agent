@@ -113,7 +113,6 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 func (p *datadogMetricProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	res, err := p.getExternalMetric(namespace, metricSelector, info)
 	if err != nil {
-		log.Errorf("ExternalMetric query failed with error: %v", err)
 		convErr := apierr.NewInternalError(err)
 		if convErr != nil {
 			err = convErr
@@ -136,14 +135,14 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 		parsed = true
 	}
 	if !parsed {
-		return nil, fmt.Errorf("ExternalMetric does not follow DatadogMetric format")
+		return nil, log.Warnf("ExternalMetric does not follow DatadogMetric format: %s", info.Metric)
 	}
 
 	datadogMetric := p.store.Get(datadogMetricID)
-	log.Debugf("DatadogMetric from store: %v", datadogMetric)
+	log.Tracef("DatadogMetric from store: %v", datadogMetric)
 
 	if datadogMetric == nil {
-		return nil, fmt.Errorf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
+		return nil, log.Warnf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
 	}
 
 	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric)

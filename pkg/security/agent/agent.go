@@ -19,11 +19,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,22 +41,22 @@ type RuntimeSecurityAgent struct {
 	cancel               context.CancelFunc
 
 	// activity dump
-	storage *probe.ActivityDumpStorageManager
+	storage *activitydump.ActivityDumpStorageManager
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(hostname string, logProfiledWorkloads bool) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	telemetry, err := newTelemetry()
+	telemetry, err := newTelemetry(logProfiledWorkloads)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 
-	storage, err := probe.NewSecurityAgentStorageManager()
+	storage, err := activitydump.NewSecurityAgentStorageManager()
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +74,7 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 }
 
 // Start the runtime security agent
-func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *config.Endpoints) {
+func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *config.Endpoints) {
 	rsa.reporter = reporter
 	rsa.endpoints = endpoints
 
@@ -196,11 +195,15 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
 	// parse dump from message
-	dump, err := probe.NewActivityDumpFromMessage(msg.GetDump())
+	dump, err := activitydump.NewActivityDumpFromMessage(msg.GetDump())
 	if err != nil {
 		log.Errorf("%v", err)
 		return
 	}
+
+	// register for telemetry for this container
+	imageName, imageTag := dump.GetImageNameTag()
+	rsa.telemetry.registerProfiledContainer(imageName, imageTag)
 
 	raw := bytes.NewBuffer(msg.GetData())
 

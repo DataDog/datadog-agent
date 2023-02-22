@@ -20,7 +20,7 @@ func TestProcessCheckRealtimeBeforeStandard(t *testing.T) {
 	processCheck, _ := processCheckWithMockProbe(t)
 
 	// If the standard process check hasn't run yet, nothing is returned
-	expected := &RunResult{}
+	expected := CombinedRunResult{}
 
 	actual, err := processCheck.runRealtime(0)
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestProcessCheckRealtimeFirstRun(t *testing.T) {
 	processCheck.run(0, false)
 
 	// The first realtime check returns nothing
-	expected := &RunResult{}
+	expected := CombinedRunResult{}
 
 	actual, err := processCheck.runRealtime(0)
 	require.NoError(t, err)
@@ -76,13 +76,13 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 	// The first realtime check returns nothing
 	first, err := processCheck.runRealtime(0)
 	require.NoError(t, err)
-	assert.Equal(t, &RunResult{}, first)
+	assert.Equal(t, CombinedRunResult{}, first)
 
 	expected := makeProcessStatModels(t, proc1, proc2, proc3, proc4, proc5)
 	actual, err := processCheck.runRealtime(0)
 	require.NoError(t, err)
-	require.Len(t, actual.RealTime, 1)
-	rt := actual.RealTime[0].(*model.CollectorRealTime)
+	require.Len(t, actual.RealtimePayloads(), 1)
+	rt := actual.RealtimePayloads()[0].(*model.CollectorRealTime)
 	assert.ElementsMatch(t, expected, rt.Stats)
 	assert.Equal(t, int32(1), rt.GroupSize)
 	assert.Equal(t, int32(len(processCheck.hostInfo.SystemInfo.Cpus)), rt.NumCpus)

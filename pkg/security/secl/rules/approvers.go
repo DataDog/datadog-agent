@@ -44,11 +44,7 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Fi
 		return false, err
 	}
 
-	if origResult && !notResult {
-		return true, nil
-	}
-
-	return false, nil
+	return origResult && !notResult, nil
 }
 
 func bitmaskCombinations(bitmasks []int) []int {
@@ -75,7 +71,7 @@ func bitmaskCombinations(bitmasks []int) []int {
 func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	approvers := make(Approvers)
 
-	ctx := eval.NewContext(event.GetPointer())
+	ctx := eval.NewContext(event)
 
 	// for each rule we should at least find one approver otherwise we will return no approver for the field
 	for _, rule := range rules {

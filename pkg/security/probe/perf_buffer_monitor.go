@@ -51,6 +51,7 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 }
 
 // PerfBufferMonitor holds statistics about the number of lost and received events
+//
 //nolint:structcheck,unused
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
@@ -528,7 +529,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 
 			// snapshot traced cgroups if a CgroupTracing event was lost
 			if pbm.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
-				pbm.probe.monitor.activityDumpManager.snapshotTracedCgroups()
+				pbm.probe.monitor.activityDumpManager.SnapshotTracedCgroups()
 			}
 		}
 	}

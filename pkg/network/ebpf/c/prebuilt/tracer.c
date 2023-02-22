@@ -2,38 +2,55 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
-#include "tracer.h"
+#include "bpf_endian.h"
 
-#include "protocols/protocol-classification.h"
+#include <linux/err.h>
+#include <linux/socket.h>
+#include <net/inet_sock.h>
+#include <net/net_namespace.h>
+#include <net/sock.h>
+#include <net/tcp_states.h>
+#include <uapi/linux/if_ether.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/ptrace.h>
+#include <uapi/linux/tcp.h>
+#include <uapi/linux/udp.h>
+
+#include "conn-tuple.h"
+
+#include "tracer.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "sockfd.h"
 #include "tcp-recv.h"
-
-#include "bpf_endian.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "port.h"
-
-#include <net/inet_sock.h>
-#include <net/net_namespace.h>
-#include <net/tcp_states.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/ptrace.h>
-#include <uapi/linux/tcp.h>
-#include <uapi/linux/udp.h>
-#include <linux/err.h>
-
 #include "sock.h"
 #include "skb.h"
+#include "offsets.h"
 
-// The entrypoint for all packets.
-SEC("socket/classifier")
-int socket__classifier(struct __sk_buff *skb) {
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
+
+SEC("socket/classifier_entry")
+int socket__classifier_entry(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);
+    return 0;
+}
+
+SEC("socket/classifier_queues")
+int socket__classifier_queues(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_queues(skb);
+    return 0;
+}
+
+SEC("socket/classifier_dbs")
+int socket__classifier_dbs(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_dbs(skb);
     return 0;
 }
 
@@ -609,27 +626,12 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
         return 0;
     }
 
-    u16 sin_port = 0;
-    sa_family_t family = 0;
-    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
-    if (family == AF_INET) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
-    } else if (family == AF_INET6) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
-    }
-
-    sin_port = ntohs(sin_port);
-    if (sin_port == 0) {
-        log_debug("ERR(sys_enter_bind): sin_port is 0\n");
-        return 0;
-    }
-
     // write to pending_binds so the retprobe knows we can mark this as binding.
     bind_syscall_args_t args = {};
-    args.port = sin_port;
-
+    bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), (char*)sock + offset_socket_sk());
+    args.addr = addr;
     bpf_map_update_with_telemetry(pending_bind, &tid, &args, BPF_ANY);
-    log_debug("sys_enter_bind: started a bind on UDP port=%d sock=%llx tid=%u\n", sin_port, sock, tid);
+    log_debug("sys_enter_bind: started a bind on UDP sock=%llx tid=%u\n", sock, tid);
 
     return 0;
 }
@@ -658,8 +660,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     __u64 tid = bpf_get_current_pid_tgid();
 
     // bail if this bind() is not the one we're instrumenting
-    bind_syscall_args_t *args;
-    args = bpf_map_lookup_elem(&pending_bind, &tid);
+    bind_syscall_args_t *args = bpf_map_lookup_elem(&pending_bind, &tid);
 
     log_debug("sys_exit_bind: tid=%u, ret=%d\n", tid, ret);
 
@@ -668,10 +669,30 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         return 0;
     }
 
-    __u16 sin_port = args->port;
+    struct sock * sk = args->sk;
+    struct sockaddr *addr = args->addr;
     bpf_map_delete_elem(&pending_bind, &tid);
 
     if (ret != 0) {
+        return 0;
+    }
+
+    u16 sin_port = 0;
+    sa_family_t family = 0;
+    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
+    if (family == AF_INET) {
+        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
+    } else if (family == AF_INET6) {
+        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
+    }
+
+    sin_port = ntohs(sin_port);
+    if (sin_port == 0) {
+        sin_port = read_sport(sk);
+    }
+
+    if (sin_port == 0) {
+        log_debug("ERR(sys_exit_bind): sin_port is 0\n");
         return 0;
     }
 

@@ -10,6 +10,7 @@ package fake
 
 import (
 	"context"
+	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
@@ -23,6 +24,7 @@ import (
 // ContainerItf interface. It's only meant to be used in unit tests.
 type MockedContainerdClient struct {
 	MockClose                 func() error
+	MockRawClient             func() *containerd.Client
 	MockCheckConnectivity     func() *retry.Error
 	MockEvents                func() containerd.EventService
 	MockContainers            func(namespace string) ([]containerd.Container, error)
@@ -31,7 +33,8 @@ type MockedContainerdClient struct {
 	MockEnvVars               func(namespace string, ctn containerd.Container) (map[string]string, error)
 	MockMetadata              func() (containerd.Version, error)
 	MockListImages            func(namespace string) ([]containerd.Image, error)
-	MockImage                 func(namespace string, ctn containerd.Container) (containerd.Image, error)
+	MockImage                 func(namespace string, name string) (containerd.Image, error)
+	MockImageOfContainer      func(namespace string, ctn containerd.Container) (containerd.Image, error)
 	MockImageSize             func(namespace string, ctn containerd.Container) (int64, error)
 	MockTaskMetrics           func(namespace string, ctn containerd.Container) (*types.Metric, error)
 	MockTaskPids              func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error)
@@ -45,11 +48,17 @@ type MockedContainerdClient struct {
 	MockCallWithClientContext func(namespace string, f func(context.Context) error) error
 	MockAnnotations           func(namespace string, ctn containerd.Container) (map[string]string, error)
 	MockIsSandbox             func(namespace string, ctn containerd.Container) (bool, error)
+	MockMountImage            func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
 }
 
 // Close is a mock method
 func (client *MockedContainerdClient) Close() error {
 	return client.MockClose()
+}
+
+// Close is a mock method
+func (client *MockedContainerdClient) RawClient() *containerd.Client {
+	return client.MockRawClient()
 }
 
 // CheckConnectivity is a mock method
@@ -63,8 +72,13 @@ func (client *MockedContainerdClient) ListImages(namespace string) ([]containerd
 }
 
 // Image is a mock method
-func (client *MockedContainerdClient) Image(namespace string, ctn containerd.Container) (containerd.Image, error) {
-	return client.MockImage(namespace, ctn)
+func (client *MockedContainerdClient) Image(namespace string, name string) (containerd.Image, error) {
+	return client.MockImage(namespace, name)
+}
+
+// ImageOfContainer is a mock method
+func (client *MockedContainerdClient) ImageOfContainer(namespace string, ctn containerd.Container) (containerd.Image, error) {
+	return client.MockImageOfContainer(namespace, ctn)
 }
 
 // ImageSize is a mock method
@@ -160,4 +174,8 @@ func (client *MockedContainerdClient) Annotations(namespace string, ctn containe
 // IsSandbox is a mock method
 func (client *MockedContainerdClient) IsSandbox(namespace string, ctn containerd.Container) (bool, error) {
 	return client.MockIsSandbox(namespace, ctn)
+}
+
+func (client *MockedContainerdClient) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
+	return client.MockMountImage(ctx, expiration, namespace, img, targetDir)
 }

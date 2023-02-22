@@ -58,10 +58,7 @@ func TestEmptyUpdate(t *testing.T) {
 	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Nil(t, state.OpaqueBackendState)
 
-	// Do the same with the unverified repository, there should be no functional difference EXCEPT
-	// since we don't have to start with the open source root we'll only report version 0 of the root.
-	// In practice an agent will send up the root files on the first update, but this tests that if for some
-	// reason it's not sent we don't do anything odd.
+	// Do the same with the unverified repository, there should be no functional difference.
 	r = ta.unverifiedRepository
 
 	updatedProducts, err = r.Update(emptyUpdate)
@@ -75,7 +72,7 @@ func TestEmptyUpdate(t *testing.T) {
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 0, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Nil(t, state.OpaqueBackendState)
 }
 
@@ -153,7 +150,7 @@ func TestUpdateNewConfig(t *testing.T) {
 	assert.Equal(t, 1, len(state.Configs))
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 1, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 	configState = state.Configs[0]
 	assert.Equal(t, ProductCWSDD, configState.Product)
@@ -225,7 +222,7 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 2, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 }
 
@@ -315,7 +312,7 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 	assert.Equal(t, 1, len(state.Configs))
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 2, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 	configState = state.Configs[0]
 	assert.Equal(t, ProductCWSDD, configState.Product)
@@ -363,7 +360,7 @@ func TestUpdateWithIncorrectlySignedTargets(t *testing.T) {
 	assert.Equal(t, 1, len(state.Configs))
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 1, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 }
 
@@ -403,7 +400,7 @@ func TestUpdateWithMalformedTargets(t *testing.T) {
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 0, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Nil(t, state.OpaqueBackendState)
 }
 
@@ -443,7 +440,7 @@ func TestUpdateWithMalformedExtraRoot(t *testing.T) {
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 0, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Nil(t, state.OpaqueBackendState)
 }
 
@@ -578,7 +575,7 @@ func TestClientOnlyTakesActionOnFilesInClientConfig(t *testing.T) {
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 1, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 }
 
@@ -697,7 +694,7 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Equal(t, 2, len(state.Configs))
 	assert.Equal(t, 2, len(state.CachedFiles))
 	assert.EqualValues(t, 1, state.TargetsVersion)
-	assert.EqualValues(t, 0, state.RootsVersion) // 0 because we don't start with the open source root
+	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 	assert.Contains(t, state.Configs, expectedConfigStateCWSDD)
 	assert.Contains(t, state.Configs, expectedConfigStateAPM)

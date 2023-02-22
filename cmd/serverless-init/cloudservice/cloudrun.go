@@ -37,6 +37,7 @@ func (c *CloudRun) GetTags() map[string]string {
 	}
 
 	tags["origin"] = c.GetOrigin()
+	tags["_dd.origin"] = c.GetOrigin()
 
 	return tags
 }
@@ -51,4 +52,9 @@ func (c *CloudRun) GetOrigin() string {
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
 	return "gcp.run"
+}
+
+func isCloudRunService() bool {
+	_, exists := os.LookupEnv(serviceNameEnvVar)
+	return exists
 }

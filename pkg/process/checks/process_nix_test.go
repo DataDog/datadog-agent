@@ -120,10 +120,9 @@ func TestBasicProcessMessages(t *testing.T) {
 			for _, s := range tc.disallowList {
 				disallowList = append(disallowList, regexp.MustCompile(s))
 			}
-			networks := make(map[int32][]*model.Connection)
 
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, networks)
-			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid")
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil)
+			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
 
@@ -225,7 +224,6 @@ func TestContainerProcessChunking(t *testing.T) {
 		},
 	} {
 		t.Run(tc.testName, func(t *testing.T) {
-			networks := make(map[int32][]*model.Connection)
 			procs, ctrs, pidToCid := generateCtrProcs(tc.ctrProcs)
 			procsByPid := procsToHash(procs)
 
@@ -234,8 +232,8 @@ func TestContainerProcessChunking(t *testing.T) {
 			sysInfo := &model.SystemInfo{}
 			hostInfo := &HostInfo{SystemInfo: sysInfo}
 
-			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, networks)
-			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid")
+			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil)
+			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
 			assert.Equal(t, tc.expectedCtrCount, totalContainers)

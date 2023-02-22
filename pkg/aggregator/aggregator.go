@@ -124,6 +124,10 @@ var (
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 	aggregatorContainerLifecycleEvents         = expvar.Int{}
 	aggregatorContainerLifecycleEventsErrors   = expvar.Int{}
+	aggregatorContainerImages                  = expvar.Int{}
+	aggregatorContainerImagesErrors            = expvar.Int{}
+	aggregatorSBOM                             = expvar.Int{}
+	aggregatorSBOMErrors                       = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -179,6 +183,10 @@ func init() {
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
 	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
 	aggregatorExpvars.Set("ContainerLifecycleEventsErrors", &aggregatorContainerLifecycleEventsErrors)
+	aggregatorExpvars.Set("ContainerImages", &aggregatorContainerImages)
+	aggregatorExpvars.Set("ContainerImagesErrors", &aggregatorContainerImagesErrors)
+	aggregatorExpvars.Set("SBOM", &aggregatorSBOM)
+	aggregatorExpvars.Set("SBOMErrors", &aggregatorSBOMErrors)
 
 	contextsByMtypeMap := expvar.Map{}
 	aggregatorDogstatsdContextsByMtype = make([]expvar.Int, int(metrics.NumMetricTypes))
@@ -212,6 +220,16 @@ type BufferedAggregator struct {
 	contLcycleStopper     chan struct{}
 	contLcycleDequeueOnce sync.Once
 
+	contImageIn          chan senderContainerImage
+	contImageBuffer      chan senderContainerImage
+	contImageStopper     chan struct{}
+	contImageDequeueOnce sync.Once
+
+	sbomIn          chan senderSBOM
+	sbomBuffer      chan senderSBOM
+	sbomStopper     chan struct{}
+	sbomDequeueOnce sync.Once
+
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
 	MetricSamplePool *metrics.MetricSamplePool
@@ -237,6 +255,7 @@ type BufferedAggregator struct {
 
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+	globalTags              func(collectors.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
@@ -290,6 +309,14 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
 		contLcycleStopper: make(chan struct{}),
 
+		contImageIn:      make(chan senderContainerImage, bufferSize),
+		contImageBuffer:  make(chan senderContainerImage, bufferSize),
+		contImageStopper: make(chan struct{}),
+
+		sbomIn:      make(chan senderSBOM, bufferSize),
+		sbomBuffer:  make(chan senderSBOM, bufferSize),
+		sbomStopper: make(chan struct{}),
+
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[check.ID]*CheckSampler),
 		flushInterval:               flushInterval,
@@ -304,6 +331,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName:                   agentName,
 		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
+		globalTags:                  tagger.GlobalTags,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
 	}
 
@@ -573,6 +601,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
+		NoIndex:        true,
 	})
 }
 
@@ -785,6 +814,12 @@ func (agg *BufferedAggregator) run() {
 		case event := <-agg.contLcycleIn:
 			aggregatorContainerLifecycleEvents.Add(1)
 			agg.handleContainerLifecycleEvent(event)
+		case event := <-agg.contImageIn:
+			aggregatorContainerImages.Add(1)
+			agg.handleContainerImage(event)
+		case event := <-agg.sbomIn:
+			aggregatorSBOM.Add(1)
+			agg.handleSBOM(event)
 		}
 	}
 }
@@ -805,6 +840,38 @@ func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
 	}
 }
 
+// dequeueContainerImages consumes buffered container image.
+// It is blocking so it should be started in its own routine and only one instance should be started.
+func (agg *BufferedAggregator) dequeueContainerImages() {
+	for {
+		select {
+		case event := <-agg.contImageBuffer:
+			if err := agg.serializer.SendContainerImage(event.msgs, agg.hostname); err != nil {
+				aggregatorContainerImagesErrors.Add(1)
+				log.Warnf("Error submitting container image data: %v", err)
+			}
+		case <-agg.contImageStopper:
+			return
+		}
+	}
+}
+
+// dequeueSBOM consumes buffered SBOM.
+// It is blocking so it should be started in its own routine and only one instance should be started.
+func (agg *BufferedAggregator) dequeueSBOM() {
+	for {
+		select {
+		case event := <-agg.sbomBuffer:
+			if err := agg.serializer.SendSBOM(event.msgs, agg.hostname); err != nil {
+				aggregatorSBOMErrors.Add(1)
+				log.Warnf("Error submitting SBOM data: %v", err)
+			}
+		case <-agg.sbomStopper:
+			return
+		}
+	}
+}
+
 // handleContainerLifecycleEvent forwards container lifecycle events to the buffering channel.
 func (agg *BufferedAggregator) handleContainerLifecycleEvent(event senderContainerLifecycleEvent) {
 	select {
@@ -816,19 +883,58 @@ func (agg *BufferedAggregator) handleContainerLifecycleEvent(event senderContain
 	}
 }
 
+// handleContainerImage forwards container image to the buffering channel.
+func (agg *BufferedAggregator) handleContainerImage(event senderContainerImage) {
+	select {
+	case agg.contImageBuffer <- event:
+		return
+	default:
+		aggregatorContainerImagesErrors.Add(1)
+		log.Warn("Container image channel is full")
+	}
+}
+
+// handleSBOM forwards SBOM to the buffering channel.
+func (agg *BufferedAggregator) handleSBOM(event senderSBOM) {
+	select {
+	case agg.sbomBuffer <- event:
+		return
+	default:
+		aggregatorSBOMErrors.Add(1)
+		log.Warn("SBOM channel is full")
+	}
+}
+
 // tags returns the list of tags that should be added to the agent telemetry metrics
 // Container agent tags may be missing in the first seconds after agent startup
 func (agg *BufferedAggregator) tags(withVersion bool) []string {
-	tags := []string{}
-	if agg.tlmContainerTagsEnabled {
+	var tags []string
+	if agg.hostname == "" {
 		var err error
-		tags, err = agg.agentTags(tagger.ChecksCardinality)
+		tags, err = agg.globalTags(tagger.ChecksCardinality)
 		if err != nil {
+			log.Debugf("Couldn't get Global tags: %v", err)
+		}
+	}
+	if agg.tlmContainerTagsEnabled {
+		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
+		if err == nil {
+			if tags == nil {
+				tags = agentTags
+			} else {
+				tags = append(tags, agentTags...)
+			}
+		} else {
 			log.Debugf("Couldn't get Agent tags: %v", err)
 		}
 	}
 	if withVersion {
-		return append(tags, "version:"+version.AgentVersion)
+		tags = append(tags, "version:"+version.AgentVersion)
+	}
+	// nil to empty string
+	// This is expected by other components/tests
+	if tags == nil {
+		tags = []string{}
 	}
 	return tags
 }

@@ -9,16 +9,16 @@ import (
 	"compress/gzip"
 	"io"
 	"io/ioutil"
-	"reflect"
 	"runtime"
 	"sync"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -59,7 +59,7 @@ func TestTraceWriter(t *testing.T) {
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
 		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
 		tw.In = make(chan *SampledChunks)
 		go tw.Run()
 		for _, ss := range testSpans {
@@ -100,7 +100,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		randomSampledSpans(10, 0),
 		randomSampledSpans(40, 5),
 	}
-	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
 	tw.In = make(chan *SampledChunks, 100)
 	go tw.Run()
 
@@ -162,7 +162,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 		var found bool
 		for _, tracerPayload := range all.TracerPayloads {
 			for _, trace := range tracerPayload.Chunks {
-				if reflect.DeepEqual(trace, ss.TracerPayload.Chunks[0]) {
+				if proto.Equal(trace, ss.TracerPayload.Chunks[0]) {
 					found = true
 					break
 				}
@@ -193,7 +193,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -221,7 +221,7 @@ func TestResetBuffer(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 
-	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
+	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -262,7 +262,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -290,7 +290,7 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 		SynchronousFlushing: false,
 	}
 	t.Run("ok", func(t *testing.T) {
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
 		err := tw.FlushSync()
 		assert.NotNil(t, err)
 	})
@@ -328,7 +328,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	}
 
 	t.Run("static TPS config", func(t *testing.T) {
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
 		go tw.Run()
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
@@ -340,7 +340,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		errorSampler := &MockSampler{TargetTPS: 6}
 		rareSampler := &MockSampler{Enabled: false}
 
-		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler)
+		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector())
 		go tw.Run()
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
@@ -411,6 +411,6 @@ func BenchmarkSpanProto(b *testing.B) {
 		},
 	}
 	for n := 0; n < b.N; n++ {
-		s.Marshal()
+		proto.Marshal(&s)
 	}
 }

@@ -48,6 +48,7 @@ class TestE2EDocker(unittest.TestCase):
         desc = f"e2e test rule {test_id}"
         data = None
         agent_rule_name = f"e2e_agent_rule_{test_id}"
+        rc_enabled = os.getenv("DD_RC_ENABLED") != ""
 
         with Step(msg=f"check agent rule({test_id}) creation", emoji=":straight_ruler:"):
             self.agent_rule_id = self.app.create_cws_agent_rule(
@@ -65,11 +66,16 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="check agent start", emoji=":man_running:"):
             image = os.getenv("DD_AGENT_IMAGE")
-            hostname = f"host_{test_id}"
+            hostname = f"host-{test_id}"
             self.datadog_agent_config = gen_datadog_agent_config(
-                hostname=hostname, log_level="DEBUG", tags=["tag1", "tag2"]
+                hostname=hostname,
+                log_level="DEBUG",
+                tags=["tag1", "tag2"],
+                rc_enabled=rc_enabled,
             )
-            self.system_probe_config = gen_system_probe_config(log_level="TRACE", log_patterns=["module.APIServer.*"])
+            self.system_probe_config = gen_system_probe_config(
+                log_level="TRACE", log_patterns=["module.APIServer.*"], rc_enabled=rc_enabled
+            )
 
             self.container = self.docker_helper.start_cws_agent(
                 image,
@@ -83,11 +89,12 @@ class TestE2EDocker(unittest.TestCase):
             wait_agent_log("security-agent", self.docker_helper, SECURITY_START_LOG)
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log("rule_id:ruleset_loaded")
-            attributes = event["data"][-1]["attributes"]["attributes"]
-            start_date = attributes["date"]
-            self.app.check_for_ignored_policies(self, attributes)
+        if rc_enabled:
+            with Step(msg="check `remote-config` ruleset_loaded", emoji=":delivery_truck:"):
+                event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:remote-config")
+                attributes = event["data"][-1]["attributes"]["attributes"]
+                prev_load_date = attributes["date"]
+                self.app.check_for_ignored_policies(self, attributes)
 
         with Step(msg="download policies", emoji=":file_folder:"):
             self.policies = self.docker_helper.download_policies().output.decode()
@@ -106,13 +113,13 @@ class TestE2EDocker(unittest.TestCase):
         with Step(msg="reload policies", emoji=":file_folder:"):
             self.docker_helper.reload_policies()
 
-        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+        with Step(msg="check `downloaded` ruleset_loaded", emoji=":delivery_truck:"):
             for _i in range(60):  # retry 60 times
-                event = self.app.wait_app_log("rule_id:ruleset_loaded")
+                event = self.app.wait_app_log("rule_id:ruleset_loaded  @policies.source:file")
                 attributes = event["data"][-1]["attributes"]["attributes"]
-                restart_date = attributes["date"]
+                load_date = attributes["date"]
                 # search for restart log until the timestamp differs
-                if restart_date != start_date:
+                if load_date != prev_load_date:
                     break
                 time.sleep(1)
             else:

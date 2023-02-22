@@ -189,16 +189,16 @@ func (query *PdhQuery) AddCounter(counter PdhCounter) {
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcounterw
 //
 // Implementation detail: This function does not actually call the Windows API PdhAddEnglishCounter. That happens
-//   when (*PdhQuery).CollectQueryData calls AddToQuery. This function only links our pdhCounter struct
-//   to our PdhQuery struct.
-//   We do this so we can handle several PDH error cases and their recovery behind the scenes to reduce
-//   duplicate/error prone code in the checks that uses this package.
-//   For example, see tryRefreshPdhObjectCache().
-//   This function cannot fail, if it does then the checks that use it will need to be
-//   restructured so that their Configure() call does not fail if the counter is not available
-//   right away on host boot (see https://github.com/DataDog/datadog-agent/pull/13101).
-//   All errors related to the counter are returned from the GetValue()/GetAllValues() function.
 //
+//	when (*PdhQuery).CollectQueryData calls AddToQuery. This function only links our pdhCounter struct
+//	to our PdhQuery struct.
+//	We do this so we can handle several PDH error cases and their recovery behind the scenes to reduce
+//	duplicate/error prone code in the checks that uses this package.
+//	For example, see tryRefreshPdhObjectCache().
+//	This function cannot fail, if it does then the checks that use it will need to be
+//	restructured so that their Configure() call does not fail if the counter is not available
+//	right away on host boot (see https://github.com/DataDog/datadog-agent/pull/13101).
+//	All errors related to the counter are returned from the GetValue()/GetAllValues() function.
 func (query *PdhQuery) AddEnglishCounterInstance(objectName string, counterName string, instanceName string) PdhSingleInstanceCounter {
 	var p PdhEnglishSingleInstanceCounter
 	p.Initialize(objectName, counterName, instanceName)

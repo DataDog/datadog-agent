@@ -124,21 +124,9 @@ type fieldValues struct {
 	dportFl6 uint16
 }
 
-var offsetProbes = map[probes.ProbeName]string{
-	probes.TCPGetSockOpt:      "kprobe__tcp_getsockopt",
-	probes.SockGetSockOpt:     "kprobe__sock_common_getsockopt",
-	probes.TCPv6Connect:       "kprobe__tcp_v6_connect",
-	probes.IPMakeSkb:          "kprobe__ip_make_skb",
-	probes.IP6MakeSkb:         "kprobe__ip6_make_skb",
-	probes.IP6MakeSkbPre470:   "kprobe__ip6_make_skb__pre_4_7_0",
-	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
-	probes.NetDevQueue:        "tracepoint__net__net_dev_queue",
-}
-
-func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
+func idPair(name probes.ProbeFuncName) manager.ProbeIdentificationPair {
 	return manager.ProbeIdentificationPair{
-		EBPFSection:  string(name),
-		EBPFFuncName: offsetProbes[name],
+		EBPFFuncName: name,
 		UID:          "offset",
 	}
 }
@@ -147,7 +135,7 @@ func newOffsetManager() *manager.Manager {
 	return &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: "connectsock_ipv6"},
-			{Name: string(probes.TracerStatusMap)},
+			{Name: probes.TracerStatusMap},
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
@@ -259,14 +247,12 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 	return nil, errors.New("unstable TCP socket params")
 }
 
-func enableProbe(enabled map[probes.ProbeName]string, name probes.ProbeName) {
-	if fn, ok := offsetProbes[name]; ok {
-		enabled[name] = fn
-	}
+func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
+	enabled[name] = struct{}{}
 }
 
-func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
-	p := map[probes.ProbeName]string{}
+func offsetGuessProbes(c *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
+	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
@@ -629,15 +615,17 @@ func flowi6EntryState(status *netebpf.TracerStatus) netebpf.GuessWhat {
 // possible offset and expected value of each field in a eBPF map. In kernel-space
 // we rely on two different kprobes: `tcp_getsockopt` and `tcp_connect_v6`. When they're
 // are triggered, we store the value of
-//     (struct sock *)skp + possible_offset
+//
+//	(struct sock *)skp + possible_offset
+//
 // in the eBPF map. Then, back in userspace (checkAndUpdateCurrentOffset()), we
 // check that value against the expected value of the field, advancing the
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
 func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEditor, error) {
-	mp, _, err := m.GetMap(string(probes.TracerStatusMap))
+	mp, _, err := m.GetMap(probes.TracerStatusMap)
 	if err != nil {
-		return nil, fmt.Errorf("unable to find map %s: %s", string(probes.TracerStatusMap), err)
+		return nil, fmt.Errorf("unable to find map %s: %s", probes.TracerStatusMap, err)
 	}
 
 	// When reading kernel structs at different offsets, don't go over the set threshold

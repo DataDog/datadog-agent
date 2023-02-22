@@ -14,9 +14,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
 // EventLostRead is the event used to report lost events detected from user space
@@ -87,7 +88,7 @@ func NewNoisyProcessEvent(count uint64,
 
 func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
-	case resolvers.ErrTruncatedParents, resolvers.ErrTruncatedParentsERPC:
+	case dentry.ErrTruncatedParents, dentry.ErrTruncatedParentsERPC:
 		return model.CustomTruncatedParentsEventType
 	default:
 		return model.UnknownEventType
@@ -97,16 +98,16 @@ func resolutionErrorToEventType(err error) model.EventType {
 // AbnormalPathEvent is used to report that a path resolution failed for a suspicious reason
 // easyjson:json
 type AbnormalPathEvent struct {
-	Timestamp           time.Time        `json:"date"`
-	Event               *EventSerializer `json:"triggering_event"`
-	PathResolutionError string           `json:"path_resolution_error"`
+	Timestamp           time.Time                    `json:"date"`
+	Event               *serializers.EventSerializer `json:"triggering_event"`
+	PathResolutionError string                       `json:"path_resolution_error"`
 }
 
 // NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
-func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.GetPathResolutionError()), AbnormalPathEvent{
-		Timestamp:           event.ResolveEventTimestamp(),
-		Event:               NewEventSerializer(event),
+func NewAbnormalPathEvent(event *model.Event, probe *Probe, pathResolutionError error) (*rules.Rule, *events.CustomEvent) {
+	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), AbnormalPathEvent{
+		Timestamp:           event.FieldHandlers.ResolveEventTimestamp(event),
+		Event:               serializers.NewEventSerializer(event, probe.resolvers),
 		PathResolutionError: pathResolutionError.Error(),
 	})
 }

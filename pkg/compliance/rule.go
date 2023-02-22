@@ -16,11 +16,10 @@ type Rule interface {
 
 // RuleCommon defines the base fields of a rule in a compliance config
 type RuleCommon struct {
-	ID           string        `yaml:"id"`
-	Description  string        `yaml:"description,omitempty"`
-	Scope        RuleScopeList `yaml:"scope,omitempty"`
-	HostSelector string        `yaml:"hostSelector,omitempty"`
-	SkipOnK8s    bool          `yaml:"skipOnKubernetes,omitempty"`
+	ID          string        `yaml:"id"`
+	Description string        `yaml:"description,omitempty"`
+	Scope       RuleScopeList `yaml:"scope,omitempty"`
+	SkipOnK8s   bool          `yaml:"skipOnKubernetes,omitempty"`
 }
 
 // RegoRule defines a rule in a compliance config

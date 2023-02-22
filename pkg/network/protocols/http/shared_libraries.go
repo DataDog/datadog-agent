@@ -9,20 +9,22 @@
 package http
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
+	"sync"
 	"syscall"
-	"time"
 	"unsafe"
 
-	psfilepath "github.com/DataDog/gopsutil/process/filepath"
-	"github.com/DataDog/gopsutil/process/so"
+	"github.com/DataDog/gopsutil/process"
+	"github.com/twmb/murmur3"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,36 +37,81 @@ func (l *libPath) Bytes() []byte {
 	return l.Buf[:l.Len]
 }
 
-// syncInterval controls the frequency at which /proc/<PID>/maps are inspected.
-// this is to ensure that we remove/deregister the shared libraries that are no
-// longer mapped into memory.
-const soSyncInterval = 5 * time.Minute
+// pathIdentifier is the unique key (system wide) of a file based on dev/inode
+type pathIdentifier struct {
+	dev   uint64
+	inode uint64
+}
 
-// check if a process is still alive, if not unregister his hook
-// when attaching a uprobe the kernel modifiy the elf and lock the file, so the filesystem can't be unmounted
-const soCheckProcessAliveInterval = 10 * time.Second
+func (p *pathIdentifier) String() string {
+	return fmt.Sprintf("dev/inode %d.%d/%d", unix.Major(p.dev), unix.Minor(p.dev), p.inode)
+}
+
+// Key is a unique (system wide) TLDR Base64(murmur3.Sum64(device, inode))
+// It composes based the device (minor, major) and inode of a file
+// murmur is a non-crypto hashing
+//
+//	As multiple containers overlayfs (same inode but could be overwritten with different binary)
+//	device would be different
+//
+// a Base64 string representation is returned and could be used in a file path
+func (p *pathIdentifier) Key() string {
+	buffer := make([]byte, 16)
+	binary.LittleEndian.PutUint64(buffer, p.dev)
+	binary.LittleEndian.PutUint64(buffer[8:], p.inode)
+	m := murmur3.Sum64(buffer)
+	bufferSum := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bufferSum, m)
+	return base64.StdEncoding.EncodeToString(bufferSum)
+}
+
+// path must be an absolute path
+func newPathIdentifier(path string) (pi pathIdentifier, err error) {
+	if len(path) < 1 || path[0] != '/' {
+		return pi, fmt.Errorf("invalid path %q", path)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return pi, err
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return pi, fmt.Errorf("invalid file %q stat %T", path, info.Sys())
+	}
+
+	return pathIdentifier{
+		dev:   stat.Dev,
+		inode: stat.Ino,
+	}, nil
+}
 
 type soRule struct {
 	re           *regexp.Regexp
-	registerCB   func(string) error
-	unregisterCB func(string) error
+	registerCB   func(id pathIdentifier, root string, path string) error
+	unregisterCB func(id pathIdentifier) error
 }
 
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
-	procRoot   string
-	hostMount  string
-	all        *regexp.Regexp
-	rules      []soRule
-	loadEvents *ddebpf.PerfHandler
-	registry   *soRegistry
+	procRoot       string
+	all            *regexp.Regexp
+	rules          []soRule
+	loadEvents     *ddebpf.PerfHandler
+	processMonitor *monitor.ProcessMonitor
+	registry       *soRegistry
 }
 
-type seenKey struct {
-	pid, path string
+type soRegistry struct {
+	m     sync.Mutex
+	byID  map[pathIdentifier]*soRegistration
+	byPID map[uint32]*soRegistration
+
+	// if we can't register a uprobe we don't try more than once
+	blocklistByID map[pathIdentifier]struct{}
 }
 
-func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
+func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 	allFilters := make([]string, len(rules))
 	for i, r := range rules {
 		allFilters[i] = r.re.String()
@@ -72,81 +119,142 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
-		procRoot:   procRoot,
-		hostMount:  os.Getenv("HOST_ROOT"),
-		all:        all,
-		rules:      rules,
-		loadEvents: perfHandler,
+		procRoot:       util.GetProcRoot(),
+		all:            all,
+		rules:          rules,
+		loadEvents:     perfHandler,
+		processMonitor: monitor.GetProcessMonitor(),
 		registry: &soRegistry{
-			procRoot: procRoot,
-			byPath:   make(map[string]*soRegistration),
-			byInode:  make(map[uint64]*soRegistration),
+			byID:          make(map[pathIdentifier]*soRegistration),
+			byPID:         make(map[uint32]*soRegistration),
+			blocklistByID: make(map[pathIdentifier]struct{}),
 		},
 	}
 }
 
+type soRegistration struct {
+	pathID       pathIdentifier
+	refcount     int
+	unregisterCB func(pathIdentifier) error
+}
+
+// Unregister return true if there are no more reference to this registration
+func (r *soRegistration) Unregister() bool {
+	r.refcount--
+	if r.refcount > 0 {
+		return false
+	}
+	if r.unregisterCB != nil {
+		if err := r.unregisterCB(r.pathID); err != nil {
+			log.Debugf("error while unregisterin %s : %s", r.pathID.String(), err)
+		}
+	}
+	return true
+}
+
+func newRegistration(pathID pathIdentifier, unregister func(pathIdentifier) error) *soRegistration {
+	return &soRegistration{
+		pathID:       pathID,
+		unregisterCB: unregister,
+		refcount:     1,
+	}
+}
+
+func (w *soWatcher) processExit(pid uint32) {
+	w.registry.Unregister(pid)
+}
+
 // Start consuming shared-library events
 func (w *soWatcher) Start() {
-	seen := make(map[seenKey]struct{})
-	w.sync()
+	thisPID, err := util.GetRootNSPID()
+	if err != nil {
+		log.Warnf("soWatcher Start can't get root namespace pid %s", err)
+	}
+
+	_ = util.WithAllProcs(w.procRoot, func(pid int) error {
+		if pid == thisPID { // don't uprobes ourself
+			return nil
+		}
+
+		// report silently parsing /proc error as this could happen
+		// just exit processes
+		proc, err := process.NewProcess(int32(pid))
+		if err != nil {
+			log.Debugf("process %d parsing failed %s", pid, err)
+			return nil
+		}
+		mmaps, err := proc.MemoryMaps(true)
+		if err != nil {
+			log.Tracef("process %d maps parsing failed %s", pid, err)
+			return nil
+		}
+
+		root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
+		for _, m := range *mmaps {
+			for _, r := range w.rules {
+				if r.re.MatchString(m.Path) {
+					w.registry.Register(root, m.Path, uint32(pid), r)
+					break
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err := w.processMonitor.Initialize(); err != nil {
+		log.Errorf("can't initialize process monitor %s", err)
+		return
+	}
+	cleanupExit, err := w.processMonitor.Subscribe(&monitor.ProcessCallback{
+		Event:    monitor.EXIT,
+		Metadata: monitor.ANY,
+		Callback: w.processExit,
+	})
+	if err != nil {
+		log.Errorf("can't subscribe to process monitor exit event %s", err)
+		return
+	}
+
 	go func() {
-		ticker := time.NewTicker(soSyncInterval)
-		defer ticker.Stop()
-		tickerProcess := time.NewTicker(soCheckProcessAliveInterval)
-		defer tickerProcess.Stop()
-		thisPID, _ := util.GetRootNSPID()
+		defer cleanupExit()
+		defer w.processMonitor.Stop()
+		// cleanup all the uprobes
+		defer w.registry.cleanup()
 
 		for {
 			select {
-			case <-ticker.C:
-				seen = make(map[seenKey]struct{})
-				w.sync()
-			case <-tickerProcess.C:
-				if w.checkProcessDone() {
-					/* if we done some cleanup, flush the cache */
-					seen = make(map[seenKey]struct{})
-				}
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
 					return
 				}
 
 				lib := toLibPath(event.Data)
-				// if this shared library was loaded by system-probe we ignore it.
-				// this is to avoid a feedback-loop since the shared libraries here monitored
-				// end up being opened by system-probe
-				if int(lib.Pid) == thisPID {
-					event.Done()
-					break
+				path := lib.Bytes()
+				libPath := string(path)
+				procPid := fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
+				root := procPid + "/root"
+				cwd := procPid + "/cwd"
+
+				if strings.HasPrefix(libPath, w.procRoot) {
+					// don't scan ourself when we resolve offsets via debug.elf.Open()
+					// but make the unit test pass as the pid of the test and the tracer would be the same
+					// that why we don't filter by lib.Pid == uint32(thisPID) here
+					continue
 				}
 
-				path := lib.Bytes()
 				for _, r := range w.rules {
 					if !r.re.Match(path) {
 						continue
 					}
 
-					var (
-						libPath = string(path)
-						pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
-					)
-
-					// resolving paths is expensive so we cache the libraries we've already seen
-					k := seenKey{pidPath, libPath}
-					if _, ok := seen[k]; ok {
-						break
-					}
-					seen[k] = struct{}{}
-
-					// resolve namespaced path to host path
-					pathResolver := psfilepath.NewResolver(w.procRoot)
-					pathResolver.LoadPIDMounts(pidPath)
-					if hostPath := pathResolver.Resolve(libPath); hostPath != "" {
-						libPath = hostPath
+					// use cwd of the process as root if the path is relative
+					if libPath[0] != '/' {
+						root = cwd
+						libPath = "/" + libPath
 					}
 
-					libPath = w.canonicalizePath(libPath)
-					w.registry.register(libPath, int(lib.Pid), r)
+					w.registry.Register(root, libPath, lib.Pid, r)
 					break
 				}
 
@@ -160,221 +268,73 @@ func (w *soWatcher) Start() {
 	}()
 }
 
-func (w *soWatcher) sync() {
-	libraries := so.FindProc(w.procRoot, w.all)
-	toUnregister := make(map[string]struct{}, len(w.registry.byPath))
-	for libPath := range w.registry.byPath {
-		toUnregister[libPath] = struct{}{}
+// call all the unregisterCB
+func (r *soRegistry) cleanup() {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	for _, reg := range r.byID {
+		reg.Unregister()
+	}
+}
+
+// Unregister a pid if exist, unregisterCB will be called if his refcount == 0
+func (r *soRegistry) Unregister(pid uint32) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	reg, found := r.byPID[pid]
+	if !found {
+		return
+	}
+	if reg.Unregister() == true {
+		// we need to cleanup our entries as there are no more processes using this ELF
+		delete(r.byID, reg.pathID)
+	}
+	delete(r.byPID, pid)
+}
+
+// Register a ELF library root/libPath as be used by the pid
+// Only one registration will be done per ELF (system wide)
+func (r *soRegistry) Register(root string, libPath string, pid uint32, rule soRule) {
+	hostLibPath := root + libPath
+	pathID, err := newPathIdentifier(hostLibPath)
+	if err != nil {
+		// short living process can hit here
+		// as we receive the openat() syscall info after receiving the EXIT netlink process
+		log.Tracef("can't create path identifier %s", err)
+		return
 	}
 
-	for _, lib := range libraries {
-		path := w.canonicalizePath(lib.HostPath)
-		if _, ok := w.registry.byPath[path]; ok {
-			// shared library still mapped into memory
-			// don't unregister it
-			delete(toUnregister, path)
-			continue
-		}
+	r.m.Lock()
+	defer r.m.Unlock()
+	if _, found := r.blocklistByID[pathID]; found {
+		return
+	}
 
-		for _, r := range w.rules {
-			if r.re.MatchString(path) {
-				// new library detected
-				// register it
-				for _, pidPath := range lib.PidsPath {
-					pid, err := extractPID(pidPath)
-					if err != nil {
-						log.Errorf("extractPID '%s' failed : %s", pidPath, err)
-						continue
-					}
-					w.registry.register(path, pid, r)
-				}
-				break
+	if reg, found := r.byID[pathID]; found {
+		reg.refcount++
+		r.byPID[pid] = reg
+		return
+	}
+
+	if err := rule.registerCB(pathID, root, libPath); err != nil {
+		log.Debugf("error registering library (adding to blocklist) %s path %s by pid %d : %s", pathID.String(), hostLibPath, pid, err)
+		// we calling unregisterCB here as some uprobe could be already attached, unregisterCB will cleanup those entries
+		if rule.unregisterCB != nil {
+			if err := rule.unregisterCB(pathID); err != nil {
+				log.Debugf("unregisterCB library %s path %s : %s", pathID.String(), hostLibPath, err)
 			}
 		}
-	}
-
-	for path := range toUnregister {
-		w.registry.unregister(path)
-	}
-}
-
-func (w *soWatcher) checkProcessDone() (updated bool) {
-	regsToBeRemoved := make(map[*soRegistration]struct{})
-	pathsToBeRemoved := make(map[string]struct{})
-
-	for libpath, registration := range w.registry.byPath {
-		if _, ok := regsToBeRemoved[registration]; ok {
-			// this is possible because a library (represented by a given inode)
-			// can be registered through multiple paths
-			pathsToBeRemoved[libpath] = struct{}{}
-			continue
-		}
-
-		if len(registration.pids) == 0 || registration.unregisterCB == nil {
-			// this library doesn't require liveness checks
-			continue
-		}
-
-		for pid := range registration.pids {
-			if !isProcessAlive(pid) {
-				delete(registration.pids, pid)
-			}
-		}
-
-		if len(registration.pids) == 0 {
-			// all processes are gone, so schedule this for removal
-			pathsToBeRemoved[libpath] = struct{}{}
-			regsToBeRemoved[registration] = struct{}{}
-			updated = true
-		}
-	}
-
-	for libpath := range pathsToBeRemoved {
-		w.registry.unregister(libpath)
-	}
-
-	return updated
-}
-
-func (w *soWatcher) canonicalizePath(path string) string {
-	if w.hostMount != "" {
-		path = filepath.Join(w.hostMount, path)
-	}
-
-	return followSymlink(path)
-}
-
-type soRegistration struct {
-	// set of pid paths (eg. /host/proc/123) that are used for liveness checks
-	// this is done to unregister shared libraries as soon as all processes
-	// referencing it terminate. This is required when the shared library is
-	// located in a volume where mount propagation is enabled, so containers
-	// don't get stuck during termination.
-	pids map[string]struct{}
-
-	inode        uint64
-	refcount     int
-	unregisterCB func(string) error
-}
-
-type soRegistry struct {
-	procRoot string
-	byPath   map[string]*soRegistration
-	byInode  map[uint64]*soRegistration
-}
-
-func (r *soRegistry) register(libPath string, pid int, rule soRule) {
-	pidPath := fmt.Sprintf("%s/%d", r.procRoot, pid)
-	if registration, ok := r.byPath[libPath]; ok {
-		registration.pids[pidPath] = struct{}{}
-		return
-	}
-
-	inode, err := getInode(libPath)
-	if err != nil {
-		return
-	}
-
-	if registration, ok := r.byInode[inode]; ok {
-		registration.refcount++
-		r.byPath[libPath] = registration
-		registration.pids[pidPath] = struct{}{}
-		log.Debugf("registering library=%s", libPath)
-		return
-	}
-
-	err = rule.registerCB(libPath)
-	if err != nil {
-		log.Debugf("error registering library=%s: %s", libPath, err)
-		if err := rule.unregisterCB(libPath); err != nil {
-			log.Debugf("unregisterCB %s : %s", libPath, err)
-		}
-
 		// save sentinel value so we don't attempt to re-register shared
 		// libraries that are problematic for some reason
-		registration := newRegistration(inode, nil)
-		r.byPath[libPath] = registration
-		r.byInode[inode] = registration
+		r.blocklistByID[pathID] = struct{}{}
 		return
 	}
 
-	log.Debugf("registering library=%s", libPath)
-	registration := newRegistration(inode, rule.unregisterCB)
-	registration.pids[pidPath] = struct{}{}
-	r.byPath[libPath] = registration
-	r.byInode[inode] = registration
-}
+	reg := newRegistration(pathID, rule.unregisterCB)
+	r.byID[pathID] = reg
+	r.byPID[pid] = reg
 
-func (r *soRegistry) unregister(libPath string) {
-	registration, ok := r.byPath[libPath]
-	if !ok {
-		return
-	}
-
-	log.Debugf("unregistering library=%s", libPath)
-	delete(r.byPath, libPath)
-	registration.refcount--
-	if registration.refcount > 0 {
-		return
-	}
-
-	delete(r.byInode, registration.inode)
-	if registration.unregisterCB != nil {
-		err := registration.unregisterCB(libPath)
-		if err != nil {
-			log.Debugf("unregisterCB %s : %s", libPath, err)
-		}
-	}
-}
-
-func newRegistration(inode uint64, unregisterCB func(string) error) *soRegistration {
-	r := &soRegistration{
-		pids:         make(map[string]struct{}),
-		inode:        inode,
-		unregisterCB: unregisterCB,
-		refcount:     1,
-	}
-	return r
-}
-
-func followSymlink(path string) string {
-	if withoutSymLinks, err := filepath.EvalSymlinks(path); err == nil {
-		return withoutSymLinks
-	}
-
-	return path
-}
-
-func getInode(path string) (uint64, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0, err
-	}
-
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return 0, fmt.Errorf("invalid file stat")
-	}
-
-	return stat.Ino, nil
-}
-
-func extractPID(pidPath string) (int, error) {
-	pidPathArray := strings.Split(pidPath, string(os.PathSeparator))
-	if len(pidPathArray) == 0 {
-		return 0, fmt.Errorf("invalid PID path: %s", pidPath)
-	}
-
-	pidStr := pidPathArray[len(pidPathArray)-1]
-	pid, err := strconv.Atoi(pidStr)
-	if err != nil {
-		return 0, fmt.Errorf("invalid PID path: %s", pidPath)
-	}
-
-	return pid, nil
-}
-
-func isProcessAlive(pidPath string) bool {
-	fi, err := os.Stat(pidPath)
-	return err == nil && fi.IsDir()
+	log.Debugf("registering library %s path %s by pid %d", pathID.String(), hostLibPath, pid)
 }

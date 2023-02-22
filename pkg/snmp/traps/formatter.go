@@ -49,27 +49,28 @@ func NewJSONFormatter(oidResolver OIDResolver, namespace string) (JSONFormatter,
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach
-// {
-//	"trap": {
-//    "ddsource": "snmp-traps",
-//    "ddtags": "namespace:default,snmp_device:10.0.0.2,...",
-//    "timestamp": 123456789,
-//    "snmpTrapName": "...",
-//    "snmpTrapOID": "1.3.6.1.5.3.....",
-//    "snmpTrapMIB": "...",
-//    "uptime": "12345",
-//    "genericTrap": "5", # v1 only
-//    "specificTrap": "0",  # v1 only
-//    "variables": [
-//      {
-//        "oid": "1.3.4.1....",
-//        "type": "integer",
-//        "value": 12
-//      },
-//      ...
-//    ],
-//   }
-// }
+//
+//	{
+//		"trap": {
+//	   "ddsource": "snmp-traps",
+//	   "ddtags": "namespace:default,snmp_device:10.0.0.2,...",
+//	   "timestamp": 123456789,
+//	   "snmpTrapName": "...",
+//	   "snmpTrapOID": "1.3.6.1.5.3.....",
+//	   "snmpTrapMIB": "...",
+//	   "uptime": "12345",
+//	   "genericTrap": "5", # v1 only
+//	   "specificTrap": "0",  # v1 only
+//	   "variables": [
+//	     {
+//	       "oid": "1.3.4.1....",
+//	       "type": "integer",
+//	       "value": 12
+//	     },
+//	     ...
+//	   ],
+//	  }
+//	}
 func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 	payload := make(map[string]interface{})
 	var formattedTrap map[string]interface{}
@@ -342,6 +343,11 @@ func formatValue(variable gosnmp.SnmpPDU) interface{} {
 	switch variable.Value.(type) {
 	case []byte:
 		return string(variable.Value.([]byte))
+	case string:
+		if variable.Type == gosnmp.ObjectIdentifier {
+			return NormalizeOID(variable.Value.(string))
+		}
+		return variable.Value
 	default:
 		return variable.Value
 	}

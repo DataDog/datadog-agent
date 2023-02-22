@@ -23,7 +23,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,7 +46,7 @@ type SysProbeListener struct {
 
 // NewListener returns a new SysProbeListener to listen for process events
 func NewListener(handler EventHandler) (*SysProbeListener, error) {
-	socketPath := ddconfig.Datadog.GetString("runtime_security_config.socket")
+	socketPath := ddconfig.SystemProbe.GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}

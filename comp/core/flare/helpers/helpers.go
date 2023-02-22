@@ -37,6 +37,15 @@ type FlareBuilder interface {
 	// 'content' is automatically scrubbed of any sensitive informations before being added to the flare.
 	AddFile(destFile string, content []byte) error
 
+	// AddFileWithoutScrubbing creates a new file in the flare with the content.
+	//
+	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
+	// automatically be created.
+	//
+	// 'content' is NOT scrubbed of any sensitive informations before being added to the flare.
+	// Can be used for binary files that mustn’t be corrupted, like pprof profiles for ex.
+	AddFileWithoutScrubbing(destFile string, content []byte) error
+
 	// AddFileFromFunc creates a new file in the flare with the content returned by the callback.
 	//
 	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
@@ -49,9 +58,6 @@ type FlareBuilder interface {
 	AddFileFromFunc(destFile string, cb func() ([]byte, error)) error
 
 	// CopyFile copies the content of 'srcFile' to the root of the flare.
-	//
-	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
-	// automatically be created.
 	//
 	// The data is automatically scrubbed of any sensitive informations before being copied.
 	//
@@ -75,7 +81,7 @@ type FlareBuilder interface {
 	// The path for each file in 'srcDir' is passed to the 'shouldInclude' callback. If 'shouldInclude' returns true, the
 	// file is copies to the flare. If not, the file is ignored.
 	//
-	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/dir").
+	// 'destDir' is a path relative to the flare root (ex: "some/path/to/a/dir").
 	//
 	// The data of each copied file is automatically scrubbed of any sensitive informations before being copied.
 	//
@@ -88,7 +94,7 @@ type FlareBuilder interface {
 	// The path for each file in 'srcDir' is passed to the 'shouldInclude' callback. If 'shouldInclude' returns true, the
 	// file is copies to the flare. If not, the file is ignored.
 	//
-	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/dir").
+	// 'destDir' is a path relative to the flare root (ex: "some/path/to/a/dir").
 	//
 	// The data of each copied file is NOT scrubbed of any sensitive informations before being copied. Only files
 	// already scrubbed should be added in this way (ex: agent logs that are scrubbed at creation).

@@ -129,12 +129,17 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	}
 	messages := s.buffer.GetMessages()
 	s.buffer.Clear()
+	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.
+	// pipelineName comes from epforwarder.passthroughPipelineDescs.eventType, and these names are constants in the epforwarder package.
+	if s.pipelineName == "dbm-samples" || s.pipelineName == "dbm-metrics" || s.pipelineName == "dbm-activity" {
+		log.Debugf("Flushing buffer and sending %d messages for pipeline %s", len(messages), s.pipelineName)
+	}
 	s.sendMessages(messages, outputChan)
 }
 
 func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Payload) {
 	serializedMessage := s.serializer.Serialize(messages)
-	log.Debugf("Send messages (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", len(messages), len(serializedMessage), float64(len(serializedMessage))/float64(len(messages)))
+	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", s.pipelineName, len(messages), len(serializedMessage), float64(len(serializedMessage))/float64(len(messages)))
 
 	encodedPayload, err := s.contentEncoding.encode(serializedMessage)
 	if err != nil {

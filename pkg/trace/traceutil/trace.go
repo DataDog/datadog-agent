@@ -108,11 +108,11 @@ func ChildrenMap(t pb.Trace) map[uint64][]*pb.Span {
 // ComputeTopLevel updates all the spans top-level attribute.
 //
 // A span is considered top-level if:
-// - it's a root span
-// - OR its parent is unknown (other part of the code, distributed trace)
-// - OR its parent belongs to another service (in that case it's a "local root"
-//   being the highest ancestor of other spans belonging to this service and
-//   attached to it).
+//   - it's a root span
+//   - OR its parent is unknown (other part of the code, distributed trace)
+//   - OR its parent belongs to another service (in that case it's a "local root"
+//     being the highest ancestor of other spans belonging to this service and
+//     attached to it).
 func ComputeTopLevel(trace pb.Trace) {
 	spanIDToIndex := make(map[uint64]int, len(trace))
 	for i, span := range trace {

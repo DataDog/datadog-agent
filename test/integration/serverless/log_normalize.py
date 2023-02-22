@@ -4,18 +4,20 @@ import re
 
 
 def normalize_metrics(stage):
+    def clear_dogsketches(log):
+        log["dogsketches"] = []
+
+    def sort_tags(log):
+        log["tags"].sort()
+
+    def metric_sort_key(log):
+        return (log["metric"], "cold_start:true" in log["tags"])
+
     return [
         replace(r'raise Exception', r'\n'),
         require(r'BEGINMETRIC.*ENDMETRIC'),
         exclude(r'BEGINMETRIC'),
         exclude(r'ENDMETRIC'),
-        replace(r'(ts":)[0-9]{10}', r'\1XXX'),
-        replace(r'(min":)[0-9\.e\-]{1,30}', r'\1XXX'),
-        replace(r'(max":)[0-9\.e\-]{1,30}', r'\1XXX'),
-        replace(r'(cnt":)[0-9\.e\-]{1,30}', r'\1XXX'),
-        replace(r'(avg":)[0-9\.e\-]{1,30}', r'\1XXX'),
-        replace(r'(sum":)[0-9\.e\-]{1,30}', r'\1XXX'),
-        replace(r'(k":\[)[0-9\.e\-]{1,30}', r'\1XXX'),
         replace(r'(datadog-nodev)[0-9]+\.[0-9]+\.[0-9]+', r'\1X.X.X'),
         replace(r'(datadog_lambda:v)[0-9]+\.[0-9]+\.[0-9]+', r'\1X.X.X'),
         replace(r'dd_lambda_layer:datadog-go[0-9.]{1,}', r'dd_lambda_layer:datadog-gox.x.x'),
@@ -24,11 +26,32 @@ def normalize_metrics(stage):
         replace(r'(architecture:)(x86_64|arm64)', r'\1XXX'),
         replace(stage, 'XXXXXX'),
         exclude(r'[ ]$'),
-        sort_by(lambda log: (log["metric"], "cold_start:true" in log["tags"])),
+        foreach(clear_dogsketches),
+        foreach(sort_tags),
+        sort_by(metric_sort_key),
     ]
 
 
 def normalize_logs(stage):
+    rmvs = (
+        "DATADOG TRACER CONFIGURATION",
+        # TODO: these messages may be an indication of a real problem and
+        # should be investigated
+        "TIMESTAMP UTC | DD_EXTENSION | ERROR | could not forward the request context canceled",
+        "TIMESTAMP http: proxy error: context canceled",
+    )
+
+    def rm_extra_items_key(log):
+        return any(rmv in log["message"]["message"] for rmv in rmvs)
+
+    def sort_tags(log):
+        tags = log["ddtags"].split(',')
+        tags.sort()
+        log["ddtags"] = ','.join(tags)
+
+    def log_sort_key(log):
+        return log["message"]["message"]
+
     return [
         require(r'BEGINLOG.*ENDLOG'),
         exclude(r'BEGINLOG'),
@@ -39,22 +62,21 @@ def normalize_logs(stage):
         replace(r'\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}', 'TIMESTAMP'),
         replace(r'\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}', 'TIMESTAMP'),
         replace(r'([a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12})', r'XXX'),
+        replace(r'"REPORT RequestId:.*?"', '"REPORT"'),
         replace(stage, 'XXXXXX'),
         replace(r'(architecture:)(x86_64|arm64)', r'\1XXX'),
-        sort_by(lambda log: log["message"]["message"]),
-        # TODO: these messages may be an indication of a real problem and
-        # should be investigated
-        rm_item(
-            lambda log: log["message"]["message"]
-            in (
-                "TIMESTAMP UTC | DD_EXTENSION | ERROR | could not forward the request context canceled\n",
-                "TIMESTAMP http: proxy error: context canceled\n",
-            )
-        ),
+        rm_item(rm_extra_items_key),
+        foreach(sort_tags),
+        sort_by(log_sort_key),
     ]
 
 
 def normalize_traces(stage):
+    def trace_sort_key(log):
+        name = log['chunks'][0]['spans'][0]['name']
+        cold_start = log['chunks'][0]['spans'][0]['meta'].get('cold_start')
+        return name, cold_start
+
     return [
         require(r'BEGINTRACE.*ENDTRACE'),
         exclude(r'BEGINTRACE'),
@@ -70,8 +92,10 @@ def normalize_traces(stage):
         replace(r'("_dd.no_p_sr":)[0-9\.]+', r'\1null'),
         replace(r'("architecture":)"(x86_64|arm64)"', r'\1"XXX"'),
         replace(r'("process_id":)[0-9]+', r'\1null'),
+        replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
         replace(stage, 'XXXXXX'),
         exclude(r'[ ]$'),
+        sort_by(trace_sort_key),
     ]
 
 
@@ -112,6 +136,20 @@ def require(pattern):
         return match.group(0)
 
     return _require
+
+
+def foreach(fn):
+    """
+    Execute fn with each element of the list in order
+    """
+
+    def _foreach(log):
+        logs = json.loads(log, strict=False)
+        for log_item in logs:
+            fn(log_item)
+        return json.dumps(logs)
+
+    return _foreach
 
 
 def sort_by(key):

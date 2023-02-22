@@ -14,13 +14,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -29,7 +29,7 @@ import (
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,7 +52,12 @@ var NetworkTracer = module.Factory{
 			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, msg)
 		}
 
-		log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
+		if ncfg.NPMEnabled {
+			log.Info("enabling network performance monitoring (NPM)")
+		}
+		if ncfg.ServiceMonitoringEnabled {
+			log.Info("enabling universal service monitoring (USM)")
+		}
 
 		t, err := tracer.NewTracer(ncfg)
 
@@ -192,6 +197,19 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, table)
+	})
+
+	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancelFunc()
+		cache, err := nt.tracer.DebugDumpProcessCache(ctx)
+		if err != nil {
+			log.Errorf("unable to dump tracer process cache: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, cache)
 	})
 
 	httpMux.HandleFunc("/debug/telemetry", func(w http.ResponseWriter, req *http.Request) {

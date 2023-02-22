@@ -10,6 +10,7 @@ package http
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -18,6 +19,7 @@ import (
 )
 
 type httpStatKeeper struct {
+	mux        sync.Mutex
 	stats      map[Key]*RequestStats
 	incomplete *incompleteBuffer
 	maxEntries int
@@ -50,19 +52,22 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	}
 }
 
-func (h *httpStatKeeper) Process(transactions []httpTX) {
-	for i := range transactions {
-		tx := transactions[i]
-		if tx.Incomplete() {
-			h.incomplete.Add(tx)
-			continue
-		}
+func (h *httpStatKeeper) Process(tx httpTX) {
+	h.mux.Lock()
+	defer h.mux.Unlock()
 
-		h.add(tx)
+	if tx.Incomplete() {
+		h.incomplete.Add(tx)
+		return
 	}
+
+	h.add(tx)
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+
 	for _, tx := range h.incomplete.Flush(time.Now()) {
 		h.add(tx)
 	}
@@ -84,7 +89,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 		return
 	}
 
-	if Method(tx.RequestMethod()) == MethodUnknown {
+	if tx.Method() == MethodUnknown {
 		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
@@ -118,14 +123,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 
 func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 	return Key{
-		KeyTuple: KeyTuple{
-			SrcIPHigh: tx.SrcIPHigh(),
-			SrcIPLow:  tx.SrcIPLow(),
-			SrcPort:   tx.SrcPort(),
-			DstIPHigh: tx.DstIPHigh(),
-			DstIPLow:  tx.DstIPLow(),
-			DstPort:   tx.DstPort(),
-		},
+		KeyTuple: tx.ConnTuple(),
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,

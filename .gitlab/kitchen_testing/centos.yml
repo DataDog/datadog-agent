@@ -15,17 +15,19 @@
   variables:
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77,rhel-81"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "centos-77,rhel-81"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
 
 .kitchen_os_centos_6_7_non_fips:
   variables:
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "centos-77"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
 
 .kitchen_os_centos_8_fips:
   variables:
@@ -33,11 +35,16 @@
     KITCHEN_PLATFORM: "centos"
     # For now, we only test FIPS on 8.1
     KITCHEN_OSVERS: "rhel-81"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "rhel-81"
     DEFAULT_KITCHEN_OSVERS: "rhel-81"
   before_script:
     - export KITCHEN_PLATFORM_SUFFIX="${KITCHEN_PLATFORM_SUFFIX}fips"
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
+
+.kitchen_os_with_cws:
+  variables:
+    KITCHEN_CWS: "true"
 
 # Kitchen: scenarios (os * agent * (cloud + arch))
 # -------------------------------
@@ -75,6 +82,7 @@
     - .kitchen_agent_a6
     - .kitchen_os_centos_8_fips
     - .kitchen_azure_x64
+    - .kitchen_os_with_cws
   needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_centos_8_fips_a7:
@@ -82,6 +90,7 @@
     - .kitchen_agent_a7
     - .kitchen_os_centos_8_fips
     - .kitchen_azure_x64
+    - .kitchen_os_with_cws
   needs: ["deploy_rpm_testing-a7_x64"]
 
 # Kitchen: final test matrix (tests * scenarios)
@@ -92,16 +101,19 @@
 # for CentOS/RHEL 6/7.
 kitchen_centos_install_script_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_6_7_non_fips_a6
     - .kitchen_test_install_script_agent
 
 kitchen_centos_install_script_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_6_7_non_fips_a7
     - .kitchen_test_install_script_agent
 
 kitchen_centos_fips_install_script_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_8_fips_a6
     - .kitchen_test_install_script_agent
 
@@ -110,6 +122,7 @@ kitchen_centos_fips_install_script_agent-a7:
   rules:
     !reference [.on_default_kitchen_tests_a7]
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_8_fips_a7
     - .kitchen_test_install_script_agent
 
@@ -138,6 +151,7 @@ kitchen_centos_fips_install_script_dogstatsd-a7:
 
 kitchen_centos_step_by_step_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_6_7_non_fips_a6
     - .kitchen_test_step_by_step_agent
   rules:
@@ -145,6 +159,7 @@ kitchen_centos_step_by_step_agent-a6:
 
 kitchen_centos_fips_step_by_step_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_8_fips_a6
     - .kitchen_test_step_by_step_agent
   rules:
@@ -152,6 +167,7 @@ kitchen_centos_fips_step_by_step_agent-a6:
 
 kitchen_centos_step_by_step_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_6_7_non_fips_a7
     - .kitchen_test_step_by_step_agent
   rules:
@@ -159,6 +175,7 @@ kitchen_centos_step_by_step_agent-a7:
 
 kitchen_centos_fips_step_by_step_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_8_fips_a7
     - .kitchen_test_step_by_step_agent
   rules:
@@ -178,31 +195,37 @@ kitchen_centos_upgrade5_agent-a7:
 
 kitchen_centos_upgrade6_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_6_7_non_fips_a6
     - .kitchen_test_upgrade6_agent
 
 kitchen_centos_upgrade6_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_6_7_non_fips_a7
     - .kitchen_test_upgrade6_agent
 
 kitchen_centos_upgrade7_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_6_7_non_fips_a7
     - .kitchen_test_upgrade7_agent
 
 kitchen_centos_fips_upgrade6_agent-a6:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_8_fips_a6
     - .kitchen_test_upgrade6_agent
 
 kitchen_centos_fips_upgrade6_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_8_fips_a7
     - .kitchen_test_upgrade6_agent
 
 kitchen_centos_fips_upgrade7_agent-a7:
   extends:
+    - .kitchen_os_with_cws
     - .kitchen_scenario_centos_8_fips_a7
     - .kitchen_test_upgrade7_agent
 

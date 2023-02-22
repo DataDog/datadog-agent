@@ -46,10 +46,6 @@ type OTLP struct {
 	// BindHost specifies the host to bind the receiver to.
 	BindHost string `mapstructure:"-"`
 
-	// HTTPPort specifies the port to use for the plain HTTP receiver.
-	// If unset (or 0), the receiver will be off.
-	HTTPPort int `mapstructure:"http_port"`
-
 	// GRPCPort specifies the port to use for the plain HTTP receiver.
 	// If unset (or 0), the receiver will be off.
 	GRPCPort int `mapstructure:"grpc_port"`
@@ -77,6 +73,12 @@ type OTLP struct {
 	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
 	// one sent by Datadog cloud integrations.
 	UsePreviewHostnameLogic bool `mapstructure:"-"`
+
+	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
+	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
+	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
+	// decision is followed.
+	ProbabilisticSampling float64
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -265,9 +267,9 @@ type EVPProxy struct {
 	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
 	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
-	ApplicationKey string
+	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -279,7 +281,7 @@ type DebuggerProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// APIKey ...
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
@@ -424,6 +426,9 @@ type AgentConfig struct {
 
 	// Azure App Services
 	InAzureAppServices bool
+
+	// DebugServerPort defines the port used by the debug server
+	DebugServerPort int
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

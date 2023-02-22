@@ -117,7 +117,7 @@ class GoModule:
 DEFAULT_MODULES = {
     ".": GoModule(
         ".",
-        targets=["./pkg", "./cmd"],
+        targets=["./pkg", "./cmd", "./comp"],
     ),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
@@ -126,7 +126,9 @@ DEFAULT_MODULES = {
         "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
     "test/new-e2e": GoModule("test/new-e2e", condition=lambda: False, should_tag=False),
-    "pkg/quantile": GoModule("pkg/quantile", independent=True),
+    "test/fakeintake": GoModule(
+        "test/fakeintake", targets=["./server", "./client"], independent=True, should_tag=False
+    ),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/trace": GoModule("pkg/trace", independent=True),
     "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
@@ -134,6 +136,7 @@ DEFAULT_MODULES = {
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
+    "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
 }
 

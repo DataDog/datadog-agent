@@ -18,14 +18,7 @@ from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 
-@task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64"):
-    """
-    Run golangci-lint on targets using .golangci.yml configuration.
-
-    Example invocation:
-        inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
-    """
+def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64"):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
@@ -37,16 +30,39 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
+    results = []
     for target in targets:
         print(f"running golangci on {target}")
-        ctx.run(
-            f'golangci-lint run --timeout 15m0s --build-tags "{" ".join(tags)}" {target}/...',
+        result = ctx.run(
+            f'golangci-lint run --timeout 20m0s --build-tags "{" ".join(tags)}" {target}/...',
             env=env,
+            warn=True,
         )
+        results.append(result)
 
-    # golangci exits with status 1 when it finds an issue, if we're here
-    # everything went smooth
-    print("golangci-lint found no issues")
+    return results
+
+
+@task
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64"):
+    """
+    Run golangci-lint on targets using .golangci.yml configuration.
+
+    Example invocation:
+        inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
+    """
+    results = run_golangci_lint(ctx, targets, rtloader_root, build_tags, build, arch)
+
+    should_fail = False
+    for result in results:
+        # golangci exits with status 1 when it finds an issue
+        if result.exited != 0:
+            should_fail = True
+
+    if should_fail:
+        raise Exit(code=1)
+    else:
+        print("golangci-lint found no issues")
 
 
 @task
@@ -268,7 +284,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.18.7 linux/amd64"
+    # result is like "go version go1.19.5 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

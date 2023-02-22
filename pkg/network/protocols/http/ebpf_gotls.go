@@ -23,21 +23,24 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
-	offsetsDataMap    = "offsets_data"
-	goTLSReadArgsMap  = "go_tls_read_args"
-	goTLSWriteArgsMap = "go_tls_write_args"
+	offsetsDataMap            = "offsets_data"
+	goTLSReadArgsMap          = "go_tls_read_args"
+	goTLSWriteArgsMap         = "go_tls_write_args"
+	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
 )
 
 type uprobeInfo struct {
@@ -123,6 +126,7 @@ type runningBinary struct {
 }
 
 type GoTLSProgram struct {
+	cfg     *config.Config
 	manager *errtelemetry.Manager
 
 	// Path to the process/container's procfs
@@ -149,7 +153,7 @@ type GoTLSProgram struct {
 
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
-	binAnalysisMetric *errtelemetry.Metric
+	binAnalysisMetric *libtelemetry.Metric
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -169,18 +173,19 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		return nil
 	}
 
-	if !c.EnableRuntimeCompiler {
-		log.Errorf("goTLS support requires runtime-compilation to be enabled")
+	if !c.EnableRuntimeCompiler && !c.EnableCORE {
+		log.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
 		return nil
 	}
 
 	p := &GoTLSProgram{
+		cfg:       c,
 		procRoot:  c.ProcRoot,
 		binaries:  make(map[binaryID]*runningBinary),
 		processes: make(map[pid]binaryID),
 	}
 
-	p.binAnalysisMetric = errtelemetry.NewMetric("gotls.analysis_time", errtelemetry.OptStatsd)
+	p.binAnalysisMetric = libtelemetry.NewMetric("gotls.analysis_time", libtelemetry.OptStatsd)
 
 	return p
 }
@@ -195,7 +200,13 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	// Hooks will be added in runtime for each binary
 }
 
-func (p *GoTLSProgram) ConfigureOptions(_ *manager.Options) {}
+func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
+	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
+		Type:       ebpf.Hash,
+		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		EditorFlag: manager.EditMaxEntries,
+	}
+}
 
 func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	probeList := make([]manager.ProbeIdentificationPair, 0)
@@ -256,9 +267,22 @@ func (p *GoTLSProgram) Stop() {
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	exePath := filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
+
 	binPath, err := os.Readlink(exePath)
 	if err != nil {
-		log.Debugf(" could not read binary path for pid %d: %s", pid, err)
+		// We receive the Exec event, /proc could be slow to update
+		end := time.Now().Add(10 * time.Millisecond)
+		for end.After(time.Now()) {
+			binPath, err = os.Readlink(exePath)
+			if err == nil {
+				break
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	if err != nil {
+		// we can't access to the binary path here (pid probably ended already)
+		// there are not much we can do and we don't want to flood the logs
 		return
 	}
 
@@ -294,7 +318,10 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 	var err error
 	defer func() {
 		if err != nil {
-			log.Debugf("could not hook new binary %q for process %d: %s", binPath, pid, err)
+			// report hooking issue only if we detect properly a golang binary
+			if !errors.Is(err, binversion.ErrNotGoExe) {
+				log.Debugf("could not hook new binary %q for process %d: %s", binPath, pid, err)
+			}
 			p.unregisterProcess(pid)
 			return
 		}
@@ -317,9 +344,7 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 
 	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
 	if err != nil {
-		if !errors.Is(err, binversion.ErrNotGoExe) {
-			err = fmt.Errorf("error reading exe: %w", err)
-		}
+		err = fmt.Errorf("error reading exe: %w", err)
 		return
 	}
 
@@ -390,7 +415,6 @@ func (p *GoTLSProgram) unregisterProcess(pid pid) {
 	bin.processCount -= 1
 
 	if bin.processCount == 0 {
-		log.Debugf("no processes left for binID %v", bin.binID)
 		p.unhookBinary(bin)
 		delete(p.binaries, binID)
 	}
@@ -420,7 +444,11 @@ func (p *GoTLSProgram) removeInspectionResultFromMap(binID binaryID) {
 }
 
 func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (probeIDs []manager.ProbeIdentificationPair, err error) {
-	uid := getUID(binPath)
+	pathID, err := newPathIdentifier(binPath)
+	if err != nil {
+		return probeIDs, fmt.Errorf("can't create path identifier for path %s : %s", binPath, err)
+	}
+	uid := getUID(pathID)
 	defer func() {
 		if err != nil {
 			p.detachHooks(probeIDs)
@@ -435,7 +463,6 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 		if functionsConfig[function].IncludeReturnLocations && uprobes.returnInfo != nil {
 			for i, offset := range result.Functions[function].ReturnLocations {
 				returnProbeID := manager.ProbeIdentificationPair{
-					EBPFSection:  uprobes.returnInfo.ebpfSection,
 					EBPFFuncName: uprobes.returnInfo.ebpfFunctionName,
 					UID:          makeReturnUID(uid, i),
 				}
@@ -456,7 +483,6 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 
 		if uprobes.functionInfo != nil {
 			probeID := manager.ProbeIdentificationPair{
-				EBPFSection:  uprobes.functionInfo.ebpfSection,
 				EBPFFuncName: uprobes.functionInfo.ebpfFunctionName,
 				UID:          uid,
 			}
@@ -499,7 +525,6 @@ func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 
 func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
 	return manager.ProbeIdentificationPair{
-		EBPFSection:  i.ebpfSection,
 		EBPFFuncName: i.ebpfFunctionName,
 	}
 }

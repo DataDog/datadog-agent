@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -55,6 +56,9 @@ func NewHTTPClient(auth Auth) (*HTTPClient, error) {
 		header["DD-Application-Key"] = []string{auth.AppKey}
 	}
 	transport := httputils.CreateHTTPTransport()
+	// Set the keep-alive timeout to 30s instead of the default 90s, so the http RC client is not closed by the backend
+	transport.IdleConnTimeout = 30 * time.Second
+
 	httpClient := &http.Client{
 		Transport: transport,
 	}

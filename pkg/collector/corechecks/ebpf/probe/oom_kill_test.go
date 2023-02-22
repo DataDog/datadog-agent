@@ -23,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -77,12 +76,6 @@ func TestOOMKillProbe(t *testing.T) {
 	}
 
 	cfg := testConfig()
-
-	fullKV := host.GetStatusInformation().KernelVersion
-	if cfg.EnableCORE && (fullKV == "4.18.0-1018-azure" || fullKV == "4.18.0-147.43.1.el8_1.x86_64") {
-		t.Skipf("Skipping CO-RE tests for kernel version %v due to missing BTFs", fullKV)
-	}
-
 	oomKillProbe, err := NewOOMKillProbe(cfg)
 	if err != nil {
 		t.Fatal(err)

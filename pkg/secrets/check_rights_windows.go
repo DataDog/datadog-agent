@@ -188,6 +188,10 @@ var getDDAgentUserSID = func() (*windows.SID, error) {
 		return nil, fmt.Errorf("could not read installedDomain in registry: %s", err)
 	}
 
-	sid, _, _, err := windows.LookupSID(domain, user)
+	if domain != "" {
+		user = domain + `\` + user
+	}
+
+	sid, _, _, err := windows.LookupSID("", user)
 	return sid, err
 }

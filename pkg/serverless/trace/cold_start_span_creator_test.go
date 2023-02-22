@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 )
 
 func TestColdStartSpanCreatorCreateValid(t *testing.T) {
@@ -25,7 +26,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
@@ -60,7 +61,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	lambdaSpanChan <- lambdaSpan
 	initDurationChan <- coldStartDuration
 
-	timeout := time.After(2 * time.Millisecond)
+	timeout := time.After(2 * time.Second)
 	var span *pb.Span
 	select {
 	case ss := <-traceAgent.ta.TraceWriter.In:
@@ -81,7 +82,7 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
@@ -129,7 +130,7 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}

@@ -17,6 +17,7 @@ import (
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -117,15 +118,15 @@ func TestOTLPMetrics(t *testing.T) {
 		},
 	}).Traces().ResourceSpans()
 
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, "")
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, "")
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{})
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{})
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
-	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
@@ -142,7 +143,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 				{Name: "asd"},
 			},
 		},
-	}).Traces().ResourceSpans().At(0), http.Header{}, "")
+	}).Traces().ResourceSpans().At(0), http.Header{})
 	timeout := time.After(500 * time.Millisecond)
 	select {
 	case <-timeout:
@@ -150,6 +151,47 @@ func TestOTLPNameRemapping(t *testing.T) {
 	case p := <-out:
 		assert.Equal(t, "new", p.TracerPayload.Chunks[0].Spans[0].Name)
 	}
+}
+
+func TestCreateChunks(t *testing.T) {
+	cfg := config.New()
+	cfg.OTLPReceiver.ProbabilisticSampling = 50
+	o := NewOTLPReceiver(nil, cfg)
+	const (
+		traceID1 = 123           // sampled by 50% rate
+		traceID2 = 1237892138897 // not sampled by 50% rate
+		traceID3 = 1237892138898 // not sampled by 50% rate
+	)
+	traces := map[uint64]pb.Trace{
+		traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
+		traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
+		traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
+	}
+	priorities := map[uint64]sampler.SamplingPriority{
+		traceID3: sampler.PriorityUserKeep,
+	}
+	chunks := o.createChunks(traces, priorities)
+	var found int
+	for _, c := range chunks {
+		id := c.Spans[0].TraceID
+		require.ElementsMatch(t, c.Spans, traces[id])
+		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
+		switch id {
+		case traceID1:
+			found += 1
+			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
+			require.Equal(t, int32(1), c.Priority)
+		case traceID2:
+			found += 2
+			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
+			require.Equal(t, int32(0), c.Priority)
+		case traceID3:
+			found += 3
+			require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"])
+			require.Equal(t, int32(2), c.Priority)
+		}
+	}
+	require.Equal(t, 6, found)
 }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
@@ -341,7 +383,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -363,7 +405,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 		}).Traces().ResourceSpans().At(0)
-		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
 		timeout := time.After(500 * time.Millisecond)
 		select {
 		case <-timeout:
@@ -452,7 +494,7 @@ func TestOTLPHostname(t *testing.T) {
 				Attributes: rattr,
 				Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 			},
-		}).Traces().ResourceSpans().At(0), http.Header{}, "")
+		}).Traces().ResourceSpans().At(0), http.Header{})
 		assert.Equal(t, src.Kind, source.HostnameKind)
 		assert.Equal(t, src.Identifier, tt.out)
 		timeout := time.After(500 * time.Millisecond)
@@ -475,23 +517,7 @@ func TestOTLPReceiver(t *testing.T) {
 		o := NewOTLPReceiver(nil, config.New())
 		o.Start()
 		defer o.Stop()
-		assert.Nil(t, o.httpsrv)
 		assert.Nil(t, o.grpcsrv)
-	})
-
-	t.Run("Start/http", func(t *testing.T) {
-		port := testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
-			BindHost: "localhost",
-			HTTPPort: port,
-		}
-		o := NewOTLPReceiver(nil, cfg)
-		o.Start()
-		defer o.Stop()
-		assert.Nil(t, o.grpcsrv)
-		assert.NotNil(t, o.httpsrv)
-		assert.Equal(t, fmt.Sprintf("localhost:%d", port), o.httpsrv.Addr)
 	})
 
 	t.Run("Start/grpc", func(t *testing.T) {
@@ -505,7 +531,6 @@ func TestOTLPReceiver(t *testing.T) {
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
-		assert.Nil(o.httpsrv)
 		assert.NotNil(o.grpcsrv)
 		svc, ok := o.grpcsrv.GetServiceInfo()["opentelemetry.proto.collector.trace.v1.TraceService"]
 		assert.True(ok)
@@ -513,27 +538,12 @@ func TestOTLPReceiver(t *testing.T) {
 		assert.Equal("Export", svc.Methods[0].Name)
 	})
 
-	t.Run("Start/http+grpc", func(t *testing.T) {
-		port1, port2 := testutil.FreeTCPPort(t), testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
-			BindHost: "localhost",
-			HTTPPort: port1,
-			GRPCPort: port2,
-		}
-		o := NewOTLPReceiver(nil, cfg)
-		o.Start()
-		defer o.Stop()
-		assert.NotNil(t, o.grpcsrv)
-		assert.NotNil(t, o.httpsrv)
-	})
-
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
 		o := NewOTLPReceiver(out, config.New())
-		o.processRequest(context.Background(), otlpProtocolGRPC, http.Header(map[string][]string{
-			headerLang:        {"go"},
-			headerContainerID: {"containerdID"},
+		o.processRequest(context.Background(), http.Header(map[string][]string{
+			header.Lang:        {"go"},
+			header.ContainerID: {"containerdID"},
 		}), otlpTestTracesRequest)
 		ps := make([]*Payload, 2)
 		timeout := time.After(time.Second / 2)
@@ -577,7 +587,7 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("status2Error", func(t *testing.T) {
-		for _, tt := range []struct {
+		for _, tt := range []*struct {
 			status ptrace.StatusCode
 			msg    string
 			events ptrace.SpanEventSlice
@@ -764,11 +774,11 @@ func TestOTLPHelpers(t *testing.T) {
 
 	t.Run("tagsFromHeaders", func(t *testing.T) {
 		out := tagsFromHeaders(http.Header(map[string][]string{
-			headerLang:                  {"go"},
-			headerLangVersion:           {"1.14"},
-			headerLangInterpreter:       {"x"},
-			headerLangInterpreterVendor: {"y"},
-		}), otlpProtocolGRPC)
+			header.Lang:                  {"go"},
+			header.LangVersion:           {"1.14"},
+			header.LangInterpreter:       {"x"},
+			header.LangInterpreterVendor: {"y"},
+		}))
 		assert.Equal(t, []string{"endpoint_version:opentelemetry_grpc_v1", "lang:go", "lang_version:1.14", "interpreter:x", "lang_vendor:y"}, out)
 	})
 }
@@ -1266,8 +1276,8 @@ func trimSpaces(str string) string {
 
 func BenchmarkProcessRequest(b *testing.B) {
 	metadata := http.Header(map[string][]string{
-		headerLang:        {"go"},
-		headerContainerID: {"containerdID"},
+		header.Lang:        {"go"},
+		header.ContainerID: {"containerdID"},
 	})
 	out := make(chan *Payload, 100)
 	end := make(chan struct{})
@@ -1287,7 +1297,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.processRequest(context.Background(), otlpProtocolHTTP, metadata, otlpTestTracesRequest)
+		r.processRequest(context.Background(), metadata, otlpTestTracesRequest)
 	}
 	b.StopTimer()
 	end <- struct{}{}

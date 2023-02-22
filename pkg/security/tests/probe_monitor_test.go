@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -121,7 +120,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 				return err
 			}
 			return f.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			// check the length of the filepath that triggered the custom event
 			filepath, err := event.GetFieldValue("open.file.path")
 			if err == nil {

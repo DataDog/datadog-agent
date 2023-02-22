@@ -99,6 +99,7 @@ const (
 // Datadog is the global configuration object
 var (
 	Datadog       Config
+	SystemProbe   Config
 	proxies       *Proxy
 	overrideFuncs = make([]func(Config), 0)
 )
@@ -219,8 +220,10 @@ func init() {
 	osinit()
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	InitConfig(Datadog)
+	InitSystemProbeConfig(SystemProbe)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -365,6 +368,7 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
+	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
@@ -716,6 +720,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
+	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude", []string{
+		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
+		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
+	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -732,6 +740,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
 	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
+	config.BindEnvAndSetDefault("ec2_use_dmi", false)                            // should the agent leverage DMI information to know if it's running on EC2 or not. Enabling this will add the instance ID from DMI to the host alias list.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
@@ -1016,12 +1025,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
+	config.BindEnvAndSetDefault("telemetry.python_memory", true)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
@@ -1054,7 +1066,7 @@ func InitConfig(config Config) {
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
-	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
@@ -1062,6 +1074,16 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
 	config.BindEnv("container_lifecycle.dd_url")
 	config.BindEnv("container_lifecycle.additional_endpoints")
+
+	// Container image configuration
+	config.BindEnvAndSetDefault("container_image.enabled", false)
+	config.BindEnv("container_image.dd_url")
+	config.BindEnv("container_image.additional_endpoints")
+
+	// SBOM configuration
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnv("sbom.dd_url")
+	config.BindEnv("sbom.additional_endpoints")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1081,6 +1103,15 @@ func InitConfig(config Config) {
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
+
+	// container_image_collection
+	config.BindEnvAndSetDefault("container_image_collection.metadata.enabled", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.enabled", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.use_mount", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
+	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
+	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1108,73 +1139,17 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
-	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", true)
 	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.event_monitoring.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.erpc_dentry_resolution_enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.map_dentry_resolution_enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.dentry_cache_size", 1024)
-	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
-	config.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
-	config.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
-	config.BindEnvAndSetDefault("runtime_security_config.enable_approvers", true)
-	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
-	config.BindEnvAndSetDefault("runtime_security_config.flush_discarder_window", 3)
-	config.BindEnvAndSetDefault("runtime_security_config.runtime_monitor.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
-	config.BindEnvAndSetDefault("runtime_security_config.events_stats.tags_cardinality", "high")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
-	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
-	config.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
-	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
-	config.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
-	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 60)
-	config.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
-	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
-	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
-	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
-	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
-	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
-	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
-	config.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
+	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
-	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
-	config.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
-	config.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
-	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
-	config.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
-	config.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
-	config.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 1)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", 75)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{})
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
-	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
-	config.BindEnv("runtime_security_config.event_stream.buffer_size")
-	config.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
@@ -1223,6 +1198,9 @@ func InitConfig(config Config) {
 	// Vector integration
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
+
+	// Datadog Agent Manager System Tray
+	config.BindEnvAndSetDefault("system_tray.log_file", "")
 
 	setupAPM(config)
 	SetupOTLP(config)
@@ -1329,12 +1307,12 @@ func LoadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
-	return load(Datadog, "datadog.yaml", true)
+	return LoadDatadogCustom(Datadog, "datadog.yaml", true)
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return load(Datadog, "datadog.yaml", false)
+	return LoadDatadogCustom(Datadog, "datadog.yaml", false)
 }
 
 func findUnknownKeys(config Config) []string {
@@ -1459,9 +1437,8 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
-func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
-	warnings := Warnings{}
-
+// LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCusto
+func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1470,6 +1447,39 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		DetectFeatures()
 		applyOverrideFuncs(config)
 	}()
+
+	warnings, err := LoadCustom(config, origin, loadSecret)
+	if err != nil {
+		return warnings, err
+	}
+
+	err = checkConflictingOptions(config)
+	if err != nil {
+		return warnings, err
+	}
+
+	// If this variable is set to true, we'll use DefaultPython for the Python version,
+	// ignoring the python_version configuration value.
+	if ForceDefaultPython == "true" && config.IsKnown("python_version") {
+		pv := config.GetString("python_version")
+		if pv != DefaultPython {
+			log.Warnf("Python version has been forced to %s", DefaultPython)
+		}
+
+		AddOverride("python_version", DefaultPython)
+	}
+
+	LoadProxyFromEnv(config)
+	SanitizeAPIKeyConfig(config, "api_key")
+	// setTracemallocEnabled *must* be called before setNumWorkers
+	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
+	setNumWorkers(config)
+	return warnings, setupFipsEndpoints(config)
+}
+
+// LoadCustom reads config into the provided config object
+func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
+	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
 		if IsServerless() {
@@ -1507,29 +1517,8 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
 	}
 
-	err := checkConflictingOptions(config)
-	if err != nil {
-		return &warnings, err
-	}
-
-	// If this variable is set to true, we'll use DefaultPython for the Python version,
-	// ignoring the python_version configuration value.
-	if ForceDefaultPython == "true" {
-		pv := config.GetString("python_version")
-		if pv != DefaultPython {
-			log.Warnf("Python version has been forced to %s", DefaultPython)
-		}
-
-		AddOverride("python_version", DefaultPython)
-	}
-
 	useHostEtc(config)
-	LoadProxyFromEnv(config)
-	SanitizeAPIKeyConfig(config, "api_key")
-	// setTracemallocEnabled *must* be called before setNumWorkers
-	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
-	setNumWorkers(config)
-	return &warnings, setupFipsEndpoints(config)
+	return &warnings, nil
 }
 
 // setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS
@@ -1550,6 +1539,8 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 9:  network devices snmp traps (unused)
 	// port_range_start + 10: instrumentation telemetry
 	// port_range_start + 11: appsec events (unused)
+	// port_range_start + 12: orchestrator explorer
+	// port_range_start + 13: runtime security
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
@@ -1569,6 +1560,8 @@ func setupFipsEndpoints(config Config) error {
 		networkDevicesSnmpTraps    = 9
 		instrumentationTelemetry   = 10
 		appsecEvents               = 11
+		orchestratorExplorer       = 12
+		runtimeSecurity            = 13
 	)
 
 	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
@@ -1598,6 +1591,9 @@ func setupFipsEndpoints(config Config) error {
 	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics))
 
+	// Logs
+	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
@@ -1607,14 +1603,6 @@ func setupFipsEndpoints(config Config) error {
 	// Processes
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
 
-	// Logs
-	config.Set("logs_config.use_http", true)
-	config.Set("logs_config.logs_no_ssl", true)
-	if config.GetBool("fips.https") {
-		config.Set("logs_config.logs_no_ssl", false)
-	}
-	config.Set("logs_config.logs_dd_url", urlFor(logs))
-
 	// Database monitoring
 	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
 	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics))
@@ -1623,7 +1611,19 @@ func setupFipsEndpoints(config Config) error {
 	// Network devices
 	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
 
+	// Orchestrator Explorer
+	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))
+
+	// CWS
+	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+
 	return nil
+}
+
+func setupFipsLogsConfig(config Config, configPrefix string, url string) {
+	config.Set(configPrefix+"use_http", true)
+	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
+	config.Set(configPrefix+"logs_dd_url", url)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -1672,11 +1672,18 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func SanitizeAPIKeyConfig(config Config, key string) {
+	if !config.IsKnown(key) {
+		return
+	}
 	config.Set(key, SanitizeAPIKey(config.GetString(key)))
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
 func sanitizeExternalMetricsProviderChunkSize(config Config) {
+	if !config.IsKnown("external_metrics_provider.chunk_size") {
+		return
+	}
+
 	chunkSize := config.GetInt("external_metrics_provider.chunk_size")
 	if chunkSize <= 0 {
 		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
@@ -1925,6 +1932,10 @@ func pathExists(path string) bool {
 // setTracemallocEnabled is a helper to get the effective tracemalloc
 // configuration.
 func setTracemallocEnabled(config Config) bool {
+	if !config.IsKnown("tracemalloc_debug") {
+		return false
+	}
+
 	pyVersion := config.GetString("python_version")
 	wTracemalloc := config.GetBool("tracemalloc_debug")
 	traceMallocEnabledWithPy2 := false
@@ -1942,6 +1953,10 @@ func setTracemallocEnabled(config Config) bool {
 // setNumWorkers is a helper to set the effective number of workers for
 // a given config.
 func setNumWorkers(config Config) {
+	if !config.IsKnown("check_runners") {
+		return
+	}
+
 	wTracemalloc := config.GetBool("tracemalloc_debug")
 	numWorkers := config.GetInt("check_runners")
 	if wTracemalloc {

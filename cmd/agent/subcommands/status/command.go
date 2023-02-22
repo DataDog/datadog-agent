@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -63,8 +64,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath, config.WithConfigLoadSysProbe(true)),
-					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+					ConfigParams:         config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					LogParams:            log.LogForOneShot("CORE", "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -127,7 +129,7 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(log log.Component, config config.Component, cliParams *cliParams) error {
+func statusCmd(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	return redactError(requestStatus(config, cliParams))
 }
 
@@ -183,10 +185,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 // If the status can not be obtained for any reason, the returned map will contain an "error"
 // key with an explanation.
 func getAPMStatus(config config.Component) map[string]interface{} {
-	port := 8126
-	if config.IsSet("apm_config.receiver_port") {
-		port = config.GetInt("apm_config.receiver_port")
-	}
+	port := config.GetInt("apm_config.debug.port")
 	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
 	resp, err := (&http.Client{Timeout: 2 * time.Second}).Get(url)
 	if err != nil {

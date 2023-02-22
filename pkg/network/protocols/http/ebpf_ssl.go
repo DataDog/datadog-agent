@@ -9,11 +9,10 @@
 package http
 
 import (
+	"debug/elf"
 	"os"
 	"regexp"
-	"strconv"
-
-	"github.com/twmb/murmur3"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -21,7 +20,9 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,25 +31,21 @@ var openSSLProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_read_ex",
 					EBPFFuncName: "uprobe__SSL_read_ex",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/SSL_read_ex",
 					EBPFFuncName: "uretprobe__SSL_read_ex",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_write_ex",
 					EBPFFuncName: "uprobe__SSL_write_ex",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/SSL_write_ex",
 					EBPFFuncName: "uretprobe__SSL_write_ex",
 				},
 			},
@@ -58,67 +55,56 @@ var openSSLProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_do_handshake",
 					EBPFFuncName: "uprobe__SSL_do_handshake",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/SSL_do_handshake",
 					EBPFFuncName: "uretprobe__SSL_do_handshake",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_connect",
 					EBPFFuncName: "uprobe__SSL_connect",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/SSL_connect",
 					EBPFFuncName: "uretprobe__SSL_connect",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_set_bio",
 					EBPFFuncName: "uprobe__SSL_set_bio",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_set_fd",
 					EBPFFuncName: "uprobe__SSL_set_fd",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_read",
 					EBPFFuncName: "uprobe__SSL_read",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/SSL_read",
 					EBPFFuncName: "uretprobe__SSL_read",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_write",
 					EBPFFuncName: "uprobe__SSL_write",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/SSL_write",
 					EBPFFuncName: "uretprobe__SSL_write",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/SSL_shutdown",
 					EBPFFuncName: "uprobe__SSL_shutdown",
 				},
 			},
@@ -131,13 +117,11 @@ var cryptoProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/BIO_new_socket",
 					EBPFFuncName: "uprobe__BIO_new_socket",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/BIO_new_socket",
 					EBPFFuncName: "uretprobe__BIO_new_socket",
 				},
 			},
@@ -150,67 +134,56 @@ var gnuTLSProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/gnutls_handshake",
 					EBPFFuncName: "uprobe__gnutls_handshake",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/gnutls_handshake",
 					EBPFFuncName: "uretprobe__gnutls_handshake",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/gnutls_transport_set_int2",
 					EBPFFuncName: "uprobe__gnutls_transport_set_int2",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/gnutls_transport_set_ptr",
 					EBPFFuncName: "uprobe__gnutls_transport_set_ptr",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/gnutls_transport_set_ptr2",
 					EBPFFuncName: "uprobe__gnutls_transport_set_ptr2",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/gnutls_record_recv",
 					EBPFFuncName: "uprobe__gnutls_record_recv",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/gnutls_record_recv",
 					EBPFFuncName: "uretprobe__gnutls_record_recv",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/gnutls_record_send",
 					EBPFFuncName: "uprobe__gnutls_record_send",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uretprobe/gnutls_record_send",
 					EBPFFuncName: "uretprobe__gnutls_record_send",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/gnutls_bye",
 					EBPFFuncName: "uprobe__gnutls_bye",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "uprobe/gnutls_deinit",
 					EBPFFuncName: "uprobe__gnutls_deinit",
 				},
 			},
@@ -253,7 +226,7 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 	return &sslProgram{
 		cfg:         c,
 		sockFDMap:   sockFDMap,
-		perfHandler: ddebpf.NewPerfHandler(batchNotificationsChanSize),
+		perfHandler: ddebpf.NewPerfHandler(100),
 	}
 }
 
@@ -280,7 +253,6 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 	for _, kprobe := range kprobeKretprobePrefix {
 		m.Probes = append(m.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  kprobe + "/" + probeSysOpen.section,
 				EBPFFuncName: kprobe + "__" + probeSysOpen.function,
 				UID:          probeUID,
 			},
@@ -291,7 +263,6 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 }
 
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
-
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: uint32(o.cfg.MaxTrackedConnections),
@@ -306,7 +277,6 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  kprobe + "/" + probeSysOpen.section,
 					EBPFFuncName: kprobe + "__" + probeSysOpen.function,
 					UID:          probeUID,
 				},
@@ -318,12 +288,12 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		options.MapEditors = make(map[string]*ebpf.Map)
 	}
 
-	options.MapEditors[string(probes.SockByPidFDMap)] = o.sockFDMap
+	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
 func (o *sslProgram) Start() {
 	// Setup shared library watcher and configure the appropriate callbacks
-	o.watcher = newSOWatcher(o.cfg.ProcRoot, o.perfHandler,
+	o.watcher = newSOWatcher(o.perfHandler,
 		soRule{
 			re:           regexp.MustCompile(`libssl.so`),
 			registerCB:   addHooks(o.manager, openSSLProbes),
@@ -348,14 +318,43 @@ func (o *sslProgram) Stop() {
 	o.perfHandler.Stop()
 }
 
-func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(string) error {
-	return func(libPath string) error {
-		uid := getUID(libPath)
+func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier, string, string) error {
+	return func(id pathIdentifier, root string, path string) error {
+		uid := getUID(id)
+
+		elfFile, err := elf.Open(root + path)
+		if err != nil {
+			return err
+		}
+		defer elfFile.Close()
+
+		symbolsSet := make(common.StringSet, 0)
+		symbolsSetBestEffort := make(common.StringSet, 0)
+		for _, singleProbe := range probes {
+			_, isBestEffort := singleProbe.(*manager.BestEffort)
+			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
+				_, symbol, ok := strings.Cut(selector.EBPFFuncName, "__")
+				if !ok {
+					continue
+				}
+				if isBestEffort {
+					symbolsSetBestEffort[symbol] = struct{}{}
+				} else {
+					symbolsSet[symbol] = struct{}{}
+				}
+			}
+		}
+		symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
+		if err != nil {
+			return err
+		}
+		/* Best effort to resolve symbols, so we don't care about the error */
+		symbolMapBestEffort, _ := bininspect.GetAllSymbolsByName(elfFile, symbolsSetBestEffort)
 
 		for _, singleProbe := range probes {
+			_, isBestEffort := singleProbe.(*manager.BestEffort)
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
-					EBPFSection:  selector.EBPFSection,
 					EBPFFuncName: selector.EBPFFuncName,
 					UID:          uid,
 				}
@@ -372,9 +371,29 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(str
 					continue
 				}
 
+				_, symbol, ok := strings.Cut(selector.EBPFFuncName, "__")
+				if !ok {
+					continue
+				}
+
+				sym := symbolMap[symbol]
+				if isBestEffort {
+					sym, found = symbolMapBestEffort[symbol]
+					if !found {
+						continue
+					}
+				}
+				manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
+				offset, err := bininspect.SymbolToOffset(elfFile, sym)
+				if err != nil {
+					return err
+				}
+
 				newProbe := &manager.Probe{
 					ProbeIdentificationPair: identifier,
-					BinaryPath:              libPath,
+					BinaryPath:              root + path,
+					UprobeOffset:            uint64(offset),
+					HookFuncName:            symbol,
 				}
 				_ = m.AddHook("", newProbe)
 			}
@@ -387,13 +406,12 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(str
 	}
 }
 
-func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(string) error {
-	return func(libPath string) error {
-		uid := getUID(libPath)
+func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier) error {
+	return func(lib pathIdentifier) error {
+		uid := getUID(lib)
 		for _, singleProbe := range probes {
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
-					EBPFSection:  selector.EBPFSection,
 					EBPFFuncName: selector.EBPFFuncName,
 					UID:          uid,
 				}
@@ -405,7 +423,7 @@ func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(
 				program := probe.Program()
 				err := m.DetachHook(identifier)
 				if err != nil {
-					log.Debugf("detach hook %s/%s/%s : %s", selector.EBPFSection, selector.EBPFFuncName, uid, err)
+					log.Debugf("detach hook %s/%s : %s", selector.EBPFFuncName, uid, err)
 				}
 				if program != nil {
 					program.Close()
@@ -417,14 +435,17 @@ func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(
 	}
 }
 
-func getUID(libPath string) string {
-	sum := murmur3.StringSum64(libPath)
-	hash := strconv.FormatInt(int64(sum), 16)
-	if len(hash) >= 5 {
-		return hash[len(hash)-5:]
-	}
-
-	return libPath
+// getUID() return a key of length 5 as the kernel uprobe registration path is limited to a length of 64
+// ebpf-manager/utils.go:GenerateEventName() MaxEventNameLen = 64
+// MAX_EVENT_NAME_LEN (linux/kernel/trace/trace.h)
+//
+// Length 5 is arbitrary value as the full string of the eventName format is
+//
+//	fmt.Sprintf("%s_%.*s_%s_%s", probeType, maxFuncNameLen, functionName, UID, attachPIDstr)
+//
+// functionName is variable but with a minimum guarantee of 10 chars
+func getUID(lib pathIdentifier) string {
+	return lib.Key()[:5]
 }
 
 func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
@@ -434,7 +455,6 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 		for _, singleProbe := range sslProbeList {
 			for _, identifier := range singleProbe.GetProbesIdentificationPairList() {
 				probeList = append(probeList, manager.ProbeIdentificationPair{
-					EBPFSection:  identifier.EBPFSection,
 					EBPFFuncName: identifier.EBPFFuncName,
 				})
 			}
@@ -444,7 +464,6 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	for _, hook := range []ebpfSectionFunction{doSysOpen, doSysOpenAt2} {
 		for _, kprobe := range kprobeKretprobePrefix {
 			probeList = append(probeList, manager.ProbeIdentificationPair{
-				EBPFSection:  kprobe + "/" + hook.section,
 				EBPFFuncName: kprobe + "__" + hook.function,
 			})
 		}

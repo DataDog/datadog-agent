@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.18
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.68
 	github.com/DataDog/test-infra-definitions v0.0.0-20221213160310-a4b5a27ec1dd
 	github.com/aws/aws-sdk-go-v2 v1.17.2
 	github.com/aws/aws-sdk-go-v2/config v1.18.4

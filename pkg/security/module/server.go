@@ -19,16 +19,18 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
+	jwriter "github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -388,8 +390,9 @@ func (a *APIServer) Start(ctx context.Context) {
 func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
 	if a.cfg != nil {
 		return &api.SecurityConfigMessage{
-			FIMEnabled:     a.cfg.FIMEnabled,
-			RuntimeEnabled: a.cfg.RuntimeEnabled,
+			FIMEnabled:          a.cfg.FIMEnabled,
+			RuntimeEnabled:      a.cfg.RuntimeEnabled,
+			ActivityDumpEnabled: a.cfg.ActivityDumpEnabled,
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil
@@ -439,7 +442,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := json.Marshal(event)
+	probeJSON, err := marshalEvent(event, a.probe)
 	if err != nil {
 		seclog.Errorf("failed to marshal event: %v", err)
 		return
@@ -475,6 +478,22 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 	}
 
 	a.enqueue(msg)
+}
+
+func marshalEvent(event Event, probe *sprobe.Probe) ([]byte, error) {
+	if ev, ok := event.(*model.Event); ok {
+		return serializers.MarshalEvent(ev, probe.GetResolvers())
+	}
+
+	if m, ok := event.(easyjson.Marshaler); ok {
+		w := &jwriter.Writer{
+			Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+		}
+		m.MarshalEasyJSON(w)
+		return w.BuildBytes()
+	}
+
+	return json.Marshal(event)
 }
 
 // expireEvent updates the count of expired messages for the appropriate rule

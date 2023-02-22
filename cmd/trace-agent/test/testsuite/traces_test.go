@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 // create a new config to access default config values
@@ -43,7 +44,7 @@ func TestTraces(t *testing.T) {
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.AgentPayload) {
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			if v.Env != "my-env" {
 				t.Fatalf("Expected env my-env, got: %q", v.Env)
 			}
@@ -72,7 +73,7 @@ func TestTraces(t *testing.T) {
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.AgentPayload) {
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			payloadsEqual(t, p[2:], v)
 		})
 	})
@@ -94,7 +95,7 @@ func TestTraces(t *testing.T) {
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.AgentPayload) {
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			payloadsEqual(t, append(p[:2], p[3:]...), v)
 		})
 	})
@@ -133,14 +134,14 @@ func TestTraces(t *testing.T) {
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.AgentPayload) {
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			payloadsEqual(t, p[:2], v)
 		})
 	})
 }
 
 // payloadsEqual validates that the traces in from are the same as the ones in to.
-func payloadsEqual(t *testing.T, from pb.Traces, to pb.AgentPayload) {
+func payloadsEqual(t *testing.T, from pb.Traces, to *pb.AgentPayload) {
 	got := 0
 	for _, tracerPayload := range to.TracerPayloads {
 		got += len(tracerPayload.Chunks)

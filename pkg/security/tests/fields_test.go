@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"testing"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -38,10 +38,10 @@ func TestFieldsResolver(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			_, _, err = test.Create("test-fields")
 			return err
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_fields_open")
 
-			event.ResolveFields(false)
+			event.ResolveFields()
 
 			// rely on validateAbnormalPaths
 		})
@@ -54,10 +54,10 @@ func TestFieldsResolver(t *testing.T) {
 			cmd := exec.Command(lsExecutable, "test-fields")
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_fields_exec")
 
-			event.ResolveFields(false)
+			event.ResolveFields()
 
 			// rely on validateAbnormalPaths
 		}))

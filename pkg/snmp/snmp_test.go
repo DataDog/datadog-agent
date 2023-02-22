@@ -47,13 +47,33 @@ func TestBuildSNMPParams(t *testing.T) {
 	assert.Equal(t, gosnmp.NoAuthNoPriv, params.MsgFlags)
 	assert.Equal(t, "192.168.0.2", params.Target)
 
+	for _, authProto := range []string{"", "md5", "sha", "sha224", "sha256", "sha384", "sha512"} {
+		config = Config{
+			Network:      "192.168.0.0/24",
+			User:         "admin",
+			AuthProtocol: authProto,
+		}
+		_, err = config.BuildSNMPParams("192.168.0.1")
+		assert.NoError(t, err)
+	}
+
+	for _, privProto := range []string{"", "des", "aes", "aes192", "aes192c", "aes256", "aes256c"} {
+		config = Config{
+			Network:      "192.168.0.0/24",
+			User:         "admin",
+			PrivProtocol: privProto,
+		}
+		_, err = config.BuildSNMPParams("192.168.0.1")
+		assert.NoError(t, err)
+	}
+
 	config = Config{
 		Network:      "192.168.0.0/24",
 		User:         "admin",
 		AuthProtocol: "foo",
 	}
 	_, err = config.BuildSNMPParams("192.168.0.1")
-	assert.Equal(t, "Unsupported authentication protocol: foo", err.Error())
+	assert.Equal(t, "unsupported authentication protocol: foo", err.Error())
 
 	config = Config{
 		Network:      "192.168.0.0/24",
@@ -61,7 +81,7 @@ func TestBuildSNMPParams(t *testing.T) {
 		PrivProtocol: "bar",
 	}
 	_, err = config.BuildSNMPParams("192.168.0.1")
-	assert.Equal(t, "Unsupported privacy protocol: bar", err.Error())
+	assert.Equal(t, "unsupported privacy protocol: bar", err.Error())
 }
 
 func TestNewListenerConfig(t *testing.T) {

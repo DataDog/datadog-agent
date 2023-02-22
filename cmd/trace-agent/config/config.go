@@ -275,6 +275,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		MaxRequestBytes:         c.MaxRequestBytes,
 		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
 		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:   coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 	}
 
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
@@ -426,6 +427,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "evp_proxy_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
 	}
+	c.DebugServerPort = coreconfig.Datadog.GetInt("apm_config.debug.port")
 	return nil
 }
 
@@ -666,12 +668,14 @@ func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
 	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
 		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
 	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_cpu_percent is not set, setting it to 0")
 		c.MaxCPU = 0
 	}
 
 	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
 		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
 	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
 		c.MaxMemory = 0
 	}
 }

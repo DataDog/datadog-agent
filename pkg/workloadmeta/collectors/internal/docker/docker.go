@@ -17,8 +17,10 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -40,9 +42,10 @@ type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, erro
 type collector struct {
 	store workloadmeta.Store
 
-	dockerUtil *docker.DockerUtil
-	eventCh    <-chan *docker.ContainerEvent
-	errCh      <-chan error
+	dockerUtil        *docker.DockerUtil
+	containerEventsCh <-chan *docker.ContainerEvent
+	imageEventsCh     <-chan *docker.ImageEvent
+	errCh             <-chan error
 }
 
 func init() {
@@ -69,12 +72,17 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		log.Warnf("Can't get pause container filter, no filtering will be applied: %v", err)
 	}
 
-	c.eventCh, c.errCh, err = c.dockerUtil.SubscribeToContainerEvents(componentName, filter)
+	c.containerEventsCh, c.imageEventsCh, c.errCh, err = c.dockerUtil.SubscribeToEvents(componentName, filter)
 	if err != nil {
 		return err
 	}
 
 	err = c.generateEventsFromContainerList(ctx, filter)
+	if err != nil {
+		return err
+	}
+
+	err = c.generateEventsFromImageList(ctx)
 	if err != nil {
 		return err
 	}
@@ -96,8 +104,14 @@ func (c *collector) stream(ctx context.Context) {
 		select {
 		case <-health.C:
 
-		case ev := <-c.eventCh:
-			err := c.handleEvent(ctx, ev)
+		case ev := <-c.containerEventsCh:
+			err := c.handleContainerEvent(ctx, ev)
+			if err != nil {
+				log.Warnf(err.Error())
+			}
+
+		case ev := <-c.imageEventsCh:
+			err := c.handleImageEvent(ctx, ev)
 			if err != nil {
 				log.Warnf(err.Error())
 			}
@@ -158,7 +172,38 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context, filter 
 	return nil
 }
 
-func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) error {
+func (c *collector) generateEventsFromImageList(ctx context.Context) error {
+	images, err := c.dockerUtil.Images(ctx, true)
+	if err != nil {
+		return err
+	}
+
+	events := make([]workloadmeta.CollectorEvent, 0, len(images))
+
+	for _, img := range images {
+		imgMetadata, err := c.getImageMetadata(ctx, img.ID)
+		if err != nil {
+			log.Warnf(err.Error())
+			continue
+		}
+
+		event := workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceRuntime,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: imgMetadata,
+		}
+
+		events = append(events, event)
+	}
+
+	if len(events) > 0 {
+		c.store.Notify(events)
+	}
+
+	return nil
+}
+
+func (c *collector) handleContainerEvent(ctx context.Context, ev *docker.ContainerEvent) error {
 	event, err := c.buildCollectorEvent(ctx, ev)
 	if err != nil {
 		return err
@@ -248,7 +293,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			if err != nil {
 				log.Debugf("Cannot convert exit code %q: %v", exitCodeString, err)
 			} else {
-				exitCode = pointer.UInt32Ptr(exitCodeInt)
+				exitCode = pointer.Ptr(uint32(exitCodeInt))
 			}
 		}
 
@@ -278,13 +323,14 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 
 	var (
 		name      string
+		registry  string
 		shortName string
 		tag       string
 		err       error
 	)
 
 	if strings.Contains(imageSpec, "@sha256") {
-		name, shortName, tag, err = containers.SplitImageName(imageSpec)
+		name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 		}
@@ -297,13 +343,13 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 			return image
 		}
 
-		name, shortName, tag, err = containers.SplitImageName(resolvedImageSpec)
+		name, registry, shortName, tag, err = containers.SplitImageName(resolvedImageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", resolvedImageSpec, container.ID, err)
 
 			// fallback and try to parse the original imageSpec anyway
 			if err == containers.ErrImageIsSha256 {
-				name, shortName, tag, err = containers.SplitImageName(imageSpec)
+				name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 				if err != nil {
 					log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 					return image
@@ -315,6 +361,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 	}
 
 	image.Name = name
+	image.Registry = registry
 	image.ShortName = shortName
 	image.Tag = tag
 
@@ -440,4 +487,104 @@ func extractHealth(containerHealth *types.Health) workloadmeta.ContainerHealth {
 	}
 
 	return workloadmeta.ContainerHealthUnknown
+}
+
+func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEvent) error {
+	switch event.Action {
+	case docker.ImageEventActionPull, docker.ImageEventActionTag, docker.ImageEventActionUntag:
+		imgMetadata, err := c.getImageMetadata(ctx, event.ImageID)
+		if err != nil {
+			return fmt.Errorf("could not get image metadata for image %q: %w", event.ImageID, err)
+		}
+
+		workloadmetaEvent := workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceRuntime,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: imgMetadata,
+		}
+
+		c.store.Notify([]workloadmeta.CollectorEvent{workloadmetaEvent})
+	case docker.ImageEventActionDelete:
+		workloadmetaEvent := workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceRuntime,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.ContainerImageMetadata{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainerImageMetadata,
+					ID:   event.ImageID,
+				},
+			},
+		}
+
+		c.store.Notify([]workloadmeta.CollectorEvent{workloadmetaEvent})
+	}
+
+	return nil
+}
+
+func (c *collector) getImageMetadata(ctx context.Context, imageID string) (*workloadmeta.ContainerImageMetadata, error) {
+	imgInspect, err := c.dockerUtil.ImageInspect(ctx, imageID)
+	if err != nil {
+		return nil, err
+	}
+
+	imageHistory, err := c.dockerUtil.ImageHistory(ctx, imageID)
+	if err != nil {
+		// Not sure if it's possible to get the image history in all the
+		// environments. If it's not, return the rest of metadata instead of an
+		// error.
+		log.Warnf("error getting image history: %s", err)
+	}
+
+	labels := make(map[string]string)
+	if imgInspect.Config != nil {
+		labels = imgInspect.Config.Labels
+	}
+
+	return &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   imgInspect.ID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: c.dockerUtil.GetPreferredImageName(
+				imgInspect.ID,
+				imgInspect.RepoTags,
+				imgInspect.RepoDigests,
+			),
+			Labels: labels,
+		},
+		RepoTags:     imgInspect.RepoTags,
+		RepoDigests:  imgInspect.RepoDigests,
+		SizeBytes:    imgInspect.Size,
+		OS:           imgInspect.Os,
+		OSVersion:    imgInspect.OsVersion,
+		Architecture: imgInspect.Architecture,
+		Variant:      imgInspect.Variant,
+		Layers:       layersFromDockerHistory(imageHistory),
+	}, nil
+}
+
+func layersFromDockerHistory(history []image.HistoryResponseItem) []workloadmeta.ContainerImageLayer {
+	var layers []workloadmeta.ContainerImageLayer
+
+	// Docker returns the layers in reverse-chronological order
+	for i := len(history) - 1; i >= 0; i-- {
+		created := time.Unix(history[i].Created, 0)
+
+		layer := workloadmeta.ContainerImageLayer{
+			Digest:    history[i].ID,
+			SizeBytes: history[i].Size,
+			History: v1.History{
+				Created:    &created,
+				CreatedBy:  history[i].CreatedBy,
+				Comment:    history[i].Comment,
+				EmptyLayer: history[i].Size == 0,
+			},
+		}
+
+		layers = append(layers, layer)
+	}
+
+	return layers
 }

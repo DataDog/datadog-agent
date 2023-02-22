@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,11 +20,18 @@ const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
+	evNS  = "event_monitoring_config"
 
 	defaultConnsMessageBatchSize = 600
 
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
 	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/share/system-probe/ebpf"
+
+	// defaultSystemProbeJavaDir is the default path for java agent program
+	defaultSystemProbeJavaDir = "/opt/datadog-agent/embedded/share/system-probe/java"
+
+	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
+	defaultServiceMonitoringJavaAgentArgs = "dd.appsec.enabled=false dd.trace.enabled=false dd.usm.enabled=true"
 
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
@@ -43,20 +51,38 @@ const (
 	defaultOffsetThreshold = 400
 )
 
-func isSystemProbeConfigInit(cfg Config) bool {
-	keys := cfg.GetKnownKeys()
-	_, ok := keys[join(spNS, "enabled")]
-	return ok
-}
-
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
-// This function should not be called before ResolveSecrets,
-// unless you call `cmd/system-probe/config.New` or `cmd/system-probe/config.Merge` in-between.
-// This is to prevent the in-memory values from being fixed before the file-based values have had a chance to be read.
 func InitSystemProbeConfig(cfg Config) {
-	if isSystemProbeConfigInit(cfg) {
-		return
-	}
+	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
+	cfg.BindEnvAndSetDefault("go_core_dump", false)
+
+	// Auto exit configuration
+	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
+	cfg.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
+	cfg.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
+
+	// statsd
+	cfg.BindEnv("bind_host")
+	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)
+
+	// logging
+	cfg.SetKnown(join(spNS, "log_file"))
+	cfg.SetKnown(join(spNS, "log_level"))
+	cfg.BindEnvAndSetDefault("log_file", defaultSystemProbeLogFilePath)
+	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
+	cfg.BindEnvAndSetDefault("syslog_uri", "")
+	cfg.BindEnvAndSetDefault("syslog_rfc", false)
+	cfg.BindEnvAndSetDefault("log_to_syslog", false)
+	cfg.BindEnvAndSetDefault("log_to_console", true)
+	cfg.BindEnvAndSetDefault("log_format_json", false)
+
+	// secrets backend
+	cfg.BindEnvAndSetDefault("secret_backend_command", "")
+	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
+	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 30)
+	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
+	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
 	// settings for system-probe in general
 	cfg.BindEnvAndSetDefault(join(spNS, "enabled"), false, "DD_SYSTEM_PROBE_ENABLED")
@@ -65,13 +91,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "sysprobe_socket"), defaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault(join(spNS, "max_conns_per_message"), defaultConnsMessageBatchSize)
 
-	cfg.BindEnvAndSetDefault(join(spNS, "log_file"), defaultSystemProbeLogFilePath)
-	cfg.BindEnvAndSetDefault(join(spNS, "log_level"), "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "telemetry_enabled"), true, "DD_TELEMETRY_ENABLED")
-
-	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_host"), "127.0.0.1")
-	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_port"), 8125)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -92,6 +113,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "java_dir"), defaultSystemProbeJavaDir, "DD_SYSTEM_PROBE_JAVA_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "excluded_linux_versions"), []string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tracepoints"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_co_re"), true, "DD_ENABLE_CO_RE")
@@ -118,6 +140,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
+	cfg.BindEnvAndSetDefault(join(spNS, "closed_connection_flush_threshold"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 
@@ -145,7 +168,10 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
-	cfg.BindEnvAndSetDefault(join(spNS, "enable_go_tls_support"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
+
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_java_tls_support"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "java_agent_args"), defaultServiceMonitoringJavaAgentArgs)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
@@ -182,8 +208,75 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 
+	// event monitoring
+	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
+
+	// process event monitoring data limits for network tracer
+	cfg.BindEnv(join(evNS, "network_process.max_processes_tracked"))
+
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
+
+	// CWS
+	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.erpc_dentry_resolution_enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.map_dentry_resolution_enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.dentry_cache_size", 1024)
+	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
+	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	cfg.BindEnvAndSetDefault("runtime_security_config.enable_approvers", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.flush_discarder_window", 3)
+	cfg.BindEnvAndSetDefault("runtime_security_config.runtime_monitor.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
+	cfg.BindEnvAndSetDefault("runtime_security_config.events_stats.tags_cardinality", "high")
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
+	cfg.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 60)
+	cfg.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
+	cfg.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
+	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
+	cfg.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
+	cfg.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
+	cfg.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
+	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 1)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", 75)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
+	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
+	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 }
 
 func join(pieces ...string) string {

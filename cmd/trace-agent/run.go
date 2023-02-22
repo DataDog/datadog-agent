@@ -19,8 +19,8 @@ import (
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -32,9 +32,9 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -85,6 +85,8 @@ func Run(ctx context.Context) {
 		return
 	}
 
+	telemetryCollector := telemetry.NewCollector(cfg)
+
 	if err := coreconfig.SetupLogger(
 		coreconfig.LoggerName("TRACE"),
 		coreconfig.Datadog.GetString("log_level"),
@@ -94,6 +96,7 @@ func Run(ctx context.Context) {
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
 	); err != nil {
+		telemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)
 		osutil.Exitf("Cannot create logger: %v", err)
 	}
 	tracelog.SetLogger(corelogger{})
@@ -101,6 +104,7 @@ func Run(ctx context.Context) {
 
 	if !cfg.Enabled {
 		log.Info(messageAgentDisabled)
+		telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
 		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -124,6 +128,7 @@ func Run(ctx context.Context) {
 	if flags.PIDFilePath != "" {
 		err := pidfile.WritePID(flags.PIDFilePath)
 		if err != nil {
+			telemetryCollector.SendStartupError(telemetry.CantWritePIDFile, err)
 			log.Criticalf("Error writing PID file, exiting: %v", err)
 			os.Exit(1)
 		}
@@ -132,18 +137,20 @@ func Run(ctx context.Context) {
 		defer os.Remove(flags.PIDFilePath)
 	}
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	err = manager.ConfigureAutoExit(ctx)
+	err = manager.ConfigureAutoExit(ctx, coreconfig.Datadog)
 	if err != nil {
+		telemetryCollector.SendStartupError(telemetry.CantSetupAutoExit, err)
 		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
 		return
 	}
 
 	err = metrics.Configure(cfg, []string{"version:" + version.AgentVersion})
 	if err != nil {
+		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
 	defer metrics.Flush()
@@ -188,17 +195,15 @@ func Run(ctx context.Context) {
 	}()
 
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") {
-		client, err := grpc.GetDDAgentSecureClient(context.Background())
+		// Auth tokens are handled by the rcClient
+		rcClient, err := rc.NewAgentGRPCConfigFetcher()
 		if err != nil {
+			telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)
-		}
-		token, err := security.FetchAuthToken()
-		if err != nil {
-			osutil.Exitf("could obtain the auth token for the tracer remote config client: %v", err)
 		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, client, token, cfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, rcClient, cfg) },
 		})
 	}
 
@@ -209,7 +214,7 @@ func Run(ctx context.Context) {
 		},
 	})
 
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetryCollector)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
 	if pcfg := profilingConfig(cfg); pcfg != nil {
 		if err := profiling.Start(*pcfg); err != nil {
@@ -219,6 +224,10 @@ func Run(ctx context.Context) {
 		}
 		defer profiling.Stop()
 	}
+	go func() {
+		time.Sleep(time.Second * 30)
+		telemetryCollector.SendStartupSuccess()
+	}()
 	agnt.Run()
 
 	// collect memory profile
