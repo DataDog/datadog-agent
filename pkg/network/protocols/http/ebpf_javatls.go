@@ -58,7 +58,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 		return nil
 	}
 
-	log.Info("java tls is enabled ")
+	log.Info("java tls is enabled")
 	javaUSMAgentArgs = c.JavaAgentArgs
 	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
 	jar, err := os.Open(javaUSMAgentJarPath)
