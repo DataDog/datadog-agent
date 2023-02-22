@@ -26,10 +26,9 @@ import (
 
 // asset represents an asset that needs its content integrity checked at runtime
 type asset struct {
-	filename  string
-	hash      string
-	tm        CompilationTelemetry
-	memfdFile *os.File
+	filename string
+	hash     string
+	tm       CompilationTelemetry
 }
 
 func newAsset(filename, hash string) *asset {
