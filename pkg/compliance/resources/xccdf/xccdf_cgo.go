@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -45,6 +44,59 @@ const (
 	XCCDF_RESULT_NOT_CHECKED    = 6
 	XCCDF_RESULT_NOT_SELECTED   = 7
 )
+
+var oscapSingleton = &oscapWrapper{
+	in:  make(chan oscapIn),
+	out: make(chan oscapOut),
+}
+
+func init() {
+	go oscapSingleton.mainLoop()
+}
+
+type oscapIn struct {
+	hostname string
+	xccdf    string
+	profile  string
+	rules    []string
+}
+
+type oscapOut struct {
+	instances []resources.ResolvedInstance
+	err       error
+}
+
+type oscapWrapper struct {
+	in  chan oscapIn
+	out chan oscapOut
+}
+
+func (w *oscapWrapper) mainLoop() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	for arg := range w.in {
+		instances, err := w.do(arg.hostname, arg.xccdf, arg.profile, arg.rules)
+		w.out <- oscapOut{instances, err}
+	}
+}
+
+func (w *oscapWrapper) do(hostname, xccdf, profile string, rules []string) ([]resources.ResolvedInstance, error) {
+	if len(rules) == 0 {
+		return nil, fmt.Errorf("no rule to evaluate")
+	}
+
+	xccdfSession, err := newXCCDFSession(xccdf)
+	if err != nil {
+		return nil, err
+	}
+	defer xccdfSession.Close()
+
+	if err := xccdfSession.SetProfile(profile); err != nil {
+		return nil, err
+	}
+
+	return xccdfSession.EvaluateRules(hostname, rules)
+}
 
 type xccdfSession struct {
 	session *C.struct_xccdf_session
@@ -72,7 +124,7 @@ func (s *xccdfSession) SetProfile(profile string) error {
 	return nil
 }
 
-func (s *xccdfSession) EvaluateRules(e env.Env, rules []string) ([]resources.ResolvedInstance, error) {
+func (s *xccdfSession) EvaluateRules(hostname string, rules []string) ([]resources.ResolvedInstance, error) {
 	if config.IsContainerized() {
 		hostRoot := os.Getenv("HOST_ROOT")
 		if hostRoot == "" {
@@ -116,10 +168,10 @@ func (s *xccdfSession) EvaluateRules(e env.Env, rules []string) ([]resources.Res
 		if result != "" {
 			instances = append(instances, resources.NewResolvedInstance(
 				eval.NewInstance(eval.VarMap{}, eval.FunctionMap{}, eval.RegoInputMap{
-					"name":   e.Hostname(),
+					"name":   hostname,
 					"result": result,
 					"rule":   ruleRef,
-				}), e.Hostname(), "host"))
+				}), hostname, "host"))
 		}
 	}
 	C.xccdf_rule_result_iterator_free(resIt)
@@ -162,31 +214,6 @@ func getFullError(errMsg string) error {
 	return fmt.Errorf("%s: %s", errMsg, C.GoString(C.oscap_err_get_full_error()))
 }
 
-var mu sync.Mutex
-
-func evalXCCDFRules(e env.Env, xccdf, profile string, rules []string) ([]resources.ResolvedInstance, error) {
-	runtime.LockOSThread()
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if len(rules) == 0 {
-		return nil, fmt.Errorf("no rule to evaluate")
-	}
-
-	xccdfSession, err := newXCCDFSession(xccdf)
-	if err != nil {
-		return nil, err
-	}
-	defer xccdfSession.Close()
-
-	if err := xccdfSession.SetProfile(profile); err != nil {
-		return nil, err
-	}
-
-	return xccdfSession.EvaluateRules(e, rules)
-}
-
 func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	configDir := e.ConfigDir()
 
@@ -197,10 +224,17 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 		rules = res.Xccdf.Rules
 	}
 
-	instances, err := evalXCCDFRules(e, filepath.Join(configDir, res.Xccdf.Name), res.Xccdf.Profile, rules)
-	if err != nil {
-		return nil, err
+	oscapSingleton.in <- oscapIn{
+		hostname: e.Hostname(),
+		xccdf:    filepath.Join(configDir, res.Xccdf.Name),
+		profile:  res.Xccdf.Profile,
+		rules:    rules,
+	}
+	result := <-oscapSingleton.out
+
+	if result.err != nil {
+		return nil, result.err
 	}
 
-	return resources.NewResolvedInstances(instances), nil
+	return resources.NewResolvedInstances(result.instances), nil
 }
