@@ -14,7 +14,6 @@ enum erpc_message_type {
     CLOSE_CONNECTION
 };
 
-
 /*
   handle_request pseudo format of *data that contain the http payload
 
@@ -85,7 +84,7 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
     // get connection tuple
     conn_tuple_t connection = {0};
     if (0 != bpf_probe_read_user(&connection, sizeof(conn_tuple_t), req+sizeof(op))){
-        log_debug("[java-tls-handle_erpc_request] failed to parse connection info of java tls erpc request %x for: pid %d\n",op, pid);
+        log_debug("[java-tls-handle_erpc_request] failed to parse connection info of java tls erpc request %x for: pid %d\n", op, pid);
         return 1;
     }
 
