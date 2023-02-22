@@ -9,13 +9,11 @@
 package tracer
 
 import (
-	"fmt"
 	"net"
 	"runtime"
 	"testing"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
@@ -27,6 +25,7 @@ import (
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -87,25 +86,16 @@ func TestConntrackers(t *testing.T) {
 	}
 }
 
-func getOffsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
+func getOffsets(t *testing.T, cfg *config.Config) ([]manager.ConstantEditor, error) {
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
-	}
+	require.NoError(t, err, "could not read offset bpf module")
 	defer offsetBuf.Close()
 	return runOffsetGuessing(cfg, offsetBuf)
 }
 
 func setupPrebuiltEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	consts, err := getOffsets(cfg)
-	if err != nil {
-		return nil, err
-	}
-	for _, c := range consts {
-		if c.Name == "offset_ino" {
-			t.Logf("ino offset: %d", c.Value)
-		}
-	}
+	consts, err := getOffsets(t, cfg)
+	require.NoError(t, err)
 	return NewEBPFConntracker(cfg, nil, consts)
 }
 

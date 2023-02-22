@@ -67,14 +67,31 @@ type TracerStatus struct {
 	Pad_cgo_0                       [3]byte
 }
 
-type TracerState uint8
+type State uint8
 
 const (
-	StateUninitialized TracerState = 0x0
-	StateChecking      TracerState = 0x1
-	StateChecked       TracerState = 0x2
-	StateReady         TracerState = 0x3
+	StateUninitialized State = 0x0
+	StateChecking      State = 0x1
+	StateChecked       State = 0x2
+	StateReady         State = 0x3
 )
+
+type ConntrackStatus struct {
+	State         uint64
+	What          uint64
+	Proc          Proc
+	Offset_origin uint64
+	Offset_reply  uint64
+	Offset_status uint64
+	Offset_netns  uint64
+	Offset_ino    uint64
+	Saddr         uint32
+	Status        uint32
+	Netns         uint32
+	L3num         uint16
+	Pad_cgo_0     [2]byte
+}
+type ConntrackState uint8
 
 type GuessWhat uint64
 
@@ -102,6 +119,11 @@ const (
 
 	GuessSKBuffTransportHeader GuessWhat = 0x12
 	GuessSKBuffHead            GuessWhat = 0x13
+
+	GuessCtTupleOrigin GuessWhat = 0x14
+	GuessCtTupleReply  GuessWhat = 0x15
+	GuessCtStatus      GuessWhat = 0x16
+	GuessCtNet         GuessWhat = 0x17
 
 	GuessNotApplicable GuessWhat = 99999
 )

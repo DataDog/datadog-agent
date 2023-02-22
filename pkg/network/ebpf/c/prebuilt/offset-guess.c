@@ -17,6 +17,7 @@
 BPF_HASH_MAP(connectsock_ipv6, __u64, void*, 1024)
 
 BPF_HASH_MAP(tracer_status, __u64, tracer_status_t, 1)
+BPF_HASH_MAP(conntrack_status, __u64, conntrack_status_t, 1)
 
 static __always_inline bool proc_t_comm_equals(proc_t a, proc_t b) {
     for (int i = 0; i < TASK_COMM_LEN; i++) {
@@ -40,7 +41,7 @@ static __always_inline bool check_family(struct sock* sk, tracer_status_t* statu
 static __always_inline int guess_offsets(tracer_status_t* status, char* subject) {
     u64 zero = 0;
 
-    if (status->state != TRACER_STATE_CHECKING) {
+    if (status->state != STATE_CHECKING) {
         return 1;
     }
 
@@ -57,7 +58,7 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
     tracer_status_t new_status = {};
     // Copy values from status to new_status
     bpf_probe_read_kernel(&new_status, sizeof(tracer_status_t), status);
-    new_status.state = TRACER_STATE_CHECKED;
+    new_status.state = STATE_CHECKED;
     new_status.err = 0;
     bpf_probe_read_kernel(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -303,6 +304,82 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     guess_offsets(status, (char*)skb);
     return 0;
 }
+
+static __always_inline int guess_conntrack_offsets(conntrack_status_t* status, char* subject) {
+    u64 zero = 0;
+
+    if (status->state != STATE_CHECKING) {
+        return 1;
+    }
+
+    // Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
+    // Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
+    // with runtime.LockOSThread.
+    proc_t proc = {};
+    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+    if (!proc_t_comm_equals(status->proc, proc)) {
+        return 0;
+    }
+
+    conntrack_status_t new_status = {};
+    // Copy values from status to new_status
+    bpf_probe_read_kernel(&new_status, sizeof(conntrack_status_t), status);
+    new_status.state = STATE_CHECKED;
+    bpf_probe_read_kernel(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
+
+    possible_net_t* possible_ct_net = NULL;
+    u32 possible_netns = 0;
+    switch (status->what) {
+    case GUESS_CT_TUPLE_ORIGIN:
+        bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + status->offset_origin);
+        break;
+    case GUESS_CT_TUPLE_REPLY:
+        bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + status->offset_reply);
+        break;
+    case GUESS_CT_STATUS:
+        bpf_probe_read_kernel(&new_status.status, sizeof(new_status.status), subject + status->offset_status);
+        break;
+    case GUESS_CT_NET:
+        bpf_probe_read_kernel(&possible_ct_net, sizeof(possible_net_t*), subject + status->offset_netns);
+        bpf_probe_read_kernel(&possible_netns, sizeof(possible_netns), ((char*)possible_ct_net) + status->offset_ino);
+        new_status.netns = possible_netns;
+        break;
+    default:
+        // not for us
+        return 0;
+    }
+
+    bpf_map_update_elem(&conntrack_status, &zero, &new_status, BPF_ANY);
+
+    return 0;
+}
+
+static __always_inline bool is_ct_event(u64 what) {
+    switch (what) {
+    case GUESS_CT_TUPLE_ORIGIN:
+    case GUESS_CT_TUPLE_REPLY:
+    case GUESS_CT_STATUS:
+    case GUESS_CT_NET:
+        return true;
+    default:
+        return false;
+    }
+}
+
+SEC("kprobe/__nf_conntrack_hash_insert")
+int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
+    u64 zero = 0;
+    conntrack_status_t* status = bpf_map_lookup_elem(&conntrack_status, &zero);
+    if (status == NULL || !is_ct_event(status->what)) {
+        return 0;
+    }
+
+    void *ct = (void*)PT_REGS_PARM1(ctx);
+    guess_conntrack_offsets(status, (char*)ct);
+    return 0;
+}
+
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)

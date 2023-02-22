@@ -18,7 +18,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
         return 0;
     }
 
-    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x\n", get_netns(&ct->ct_net), status);
+    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x", get_netns(ct), status);
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
@@ -36,7 +36,7 @@ SEC("kprobe/ctnetlink_fill_info")
 int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if (pid != systemprobe_pid()) {
-        log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process\n");
+        log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process");
         return 0;
     }
 
@@ -47,7 +47,7 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
         return 0;
     }
 
-    log_debug("kprobe/ctnetlink_fill_info: netns: %u, status: %x\n", get_netns(&ct->ct_net), status);
+    log_debug("kprobe/ctnetlink_fill_info: netns: %u, status: %x", get_netns(ct), status);
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {

@@ -163,6 +163,7 @@ const (
 	TCPConnectSockPidMap              BPFMapName = "tcp_ongoing_connect_pid"
 	ConnCloseEventMap                 BPFMapName = "conn_close_event"
 	TracerStatusMap                   BPFMapName = "tracer_status"
+	ConntrackStatusMap                BPFMapName = "conntrack_status"
 	PortBindingsMap                   BPFMapName = "port_bindings"
 	UDPPortBindingsMap                BPFMapName = "udp_port_bindings"
 	TelemetryMap                      BPFMapName = "telemetry"

@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -261,7 +262,7 @@ func TestTCPRTT(t *testing.T) {
 	require.NoError(t, err)
 
 	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
-	tcpInfo, err := tcpGetInfo(c)
+	tcpInfo, err := offsetguess.TcpGetInfo(c)
 	require.NoError(t, err)
 
 	// Fetch connection matching source and target address
@@ -497,11 +498,11 @@ func TestUnconnectedUDPSendIPv6(t *testing.T) {
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
 	tr := setupTracer(t, cfg)
-	linkLocal, err := getIPv6LinkLocalAddress()
+	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP(interfaceLocalMulticastIPv6), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
 	conn, err := net.ListenUDP("udp6", linkLocal)
 	require.NoError(t, err)
 	defer conn.Close()

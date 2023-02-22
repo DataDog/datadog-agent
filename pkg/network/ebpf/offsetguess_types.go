@@ -19,14 +19,17 @@ const ProcCommMaxLen = C.TASK_COMM_LEN - 1
 
 type TracerStatus C.tracer_status_t
 
-type TracerState uint8
+type State uint8
 
 const (
-	StateUninitialized TracerState = C.TRACER_STATE_UNINITIALIZED
-	StateChecking      TracerState = C.TRACER_STATE_CHECKING // status set by userspace, waiting for eBPF
-	StateChecked       TracerState = C.TRACER_STATE_CHECKED  // status set by eBPF, waiting for userspace
-	StateReady         TracerState = C.TRACER_STATE_READY    // fully initialized, all offset known
+	StateUninitialized State = C.STATE_UNINITIALIZED
+	StateChecking      State = C.STATE_CHECKING // status set by userspace, waiting for eBPF
+	StateChecked       State = C.STATE_CHECKED  // status set by eBPF, waiting for userspace
+	StateReady         State = C.STATE_READY    // fully initialized, all offset known
 )
+
+type ConntrackStatus C.conntrack_status_t
+type ConntrackState uint8
 
 type GuessWhat uint64
 
@@ -56,6 +59,11 @@ const (
 
 	GuessSKBuffTransportHeader GuessWhat = C.GUESS_SK_BUFF_TRANSPORT_HEADER
 	GuessSKBuffHead            GuessWhat = C.GUESS_SK_BUFF_HEAD
+
+	GuessCtTupleOrigin GuessWhat = C.GUESS_CT_TUPLE_ORIGIN
+	GuessCtTupleReply  GuessWhat = C.GUESS_CT_TUPLE_REPLY
+	GuessCtStatus      GuessWhat = C.GUESS_CT_STATUS
+	GuessCtNet         GuessWhat = C.GUESS_CT_NET
 
 	GuessNotApplicable GuessWhat = 99999
 )

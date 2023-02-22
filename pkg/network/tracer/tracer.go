@@ -12,13 +12,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -35,6 +33,7 @@ import (
 	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
@@ -147,14 +146,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
-		for i := 0; i < 5; i++ {
-			constantEditors, err = runOffsetGuessing(config, offsetBuf)
-			if err == nil {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-		if err != nil {
+		if constantEditors, err = runOffsetGuessing(config, offsetBuf); err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
 	}
@@ -293,54 +285,48 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 	return rdns
 }
 
-func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
-	// Enable kernel probes used for offset guessing.
-	offsetMgr := newOffsetManager()
-	offsetOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-	}
-	enabledProbes, err := offsetGuessProbes(config)
-	if err != nil {
-		return nil, fmt.Errorf("unable to configure offset guessing probes: %w", err)
+func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) (editors []manager.ConstantEditor, err error) {
+	guessOffsets := func(guesser offsetguess.OffsetGuesser) error {
+		if err := offsetguess.SetupOffsetGuesser(guesser, config, buf); err != nil {
+			return err
+		}
+
+		defer func() {
+			err := guesser.Manager().Stop(manager.CleanAll)
+			if err != nil {
+				log.Warnf("error stopping offset ebpf manager: %s", err)
+			}
+		}()
+
+		// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
+		var eds []manager.ConstantEditor
+		for i := 0; i < 5; i++ {
+			start := time.Now()
+			if eds, err = guesser.Guess(config); err == nil {
+				log.Infof("offset guessing complete (took %v)", time.Since(start))
+				editors = append(editors, eds...)
+				return nil
+			}
+
+			time.Sleep(1 * time.Second)
+		}
+
+		return fmt.Errorf("error guessing offsets: %s", err)
 	}
 
-	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
-			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
-		}
-	}
-	for funcName := range enabledProbes {
-		offsetOptions.ActivatedProbes = append(
-			offsetOptions.ActivatedProbes,
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: funcName,
-					UID:          "offset",
-				},
-			})
-	}
-	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
-		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
-	}
-
-	if err := offsetMgr.Start(); err != nil {
-		return nil, fmt.Errorf("could not start offset ebpf manager: %s", err)
-	}
-	defer func() {
-		err := offsetMgr.Stop(manager.CleanAll)
-		if err != nil {
-			log.Warnf("error stopping offset ebpf manager: %s", err)
-		}
-	}()
-	start := time.Now()
-	editors, err := guessOffsets(offsetMgr, config)
-	if err != nil {
+	if err = guessOffsets(offsetguess.NewTracerOffsetGuesser()); err != nil {
 		return nil, err
 	}
-	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
+
+	var cog offsetguess.OffsetGuesser
+	if cog, err = offsetguess.NewConntrackOffsetGuesser(editors); err != nil {
+		return nil, err
+	}
+
+	if err = guessOffsets(cog); err != nil {
+		return nil, err
+	}
+
 	return editors, nil
 }
 
