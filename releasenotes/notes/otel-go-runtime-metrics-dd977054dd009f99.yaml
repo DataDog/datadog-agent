@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The OTLP metrics intake now maps OpenTelemetry Go runtime metrics to their Datadog counterparts.
+    The OTLP metrics converter now maps OpenTelemetry Go runtime metrics to their Datadog counterparts.
