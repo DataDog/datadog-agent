@@ -16,6 +16,7 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
+	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
@@ -566,6 +567,7 @@ func (ev *Event) resolveFields(forADs bool) {
 }
 
 type FieldHandlers interface {
+	ResolveAsync(ev *Event) bool
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
 	ResolveContainerID(ev *Event, e *ContainerContext) string
@@ -604,6 +606,7 @@ type FieldHandlers interface {
 }
 type DefaultFieldHandlers struct{}
 
+func (dfh *DefaultFieldHandlers) ResolveAsync(ev *Event) bool                     { return ev.Async }
 func (dfh *DefaultFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string { return e.Group }
 func (dfh *DefaultFieldHandlers) ResolveChownUID(ev *Event, e *ChownEvent) string { return e.User }
 func (dfh *DefaultFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {

@@ -15,6 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
@@ -23,7 +24,7 @@ import (
 
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()})
+	c, err := NewRunner(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -58,7 +59,7 @@ func TestUpdateRTStatus(t *testing.T) {
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()})
+	c, err := NewRunner(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -126,7 +127,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			assert := assert.New(t)
 			expectedChecks := []checks.Check{checks.NewProcessCheck()}
 
-			c, err := NewCollector(nil, &checks.HostInfo{}, expectedChecks)
+			c, err := NewRunner(nil, &checks.HostInfo{}, expectedChecks, nil)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
 			assert.EqualValues(expectedChecks, c.enabledChecks)
@@ -158,7 +159,7 @@ func TestIgnoreResponseBody(t *testing.T) {
 func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	check := checkmocks.NewCheck(t)
 
-	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
+	c, err := NewRunner(nil, &checks.HostInfo{}, []checks.Check{}, nil)
 	assert.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
 	c.Submitter = submitter
@@ -201,7 +202,7 @@ func TestCollectorRunCheck(t *testing.T) {
 
 	hostInfo := &checks.HostInfo{HostName: testHostName}
 
-	c, err := NewCollector(nil, hostInfo, []checks.Check{})
+	c, err := NewRunner(nil, hostInfo, []checks.Check{}, nil)
 	require.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
 	require.NoError(t, err)
@@ -217,4 +218,10 @@ func TestCollectorRunCheck(t *testing.T) {
 	submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
 
 	c.runCheck(check)
+}
+
+// TestSubmitterDoesntBlockOnRTUpdate tests notifyRTStatusChange to ensure that we never block if the channel is filled up
+func TestSubmitterDoesntBlockOnRTUpdate(*testing.T) {
+	emptyChan := make(chan<- types.RTResponse)
+	notifyRTStatusChange(emptyChan, types.RTResponse{})
 }

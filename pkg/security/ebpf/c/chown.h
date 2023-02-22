@@ -82,7 +82,6 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
 
     struct chown_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
         .file = syscall->setattr.file,
         .uid = syscall->setattr.user,
         .gid = syscall->setattr.group,

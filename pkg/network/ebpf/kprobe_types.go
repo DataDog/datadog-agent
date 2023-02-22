@@ -53,5 +53,6 @@ const SizeofBatch = C.sizeof_batch_t
 type ClassificationProgram = uint32
 
 const (
-	ClassificationCont ClassificationProgram = C.CLASSIFICATION_CONT_PROG
+	ClassificationQueues ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
+	ClassificationDBs    ClassificationProgram = C.CLASSIFICATION_DBS_PROG
 )

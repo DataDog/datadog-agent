@@ -43,7 +43,7 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext())
 		require.NoError(b, err)
 		var pb int
 		for _, p := range payloads {

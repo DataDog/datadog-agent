@@ -10,6 +10,7 @@ package ksm
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1338,25 +1339,22 @@ func TestKSMCheckInitTags(t *testing.T) {
 		clusterName string
 	}
 	tests := []struct {
-		name      string
-		loadFunc  func(*config.MockConfig)
-		resetFunc func(*config.MockConfig)
-		fields    fields
-		expected  []string
+		name         string
+		tagsInConfig []string
+		fields       fields
+		expected     []string
 	}{
 		{
-			name:      "with check tags",
-			loadFunc:  func(*config.MockConfig) {},
-			resetFunc: func(*config.MockConfig) {},
+			name:         "with check tags",
+			tagsInConfig: nil,
 			fields: fields{
 				instance: &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
 			},
 			expected: []string{"check:tag1", "check:tag2"},
 		},
 		{
-			name:      "with cluster name",
-			loadFunc:  func(*config.MockConfig) {},
-			resetFunc: func(*config.MockConfig) {},
+			name:         "with cluster name",
+			tagsInConfig: nil,
 			fields: fields{
 				instance:    &KSMConfig{},
 				clusterName: "clustername",
@@ -1364,16 +1362,14 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"kube_cluster_name:clustername"},
 		},
 		{
-			name:      "with global tags",
-			loadFunc:  func(mockConfig *config.MockConfig) { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func(mockConfig *config.MockConfig) { mockConfig.Set("tags", []string{}) },
-			fields:    fields{instance: &KSMConfig{}},
-			expected:  []string{"global:tag1", "global:tag2"},
+			name:         "with global tags",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
+			fields:       fields{instance: &KSMConfig{}},
+			expected:     []string{"global:tag1", "global:tag2"},
 		},
 		{
-			name:      "with everything",
-			loadFunc:  func(mockConfig *config.MockConfig) { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func(mockConfig *config.MockConfig) { mockConfig.Set("tags", []string{}) },
+			name:         "with everything",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
 			fields: fields{
 				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
 				clusterName: "clustername",
@@ -1381,9 +1377,8 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername", "global:tag1", "global:tag2"},
 		},
 		{
-			name:      "with disable_global_tags",
-			loadFunc:  func(mockConfig *config.MockConfig) { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func(mockConfig *config.MockConfig) { mockConfig.Set("tags", []string{}) },
+			name:         "with disable_global_tags",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
 			fields: fields{
 				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}, DisableGlobalTags: true},
 				clusterName: "clustername",
@@ -1392,20 +1387,19 @@ func TestKSMCheckInitTags(t *testing.T) {
 		},
 	}
 
-	mockConfig := config.Mock(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			conf.Set("tags", tt.tagsInConfig)
 
 			k := &KSMCheck{
 				instance:            tt.fields.instance,
 				clusterNameTagValue: tt.fields.clusterName,
-				agentConfig:         mockConfig,
+				agentConfig:         conf,
 			}
 
-			tt.loadFunc(mockConfig)
 			k.initTags()
 			assert.ElementsMatch(t, tt.expected, k.instance.Tags)
-			tt.resetFunc(mockConfig)
 		})
 	}
 }

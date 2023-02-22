@@ -7,11 +7,15 @@ package runner
 
 import (
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -41,7 +45,40 @@ func TestRunnerLifecycle(t *testing.T) {
 		),
 
 		Module,
+		submitter.MockModule,
 	), func(runner Component) {
 		// Start and stop the component
+	})
+}
+
+func TestRunnerRealtime(t *testing.T) {
+	rtChan := make(chan types.RTResponse)
+	fxutil.Test(t, fx.Options(
+		fx.Supply(
+			&checks.HostInfo{},
+			&sysconfig.Config{},
+			[]checks.Check{
+				newMockCheck(t, "process"),
+			},
+		),
+
+		fx.Provide(
+			// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
+			// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
+			func() <-chan types.RTResponse { return rtChan },
+		),
+
+		Module,
+		submitter.MockModule,
+	), func(r Component) {
+		rtChan <- types.RTResponse{
+			{
+				ActiveClients: 1,
+				Interval:      10,
+			},
+		}
+		assert.Eventually(t, func() bool {
+			return r.(*runner).IsRealtimeEnabled()
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
