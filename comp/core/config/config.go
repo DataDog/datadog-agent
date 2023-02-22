@@ -35,7 +35,7 @@ type dependencies struct {
 func newConfig(deps dependencies) (Component, error) {
 	warnings, err := setupConfig(deps)
 	returnErrFct := func(e error) (Component, error) {
-		if e != nil && deps.Params.configInvalidOK {
+		if e != nil && deps.Params.ignoreErrors {
 			if warnings == nil {
 				warnings = &config.Warnings{}
 			}

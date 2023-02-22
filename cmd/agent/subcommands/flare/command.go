@@ -68,7 +68,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					path.Join(common.DefaultConfPath, "security-agent.yaml"),
 				}),
 				config.WithConfigLoadSecurityAgent(true),
-				config.WithConfigInvalidOK(true))
+				config.WithIgnoreErrors(true))
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),

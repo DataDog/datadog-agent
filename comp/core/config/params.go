@@ -35,9 +35,9 @@ type Params struct {
 	// file does not exist.
 	configMissingOK bool
 
-	// configInvalidOK determines whether it is OK if the config is not valid
+	// ignoreErrors determines whether it is OK if the config is not valid
 	// If an error occurs, Component.warnings.Warning contains the error.
-	configInvalidOK bool
+	ignoreErrors bool
 
 	// defaultConfPath determines the default configuration path.
 	// if defaultConfPath is empty, then no default configuration path is used.
@@ -107,9 +107,9 @@ func WithConfigMissingOK(v bool) func(*Params) {
 	}
 }
 
-func WithConfigInvalidOK(v bool) func(*Params) {
+func WithIgnoreErrors(v bool) func(*Params) {
 	return func(b *Params) {
-		b.configInvalidOK = v
+		b.ignoreErrors = v
 	}
 }
 
