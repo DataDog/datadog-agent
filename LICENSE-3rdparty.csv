@@ -974,6 +974,8 @@ core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinni
 core,github.com/josharian/intern,MIT,Copyright (c) 2019 Josh Bleecher Snyder
 core,github.com/josharian/native,MIT,Copyright 2020 Josh Bleecher Snyder
 core,github.com/json-iterator/go,MIT,Copyright (c) 2016 json-iterator
+core,github.com/justincormack/go-memfd,MIT,Copyright (c) 2017 Justin Cormack
+core,github.com/justincormack/go-memfd/msyscall,MIT,Copyright (c) 2017 Justin Cormack
 core,github.com/kardianos/osext,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/karrick/godirwalk,BSD-2-Clause,"Copyright (c) 2017, Karrick McDermott"
 core,github.com/kballard/go-shellquote,MIT,Copyright (C) 2014 Kevin Ballard
