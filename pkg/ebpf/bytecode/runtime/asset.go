@@ -114,7 +114,7 @@ func createRamBackedFile(name, hash string, source io.Reader, runtimeDir string)
 
 	memfdFile, err := memfd.Create()
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("failed to create memfd file: %w: ", err)
 	}
 	defer func() {
 		if err != nil {

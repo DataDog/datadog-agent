@@ -50,7 +50,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.43.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.8.4
+	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.2.3
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
@@ -295,6 +295,7 @@ require (
 	github.com/aquasecurity/go-version v0.0.0-20210121072130-637058cfe492 // indirect
 	github.com/aquasecurity/table v1.8.0 // indirect
 	github.com/aquasecurity/tml v0.6.1 // indirect
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/arduino/go-apt-client v0.0.0-20190812130613-5613f843fdc8 // indirect
 	github.com/armon/go-metrics v0.4.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
@@ -398,6 +399,7 @@ require (
 	github.com/jonboulle/clockwork v0.3.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v1.0.0 // indirect
+	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
 	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
@@ -468,6 +470,7 @@ require (
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
+	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spdx/tools-golang v0.3.1-0.20230104082527-d6f58551be3f // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -532,6 +535,7 @@ require (
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/oauth2 v0.3.0 // indirect
 	golang.org/x/term v0.5.0 // indirect
+	gonum.org/v1/gonum v0.12.0 // indirect
 	google.golang.org/api v0.103.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
@@ -559,16 +563,9 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require (
-	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
-	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
-	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
-)
+require github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
 
-require (
-	github.com/sigstore/rekor v1.0.1 // indirect
-	gonum.org/v1/gonum v0.12.0 // indirect
-)
+require gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
