@@ -133,7 +133,7 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			Path:              key.Path.Content,
 			FullPath:          key.Path.FullPath,
 			Method:            model.HTTPMethod(key.Method),
-			StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
+			StatsByStatusCode: make(map[int32]*model.HTTPStats_Data, len(stats.Data)),
 		}
 
 		staticTags := e.staticTags[key.KeyTuple]
