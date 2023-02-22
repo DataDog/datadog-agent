@@ -180,7 +180,7 @@ func makeFlare(flare flare.Component, log log.Component, config config.Component
 
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Err != nil {
-		fmt.Fprintln(color.Output, color.YellowString("%v", warnings.Err))
+		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
 	}
 	caseID := ""
 	if len(cliParams.args) > 0 {
