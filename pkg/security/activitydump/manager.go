@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -744,4 +745,26 @@ func (adm *ActivityDumpManager) FakeDumpOverweight(name string) {
 			ad.nodeStats.processNodes = int64(99999)
 		}
 	}
+}
+
+func (adm *ActivityDumpManager) findActiveDumpLock(containerID string) *ActivityDump {
+	adm.Lock()
+	defer adm.Unlock()
+
+	for _, dump := range adm.activeDumps {
+		if containerID == dump.ContainerID {
+			dump.Lock()
+			return dump
+		}
+	}
+	return nil
+}
+
+func (adm *ActivityDumpManager) TagRule(rule *rules.Rule, event *model.Event) {
+	dump := adm.findActiveDumpLock(event.ContainerContext.ID)
+	if dump != nil {
+		defer dump.Unlock()
+		dump.tagRule(rule, event)
+	}
+	// TODO: else, put it in cache and retry later?
 }

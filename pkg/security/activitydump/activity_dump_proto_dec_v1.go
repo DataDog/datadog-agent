@@ -68,11 +68,16 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessAc
 	ppan := &ProcessActivityNode{
 		Process:        protoDecodeProcessNode(pan.Process),
 		GenerationType: NodeGenerationType(pan.GenerationType),
+		MatchedRules:   make([]*MatchedRule, 0, len(pan.MatchedRules)),
 		Children:       make([]*ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make(map[string]*FileActivityNode, len(pan.Files)),
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]int, 0, len(pan.Syscalls)),
+	}
+
+	for _, rule := range pan.MatchedRules {
+		ppan.MatchedRules = append(ppan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
 
 	for _, child := range pan.Children {
@@ -276,6 +281,21 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 	}
 
 	return socketNode
+}
+
+func protoDecodeProtoMatchedRule(r *adproto.MatchedRule) *MatchedRule {
+	if r == nil {
+		return nil
+	}
+
+	rule := &MatchedRule{
+		RuleID:        r.RuleId,
+		RuleVersion:   r.RuleVersion,
+		PolicyName:    r.PolicyName,
+		PolicyVersion: r.PolicyVersion,
+	}
+
+	return rule
 }
 
 func protoDecodeTimestamp(nanos uint64) time.Time {

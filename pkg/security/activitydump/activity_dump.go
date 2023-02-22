@@ -44,6 +44,7 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -645,6 +646,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
 			if root.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.processResolver) {
+				root.appendSeenPID(entry.Pid)
 				return root
 			}
 		}
@@ -667,6 +669,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
 			if child.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.processResolver) {
+				child.appendSeenPID(entry.Pid)
 				return child
 			}
 		}
@@ -1049,10 +1052,42 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 	return nil
 }
 
+// MatchedRules contains the identification of one rule that has match
+type MatchedRule struct {
+	RuleID        string
+	RuleVersion   string
+	PolicyName    string
+	PolicyVersion string
+}
+
+// NewMatchedRule return a new MatchedRule instance
+func NewMatchedRule(ruleID, ruleVersion, policyName, policyVersion string) *MatchedRule {
+	return &MatchedRule{
+		RuleID:        ruleID,
+		RuleVersion:   ruleVersion,
+		PolicyName:    policyName,
+		PolicyVersion: policyVersion,
+	}
+}
+
+func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
+	if mr2 == nil ||
+		mr.RuleID != mr2.RuleID ||
+		mr.RuleVersion != mr2.RuleVersion ||
+		mr.PolicyName != mr2.PolicyName ||
+		mr.PolicyVersion != mr2.PolicyVersion {
+		return false
+	}
+	return true
+}
+
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
-	Process        model.Process
 	GenerationType NodeGenerationType
+	Process        model.Process
+
+	SeenPIDs     []uint32
+	MatchedRules []*MatchedRule
 
 	Files    map[string]*FileActivityNode
 	DNSNames map[string]*DNSNode
@@ -1066,10 +1101,29 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 	nodeStats.processNodes++
 	return &ProcessActivityNode{
 		Process:        entry.Process,
+		SeenPIDs:       []uint32{entry.Pid},
 		GenerationType: generationType,
 		Files:          make(map[string]*FileActivityNode),
 		DNSNames:       make(map[string]*DNSNode),
 	}
+}
+
+func (pan *ProcessActivityNode) appendSeenPID(pid uint32) {
+	for _, p := range pan.SeenPIDs {
+		if p == pid {
+			return
+		}
+	}
+	pan.SeenPIDs = append(pan.SeenPIDs, pid)
+}
+
+func (pan *ProcessActivityNode) haveSeenPID(pid uint32) bool {
+	for _, p := range pan.SeenPIDs {
+		if p == pid {
+			return true
+		}
+	}
+	return false
 }
 
 // nolint: unused
@@ -1773,5 +1827,39 @@ func (genType NodeGenerationType) String() string {
 		return "snapshot"
 	default:
 		return "unknown"
+	}
+}
+
+// findProcessNode find a process and return the corresponding node if any
+// IMPORTANT: the activity dump is already locked here
+func findProcessNode(pid uint32, processes []*ProcessActivityNode) *ProcessActivityNode {
+	for _, p := range processes {
+		if p.haveSeenPID(pid) {
+			return p
+		} else if len(p.Children) > 0 {
+			node := findProcessNode(pid, p.Children)
+			if node != nil {
+				return node
+			}
+		}
+	}
+	return nil
+}
+
+// tagRule tries to tag rule to an activity dump
+// IMPORTANT: the activity dump is already locked here
+func (ad *ActivityDump) tagRule(rule *rules.Rule, event *model.Event) {
+	// first find the node that matches the process
+	node := findProcessNode(event.PIDContext.Pid, ad.ProcessActivityTree)
+	if node != nil {
+		ruleToAdd := NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Policy.Name, rule.Definition.Policy.Version)
+		// check if the rule is not alrady present
+		for _, mr := range node.MatchedRules {
+			if ruleToAdd.Match(mr) { // rule already tagged
+				return
+			}
+		}
+		// if not already present, add it
+		node.MatchedRules = append(node.MatchedRules, ruleToAdd)
 	}
 }

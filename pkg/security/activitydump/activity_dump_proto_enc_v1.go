@@ -77,11 +77,16 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 	*ppan = adproto.ProcessActivityNode{
 		Process:        processNodeToProto(&pan.Process),
 		GenerationType: adproto.GenerationType(pan.GenerationType),
+		MatchedRules:   make([]*adproto.MatchedRule, 0, len(pan.MatchedRules)),
 		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]uint32, 0, len(pan.Syscalls)),
+	}
+
+	for _, rule := range pan.MatchedRules {
+		ppan.MatchedRules = append(ppan.MatchedRules, matchedRuleToProto(rule))
 	}
 
 	for _, child := range pan.Children {
@@ -277,6 +282,21 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 	}
 
 	return psn
+}
+
+func matchedRuleToProto(r *MatchedRule) *adproto.MatchedRule {
+	if r == nil {
+		return nil
+	}
+
+	pmr := &adproto.MatchedRule{
+		RuleId:        r.RuleID,
+		RuleVersion:   r.RuleVersion,
+		PolicyName:    r.PolicyName,
+		PolicyVersion: r.PolicyVersion,
+	}
+
+	return pmr
 }
 
 func timestampToProto(t *time.Time) uint64 {

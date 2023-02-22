@@ -38,6 +38,7 @@ message ProcessActivityNode {
     reserved 2;
     GenerationType generation_type = 8;
 
+    repeated MatchedRule matched_rules = 9;
     repeated ProcessActivityNode children = 3;
     repeated FileActivityNode files = 4;
     repeated DNSNode dns_names = 5;
@@ -160,4 +161,11 @@ enum GenerationType {
     UNKNOWN = 0;
     RUNTIME = 1;
     SNAPSHOT = 2;
+}
+
+message MatchedRule {
+    string rule_id = 1;
+    string rule_version = 2;
+    string policy_name = 3;
+    string policy_version = 4;
 }
