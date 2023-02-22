@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"sync"
 	"time"
 
@@ -23,7 +24,7 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck() Check {
+func NewContainerCheck() *ContainerCheck {
 	return &ContainerCheck{}
 }
 
@@ -59,8 +60,12 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ContainerCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	// The process and container checks are mutually exclusive
+	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+		return false
+	}
+
+	return ddconfig.Datadog.GetBool("process_config.container_collection.enabled") && ddconfig.IsAnyContainerFeaturePresent()
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

@@ -6,6 +6,7 @@
 package checks
 
 import (
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -20,7 +21,7 @@ const (
 )
 
 // NewRTContainerCheck returns an instance of the RTContainerCheck.
-func NewRTContainerCheck() Check {
+func NewRTContainerCheck() *RTContainerCheck {
 	return &RTContainerCheck{}
 }
 
@@ -42,8 +43,16 @@ func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (r *RTContainerCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	// The process and container checks are mutually exclusive
+	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") || !ddconfig.IsAnyContainerFeaturePresent() {
+		return false
+	}
+
+	var (
+		containerCollectionEnabled = ddconfig.Datadog.GetBool("process_config.container_collection.enabled")
+		rtChecksEnabled            = ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+	)
+	return containerCollectionEnabled && rtChecksEnabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

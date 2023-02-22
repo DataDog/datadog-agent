@@ -6,6 +6,7 @@
 package types
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -19,9 +20,7 @@ type Payload struct {
 
 // Check defines an interface implemented by checks
 type Check interface {
-	IsEnabled() bool
-	Name() string
-	Run() (*Payload, error)
+	checks.Check
 }
 
 // ProvidesCheck wraps a check implementation for consumption in components
