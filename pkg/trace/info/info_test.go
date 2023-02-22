@@ -136,6 +136,7 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.EVPProxy.ApplicationKey = "evp_app_key"
 	conf.EVPProxy.AdditionalEndpoints = clearAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
+	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
@@ -392,6 +393,8 @@ func TestInfoConfig(t *testing.T) {
 	conf.EVPProxy.APIKey = ""
 	assert.Equal("", confCopy.EVPProxy.ApplicationKey, "EVP APP Key should *NEVER* be exported")
 	conf.EVPProxy.ApplicationKey = ""
+	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
+	conf.DebuggerProxy.APIKey = ""
 
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
