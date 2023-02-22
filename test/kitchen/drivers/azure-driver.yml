@@ -135,11 +135,14 @@ platforms:
       # Check if we should use an ed25519 key, an rsa key or the default key
       # Some newer platforms don't support rsa, while some older platforms don't support ed25519
       # In Azure, ed25519 is not supported, but the default key created by the driver works
-      default_key_platforms = ["ubuntu-22-04", "rhel-91"]
+      default_key_platforms = ["ubuntu-22-04"]
       use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
 
       ed25519_platforms = []
       use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
+
+      allow_rsa_key_platforms = ["rhel-91"]
+      allow_rsa_key = allow_rsa_key_platforms.any? { |p| platform_name.include?(p) }
 
       vm_password = ENV['SERVER_PASSWORD']
 
@@ -181,6 +184,14 @@ platforms:
       <% end %>
     username: <%= vm_username %>
     password: <%= vm_password %>
+  <% if allow_rsa_key %>
+  lifecycle:
+    post_create:
+      - local: "Allowing RSA keys in SSH config"
+      - remote: |
+          echo PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config
+          service ssh reload
+  <% end %>
 
   transport:
     <% if windows %>
