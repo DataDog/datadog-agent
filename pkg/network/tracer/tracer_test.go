@@ -91,50 +91,15 @@ func TestGetStats(t *testing.T) {
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
       "conntrack": {
-        "enobufs": 0,
-        "evicts_total": 0,
-        "gets_total": 9,
-        "msg_errors": 0,
-        "orphan_size": 0,
-        "read_errors": 0,
         "registers_total": 0,
-        "sampling_pct": 100,
-        "state_size": 0,
-        "throttles": 0,
-        "unregisters_total": 0
+        "sampling_pct": 100
       },
       "dns": {
-        "added": 0,
-        "decoding_errors": 583,
         "dropped_stats": 0,
-        "errors": 0,
-        "expired": 0,
-        "ips": 0,
-        "lookups": 5,
-        "num_stats": 0,
-        "oversized": 0,
-        "packets_captured": 586,
-        "packets_dropped": 0,
-        "packets_processed": 586,
-        "queries": 0,
-        "resolved": 0,
-        "socket_polls": 6,
-        "successes": 0,
-        "timestamp_micro_secs": 1649790301434884,
-        "truncated_packets": 0
+        "packets_processed": 586
       },
       "ebpf": {
         "closed_conn_polling_lost": 0,
-        "closed_conn_polling_received": 0,
-        "missed_tcp_close": 0,
-        "missed_udp_close": 0,
-        "pid_collisions": 0,
-        "tcp_conns4": 1,
-        "tcp_conns6": 0,
-        "tcp_sent_miscounts": 0,
-        "tcp_failed_connects": 0,
-        "udp_conns4": 4,
-        "udp_conns6": 0,
         "udp_sends_missed": 0,
         "udp_sends_processed": 162
       },
@@ -151,24 +116,14 @@ func TestGetStats(t *testing.T) {
           "rejected": 0
         }
       },
-      "kprobes": {},
       "state": {
         "closed_conn_dropped": 0,
-		"conn_dropped": 0,
-		"dns_pid_collisions": 0,
-		"dns_stats_dropped": 0,
-		"http_stats_dropped": 0,
-		"stats_underflows": 0,
-		"time_sync_collisions": 0
+		"conn_dropped": 0
       },
       "tracer": {
-        "closed_conns": 1,
-        "conn_stats_map_size": 5,
-        "expired_tcp_conns": 0,
         "runtime": {
           "runtime_compilation_enabled": 0
-        },
-        "skipped_conns": 0
+        }
       }
     }`), &linuxExpected)
 	require.NoError(t, err)

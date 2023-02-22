@@ -130,8 +130,8 @@ func (s *socketFilterSnooper) Start() error {
 func (s *socketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.source.Stats()
 	if s.statKeeper != nil {
-		numStats, _ := s.statKeeper.GetNumStats()
-		stats["num_stats"] = int64(numStats)
+		_, dropedStats := s.statKeeper.GetNumStats()
+		stats["dropped_stats"] = int64(dropedStats)
 	}
 	return stats
 }

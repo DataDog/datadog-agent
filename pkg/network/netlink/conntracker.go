@@ -201,6 +201,7 @@ func (ctr *realConntracker) RefreshTelemetry() {
 
 func (ctr *realConntracker) GetStats() map[string]int64 {
 	m := map[string]int64{}
+	m["registers_total"] = registers.Load()
 	// Merge telemetry from the consumer
 	for k, v := range ctr.consumer.GetStats() {
 		m[k] = v

@@ -436,7 +436,7 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 // GetStats returns telemetry associated to the Consumer
 func (c *Consumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		"samplingPct": samplingPct.Load(),
+		"sampling_pct": samplingPct.Load(),
 	}
 }
 

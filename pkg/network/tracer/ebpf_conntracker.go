@@ -312,35 +312,35 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	}
 }
 
-func (e *ebpfConntracker) GetStats() map[string]int64 {
-	m := map[string]int64{
-		"state_size": 0,
-	}
+func (e *ebpfConntracker) getEbpfTelemetry() (int64, error) {
 	telemetry := &netebpf.ConntrackTelemetry{}
 	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
-		m["registers_total"] = int64(telemetry.Registers)
+		return int64(telemetry.Registers), nil
+	}
+	return 0, errors.New("Could not retrieve EBPF telemetry map")
+}
+
+func (e *ebpfConntracker) GetStats() map[string]int64 {
+	m := map[string]int64{
+		"state_size": 0,
+	}
+	if registers, err := e.getEbpfTelemetry(); err != nil {
+		log.Tracef("error retrieving the telemetry struct: %s", err)
+	} else {
+		m["registers_total"] = int64(registers)
 	}
 	return m
 }
 
-// func (e *ebpfConntracker) getEbpfTelemetry() int64 {
-// 	telemetry := &netebpf.ConntrackTelemetry{}
-// 	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
-// 		log.Tracef("error retrieving the telemetry struct: %s", err)
-// 	} else {
-// 		return int64(telemetry.Registers)
-// 	}
-// }
-
 func (e *ebpfConntracker) RefreshTelemetry() {
 	for {
-		telemetry := &netebpf.ConntrackTelemetry{}
-		if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+
+		if registers, err := e.getEbpfTelemetry(); err != nil {
 			log.Tracef("error retrieving the telemetry struct: %s", err)
 		} else {
-			registersTotal.Set(float64(telemetry.Registers))
+			registersTotal.Set(float64(registers))
 		}
 		time.Sleep(time.Duration(5) * time.Second)
 	}
