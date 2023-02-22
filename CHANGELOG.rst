@@ -42,9 +42,9 @@ New Features
 
 - Add a new ``sbom`` core check to collect the software bill of materials of containers.
 
-- The Agent now leverages DMI information on Unix to get the instance ID on AWS EC2 when the metadata endpoint fails or
-  is not accessible. The instance ID is exposed throught DMI only on AWS Nitro instances.
-  This will not change the hostname of the Agent upon upgrading, but will add to the list of host aliases.
+- The Agent now leverages DMI (Desktop Management Interface) information on Unix to get the instance ID on Amazon EC2 when the metadata endpoint fails or
+is not accessible. The instance ID is exposed through DMI only on AWS Nitro instances.
+This will not change the hostname of the Agent upon upgrading, but will add it to the list of host aliases.
 
 - Adds the option to collect and store in workloadmeta the software bill of
   materials (SBOM) of containerd images using Trivy. This feature is disabled
