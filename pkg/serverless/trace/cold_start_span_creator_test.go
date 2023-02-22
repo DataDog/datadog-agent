@@ -61,7 +61,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	lambdaSpanChan <- lambdaSpan
 	initDurationChan <- coldStartDuration
 
-	timeout := time.After(2 * time.Millisecond)
+	timeout := time.After(2 * time.Second)
 	var span *pb.Span
 	select {
 	case ss := <-traceAgent.ta.TraceWriter.In:

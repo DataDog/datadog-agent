@@ -13,6 +13,8 @@ import (
 	"os"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -20,18 +22,23 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process"
+	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -149,7 +156,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := getChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
+	enabledChecks := runner.GetChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
 
 	// Exit if agent is not enabled.
 	if len(enabledChecks) == 0 {
@@ -169,7 +176,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 	// we shouldn't quit because docker is not required. If no docker docket is available,
 	// we just pass down empty string
-	updateDockerSocket(dockerSock)
+	status.UpdateDockerSocket(dockerSock)
 
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
@@ -220,7 +227,11 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		return
 	}
 
-	err = initInfo(hostInfo.HostName, processModuleEnabled)
+	eps, err := runner.GetAPIEndpoints()
+	if err != nil {
+		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
+	}
+	err = status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
 	if err != nil {
 		log.Criticalf("Error initializing info: %s", err)
 		cleanupAndExit(1)
@@ -229,7 +240,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
-		if err := Info(os.Stdout, url); err != nil {
+		if err := status.Info(os.Stdout, url); err != nil {
 			cleanupAndExit(1)
 		}
 		return
@@ -252,30 +263,43 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(syscfg, hostInfo, enabledChecks)
-	if err != nil {
-		log.Criticalf("Error creating collector: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-	cl.submitter, err = NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
-	if err != nil {
-		log.Criticalf("Error creating checkSubmitter: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-
-	if err := cl.run(exit); err != nil {
-		log.Criticalf("Error starting collector: %s", err)
-		os.Exit(1)
-		return
-	}
-
-	for range exit {
-	}
+	runApp(exit, syscfg, hostInfo, enabledChecks)
 
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
+	}
+}
+
+func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) {
+	go util.HandleSignals(exit)
+
+	app := fx.New(
+		fx.Supply(
+			syscfg,
+			hostInfo,
+			enabledChecks,
+		),
+		process.Bundle,
+
+		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
+		fxutil.FxLoggingOption(),
+
+		// Invoke the runner to call its start hook
+		fx.Invoke(func(runnerComp.Component) {}),
+	)
+	err := app.Start(context.Background())
+	if err != nil {
+		log.Criticalf("Failed to start process agent: %v", err)
+		return
+	}
+
+	// Set up an exit channel
+	<-exit
+	err = app.Stop(context.Background())
+	if err != nil {
+		log.Criticalf("Failed to properly stop the process agent: %v", err)
+	} else {
+		log.Info("The process-agent has successfully been shut down")
 	}
 }
 

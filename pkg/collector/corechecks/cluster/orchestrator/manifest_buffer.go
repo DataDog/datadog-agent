@@ -13,21 +13,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"go.uber.org/atomic"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	bufferExpVars      = expvar.NewMap("orchestrator-manifest-buffer")
-	bufferedManifest   = map[orchestrator.NodeType]*expvar.Int{}
+	bufferedManifest   = map[model.K8SResource]*expvar.Int{}
 	manifestFlushed    = &expvar.Int{}
 	bufferFlushedTotal = &expvar.Int{}
 )
@@ -160,7 +158,7 @@ func setManifestStats(manifests []interface{}) {
 	bufferFlushedTotal.Add(1)
 	// Number of manifests flushed per resource in total
 	for _, m := range manifests {
-		nodeType := orchestrator.NodeType(m.(*model.Manifest).Type)
+		nodeType := model.K8SResource(m.(*model.Manifest).Type)
 		if _, ok := bufferedManifest[nodeType]; !ok {
 			bufferedManifest[nodeType] = &expvar.Int{}
 			bufferExpVars.Set(nodeType.String(), bufferedManifest[nodeType])

@@ -149,7 +149,6 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
 
     struct setxattr_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
         .file = syscall->xattr.file,
     };
 

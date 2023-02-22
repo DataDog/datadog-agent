@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -17,9 +16,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -118,7 +115,6 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	hash, infoHandler := r.makeInfoHandler()
-	r.attachDebugHandlers(mux)
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
@@ -216,43 +212,6 @@ func (r *HTTPReceiver) Start() {
 		defer watchdog.LogOnPanic()
 		r.loop()
 	}()
-}
-
-func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-	mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
-		// this endpoint calls runtime.SetBlockProfileRate(v), where v is an optional
-		// query string parameter defaulting to 10000 (1 sample per 10μs blocked).
-		rate := 10000
-		v := r.URL.Query().Get("v")
-		if v != "" {
-			n, err := strconv.Atoi(v)
-			if err != nil {
-				http.Error(w, "v must be an integer", http.StatusBadRequest)
-				return
-			}
-			rate = n
-		}
-		runtime.SetBlockProfileRate(rate)
-		fmt.Fprintf(w, "Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)
-	})
-
-	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
-		// serve the block profile and reset the rate to 0.
-		pprof.Handler("block").ServeHTTP(w, r)
-		runtime.SetBlockProfileRate(0)
-	})
-
-	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// allow the GUI to call this endpoint so that the status can be reported
-		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+r.conf.GUIPort)
-		expvar.Handler().ServeHTTP(w, req)
-	}))
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.
@@ -379,7 +338,7 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header) *info.TagStat
 func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp *pb.TracerPayload, ranHook bool, err error) {
 	switch v {
 	case v01:
-		var spans []pb.Span
+		var spans []*pb.Span
 		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, false, err
 		}
@@ -775,11 +734,11 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 	}
 }
 
-func traceChunksFromSpans(spans []pb.Span) []*pb.TraceChunk {
+func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
 	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
-		byID[s.TraceID] = append(byID[s.TraceID], &s)
+		byID[s.TraceID] = append(byID[s.TraceID], s)
 	}
 	for _, t := range byID {
 		traceChunks = append(traceChunks, &pb.TraceChunk{

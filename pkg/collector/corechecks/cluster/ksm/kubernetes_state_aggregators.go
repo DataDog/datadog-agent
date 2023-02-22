@@ -188,7 +188,7 @@ func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJo
 			labels[allowedLabel] = labelValues[i]
 		}
 
-		hostname, tags := k.hostnameAndTags(labels, labelJoiner, k.labelsMapperOverride(a.ksmMetricName))
+		hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
 
 		sender.Gauge(ksmMetricPrefix+a.ddMetricName, count, hostname, tags)
 	}

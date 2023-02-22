@@ -18,7 +18,7 @@
   before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   # Windows kitchen tests are slower and more fragile (lots of WinRM::WinRMAuthorizationError and/or execution expired errors)
   # Give them one more chance before failing.
   # TODO: understand why they fail more often than Linux jobs on network errors.
@@ -36,10 +36,10 @@
   before_script:  # Use a smaller set of TEST_PLATFORMS than .kitchen_os_windows
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
-    - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
 # Base test for Next Gen installer - only difference with the standard one
 # is that we override the WINDOWS_AGENT_FILE name.
@@ -47,10 +47,10 @@
   extends:
     - .kitchen_test_windows_installer
   script:
-    - export WINDOWS_AGENT_FILE=datadog-agent-$(cd ../.. && inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-2-x86_64
+    - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(cd ../.. && inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - echo $WINDOWS_AGENT_FILE
-    - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_driver:
   extends:
@@ -64,9 +64,9 @@
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
     - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   script:
-    - bash -l tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_installer:
   extends:
@@ -79,10 +79,10 @@
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
     - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
-    - bash -l tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
 
 # Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------

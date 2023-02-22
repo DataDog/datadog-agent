@@ -23,15 +23,17 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -151,7 +153,7 @@ type GoTLSProgram struct {
 
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
-	binAnalysisMetric *errtelemetry.Metric
+	binAnalysisMetric *libtelemetry.Metric
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -183,7 +185,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		processes: make(map[pid]binaryID),
 	}
 
-	p.binAnalysisMetric = errtelemetry.NewMetric("gotls.analysis_time", errtelemetry.OptStatsd)
+	p.binAnalysisMetric = libtelemetry.NewMetric("gotls.analysis_time", libtelemetry.OptStatsd)
 
 	return p
 }
@@ -461,7 +463,6 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 		if functionsConfig[function].IncludeReturnLocations && uprobes.returnInfo != nil {
 			for i, offset := range result.Functions[function].ReturnLocations {
 				returnProbeID := manager.ProbeIdentificationPair{
-					EBPFSection:  uprobes.returnInfo.ebpfSection,
 					EBPFFuncName: uprobes.returnInfo.ebpfFunctionName,
 					UID:          makeReturnUID(uid, i),
 				}
@@ -482,7 +483,6 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 
 		if uprobes.functionInfo != nil {
 			probeID := manager.ProbeIdentificationPair{
-				EBPFSection:  uprobes.functionInfo.ebpfSection,
 				EBPFFuncName: uprobes.functionInfo.ebpfFunctionName,
 				UID:          uid,
 			}
@@ -525,7 +525,6 @@ func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 
 func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
 	return manager.ProbeIdentificationPair{
-		EBPFSection:  i.ebpfSection,
 		EBPFFuncName: i.ebpfFunctionName,
 	}
 }

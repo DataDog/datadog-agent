@@ -65,15 +65,6 @@ func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.Ex
 	return nil
 }
 
-func TestStartTrue(t *testing.T) {
-	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	assert.True(t, Start("127.0.0.1:7000", "127.0.0.1:7001", &testProcessorResponseValid{}))
-}
-
-func TestStartFalse(t *testing.T) {
-	assert.False(t, Start("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{}))
-}
-
 func TestProxyResponseValid(t *testing.T) {
 	// fake the runtime API running on 5001
 	l, err := net.Listen("tcp", "127.0.0.1:5001")

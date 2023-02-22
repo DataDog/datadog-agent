@@ -8,6 +8,8 @@ package orchestrator
 import (
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -17,14 +19,14 @@ func TestKubeCacheHits(t *testing.T) {
 	resourceVersion := "123"
 	newResourceVersion := "321"
 	// we do not have the resource, therefore we do not skip this resource.
-	skip := SkipKubernetesResource(types.UID(uid), resourceVersion, K8sPod)
+	skip := SkipKubernetesResource(types.UID(uid), resourceVersion, model.K8SResource_POD)
 	assert.False(t, skip)
 
 	// we have the resource, therefore we skip this resource.
-	skip = SkipKubernetesResource(types.UID(uid), resourceVersion, K8sPod)
+	skip = SkipKubernetesResource(types.UID(uid), resourceVersion, model.K8SResource_POD)
 	assert.True(t, skip)
 
 	// we have the resource but the version has changed. therefore we do not skip this resource.
-	skip = SkipKubernetesResource(types.UID(uid), newResourceVersion, K8sPod)
+	skip = SkipKubernetesResource(types.UID(uid), newResourceVersion, model.K8SResource_POD)
 	assert.False(t, skip)
 }

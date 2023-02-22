@@ -308,7 +308,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 func TestMarshalSplitCompress(t *testing.T) {
 	series := makeSeries(10000, 50)
 
-	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
 	require.NoError(t, err)
 	// check that we got multiple payloads, so splitting occurred
 	require.Greater(t, len(payloads), 1)
@@ -331,7 +331,7 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	// ten series, each with 50 points, so two should fit in each payload
 	series := makeSeries(10, 50)
 
-	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
 	require.NoError(t, err)
 	require.Equal(t, 5, len(payloads))
 }
@@ -343,7 +343,7 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 	mockConfig.Set("serializer_max_series_points_per_payload", 1)
 
 	series := makeSeries(1, 2)
-	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
 	require.NoError(t, err)
 	require.Len(t, payloads, 0)
 }
