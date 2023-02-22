@@ -500,14 +500,12 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 
 			for k := 0; k < metricsArray.Len(); k++ {
 				md := metricsArray.At(k)
-
 				if v, ok := runtimeMetricsMappings[md.Name()]; ok {
 					// duplicate runtime metrics as Datadog runtime metrics
 					cp := metricsArray.AppendEmpty()
 					md.CopyTo(cp)
 					cp.SetName(v)
 				}
-
 				baseDims := &Dimensions{
 					name:     md.Name(),
 					tags:     additionalTags,
