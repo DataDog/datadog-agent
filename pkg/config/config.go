@@ -204,6 +204,7 @@ type Endpoint struct {
 // Warnings represent the warnings in the config
 type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
+	Err                       error
 }
 
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
