@@ -22,7 +22,7 @@ github_team = "agent-shared-components"
 github_labels = ["team/agent-shared-components"]
 
 [teams."Universal Service Monitoring"]
-jira_project = "AML"
+jira_project = "USMO"
 jira_issue_type = "Task"
 github_team = "universal-service-monitoring"
 github_labels = ["team/usm"]
