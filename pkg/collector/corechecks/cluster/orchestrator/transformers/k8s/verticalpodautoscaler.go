@@ -18,6 +18,10 @@ import (
 
 // ExtractVerticalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Vertical Pod Autoscaler resource.
 func ExtractVerticalPodAutoscaler(v *v1.VerticalPodAutoscaler) *model.VerticalPodAutoscaler {
+	if v == nil {
+		return &model.VerticalPodAutoscaler{}
+	}
+
 	m := &model.VerticalPodAutoscaler{
 		Metadata: extractMetadata(&v.ObjectMeta),
 		Spec:     extractVerticalPodAutoscalerSpec(&v.Spec),
@@ -47,6 +51,10 @@ func extractVerticalPodAutoscalerSpec(s *v1.VerticalPodAutoscalerSpec) *model.Ve
 // and converts it to our protobuf model
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L149
 func extractContainerResourcePolicies(p *v1.PodResourcePolicy) []*model.ContainerResourcePolicy {
+	if p == nil {
+		return []*model.ContainerResourcePolicy{}
+	}
+
 	policies := []*model.ContainerResourcePolicy{}
 	if p == nil {
 		return policies
@@ -129,6 +137,10 @@ func extractVerticalPodAutoscalerStatus(s *v1.VerticalPodAutoscalerStatus) *mode
 // extractContainerRecommendations converts Kuberentes Recommendations to our protobuf model
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L245
 func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*model.ContainerRecommendation {
+	if cr == nil {
+		return []*model.ContainerRecommendation{}
+	}
+
 	recs := []*model.ContainerRecommendation{}
 	for _, r := range cr {
 		rec := model.ContainerRecommendation{
