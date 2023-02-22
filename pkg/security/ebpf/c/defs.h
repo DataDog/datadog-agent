@@ -227,14 +227,17 @@ enum event_type
     EVENT_ALL = 0xffffffff // used as a mask for all the events
 };
 
+enum {
+    EVENT_FLAGS_ASYNC = 1<<0, // async, mostly io_uring
+    EVENT_FLAGS_SAVED_BY_AD = 1<<1, // event send because of activity dump
+    EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1<<2, // event is a AD sample
+};
+
 struct kevent_t {
     u64 cpu;
     u64 timestamp;
     u32 type;
-    u8 async;
-    u8 saved_by_ad;
-    u8 is_activity_dump_sample;
-    u8 padding;
+    u32 flags;
 };
 
 struct syscall_t {

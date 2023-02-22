@@ -695,6 +695,7 @@ func TestFollower(t *testing.T) {
 		},
 	})
 	unstructured.SetNestedField(metric1.Object, "dd-metric-1", "spec", "externalMetricName")
+	metric1Typed.Spec.ExternalMetricName = "dd-metric-1"
 
 	updateTime := time.Now()
 	f.datadogMetricLister = append(f.datadogMetricLister, metric0, metric1)

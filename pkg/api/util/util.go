@@ -7,6 +7,7 @@ package util
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
@@ -138,8 +139,8 @@ func IsForbidden(ip string) bool {
 	return forbidden[ip]
 }
 
-// IsIPv6 is used to differentiate between ipv4 and ipv6 addresses based on colons.
-// The function does NOT verify if the argument string is a valid address
+// IsIPv6 is used to differentiate between ipv4 and ipv6 addresses.
 func IsIPv6(ip string) bool {
-	return strings.Count(ip, ":") >= 2
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.To4() == nil
 }

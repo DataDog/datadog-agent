@@ -25,54 +25,43 @@ const (
 	maxActive = 128
 )
 
-var mainProbes = map[probes.ProbeName]string{
-	probes.NetDevQueue:                         "tracepoint__net__net_dev_queue",
-	probes.ProtocolClassifierEntrySocketFilter: "socket__classifier_entry",
-	probes.ProtocolClassifierSocketFilter:      "socket__classifier",
-	probes.TCPSendMsg:                          "kprobe__tcp_sendmsg",
-	probes.TCPSendMsgReturn:                    "kretprobe__tcp_sendmsg",
-	probes.TCPRecvMsg:                          "kprobe__tcp_recvmsg",
-	probes.TCPRecvMsgReturn:                    "kretprobe__tcp_recvmsg",
-	probes.TCPReadSock:                         "kprobe__tcp_read_sock",
-	probes.TCPReadSockReturn:                   "kretprobe__tcp_read_sock",
-	probes.TCPClose:                            "kprobe__tcp_close",
-	probes.TCPCloseReturn:                      "kretprobe__tcp_close",
-	probes.TCPConnect:                          "kprobe__tcp_connect",
-	probes.TCPFinishConnect:                    "kprobe__tcp_finish_connect",
-	probes.TCPSetState:                         "kprobe__tcp_set_state",
-	probes.IPMakeSkb:                           "kprobe__ip_make_skb",
-	probes.IPMakeSkbReturn:                     "kretprobe__ip_make_skb",
-	probes.IP6MakeSkb:                          "kprobe__ip6_make_skb",
-	probes.IP6MakeSkbReturn:                    "kretprobe__ip6_make_skb",
-	probes.UDPRecvMsg:                          "kprobe__udp_recvmsg",
-	probes.UDPRecvMsgReturn:                    "kretprobe__udp_recvmsg",
-	probes.UDPv6RecvMsg:                        "kprobe__udpv6_recvmsg",
-	probes.UDPv6RecvMsgReturn:                  "kretprobe__udpv6_recvmsg",
-	probes.TCPRetransmit:                       "kprobe__tcp_retransmit_skb",
-	probes.InetCskAcceptReturn:                 "kretprobe__inet_csk_accept",
-	probes.InetCskListenStop:                   "kprobe__inet_csk_listen_stop",
-	probes.UDPDestroySock:                      "kprobe__udp_destroy_sock",
-	probes.UDPDestroySockReturn:                "kretprobe__udp_destroy_sock",
-	probes.InetBind:                            "kprobe__inet_bind",
-	probes.Inet6Bind:                           "kprobe__inet6_bind",
-	probes.InetBindRet:                         "kretprobe__inet_bind",
-	probes.Inet6BindRet:                        "kretprobe__inet6_bind",
-	probes.SockFDLookup:                        "kprobe__sockfd_lookup_light",
-	probes.SockFDLookupRet:                     "kretprobe__sockfd_lookup_light",
-	probes.DoSendfile:                          "kprobe__do_sendfile",
-	probes.DoSendfileRet:                       "kretprobe__do_sendfile",
-}
-
-var altProbes = map[probes.ProbeName]string{
-	probes.TCPRetransmitPre470:              "kprobe__tcp_retransmit_skb_pre_4_7_0",
-	probes.IP6MakeSkbPre470:                 "kprobe__ip6_make_skb__pre_4_7_0",
-	probes.UDPRecvMsgPre410:                 "kprobe__udp_recvmsg_pre_4_1_0",
-	probes.UDPv6RecvMsgPre410:               "kprobe__udpv6_recvmsg_pre_4_1_0",
-	probes.TCPSendMsgPre410:                 "kprobe__tcp_sendmsg__pre_4_1_0",
-	probes.TCPRecvMsgPre410:                 "kprobe__tcp_recvmsg__pre_4_1_0",
-	probes.SKBConsumeUDP:                    "kprobe__skb_consume_udp",
-	probes.SKBFreeDatagramLocked:            "kprobe__skb_free_datagram_locked",
-	probes.UnderscoredSKBFreeDatagramLocked: "kprobe____skb_free_datagram_locked",
+var mainProbes = []probes.ProbeFuncName{
+	probes.NetDevQueue,
+	probes.ProtocolClassifierEntrySocketFilter,
+	probes.ProtocolClassifierQueuesSocketFilter,
+	probes.ProtocolClassifierDBsSocketFilter,
+	probes.TCPSendMsg,
+	probes.TCPSendMsgReturn,
+	probes.TCPRecvMsg,
+	probes.TCPRecvMsgReturn,
+	probes.TCPReadSock,
+	probes.TCPReadSockReturn,
+	probes.TCPClose,
+	probes.TCPCloseReturn,
+	probes.TCPConnect,
+	probes.TCPFinishConnect,
+	probes.TCPSetState,
+	probes.IPMakeSkb,
+	probes.IPMakeSkbReturn,
+	probes.IP6MakeSkb,
+	probes.IP6MakeSkbReturn,
+	probes.UDPRecvMsg,
+	probes.UDPRecvMsgReturn,
+	probes.UDPv6RecvMsg,
+	probes.UDPv6RecvMsgReturn,
+	probes.TCPRetransmit,
+	probes.InetCskAcceptReturn,
+	probes.InetCskListenStop,
+	probes.UDPDestroySock,
+	probes.UDPDestroySockReturn,
+	probes.InetBind,
+	probes.Inet6Bind,
+	probes.InetBindRet,
+	probes.Inet6BindRet,
+	probes.SockFDLookup,
+	probes.SockFDLookupRet,
+	probes.DoSendfile,
+	probes.DoSendfileRet,
 }
 
 func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) {
@@ -110,10 +99,9 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 			},
 		},
 	}
-	for probeName, funcName := range mainProbes {
+	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  probeName,
 				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
@@ -126,21 +114,21 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 
 	if runtimeTracer {
 		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.SKBFreeDatagramLocked, EBPFFuncName: altProbes[probes.SKBFreeDatagramLocked], UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.UnderscoredSKBFreeDatagramLocked, EBPFFuncName: altProbes[probes.UnderscoredSKBFreeDatagramLocked], UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.SKBConsumeUDP, EBPFFuncName: altProbes[probes.SKBConsumeUDP], UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.SKBFreeDatagramLocked, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UnderscoredSKBFreeDatagramLocked, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.SKBConsumeUDP, UID: probeUID}},
 		)
 	} else {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 		// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt
 		// tracer.
 		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.TCPRetransmitPre470, EBPFFuncName: altProbes[probes.TCPRetransmitPre470], UID: probeUID}, MatchFuncName: "^tcp_retransmit_skb$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.IP6MakeSkbPre470, EBPFFuncName: altProbes[probes.IP6MakeSkbPre470], UID: probeUID}, MatchFuncName: "^ip6_make_skb$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.UDPRecvMsgPre410, EBPFFuncName: altProbes[probes.UDPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^udp_recvmsg$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.UDPv6RecvMsgPre410, EBPFFuncName: altProbes[probes.UDPv6RecvMsgPre410], UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.TCPSendMsgPre410, EBPFFuncName: altProbes[probes.TCPSendMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_sendmsg$"},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: probes.TCPRecvMsgPre410, EBPFFuncName: altProbes[probes.TCPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRetransmitPre470, UID: probeUID}, MatchFuncName: "^tcp_retransmit_skb$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre470, UID: probeUID}, MatchFuncName: "^ip6_make_skb$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre410, UID: probeUID}, MatchFuncName: "^udp_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6RecvMsgPre410, UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPSendMsgPre410, UID: probeUID}, MatchFuncName: "^tcp_sendmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre410, UID: probeUID}, MatchFuncName: "^tcp_recvmsg$"},
 		)
 	}
 }

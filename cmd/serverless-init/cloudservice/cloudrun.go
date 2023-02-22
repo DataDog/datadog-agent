@@ -53,3 +53,8 @@ func (c *CloudRun) GetOrigin() string {
 func (c *CloudRun) GetPrefix() string {
 	return "gcp.run"
 }
+
+func isCloudRunService() bool {
+	_, exists := os.LookupEnv(serviceNameEnvVar)
+	return exists
+}

@@ -122,6 +122,12 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	return c.IsSet(section)
 }
 
+func (c *safeConfig) AllKeys() []string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.Viper.AllKeys()
+}
+
 // Get wraps Viper for concurrent access
 func (c *safeConfig) Get(key string) interface{} {
 	c.RLock()

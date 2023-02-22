@@ -124,21 +124,9 @@ type fieldValues struct {
 	dportFl6 uint16
 }
 
-var offsetProbes = map[probes.ProbeName]string{
-	probes.TCPGetSockOpt:      "kprobe__tcp_getsockopt",
-	probes.SockGetSockOpt:     "kprobe__sock_common_getsockopt",
-	probes.TCPv6Connect:       "kprobe__tcp_v6_connect",
-	probes.IPMakeSkb:          "kprobe__ip_make_skb",
-	probes.IP6MakeSkb:         "kprobe__ip6_make_skb",
-	probes.IP6MakeSkbPre470:   "kprobe__ip6_make_skb__pre_4_7_0",
-	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
-	probes.NetDevQueue:        "tracepoint__net__net_dev_queue",
-}
-
-func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
+func idPair(name probes.ProbeFuncName) manager.ProbeIdentificationPair {
 	return manager.ProbeIdentificationPair{
-		EBPFSection:  name,
-		EBPFFuncName: offsetProbes[name],
+		EBPFFuncName: name,
 		UID:          "offset",
 	}
 }
@@ -259,14 +247,12 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 	return nil, errors.New("unstable TCP socket params")
 }
 
-func enableProbe(enabled map[probes.ProbeName]string, name probes.ProbeName) {
-	if fn, ok := offsetProbes[name]; ok {
-		enabled[name] = fn
-	}
+func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
+	enabled[name] = struct{}{}
 }
 
-func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
-	p := map[probes.ProbeName]string{}
+func offsetGuessProbes(c *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
+	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
