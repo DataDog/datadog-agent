@@ -1148,7 +1148,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
+	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
