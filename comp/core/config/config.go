@@ -51,7 +51,7 @@ func newConfig(deps dependencies) (Component, error) {
 
 	if deps.Params.configLoadSecurityAgent {
 		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
-			returnErrFct(err)
+			return returnErrFct(err)
 		}
 	}
 
