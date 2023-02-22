@@ -9,19 +9,29 @@
 package secrets
 
 import (
+	_ "embed"
 	"fmt"
+	"io"
+	"sort"
 	"strings"
+	"text/template"
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
+type handleToContext map[string][]secretContext
+
 var (
+	// testing purpose
+	secretFetcher       = fetchSecret
+	scrubberAddReplacer = scrubber.AddStrippedKeys
+
 	secretCache map[string]string
 	// list of handles and where they were found
-	secretOrigin map[string]common.StringSet
+	secretOrigin handleToContext
 
 	secretBackendCommand               string
 	secretBackendArguments             []string
@@ -32,9 +42,42 @@ var (
 	SecretBackendOutputMaxSize = 1024 * 1024
 )
 
+//go:embed info.tmpl
+var secretInfoTmpl string
+
+type secretContext struct {
+	// origin is the configuration name where a handle was found
+	origin string
+	// yamlPath is the key associated to the secret in the YAML configuration.
+	// Example: in this yaml: '{"token": "ENC[token 1]"}', 'token' is the yamlPath and 'token 1' is the handle.
+	yamlPath string
+}
+
 func init() {
 	secretCache = make(map[string]string)
-	secretOrigin = make(map[string]common.StringSet)
+	secretOrigin = make(handleToContext)
+}
+
+func registerSecretOrigin(handle string, origin string, yamlPath []string) {
+	path := strings.Join(yamlPath, "/")
+	for _, info := range secretOrigin[handle] {
+		if info.origin == origin && info.yamlPath == path {
+			// The secret was used twice in the same configuration under the same key: nothing to do
+			return
+		}
+	}
+
+	if len(yamlPath) != 0 {
+		lastElem := yamlPath[len(yamlPath)-1:]
+		scrubberAddReplacer(lastElem)
+	}
+
+	secretOrigin[handle] = append(
+		secretOrigin[handle],
+		secretContext{
+			origin:   origin,
+			yamlPath: path,
+		})
 }
 
 // Init initializes the command and other options of the secrets package. Since
@@ -51,23 +94,23 @@ func Init(command string, arguments []string, timeout int, maxSize int, groupExe
 	}
 }
 
-type walkerCallback func(string) (string, error)
+type walkerCallback func([]string, string) (string, error)
 
-func walkSlice(data []interface{}, callback walkerCallback) error {
+func walkSlice(data []interface{}, yamlPath []string, callback walkerCallback) error {
 	for idx, k := range data {
 		switch v := k.(type) {
 		case string:
-			newValue, err := callback(v)
+			newValue, err := callback(yamlPath, v)
 			if err != nil {
 				return err
 			}
 			data[idx] = newValue
 		case map[interface{}]interface{}:
-			if err := walkHash(v, callback); err != nil {
+			if err := walkHash(v, yamlPath, callback); err != nil {
 				return err
 			}
 		case []interface{}:
-			if err := walkSlice(v, callback); err != nil {
+			if err := walkSlice(v, yamlPath, callback); err != nil {
 				return err
 			}
 		}
@@ -75,21 +118,26 @@ func walkSlice(data []interface{}, callback walkerCallback) error {
 	return nil
 }
 
-func walkHash(data map[interface{}]interface{}, callback walkerCallback) error {
+func walkHash(data map[interface{}]interface{}, yamlPath []string, callback walkerCallback) error {
 	for k := range data {
+		path := yamlPath
+		if newkey, ok := k.(string); ok {
+			path = append(path, newkey)
+		}
+
 		switch v := data[k].(type) {
 		case string:
-			newValue, err := callback(v)
+			newValue, err := callback(path, v)
 			if err != nil {
 				return err
 			}
 			data[k] = newValue
 		case map[interface{}]interface{}:
-			if err := walkHash(v, callback); err != nil {
+			if err := walkHash(v, path, callback); err != nil {
 				return err
 			}
 		case []interface{}:
-			if err := walkSlice(v, callback); err != nil {
+			if err := walkSlice(v, path, callback); err != nil {
 				return err
 			}
 		}
@@ -99,18 +147,18 @@ func walkHash(data map[interface{}]interface{}, callback walkerCallback) error {
 
 // walk will go through loaded yaml and call callback on every strings allowing
 // the callback to overwrite the string value
-func walk(data *interface{}, callback walkerCallback) error {
+func walk(data *interface{}, yamlPath []string, callback walkerCallback) error {
 	switch v := (*data).(type) {
 	case string:
-		newValue, err := callback(v)
+		newValue, err := callback(yamlPath, v)
 		if err != nil {
 			return err
 		}
 		*data = newValue
 	case map[interface{}]interface{}:
-		return walkHash(v, callback)
+		return walkHash(v, yamlPath, callback)
 	case []interface{}:
-		return walkSlice(v, callback)
+		return walkSlice(v, yamlPath, callback)
 	}
 	return nil
 }
@@ -123,9 +171,6 @@ func isEnc(str string) (bool, string) {
 	}
 	return false, ""
 }
-
-// testing purpose
-var secretFetcher = fetchSecret
 
 // Decrypt replaces all encrypted secrets in data by executing
 // "secret_backend_command" once if all secrets aren't present in the cache.
@@ -143,20 +188,23 @@ func Decrypt(data []byte, origin string) ([]byte, error) {
 	// First we collect all new handles in the config
 	newHandles := []string{}
 	haveSecret := false
-	err = walk(&config, func(str string) (string, error) {
-		if ok, handle := isEnc(str); ok {
-			haveSecret = true
-			// Check if we already know this secret
-			if secret, ok := secretCache[handle]; ok {
-				log.Debugf("Secret '%s' was retrieved from cache", handle)
-				// keep track of place where a handle was found
-				secretOrigin[handle].Add(origin)
-				return secret, nil
+	err = walk(
+		&config,
+		nil,
+		func(yamlPath []string, str string) (string, error) {
+			if ok, handle := isEnc(str); ok {
+				haveSecret = true
+				// Check if we already know this secret
+				if secret, ok := secretCache[handle]; ok {
+					log.Debugf("Secret '%s' was retrieved from cache", handle)
+					// keep track of place where a handle was found
+					registerSecretOrigin(handle, origin, yamlPath)
+					return secret, nil
+				}
+				newHandles = append(newHandles, handle)
 			}
-			newHandles = append(newHandles, handle)
-		}
-		return str, nil
-	})
+			return str, nil
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -168,24 +216,29 @@ func Decrypt(data []byte, origin string) ([]byte, error) {
 
 	// check if any new secrets need to be fetch
 	if len(newHandles) != 0 {
-		secrets, err := secretFetcher(newHandles, origin)
+		secrets, err := secretFetcher(newHandles)
 		if err != nil {
 			return nil, err
 		}
 
 		// Replace all new encrypted secrets in the config
-		err = walk(&config, func(str string) (string, error) {
-			if ok, handle := isEnc(str); ok {
-				if secret, ok := secrets[handle]; ok {
-					log.Debugf("Secret '%s' was retrieved from executable", handle)
-					return secret, nil
+		err = walk(
+			&config,
+			nil,
+			func(yamlPath []string, str string) (string, error) {
+				if ok, handle := isEnc(str); ok {
+					if secret, ok := secrets[handle]; ok {
+						log.Debugf("Secret '%s' was retrieved from executable", handle)
+						// keep track of place where a handle was found
+						registerSecretOrigin(handle, origin, yamlPath)
+						return secret, nil
+					}
+					// This should never happen since fetchSecret will return an error
+					// if not every handles have been fetched.
+					return str, fmt.Errorf("unknown secret '%s'", handle)
 				}
-				// This should never happen since fetchSecret will return an error
-				// if not every handles have been fetched.
-				return str, fmt.Errorf("unknown secret '%s'", handle)
-			}
-			return str, nil
-		})
+				return str, nil
+			})
 		if err != nil {
 			return nil, err
 		}
@@ -198,17 +251,70 @@ func Decrypt(data []byte, origin string) ([]byte, error) {
 	return finalConfig, nil
 }
 
-// GetDebugInfo exposes debug informations about secrets to be included in a flare
-func GetDebugInfo() (*SecretInfo, error) {
-	if secretBackendCommand == "" {
-		return nil, fmt.Errorf("No secret_backend_command set: secrets feature is not enabled")
-	}
-	info := &SecretInfo{ExecutablePath: secretBackendCommand}
-	info.populateRights()
+type secretInfo struct {
+	Executable                   string
+	ExecutablePermissions        string
+	ExecutablePermissionsDetails interface{}
+	ExecutablePermissionsError   string
+	Handles                      map[string][][]string
+}
 
-	info.SecretsHandles = map[string][]string{}
-	for handle, originNames := range secretOrigin {
-		info.SecretsHandles[handle] = originNames.GetAll()
+// GetDebugInfo exposes debug informations about secrets to be included in a flare
+func GetDebugInfo(w io.Writer) {
+	if secretBackendCommand == "" {
+		fmt.Fprintf(w, "No secret_backend_command set: secrets feature is not enabled")
+		return
 	}
-	return info, nil
+
+	t := template.New("secret_info")
+	t, err := t.Parse(secretInfoTmpl)
+	if err != nil {
+		fmt.Fprintf(w, "error parsing secret info template: %s", err)
+		return
+	}
+
+	t, err = t.Parse(permissionsDetailsTemplate)
+	if err != nil {
+		fmt.Fprintf(w, "error parsing secret permissions details template: %s", err)
+		return
+	}
+
+	err = checkRights(secretBackendCommand, secretBackendCommandAllowGroupExec)
+
+	permissions := "OK, the executable has the correct permissions"
+	if err != nil {
+		permissions = fmt.Sprintf("error: %s", err)
+	}
+
+	details, err := getExecutablePermissions()
+	info := secretInfo{
+		Executable:                   secretBackendCommand,
+		ExecutablePermissions:        permissions,
+		ExecutablePermissionsDetails: details,
+		Handles:                      map[string][][]string{},
+	}
+	if err != nil {
+		info.ExecutablePermissionsError = err.Error()
+	}
+
+	// we sort handles so the output is consistent and testable
+	orderedHandles := []string{}
+	for handle := range secretOrigin {
+		orderedHandles = append(orderedHandles, handle)
+	}
+	sort.Strings(orderedHandles)
+
+	for _, handle := range orderedHandles {
+		contexts := secretOrigin[handle]
+		details := [][]string{}
+		for _, context := range contexts {
+			details = append(details, []string{context.origin, context.yamlPath})
+		}
+		info.Handles[handle] = details
+	}
+
+	err = t.Execute(w, info)
+	if err != nil {
+		fmt.Fprintf(w, "error rendering secret info: %s", err)
+	}
 }

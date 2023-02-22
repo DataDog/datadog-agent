@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
@@ -57,30 +57,92 @@ instances:
   user: test2
 `)
 
+	testConfDecrypted = `instances:
+- password: password1
+  user: test
+- password: password2
+  user: test2
+`
+
+	testConfOrigin = handleToContext{
+		"pass1": []secretContext{
+			{
+				origin:   "test",
+				yamlPath: "instances/password",
+			},
+		},
+		"pass2": []secretContext{
+			{
+				origin:   "test",
+				yamlPath: "instances/password",
+			},
+		},
+	}
+
 	testConfDash = []byte(`---
 some_encoded_password: ENC[pass1]
 keys_with_dash_string_value:
   foo: "-"
 `)
 
-	testConf2 = []byte(`---
-instances:
-- password: ENC[pass3]
-- password: ENC[pass2]
-`)
-
-	testConfDecrypted = []byte(`instances:
-- password: password1
-  user: test
-- password: password2
-  user: test2
-`)
-
-	testConfDecryptedDash = []byte(`keys_with_dash_string_value:
+	testConfDecryptedDash = `keys_with_dash_string_value:
   foo: '-'
 some_encoded_password: password1
+`
+	testConfDashOrigin = handleToContext{
+		"pass1": []secretContext{
+			{
+				origin:   "test",
+				yamlPath: "some_encoded_password",
+			},
+		},
+	}
+
+	testConfMultiline = []byte(`---
+some_encoded_password: ENC[pass1]
 `)
+
+	testConfDecryptedMultiline = `some_encoded_password: |
+  password1
+`
+	testConfMultilineOrigin = handleToContext{
+		"pass1": []secretContext{
+			{
+				origin:   "test",
+				yamlPath: "some_encoded_password",
+			},
+		},
+	}
+
+	testConfNested = []byte(`---
+some:
+  encoded:
+    data: ENC[pass1]
+`)
+
+	testConfDecryptedNested = `some:
+  encoded:
+    data: password1
+`
+	testConfNestedOrigin = handleToContext{
+		"pass1": []secretContext{
+			{
+				origin:   "test",
+				yamlPath: "some/encoded/data",
+			},
+		},
+	}
 )
+
+func resetPackageVars() {
+	secretBackendCommand = ""
+	secretBackendArguments = []string{}
+	secretCache = map[string]string{}
+	secretOrigin = make(handleToContext)
+	secretFetcher = fetchSecret
+	secretBackendTimeout = 0
+	scrubberAddReplacer = scrubber.AddStrippedKeys
+}
 
 func TestIsEnc(t *testing.T) {
 	enc, secret := isEnc("")
@@ -113,9 +175,9 @@ func TestIsEnc(t *testing.T) {
 func TestWalkerError(t *testing.T) {
 	var config interface{}
 	err := yaml.Unmarshal(testYamlHash, &config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
-	err = walk(&config, func(str string) (string, error) {
+	err = walk(&config, nil, func([]string, string) (string, error) {
 		return "", fmt.Errorf("some error")
 	})
 	assert.NotNil(t, err)
@@ -124,33 +186,33 @@ func TestWalkerError(t *testing.T) {
 func TestWalkerSimple(t *testing.T) {
 	var config interface{}
 	err := yaml.Unmarshal([]byte("test"), &config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	stringsCollected := []string{}
-	err = walk(&config, func(str string) (string, error) {
+	err = walk(&config, nil, func(_ []string, str string) (string, error) {
 		stringsCollected = append(stringsCollected, str)
 		return str + "_verified", nil
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, []string{"test"}, stringsCollected)
 
 	updatedConf, err := yaml.Marshal(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, string("test_verified\n"), string(updatedConf))
 }
 
 func TestWalkerComplex(t *testing.T) {
 	var config interface{}
 	err := yaml.Unmarshal(testYamlHash, &config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	stringsCollected := []string{}
-	err = walk(&config, func(str string) (string, error) {
+	err = walk(&config, nil, func(_ []string, str string) (string, error) {
 		stringsCollected = append(stringsCollected, str)
 		return str + "_verified", nil
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	sort.Strings(stringsCollected)
 	assert.Equal(t, []string{
@@ -164,29 +226,27 @@ func TestWalkerComplex(t *testing.T) {
 	}, stringsCollected)
 
 	updatedConf, err := yaml.Marshal(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, string(testYamlHashUpdated), string(updatedConf))
 }
 
 func TestDecryptNoCommand(t *testing.T) {
-	defer func() { secretFetcher = fetchSecret }()
-	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
+	defer resetPackageVars()
+	secretFetcher = func(secrets []string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
 
 	// since we didn't set any command this should return without any error
-	_, err := Decrypt(testConf, "test")
-	require.Nil(t, err)
+	resConf, err := Decrypt(testConf, "test")
+	require.NoError(t, err)
+	assert.Equal(t, testConf, resConf)
 }
 
 func TestDecryptSecretError(t *testing.T) {
 	secretBackendCommand = "some_command"
-	defer func() {
-		secretBackendCommand = ""
-		secretFetcher = fetchSecret
-	}()
+	defer resetPackageVars()
 
-	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
+	secretFetcher = func(secrets []string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
 
@@ -194,151 +254,141 @@ func TestDecryptSecretError(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-// TestDecryptSecretStringMapStringWithDashValue checks that a nested string config value
-// that can be interpreted as YAML (such as a "-") is not interpreted as YAML by the secrets
-// decryption logic, but is left unchanged as a string instead.
-// See https://github.com/DataDog/datadog-agent/pull/6586 for details.
-func TestDecryptSecretStringMapStringWithDashValue(t *testing.T) {
-	secretBackendCommand = "some_command"
-
-	defer func() {
-		secretBackendCommand = ""
-		secretCache = map[string]string{}
-		secretOrigin = map[string]common.StringSet{}
-		secretFetcher = fetchSecret
-	}()
-
-	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
-		assert.Equal(t, []string{
-			"pass1",
-		}, secrets)
-
-		return map[string]string{
-			"pass1": "password1",
-		}, nil
+func TestDecrypt(t *testing.T) {
+	type testCase struct {
+		name                 string
+		testConf             []byte
+		decryptedConf        string
+		expectedSecretOrigin handleToContext
+		expectedScrubbedKey  []string
+		secretFetchCB        func([]string) (map[string]string, error)
+		secretCache          map[string]string
 	}
 
-	newConf, err := Decrypt(testConfDash, "test")
-	require.Nil(t, err)
-	assert.Equal(t, string(testConfDecryptedDash), string(newConf))
-}
+	currentTest := t
+	testCases := []testCase{
+		{
+			// TestDecryptSecretStringMapStringWithDashValue checks that a nested string config value
+			// that can be interpreted as YAML (such as a "-") is not interpreted as YAML by the secrets
+			// decryption logic, but is left unchanged as a string instead.
+			// See https://github.com/DataDog/datadog-agent/pull/6586 for details.
+			name:                 "map with dash value",
+			testConf:             testConfDash,
+			decryptedConf:        testConfDecryptedDash,
+			expectedSecretOrigin: testConfDashOrigin,
+			expectedScrubbedKey:  []string{"some_encoded_password"},
+			secretFetchCB: func(secrets []string) (map[string]string, error) {
+				assert.Equal(currentTest, []string{
+					"pass1",
+				}, secrets)
 
-func TestDecryptSecretNoCache(t *testing.T) {
-	secretBackendCommand = "some_command"
+				return map[string]string{
+					"pass1": "password1",
+				}, nil
+			},
+		},
+		{
+			name:                 "multiline",
+			testConf:             testConfMultiline,
+			decryptedConf:        testConfDecryptedMultiline,
+			expectedSecretOrigin: testConfMultilineOrigin,
+			expectedScrubbedKey:  []string{"some_encoded_password"},
+			secretFetchCB: func(secrets []string) (map[string]string, error) {
+				assert.Equal(currentTest, []string{
+					"pass1",
+				}, secrets)
 
-	defer func() {
-		secretBackendCommand = ""
-		secretCache = map[string]string{}
-		secretOrigin = map[string]common.StringSet{}
-		secretFetcher = fetchSecret
-	}()
+				return map[string]string{
+					"pass1": "password1\n",
+				}, nil
+			},
+		},
+		{
+			name:                 "nested",
+			testConf:             testConfNested,
+			decryptedConf:        testConfDecryptedNested,
+			expectedSecretOrigin: testConfNestedOrigin,
+			expectedScrubbedKey:  []string{"data"},
+			secretFetchCB: func(secrets []string) (map[string]string, error) {
+				assert.Equal(currentTest, []string{
+					"pass1",
+				}, secrets)
 
-	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
-		sort.Strings(secrets)
-		assert.Equal(t, []string{
-			"pass1",
-			"pass2",
-		}, secrets)
+				return map[string]string{
+					"pass1": "password1",
+				}, nil
+			},
+		},
+		{
+			name:                 "no cache",
+			testConf:             testConf,
+			decryptedConf:        testConfDecrypted,
+			expectedSecretOrigin: testConfOrigin,
+			expectedScrubbedKey:  []string{"password", "password"},
+			secretFetchCB: func(secrets []string) (map[string]string, error) {
+				sort.Strings(secrets)
+				assert.Equal(currentTest, []string{
+					"pass1",
+					"pass2",
+				}, secrets)
 
-		return map[string]string{
-			"pass1": "password1",
-			"pass2": "password2",
-		}, nil
+				return map[string]string{
+					"pass1": "password1",
+					"pass2": "password2",
+				}, nil
+			},
+		},
+		{
+			name:                 "partial cache",
+			testConf:             testConf,
+			decryptedConf:        testConfDecrypted,
+			expectedSecretOrigin: testConfOrigin,
+			expectedScrubbedKey:  []string{"password", "password"},
+			secretCache:          map[string]string{"pass1": "password1"},
+			secretFetchCB: func(secrets []string) (map[string]string, error) {
+				sort.Strings(secrets)
+				assert.Equal(currentTest, []string{
+					"pass2",
+				}, secrets)
+
+				return map[string]string{
+					"pass2": "password2",
+				}, nil
+			},
+		},
+		{
+			name:                 "full cache",
+			testConf:             testConf,
+			decryptedConf:        testConfDecrypted,
+			expectedSecretOrigin: testConfOrigin,
+			expectedScrubbedKey:  []string{"password", "password"},
+			secretCache:          map[string]string{"pass1": "password1", "pass2": "password2"},
+			secretFetchCB: func(secrets []string) (map[string]string, error) {
+				require.Fail(currentTest, "Secret Cache was not used properly")
+				return nil, nil
+			},
+		},
 	}
 
-	newConf, err := Decrypt(testConf, "test")
-	require.Nil(t, err)
-	assert.Equal(t, string(testConfDecrypted), string(newConf))
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			currentTest = t
+			t.Cleanup(resetPackageVars)
 
-func TestDecryptSecretPartialCache(t *testing.T) {
-	secretBackendCommand = "some_command"
-	defer func() { secretBackendCommand = "" }()
+			secretBackendCommand = "some_command"
+			if tc.secretCache != nil {
+				secretCache = tc.secretCache
+			}
+			secretFetcher = tc.secretFetchCB
+			scrubbedKey := []string{}
+			scrubberAddReplacer = func(k []string) { scrubbedKey = append(scrubbedKey, k[0]) }
 
-	secretCache["pass1"] = "password1"
-	secretOrigin["pass1"] = common.NewStringSet("test")
-	defer func() {
-		secretCache = map[string]string{}
-		secretOrigin = map[string]common.StringSet{}
-		secretFetcher = fetchSecret
-	}()
+			newConf, err := Decrypt(tc.testConf, "test")
+			require.NoError(t, err)
 
-	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
-		sort.Strings(secrets)
-		assert.Equal(t, []string{
-			"pass2",
-		}, secrets)
-
-		return map[string]string{
-			"pass2": "password2",
-		}, nil
+			assert.Equal(t, tc.decryptedConf, string(newConf))
+			assert.Equal(t, tc.expectedSecretOrigin, secretOrigin)
+			assert.Equal(t, tc.expectedScrubbedKey, scrubbedKey)
+		})
 	}
-
-	newConf, err := Decrypt(testConf, "test")
-	require.Nil(t, err)
-	assert.Equal(t, testConfDecrypted, newConf)
-}
-
-func TestDecryptSecretFullCache(t *testing.T) {
-	secretBackendCommand = "some_command"
-	defer func() { secretBackendCommand = "" }()
-
-	secretCache["pass1"] = "password1"
-	secretCache["pass2"] = "password2"
-	secretOrigin["pass1"] = common.NewStringSet("previous_test")
-	secretOrigin["pass2"] = common.NewStringSet("previous_test")
-	defer func() {
-		secretCache = map[string]string{}
-		secretOrigin = map[string]common.StringSet{}
-		secretFetcher = fetchSecret
-	}()
-
-	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
-		require.Fail(t, "Secret Cache was not used properly")
-		return nil, nil
-	}
-
-	newConf, err := Decrypt(testConf, "test")
-	require.Nil(t, err)
-	assert.Equal(t, testConfDecrypted, newConf)
-}
-
-func TestDebugInfo(t *testing.T) {
-	secretBackendCommand = "some_command"
-
-	defer func() {
-		secretBackendCommand = ""
-		secretCache = map[string]string{}
-		secretOrigin = map[string]common.StringSet{}
-		runCommand = execCommand
-	}()
-
-	runCommand = func(string) ([]byte, error) {
-		res := []byte("{\"pass1\":{\"value\":\"password1\"},")
-		res = append(res, []byte("\"pass2\":{\"value\":\"password2\"},")...)
-		res = append(res, []byte("\"pass3\":{\"value\":\"password3\"}}")...)
-		return res, nil
-	}
-
-	_, err := Decrypt(testConf, "test")
-	require.Nil(t, err)
-	_, err = Decrypt(testConf2, "test2")
-	require.Nil(t, err)
-
-	info, err := GetDebugInfo()
-	require.Nil(t, err)
-
-	assert.Equal(t, "some_command", info.ExecutablePath)
-
-	// sort handle first. The only handle with multiple location is "pass2".
-	handles := info.SecretsHandles
-	pass2Handles := sort.StringSlice(handles["pass2"])
-	pass2Handles.Sort()
-	handles["pass2"] = pass2Handles
-
-	assert.Equal(t, map[string][]string{
-		"pass1": {"test"},
-		"pass2": {"test", "test2"},
-		"pass3": {"test2"},
-	}, handles)
 }
