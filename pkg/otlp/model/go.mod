@@ -8,8 +8,8 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/quantile v0.43.0-rc.7
-	github.com/DataDog/datadog-agent/pkg/trace v0.43.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/quantile v0.43.0
+	github.com/DataDog/datadog-agent/pkg/trace v0.43.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/golang/protobuf v1.5.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
