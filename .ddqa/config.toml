@@ -50,3 +50,10 @@ jira_project = "EBPF"
 jira_issue_type = "Task"
 github_team = "ebpf-platform"
 github_labels = ["team/ebpf-platform"]
+
+[teams."Platform Integrations"]
+jira_project = "PINT"
+jira_issue_type = "Task"
+github_team = "platform-integrations"
+github_labels = ["team/platform-integrations"]
+
