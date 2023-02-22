@@ -170,8 +170,8 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
-  USE_CACHING_PROXY_RUBY: "true"
-  USE_CACHING_PROXY_PYTHON: "true"
+  USE_CACHING_PROXY_RUBY: "false"
+  USE_CACHING_PROXY_PYTHON: "false"
   CLANG_LLVM_VER: 12.0.1
 
 #
