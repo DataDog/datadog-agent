@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package e2e
 
 import (
@@ -26,7 +31,7 @@ func TestE2ESuite(t *testing.T) {
 	suite.Run(t, &e2eSuite{Suite: NewSuite("my-test", &StackDefinition[MyEnv]{
 		EnvCloudName: "aws/sandbox",
 		EnvFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
-			vm, err := ec2vm.NewUnixLikeEc2VM(ctx, ec2vm.WithOS(os.AmazonLinuxOS, commonos.AMD64Arch))
+			vm, err := ec2vm.NewUnixEc2VM(ctx, ec2vm.WithOS(os.AmazonLinuxOS, commonos.AMD64Arch))
 			if err != nil {
 				return nil, err
 			}

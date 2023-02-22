@@ -13,7 +13,7 @@ var _ stackInitializer = (*VM)(nil)
 
 // A client VM that is connected to a VM defined in test-infra-definition.
 type VM struct {
-	*UpResultDeserializer[commonvm.VMData]
+	*UpResultDeserializer[commonvm.ClientData]
 	*sshClient
 }
 
@@ -24,8 +24,8 @@ func NewVM(infraVM commonvm.VM) *VM {
 	return vm
 }
 
-func (vm *VM) init(auth *Authentification, vmData *commonvm.VMData) error {
+func (vm *VM) init(auth *Authentification, data *commonvm.ClientData) error {
 	var err error
-	vm.sshClient, err = newSSHClient(auth, &vmData.Connection)
+	vm.sshClient, err = newSSHClient(auth, &data.Connection)
 	return err
 }

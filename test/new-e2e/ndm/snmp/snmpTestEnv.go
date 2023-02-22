@@ -55,7 +55,7 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) 
 
 	_, upResult, err := stackManager.GetStack(snmpTestEnv.context, snmpTestEnv.envName, snmpTestEnv.name, config, func(ctx *pulumi.Context) error {
 		// setup VM
-		vm, err := ec2vm.NewUnixLikeEc2VM(ctx)
+		vm, err := ec2vm.NewUnixEc2VM(ctx)
 		if err != nil {
 			return err
 		}

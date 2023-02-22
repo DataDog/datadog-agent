@@ -13,7 +13,7 @@ var _ stackInitializer = (*Agent)(nil)
 
 // A client Agent that is connected to an agent.Installer defined in test-infra-definition.
 type Agent struct {
-	*UpResultDeserializer[agent.InstallerData]
+	*UpResultDeserializer[agent.ClientData]
 	*sshClient
 }
 
@@ -24,7 +24,7 @@ func NewAgent(installer *agent.Installer) *Agent {
 	return agent
 }
 
-func (agent *Agent) init(auth *Authentification, data *agent.InstallerData) error {
+func (agent *Agent) init(auth *Authentification, data *agent.ClientData) error {
 	var err error
 	agent.sshClient, err = newSSHClient(auth, &data.Connection)
 	return err
