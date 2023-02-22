@@ -12,31 +12,9 @@ build do
   license "BSD-style"
   license_file "https://raw.githubusercontent.com/confluentinc/librdkafka/master/LICENSE"
 
-  # https://github.com/confluentinc/confluent-kafka-python/blob/master/INSTALL.md#install-from-source
+  # https://github.com/confluentinc/librdkafka#build-from-source
+  command "./configure --prefix=#{install_dir}/embedded"
+  command "make"
+  command "make install", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
 
-  if windows?
-    command "vcpkg install librdkafka"
-  elsif redhat?
-    command "yum install -y cyrus-sasl-gssapi krb5-workstation"
-
-    command "rpm --import https://packages.confluent.io/rpm/7.3/archive.key"
-
-    command "echo '[Confluent-Clients]' >> /etc/yum.repos.d/confluent.repo"
-    command "echo 'name=Confluent Clients repository' >> /etc/yum.repos.d/confluent.repo"
-    command "echo 'baseurl=https://packages.confluent.io/clients/rpm/centos/$releasever/$basearch' >> /etc/yum.repos.d/confluent.repo"
-    command "echo 'gpgcheck=1' >> /etc/yum.repos.d/confluent.repo"
-    command "echo 'gpgkey=https://packages.confluent.io/clients/rpm/archive.key' >> /etc/yum.repos.d/confluent.repo"
-    command "echo 'enabled=1' >> /etc/yum.repos.d/confluent.repo"
-
-    command "yum install -y librdkafka-devel"
-  elsif debian?
-    command "apt install -y libsasl2-modules-gssapi-mit krb5-user"
-    command "wget -qO - https://packages.confluent.io/deb/7.3/archive.key | apt-key add -"
-
-    command "add-apt-repository \"deb https://packages.confluent.io/clients/deb $(lsb_release -cs) main\""
-    command "apt update"
-    command "apt install -y librdkafka-dev"
-  elsif osx?
-    command "brew install librdkafka"
-  end
 end
