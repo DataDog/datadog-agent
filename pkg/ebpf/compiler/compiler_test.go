@@ -31,10 +31,6 @@ func TestCompilerMatch(t *testing.T) {
 		}
 		return
 	}
-	input, err := os.Open(cPath)
-	require.NoError(t, err)
-	defer input.Close()
-
 	cfg := ebpf.NewConfig()
 
 	cflags := []string{
@@ -47,7 +43,7 @@ func TestCompilerMatch(t *testing.T) {
 	defer os.Remove(tmpObjFile.Name())
 
 	onDiskObjFilename := tmpObjFile.Name()
-	err = CompileToObjectFile(input, onDiskObjFilename, cflags, nil)
+	err = CompileToObjectFile(cPath, onDiskObjFilename, cflags, nil)
 	require.NoError(t, err)
 
 	bs, err := os.ReadFile(onDiskObjFilename)
