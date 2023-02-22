@@ -14,6 +14,10 @@ build do
   license "Apache-2.0"
   license_file "./LICENSE.txt"
 
+  build_env {
+    "CFLAGS" => "-I#{install_dir}/embedded/include -std=c99"
+  }
+
   # https://github.com/confluentinc/confluent-kafka-python/blob/master/INSTALL.md#install-from-source
 
   if windows?
@@ -22,5 +26,5 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-  command "#{pip} install -std=gnu99 --no-binary confluent-kafka ."
+  command "#{pip} install --no-binary confluent-kafka .", :env => build_env
 end
