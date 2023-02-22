@@ -8,7 +8,4 @@
 ---
 enhancements:
   - |
-    In Prebuilt: No longer increments the counter for tcp retransmits when tcp_retransmit_skb returns a non-zero exit code. 
-    In Runtime Compiled: Does the above, but additionally forgoes the usage of the segs parameter in tcp_retransmit_skb for 
-    the value retrans_out, a member of the tcp_sock type. retrans_out is a monotonic counter, so we calculate the difference 
-    between its value in the kprobe and kretprobe and use that delta to increment tcp retransmits.
+    No longer increments tcp retransmit count when the retransmit fails.
