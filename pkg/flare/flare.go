@@ -21,7 +21,6 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/fatih/color"
 )
 
 var datadogSupportURL = "/support/flare"
@@ -231,10 +230,4 @@ func mkURL(caseID string) string {
 	}
 	url += "?api_key=" + config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	return url
-}
-
-func DisplayWarnings(w *config.Warnings) {
-	if w != nil && w.Err != nil {
-		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", w.Err))
-	}
 }
