@@ -167,7 +167,7 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
-  USE_CACHING_PROXY_RUBY: "true"
+  USE_CACHING_PROXY_RUBY: "false"
   CLANG_LLVM_VER: 12.0.1
 
 #
@@ -266,13 +266,13 @@ workflow:
   rules:
     - <<: *if_main_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_PYTHON: "false"
     - <<: *if_release_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_PYTHON: "false"
     - <<: *if_deploy
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_PYTHON: "false"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
