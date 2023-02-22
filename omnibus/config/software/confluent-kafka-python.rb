@@ -22,5 +22,5 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-  command "#{pip} install -–no-binary confluent-kafka ."
+  command "#{pip} install --no-binary confluent-kafka ."
 end
