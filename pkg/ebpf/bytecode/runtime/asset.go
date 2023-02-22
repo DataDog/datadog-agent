@@ -116,7 +116,7 @@ func createRamBackedFile(name, hash string, source io.Reader, runtimeDir string)
 		return "", nil, fmt.Errorf("unable to create compiler output directory %s: %w", runtimeDir, err)
 	}
 
-	memfdFile, err := memfd.Create()
+	memfdFile, err := memfd.CreateNameFlags(name, memfd.AllowSealing|memfd.Cloexec)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create memfd file: %w: ", err)
 	}
@@ -137,6 +137,9 @@ func createRamBackedFile(name, hash string, source io.Reader, runtimeDir string)
 
 	target := fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), memfdFile.Fd())
 	tmpFile := filepath.Join(runtimeDir, fmt.Sprintf("%s-%s", name, hash))
+
+	link, _ := os.Readlink(target)
+	log.Debugf("createRamBackedFile: created memfd file: %s => %s", target, link)
 
 	os.Remove(tmpFile)
 	if err := os.Symlink(target, tmpFile); err != nil {
