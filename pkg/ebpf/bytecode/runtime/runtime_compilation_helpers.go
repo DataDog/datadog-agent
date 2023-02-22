@@ -56,10 +56,6 @@ var defaultFlags = []string{
 
 // compileToObjectFile compiles the input ebpf program & returns the compiled output
 func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, outputDirErr, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
-	}
-
 	flags, flagHash := computeFlagsAndHash(additionalFlags)
 
 	outputFile, err := getOutputFilePath(outputDir, filename, inHash, flagHash)

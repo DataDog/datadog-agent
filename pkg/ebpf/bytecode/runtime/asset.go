@@ -112,6 +112,10 @@ func setupSourceInfoFile(source io.Reader, path string) error {
 func createRamBackedFile(name, hash string, source io.Reader, runtimeDir string) (string, func(), error) {
 	var err error
 
+	if err = os.MkdirAll(runtimeDir, 0755); err != nil {
+		return "", nil, fmt.Errorf("unable to create compiler output directory %s: %w", runtimeDir, err)
+	}
+
 	memfdFile, err := memfd.Create()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create memfd file: %w: ", err)
