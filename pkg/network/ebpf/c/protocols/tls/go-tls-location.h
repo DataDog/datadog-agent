@@ -104,6 +104,10 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
         *(u64*)dest = tmp;
         return 0;
     #elif defined(__TARGET_ARCH_arm64)
+        if (regnum < 0 || regnum >= NUM_REGISTERS) {
+            return 1;
+        }
+
         volatile u64 tmp = 0;
     #pragma unroll
         for (int i = 0; i < NUM_REGISTERS; i++) {
@@ -113,10 +117,7 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
         }
 
         *(u64*)dest = tmp;
-        if (regnum < NUM_REGISTERS) {
-            return 0;
-        }
-        return 1;
+        return 0;
     #else
         #error "Unsupported platform"
     #endif
