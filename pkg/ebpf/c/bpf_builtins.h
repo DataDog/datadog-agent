@@ -14,32 +14,32 @@
 #define __it_set(a, op) (*(__u##op *)__it_bwd(a, op)) = 0
 #define __it_xor(a, b, r, op) r |= (*(__u##op *)__it_bwd(a, op)) ^ (*(__u##op *)__it_bwd(b, op))
 #define __it_mob(a, b, op) (*(__u##op *)__it_bwd(a, op)) = (*(__u##op *)__it_bwd(b, op))
-#define __it_mof(a, b, op)              \
-    do {                        \
-        *(__u##op *)a = *(__u##op *)b;      \
-        __it_fwd(a, op); __it_fwd(b, op);   \
-    } while (0)
+#define __it_mof(a, b, op)				\
+	do {						\
+		*(__u##op *)a = *(__u##op *)b;		\
+		__it_fwd(a, op); __it_fwd(b, op);	\
+	} while (0)
 
 static __always_inline __maybe_unused void
 __bpf_memset_builtin(void *d, __u8 c, __u64 len)
 {
-    /* Everything non-zero or non-const (currently unsupported) as c
-     * gets handled here.
-     */
-    __builtin_memset(d, c, len);
+	/* Everything non-zero or non-const (currently unsupported) as c
+	 * gets handled here.
+	 */
+	__builtin_memset(d, c, len);
 }
 
 static __always_inline void __bpf_memzero(void *d, __u64 len)
 {
 #if __clang_major__ >= 10
-    if (!__builtin_constant_p(len))
-        __throw_build_bug();
+	if (!__builtin_constant_p(len))
+		__throw_build_bug();
 
-    d += len;
+	d += len;
 
     if (len > 1 && len % 2 == 1) {
         __it_set(d, 8);
-        len -= 1;
+    	len -= 1;
     }
 
     switch (len) {
@@ -107,7 +107,7 @@ static __always_inline void __bpf_memzero(void *d, __u64 len)
     case 24: jmp_24: __it_set(d, 64);
     case 16: jmp_16: __it_set(d, 64);
     case 8: jmp_8: __it_set(d, 64); break;
-    
+
     case 510: __it_set(d, 16); __it_set(d, 32); goto jmp_504;
     case 502: __it_set(d, 16); __it_set(d, 32); goto jmp_496;
     case 494: __it_set(d, 16); __it_set(d, 32); goto jmp_488;
@@ -172,7 +172,7 @@ static __always_inline void __bpf_memzero(void *d, __u64 len)
     case 22: __it_set(d, 16); __it_set(d, 32); goto jmp_16;
     case 14: __it_set(d, 16); __it_set(d, 32); goto jmp_8;
     case 6: __it_set(d, 16); __it_set(d, 32); break;
-    
+
     case 508: __it_set(d, 32); goto jmp_504;
     case 500: __it_set(d, 32); goto jmp_496;
     case 492: __it_set(d, 32); goto jmp_488;
@@ -237,7 +237,7 @@ static __always_inline void __bpf_memzero(void *d, __u64 len)
     case 20: __it_set(d, 32); goto jmp_16;
     case 12: __it_set(d, 32); goto jmp_8;
     case 4: __it_set(d, 32); break;
-    
+
     case 506: __it_set(d, 16); goto jmp_504;
     case 498: __it_set(d, 16); goto jmp_496;
     case 490: __it_set(d, 16); goto jmp_488;
@@ -302,63 +302,63 @@ static __always_inline void __bpf_memzero(void *d, __u64 len)
     case 18: __it_set(d, 16); goto jmp_16;
     case 10: __it_set(d, 16); goto jmp_8;
     case 2: __it_set(d, 16); break;
-    
+
     case 1: __it_set(d, 8); break;
 
-    default:
-        /* __builtin_memset() is crappy slow since it cannot
-         * make any assumptions about alignment & underlying
-         * efficient unaligned access on the target we're
-         * running.
-         */
-        __throw_build_bug();
-    }
+   	default:
+		/* __builtin_memset() is crappy slow since it cannot
+		 * make any assumptions about alignment & underlying
+		 * efficient unaligned access on the target we're
+		 * running.
+		 */
+		__throw_build_bug();
+	}
 #else
-    __bpf_memset_builtin(d, 0, len);
+	__bpf_memset_builtin(d, 0, len);
 #endif
 }
 
 static __always_inline __maybe_unused void*
 __bpf_no_builtin_memset(void *d __maybe_unused, __u8 c __maybe_unused,
-            __u64 len __maybe_unused)
+			__u64 len __maybe_unused)
 {
-    __throw_build_bug();
+	__throw_build_bug();
 }
 
 /* Redirect any direct use in our code to throw an error. */
-#define __builtin_memset    __bpf_no_builtin_memset
+#define __builtin_memset	__bpf_no_builtin_memset
 
 static __always_inline __maybe_unused __nobuiltin("memset") void bpf_memset(void *d, int c,
-                             __u64 len)
+							 __u64 len)
 {
-    if (__builtin_constant_p(len) && __builtin_constant_p(c) && c == 0)
-        __bpf_memzero(d, len);
-    else
-        __bpf_memset_builtin(d, (__u8)c, len);
+	if (__builtin_constant_p(len) && __builtin_constant_p(c) && c == 0)
+		__bpf_memzero(d, len);
+	else
+		__bpf_memset_builtin(d, (__u8)c, len);
 }
 
 static __always_inline __maybe_unused void
 __bpf_memcpy_builtin(void *d, const void *s, __u64 len)
 {
-    /* Explicit opt-in for __builtin_memcpy(). */
-    __builtin_memcpy(d, s, len);
+	/* Explicit opt-in for __builtin_memcpy(). */
+	__builtin_memcpy(d, s, len);
 }
 
 static __always_inline void __bpf_memcpy(void *d, const void *s, __u64 len)
 {
 #if __clang_major__ >= 10
-    if (!__builtin_constant_p(len))
-        __throw_build_bug();
+	if (!__builtin_constant_p(len))
+		__throw_build_bug();
 
-    d += len;
-    s += len;
+	d += len;
+	s += len;
 
-    if (len > 1 && len % 2 == 1) {
-        __it_mob(d, s, 8);
-        len -= 1;
-    }
+	if (len > 1 && len % 2 == 1) {
+		__it_mob(d, s, 8);
+		len -= 1;
+	}
 
-    switch (len) {
+	switch (len) {
     case 512:          __it_mob(d, s, 64);
     case 504: jmp_504: __it_mob(d, s, 64);
     case 496: jmp_496: __it_mob(d, s, 64);
@@ -423,7 +423,7 @@ static __always_inline void __bpf_memcpy(void *d, const void *s, __u64 len)
     case 24: jmp_24: __it_mob(d, s, 64);
     case 16: jmp_16: __it_mob(d, s, 64);
     case 8: jmp_8: __it_mob(d, s, 64); break;
-    
+
     case 510: __it_mob(d, s, 16); __it_mob(d, s, 32); goto jmp_504;
     case 502: __it_mob(d, s, 16); __it_mob(d, s, 32); goto jmp_496;
     case 494: __it_mob(d, s, 16); __it_mob(d, s, 32); goto jmp_488;
@@ -488,7 +488,7 @@ static __always_inline void __bpf_memcpy(void *d, const void *s, __u64 len)
     case 22: __it_mob(d, s, 16); __it_mob(d, s, 32); goto jmp_16;
     case 14: __it_mob(d, s, 16); __it_mob(d, s, 32); goto jmp_8;
     case 6: __it_mob(d, s, 16); __it_mob(d, s, 32); break;
-    
+
     case 508: __it_mob(d, s, 32); goto jmp_504;
     case 500: __it_mob(d, s, 32); goto jmp_496;
     case 492: __it_mob(d, s, 32); goto jmp_488;
@@ -553,7 +553,7 @@ static __always_inline void __bpf_memcpy(void *d, const void *s, __u64 len)
     case 20: __it_mob(d, s, 32); goto jmp_16;
     case 12: __it_mob(d, s, 32); goto jmp_8;
     case 4: __it_mob(d, s, 32); break;
-    
+
     case 506: __it_mob(d, s, 16); goto jmp_504;
     case 498: __it_mob(d, s, 16); goto jmp_496;
     case 490: __it_mob(d, s, 16); goto jmp_488;
@@ -618,71 +618,71 @@ static __always_inline void __bpf_memcpy(void *d, const void *s, __u64 len)
     case 18: __it_mob(d, s, 16); goto jmp_16;
     case 10: __it_mob(d, s, 16); goto jmp_8;
     case 2: __it_mob(d, s, 16); break;
-    
+
     case 1: __it_mob(d, s, 8); break;
 
-    default:
-        /* __builtin_memcpy() is crappy slow since it cannot
-         * make any assumptions about alignment & underlying
-         * efficient unaligned access on the target we're
-         * running.
-         */
-        __throw_build_bug();
-    }
+	default:
+		/* __builtin_memcpy() is crappy slow since it cannot
+		 * make any assumptions about alignment & underlying
+		 * efficient unaligned access on the target we're
+		 * running.
+		 */
+		__throw_build_bug();
+	}
 #else
-    __bpf_memcpy_builtin(d, s, len);
+	__bpf_memcpy_builtin(d, s, len);
 #endif
 }
 
 static __always_inline __maybe_unused void*
 __bpf_no_builtin_memcpy(void *d __maybe_unused, const void *s __maybe_unused,
-            __u64 len __maybe_unused)
+			__u64 len __maybe_unused)
 {
-    __throw_build_bug();
+	__throw_build_bug();
 }
 
 /* Redirect any direct use in our code to throw an error. */
-#define __builtin_memcpy    __bpf_no_builtin_memcpy
+#define __builtin_memcpy	__bpf_no_builtin_memcpy
 
 static __always_inline __maybe_unused __nobuiltin("memcpy") void bpf_memcpy(void *d, const void *s,
-                             __u64 len)
+							 __u64 len)
 {
-    return __bpf_memcpy(d, s, len);
+	return __bpf_memcpy(d, s, len);
 }
 
 static __always_inline __maybe_unused __u64
 __bpf_memcmp_builtin(const void *x, const void *y, __u64 len)
 {
-    /* Explicit opt-in for __builtin_memcmp(). We use the bcmp builtin
-     * here for two reasons: i) we only need to know equal or non-equal
-     * similar as in __bpf_memcmp(), and ii) if __bpf_memcmp() ends up
-     * selecting __bpf_memcmp_builtin(), clang generats a memcmp loop.
-     * That is, (*) -> __bpf_memcmp() -> __bpf_memcmp_builtin() ->
-     * __builtin_memcmp() -> memcmp() -> (*), meaning it will end up
-     * selecting our memcmp() from here. Remapping to __builtin_bcmp()
-     * breaks this loop and resolves both needs at once.
-     */
-    return __builtin_bcmp(x, y, len);
+	/* Explicit opt-in for __builtin_memcmp(). We use the bcmp builtin
+	 * here for two reasons: i) we only need to know equal or non-equal
+	 * similar as in __bpf_memcmp(), and ii) if __bpf_memcmp() ends up
+	 * selecting __bpf_memcmp_builtin(), clang generats a memcmp loop.
+	 * That is, (*) -> __bpf_memcmp() -> __bpf_memcmp_builtin() ->
+	 * __builtin_memcmp() -> memcmp() -> (*), meaning it will end up
+	 * selecting our memcmp() from here. Remapping to __builtin_bcmp()
+	 * breaks this loop and resolves both needs at once.
+	 */
+	return __builtin_bcmp(x, y, len);
 }
 
 static __always_inline __u64 __bpf_memcmp(const void *x, const void *y,
-                      __u64 len)
+					  __u64 len)
 {
 #if __clang_major__ >= 10
-    __u64 r = 0;
+	__u64 r = 0;
 
-    if (!__builtin_constant_p(len))
-        __throw_build_bug();
+	if (!__builtin_constant_p(len))
+		__throw_build_bug();
 
-    x += len;
-    y += len;
+	x += len;
+	y += len;
 
-    if (len > 1 && len % 2 == 1) {
-        __it_xor(x, y, r, 8);
-        len -= 1;
-    }
+	if (len > 1 && len % 2 == 1) {
+		__it_xor(x, y, r, 8);
+		len -= 1;
+	}
 
-    switch (len) {
+	switch (len) {
     case 512:          __it_xor(x, y, r, 64);
     case 504: jmp_504: __it_xor(x, y, r, 64);
     case 496: jmp_496: __it_xor(x, y, r, 64);
@@ -747,7 +747,7 @@ static __always_inline __u64 __bpf_memcmp(const void *x, const void *y,
     case 24: jmp_24: __it_xor(x, y, r, 64);
     case 16: jmp_16: __it_xor(x, y, r, 64);
     case 8: jmp_8: __it_xor(x, y, r, 64); break;
-    
+
     case 510: __it_xor(x, y, r, 16); __it_xor(x, y, r, 32); goto jmp_504;
     case 502: __it_xor(x, y, r, 16); __it_xor(x, y, r, 32); goto jmp_496;
     case 494: __it_xor(x, y, r, 16); __it_xor(x, y, r, 32); goto jmp_488;
@@ -812,7 +812,7 @@ static __always_inline __u64 __bpf_memcmp(const void *x, const void *y,
     case 22: __it_xor(x, y, r, 16); __it_xor(x, y, r, 32); goto jmp_16;
     case 14: __it_xor(x, y, r, 16); __it_xor(x, y, r, 32); goto jmp_8;
     case 6: __it_xor(x, y, r, 16); __it_xor(x, y, r, 32); break;
-    
+
     case 508: __it_xor(x, y, r, 32); goto jmp_504;
     case 500: __it_xor(x, y, r, 32); goto jmp_496;
     case 492: __it_xor(x, y, r, 32); goto jmp_488;
@@ -877,7 +877,7 @@ static __always_inline __u64 __bpf_memcmp(const void *x, const void *y,
     case 20: __it_xor(x, y, r, 32); goto jmp_16;
     case 12: __it_xor(x, y, r, 32); goto jmp_8;
     case 4: __it_xor(x, y, r, 32); break;
-    
+
     case 506: __it_xor(x, y, r, 16); goto jmp_504;
     case 498: __it_xor(x, y, r, 16); goto jmp_496;
     case 490: __it_xor(x, y, r, 16); goto jmp_488;
@@ -942,60 +942,60 @@ static __always_inline __u64 __bpf_memcmp(const void *x, const void *y,
     case 18: __it_xor(x, y, r, 16); goto jmp_16;
     case 10: __it_xor(x, y, r, 16); goto jmp_8;
     case 2: __it_xor(x, y, r, 16); break;
-    
+
     case 1: __it_xor(x, y, r, 8); break;
 
-    default:
-        __throw_build_bug();
-    }
+	default:
+		__throw_build_bug();
+	}
 
-    return r;
+	return r;
 #else
-    return __bpf_memcmp_builtin(x, y, len);
+	return __bpf_memcmp_builtin(x, y, len);
 #endif
 }
 
 static __always_inline __maybe_unused __u64
 __bpf_no_builtin_memcmp(const void *x __maybe_unused,
-            const void *y __maybe_unused, __u64 len __maybe_unused)
+			const void *y __maybe_unused, __u64 len __maybe_unused)
 {
-    __throw_build_bug();
-    return 0;
+	__throw_build_bug();
+	return 0;
 }
 
 /* Redirect any direct use in our code to throw an error. */
-#define __builtin_memcmp    __bpf_no_builtin_memcmp
+#define __builtin_memcmp	__bpf_no_builtin_memcmp
 
 /* Modified for our needs in that we only return either zero (x and y
  * are equal) or non-zero (x and y are non-equal).
  */
 static __always_inline __maybe_unused __nobuiltin("memcmp") __u64 bpf_memcmp(const void *x,
-                              const void *y,
-                              __u64 len)
+							  const void *y,
+							  __u64 len)
 {
-    return __bpf_memcmp(x, y, len);
+	return __bpf_memcmp(x, y, len);
 }
 
 static __always_inline __maybe_unused void
 __bpf_memmove_builtin(void *d, const void *s, __u64 len)
 {
-    /* Explicit opt-in for __builtin_memmove(). */
-    __builtin_memmove(d, s, len);
+	/* Explicit opt-in for __builtin_memmove(). */
+	__builtin_memmove(d, s, len);
 }
 
 static __always_inline void __bpf_memmove_bwd(void *d, const void *s, __u64 len)
 {
-    /* Our internal memcpy implementation walks backwards by default. */
-    __bpf_memcpy(d, s, len);
+	/* Our internal memcpy implementation walks backwards by default. */
+	__bpf_memcpy(d, s, len);
 }
 
 static __always_inline void __bpf_memmove_fwd(void *d, const void *s, __u64 len)
 {
 #if __clang_major__ >= 10
-    if (!__builtin_constant_p(len))
-        __throw_build_bug();
+	if (!__builtin_constant_p(len))
+		__throw_build_bug();
 
-    switch (len) {
+	switch (len) {
     case 512:          __it_mof(d, s, 64);
     case 504: jmp_504: __it_mof(d, s, 64);
     case 496: jmp_496: __it_mof(d, s, 64);
@@ -1060,7 +1060,7 @@ static __always_inline void __bpf_memmove_fwd(void *d, const void *s, __u64 len)
     case 24: jmp_24: __it_mof(d, s, 64);
     case 16: jmp_16: __it_mof(d, s, 64);
     case 8: jmp_8: __it_mof(d, s, 64); break;
-    
+
     case 510: __it_mof(d, s, 16); __it_mof(d, s, 32); goto jmp_504;
     case 502: __it_mof(d, s, 16); __it_mof(d, s, 32); goto jmp_496;
     case 494: __it_mof(d, s, 16); __it_mof(d, s, 32); goto jmp_488;
@@ -1125,7 +1125,7 @@ static __always_inline void __bpf_memmove_fwd(void *d, const void *s, __u64 len)
     case 22: __it_mof(d, s, 16); __it_mof(d, s, 32); goto jmp_16;
     case 14: __it_mof(d, s, 16); __it_mof(d, s, 32); goto jmp_8;
     case 6: __it_mof(d, s, 16); __it_mof(d, s, 32); break;
-    
+
     case 508: __it_mof(d, s, 32); goto jmp_504;
     case 500: __it_mof(d, s, 32); goto jmp_496;
     case 492: __it_mof(d, s, 32); goto jmp_488;
@@ -1190,7 +1190,7 @@ static __always_inline void __bpf_memmove_fwd(void *d, const void *s, __u64 len)
     case 20: __it_mof(d, s, 32); goto jmp_16;
     case 12: __it_mof(d, s, 32); goto jmp_8;
     case 4: __it_mof(d, s, 32); break;
-    
+
     case 506: __it_mof(d, s, 16); goto jmp_504;
     case 498: __it_mof(d, s, 16); goto jmp_496;
     case 490: __it_mof(d, s, 16); goto jmp_488;
@@ -1255,54 +1255,54 @@ static __always_inline void __bpf_memmove_fwd(void *d, const void *s, __u64 len)
     case 18: __it_mof(d, s, 16); goto jmp_16;
     case 10: __it_mof(d, s, 16); goto jmp_8;
     case 2: __it_mof(d, s, 16); break;
-    
+
     case 1: __it_mof(d, s, 8); break;
 
-    default:
-        /* __builtin_memmove() is crappy slow since it cannot
-         * make any assumptions about alignment & underlying
-         * efficient unaligned access on the target we're
-         * running.
-         */
-        __throw_build_bug();
-    }
+	default:
+		/* __builtin_memmove() is crappy slow since it cannot
+		 * make any assumptions about alignment & underlying
+		 * efficient unaligned access on the target we're
+		 * running.
+		 */
+		__throw_build_bug();
+	}
 #else
-    __bpf_memmove_builtin(d, s, len);
+	__bpf_memmove_builtin(d, s, len);
 #endif
 }
 
 static __always_inline __maybe_unused void*
 __bpf_no_builtin_memmove(void *d __maybe_unused, const void *s __maybe_unused,
-             __u64 len __maybe_unused)
+			 __u64 len __maybe_unused)
 {
-    __throw_build_bug();
+	__throw_build_bug();
 }
 
 /* Redirect any direct use in our code to throw an error. */
-#define __builtin_memmove   __bpf_no_builtin_memmove
+#define __builtin_memmove	__bpf_no_builtin_memmove
 
 static __always_inline void __bpf_memmove(void *d, const void *s, __u64 len)
 {
-    /* Note, the forward walking memmove() might not work with on-stack data
-     * since we'll end up walking the memory unaligned even when __align_stack_8
-     * is set. Should not matter much since we'll use memmove() mostly or only
-     * on pkt data.
-     *
-     * Example with d, s, len = 12 bytes:
-     *   * __bpf_memmove_fwd() emits: mov_32 d[0],s[0]; mov_64 d[4],s[4]
-     *   * __bpf_memmove_bwd() emits: mov_32 d[8],s[8]; mov_64 d[0],s[0]
-     */
-    if (d <= s)
-        return __bpf_memmove_fwd(d, s, len);
-    else
-        return __bpf_memmove_bwd(d, s, len);
+	/* Note, the forward walking memmove() might not work with on-stack data
+	 * since we'll end up walking the memory unaligned even when __align_stack_8
+	 * is set. Should not matter much since we'll use memmove() mostly or only
+	 * on pkt data.
+	 *
+	 * Example with d, s, len = 12 bytes:
+	 *   * __bpf_memmove_fwd() emits: mov_32 d[0],s[0]; mov_64 d[4],s[4]
+	 *   * __bpf_memmove_bwd() emits: mov_32 d[8],s[8]; mov_64 d[0],s[0]
+	 */
+	if (d <= s)
+		return __bpf_memmove_fwd(d, s, len);
+	else
+		return __bpf_memmove_bwd(d, s, len);
 }
 
 static __always_inline __maybe_unused __nobuiltin("memmove") void bpf_memmove(void *d,
-                               const void *s,
-                               __u64 len)
+							   const void *s,
+							   __u64 len)
 {
-    return __bpf_memmove(d, s, len);
+	return __bpf_memmove(d, s, len);
 }
 
 #endif /* __BPF_BUILTINS__ */
