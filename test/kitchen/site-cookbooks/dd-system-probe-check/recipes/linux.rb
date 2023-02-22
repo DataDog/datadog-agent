@@ -1,13 +1,20 @@
+root_dir = "/tmp/ci/system-probe"
+tests_dir = ::File.join(root_dir, "tests")
 
-execute "df -Th" do
-  command "df -Th"
-  live_stream true
-  action :run
-  ignore_failure true
+file "/tmp/color_idx" do
+  content node[:color_idx].to_s
+  mode 644
 end
 
 if platform?('centos')
-  include_recipe '::old_vault'
+  case node['platform_version'].to_i
+  when 7
+    if node['platform_version'] != '7.9.2009'
+      include_recipe '::old_vault'
+    end
+  when 8
+    include_recipe '::old_vault'
+  end
 end
 
 case node[:platform]
@@ -117,7 +124,7 @@ directory "/opt/datadog-agent/embedded/include" do
   recursive true
 end
 
-directory "/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf" do
+directory "#{tests_dir}/pkg/ebpf/bytecode/build/co-re/btf" do
   recursive true
 end
 
@@ -133,7 +140,7 @@ cookbook_file "/opt/datadog-agent/embedded/bin/llc-bpf" do
   action :create
 end
 
-cookbook_file "/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf/minimized-btfs.tar.xz" do
+cookbook_file "#{tests_dir}/pkg/ebpf/bytecode/build/co-re/btf/minimized-btfs.tar.xz" do
   source "minimized-btfs.tar.xz"
   action :create
 end
@@ -182,8 +189,8 @@ end
 
 # Install relevant packages for docker
 include_recipe "::docker_installation"
-
-remote_directory "/kitchen-dockers" do
+docker_file_dir = "#{root_dir}/kitchen-dockers"
+remote_directory docker_file_dir do
   source 'dockers'
   files_owner 'root'
   files_group 'root'
@@ -194,7 +201,7 @@ end
 
 # Load docker images
 execute 'install docker-compose' do
-  cwd '/kitchen-dockers'
+  cwd docker_file_dir
   command <<-EOF
     for docker_file in $(ls); do
       echo docker load -i $docker_file

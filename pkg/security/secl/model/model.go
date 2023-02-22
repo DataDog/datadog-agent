@@ -152,13 +152,12 @@ type ContainerContext struct {
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID                   string    `field:"-" json:"-"`
-	Type                 uint32    `field:"-"`
-	Async                bool      `field:"async" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	SavedByActivityDumps bool      `field:"-"`               // True if the event should have been discarded if the AD were disabled
-	IsActivityDumpSample bool      `field:"-"`               // True if the event was sampled for the activity dumps
-	TimestampRaw         uint64    `field:"-" json:"-"`
-	Timestamp            time.Time `field:"-"` // Timestamp of the event
+	ID           string    `field:"-" json:"-"`
+	Type         uint32    `field:"-"`
+	Flags        uint32    `field:"-"`
+	Async        bool      `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64    `field:"-" json:"-"`
+	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
@@ -260,6 +259,16 @@ func NewDefaultEvent() eval.Event {
 // Init initialize the event
 func (e *Event) Init() {
 	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
+}
+
+// IsSavedByActivityDumps return whether saved by AD
+func (e *Event) IsSavedByActivityDumps() bool {
+	return e.Flags&EventFlagsSavedByAD > 0
+}
+
+// IsSavedByActivityDumps return whether AD sample
+func (e *Event) IsActivityDumpSample() bool {
+	return e.Flags&EventFlagsActivityDumpSample > 0
 }
 
 // GetType returns the event type

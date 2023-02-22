@@ -13,7 +13,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
-func RunKafkaServer(t *testing.T, serverAddr, serverPort string) {
+func RunServer(t *testing.T, serverAddr, serverPort string) {
 	env := []string{
 		"KAFKA_ADDR=" + serverAddr,
 		"KAFKA_PORT=" + serverPort,

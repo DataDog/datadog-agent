@@ -40,7 +40,7 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 func TestSanity(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	kafka.RunKafkaServer(t, "127.0.0.1", "9092")
+	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
@@ -146,7 +146,7 @@ func TestLoadKafkaDebugBinary(t *testing.T) {
 func TestProduceClientIdEmptyString(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	kafka.RunKafkaServer(t, "127.0.0.1", "9092")
+	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
 	cfg.BPFDebug = true
@@ -204,7 +204,7 @@ func TestProduceClientIdEmptyString(t *testing.T) {
 func TestManyProduceRequests(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	kafka.RunKafkaServer(t, "127.0.0.1", "9092")
+	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
 	cfg.BPFDebug = true
@@ -263,7 +263,7 @@ func TestManyProduceRequests(t *testing.T) {
 func TestHTTPAndKafka(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	kafka.RunKafkaServer(t, "127.0.0.1", "9092")
+	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
 	cfg.BPFDebug = true
@@ -343,7 +343,7 @@ func TestHTTPAndKafka(t *testing.T) {
 func TestEnableHTTPOnly(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	kafka.RunKafkaServer(t, "127.0.0.1", "9092")
+	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
 	cfg.BPFDebug = true

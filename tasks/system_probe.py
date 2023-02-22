@@ -1369,7 +1369,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8"]:
+    for image in ["openjdk:21-oraclelinux8", "openjdk:8u151-jre"]:
         images.add(image)
 
     for image in images:

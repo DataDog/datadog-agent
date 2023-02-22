@@ -61,7 +61,9 @@ func TestChmod(t *testing.T) {
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
 		})
@@ -82,7 +84,9 @@ func TestChmod(t *testing.T) {
 			assertRights(t, event.Chmod.File.Mode, expectedMode)
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
 		})
@@ -101,7 +105,9 @@ func TestChmod(t *testing.T) {
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
 		})

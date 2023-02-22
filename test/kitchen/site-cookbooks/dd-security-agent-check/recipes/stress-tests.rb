@@ -6,14 +6,8 @@
 #
 
 if node['platform_family'] != 'windows'
-  wrk_dir = '/tmp/security-agent'
-
-  directory wrk_dir do
-    recursive true
-  end
-
-  cookbook_file "#{wrk_dir}/stresssuite" do
-    source "stresssuite"
+  cookbook_file "#{node['common']['work_dir']}/tests/stresssuite" do
+    source "tests/stresssuite"
     mode '755'
   end
 

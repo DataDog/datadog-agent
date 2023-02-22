@@ -5,18 +5,14 @@
 #define KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION 11
 #define KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION 8
 
+#define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 #define CLIENT_ID_SIZE_TO_VALIDATE 30
+#define TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE 48 // 16 * 3. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
+#define TOPIC_NAME_MAX_ALLOWED_SIZE 255
+
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
-// Every kafka message encodes starts with:
-//  * 4 bytes for the size of the payload
-//  * 2 bytes for api key
-//  * 2 bytes for api version
-//  * 4 bytes for correlation id
-// Reference: https://kafka.apache.org/protocol.html#protocol_messages
-#define KAFKA_MIN_SIZE 12
-
-//// This determines the size of the payload fragment that is captured for each HTTP request
+// This determines the size of the payload fragment that is captured for each HTTP request
 #define KAFKA_BUFFER_SIZE (8 * 40) // 320
 
 // This is needed to reduce code size on multiple copy optimizations that were made in
