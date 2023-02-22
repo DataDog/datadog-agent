@@ -151,38 +151,6 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     return fill_process_context_with_pid_tgid(data, pid_tgid);
 }
 
-struct bpf_map_def SEC("maps/root_nr_namespace_nr") root_nr_namespace_nr = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 65536,
-};
-
-void __attribute__((always_inline)) register_nr(u32 root_nr, u64 namespace_nr) {
-    // no namespace
-    if (root_nr == 0 || namespace_nr == 0) {
-        return;
-    }
-
-    // TODO(will/yoann): this can conflict between nested pid namespaces, add cgroup ID or namespace to the lookup key
-    bpf_map_update_elem(&root_nr_namespace_nr, &root_nr, &namespace_nr, BPF_ANY);
-}
-
-u32 __attribute__((always_inline)) get_namespace_nr(u32 root_nr) {
-    // TODO(will/yoann): this can conflict between nested pid namespaces, add cgroup ID or namespace to the lookup key
-    u32 *pid = bpf_map_lookup_elem(&root_nr_namespace_nr, &root_nr);
-    return pid ? *pid : 0;
-}
-
-void __attribute__((always_inline)) remove_nr(u32 root_nr) {
-    // TODO(will/yoann): this can conflict between nested pid namespaces, add cgroup ID or namespace to the lookup key
-    if (root_nr == 0) {
-        return;
-    }
-
-    bpf_map_delete_elem(&root_nr_namespace_nr, &root_nr);
-}
-
 u64 __attribute__((always_inline)) get_pid_level_offset() {
     u64 pid_level_offset;
     LOAD_CONSTANT("pid_level_offset", pid_level_offset);
@@ -226,20 +194,16 @@ u32 __attribute__((always_inline)) get_root_nr_from_pid_struct(struct pid *pid) 
     return root_nr;
 }
 
-__attribute__((always_inline)) u32 get_root_nr_from_task_struct(struct task_struct *task) {
+u32 __attribute__((always_inline)) get_root_nr_from_task_struct(struct task_struct *task) {
     struct pid *pid = NULL;
     bpf_probe_read(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
     return get_root_nr_from_pid_struct(pid);
 }
 
-void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
-    if (pid == NULL) {
-        return;
-    }
+u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task_struct *task) {
+    struct pid *pid = NULL;
+    bpf_probe_read(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
 
-    u32 root_nr = get_root_nr_from_pid_struct(pid);
-
-    // TODO(will): iterate over the list to insert the nr of each namespace, for now get only the deepest one
     u32 pid_level = 0;
     bpf_probe_read(&pid_level, sizeof(pid_level), (void *)pid + get_pid_level_offset());
 
@@ -248,7 +212,7 @@ void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     u64 namespace_numbers_offset = pid_level * get_sizeof_upid();
     bpf_probe_read(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
 
-    register_nr(root_nr, namespace_nr);
+    return namespace_nr;
 }
 
 __attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device *device) {
