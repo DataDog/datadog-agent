@@ -14,11 +14,13 @@ build do
   license "Apache-2.0"
   license_file "./LICENSE.txt"
 
+  # https://github.com/confluentinc/confluent-kafka-python/blob/master/INSTALL.md#install-from-source
+
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
   else
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-  command "#{pip} install -–no-binary confluent-kafka confluent-kafka"
+  command "#{pip} install -–no-binary confluent-kafka ."
 end
