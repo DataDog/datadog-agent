@@ -43,7 +43,8 @@ type Resolver struct {
 	tagsResolver         *tags.Resolver
 	workloadsWithoutTags chan *cgroupModel.CacheEntry
 
-	listeners map[CGroupEvent][]CGroupListener
+	listenersLock sync.Mutex
+	listeners     map[CGroupEvent][]CGroupListener
 }
 
 // NewResolver returns a new cgroups monitor
@@ -56,6 +57,8 @@ func NewResolver(tagsResolver *tags.Resolver) (*Resolver, error) {
 	workloads, err := simplelru.NewLRU[string, *cgroupModel.CacheEntry](1024, func(key string, value *cgroupModel.CacheEntry) {
 		value.Deleted.Store(true)
 
+		cr.listenersLock.Lock()
+		defer cr.listenersLock.Unlock()
 		for _, l := range cr.listeners[CGroupDeleted] {
 			l(value)
 		}
@@ -97,6 +100,10 @@ func (cr *Resolver) RegisterListener(event CGroupEvent, listener CGroupListener)
 	if event >= CGroupMaxEvent || event < 0 {
 		return fmt.Errorf("invalid CGroupEvent: %v", event)
 	}
+
+	cr.listenersLock.Lock()
+	defer cr.listenersLock.Unlock()
+
 	if cr.listeners != nil {
 		cr.listeners[event] = append(cr.listeners[event], listener)
 	} else {
@@ -155,6 +162,8 @@ func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
 		}
 	} else {
 		// notify listeners
+		cr.listenersLock.Lock()
+		defer cr.listenersLock.Unlock()
 		for _, l := range cr.listeners[WorkloadSelectorResolved] {
 			l(workload)
 		}
