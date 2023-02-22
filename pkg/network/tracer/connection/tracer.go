@@ -400,7 +400,6 @@ func (t *tracer) GetTelemetry() map[string]int64 {
 		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
 		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
 		"udp_dropped_conns":   int64(telemetry.Udp_dropped_conns),
-		"invalid_tcp_retrans": int64(telemetry.Invalid_tcp_retrans),
 	}
 
 	for k, v := range t.telemetry.get() {

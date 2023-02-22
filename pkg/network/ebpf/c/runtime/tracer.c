@@ -450,12 +450,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
 
-    if (retrans_out >= retrans_out_pre) {
-        return handle_retransmit(sk, retrans_out-retrans_out_pre);
-    }
-
-    increment_telemetry_count(invalid_tcp_retrans);
-    return 0;
+    return handle_retransmit(sk, retrans_out-retrans_out_pre);
 }
 
 SEC("kprobe/tcp_set_state")
