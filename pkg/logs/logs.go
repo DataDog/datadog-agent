@@ -12,8 +12,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -22,11 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
-	ccaScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
-	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
 )
 
 const (
@@ -49,34 +44,12 @@ var (
 	agent *Agent
 )
 
-// Start starts logs-agent
-// getAC is a func returning the prepared AutoConfig. It is nil until
-// the AutoConfig is ready, please consider using BlockUntilAutoConfigRanOnce
-// instead of directly using it.
-// The parameter serverless indicates whether or not this Logs Agent is running
-// in a serverless environment.
-func Start(ac *autodiscovery.AutoConfig) (*Agent, error) {
-	return start(ac, false)
-}
-
 // StartServerless starts a Serverless instance of the Logs Agent.
 func StartServerless() (*Agent, error) {
-	return start(nil, true)
+	return start()
 }
 
-// buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(serverless bool) (*config.Endpoints, error) {
-	if serverless {
-		return config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
-	}
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
-	}
-	return config.BuildEndpointsWithVectorOverride(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
-}
-
-func start(ac *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
+func start() (*Agent, error) {
 	if IsAgentRunning() {
 		return agent, nil
 	}
@@ -86,7 +59,7 @@ func start(ac *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 	services := service.NewServices()
 
 	// setup the server config
-	endpoints, err := buildEndpoints(serverless)
+	endpoints, err := buildEndpoints()
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
@@ -116,29 +89,12 @@ func start(ac *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 	}
 
 	// setup and start the logs agent
-	if !serverless {
-		// regular logs agent
-		log.Info("Starting logs-agent...")
-		agent = NewAgent(sources, services, processingRules, endpoints)
-	} else {
-		// serverless logs agent
-		log.Info("Starting a serverless logs-agent...")
-		agent = NewServerless(sources, services, processingRules, endpoints)
-	}
+	log.Info("Starting logs-agent...")
+	agent = NewAgent(sources, services, processingRules, endpoints)
 
 	agent.Start()
 	isRunning.Store(true)
 	log.Info("logs-agent started")
-
-	if !serverless {
-		if ac == nil {
-			panic("AutoConfig must be initialized before logs-agent")
-		}
-		agent.AddScheduler(adScheduler.New(ac))
-		if !ddUtil.CcaInAD() {
-			agent.AddScheduler(ccaScheduler.New(ac))
-		}
-	}
 
 	return agent, nil
 }
