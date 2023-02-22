@@ -14,7 +14,7 @@ build do
   license "Apache-2.0"
   license_file "./LICENSE.txt"
 
-  build_env {
+  build_env = {
     "CFLAGS" => "-I#{install_dir}/embedded/include -std=c99"
   }
 
