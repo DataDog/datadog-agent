@@ -116,6 +116,8 @@ func FindARM64ReturnInstructions(data []byte) ([]uint64, error) {
 	for cursor < len(data) {
 		instruction, err := arm64asm.Decode(data[cursor:])
 		if err != nil {
+			// ARM64 instructions are 4 bytes long so we just advance
+			// the cursor accordingly in case we run into a decoding error
 			cursor += 4
 			continue
 		}
