@@ -21,6 +21,12 @@ jira_issue_type = "Task"
 github_team = "agent-shared-components"
 github_labels = ["team/agent-shared-components"]
 
+[teams."Agent Platform"]
+jira_project = "AP"
+jira_issue_type = "QA"
+github_team = "agent-platform"
+github_labels = ["team/agent-platform"]
+
 [teams."Universal Service Monitoring"]
 jira_project = "USMO"
 jira_issue_type = "Task"
