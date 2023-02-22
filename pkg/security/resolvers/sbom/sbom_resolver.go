@@ -521,6 +521,8 @@ func (r *Resolver) SendStats() error {
 		}
 	}
 
+	r.sbomsCacheLock.Lock()
+	defer r.sbomsCacheLock.Unlock()
 	if val := float64(r.sbomsCache.Len()); val > 0 {
 		if err := r.statsdClient.Gauge(metrics.MetricSBOMResolverSBOMCacheLen, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSBOMResolverSBOMCacheLen: %w", err)
