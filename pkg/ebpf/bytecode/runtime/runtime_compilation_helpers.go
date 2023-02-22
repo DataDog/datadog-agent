@@ -55,7 +55,7 @@ var defaultFlags = []string{
 }
 
 // compileToObjectFile compiles the input ebpf program & returns the compiled output
-func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
+func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, outputDirErr, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
 	}
@@ -93,7 +93,7 @@ func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, addit
 			flags = append(flags, fmt.Sprintf("-include%s", helperPath))
 		}
 
-		if err := compiler.CompileToObjectFile(in, outputFile, flags, kernelHeaders); err != nil {
+		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, kernelHeaders); err != nil {
 			return nil, compilationErr, fmt.Errorf("failed to compile runtime version of %s: %s", filename, err)
 		}
 
