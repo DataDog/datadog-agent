@@ -19,8 +19,8 @@ BPF_PERCPU_ARRAY_MAP(kafka_topic_name, __u32, char [TOPIC_NAME_MAX_STRING_SIZE_T
 // in classification, preventing the program to load even though
 // we won't use it. We change the type to a simple array map to
 // circumvent that.
-BPF_ARRAY_MAP(kafka_client_id, __u32, char [CLIENT_ID_SIZE_TO_VALIDATE], 1)
-BPF_ARRAY_MAP(kafka_topic_name, __u32, char [TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE], 1)
+BPF_ARRAY_MAP(kafka_client_id, __u32, 1)
+BPF_ARRAY_MAP(kafka_topic_name, __u32, 1)
 #endif
 
 #endif
