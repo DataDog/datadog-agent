@@ -1,3 +1,5 @@
+# https://github.com/confluentinc/confluent-kafka-python/blob/master/INSTALL.md#install-from-source
+
 name "confluent-kafka-python"
 default_version "2.0.2"
 
@@ -17,8 +19,6 @@ build do
   build_env = {
     "CFLAGS" => "-I#{install_dir}/embedded/include -std=c99"
   }
-
-  # https://github.com/confluentinc/confluent-kafka-python/blob/master/INSTALL.md#install-from-source
 
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"

@@ -1,3 +1,5 @@
+# https://github.com/confluentinc/librdkafka#build-from-source
+
 name "librdkafka"
 default_version "2.0.2"
 
@@ -12,7 +14,6 @@ build do
   license "BSD-style"
   license_file "https://raw.githubusercontent.com/confluentinc/librdkafka/master/LICENSE"
 
-  # https://github.com/confluentinc/librdkafka#build-from-source
   env = {
     "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
     "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
