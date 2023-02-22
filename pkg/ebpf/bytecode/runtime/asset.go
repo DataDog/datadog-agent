@@ -92,6 +92,8 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 	return out, err
 }
 
+// replace the symlink file with a copy of the input file so that
+// debug info can be resolved by tools like objdump
 func setupSourceInfoFile(source io.Reader, path string) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -139,6 +141,8 @@ func createRamBackedFile(name, hash string, source io.Reader, runtimeDir string)
 
 	return tmpFile, func() {
 		os.Remove(tmpFile)
+
+		// io.Copy changes the file cursor. Reset it before use.
 		if _, err := memfdFile.Seek(0, os.SEEK_SET); err != nil {
 			log.Debug(err)
 		}
@@ -150,7 +154,6 @@ func createRamBackedFile(name, hash string, source io.Reader, runtimeDir string)
 }
 
 // verify reads the asset in the provided directory and verifies the content hash matches what is expected.
-// On success, it returns an io.Reader for the contents
 func (a *asset) verify(verifyFile string) error {
 	f, err := os.Open(verifyFile)
 	if err != nil {
