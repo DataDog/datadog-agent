@@ -27,7 +27,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	}
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
-  assert.True(t, isOOM)
+	assert.True(t, isOOM)
 	assert.Len(t, generatedMetrics, 2, "two enhanced metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
