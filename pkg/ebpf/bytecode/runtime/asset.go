@@ -75,7 +75,7 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 		return nil, fmt.Errorf("failed to open file %s: %w", p, err)
 	}
 
-	inputFile, closeFn, err := createRamBackedFile(a.filename, a.hash, f, config.RuntimeCompilerOutputDir)
+	inputFile, closeFn, err := createRamBackedFile(a.filename, a.hash, f, outputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ram backed file from %s: %w", f.Name(), err)
 	}
