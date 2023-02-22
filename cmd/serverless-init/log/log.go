@@ -99,7 +99,13 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	cw.LineBuffer.Write(p)
 	scanner := bufio.NewScanner(&cw.LineBuffer)
 	for scanner.Scan() {
-		Write(cw.LogConfig, scanner.Bytes(), cw.IsError)
+		logLine := scanner.Bytes()
+		// Don't write anything if we don't actually have a message.
+		// This can happen in the case of consecutive newlines.
+		if len(logLine) == 0 {
+			continue
+		}
+		Write(cw.LogConfig, logLine, cw.IsError)
 	}
 	return len(p), nil
 }

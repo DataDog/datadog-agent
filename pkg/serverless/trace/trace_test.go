@@ -10,6 +10,8 @@ package trace
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestStartEnabledFalse(t *testing.T) {
@@ -72,6 +75,11 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 }
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
+	// ensure a free port is used for starting the trace agent
+	if port, err := testutil.FindTCPPort(); err == nil {
+		os.Setenv("DD_RECEIVER_PORT", strconv.Itoa(port))
+	}
+
 	startTime := time.Now()
 	lambdaSpanChan := make(chan *pb.Span)
 

@@ -2094,8 +2094,13 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *model.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "process.file.name", filelessExecutionFilenamePrefix, "process.file.name not matching")
-				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process.ancestors.file.name not matching")
+				assertFieldEqual(
+					t, event, "process.file.name", filelessExecutionFilenamePrefix, "process.file.name not matching",
+				)
+				assertFieldStringArrayIndexedOneOf(
+					t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"},
+					"process.ancestors.file.name not matching",
+				)
 			},
 		},
 		{
