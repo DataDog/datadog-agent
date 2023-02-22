@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	autoscaling "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 func TestExtractVerticalPodAutoscaler(t *testing.T) {
@@ -193,6 +194,137 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 							Message:            "No pods match this VPA object",
 						},
 					},
+				},
+			},
+		},
+		"minimum-required": {
+			input: v1.VerticalPodAutoscaler{
+				TypeMeta: metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "VPATest",
+					Namespace:         "Namespace",
+					UID:               "326331f4-77e2-11ed-a1eb-0242ac120002",
+					CreationTimestamp: exampleTime,
+					DeletionTimestamp: &exampleTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					Finalizers: []string{"final", "izers"},
+				},
+				Spec: v1.VerticalPodAutoscalerSpec{
+					TargetRef: &autoscaling.CrossVersionObjectReference{
+						Kind: "Deployment",
+						Name: "My Service",
+					},
+					UpdatePolicy:   nil, // +optional
+					ResourcePolicy: nil, // +optional expanded in second unit test case
+					Recommenders:   nil, // +optional
+				},
+				Status: v1.VerticalPodAutoscalerStatus{
+					Recommendation: nil, // +optional
+				},
+			},
+			expected: model.VerticalPodAutoscaler{
+				Metadata: &model.Metadata{
+					Name:              "VPATest",
+					Namespace:         "Namespace",
+					Uid:               "326331f4-77e2-11ed-a1eb-0242ac120002",
+					CreationTimestamp: exampleTime.Unix(),
+					DeletionTimestamp: exampleTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Annotations:       []string{"annotation:my-annotation"},
+					Finalizers:        []string{"final", "izers"},
+				},
+				Spec: &model.VerticalPodAutoscalerSpec{
+					Target: &model.VerticalPodAutoscalerTarget{
+						Kind: "Deployment",
+						Name: "My Service",
+					},
+					ResourcePolicies: []*model.ContainerResourcePolicy{},
+				},
+				Status: &model.VerticalPodAutoscalerStatus{
+					Conditions: []*model.VPACondition{},
+				},
+			},
+		},
+		"minimum-required-inner-resourcepolicy": {
+			input: v1.VerticalPodAutoscaler{
+				TypeMeta: metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "VPATest",
+					Namespace:         "Namespace",
+					UID:               "326331f4-77e2-11ed-a1eb-0242ac120002",
+					CreationTimestamp: exampleTime,
+					DeletionTimestamp: &exampleTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					Finalizers: []string{"final", "izers"},
+				},
+				Spec: v1.VerticalPodAutoscalerSpec{
+					TargetRef: &autoscaling.CrossVersionObjectReference{
+						Kind: "Deployment",
+						Name: "My Service",
+					},
+					UpdatePolicy: nil, // +optional
+					ResourcePolicy: &v1.PodResourcePolicy{
+						ContainerPolicies: []v1.ContainerResourcePolicy{
+							{
+								ContainerName: "TestContainer",
+								Mode:          nil, // +optional
+								MinAllowed:    nil, // +optional
+								MaxAllowed:    nil, // +optional
+								ControlledResources: &[]corev1.ResourceName{
+									corev1.ResourceCPU,
+								},
+								ControlledValues: nil, // +optional
+							},
+						},
+					},
+					Recommenders: nil, // +optional
+				},
+				Status: v1.VerticalPodAutoscalerStatus{
+					Recommendation: nil, // +optional
+				},
+			},
+			expected: model.VerticalPodAutoscaler{
+				Metadata: &model.Metadata{
+					Name:              "VPATest",
+					Namespace:         "Namespace",
+					Uid:               "326331f4-77e2-11ed-a1eb-0242ac120002",
+					CreationTimestamp: exampleTime.Unix(),
+					DeletionTimestamp: exampleTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Annotations:       []string{"annotation:my-annotation"},
+					Finalizers:        []string{"final", "izers"},
+				},
+				Spec: &model.VerticalPodAutoscalerSpec{
+					Target: &model.VerticalPodAutoscalerTarget{
+						Kind: "Deployment",
+						Name: "My Service",
+					},
+					ResourcePolicies: []*model.ContainerResourcePolicy{
+						{
+							ContainerName: "TestContainer",
+							MinAllowed: &model.ResourceList{
+								MetricValues: map[string]float64{},
+							},
+							MaxAllowed: &model.ResourceList{
+								MetricValues: map[string]float64{},
+							},
+							ControlledResource: []string{"cpu"},
+						},
+					},
+				},
+				Status: &model.VerticalPodAutoscalerStatus{
+					Recommendations: nil,
+					Conditions:      []*model.VPACondition{},
 				},
 			},
 		},

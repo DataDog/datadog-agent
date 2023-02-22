@@ -8,11 +8,9 @@
 package submitter
 
 import (
-	"time"
-
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/process/types"
+	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,9 +18,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	Submit(start time.Time, checkName string, payload *types.Payload)
-	Start() error
-	Stop()
+	processRunner.Submitter
 }
 
 // Mock implements mock-specific methods.

@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,7 +19,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	GetChecks() []types.Check
+	GetChecks() []checks.Check
 	Run(ctx context.Context) error
 }
 
@@ -31,9 +31,4 @@ type Mock interface {
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newRunner),
-)
-
-// MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
 )

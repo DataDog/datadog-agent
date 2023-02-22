@@ -34,13 +34,24 @@ type dependencies struct {
 
 func newConfig(deps dependencies) (Component, error) {
 	warnings, err := setupConfig(deps)
+	returnErrFct := func(e error) (Component, error) {
+		if e != nil && deps.Params.ignoreErrors {
+			if warnings == nil {
+				warnings = &config.Warnings{}
+			}
+			warnings.Err = e
+			e = nil
+		}
+		return &cfg{Config: config.Datadog, warnings: warnings}, e
+	}
+
 	if err != nil {
-		return nil, err
+		return returnErrFct(err)
 	}
 
 	if deps.Params.configLoadSecurityAgent {
 		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
-			return &cfg{Config: config.Datadog, warnings: warnings}, err
+			return returnErrFct(err)
 		}
 	}
 

@@ -7,61 +7,67 @@ package runner
 
 import (
 	"context"
-	"testing"
-	"time"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
 
 // runner implements the Component.
 type runner struct {
-	checks    []types.Check
-	submitter submitter.Component
+	checkRunner *processRunner.CheckRunner
 }
 
 type dependencies struct {
 	fx.In
+	Lc fx.Lifecycle
 
-	CoreConfig     config.Component
-	SysProbeConfig sysprobeconfig.Component
+	Submitter  submitter.Component
+	RTNotifier <-chan types.RTResponse `optional:"true"`
 
-	Checks    []types.Check `group:"check"`
-	Submitter submitter.Component
+	Checks   []checks.Check
+	HostInfo *checks.HostInfo
+	SysCfg   *sysconfig.Config
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	return &runner{
-		checks:    deps.Checks,
-		submitter: deps.Submitter,
-	}, nil
-}
-
-func (r *runner) Run(ctx context.Context) error {
-
-	for _, c := range r.checks {
-		if !c.IsEnabled() {
-			continue
-		}
-
-		payload, err := c.Run()
-		if err != nil {
-			return err
-		}
-		r.submitter.Submit(time.Now(), c.Name(), payload)
+	c, err := processRunner.NewRunner(deps.SysCfg, deps.HostInfo, deps.Checks, deps.RTNotifier)
+	if err != nil {
+		return nil, err
 	}
+	c.Submitter = deps.Submitter
+
+	runner := &runner{
+		checkRunner: c,
+	}
+
+	deps.Lc.Append(fx.Hook{
+		OnStart: runner.Run,
+		OnStop:  runner.Stop,
+	})
+
+	return runner, nil
+}
+
+func (r *runner) Run(context.Context) error {
+	return r.checkRunner.Run()
+}
+
+func (r *runner) Stop(context.Context) error {
+	r.checkRunner.Stop()
 	return nil
 }
 
-func (r *runner) GetChecks() []types.Check {
-	return r.checks
+// IsRealtimeEnabled
+func (r *runner) IsRealtimeEnabled() bool {
+	return r.checkRunner.IsRealTimeEnabled()
 }
 
-func newMock(deps dependencies, t testing.TB) Component {
-	// TODO
-	return nil
+func (r *runner) GetChecks() []checks.Check {
+	// TODO: Change this to use `types.Check` once checks are migrated to components
+	return r.checkRunner.GetChecks()
 }

@@ -1,21 +1,27 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
 </head>
 <script>
-  // Read from ? to the end of the URL
-  var urlParam = location.search.substring(1);
-  urlParam = urlParam.split(";");
-
-  // Decode the url parameters
-  var token = urlParam[0].substring(10);   // trim "authToken="
-  var csrf = urlParam[1].substring(5);     // trim "csrf="
+  // Extract authToken and csrf from a given URL query.
+  let urlParam = location.search.substring(1).split("&");
+  const authTokenPrefix = "authToken=";
+  const csrfPrefix = "csrf=";
+  let authToken = "";
+  let csrf = "";
+  for (let i = 0; i < urlParam.length; i++) {
+    if (urlParam[i].includes(authTokenPrefix)) {
+      authToken = urlParam[i].substring(authTokenPrefix.length);
+    }
+    if (urlParam[i].includes("csrf=")) {
+      csrf = urlParam[i].substring(csrfPrefix.length);
+    }
+  }
   
   if (csrf == "{{ .csrf }}") {
     // Save auth token as a cookie
-    document.cookie = "authToken=" + token + "; path=/";
+    document.cookie = "authToken=" + authToken + "; path=/";
   }
 
   // Redirect to the GUI

@@ -67,8 +67,8 @@ type BufferContext struct {
 	PrecompressionBuf *bytes.Buffer
 }
 
-// DefaultBufferContext initialize the default compression buffers
-func DefaultBufferContext() *BufferContext {
+// NewBufferContext initialize the default compression buffers
+func NewBufferContext() *BufferContext {
 	return &BufferContext{
 		bytes.NewBuffer(make([]byte, 0, 1024)),
 		bytes.NewBuffer(make([]byte, 0, 1024)),

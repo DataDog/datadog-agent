@@ -13,6 +13,8 @@ import (
 	"os"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -20,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process"
+	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -34,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -151,7 +156,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := getChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
+	enabledChecks := runner.GetChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
 
 	// Exit if agent is not enabled.
 	if len(enabledChecks) == 0 {
@@ -258,30 +263,43 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := runner.NewCollector(syscfg, hostInfo, enabledChecks)
-	if err != nil {
-		log.Criticalf("Error creating collector: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-	cl.Submitter, err = runner.NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
-	if err != nil {
-		log.Criticalf("Error creating checkSubmitter: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-
-	if err := cl.Run(exit); err != nil {
-		log.Criticalf("Error starting collector: %s", err)
-		os.Exit(1)
-		return
-	}
-
-	for range exit {
-	}
+	runApp(exit, syscfg, hostInfo, enabledChecks)
 
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
+	}
+}
+
+func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) {
+	go util.HandleSignals(exit)
+
+	app := fx.New(
+		fx.Supply(
+			syscfg,
+			hostInfo,
+			enabledChecks,
+		),
+		process.Bundle,
+
+		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
+		fxutil.FxLoggingOption(),
+
+		// Invoke the runner to call its start hook
+		fx.Invoke(func(runnerComp.Component) {}),
+	)
+	err := app.Start(context.Background())
+	if err != nil {
+		log.Criticalf("Failed to start process agent: %v", err)
+		return
+	}
+
+	// Set up an exit channel
+	<-exit
+	err = app.Stop(context.Background())
+	if err != nil {
+		log.Criticalf("Failed to properly stop the process agent: %v", err)
+	} else {
+		log.Info("The process-agent has successfully been shut down")
 	}
 }
 
