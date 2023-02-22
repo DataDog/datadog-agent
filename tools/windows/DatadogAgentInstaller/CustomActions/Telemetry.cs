@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Deployment.WindowsInstaller;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 
 namespace Datadog.CustomActions
@@ -58,12 +59,25 @@ namespace Datadog.CustomActions
             });
         }
 
-        private static ActionResult ReportInstallSuccess(ISession session)
+        private static ActionResult Report(ISession session)
         {
             try
             {
-                DefaultTelemetry(session)
-                    .ReportTelemetry("agent.installation.success");
+                var telemetry = DefaultTelemetry(session);
+                var wixLogLocation = session["MsiLogFileLocation"];
+                if (!string.IsNullOrEmpty(wixLogLocation) &&
+                    File.Exists(wixLogLocation))
+                {
+                    var log = File.ReadAllText(wixLogLocation);
+                    if (log.Contains("Product: Datadog Agent -- Installation failed."))
+                    {
+                        telemetry.ReportTelemetry("agent.installation.error");
+                    }
+                    else
+                    {
+                        telemetry.ReportTelemetry("agent.installation.success");
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -74,30 +88,9 @@ namespace Datadog.CustomActions
         }
 
         [CustomAction]
-        public static ActionResult ReportInstallSuccess(Session session)
+        public static ActionResult Report(Session session)
         {
-            return ReportInstallSuccess(new SessionWrapper(session));
-        }
-
-        private static ActionResult ReportInstallFailure(ISession session)
-        {
-            try
-            {
-                DefaultTelemetry(session)
-                    .ReportTelemetry("agent.installation.error");
-            }
-            catch (Exception e)
-            {
-                session.Log($"Error sending telemetry: {e}");
-                return ActionResult.Failure;
-            }
-            return ActionResult.Success;
-        }
-
-        [CustomAction]
-        public static ActionResult ReportInstallFailure(Session session)
-        {
-            return ReportInstallFailure(new SessionWrapper(session));
+            return Report(new SessionWrapper(session));
         }
     }
 }

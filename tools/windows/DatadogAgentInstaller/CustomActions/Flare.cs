@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
+using System.Windows.Forms;
 using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions
@@ -25,11 +27,10 @@ namespace Datadog.CustomActions
             return new Flare(new InstallerWebClient(), session);
         }
 
-        public void Send()
+        public void Send(string email)
         {
             var agentVersion = CiInfo.PackageVersion;
             var apikey = _session["APIKEY"];
-            var email = _session["EMAIL"];
             var wixLogLocation = _session["MsiLogFileLocation"];
             var log = "";
             try
@@ -40,7 +41,9 @@ namespace Datadog.CustomActions
                 }
                 else if (File.Exists(wixLogLocation))
                 {
-                    log = File.ReadAllText(wixLogLocation);
+                    using var fs = new FileStream(wixLogLocation, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var sr = new StreamReader(fs, Encoding.Default);
+                    log = sr.ReadToEnd();
                 }
                 else
                 {
@@ -58,31 +61,41 @@ namespace Datadog.CustomActions
                 site = DefaultSite;
             }
             var uri = $"https://api.{site}/agent_stats/report_failure";
-            var payload = $"os=Windows&version={agentVersion}&log={log}&email={email}&apikey={apikey}";
-            _client.Post(uri, Uri.EscapeDataString(payload), new Dictionary<string, string>
+            var payload = new System.Collections.Specialized.NameValueCollection
             {
-                { "Content-Type", "application/x-www-form-urlencoded" }
-            });
+                { "os", "Windows" },
+                { "version", agentVersion },
+                { "log", log },
+                { "email", email },
+                { "apikey", apikey }
+            };
+
+            _client.Post(uri, payload, new Dictionary<string, string>());
         }
 
-        private static ActionResult SendFlare(ISession session)
+        private static void SendFlare(ISession session)
         {
             try
             {
-                DefaultFlare(session).Send();
+                DefaultFlare(session).Send(session["EMAIL"]);
+                MessageBox.Show(@"Flare sent successfully.", @"Flare", MessageBoxButtons.OK);
             }
             catch (Exception e)
             {
                 session.Log($"Error sending flare: {e}");
-                return ActionResult.Failure;
+                MessageBox.Show(@$"Failed to send the flare: {e.Message}", @"Flare", MessageBoxButtons.OK);
             }
-            return ActionResult.Success;
         }
 
         [CustomAction]
         public static ActionResult SendFlare(Session session)
         {
-            return SendFlare(new SessionWrapper(session));
+            if (int.Parse(session["UILevel"]) > 3)
+            {
+                SendFlare(new SessionWrapper(session));
+            }
+            // Never ever return failure here, or the installer will abruptly stop.
+            return ActionResult.Success;
         }
     }
 }

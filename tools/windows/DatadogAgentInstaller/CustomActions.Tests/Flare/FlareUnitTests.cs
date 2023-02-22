@@ -29,19 +29,25 @@ namespace CustomActions.Tests.Flare
 
             sessionMock.Setup(session => session["SITE"]).Returns(site);
             sessionMock.Setup(session => session["APIKEY"]).Returns(apiKey);
-            sessionMock.Setup(session => session["EMAIL"]).Returns(email);
+
             // Malformed log
             sessionMock.Setup(session => session["MsiLogFileLocation"]).Returns("ZX:\\install.log");
 
             var sut = new Datadog.CustomActions.Flare(httpClientMock.Object, sessionMock.Object);
-            sut.Send();
+            sut.Send(email);
+
+            var payload = new System.Collections.Specialized.NameValueCollection
+            {
+                { "os", "Windows" },
+                { "version", CiInfo.PackageVersion },
+                { "log", string.Empty },
+                { "email", email },
+                { "apikey", apiKey }
+            };
             httpClientMock.Verify(c => c.Post(
                 $"https://api.{site}/agent_stats/report_failure",
-                Uri.EscapeDataString($"os=Windows&version={CiInfo.PackageVersion}&log=&email={email}&apikey={apiKey}"),
-                new Dictionary<string, string>
-                {
-                    { "Content-Type", "application/x-www-form-urlencoded" }
-                }
+                payload,
+                new Dictionary<string, string>()
             ));
             sessionMock.Verify(s => s.Log(
                 "Log file \"ZX:\\install.log\" does not exist",
@@ -67,17 +73,21 @@ namespace CustomActions.Tests.Flare
 
             sessionMock.Setup(session => session["SITE"]).Returns(site);
             sessionMock.Setup(session => session["APIKEY"]).Returns(apiKey);
-            sessionMock.Setup(session => session["EMAIL"]).Returns(email);
 
             var sut = new Datadog.CustomActions.Flare(httpClientMock.Object, sessionMock.Object);
-            sut.Send();
+            sut.Send(email);
+            var payload = new System.Collections.Specialized.NameValueCollection
+            {
+                { "os", "Windows" },
+                { "version", CiInfo.PackageVersion },
+                { "log", string.Empty },
+                { "email", email },
+                { "apikey", apiKey }
+            };
             httpClientMock.Verify(c => c.Post(
                 $"https://api.{site}/agent_stats/report_failure",
-                Uri.EscapeDataString($"os=Windows&version={CiInfo.PackageVersion}&log=&email={email}&apikey={apiKey}"),
-                new Dictionary<string, string>
-                {
-                    { "Content-Type", "application/x-www-form-urlencoded" }
-                }
+                payload,
+                new Dictionary<string, string>()
             ));
             sessionMock.Verify(s => s.Log(
                 "Property MsiLogFileLocation is empty",
@@ -104,7 +114,6 @@ namespace CustomActions.Tests.Flare
 
             sessionMock.Setup(session => session["SITE"]).Returns(site);
             sessionMock.Setup(session => session["APIKEY"]).Returns(apiKey);
-            sessionMock.Setup(session => session["EMAIL"]).Returns(email);
 
             // Use this unit test file as the "logs"
             var logLocation = new System.Diagnostics.StackTrace(true).GetFrame(0).GetFileName();
@@ -114,14 +123,20 @@ namespace CustomActions.Tests.Flare
             var log = File.ReadAllText(logLocation);
 
             var sut = new Datadog.CustomActions.Flare(httpClientMock.Object, sessionMock.Object);
-            sut.Send();
+            sut.Send(email);
+
+            var payload = new System.Collections.Specialized.NameValueCollection
+            {
+                { "os", "Windows" },
+                { "version", CiInfo.PackageVersion },
+                { "log", log },
+                { "email", email },
+                { "apikey", apiKey }
+            };
             httpClientMock.Verify(c => c.Post(
                 $"https://api.{site}/agent_stats/report_failure",
-                Uri.EscapeDataString($"os=Windows&version={CiInfo.PackageVersion}&log={log}&email={email}&apikey={apiKey}"),
-                new Dictionary<string, string>
-                {
-                    { "Content-Type", "application/x-www-form-urlencoded" }
-                }
+                payload,
+                new Dictionary<string, string>()
             ));
         }
     }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Specialized;
 
 namespace Datadog.CustomActions
 {
@@ -11,5 +12,6 @@ namespace Datadog.CustomActions
     public interface IInstallerHttpClient
     {
         void Post(string uri, string payload, Dictionary<string, string> headers);
+        void Post(string uri, NameValueCollection payload, Dictionary<string, string> headers);
     }
 }

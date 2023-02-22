@@ -30,6 +30,10 @@ namespace WixSetup.Datadog
 
         public ManagedAction OpenMsiLog { get; }
 
+        public ManagedAction SendFlare { get; }
+
+        public ManagedAction ReportTelemetry { get; }
+
         public AgentCustomActions()
         {
             ReadRegistryProperties = new CustomAction<UserCustomActions>(
@@ -191,6 +195,22 @@ namespace WixSetup.Datadog
                 {
                     Sequence = Sequence.NotInSequence
                 };
+
+            SendFlare = new CustomAction<Flare>(
+                new Id(nameof(SendFlare)),
+                Flare.SendFlare
+            )
+            {
+                Sequence = Sequence.NotInSequence
+            };
+
+            ReportTelemetry = new CustomAction<Telemetry>(
+                new Id(nameof(ReportTelemetry)),
+                Telemetry.Report,
+                Return.ignore,
+                When.After,
+                Step.InstallFinalize)
+                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
         }
     }
 }
