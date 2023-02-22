@@ -99,11 +99,4 @@ BPF_HASH_MAP(do_sendfile_args, __u64, struct sock *, 1024)
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
 
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
-#define CLASSIFICATION_PROG 0
-BPF_PROG_ARRAY(classification_progs, 1)
-
 #endif

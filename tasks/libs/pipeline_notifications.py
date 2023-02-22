@@ -28,6 +28,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/windows-agent": "#windows-agent",
     "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
     "@DataDog/opentelemetry": "#opentelemetry-ops",
+    "@DataDog/agent-e2e-testing": "#agent-testing-and-qa",
 }
 
 

@@ -271,7 +271,8 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 
 	for _, image := range existingImages {
 		if err := c.notifyEventForImage(ctx, namespace, image, nil); err != nil {
-			return err
+			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
+			continue
 		}
 	}
 

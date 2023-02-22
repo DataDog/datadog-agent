@@ -270,7 +270,6 @@ __attribute__((always_inline)) void fill_from_syscall_args(struct syscall_cache_
 __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cache_t *syscall) {
     struct bpf_event_t event = {
         .syscall.retval = syscall->bpf.retval,
-        .event.async = 0,
         .cmd = syscall->bpf.cmd,
     };
 

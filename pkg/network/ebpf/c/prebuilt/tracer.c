@@ -20,8 +20,6 @@
 #include "conn-tuple.h"
 
 #include "tracer.h"
-#include "protocols/classification/tracer-maps.h"
-#include "protocols/classification/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -35,20 +33,24 @@
 #include "skb.h"
 #include "offsets.h"
 
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
+
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_PROG);
+    protocol_classifier_entrypoint(skb);
     return 0;
 }
 
-// The entrypoint for all packets.
-SEC("socket/classifier")
-int socket__classifier(struct __sk_buff *skb) {
-    protocol_classifier_entrypoint(skb);
+SEC("socket/classifier_queues")
+int socket__classifier_queues(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_queues(skb);
+    return 0;
+}
+
+SEC("socket/classifier_dbs")
+int socket__classifier_dbs(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_dbs(skb);
     return 0;
 }
 

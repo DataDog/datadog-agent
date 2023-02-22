@@ -26,7 +26,8 @@ typedef enum {
     PROTOCOL_HTTP,
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
-    PROTOCOL_MONGO = 6,
+    PROTOCOL_KAFKA,
+    PROTOCOL_MONGO,
     PROTOCOL_POSTGRES,
     PROTOCOL_AMQP,
     PROTOCOL_REDIS,
@@ -35,5 +36,12 @@ typedef enum {
     MAX_PROTOCOLS,
     __MAX_UINT8 = 255,
 } __attribute__ ((packed)) protocol_t;
+
+typedef enum {
+    CLASSIFICATION_QUEUES_PROG = 0,
+    CLASSIFICATION_DBS_PROG,
+    // Add before this value.
+    CLASSIFICATION_PROG_MAX,
+} classification_prog_t;
 
 #endif
