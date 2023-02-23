@@ -56,10 +56,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.Async
+				return ev.FieldHandlers.ResolveAsync(ev)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "bind.addr.family":
 		return &eval.IntEvaluator{
@@ -14810,7 +14810,7 @@ func (ev *Event) GetFields() []eval.Field {
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 	case "async":
-		return ev.Async, nil
+		return ev.FieldHandlers.ResolveAsync(ev), nil
 	case "bind.addr.family":
 		return int(ev.Bind.AddrFamily), nil
 	case "bind.addr.ip":

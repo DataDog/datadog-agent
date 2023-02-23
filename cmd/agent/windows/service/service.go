@@ -36,7 +36,9 @@ func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest,
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
 	}
-	if err := runcmd.StartAgentWithDefaults(); err != nil {
+	server, err := runcmd.StartAgentWithDefaults()
+
+	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc000000B, err.Error())
 		errno = 1 // indicates non-successful return from handler.
@@ -80,7 +82,7 @@ loop:
 	elog.Info(0x4000000d, config.ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	runcmd.StopAgentWithDefaults()
+	runcmd.StopAgentWithDefaults(server)
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }

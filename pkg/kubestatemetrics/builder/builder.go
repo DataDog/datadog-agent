@@ -34,15 +34,15 @@ import (
 type Builder struct {
 	ksmBuilder ksmtypes.BuilderInterface
 
-	kubeClient      clientset.Interface
-	vpaClient       vpaclientset.Interface
-	namespaces      options.NamespaceList
-	namespaceFilter string
-	ctx             context.Context
-	allowDenyList   generator.FamilyGeneratorFilter
-	metrics         *watch.ListWatchMetrics
-	shard           int32
-	totalShards     int
+	kubeClient          clientset.Interface
+	vpaClient           vpaclientset.Interface
+	namespaces          options.NamespaceList
+	fieldSelectorFilter string
+	ctx                 context.Context
+	allowDenyList       generator.FamilyGeneratorFilter
+	metrics             *watch.ListWatchMetrics
+	shard               int32
+	totalShards         int
 
 	resync time.Duration
 }
@@ -55,10 +55,9 @@ func New() *Builder {
 }
 
 // WithNamespaces sets the namespaces property of a Builder.
-func (b *Builder) WithNamespaces(nss options.NamespaceList, nsFilter string) {
+func (b *Builder) WithNamespaces(nss options.NamespaceList) {
 	b.namespaces = nss
-	b.namespaceFilter = nsFilter
-	b.ksmBuilder.WithNamespaces(nss, nsFilter)
+	b.ksmBuilder.WithNamespaces(nss)
 }
 
 // WithFamilyGeneratorFilter configures the white or blacklisted metric to be
@@ -66,6 +65,12 @@ func (b *Builder) WithNamespaces(nss options.NamespaceList, nsFilter string) {
 func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 	b.allowDenyList = l
 	b.ksmBuilder.WithFamilyGeneratorFilter(l)
+}
+
+// WithFieldSelectorFilter sets the fieldSelector property of a Builder.
+func (b *Builder) WithFieldSelectorFilter(fieldSelectors string) {
+	b.fieldSelectorFilter = fieldSelectors
+	b.ksmBuilder.WithFieldSelectorFilter(fieldSelectors)
 }
 
 // WithSharding sets the shard and totalShards property of a Builder.
@@ -130,8 +135,8 @@ func (b *Builder) WithCustomResourceStoreFactories(fs ...customresource.Registry
 }
 
 // WithAllowLabels configures which labels can be returned for metrics
-func (b *Builder) WithAllowLabels(l map[string][]string) {
-	b.ksmBuilder.WithAllowLabels(l)
+func (b *Builder) WithAllowLabels(l map[string][]string) error {
+	return b.ksmBuilder.WithAllowLabels(l)
 }
 
 // WithAllowAnnotations configures which annotations can be returned for metrics
@@ -168,7 +173,7 @@ func (b *Builder) GenerateStores(
 
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(b.kubeClient, corev1.NamespaceAll, b.namespaceFilter)
+		listWatcher := listWatchFunc(b.kubeClient, corev1.NamespaceAll, b.fieldSelectorFilter)
 		b.startReflector(expectedType, store, listWatcher)
 		return []cache.Store{store}
 
@@ -177,7 +182,7 @@ func (b *Builder) GenerateStores(
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(b.kubeClient, ns, b.namespaceFilter)
+		listWatcher := listWatchFunc(b.kubeClient, ns, b.fieldSelectorFilter)
 		b.startReflector(expectedType, store, listWatcher)
 		stores = append(stores, store)
 	}
