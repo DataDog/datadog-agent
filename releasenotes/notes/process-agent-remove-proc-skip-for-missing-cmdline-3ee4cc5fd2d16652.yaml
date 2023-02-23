@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Process-Agent: Stop the dropping a processes when it has no commandline
