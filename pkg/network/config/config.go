@@ -75,6 +75,9 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
+	// EnableHTTP2Monitoring specifies whether the tracer should monitor HTTP traffic
+	EnableHTTP2Monitoring bool
+
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
@@ -266,6 +269,7 @@ func New() *Config {
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring: cfg.GetBool(join(netNS, "enable_http2_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 

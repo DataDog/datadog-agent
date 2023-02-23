@@ -11,6 +11,7 @@ package http
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"syscall"
 	"unsafe"
 
@@ -35,12 +36,14 @@ var (
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	consumer       *events.Consumer
+	httpConsumer   *events.Consumer
+	http2Consumer  *events.Consumer
 	ebpfProgram    *ebpfProgram
 	telemetry      *telemetry
 	statkeeper     *httpStatKeeper
 	processMonitor *monitor.ProcessMonitor
 
+	http2Enabled bool
 	// termination
 	closeFilterFn func()
 }
@@ -57,6 +60,10 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	if !c.EnableHTTPMonitoring {
 		return nil, fmt.Errorf("http monitoring is disabled")
+	}
+
+	if !c.EnableHTTP2Monitoring {
+		return nil, fmt.Errorf("http2 monitoring is disabled")
 	}
 
 	kversion, err := kernel.HostVersion()
@@ -79,6 +86,102 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %w", err)
 	}
 
+	staticTable, _, _ := mgr.GetMap(string(probes.StaticTableMap))
+	if staticTable != nil {
+		type staticTableEntry struct {
+			Index uint64
+			Value StaticTableValue
+		}
+
+		staticTableEntries := []staticTableEntry{
+			{
+				Index: 2,
+				Value: StaticTableValue{
+					Key:   MethodKey,
+					Value: GetValue,
+				},
+			},
+			{
+				Index: 3,
+				Value: StaticTableValue{
+					Key:   MethodKey,
+					Value: PostValue,
+				},
+			},
+			{
+				Index: 4,
+				Value: StaticTableValue{
+					Key:   PathKey,
+					Value: EmptyPathValue,
+				},
+			},
+			{
+				Index: 5,
+				Value: StaticTableValue{
+					Key:   PathKey,
+					Value: IndexPathValue,
+				},
+			},
+			{
+				Index: 8,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K200Value,
+				},
+			},
+			{
+				Index: 9,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K204Value,
+				},
+			},
+			{
+				Index: 10,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K206Value,
+				},
+			},
+			{
+				Index: 11,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K304Value,
+				},
+			},
+			{
+				Index: 12,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K400Value,
+				},
+			},
+			{
+				Index: 13,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K404Value,
+				},
+			},
+			{
+				Index: 14,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K500Value,
+				},
+			},
+		}
+
+		for _, entry := range staticTableEntries {
+			err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
@@ -97,14 +200,19 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
-
-	return &Monitor{
+	finalMonitor := &Monitor{
 		ebpfProgram:    mgr,
 		telemetry:      telemetry,
-		closeFilterFn:  closeFilterFn,
 		statkeeper:     statkeeper,
 		processMonitor: processMonitor,
-	}, nil
+		closeFilterFn:  closeFilterFn,
+	}
+
+	if c.EnableHTTP2Monitoring {
+		finalMonitor.http2Enabled = true
+	}
+
+	return finalMonitor, nil
 }
 
 // Start consuming HTTP events
@@ -128,15 +236,27 @@ func (m *Monitor) Start() error {
 		}
 	}()
 
-	m.consumer, err = events.NewConsumer(
+	m.httpConsumer, err = events.NewConsumer(
 		"http",
 		m.ebpfProgram.Manager.Manager,
-		m.process,
+		m.processHTTP,
 	)
 	if err != nil {
 		return err
 	}
-	m.consumer.Start()
+	m.httpConsumer.Start()
+
+	if m.http2Enabled {
+		m.http2Consumer, err = events.NewConsumer(
+			"http2",
+			m.ebpfProgram.Manager.Manager,
+			m.processHTTP2,
+		)
+		if err != nil {
+			return err
+		}
+		m.http2Consumer.Start()
+	}
 
 	err = m.ebpfProgram.Start()
 	if err != nil {
@@ -166,7 +286,19 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 		return nil
 	}
 
-	m.consumer.Sync()
+	m.httpConsumer.Sync()
+	m.telemetry.log()
+	return m.statkeeper.GetAndResetAllStats()
+}
+
+// GetHTTP2Stats returns a map of HTTP2 stats stored in the following format:
+// [source, dest tuple, request path] -> RequestStats object
+func (m *Monitor) GetHTTP2Stats() map[Key]*RequestStats {
+	if m == nil || m.http2Enabled == false {
+		return nil
+	}
+
+	m.http2Consumer.Sync()
 	m.telemetry.log()
 	return m.statkeeper.GetAndResetAllStats()
 }
@@ -179,12 +311,20 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
-	m.consumer.Stop()
+	m.httpConsumer.Stop()
+	m.http2Consumer.Stop()
 	m.closeFilterFn()
 }
 
-func (m *Monitor) process(data []byte) {
+func (m *Monitor) processHTTP(data []byte) {
 	tx := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
+	m.telemetry.count(tx)
+	m.statkeeper.Process(tx)
+}
+
+func (m *Monitor) processHTTP2(data []byte) {
+	tx := (*ebpfHttp2Tx)(unsafe.Pointer(&data[0]))
+
 	m.telemetry.count(tx)
 	m.statkeeper.Process(tx)
 }

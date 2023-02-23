@@ -46,6 +46,7 @@ type State interface {
 		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
 		http map[http.Key]*http.RequestStats,
+		http2 map[http.Key]*http.RequestStats,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -107,6 +108,7 @@ type client struct {
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
+	http2StatsDelta map[http.Key]*http.RequestStats
 	lastTelemetries map[ConnTelemetryType]int64
 }
 
@@ -201,6 +203,7 @@ func (ns *networkState) GetDelta(
 	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
 	httpStats map[http.Key]*http.RequestStats,
+	http2Stats map[http.Key]*http.RequestStats,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
@@ -223,6 +226,10 @@ func (ns *networkState) GetDelta(
 	}
 	if len(httpStats) > 0 {
 		ns.storeHTTPStats(httpStats)
+	}
+
+	if len(http2Stats) > 0 {
+		ns.storeHTTP2Stats(httpStats)
 	}
 
 	return Delta{
@@ -460,6 +467,37 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 		for _, client := range ns.clients {
 			prevStats, ok := client.httpStatsDelta[key]
 			if !ok && len(client.httpStatsDelta) >= ns.maxHTTPStats {
+				ns.telemetry.httpStatsDropped++
+				continue
+			}
+
+			if prevStats != nil {
+				prevStats.CombineWith(stats)
+				client.httpStatsDelta[key] = prevStats
+			} else {
+				client.httpStatsDelta[key] = stats
+			}
+		}
+	}
+}
+
+// storeHTTPStats stores the latest HTTP stats for all clients
+func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats) {
+	if len(ns.clients) == 1 {
+		for _, client := range ns.clients {
+			if len(client.http2StatsDelta) == 0 {
+				// optimization for the common case:
+				// if there is only one client and no previous state, no memory allocation is needed
+				client.http2StatsDelta = allStats
+				return
+			}
+		}
+	}
+
+	for key, stats := range allStats {
+		for _, client := range ns.clients {
+			prevStats, ok := client.http2StatsDelta[key]
+			if !ok && len(client.http2StatsDelta) >= ns.maxHTTPStats {
 				ns.telemetry.httpStatsDropped++
 				continue
 			}

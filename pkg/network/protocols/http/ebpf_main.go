@@ -11,6 +11,7 @@ package http
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -27,7 +28,8 @@ import (
 )
 
 const (
-	httpInFlightMap = "http_in_flight"
+	httpInFlightMap  = "http_in_flight"
+	http2InFlightMap = "http2_in_flight"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
@@ -35,6 +37,8 @@ const (
 	protocolDispatcherProgramsMap          = "protocols_progs"
 	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
 	connectionStatesMap                    = "connection_states"
+
+	http2SocketFilter = "socket/http2_filter"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -94,6 +98,14 @@ var tailCalls = []manager.TailCallRoute{
 			EBPFFuncName: "socket__http_filter",
 		},
 	},
+	{
+		ProgArrayName: protocolDispatcherProgramsMap,
+		Key:           uint32(ProtocolHTTP2),
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  http2SocketFilter,
+			EBPFFuncName: "socket__http2_filter",
+		},
+	},
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
@@ -106,6 +118,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
+			{Name: "http2_static_table"},
+			{Name: "http2_dynamic_table"},
 			{Name: connectionStatesMap},
 		},
 		Probes: []*manager.Probe{
@@ -296,6 +310,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 			EditorFlag: manager.EditMaxEntries,
 		},
+		http2InFlightMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
 		connectionStatesMap: {
 			Type:       ebpf.Hash,
 			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
@@ -339,6 +358,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	// configure event stream
 	events.Configure("http", e.Manager.Manager, &options)
+	events.Configure("http2", e.Manager.Manager, &options)
 
 	return e.InitWithOptions(buf, options)
 }
@@ -349,4 +369,15 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+// wrap certain errors as `ErrNotSupported` so CO-RE tests skipped accordingly
+func handleInitError(err error) error {
+	if strings.Contains(err.Error(), "kernel without BTF support") ||
+		strings.Contains(err.Error(), "could not find BTF data on host") {
+		return &ErrNotSupported{
+			fmt.Errorf("co-re not supported on this host: %w", err),
+		}
+	}
+	return err
 }
