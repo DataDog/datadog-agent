@@ -715,7 +715,7 @@ func TestJavaInjection(t *testing.T) {
 					}
 
 					return false
-				}, 3*time.Second, 200*time.Millisecond, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
+				}, 3*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
 			},
 		},
 		{
@@ -743,7 +743,7 @@ func TestJavaInjection(t *testing.T) {
 					}
 
 					return false
-				}, 3*time.Second, 200*time.Millisecond, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
+				}, 3*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
 			},
 		},
 	}
