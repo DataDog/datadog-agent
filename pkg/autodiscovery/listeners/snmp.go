@@ -8,7 +8,6 @@ package listeners
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -428,7 +427,7 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		}
 		ifConfigsJson, err := json.Marshal(ifConfigs)
 		if err != nil {
-			return "", errors.New("invalid interface_configs")
+			return "", fmt.Errorf("error marshalling interface_configs: %s", err)
 		}
 		return string(ifConfigsJson), nil
 	}
