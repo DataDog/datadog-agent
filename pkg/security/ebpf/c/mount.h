@@ -116,6 +116,29 @@ int kprobe___attach_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/mnt_set_mountpoint")
+int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
+    if (!syscall) {
+        return 0;
+    }
+
+    struct mount *mnt = (struct mount *)PT_REGS_PARM3(ctx);
+
+    // check if mnt has already been processed in case both attach_mnt and __attach_mnt are loaded
+    if (syscall->unshare_mntns.mnt == mnt) {
+        return 0;
+    }
+
+    syscall->unshare_mntns.mnt = mnt;
+    syscall->unshare_mntns.parent = (struct mount *)PT_REGS_PARM1(ctx);
+    struct mountpoint *mp = (struct mountpoint *)PT_REGS_PARM2(ctx);
+    syscall->unshare_mntns.mp_dentry = get_mountpoint_dentry(mp);
+
+    fill_resolver_mnt(ctx, syscall);
+    return 0;
+}
+
 SEC("kprobe/dr_unshare_mntns_stage_one_callback")
 int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
