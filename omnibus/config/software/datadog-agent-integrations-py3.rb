@@ -13,7 +13,6 @@ dependency 'pip3'
 dependency 'setuptools3'
 
 dependency 'snowflake-connector-python-py3'
-dependency 'librdkafka'
 dependency 'confluent-kafka-python'
 
 
