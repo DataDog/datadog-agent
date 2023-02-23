@@ -299,7 +299,7 @@ func unsafeStringSlice(key string) []byte {
 //		}
 func formatProtocol(protocol network.ProtocolType, staticTags uint64) *model.ProtocolStack {
 	stack := make([]model.ProtocolType, 0)
-	if staticTags & tlsTagsMask > 0 {
+	if staticTags&tlsTagsMask > 0 {
 		stack = append(stack, model.ProtocolType(network.ProtocolTLS))
 	}
 

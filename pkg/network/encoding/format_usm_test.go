@@ -94,8 +94,8 @@ func TestFormatProtocols(t *testing.T) {
 			},
 		},
 		{
-			name:     "GnuTLS - unknown protocol",
-			protocol: network.ProtocolUnknown,
+			name:       "GnuTLS - unknown protocol",
+			protocol:   network.ProtocolUnknown,
 			staticTags: 1 << 0,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -105,8 +105,8 @@ func TestFormatProtocols(t *testing.T) {
 			},
 		},
 		{
-			name:     "OpenSSL - unknown protocol",
-			protocol: network.ProtocolUnknown,
+			name:       "OpenSSL - unknown protocol",
+			protocol:   network.ProtocolUnknown,
 			staticTags: 1 << 1,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -116,8 +116,8 @@ func TestFormatProtocols(t *testing.T) {
 			},
 		},
 		{
-			name:     "GoTLS - unknown protocol",
-			protocol: network.ProtocolUnknown,
+			name:       "GoTLS - unknown protocol",
+			protocol:   network.ProtocolUnknown,
 			staticTags: 1 << 2,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
