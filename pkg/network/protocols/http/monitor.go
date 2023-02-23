@@ -26,12 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-type monitorState uint8
+type monitorState = string
 
 const (
-	Disabled monitorState = iota
-	Running
-	NotRunning
+	Disabled   monitorState = "Disabled"
+	Running    monitorState = "Running"
+	NotRunning monitorState = "Not Running"
 )
 
 var (
@@ -162,19 +162,19 @@ func (m *Monitor) Start() error {
 }
 
 func (m *Monitor) GetUSMStats() map[string]interface{} {
-	if m == nil || state != Running {
-		if state == Disabled {
-			return map[string]interface{}{
-				"Error": "http monitoring is disabled",
-			}
-		}
-		return map[string]interface{}{
-			"Error": startupError.Error(),
-		}
+	response := map[string]interface{}{
+		"state": state,
 	}
-	return map[string]interface{}{
-		"last_check": m.telemetry.then,
+
+	if startupError != nil {
+		response["Error"] = startupError.Error()
 	}
+
+	if m != nil {
+		response["Error"] = m.telemetry.then
+	}
+
+	return response
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
