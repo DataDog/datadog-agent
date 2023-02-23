@@ -6,6 +6,7 @@
 package testutil
 
 import (
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -29,6 +30,14 @@ type OTLPSpanEvent struct {
 	Dropped    uint32                 `json:"dropped_attributes_count"`
 }
 
+// OTLPSpanLink defines an OTLP test span link.
+type OTLPSpanLink struct {
+	TraceID    string                 `json:"trace_id"`
+	SpanID     string                 `json:"span_id"`
+	Attributes map[string]interface{} `json:"attributes"`
+	Dropped    uint32                 `json:"dropped_attributes_count"`
+}
+
 // OTLPSpan defines an OTLP test span.
 type OTLPSpan struct {
 	TraceID    [16]byte
@@ -40,6 +49,7 @@ type OTLPSpan struct {
 	Start, End uint64
 	Attributes map[string]interface{}
 	Events     []OTLPSpanEvent
+	Links	   []OTLPSpanLink
 	StatusMsg  string
 	StatusCode ptrace.StatusCode
 }
@@ -86,6 +96,16 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 		ev.SetName(e.Name)
 		insertAttributes(ev.Attributes(), e.Attributes)
 		ev.SetDroppedAttributesCount(e.Dropped)
+	}
+	links := span.Links()
+	for _, l := range s.Links {
+		li := links.AppendEmpty()
+		bytes, _ := hex.DecodeString(l.TraceID)
+		li.SetTraceID(*(*pcommon.TraceID)(bytes))
+		bytes, _ = hex.DecodeString(l.SpanID)
+		li.SetSpanID(*(*pcommon.SpanID)(bytes))
+		insertAttributes(li.Attributes(), l.Attributes)
+		li.SetDroppedAttributesCount(l.Dropped)
 	}
 	span.Status().SetCode(s.StatusCode)
 	span.Status().SetMessage(s.StatusMsg)
