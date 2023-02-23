@@ -140,7 +140,7 @@ func (c *Check) SampleSession() error {
 			DDAgentVersion: c.agentVersion,
 		},
 		CollectionInterval: c.checkInterval,
-		Tags:               []string{},
+		Tags:               c.tags,
 		OracleActivityRows: sessionSamples,
 	}
 
@@ -157,7 +157,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
-	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), "", nil)
+	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
 	return nil
 }

@@ -31,6 +31,7 @@ type Check struct {
 	dbmEnabled    bool
 	agentVersion  string
 	checkInterval float64
+	tags          []string
 }
 
 // Run executes the check.
@@ -120,6 +121,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
+	c.tags = c.config.Tags
 
 	return nil
 }
