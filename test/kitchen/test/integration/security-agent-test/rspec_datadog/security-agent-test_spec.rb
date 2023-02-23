@@ -22,6 +22,7 @@ shared_examples "passes" do |bundle, env|
 
   base_env = {
     "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
+    "GOVERSION"=>"unknown"
   }
   final_env = base_env.merge(env)
 
