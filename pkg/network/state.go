@@ -229,7 +229,7 @@ func (ns *networkState) GetDelta(
 	}
 
 	if len(http2Stats) > 0 {
-		ns.storeHTTP2Stats(httpStats)
+		ns.storeHTTP2Stats(http2Stats)
 	}
 
 	return Delta{
