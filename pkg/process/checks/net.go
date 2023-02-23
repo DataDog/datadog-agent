@@ -37,7 +37,7 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck() Check {
+func NewConnectionsCheck() *ConnectionsCheck {
 	return &ConnectionsCheck{}
 }
 

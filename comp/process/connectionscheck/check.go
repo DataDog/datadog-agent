@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package containercheck
+package connectionscheck
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -13,7 +13,7 @@ import (
 )
 
 type check struct {
-	*checks.ContainerCheck
+	*checks.ConnectionsCheck
 }
 
 type dependencies struct {
@@ -23,7 +23,7 @@ type dependencies struct {
 func newCheck(deps dependencies) types.ProvidesCheck {
 	return types.ProvidesCheck{
 		Check: &check{
-			ContainerCheck: checks.NewContainerCheck(),
+			ConnectionsCheck: checks.NewConnectionsCheck(),
 		},
 	}
 }

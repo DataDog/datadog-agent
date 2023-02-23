@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package processcheck implements a component to handle Process data collection in the Process Agent.
 package processcheck
 
 import (

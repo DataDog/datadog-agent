@@ -25,7 +25,7 @@ import (
 )
 
 // NewPodCheck returns an instance of the Pod check
-func NewPodCheck() Check {
+func NewPodCheck() *PodCheck {
 	return &PodCheck{
 		config: oconfig.NewDefaultOrchestratorConfig(),
 	}

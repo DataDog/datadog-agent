@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package containercheck implements a component to handle Container data collection in the Process Agent.
 package containercheck
 
 import (
