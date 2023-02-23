@@ -114,6 +114,8 @@ type MetricSender struct {
 }
 
 func (c *Check) SampleSession() error {
+	start := time.Now()
+
 	sessionSamples := []OracleActivityRow{}
 	// err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
 
@@ -155,6 +157,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
+	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), "", nil)
 	sender.Commit()
 	return nil
 }
