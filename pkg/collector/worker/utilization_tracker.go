@@ -6,216 +6,139 @@
 package worker
 
 import (
-	"fmt"
-	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
-	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
-// utilizationTracker is the object that polls and evaluates utilization
-// statistics which then get published to expvars.
-type utilizationTracker struct {
-	sync.RWMutex
+type trackerEvent int
 
-	workerName string
-	started    bool
-	stopped    bool
+const (
+	checkStarted trackerEvent = iota
+	checkStopped
+	trackerTick
+)
 
-	utilizationStats util.SlidingWindow
-	pollingFunc      util.PollingFunc
-	statsUpdateFunc  util.StatsUpdateFunc
+type UtilizationTracker struct {
+	Output chan float64
 
-	clock              clock.Clock
-	busyDuration       time.Duration
-	checkStart         time.Time
-	windowStart        time.Time
-	isRunningLongCheck bool
-}
+	eventsChan chan trackerEvent
 
-// UtilizationTracker is the interface that encapsulates the API around the
-// utilizationTracker object.
-type UtilizationTracker interface {
-	// Start activates the polling ticker for collection of data.
-	Start() error
+	// amount of busy time since the last tick
+	busy time.Duration
+	// value is the utilization fraction as observed at the last tick
+	value float64
+	// alpha is the ewma smoothing factor.
+	alpha float64
 
-	// Stop is invoked when a worker is about to exit to remove the instance's
-	// expvars.
-	Stop() error
+	checkStarted time.Time
+	nextTick     time.Time
+	interval     time.Duration
 
-	// CheckStarted starts tracking the start time of a check.
-	CheckStarted(bool)
-
-	// CheckFinished ends tracking the the runtime of a check previously registered
-	// with `CheckStarted()`.
-	CheckFinished()
-
-	// IsRunningLongCheck returns true if we are currently running a check
-	// that is meant to be of indefinite duration (e.g. jmxfetch checks).
-	IsRunningLongCheck() bool
+	clock clock.Clock
 }
 
 // NewUtilizationTracker instantiates and configures a utilization tracker that
 // calculates the values and publishes them to expvars
 func NewUtilizationTracker(
 	workerName string,
-	windowSize time.Duration,
-	pollingInterval time.Duration,
-) (UtilizationTracker, error) {
+	interval time.Duration,
+) *UtilizationTracker {
 	return newUtilizationTrackerWithClock(
 		workerName,
-		windowSize,
-		pollingInterval,
+		interval,
 		clock.New(),
 	)
 }
 
-// newUtilizationTrackerWithClock is primarely used for testing
-func newUtilizationTrackerWithClock(
-	workerName string,
-	windowSize time.Duration,
-	pollingInterval time.Duration,
-	clk clock.Clock,
-) (UtilizationTracker, error) {
+// newUtilizationTrackerWithClock is primarely used for testing.
+//
+// Does not start the background goroutines, so that the tests can call update() to get
+// deterministic results.
+func newUtilizationTrackerWithClock(workerName string, interval time.Duration, clk clock.Clock) *UtilizationTracker {
+	ut := &UtilizationTracker{
+		clock: clk,
 
-	sw, err := util.NewSlidingWindowWithClock(windowSize, pollingInterval, clk)
-	if err != nil {
-		return nil, err
+		eventsChan: make(chan trackerEvent),
+
+		nextTick: clk.Now(),
+		interval: interval,
+		alpha:    0.25, // converges to 99.98% of constant input in 30 iterations.
+
+		Output: make(chan float64, 1),
 	}
 
-	ut := &utilizationTracker{
-		workerName:       workerName,
-		utilizationStats: sw,
+	go ut.run()
 
-		clock:        clk,
-		busyDuration: time.Duration(0),
-		checkStart:   time.Time{},
-		windowStart:  clk.Now(),
-	}
-
-	ut.pollingFunc = func() float64 {
-		ut.Lock()
-		defer ut.Unlock()
-
-		currentTime := clk.Now()
-
-		if !ut.checkStart.IsZero() {
-			duration := currentTime.Sub(ut.checkStart)
-			ut.busyDuration += duration
-			ut.checkStart = currentTime
-		}
-
-		pollingWindowDuration := currentTime.Sub(ut.windowStart)
-		if pollingWindowDuration == 0 {
-			return 0.0
-		}
-
-		ut.windowStart = currentTime
-
-		utilization := float64(ut.busyDuration) / float64(pollingWindowDuration)
-		ut.busyDuration = time.Duration(0)
-
-		return utilization
-	}
-
-	ut.statsUpdateFunc = func(utilization float64) {
-		expvars.SetWorkerStats(workerName, &expvars.WorkerStats{
-			Utilization: utilization,
-		})
-	}
-
-	return ut, nil
+	return ut
 }
 
-// Start activates the polling ticker for collection of data
-func (ut *utilizationTracker) Start() error {
-	ut.Lock()
-	defer ut.Unlock()
+func (ut *UtilizationTracker) run() {
+	defer close(ut.Output)
 
-	if ut.started {
-		return fmt.Errorf("Attempted to use UtilizationTracker.Start() when the tracker was already started")
+	for ev := range ut.eventsChan {
+		now := ut.clock.Now()
+		// handle all elapsed time intervals, if any
+		ut.update(now)
+		// invariant: ut.nextTick > now
+
+		switch ev {
+		case checkStarted:
+			// invariant: ut.nextTick > ut.checkStarted
+			ut.checkStarted = now
+		case checkStopped:
+			ut.busy += now.Sub(ut.checkStarted)
+			ut.checkStarted = time.Time{}
+		case trackerTick:
+			// nothing, just tick
+		}
 	}
+}
 
-	if ut.stopped {
-		return fmt.Errorf("Attempted to use UtilizationTracker.Start() after the tracker was stopped")
+func (ut *UtilizationTracker) update(now time.Time) {
+	for ut.nextTick.Before(now) {
+		if !ut.checkStarted.IsZero() {
+			// invariant: ut.nextTick > ut.checkStarted
+			ut.busy += ut.nextTick.Sub(ut.checkStarted)
+			ut.checkStarted = ut.nextTick
+		}
+
+		update := float64(ut.busy) / float64(ut.interval)
+		ut.value = ut.value*(1.0-ut.alpha) + update*ut.alpha
+		ut.busy = 0
+
+		ut.nextTick = ut.nextTick.Add(ut.interval)
 	}
-
-	// Initialize the worker expvar
-	expvars.SetWorkerStats(
-		ut.workerName,
-		&expvars.WorkerStats{
-			Utilization: 0,
-		},
-	)
-
-	// Start the ticker
-	err := ut.utilizationStats.Start(ut.pollingFunc, ut.statsUpdateFunc)
-	if err != nil {
-		return err
-	}
-
-	ut.started = true
-
-	return nil
+	// invariant: ut.nextTick > now
+	ut.Output <- ut.value
 }
 
 // Stop should be invoked when a worker is about to exit
 // so that we can remove the instance's expvars
-func (ut *utilizationTracker) Stop() error {
-	ut.Lock()
-	defer ut.Unlock()
-
-	if !ut.started {
-		return fmt.Errorf("Attempted to use UtilizationTracker.Stop() when the tracker was never started")
-	}
-
-	if ut.stopped {
-		return fmt.Errorf("Attempted to use UtilizationTracker.Stop() when the tracker was already stopped")
-	}
-
-	ut.stopped = true
-
-	ut.utilizationStats.Stop()
-	expvars.DeleteWorkerStats(ut.workerName)
-
-	return nil
+func (ut *UtilizationTracker) Stop() {
+	// The user will not send anything anymore
+	close(ut.eventsChan)
 }
 
-// CheckStarted should be invoked when a worker's check is about to
-// run so that we can track the start time and the utilization. Long-running
-// flag is to indicate if we should be worried about showing warnings
-// when utilization raises above the threshold.
-func (ut *utilizationTracker) CheckStarted(longRunning bool) {
-	ut.Lock()
-
-	ut.isRunningLongCheck = longRunning
-	ut.checkStart = ut.clock.Now()
-
-	ut.Unlock()
+// Tick updates to the utilization during intervals where no check were started or stopped.
+//
+// Produces one value on the Output channel.
+func (ut *UtilizationTracker) Tick() {
+	ut.eventsChan <- trackerTick
 }
 
-// CheckFinished should be invoked when a worker's check is complete
-// so that we can calculate the utilization of the linked worker
-func (ut *utilizationTracker) CheckFinished() {
-	ut.Lock()
-
-	duration := ut.clock.Now().Sub(ut.checkStart)
-	ut.busyDuration += duration
-
-	ut.isRunningLongCheck = false
-	ut.checkStart = time.Time{}
-
-	ut.Unlock()
+// CheckStarted should be invoked when a worker's check is about to run so that we can track the
+// start time and the utilization.
+//
+// Produces one value on the Output channel.
+func (ut *UtilizationTracker) CheckStarted() {
+	ut.eventsChan <- checkStarted
 }
 
-// IsRunningLongCheck returns true if we are currently running a check
-// that is meant to be of indefinite duration (e.g. jmxfetch checks).
-func (ut *utilizationTracker) IsRunningLongCheck() bool {
-	ut.RLock()
-	defer ut.RUnlock()
-
-	return ut.isRunningLongCheck
+// CheckFinished should be invoked when a worker's check is complete so that we can calculate the
+// utilization of the linked worker.
+//
+// Produces one value on the Output channel.
+func (ut *UtilizationTracker) CheckFinished() {
+	ut.eventsChan <- checkStopped
 }

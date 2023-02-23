@@ -23,7 +23,6 @@ const (
 	serviceCheckStatusKey = "datadog.agent.check_status"
 
 	// Variables for the utilization expvars
-	windowSize      = 5 * time.Minute
 	pollingInterval = 15 * time.Second
 )
 
@@ -38,7 +37,7 @@ type Worker struct {
 	pendingChecksChan       chan check.Check
 	runnerID                int
 	shouldAddCheckStatsFunc func(id check.ID) bool
-	utilizationTracker      UtilizationTracker
+	utilizationTickInterval time.Duration
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -69,7 +68,6 @@ func NewWorker(
 		checksTracker,
 		shouldAddCheckStatsFunc,
 		aggregator.GetDefaultSender,
-		windowSize,
 		pollingInterval,
 	)
 }
@@ -84,8 +82,7 @@ func newWorkerWithOptions(
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id check.ID) bool,
 	getDefaultSenderFunc func() (aggregator.Sender, error),
-	windowSize time.Duration,
-	pollingInterval time.Duration,
+	utilizationTickInterval time.Duration,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
@@ -93,10 +90,6 @@ func newWorkerWithOptions(
 	}
 
 	workerName := fmt.Sprintf("worker_%d", ID)
-	utilizationTracker, err := NewUtilizationTracker(workerName, windowSize, pollingInterval)
-	if err != nil {
-		return nil, err
-	}
 
 	return &Worker{
 		ID:                      ID,
@@ -106,7 +99,7 @@ func newWorkerWithOptions(
 		runnerID:                runnerID,
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
-		utilizationTracker:      utilizationTracker,
+		utilizationTickInterval: utilizationTickInterval,
 	}, nil
 }
 
@@ -114,14 +107,12 @@ func newWorkerWithOptions(
 func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
-	if err := w.utilizationTracker.Start(); err != nil {
-		log.Warnf("Runner %d, worker %d: %s", w.runnerID, w.ID, err)
-	}
-	defer func() {
-		if err := w.utilizationTracker.Stop(); err != nil {
-			log.Warnf("Runner %d, worker %d: %s", w.runnerID, w.ID, err)
-		}
-	}()
+	utilizationTracker := NewUtilizationTracker(w.Name, w.utilizationTickInterval)
+	defer utilizationTracker.Stop()
+
+	startExpvarUpdater(w.Name, utilizationTracker)
+	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
+	defer cancel()
 
 	for check := range w.pendingChecksChan {
 		checkLogger := CheckLogger{Check: check}
@@ -140,13 +131,13 @@ func (w *Worker) Run() {
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
-		w.utilizationTracker.CheckStarted(longRunning)
+		utilizationTracker.CheckStarted()
 
 		// Run the check
 		var checkErr error
 		checkErr = check.Run()
 
-		w.utilizationTracker.CheckFinished()
+		utilizationTracker.CheckFinished()
 
 		expvars.DeleteRunningStats(check.ID())
 
@@ -198,4 +189,42 @@ func (w *Worker) Run() {
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
+}
+
+func startExpvarUpdater(name string, ut *UtilizationTracker) {
+	expvars.SetWorkerStats(name, &expvars.WorkerStats{
+		Utilization: 0.0,
+	})
+
+	go func() {
+		for value := range ut.Output {
+			expvars.SetWorkerStats(name, &expvars.WorkerStats{
+				Utilization: value,
+			})
+		}
+		expvars.DeleteWorkerStats(name)
+	}()
+}
+
+func startTrackerTicker(ut *UtilizationTracker, interval time.Duration) func() {
+	ticker := time.NewTicker(interval)
+	cancel := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		defer ticker.Stop()
+		defer close(done)
+		for {
+			select {
+			case <-ticker.C:
+				ut.Tick()
+			case <-cancel:
+				return
+			}
+		}
+	}()
+
+	return func() {
+		cancel <- struct{}{}
+		<-done // make sure Tick will not be called after we return.
+	}
 }

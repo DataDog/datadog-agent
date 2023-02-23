@@ -6,6 +6,7 @@
 package worker
 
 import (
+	"expvar"
 	"fmt"
 	"sync"
 	"testing"
@@ -279,7 +280,6 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		checksTracker,
 		mockShouldAddStatsFunc,
 		func() (aggregator.Sender, error) { return nil, nil },
-		1000*time.Millisecond,
 		100*time.Millisecond,
 	)
 	require.Nil(t, err)
@@ -503,7 +503,6 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 		func() (aggregator.Sender, error) {
 			return mockSender, nil
 		},
-		windowSize,
 		pollingInterval,
 	)
 	require.Nil(t, err)
@@ -574,7 +573,6 @@ func TestWorkerSenderNil(t *testing.T) {
 		func() (aggregator.Sender, error) {
 			return nil, fmt.Errorf("testerr")
 		},
-		windowSize,
 		pollingInterval,
 	)
 	require.Nil(t, err)
@@ -615,7 +613,6 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 		func() (aggregator.Sender, error) {
 			return mockSender, nil
 		},
-		windowSize,
 		pollingInterval,
 	)
 	require.Nil(t, err)
@@ -627,4 +624,25 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 
 	mockSender.AssertNumberOfCalls(t, "Commit", 0)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
+}
+
+// getWorkerUtilizationExpvar returns the utilization as presented by expvars
+// for a named worker.
+func getWorkerUtilizationExpvar(t *testing.T, name string) float64 {
+	runnerMapExpvar := expvar.Get("runner")
+	require.NotNil(t, runnerMapExpvar)
+
+	workersExpvar := runnerMapExpvar.(*expvar.Map).Get("Workers")
+	require.NotNil(t, workersExpvar)
+
+	instancesExpvar := workersExpvar.(*expvar.Map).Get("Instances")
+	require.NotNil(t, instancesExpvar)
+
+	workerStatsExpvar := instancesExpvar.(*expvar.Map).Get(name)
+	require.NotNil(t, workerStatsExpvar)
+
+	workerStats := workerStatsExpvar.(*expvars.WorkerStats)
+	require.NotNil(t, workerStats)
+
+	return workerStats.Utilization
 }
