@@ -559,7 +559,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 			// The capacity of ring buffer has to be a power of 2 and a multiple of 4096,
 			// the cardinality is low so we use it as a tag.
 			tags := []string{pbm.config.StatsTagsCardinality, mapNameTag, units.ToString(int64(statsMap.ebpfRingBufferMap.capacity), 1024, "", "M")}
-			if err := client.Gauge(metrics.MetricPerfBufferBytesUsed, float64(ringUsage*100/statsMap.ebpfRingBufferMap.capacity), tags, 1.0); err != nil {
+			if err := client.Gauge(metrics.MetricPerfBufferBytesInUse, float64(ringUsage*100/statsMap.ebpfRingBufferMap.capacity), tags, 1.0); err != nil {
 				return err
 			}
 		}
