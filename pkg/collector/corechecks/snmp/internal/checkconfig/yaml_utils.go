@@ -8,8 +8,9 @@ package checkconfig
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
 // StringArray is list of string with a yaml un-marshaller that support both array and string.

@@ -8,7 +8,6 @@ package snmp
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"hash/fnv"
 	"net"
 	"reflect"
@@ -22,6 +21,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
 const (
