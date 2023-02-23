@@ -6,10 +6,11 @@
 package connectionscheck
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"go.uber.org/fx"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
 
 var _ types.CheckComponent = (*check)(nil)
@@ -20,12 +21,14 @@ type check struct {
 
 type dependencies struct {
 	fx.In
+
+	sysconfig *sysconfig.Config
 }
 
 func newCheck(deps dependencies) types.ProvidesCheck {
 	return types.ProvidesCheck{
 		CheckComponent: &check{
-			connectionsCheck: checks.NewConnectionsCheck(),
+			connectionsCheck: checks.NewConnectionsCheck(deps.sysconfig),
 		},
 	}
 }

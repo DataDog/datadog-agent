@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"sync"
 	"time"
 
@@ -82,8 +83,7 @@ func (e *ProcessEventsCheck) start() {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (e *ProcessEventsCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	return ddconfig.Datadog.GetBool("process_config.event_collection.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

@@ -667,3 +667,7 @@ func TestConvertAndEnrichWithServiceTags(t *testing.T) {
 		})
 	}
 }
+
+func TestEnabled(t *testing.T) {
+
+}

@@ -7,6 +7,7 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
 // Name for check performed by process-agent or system-probe
@@ -94,12 +95,12 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-func All() []Check {
+func All(syscfg *sysconfig.Config) []Check {
 	return []Check{
 		NewProcessCheck(),
 		NewContainerCheck(),
 		NewRTContainerCheck(),
-		NewConnectionsCheck(),
+		NewConnectionsCheck(syscfg),
 		NewPodCheck(),
 		NewProcessDiscoveryCheck(),
 		NewProcessEventsCheck(),

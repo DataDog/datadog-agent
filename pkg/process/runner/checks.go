@@ -46,7 +46,7 @@ func GetChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []c
 
 	if sysCfg.Enabled {
 		if _, ok := sysCfg.EnabledModules[sysconfig.NetworkTracerModule]; ok {
-			checkCfg = append(checkCfg, checks.NewConnectionsCheck())
+			checkCfg = append(checkCfg, checks.NewConnectionsCheck(sysCfg))
 		}
 	}
 
