@@ -406,6 +406,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 	type Metric struct {
 		name  string
 		value float64
+		tags  []string
 	}
 	tests := []struct {
 		name             string
@@ -426,6 +427,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 				InSpeed:    160_000_000,
 				OutSpeed:   40_000_000,
 			}},
+			tags: []string{"interface:eth0"},
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHighSpeed
@@ -437,8 +439,33 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
-				{"snmp.ifInSpeed", 160_000_000},
-				{"snmp.ifOutSpeed", 40_000_000},
+				{"snmp.ifInSpeed", 160_000_000, []string{"interface:eth0", "speed_source:custom"}},
+				{"snmp.ifOutSpeed", 40_000_000, []string{"interface:eth0", "speed_source:custom"}},
+			},
+		},
+		{
+			name:      "InSpeed Override but not OutSpeed Override",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			interfaceConfigs: []checkconfig.InterfaceConfig{{
+				MatchField: "index",
+				MatchValue: "9",
+				InSpeed:    160_000_000,
+			}},
+			tags: []string{"interface:eth0"},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedMetric: []Metric{
+				{"snmp.ifInSpeed", 160_000_000, []string{"interface:eth0", "speed_source:custom"}},
+				{"snmp.ifOutSpeed", 80_000_000, []string{"interface:eth0", "speed_source:snmp"}},
 			},
 		},
 		{
@@ -462,8 +489,8 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
-				{"snmp.ifInSpeed", 80_000_000},
-				{"snmp.ifOutSpeed", 80_000_000},
+				{"snmp.ifInSpeed", 80_000_000, []string{"speed_source:snmp"}},
+				{"snmp.ifOutSpeed", 80_000_000, []string{"speed_source:snmp"}},
 			},
 		},
 		{
@@ -482,8 +509,8 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
-				{"snmp.ifInSpeed", 80_000_000},
-				{"snmp.ifOutSpeed", 80_000_000},
+				{"snmp.ifInSpeed", 80_000_000, []string{"speed_source:snmp"}},
+				{"snmp.ifOutSpeed", 80_000_000, []string{"speed_source:snmp"}},
 			},
 		},
 		{
@@ -507,7 +534,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			ms.sendIfSpeedMetrics(tt.symbol, tt.fullIndex, tt.values, tt.tags)
 
 			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, "Gauge", metric.name, metric.value, "", tt.tags)
+				sender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
 			}
 			assert.Equal(t, len(tt.expectedMetric), len(sender.Mock.Calls))
 		})

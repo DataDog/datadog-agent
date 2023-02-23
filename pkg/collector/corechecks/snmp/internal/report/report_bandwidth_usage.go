@@ -130,16 +130,19 @@ func (ms *MetricSender) sendIfSpeedMetrics(symbol checkconfig.SymbolConfig, full
 
 func (ms *MetricSender) sendIfSpeedMetric(symbolName string, customSpeed uint64, ifHighSpeed uint64, tags []string) {
 	ifSpeed := customSpeed
+	speedSource := "custom"
 	if customSpeed == 0 {
 		ifSpeed = ifHighSpeed
+		speedSource = "snmp"
 	}
 	if ifSpeed == 0 {
 		return
 	}
 
+	newTags := append([]string{"speed_source:" + speedSource}, tags...)
 	ms.sendMetric(MetricSample{
 		value:      valuestore.ResultValue{Value: float64(ifSpeed)},
-		tags:       tags,
+		tags:       newTags,
 		symbol:     checkconfig.SymbolConfig{Name: symbolName},
 		forcedType: "gauge",
 		options:    checkconfig.MetricsConfigOption{},
