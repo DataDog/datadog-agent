@@ -158,7 +158,7 @@ func TestEnableJavaTLSSupport(t *testing.T) {
 	})
 }
 
-func TestEnableHTTP2Support(t *testing.T) {
+func TestEnableHTTP2Monitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig(t)
 
@@ -166,18 +166,18 @@ func TestEnableHTTP2Support(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTP2Support)
+		assert.True(t, cfg.EnableHTTP2Monitoring)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		newConfig(t)
 
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_SUPPORT", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_MONITORING", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTP2Support)
+		assert.True(t, cfg.EnableHTTP2Monitoring)
 	})
 }
 

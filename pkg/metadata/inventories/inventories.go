@@ -418,7 +418,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("network_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
-	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_support"))
+	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
 	SetAgentMetadata(AgentUSMEnableHTTPStatsByStatusCode, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
 	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_go_tls_support"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
