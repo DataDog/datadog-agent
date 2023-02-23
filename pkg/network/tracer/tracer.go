@@ -887,7 +887,11 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 
 	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
 	if err != nil {
-		log.Error(err)
+		if errors.Is(err, http.MonitorIsDisabledError) {
+			log.Info(err)
+		} else {
+			log.Error(err)
+		}
 		return nil
 	}
 

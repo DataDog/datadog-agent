@@ -27,7 +27,8 @@ import (
 )
 
 var (
-	startupError error
+	MonitorIsDisabledError = fmt.Errorf("http monitoring is disabled")
+	startupError           error
 )
 
 // Monitor is responsible for:
@@ -50,13 +51,15 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
-			err = fmt.Errorf("could not instantiate http monitor: %w", err)
+			if !errors.Is(err, MonitorIsDisabledError) {
+				err = fmt.Errorf("could not instantiate http monitor: %w", err)
+			}
 			startupError = err
 		}
 	}()
 
 	if !c.EnableHTTPMonitoring {
-		return nil, fmt.Errorf("http monitoring is disabled")
+		return nil, MonitorIsDisabledError
 	}
 
 	kversion, err := kernel.HostVersion()
