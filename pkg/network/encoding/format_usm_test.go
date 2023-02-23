@@ -12,6 +12,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
 func TestFormatProtocols(t *testing.T) {
@@ -96,7 +97,7 @@ func TestFormatProtocols(t *testing.T) {
 		{
 			name:       "GnuTLS - unknown protocol",
 			protocol:   network.ProtocolUnknown,
-			staticTags: 1 << 0,
+			staticTags: http.GnuTLS,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
@@ -105,24 +106,34 @@ func TestFormatProtocols(t *testing.T) {
 			},
 		},
 		{
-			name:       "OpenSSL - unknown protocol",
-			protocol:   network.ProtocolUnknown,
-			staticTags: 1 << 1,
+			name:       "OpenSSL - HTTP protocol",
+			protocol:   network.ProtocolHTTP,
+			staticTags: http.OpenSSL,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
-					model.ProtocolType_protocolUnknown,
+					model.ProtocolType_protocolHTTP,
 				},
 			},
 		},
 		{
-			name:       "GoTLS - unknown protocol",
-			protocol:   network.ProtocolUnknown,
-			staticTags: 1 << 2,
+			name:       "GoTLS - MySQL protocol",
+			protocol:   network.ProtocolMySQL,
+			staticTags: http.Go,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
-					model.ProtocolType_protocolUnknown,
+					model.ProtocolType_protocolMySQL,
+				},
+			},
+		},
+		{
+			name:       "Unknown static tags - MySQL protocol",
+			protocol:   network.ProtocolMySQL,
+			staticTags: 1 << 10,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolMySQL,
 				},
 			},
 		},
