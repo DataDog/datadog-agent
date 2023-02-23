@@ -49,10 +49,18 @@ int socket__classifier_entry(struct __sk_buff *skb) {
     return 0;
 }
 
-SEC("socket/classifier_cont")
-int socket__classifier_cont(struct __sk_buff *skb) {
+SEC("socket/classifier_queues")
+int socket__classifier_queues(struct __sk_buff *skb) {
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
-    protocol_classifier_entrypoint_cont(skb);
+    protocol_classifier_entrypoint_queues(skb);
+    #endif
+    return 0;
+}
+
+SEC("socket/classifier_dbs")
+int socket__classifier_dbs(struct __sk_buff *skb) {
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+    protocol_classifier_entrypoint_dbs(skb);
     #endif
     return 0;
 }

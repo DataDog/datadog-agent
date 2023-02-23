@@ -21,6 +21,8 @@ import (
 )
 
 func TestColdStartSpanCreatorCreateValid(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"
@@ -61,7 +63,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	lambdaSpanChan <- lambdaSpan
 	initDurationChan <- coldStartDuration
 
-	timeout := time.After(2 * time.Millisecond)
+	timeout := time.After(2 * time.Second)
 	var span *pb.Span
 	select {
 	case ss := <-traceAgent.ta.TraceWriter.In:
@@ -77,6 +79,8 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 }
 
 func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"
@@ -125,6 +129,8 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 }
 
 func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"

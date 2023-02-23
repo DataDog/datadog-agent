@@ -43,7 +43,6 @@ import (
 	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -185,7 +184,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		AgentCommit:       version.Commit,
 		KernelVersion:     adm.kernelVersion.Code.String(),
 		LinuxDistribution: adm.kernelVersion.OsRelease["PRETTY_NAME"],
-		Name:              fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
+		Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
 		ProtobufVersion:   ProtobufVersion,
 		Start:             now,
 		End:               now.Add(adm.config.ActivityDumpCgroupDumpTimeout),
@@ -205,7 +204,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		now,
 		adm.timeResolver,
 	)
-	ad.LoadConfigCookie = eval.NewCookie()
+	ad.LoadConfigCookie = utils.NewCookie()
 
 	for _, option := range options {
 		option(ad)

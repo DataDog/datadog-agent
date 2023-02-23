@@ -7,23 +7,27 @@ package runner
 
 import (
 	"context"
-	"testing"
 
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
 
 // runner implements the Component.
 type runner struct {
-	collector *processRunner.Collector
+	checkRunner *processRunner.CheckRunner
 }
 
 type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
+
+	Submitter  submitter.Component
+	RTNotifier <-chan types.RTResponse `optional:"true"`
 
 	Checks   []checks.Check
 	HostInfo *checks.HostInfo
@@ -31,19 +35,14 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := processRunner.NewCollector(deps.SysCfg, deps.HostInfo, deps.Checks)
+	c, err := processRunner.NewRunner(deps.SysCfg, deps.HostInfo, deps.Checks, deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: Inject submitter as a component dependency once it is ready
-	c.Submitter, err = processRunner.NewSubmitter(deps.HostInfo.HostName, c.UpdateRTStatus)
-	if err != nil {
-		return nil, err
-	}
+	c.Submitter = deps.Submitter
 
 	runner := &runner{
-		collector: c,
+		checkRunner: c,
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -55,20 +54,20 @@ func newRunner(deps dependencies) (Component, error) {
 }
 
 func (r *runner) Run(context.Context) error {
-	return r.collector.Run()
+	return r.checkRunner.Run()
 }
 
 func (r *runner) Stop(context.Context) error {
-	r.collector.Stop()
+	r.checkRunner.Stop()
 	return nil
+}
+
+// IsRealtimeEnabled
+func (r *runner) IsRealtimeEnabled() bool {
+	return r.checkRunner.IsRealTimeEnabled()
 }
 
 func (r *runner) GetChecks() []checks.Check {
 	// TODO: Change this to use `types.Check` once checks are migrated to components
-	return r.collector.GetChecks()
-}
-
-func newMock(deps dependencies, t testing.TB) Component {
-	// TODO
-	return nil
+	return r.checkRunner.GetChecks()
 }

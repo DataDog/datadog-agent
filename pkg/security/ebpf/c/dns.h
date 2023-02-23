@@ -84,7 +84,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     struct activity_dump_config *config = lookup_or_delete_traced_pid(evt->process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_DNS)) {
-            evt->event.is_activity_dump_sample = 1;
+            evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
         }
     }
 

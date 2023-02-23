@@ -67,7 +67,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.WithSecurityAgentConfigFilePaths([]string{
 					path.Join(common.DefaultConfPath, "security-agent.yaml"),
 				}),
-				config.WithConfigLoadSecurityAgent(true))
+				config.WithConfigLoadSecurityAgent(true),
+				config.WithIgnoreErrors(true))
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
@@ -178,6 +179,10 @@ func makeFlare(flare flare.Component, log log.Component, config config.Component
 		err     error
 	)
 
+	warnings := config.Warnings()
+	if warnings != nil && warnings.Err != nil {
+		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
+	}
 	caseID := ""
 	if len(cliParams.args) > 0 {
 		caseID = cliParams.args[0]

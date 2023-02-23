@@ -70,6 +70,24 @@ func (a *TestAgentDemultiplexer) samples() (ontime []metrics.MetricSample, timed
 // Note that it returns as soon as something is avaible in either the live
 // metrics buffer or the late metrics one.
 func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
+	return a.waitForSamples(timeout, func(ontime, timed []metrics.MetricSample) bool {
+		return len(ontime) > 0 || len(timed) > 0
+	})
+}
+
+// WaitForNumberOfSamples returns the samples received by the demultiplexer.
+// Note that it waits until at least the requested number of samples are
+// available in both the live metrics buffer and the late metrics one.
+func (a *TestAgentDemultiplexer) WaitForNumberOfSamples(ontimeCount, timedCount int, timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
+	return a.waitForSamples(timeout, func(ontime, timed []metrics.MetricSample) bool {
+		return (len(ontime) >= ontimeCount || ontimeCount == 0) &&
+			(len(timed) >= timedCount || timedCount == 0)
+	})
+}
+
+// waitForSamples returns the samples received by the demultiplexer.
+// It returns once the given foundFunc returns true or the timeout is reached.
+func (a *TestAgentDemultiplexer) waitForSamples(timeout time.Duration, foundFunc func([]metrics.MetricSample, []metrics.MetricSample) bool) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	timeoutOn := time.Now().Add(timeout)
@@ -84,7 +102,7 @@ func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) (ontime [
 				return ontime, timed
 			}
 
-			if len(ontime) > 0 || len(timed) > 0 {
+			if foundFunc(ontime, timed) {
 				return ontime, timed
 			}
 		case <-time.After(timeout):
