@@ -6,6 +6,7 @@
 #include "tracer.h"
 #include "types.h"
 #include "kafka-parsing-helpers.h"
+#include "parsing-maps.h"
 #include "../events.h"
 
 // forward declaration

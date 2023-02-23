@@ -112,14 +112,59 @@ func TestSanity(t *testing.T) {
 	require.True(t, kafkaStatIsOK, "Number of produce requests: %d, number of fetch requests: %d", numberOfProduceRequests, numberOfFetchRequests)
 }
 
+type BinaryType int
+
+const (
+	PREBUILT = 0
+	RUNTIME  = 1
+	CORE     = 2
+)
+
 // This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
 func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
+	t.Run("prebuilt release binary", func(t *testing.T) {
+		loadKafkaBinary(t, false, PREBUILT)
+	})
+	t.Run("prebuilt debug binary", func(t *testing.T) {
+		loadKafkaBinary(t, true, PREBUILT)
+	})
+
+	t.Run("runtime release binary", func(t *testing.T) {
+		loadKafkaBinary(t, false, RUNTIME)
+	})
+	t.Run("runtime debug binary", func(t *testing.T) {
+		loadKafkaBinary(t, true, RUNTIME)
+	})
+
+	t.Run("CO-RE release binary", func(t *testing.T) {
+		loadKafkaBinary(t, false, CORE)
+	})
+	t.Run("CO-RE debug binary", func(t *testing.T) {
+		loadKafkaBinary(t, true, CORE)
+	})
+}
+
+func loadKafkaBinary(t *testing.T, debug bool, binaryType BinaryType) {
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableKafkaMonitoring = true
+	cfg.BPFDebug = debug
+
+	cfg.AllowPrecompiledFallback = false
+	cfg.AllowRuntimeCompiledFallback = false
+	cfg.EnableCORE = false
+	switch binaryType {
+	case PREBUILT:
+		cfg.AllowPrecompiledFallback = true
+	case RUNTIME:
+		cfg.AllowRuntimeCompiledFallback = true
+	case CORE:
+		cfg.EnableCORE = true
+	}
+
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
@@ -127,20 +172,8 @@ func TestLoadKafkaBinary(t *testing.T) {
 	defer monitor.Stop()
 }
 
-// This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
-func TestLoadKafkaDebugBinary(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
+func TestLoadKafkaBinaryCORE(t *testing.T) {
 
-	cfg := config.New()
-	cfg.BPFDebug = true
-	// We don't have a way of enabling kafka without http at the moment
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableKafkaMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
 }
 
 func TestProduceClientIdEmptyString(t *testing.T) {
