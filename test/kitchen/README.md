@@ -23,7 +23,7 @@ bundle config set --local gemfile './Gemfile.local'
 
 `bundle install`
 
-Note: When building on M1 you might run into an error installing `ffi-yajl` gem. You should be able to get around that by setting the build `ldflags` for this gem in bundler (see [this Github Issue](https://github.com/chef/ffi-yajl/issues/115)):
+Note: When building on macOS M1, you might run into an error when installing the `ffi-yajl` gem. You should be able to get around that by setting the build `ldflags` for this gem in bundler configuration (see [this Github Issue](https://github.com/chef/ffi-yajl/issues/115)):
 ```bash
 bundle config build.ffi-yajl --with-ldflags="-Wl,-undefined,dynamic_lookup"
 ```
