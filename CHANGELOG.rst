@@ -58,7 +58,7 @@ This will not change the hostname of the Agent upon upgrading, but will add it t
 Enhancement Notes
 -----------------
 
-- Adds a new snmp.interface_status metric reflecting the same status as within NDM.
+- Adds a new ``snmp.interface_status`` metric reflecting the same status as within NDM.
 
 - APM: Ported a faster implementation of NormalizeTag with a fast-path for already normalized ASCII tags. Should marginally improve CPU usage of the trace-agent.
 
