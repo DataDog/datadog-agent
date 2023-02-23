@@ -941,21 +941,6 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 		}
 	}
 
-	if p.Config.NetworkEnabled {
-		activatedProbes = append(activatedProbes, probes.NetworkSelectors...)
-
-		// add probes depending on loaded modules
-		loadedModules, err := utils.FetchLoadedModules()
-		if err == nil {
-			if _, ok := loadedModules["veth"]; ok {
-				activatedProbes = append(activatedProbes, probes.NetworkVethSelectors...)
-			}
-			if _, ok := loadedModules["nf_nat"]; ok {
-				activatedProbes = append(activatedProbes, probes.NetworkNFNatSelectors...)
-			}
-		}
-	}
-
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
 	// Add syscall monitor probes
