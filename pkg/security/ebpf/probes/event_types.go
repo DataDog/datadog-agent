@@ -12,7 +12,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // NetworkNFNatSelectors is the list of probes that should be activated if the `nf_nat` module is loaded
@@ -431,20 +430,8 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			// List of probes required to capture DNS events
 			"dns": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.AllOf{Selectors: NetworkSelectors},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_socket_bind"}},
 				}}},
-		}
-	}
-
-	// add probes depending on loaded modules
-	loadedModules, err := utils.FetchLoadedModules()
-	if err == nil {
-		if _, ok := loadedModules["veth"]; ok {
-			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkVethSelectors...)
-		}
-		if _, ok := loadedModules["nf_nat"]; ok {
-			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkNFNatSelectors...)
 		}
 	}
 

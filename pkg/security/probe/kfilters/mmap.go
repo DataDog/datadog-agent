@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package kfilters
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ var mmapCapabilities = Capabilities{
 	},
 }
 
-func mmapOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
+func mmapOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {

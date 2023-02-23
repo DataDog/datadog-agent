@@ -54,12 +54,6 @@ func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
 	return buffer[:n], fullPath
 }
 
-// StatusClass returns an integer representing the status code class
-// Example: a 404 would return 400
-func (tx *ebpfHttpTx) StatusClass() int {
-	return (int(tx.Response_status_code) / 100) * 100
-}
-
 // RequestLatency returns the latency of the request in nanoseconds
 func (tx *ebpfHttpTx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {

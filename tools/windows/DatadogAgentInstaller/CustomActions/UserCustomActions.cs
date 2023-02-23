@@ -304,7 +304,7 @@ namespace Datadog.CustomActions
                     Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "conf.d"),
                     Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "auth_token"),
                     Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "datadog.yaml"),
-
+                    Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "system-probe.yaml"),
                     Path.Combine(session.Property("PROJECTLOCATION"), "embedded2"),
                     Path.Combine(session.Property("PROJECTLOCATION"), "embedded3"),
 

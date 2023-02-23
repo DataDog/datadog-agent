@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
@@ -166,13 +167,7 @@ func (m *Module) Start() error {
 	}
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
-		if triggerred, err := m.RunSelfTest(true); err != nil {
-			err = fmt.Errorf("failed to run self test: %s", err)
-			if !triggerred {
-				return err
-			}
-			seclog.Warnf("failed to run self tests: %s", err)
-		}
+		_ = m.RunSelfTest(true)
 	}
 
 	var policyProviders []rules.PolicyProvider
@@ -225,7 +220,7 @@ func (m *Module) Start() error {
 	}
 
 	if err := m.LoadPolicies(policyProviders, true); err != nil {
-		return fmt.Errorf("failed to load policies: %s", err)
+		seclog.Errorf("failed to load policies: %s", err)
 	}
 
 	m.wg.Add(1)
@@ -262,7 +257,7 @@ func (m *Module) Start() error {
 	return nil
 }
 
-func (m *Module) displayApplyRuleSetReport(report *sprobe.ApplyRuleSetReport) {
+func (m *Module) displayApplyRuleSetReport(report *kfilters.ApplyRuleSetReport) {
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 }
@@ -671,7 +666,7 @@ func NewModule(cfg *sconfig.Config, opts Opts) (module.Module, error) {
 }
 
 // RunSelfTest runs the self tests
-func (m *Module) RunSelfTest(sendLoadedReport bool) (bool, error) {
+func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 	prevProviders, providers := m.policyProviders, m.policyProviders
 	if len(prevProviders) > 0 {
 		defer func() {
@@ -685,12 +680,12 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) (bool, error) {
 	providers = append(providers, m.selfTester)
 
 	if err := m.LoadPolicies(providers, false); err != nil {
-		return false, err
+		return err
 	}
 
 	success, fails, err := m.selfTester.RunSelfTest()
 	if err != nil {
-		return true, err
+		return err
 	}
 
 	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
@@ -700,7 +695,7 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) (bool, error) {
 		ReportSelfTest(m.eventSender, m.statsdClient, success, fails)
 	}
 
-	return true, nil
+	return nil
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {

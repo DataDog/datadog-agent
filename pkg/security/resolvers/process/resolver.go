@@ -257,7 +257,7 @@ func (p *Resolver) DequeueExited() {
 func (p *Resolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext = pidContext
-	entry.Cookie = eval.NewCookie()
+	entry.Cookie = utils.NewCookie()
 	return entry
 }
 
