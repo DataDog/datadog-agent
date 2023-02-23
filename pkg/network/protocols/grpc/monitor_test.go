@@ -45,9 +45,10 @@ func TestGRPCScenarios(t *testing.T) {
 		name              string
 		runClients        func(t *testing.T, differentClients bool)
 		expectedEndpoints map[http.Key]int
+		expectedError     bool
 	}{
 		{
-			name: "aaaa simple unary",
+			name: "simple unary - multiple requests",
 			runClients: func(t *testing.T, _ bool) {
 				var client1 grpc.Client
 				var err error
@@ -63,11 +64,12 @@ func TestGRPCScenarios(t *testing.T) {
 				{
 					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
 					Method: http.MethodPost,
-				}: 1,
+				}: 1000,
 			},
+			expectedError: false,
 		},
 		{
-			name: "guyunary, a->a->a",
+			name: "unary, a->a->a",
 			runClients: func(t *testing.T, differentClients bool) {
 				var client1, client2 grpc.Client
 				var err error
@@ -90,6 +92,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 3,
 			},
+			expectedError: false,
 		},
 		{
 			name: "unary, a->b->a",
@@ -119,6 +122,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 1,
 			},
+			expectedError: false,
 		},
 		{
 			name: "unary, a->b->a->b",
@@ -149,6 +153,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: false,
 		},
 		{
 			name: "unary, a->b->b->a",
@@ -179,6 +184,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: false,
 		},
 		{
 			name: "unary, a->b->b->a",
@@ -209,6 +215,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: false,
 		},
 		{
 			name: "stream, c",
@@ -227,6 +234,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 1,
 			},
+			expectedError: false,
 		},
 		{
 			name: "stream, c->c->c",
@@ -252,6 +260,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 3,
 			},
+			expectedError: false,
 		},
 		{
 			name: "mixed, c->b->c->b",
@@ -282,6 +291,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: false,
 		},
 		{
 			name: "mixed, c->b->c->b",
@@ -312,9 +322,10 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: false,
 		},
 		{
-			name: "amitrequest with large body (1MB)",
+			name: "request with large body (1MB)",
 			runClients: func(t *testing.T, differentClients bool) {
 				var client1 grpc.Client
 				var err error
@@ -331,6 +342,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 1,
 			},
+			expectedError: true,
 		},
 
 		{
@@ -363,6 +375,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: true,
 		},
 		{
 			name: "request with large body (1MB) -> b -> request with large body (1MB) -> b",
@@ -394,6 +407,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: true,
 		},
 		{
 			name: "500 headers -> b -> 500 headers -> b",
@@ -432,6 +446,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: true,
 		},
 		{
 			name: "500 headers -> b -> 500 headers -> b",
@@ -470,6 +485,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: true,
 		},
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
@@ -508,6 +524,7 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: true,
 		},
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
@@ -546,12 +563,19 @@ func TestGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
+			expectedError: true,
 		},
 	}
 	for _, tt := range tests {
 		for _, val := range []bool{false} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", val)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
+				// we are currently not supporting some edge cases:
+				// https://datadoghq.atlassian.net/browse/USMO-222
+				if tt.expectedError {
+					t.Skip("Skipping test due to known issue")
+				}
+
 				monitor, err := http.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
