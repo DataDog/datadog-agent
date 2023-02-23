@@ -48,12 +48,11 @@ const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config      *config.Config
-	state       network.State
-	conntracker netlink.Conntracker
-	reverseDNS  dns.ReverseDNS
-	httpMonitor *http.Monitor
-	//kafkaMonitor *kafka.Monitor
+	config       *config.Config
+	state        network.State
+	conntracker  netlink.Conntracker
+	reverseDNS   dns.ReverseDNS
+	httpMonitor  *http.Monitor
 	ebpfTracer   connection.Tracer
 	bpfTelemetry *telemetry.EBPFTelemetry
 
@@ -425,7 +424,6 @@ func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
-	//t.kafkaMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
 }
