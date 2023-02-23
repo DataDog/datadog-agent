@@ -6,7 +6,9 @@
 package checkconfig
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"strconv"
 )
 
@@ -20,6 +22,10 @@ type Number int
 
 // Boolean can unmarshal yaml string or bool value
 type Boolean bool
+
+// InterfaceConfigs can unmarshal yaml []snmpintegration.InterfaceConfig or interface configs in json format
+// Example of interface configs in json format: `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]`
+type InterfaceConfigs []snmpintegration.InterfaceConfig
 
 // UnmarshalYAML unmarshalls StringArray
 func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -101,5 +107,24 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 		}
 	}
 	*mtcl = multi
+	return nil
+}
+
+// UnmarshalYAML unmarshalls InterfaceConfigs
+func (ic *InterfaceConfigs) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ifConfigs []snmpintegration.InterfaceConfig
+	err := unmarshal(&ifConfigs)
+	if err != nil {
+		var ifConfigJson string
+		err := unmarshal(&ifConfigJson)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal([]byte(ifConfigJson), &ifConfigs)
+		if err != nil {
+			return err
+		}
+	}
+	*ic = ifConfigs
 	return nil
 }

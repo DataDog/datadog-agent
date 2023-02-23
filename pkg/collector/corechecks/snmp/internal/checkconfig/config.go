@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
@@ -58,14 +59,6 @@ var uptimeMetricConfig = MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.
 
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
-
-// InterfaceConfig interface related configs (e.g. interface speed override)
-type InterfaceConfig struct {
-	MatchField string `yaml:"match_field"` // e.g. name, index
-	MatchValue string `yaml:"match_value"` // e.g. eth0 (name), 10 (index)
-	InSpeed    uint64 `yaml:"in_speed"`    // inbound speed override in bps
-	OutSpeed   uint64 `yaml:"out_speed"`   // outbound speed override in bps
-}
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
@@ -141,7 +134,7 @@ type InstanceConfig struct {
 
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
-	InterfaceConfigs []InterfaceConfig `yaml:"interface_configs"`
+	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -190,7 +183,7 @@ type CheckConfig struct {
 	DiscoveryInterval        int
 	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
-	InterfaceConfigs         []InterfaceConfig
+	InterfaceConfigs         []snmpintegration.InterfaceConfig
 }
 
 // RefreshWithProfile refreshes config based on profile

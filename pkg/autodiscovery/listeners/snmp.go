@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -420,6 +421,16 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		return convertToCommaSepTags(s.config.Tags), nil
 	case "min_collection_interval":
 		return fmt.Sprintf("%d", s.config.MinCollectionInterval), nil
+	case "interface_configs":
+		ifConfigs := s.config.InterfaceConfigs[s.deviceIP]
+		if len(ifConfigs) == 0 {
+			return "", nil
+		}
+		ifConfigsJson, err := json.Marshal(ifConfigs)
+		if err != nil {
+			return "", errors.New("invalid interface_configs")
+		}
+		return string(ifConfigsJson), nil
 	}
 	return "", ErrNotSupported
 }

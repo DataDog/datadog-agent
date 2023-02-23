@@ -8,6 +8,7 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"hash/fnv"
 	"net"
 	"reflect"
@@ -74,6 +75,9 @@ type Config struct {
 	Namespace                   string   `mapstructure:"namespace"`
 	Tags                        []string `mapstructure:"tags"`
 	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
+
+	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
+	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
