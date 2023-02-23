@@ -633,6 +633,9 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
+        if pkg.endswith("java"):
+            shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
+
         gotls_client_dir = os.path.join("testutil", "gotls_client")
         gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
         gotls_extra_path = os.path.join(pkg, gotls_client_dir)
