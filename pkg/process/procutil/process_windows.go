@@ -609,5 +609,9 @@ func ParseCmdLineArgs(cmdline string) (res []string) {
 			donestring = false
 		}
 	}
+
+	if len(cmdline) > 0 && len(res) == 0 {
+		log.Warnf("failed to parse the cmdline:%s", cmdline)
+	}
 	return res
 }
