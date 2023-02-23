@@ -57,3 +57,9 @@ jira_issue_type = "Task"
 github_team = "platform-integrations"
 github_labels = ["team/platform-integrations"]
 
+[teams."APM"]
+jira_project = "AIT"
+jira_component = "Trace Agent"
+jira_issue_type = "Task"
+github_team = "apm-go"
+github_labels = ["team/agent-apm"]
