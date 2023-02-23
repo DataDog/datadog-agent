@@ -45,7 +45,7 @@ namespace Datadog.CustomActions
     ""payload"": {{
         ""event_name"": ""{eventName}"",
         ""tags"": {{
-            ""agent_platform"": ""native"",
+            ""agent_platform"": ""Windows"",
             ""agent_version"": ""{ agentVersion}"",
             ""script_version"": ""{ installerVersion}""
         }}

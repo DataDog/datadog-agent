@@ -40,7 +40,7 @@ namespace CustomActions.Tests.Telemetry
     ""payload"": {{
         ""event_name"": ""{eventName}"",
         ""tags"": {{
-            ""agent_platform"": ""native"",
+            ""agent_platform"": ""Windows"",
             ""agent_version"": ""{CiInfo.PackageVersion}"",
             ""script_version"": ""{typeof(CiInfo).Assembly.GetName().Version}""
         }}
