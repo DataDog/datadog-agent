@@ -108,7 +108,7 @@ int kprobe___attach_mnt(struct pt_regs *ctx) {
         return 0;
     }
 
-    syscall->unshare_mntns.mnt = (struct mount *)PT_REGS_PARM1(ctx);
+    syscall->unshare_mntns.mnt = mnt;
     syscall->unshare_mntns.parent = (struct mount *)PT_REGS_PARM2(ctx);
     syscall->unshare_mntns.mp_dentry = get_mount_mountpoint_dentry(syscall->unshare_mntns.mnt);
 
