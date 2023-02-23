@@ -26,9 +26,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+type monitorState uint8
+
+const (
+	Disabled monitorState = iota
+	Running
+	NotRunning
+)
+
 var (
-	MonitorIsDisabledError = fmt.Errorf("http monitoring is disabled")
-	startupError           error
+	state        = Disabled
+	startupError error
 )
 
 // Monitor is responsible for:
@@ -51,15 +59,15 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
-			if !errors.Is(err, MonitorIsDisabledError) {
-				err = fmt.Errorf("could not instantiate http monitor: %w", err)
-			}
+			state = NotRunning
+			err = fmt.Errorf("could not instantiate http monitor: %w", err)
 			startupError = err
 		}
 	}()
 
 	if !c.EnableHTTPMonitoring {
-		return nil, MonitorIsDisabledError
+		state = Disabled
+		return nil, nil
 	}
 
 	kversion, err := kernel.HostVersion()
@@ -100,6 +108,8 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
+
+	state = Running
 
 	return &Monitor{
 		ebpfProgram:    mgr,
@@ -153,6 +163,11 @@ func (m *Monitor) Start() error {
 
 func (m *Monitor) GetUSMStats() map[string]interface{} {
 	if m == nil {
+		if state == Disabled {
+			return map[string]interface{}{
+				"Error": "http monitoring is disabled",
+			}
+		}
 		return map[string]interface{}{
 			"Error": startupError.Error(),
 		}
