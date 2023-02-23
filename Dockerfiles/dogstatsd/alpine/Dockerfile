@@ -1,7 +1,8 @@
-FROM alpine:3.12
+FROM alpine:3.17
+ARG TARGETARCH
 
 LABEL baseimage.os "alpine"
-LABEL baseimage.name "alpine:3.12"
+LABEL baseimage.name "alpine:3.17"
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
 ENV DOCKER_DD_AGENT=true
@@ -18,7 +19,7 @@ COPY entrypoint.sh probe.sh /
 RUN chmod 755 /entrypoint.sh /probe.sh
 COPY dogstatsd.yaml /etc/datadog-agent/dogstatsd.yaml
 COPY install_info /etc/datadog-agent/install_info
-COPY static/dogstatsd /dogstatsd
+COPY static/dogstatsd.$TARGETARCH /dogstatsd
 
 EXPOSE 8125/udp
 

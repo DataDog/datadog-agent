@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package kfilters
 
 import (
 	"fmt"
@@ -26,7 +26,7 @@ var mprotectCapabilities = Capabilities{
 	},
 }
 
-func mprotectOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
+func mprotectOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {

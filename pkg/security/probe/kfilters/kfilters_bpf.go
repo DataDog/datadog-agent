@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package kfilters
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
