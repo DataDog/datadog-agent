@@ -49,7 +49,7 @@ type OTLPSpan struct {
 	Start, End uint64
 	Attributes map[string]interface{}
 	Events     []OTLPSpanEvent
-	Links	   []OTLPSpanLink
+	Links      []OTLPSpanLink
 	StatusMsg  string
 	StatusCode ptrace.StatusCode
 }

@@ -62,7 +62,7 @@ var otlpTestSpanConfig = &testutil.OTLPSpan{
 		},
 	},
 	Links: []testutil.OTLPSpanLink{
-	       {
+		{
 			TraceID: "fedcba98765432100123456789abcdef",
 			SpanID:  "abcdef0123456789",
 			Attributes: map[string]interface{}{
@@ -81,18 +81,16 @@ var otlpTestSpanConfig = &testutil.OTLPSpan{
 			Dropped: 0,
 		},
 		{
-			TraceID: "abcdef0123456789abcdef0123456789",
-			SpanID:  "fedcba9876543210",
-			Attributes: map[string]interface{}{
-			},
-			Dropped: 2,
+			TraceID:    "abcdef0123456789abcdef0123456789",
+			SpanID:     "fedcba9876543210",
+			Attributes: map[string]interface{}{},
+			Dropped:    2,
 		},
 		{
-			TraceID: "abcdef0123456789abcdef0123456789",
-			SpanID:  "fedcba9876543210",
-			Attributes: map[string]interface{}{
-			},
-			Dropped: 0,
+			TraceID:    "abcdef0123456789abcdef0123456789",
+			SpanID:     "fedcba9876543210",
+			Attributes: map[string]interface{}{},
+			Dropped:    0,
 		},
 	},
 	StatusMsg:  "Error",
@@ -859,7 +857,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"w3c.tracestate":          "state",
 					"version":                 "v1.2.3",
 					"events":                  `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":"2.4"},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
-					"links":		   `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"links":                   `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
 					"error.stack":             "1/2/3",
@@ -936,18 +934,16 @@ func TestOTLPConvertSpan(t *testing.T) {
 						Dropped: 0,
 					},
 					{
-						TraceID: "abcdef0123456789abcdef0123456789",
-						SpanID:  "fedcba9876543210",
-						Attributes: map[string]interface{}{
-						},
-						Dropped: 2,
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						Attributes: map[string]interface{}{},
+						Dropped:    2,
 					},
 					{
-						TraceID: "abcdef0123456789abcdef0123456789",
-						SpanID:  "fedcba9876543210",
-						Attributes: map[string]interface{}{
-						},
-						Dropped: 0,
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						Attributes: map[string]interface{}{},
+						Dropped:    0,
 					},
 				},
 				StatusMsg:  "Error",
@@ -976,7 +972,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"w3c.tracestate":          "state",
 					"version":                 "v1.2.3",
 					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.4\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"links":		   `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"links":                   `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
 					"error.stack":             "1/2/3",
@@ -1056,19 +1052,16 @@ func TestOTLPConvertSpan(t *testing.T) {
 						Dropped: 0,
 					},
 					{
-						TraceID: "abcdef0123456789abcdef0123456789",
-						SpanID:  "fedcba9876543210",
-						Attributes: map[string]interface{}{
-						},
-						Dropped: 2,
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						Attributes: map[string]interface{}{},
+						Dropped:    2,
 					},
 					{
-						TraceID: "abcdef0123456789abcdef0123456789",
-						SpanID:  "fedcba9876543210",
-						Attributes: map[string]interface{}{
-						},
-						Dropped: 0,
-						
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						Attributes: map[string]interface{}{},
+						Dropped:    0,
 					},
 				},
 				StatusMsg:  "Error",
@@ -1096,7 +1089,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"version":                 "v1.2.3",
 					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
 					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.4\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"links":		   `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"links":                   `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
 					"error.stack":             "1/2/3",

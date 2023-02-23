@@ -415,11 +415,11 @@ func marshalLinks(links ptrace.SpanLinkSlice) string {
 		str.WriteString(hex.EncodeToString(s[:]))
 		str.WriteString(`"`)
 		if l.Attributes().Len() > 0 {
-		   	str.WriteString(`,"attributes":{`)
+			str.WriteString(`,"attributes":{`)
 			b := false
 			l.Attributes().Range(func(k string, v pcommon.Value) bool {
 				if b {
-				       	str.WriteString(",")
+					str.WriteString(",")
 				}
 				b = true
 				str.WriteString(`"`)
