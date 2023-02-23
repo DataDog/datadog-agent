@@ -75,6 +75,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
+		config.MaxHTTP2StatsBuffered,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
@@ -169,9 +170,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	var delta network.Delta
 	if t.httpMonitor != nil { //nolint
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), nil)
 	} else {
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil, nil)
 	}
 
 	t.activeBuffer.Reset()
@@ -273,7 +274,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 }
 
 func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
-	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring && !c.EnableHTTP2Support {
+	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")

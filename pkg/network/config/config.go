@@ -300,7 +300,6 @@ func New() *Config {
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smNS, "enable_java_tls_support")),
-		EnableHTTP2Support:          cfg.GetBool(join(smNS, "enable_http2_support")),
 		JavaAgentArgs:               cfg.GetString(join(smNS, "java_agent_args")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "enable_go_tls_support")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),

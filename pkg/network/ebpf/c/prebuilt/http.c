@@ -20,6 +20,7 @@
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/http.h"
 #include "protocols/http/buffer.h"
+#include "protocols/http2/decoding.h"
 #include "protocols/tls/https.h"
 #include "protocols/tls/tags-types.h"
 
@@ -57,6 +58,60 @@ int socket__http_filter(struct __sk_buff* skb) {
     return 0;
 }
 
+SEC("socket/http2_filter")
+int socket__http2_filter(struct __sk_buff *skb) {
+    const __u32 zero = 0;
+    http2_iterations_key_t iterations_key;
+    bpf_memset(&iterations_key, 0, sizeof(http2_iterations_key_t));
+    if (!read_conn_tuple_skb(skb, &iterations_key.skb_info, &iterations_key.tup)) {
+        return 0;
+    }
+
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
+    if (tail_call_state == NULL) {
+        const http2_tail_call_state_t iteration_value = {};
+        bpf_map_update_with_telemetry(http2_iterations, &iterations_key, &iteration_value, BPF_NOEXIST);
+        tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
+        if (tail_call_state == NULL) {
+            return 0;
+        }
+    }
+
+    if (is_tcp_termination(&iterations_key.skb_info)) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
+        goto delete_iteration;
+    }
+
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
+    if (http2_ctx == NULL) {
+        goto delete_iteration;
+    }
+    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx->http2_stream_key.tup = iterations_key.tup;
+    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    http2_ctx->dynamic_index.tup = iterations_key.tup;
+    iterations_key.skb_info.data_off += tail_call_state->offset;
+
+    __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
+    if (read_size <= 0 || read_size == -1) {
+        goto delete_iteration;
+    }
+    if (iterations_key.skb_info.data_off + read_size >= skb->len) {
+        goto delete_iteration;
+    }
+
+    tail_call_state->iteration += 1;
+    tail_call_state->offset += read_size;
+    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
+        bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
+    }
+
+delete_iteration:
+    bpf_map_delete_elem(&http2_iterations, &iterations_key);
+
+    return 0;
+}
+
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
@@ -71,6 +126,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_flush_batch(ctx);
+    http2_flush_batch(ctx);
     return 0;
 }
 

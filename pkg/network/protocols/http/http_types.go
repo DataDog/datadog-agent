@@ -12,6 +12,7 @@ package http
 #include "../../ebpf/c/tracer.h"
 #include "../../ebpf/c/protocols/tls/tags-types.h"
 #include "../../ebpf/c/protocols/http/types.h"
+#include "../../ebpf/c/protocols/http2/decoding-defs.h"
 #include "../../ebpf/c/protocols/classification/defs.h"
 */
 import "C"
@@ -21,6 +22,7 @@ type sslSock C.ssl_sock_t
 type sslReadArgs C.ssl_read_args_t
 
 type ebpfHttpTx C.http_transaction_t
+type ebpfHttp2Tx C.http2_stream_t
 
 type libPath C.lib_path_t
 
@@ -41,7 +43,8 @@ const (
 )
 
 const (
-	HTTPBufferSize = C.HTTP_BUFFER_SIZE
+	HTTPBufferSize  = C.HTTP_BUFFER_SIZE
+	HTTP2BufferSize = C.HTTP2_BUFFER_SIZE
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE
 )
@@ -61,3 +64,29 @@ var (
 		Go:      "tls.library:go",
 	}
 )
+
+type StaticTableEnumKey = C.static_table_key_t
+
+const (
+	MethodKey StaticTableEnumKey = C.kMethod
+	PathKey   StaticTableEnumKey = C.kPath
+	StatusKey StaticTableEnumKey = C.kStatus
+)
+
+type StaticTableEnumValue = C.static_table_key_t
+
+const (
+	GetValue       StaticTableEnumValue = C.kGET
+	PostValue      StaticTableEnumValue = C.kPOST
+	EmptyPathValue StaticTableEnumValue = C.kEmptyPath
+	IndexPathValue StaticTableEnumValue = C.kIndexPath
+	K200Value      StaticTableEnumValue = C.k200
+	K204Value      StaticTableEnumValue = C.k204
+	K206Value      StaticTableEnumValue = C.k206
+	K304Value      StaticTableEnumValue = C.k304
+	K400Value      StaticTableEnumValue = C.k400
+	K404Value      StaticTableEnumValue = C.k404
+	K500Value      StaticTableEnumValue = C.k500
+)
+
+type StaticTableValue = C.static_table_entry_t
