@@ -20,7 +20,7 @@
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
 
-// This determines the size of the payload fragment that is captured for each HTTP2 request
+// This determines the size of the payload fragment that is captured for each HTTP2 request.
 #define HTTP2_BUFFER_SIZE (8 * 20)
 
 // The flag which will be send in the data/header frame which indicates end of stream have benn sent.

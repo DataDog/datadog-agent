@@ -43,6 +43,7 @@ type Monitor struct {
 	statkeeper     *httpStatKeeper
 	processMonitor *monitor.ProcessMonitor
 
+	http2Enabled bool
 	// termination
 	closeFilterFn func()
 }
@@ -59,6 +60,10 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	if !c.EnableHTTPMonitoring {
 		return nil, fmt.Errorf("http monitoring is disabled")
+	}
+
+	if !c.EnableHTTP2Monitoring {
+		return nil, fmt.Errorf("http2 monitoring is disabled")
 	}
 
 	kversion, err := kernel.HostVersion()
@@ -195,14 +200,19 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
-
-	return &Monitor{
+	finalMonitor := &Monitor{
 		ebpfProgram:    mgr,
 		telemetry:      telemetry,
-		closeFilterFn:  closeFilterFn,
 		statkeeper:     statkeeper,
 		processMonitor: processMonitor,
-	}, nil
+		closeFilterFn:  closeFilterFn,
+	}
+
+	if c.EnableHTTP2Monitoring {
+		finalMonitor.http2Enabled = true
+	}
+
+	return finalMonitor, nil
 }
 
 // Start consuming HTTP events
@@ -236,15 +246,17 @@ func (m *Monitor) Start() error {
 	}
 	m.httpConsumer.Start()
 
-	m.http2Consumer, err = events.NewConsumer(
-		"http2",
-		m.ebpfProgram.Manager.Manager,
-		m.processHTTP2,
-	)
-	if err != nil {
-		return err
+	if m.http2Enabled {
+		m.http2Consumer, err = events.NewConsumer(
+			"http2",
+			m.ebpfProgram.Manager.Manager,
+			m.processHTTP2,
+		)
+		if err != nil {
+			return err
+		}
+		m.http2Consumer.Start()
 	}
-	m.http2Consumer.Start()
 
 	err = m.ebpfProgram.Start()
 	if err != nil {
@@ -275,6 +287,17 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 	}
 
 	m.httpConsumer.Sync()
+	m.telemetry.log()
+	return m.statkeeper.GetAndResetAllStats()
+}
+
+// GetHTTP2Stats returns a map of HTTP2 stats stored in the following format:
+// [source, dest tuple, request path] -> RequestStats object
+func (m *Monitor) GetHTTP2Stats() map[Key]*RequestStats {
+	if m == nil || m.http2Enabled == false {
+		return nil
+	}
+
 	m.http2Consumer.Sync()
 	m.telemetry.log()
 	return m.statkeeper.GetAndResetAllStats()

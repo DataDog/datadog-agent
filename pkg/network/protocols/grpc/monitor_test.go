@@ -32,6 +32,7 @@ const (
 func TestGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = false
 	cfg.BPFDebug = true
@@ -585,7 +586,7 @@ func TestGRPCScenarios(t *testing.T) {
 
 				res := make(map[http.Key]int)
 				require.Eventually(t, func() bool {
-					stats := monitor.GetHTTPStats()
+					stats := monitor.GetHTTP2Stats()
 					for key, stat := range stats {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := 0

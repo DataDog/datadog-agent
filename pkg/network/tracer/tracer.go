@@ -434,7 +434,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	active := t.activeBuffer.Connections()
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), t.httpMonitor.GetHTTP2Stats())
 	t.activeBuffer.Reset()
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
