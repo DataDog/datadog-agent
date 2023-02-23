@@ -268,7 +268,6 @@ function sed_inplace_arg() {
 
 function new_config() {
     i_cmd="$(sed_inplace_arg)"
-    if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then i_cmd="-i"; fi
     $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"$etc_dir/datadog.yaml\""
     if [ "$site" ]; then
         $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"$etc_dir/datadog.yaml\""
