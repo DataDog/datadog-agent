@@ -75,7 +75,10 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
-	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
+	// EnableHTTP2Support specifies whether the tracer should monitor HTTP traffic
+	EnableHTTP2Support bool
+
+	// EnableHTTPSMonitoring specifies whether the tracer should monitor HTTPS traffic
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
@@ -297,6 +300,7 @@ func New() *Config {
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smNS, "enable_java_tls_support")),
+		EnableHTTP2Support:          cfg.GetBool(join(smNS, "enable_http2_support")),
 		JavaAgentArgs:               cfg.GetString(join(smNS, "java_agent_args")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "enable_go_tls_support")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),

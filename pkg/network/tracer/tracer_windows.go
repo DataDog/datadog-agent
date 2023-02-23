@@ -273,7 +273,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 }
 
 func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
-	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
+	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring && !c.EnableHTTP2Support {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")

@@ -158,6 +158,29 @@ func TestEnableJavaTLSSupport(t *testing.T) {
 	})
 }
 
+func TestEnableHTTP2Support(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP2.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Support)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_SUPPORT", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Support)
+	})
+}
+
 func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	newConfig(t)
 

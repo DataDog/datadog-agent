@@ -83,6 +83,7 @@ func TestGetStats(t *testing.T) {
 	httpSupported := httpSupported(t)
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTP2Support = true
 	tr := setupTracer(t, cfg)
 
 	<-time.After(time.Second)

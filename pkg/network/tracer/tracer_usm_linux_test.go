@@ -600,6 +600,7 @@ func TestJavaInjection(t *testing.T) {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableJavaTLSSupport = true
+	cfg.EnableHTTP2Support = true
 
 	dir, _ := testutil.CurDir()
 	{ // create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir

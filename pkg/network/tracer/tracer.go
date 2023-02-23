@@ -134,6 +134,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		}
 		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 		config.EnableHTTPMonitoring = false
+		config.EnableHTTP2Support = false
 		config.EnableHTTPSMonitoring = false
 	}
 
@@ -897,5 +898,9 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 	}
 
 	log.Info("http monitoring enabled")
+
+	if c.EnableHTTP2Support {
+		log.Info("http2 monitoring enabled")
+	}
 	return monitor
 }
