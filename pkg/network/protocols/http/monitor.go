@@ -62,7 +62,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("http monitoring is disabled")
 	}
 
-	if !c.EnableHTTP2Monitoring {
+	if !c.EnableHTTP2Support {
 		return nil, fmt.Errorf("http2 monitoring is disabled")
 	}
 
@@ -208,7 +208,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		closeFilterFn:  closeFilterFn,
 	}
 
-	if c.EnableHTTP2Monitoring {
+	if c.EnableHTTP2Support {
 		finalMonitor.http2Enabled = true
 	}
 

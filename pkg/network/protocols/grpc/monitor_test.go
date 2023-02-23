@@ -32,7 +32,7 @@ const (
 func TestGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableHTTP2Support = true
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = false
 	cfg.BPFDebug = true
