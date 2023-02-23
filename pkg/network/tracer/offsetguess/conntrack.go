@@ -272,10 +272,15 @@ func (e *conntrackEventGenerator) Generate(status netebpf.GuessWhat, expected *f
 	if status >= netebpf.GuessCtTupleOrigin &&
 		status <= netebpf.GuessCtNet {
 		c, err := net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
-		if err == nil {
-			e.populateUDPExpectedValues(c, expected)
-			_, err = c.Write([]byte("foo"))
+		if err != nil {
+			return err
 		}
+
+		if err = e.populateUDPExpectedValues(c, expected); err != nil {
+			return err
+		}
+
+		_, err = c.Write([]byte("foo"))
 		return err
 	}
 

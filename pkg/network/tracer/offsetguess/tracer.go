@@ -230,7 +230,10 @@ func generateRandomIPv6Address() net.IP {
 	base := []byte{0x87, 0x58, 0x60, 0x31}
 	addr := make([]byte, 16)
 	copy(addr, base)
-	rand.Read(addr[4:])
+	_, err := rand.Read(addr[4:])
+	if err != nil {
+		panic(err)
+	}
 
 	return addr
 }
