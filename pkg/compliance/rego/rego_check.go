@@ -244,8 +244,7 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 	return nil
 }
 
-func (r *regoCheck) buildNormalInput(env env.Env) (ast.Value, error) {
-	statsClient := env.StatsdClient()
+func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 	contextInput := r.buildContextInput(env)
 
 	input := make(map[string]interface{})
@@ -278,8 +277,9 @@ func (r *regoCheck) buildNormalInput(env env.Env) (ast.Value, error) {
 		var inputType string
 
 		defer func() {
+			client := env.StatsdClient()
 			regoInputKind := regoInput.Kind()
-			if statsClient == nil || regoInputKind == compliance.KindConstants {
+			if client == nil || regoInputKind == compliance.KindConstants {
 				return
 			}
 			tags := []string{
@@ -287,10 +287,10 @@ func (r *regoCheck) buildNormalInput(env env.Env) (ast.Value, error) {
 				"rule_input_type:" + string(regoInputKind),
 				"agent_version:" + version.AgentVersion,
 			}
-			if err := statsClient.Count(metrics.MetricInputsHits, 1, tags, 1.0); err != nil {
+			if err := client.Count(metrics.MetricInputsHits, 1, tags, 1.0); err != nil {
 				log.Errorf("failed to send input metric: %v", err)
 			}
-			if err := statsClient.Timing(metrics.MetricInputsDuration, time.Since(start), tags, 1.0); err != nil {
+			if err := client.Timing(metrics.MetricInputsDuration, time.Since(start), tags, 1.0); err != nil {
 				log.Errorf("failed to send input metric: %v", err)
 			}
 		}()
@@ -413,19 +413,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (ast.Value, error) {
 		}
 	}
 
-	parsedInput, parsedInputSize, err := regoParseRawInput(input)
-	if err != nil {
-		return nil, err
-	}
-
-	if statsClient != nil {
-		tags := []string{"rule_id:" + r.ruleID, "agent_version:" + version.AgentVersion}
-		if err := statsClient.Gauge(metrics.MetricInputsSize, float64(parsedInputSize), tags, 1.0); err != nil {
-			log.Errorf("failed to send input size metric: %v", err)
-		}
-	}
-
-	return parsedInput, nil
+	return input, nil
 }
 
 func extractTagName(input *compliance.RegoInput) string {
@@ -451,7 +439,7 @@ func buildMappedInputs(inputs []regoInput) map[string]compliance.RegoInput {
 	return res
 }
 
-func regoParseRawInput(x interface{}) (ast.Value, int, error) {
+func regoParseRawInput(x eval.RegoInputMap) (ast.Value, int, error) {
 	bs, err := json.Marshal(x)
 	if err != nil {
 		return nil, 0, err
@@ -553,17 +541,18 @@ func (r *regoCheck) Check(env env.Env) compliance.Reports {
 
 	log.Debugf("%s: rego check starting", r.ruleID)
 
-	var input ast.Value
+	var input eval.RegoInputMap
 	providedInput := env.ProvidedInput(r.ruleID)
 
-	var err error
 	if providedInput != nil {
-		input, _, err = regoParseRawInput(providedInput)
+		input = providedInput
 	} else {
-		input, err = r.buildNormalInput(env)
-	}
-	if err != nil {
-		return buildRegoErrorReports(err)
+		normalInput, err := r.buildNormalInput(env)
+		if err != nil {
+			return buildRegoErrorReports(err)
+		}
+
+		input = normalInput
 	}
 
 	log.Debugf("rego eval input: %+v", input)
@@ -577,12 +566,24 @@ func (r *regoCheck) Check(env env.Env) compliance.Reports {
 		return nil
 	}
 
+	parsedInput, parsedInputSize, err := regoParseRawInput(input)
+	if err != nil {
+		return buildRegoErrorReports(err)
+	}
+
+	if statsClient := env.StatsdClient(); statsClient != nil {
+		tags := []string{"rule_id:" + r.ruleID, "agent_version:" + version.AgentVersion}
+		if err := statsClient.Gauge(metrics.MetricInputsSize, float64(parsedInputSize), tags, 1.0); err != nil {
+			log.Errorf("failed to send input size metric: %v", err)
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
 	defer cancel()
 
 	args := make([]func(*rego.Rego), len(r.regoModuleArgs), len(r.regoModuleArgs)+2)
 	copy(args, r.regoModuleArgs)
-	args = append(args, rego.ParsedInput(input))
+	args = append(args, rego.ParsedInput(parsedInput))
 
 	regoMod := rego.New(args...)
 	results, err := regoMod.Eval(ctx)
