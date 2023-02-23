@@ -1,6 +1,7 @@
 using Microsoft.Deployment.WindowsInstaller;
 using System.IO;
 using System;
+using System.Reflection;
 using Datadog.CustomActions.Extensions;
 
 namespace Datadog.CustomActions
@@ -33,7 +34,7 @@ namespace Datadog.CustomActions
                 output.Write($@"---
 install_method:
   tool: {installMethod}
-  tool_version: windows_msi_next_gen
+  tool_version: windows_msi_next_gen_{Assembly.GetExecutingAssembly().GetName().Version}
   installer_version: {CiInfo.PackageVersion}
 ");
             }
