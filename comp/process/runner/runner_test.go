@@ -6,8 +6,6 @@
 package runner
 
 import (
-	"github.com/DataDog/datadog-agent/comp/process/containercheck"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"testing"
 	"time"
 
@@ -16,6 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"

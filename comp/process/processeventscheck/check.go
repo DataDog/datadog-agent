@@ -6,10 +6,10 @@
 package processeventscheck
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
 
 var _ types.CheckComponent = (*check)(nil)

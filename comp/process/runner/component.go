@@ -8,10 +8,10 @@ package runner
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/process/types"
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )

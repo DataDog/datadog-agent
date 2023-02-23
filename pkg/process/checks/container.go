@@ -7,12 +7,12 @@ package checks
 
 import (
 	"context"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"

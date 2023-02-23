@@ -6,11 +6,11 @@
 package checks
 
 import (
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
