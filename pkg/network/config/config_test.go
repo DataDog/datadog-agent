@@ -92,6 +92,27 @@ func TestEnableGoTLSSupport(t *testing.T) {
 	})
 }
 
+func TestEnableHTTPStatsByStatusCode(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-EnableHTTPStatusCodeAggr.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPStatsByStatusCode)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_STATS_BY_STATUS_CODE", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPStatsByStatusCode)
+	})
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig(t)
