@@ -194,8 +194,8 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 	}
 
 	if config.Datadog.GetBool("remote_configuration.enabled") {
-		if err := getRemoteConfigDB(fb); err != nil {
-			log.Errorf("Could not export remote-config database: %s", err)
+		if err := exportRemoteConfig(fb); err != nil {
+			log.Errorf("Could not export remote-config state: %s", err)
 		}
 	}
 

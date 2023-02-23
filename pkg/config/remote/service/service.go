@@ -489,6 +489,7 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 		ConfigState:     map[string]*pbgo.FileMetaState{},
 		DirectorState:   map[string]*pbgo.FileMetaState{},
 		TargetFilenames: map[string]string{},
+		ActiveClients:   s.clients.activeClients(),
 	}
 
 	for metaName, metaState := range state.ConfigState {

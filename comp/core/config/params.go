@@ -5,8 +5,6 @@
 
 package config
 
-import "github.com/DataDog/datadog-agent/cmd/agent/common"
-
 // Params defines the parameters for the config component.
 type Params struct {
 	// confFilePath is the path at which to look for configuration, usually
@@ -66,7 +64,7 @@ func NewAgentParamsWithoutSecrets(confFilePath string, options ...func(*Params))
 }
 
 func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func(*Params)) Params {
-	params := NewParams(common.DefaultConfPath, options...)
+	params := NewParams(DefaultConfPath, options...)
 	params.confFilePath = confFilePath
 	params.configLoadSecrets = configLoadSecrets
 	return params
@@ -74,7 +72,7 @@ func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func
 
 // NewSecurityAgentParams creates a new instance of Params for the Security Agent.
 func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...func(*Params)) Params {
-	params := NewParams(common.DefaultConfPath, options...)
+	params := NewParams(DefaultConfPath, options...)
 
 	// By default, we load datadog.yaml and then merge security-agent.yaml
 	if len(securityAgentConfigFilePaths) > 0 {
@@ -89,7 +87,7 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 }
 
 func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Params {
-	params := NewParams(common.DefaultConfPath, options...)
+	params := NewParams(DefaultConfPath, options...)
 	params.confFilePath = configFilePath
 	params.configName = "datadog-cluster"
 	return params

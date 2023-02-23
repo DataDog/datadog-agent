@@ -77,6 +77,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.LogForOneShot("CORE", "off", false),
 				}),
+				flare.Module,
 				core.Bundle,
 			)
 		},

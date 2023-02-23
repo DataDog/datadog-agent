@@ -1319,6 +1319,23 @@ func LoadWithoutSecret() (*Warnings, error) {
 	return LoadDatadogCustom(Datadog, "datadog.yaml", false)
 }
 
+// Merge will merge additional configuration into an existing configuration
+func Merge(configPaths []string) error {
+	for _, configPath := range configPaths {
+		if f, err := os.Open(configPath); err == nil {
+			err = Datadog.MergeConfig(f)
+			_ = f.Close()
+			if err != nil {
+				return fmt.Errorf("error merging %s config file: %w", configPath, err)
+			}
+		} else {
+			log.Infof("no config exists at %s, ignoring...", configPath)
+		}
+	}
+
+	return nil
+}
+
 func findUnknownKeys(config Config) []string {
 	var unknownKeys []string
 	knownKeys := config.GetKnownKeys()
