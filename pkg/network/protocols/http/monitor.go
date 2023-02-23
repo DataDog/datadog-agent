@@ -167,11 +167,11 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	}
 
 	if startupError != nil {
-		response["Error"] = startupError.Error()
+		response["error"] = startupError.Error()
 	}
 
 	if m != nil {
-		response["Error"] = m.telemetry.then
+		response["last_check"] = m.telemetry.then
 	}
 
 	return response
