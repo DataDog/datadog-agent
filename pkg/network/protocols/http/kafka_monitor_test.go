@@ -81,7 +81,7 @@ func TestSanity(t *testing.T) {
 	cancel()
 	require.NoError(t, err, "record had a produce error while synchronously producing")
 
-	fetches := client.PollFetches(nil)
+	fetches := client.PollFetches(context.Background())
 	errs := fetches.Errors()
 	for _, err := range errs {
 		t.Errorf("PollFetches error: %+v", err)
