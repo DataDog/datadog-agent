@@ -162,7 +162,7 @@ func (m *Monitor) Start() error {
 }
 
 func (m *Monitor) GetUSMStats() map[string]interface{} {
-	if m == nil {
+	if m == nil || state != Running {
 		if state == Disabled {
 			return map[string]interface{}{
 				"Error": "http monitoring is disabled",
