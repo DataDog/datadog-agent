@@ -17,14 +17,16 @@
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_PATH_LEN 30
 
-#define MAX_INTERESTING_STATIC_TABLE_INDEX 15
+// The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
 
 // This determines the size of the payload fragment that is captured for each HTTP2 request
 #define HTTP2_BUFFER_SIZE (8 * 20)
 
+// The flag which will be send in the data/header frame which indicates end of stream have benn sent.
 #define HTTP2_END_OF_STREAM 0x1
 
+// Http2 max batch size.
 #define HTTP2_BATCH_SIZE 10
 
 typedef enum {
