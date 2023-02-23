@@ -295,6 +295,16 @@ func unsafeStringSlice(key string) []byte {
 //				model.ProtocolType_protocolHTTP2,
 //			},
 //		}
+//
+// Additionnally, if the staticTags contains TLS tags, the TLS protocol is added
+// to the protocol stack, giving an output like this:
+//
+//	&model.ProtocolStack{
+//			Stack: []model.ProtocolType{
+//				model.ProtocolType_protocolTLS,
+//				model.ProtocolType_protocolHTTP2,
+//			},
+//		}
 func formatProtocol(protocol network.ProtocolType, staticTags uint64) *model.ProtocolStack {
 	stack := make([]model.ProtocolType, 0, 1)
 	if network.IsTLSTag(staticTags) {
