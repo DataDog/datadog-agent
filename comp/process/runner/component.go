@@ -8,6 +8,7 @@ package runner
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 
 	"go.uber.org/fx"
 
@@ -20,12 +21,8 @@ import (
 // Component is the component type.
 type Component interface {
 	GetChecks() []checks.Check
+	GetProvidedChecks() []types.CheckComponent
 	Run(ctx context.Context) error
-}
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
 }
 
 // Module defines the fx options for this component.

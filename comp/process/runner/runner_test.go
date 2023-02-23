@@ -99,11 +99,11 @@ func TestProvidedChecks(t *testing.T) {
 		processcheck.Module,
 		containercheck.Module,
 	), func(r Component) {
-		providedChecks := r.GetChecks()
+		providedChecks := r.GetProvidedChecks()
 
 		var checkNames []string
 		for _, check := range providedChecks {
-			checkNames = append(checkNames, check.Name())
+			checkNames = append(checkNames, check.Object().Name())
 		}
 		t.Log("Provided Checks:", checkNames)
 
