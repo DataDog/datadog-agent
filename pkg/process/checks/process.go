@@ -536,10 +536,12 @@ func skipProcess(
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
 ) bool {
-	if len(fp.Cmdline) == 0 {
-		return true
+	cl := fp.Cmdline
+	if len(cl) == 0 {
+		cl = []string{fp.Exe}
+		log.Debugf("empty commandline, using exe:[%s] to check if the process should be skipped", cl)
 	}
-	if isDisallowListed(fp.Cmdline, disallowList) {
+	if isDisallowListed(cl, disallowList) {
 		return true
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
