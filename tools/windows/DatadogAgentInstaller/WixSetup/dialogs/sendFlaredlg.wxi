@@ -1,6 +1,6 @@
 <Include>
 	<Dialog Id="SendFlareDlg" Width="370" Height="270" Title="!(loc.SendFlareDialog_Title)">
-		<Control Id="KeyFromDefault" Type="Edit" Height="15" Width="320" X="25" Y="148"
+		<Control Id="KeyFromDefault" Type="Edit" Height="15" Width="320" X="25" Y="150"
 				 Property="EMAIL" />
 		<Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
 				 Text="Back">
@@ -11,7 +11,7 @@
 
 		</Control>
 		<Control Id="Finish" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes"
-				 Text="!(loc.WixUIFinish)">
+				 Text="Exit">
 			<Publish Event="EndDialog" Value="Exit">1</Publish>
 		</Control>
 
@@ -22,7 +22,9 @@
 				 Transparent="yes" NoPrefix="yes" Text="!(loc.SendFlareDialogTitle)" />
 		<Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15"
 				 Transparent="yes" NoPrefix="yes" Text="!(loc.SendFlareDialogDescription)" />
-		<Control Id="EnterEmail" Type="Text" Height="32" Width="320" X="25" Y="116"
-				 Text="!(loc.SendFlareDialogKeyLabel)" />
+		<Control Id="SendFlareHelpText" Type="Text" Height="40" Width="320" X="25" Y="115"
+				 Text="!(loc.SendFlareHelpText)" />
+		<Control Id="EnterEmail" Type="Text" Height="32" Width="320" X="25" Y="75"
+		         Text="!(loc.SendFlareDialogKeyLabel)" />
 	</Dialog>
 </Include>

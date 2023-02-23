@@ -8,8 +8,8 @@
 		<Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="!(loc.FatalErrorBitmap)" />
 		<Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
 		<Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="60" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorTitle)" />
-		<Control Id="Description" Type="Text" X="135" Y="70" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDescription1)" />
-		<Control Id="ViewLogDescription" Type="Text" X="135" Y="110" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDialog_ViewLogDescription)" />
+		<Control Id="Description" Type="Text" X="135" Y="60" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDescription1)" />
+		<Control Id="ViewLogDescription" Type="Text" X="135" Y="100" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDialog_ViewLogDescription)" />
 		<Control Id="FinishDescription" Type="Text" X="135" Y="150" Width="220" Height="20" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDescription2)" />
 	</Dialog>
 
