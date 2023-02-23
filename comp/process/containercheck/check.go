@@ -12,8 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 )
 
+var _ types.CheckComponent = (*check)(nil)
+
 type check struct {
-	*checks.ContainerCheck
+	containerCheck *checks.ContainerCheck
 }
 
 type dependencies struct {
@@ -22,8 +24,12 @@ type dependencies struct {
 
 func newCheck(deps dependencies) types.ProvidesCheck {
 	return types.ProvidesCheck{
-		Check: &check{
-			ContainerCheck: checks.NewContainerCheck(),
+		CheckComponent: &check{
+			containerCheck: checks.NewContainerCheck(),
 		},
 	}
+}
+
+func (c *check) Object() checks.Check {
+	return c.containerCheck
 }

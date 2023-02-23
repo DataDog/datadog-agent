@@ -13,10 +13,6 @@ import (
 
 // team: processes
 
-// Component is the component type.
-type Component interface {
-}
-
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newCheck),

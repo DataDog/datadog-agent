@@ -6,10 +6,10 @@
 package types
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
 
 // Payload defines payload from the check
@@ -18,16 +18,16 @@ type Payload struct {
 	Message   []model.MessageBody
 }
 
-// Check defines an interface implemented by checks
-type Check interface {
-	checks.Check
+// CheckComponent defines an interface implemented by checks
+type CheckComponent interface {
+	Object() checks.Check
 }
 
 // ProvidesCheck wraps a check implementation for consumption in components
 type ProvidesCheck struct {
 	fx.Out
 
-	Check Check `group:"check"`
+	CheckComponent CheckComponent `group:"check"`
 }
 
 type RTResponse []*model.CollectorStatus

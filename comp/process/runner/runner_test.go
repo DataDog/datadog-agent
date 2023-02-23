@@ -6,6 +6,8 @@
 package runner
 
 import (
+	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"testing"
 	"time"
 
@@ -80,5 +82,31 @@ func TestRunnerRealtime(t *testing.T) {
 		assert.Eventually(t, func() bool {
 			return r.(*runner).IsRealtimeEnabled()
 		}, 1*time.Second, 10*time.Millisecond)
+	})
+}
+
+func TestProvidedChecks(t *testing.T) {
+	fxutil.Test(t, fx.Options(
+		fx.Supply(
+			&checks.HostInfo{},
+			&sysconfig.Config{},
+		),
+
+		Module,
+		submitter.MockModule,
+
+		// Checks
+		processcheck.Module,
+		containercheck.Module,
+	), func(r Component) {
+		providedChecks := r.GetChecks()
+
+		var checkNames []string
+		for _, check := range providedChecks {
+			checkNames = append(checkNames, check.Name())
+		}
+		t.Log("Provided Checks:", checkNames)
+
+		assert.Len(t, providedChecks, 2)
 	})
 }

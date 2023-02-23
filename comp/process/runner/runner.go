@@ -7,7 +7,6 @@ package runner
 
 import (
 	"context"
-
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -19,7 +18,8 @@ import (
 
 // runner implements the Component.
 type runner struct {
-	checkRunner *processRunner.CheckRunner
+	checkRunner    *processRunner.CheckRunner
+	providedChecks []types.CheckComponent
 }
 
 type dependencies struct {
@@ -29,20 +29,21 @@ type dependencies struct {
 	Submitter  submitter.Component
 	RTNotifier <-chan types.RTResponse `optional:"true"`
 
-	Checks   []checks.Check
+	Checks   []types.CheckComponent `group:"check"`
 	HostInfo *checks.HostInfo
 	SysCfg   *sysconfig.Config
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := processRunner.NewRunner(deps.SysCfg, deps.HostInfo, deps.Checks, deps.RTNotifier)
+	c, err := processRunner.NewRunner(deps.SysCfg, deps.HostInfo, filterEnabledChecks(deps.Checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
 	c.Submitter = deps.Submitter
 
 	runner := &runner{
-		checkRunner: c,
+		checkRunner:    c,
+		providedChecks: deps.Checks,
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -62,12 +63,28 @@ func (r *runner) Stop(context.Context) error {
 	return nil
 }
 
-// IsRealtimeEnabled
+func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {
+	enabledChecks := make([]checks.Check, 0, len(providedChecks))
+	for _, check := range providedChecks {
+		if check.Object().IsEnabled() {
+			enabledChecks = append(enabledChecks, check.Object())
+		}
+	}
+	return enabledChecks
+}
+
+// IsRealtimeEnabled checks the runner to see if it is running the process check in realtime mode.
+// This is primarily used in tests.
 func (r *runner) IsRealtimeEnabled() bool {
 	return r.checkRunner.IsRealTimeEnabled()
 }
 
+// GetChecks returns the checks that are currently enabled and provided to the runner
 func (r *runner) GetChecks() []checks.Check {
-	// TODO: Change this to use `types.Check` once checks are migrated to components
 	return r.checkRunner.GetChecks()
+}
+
+// GetProvidedChecks returns all provided checks, enabled or not.
+func (r *runner) GetProvidedChecks() []types.CheckComponent {
+	return r.providedChecks
 }
