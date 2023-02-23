@@ -392,10 +392,9 @@ func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
 
 	// after this response, request, response cycle we should ensure that
 	// we got a full HTTP transaction
-	stats := monitor.GetHTTPStats()
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
-	includesRequest(t, stats, &nethttp.Request{URL: url, Method: "GET"})
+	assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
 }
 
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
@@ -408,11 +407,23 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 			require.NoError(t, err)
 			requestsExist[reqIndex] = requestsExist[reqIndex] || included
 		}
+		if allTrue(requestsExist) {
+			return
+		}
 	}
 
 	for reqIndex, exists := range requestsExist {
 		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex, requests[reqIndex])
 	}
+}
+
+func allTrue(x []bool) bool {
+	for _, v := range x {
+		if !v {
+			return false
+		}
+	}
+	return true
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
@@ -535,7 +546,10 @@ func countRequestOccurrences(allStats map[Key]*RequestStats, req *nethttp.Reques
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
 	for key, stats := range allStats {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+		if key.Path.Content != req.URL.Path {
+			continue
+		}
+		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
 			occurrences++
 		}
 	}

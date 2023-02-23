@@ -43,7 +43,6 @@ import (
 	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -185,7 +184,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		AgentCommit:       version.Commit,
 		KernelVersion:     adm.kernelVersion.Code.String(),
 		LinuxDistribution: adm.kernelVersion.OsRelease["PRETTY_NAME"],
-		Name:              fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
+		Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
 		ProtobufVersion:   ProtobufVersion,
 		Start:             now,
 		End:               now.Add(adm.config.ActivityDumpCgroupDumpTimeout),
@@ -205,7 +204,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		now,
 		adm.timeResolver,
 	)
-	ad.LoadConfigCookie = eval.NewCookie()
+	ad.LoadConfigCookie = utils.NewCookie()
 
 	for _, option := range options {
 		option(ad)
@@ -708,6 +707,25 @@ func (ad *ActivityDump) FindMatchingNodes(comm string) []*ProcessActivityNode {
 	}
 
 	return res
+}
+
+// GetImageNameTag returns the image name and tag for the profiled container
+func (ad *ActivityDump) GetImageNameTag() (string, string) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	var imageName, imageTag string
+	for _, tag := range ad.Tags {
+		if tag_name, tag_value, valid := strings.Cut(tag, ":"); valid {
+			switch tag_name {
+			case "image_name":
+				imageName = tag_value
+			case "image_tag":
+				imageTag = tag_value
+			}
+		}
+	}
+	return imageName, imageTag
 }
 
 // GetSelectorStr returns a string representation of the profile selector

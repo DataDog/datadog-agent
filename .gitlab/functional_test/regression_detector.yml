@@ -10,8 +10,8 @@ single-machine-performance-regression_detector:
     paths:
       - submission_metadata
   variables:
-    SMP_VERSION: 0.6.6-rc1
-    LADING_VERSION: 0.11.2
+    SMP_VERSION: 0.7.1
+    LADING_VERSION: 0.13.0
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
     REPLICAS: 10
@@ -63,7 +63,6 @@ single-machine-performance-regression_detector:
             --comparison-sha ${CI_COMMIT_SHA}
             --target-name datadog-agent
             --target-command "/bin/entrypoint.sh"
-            --target-inherit-environment
             --target-environment-variables "DD_HOSTNAME=smp-regression,DD_DD_URL=http://127.0.0.1:9092,DD_API_KEY=00000001"
             --target-config-dir test/regression/
             --target-cpu-allotment ${CPUS}

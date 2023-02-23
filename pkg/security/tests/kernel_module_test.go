@@ -167,7 +167,9 @@ func TestLoadModule(t *testing.T) {
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			event.ResolveFields()
 			assert.Equal(t, "", event.LoadModule.File.PathnameStr, "shouldn't get a path")
