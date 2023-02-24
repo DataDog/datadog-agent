@@ -20,7 +20,7 @@ import (
 func RunJavaVersion(t *testing.T, version string, class string, waitFor *regexp.Regexp) {
 	t.Helper()
 	if waitFor == nil {
-		regexp.MustCompile("loading TestAgentLoaded.agentmain.*")
+		waitFor = regexp.MustCompile("loading TestAgentLoaded.agentmain.*")
 	}
 
 	dir, _ := testutil.CurDir()
@@ -35,7 +35,7 @@ func RunJavaVersion(t *testing.T, version string, class string, waitFor *regexp.
 func RunJavaHost(t *testing.T, class string, args []string, waitFor *regexp.Regexp) {
 	t.Helper()
 	if waitFor == nil {
-		regexp.MustCompile("loading TestAgentLoaded.agentmain.*")
+		waitFor = regexp.MustCompile("loading TestAgentLoaded.agentmain.*")
 	}
 
 	dir, _ := testutil.CurDir()

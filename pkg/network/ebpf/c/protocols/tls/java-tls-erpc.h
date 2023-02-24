@@ -22,7 +22,7 @@ enum erpc_message_type {
       u8 data[len];
   }
 */
-int __attribute__((always_inline)) handle_request(struct pt_regs *ctx, conn_tuple_t* connection, void *data) {
+static int __always_inline handle_request(struct pt_regs *ctx, conn_tuple_t* connection, void *data) {
     const bool val = true;
     u32 bytes_read = 0;
 
@@ -43,7 +43,7 @@ int __attribute__((always_inline)) handle_request(struct pt_regs *ctx, conn_tupl
     return 0;
 }
 
-void __attribute__((always_inline)) handle_close_connection(conn_tuple_t* connection) {
+static void __always_inline handle_close_connection(conn_tuple_t* connection) {
     void *exists = bpf_map_lookup_elem(&java_tls_connections, connection);
     // if the connection exists in our map, finalize it and remove from the map
     // otherwise just ignore
@@ -54,7 +54,7 @@ void __attribute__((always_inline)) handle_close_connection(conn_tuple_t* connec
     }
 }
 
-int __attribute__((always_inline)) is_usm_erpc_request(struct pt_regs *ctx) {
+static int __always_inline is_usm_erpc_request(struct pt_regs *ctx) {
     u32 cmd = PT_REGS_PARM3(ctx);
     return cmd == USM_IOCTL_ID;
 }
@@ -68,7 +68,7 @@ int __attribute__((always_inline)) is_usm_erpc_request(struct pt_regs *ctx) {
       u8           data[];     // payload data
   }
 */
-int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
+static int __always_inline handle_erpc_request(struct pt_regs *ctx) {
 #ifdef DEBUG
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
