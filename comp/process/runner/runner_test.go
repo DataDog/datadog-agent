@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -20,22 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-func newMockCheck(t testing.TB, name string) *checkMocks.Check {
-	// TODO: Change this to use check component once checks are migrated
-	mockCheck := checkMocks.NewCheck(t)
-	mockCheck.On("Init", mock.Anything, mock.Anything).Return(nil)
-	mockCheck.On("Name").Return(name)
-	mockCheck.On("SupportsRunOptions").Return(false)
-	mockCheck.On("Realtime").Return(false)
-	mockCheck.On("Cleanup")
-	mockCheck.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil)
-	mockCheck.On("ShouldSaveLastRun").Return(false)
-	return mockCheck
-}
 
 func TestRunnerLifecycle(t *testing.T) {
 	fxutil.Test(t, fx.Options(
