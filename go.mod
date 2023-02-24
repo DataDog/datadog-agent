@@ -560,7 +560,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
+require (
+	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
+)
 
 require (
 	github.com/sigstore/rekor v1.0.1 // indirect

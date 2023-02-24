@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/DataDog/appsec-internal-go/appsec"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -147,7 +148,7 @@ func readObfuscatorConfigRegexp(name, defaultValue string) string {
 }
 
 func readRulesConfig() (rules []byte, err error) {
-	rules = []byte(staticRecommendedRule)
+	rules = []byte(appsec.StaticRecommendedRules)
 	filepath := os.Getenv(rulesEnvVar)
 	if filepath == "" {
 		log.Info("appsec: starting with the default recommended security rules")
