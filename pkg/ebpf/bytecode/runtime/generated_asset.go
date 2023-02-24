@@ -72,13 +72,17 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 	}
 
 	inputReader := strings.NewReader(inputCode)
-	tmpFile, closeFn, err := createRamBackedFile(a.filename, inputHash, inputReader, outputDir)
+	protectedFile, err := createProtectedFile(fmt.Sprintf("%s-%s", a.filename, inputHash), outputDir, inputReader)
 	if err != nil {
-		return nil, fmt.Errorf("error creating ram backed file: %w", err)
+		return nil, fmt.Errorf("error creating protected file: %w", err)
 	}
-	defer closeFn()
+	defer func() {
+		if err := protectedFile.Close(); err != nil {
+			log.Debug(err)
+		}
+	}()
 
-	out, result, err := compileToObjectFile(tmpFile, outputDir, a.filename, inputHash, additionalFlags, kernelHeaders)
+	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, inputHash, additionalFlags, kernelHeaders)
 	a.tm.compilationResult = result
 
 	return out, err

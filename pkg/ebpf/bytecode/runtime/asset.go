@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/justincormack/go-memfd"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -75,101 +74,45 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 		return nil, fmt.Errorf("failed to open file %s: %w", p, err)
 	}
 
-	inputFile, closeFn, err := createRamBackedFile(a.filename, a.hash, f, outputDir)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
+	}
+
+	protectedFile, err := createProtectedFile(fmt.Sprintf("%s-%s", a.filename, a.hash), outputDir, f)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ram backed file from %s: %w", f.Name(), err)
 	}
-	defer closeFn()
+	defer func() {
+		if err := protectedFile.Close(); err != nil {
+			log.Debug(err)
+		}
+	}()
 
-	if err = a.verify(inputFile); err != nil {
+	if err = a.verify(protectedFile.Reader()); err != nil {
 		a.tm.compilationResult = verificationError
 		return nil, fmt.Errorf("error reading input file: %s", err)
 	}
 
-	out, result, err := compileToObjectFile(inputFile, outputDir, a.filename, a.hash, additionalFlags, kernelHeaders)
+	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, a.hash, additionalFlags, kernelHeaders)
 	a.tm.compilationResult = result
 
 	return out, err
 }
 
-// replace the symlink file with a copy of the input file so that
-// debug info can be resolved by tools like objdump
-func setupSourceInfoFile(source io.Reader, path string) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if _, err := io.Copy(f, source); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // creates a ram backed file from the given reader. The file is made immutable
-func createRamBackedFile(name, hash string, source io.Reader, runtimeDir string) (string, func(), error) {
-	var err error
-
-	if err = os.MkdirAll(runtimeDir, 0755); err != nil {
-		return "", nil, fmt.Errorf("unable to create compiler output directory %s: %w", runtimeDir, err)
-	}
-
-	memfdFile, err := memfd.CreateNameFlags(name, memfd.AllowSealing|memfd.Cloexec)
+func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFile, error) {
+	protectedFile, err := NewProtectedFile(name, runtimeDir, source)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to create memfd file: %w: ", err)
-	}
-	defer func() {
-		if err != nil {
-			memfdFile.Close()
-		}
-	}()
-
-	if _, err = io.Copy(memfdFile, source); err != nil {
-		return "", nil, fmt.Errorf("error copying bytes to memfd file: %w", err)
+		return nil, fmt.Errorf("failed to create protected file: %w", err)
 	}
 
-	// seal the memfd file, making it immutable.
-	if err = memfdFile.SetSeals(memfd.SealAll); err != nil {
-		return "", nil, fmt.Errorf("failed to seal memfd file: %w", err)
-	}
-
-	target := fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), memfdFile.Fd())
-	tmpFile := filepath.Join(runtimeDir, fmt.Sprintf("%s-%s", name, hash))
-
-	link, _ := os.Readlink(target)
-	log.Debugf("createRamBackedFile: created memfd file: %s => %s", target, link)
-
-	os.Remove(tmpFile)
-	if err := os.Symlink(target, tmpFile); err != nil {
-		return "", nil, fmt.Errorf("failed to create symlink with target file %s: %w", target, err)
-	}
-
-	return tmpFile, func() {
-		os.Remove(tmpFile)
-
-		// io.Copy changes the file cursor. Reset it before use.
-		if _, err := memfdFile.Seek(0, os.SEEK_SET); err != nil {
-			log.Debug(err)
-		}
-		if err := setupSourceInfoFile(memfdFile, tmpFile); err != nil {
-			log.Debug("failed to setup source file: ", err)
-		}
-		memfdFile.Close()
-	}, nil
+	return protectedFile, err
 }
 
 // verify reads the asset in the provided directory and verifies the content hash matches what is expected.
-func (a *asset) verify(verifyFile string) error {
-	f, err := os.Open(verifyFile)
-	if err != nil {
-		return fmt.Errorf("error opening file %s: %w", verifyFile, err)
-	}
-	defer f.Close()
-
+func (a *asset) verify(source io.Reader) error {
 	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
+	if _, err := io.Copy(h, source); err != nil {
 		return fmt.Errorf("error hashing file: %w", err)
 	}
 	if fmt.Sprintf("%x", h.Sum(nil)) != a.hash {
