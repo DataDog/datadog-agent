@@ -48,6 +48,7 @@ func NewServer(options ...func(*Server)) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", fi.handleDatadogRequest)
 	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
+	mux.HandleFunc("/fakeintake/health/", fi.getFakeHealth)
 
 	fi.server = http.Server{
 		Handler: mux,
@@ -228,6 +229,12 @@ func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
 		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
+	})
+}
+
+func (fi *Server) getFakeHealth(w http.ResponseWriter, req *http.Request) {
+	writeHttpResponse(w, httpResponse{
+		statusCode: http.StatusOK,
 	})
 }
 

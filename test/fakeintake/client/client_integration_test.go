@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/server"
+	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +35,10 @@ func TestIntegrationClient(t *testing.T) {
 		require.True(t, isReady)
 
 		client := NewClient(fi.URL())
+		// max wait for 500 ms
+		err := backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(100*time.Millisecond), 5))
+		require.NoError(t, err, "Failed waiting for fakeintake")
+
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 0, len(payloads))
@@ -55,6 +61,10 @@ func TestIntegrationClient(t *testing.T) {
 		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 
 		client := NewClient(fi.URL())
+		// max wait for 250 ms
+		err = backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
+		require.NoError(t, err, "Failed waiting for fakeintake")
+
 		payloads, err := client.getFakePayloads(testEndpoint)
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))

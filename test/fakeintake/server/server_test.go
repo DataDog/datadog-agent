@@ -122,4 +122,17 @@ func TestServer(t *testing.T) {
 
 		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
 	})
+
+	t.Run("should accept GET requests on /fakeintake/health route", func(t *testing.T) {
+		fi := NewServer()
+		defer fi.server.Close()
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/health", nil)
+
+		assert.NoError(t, err, "Error creating GET request")
+		response := httptest.NewRecorder()
+
+		fi.getFakeHealth(response, request)
+		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+	})
 }
