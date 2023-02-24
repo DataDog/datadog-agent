@@ -20,7 +20,7 @@ import (
 // with subcommands.
 func MakeRootCommand(defaultLogFile string) *cobra.Command {
 	globalParams := subcommands.GlobalParams{
-		ConfigName: "datadog",
+		ConfigName: "datadog-trace",
 	}
 
 	commands := makeCommands(&globalParams)
@@ -39,8 +39,8 @@ func MakeRootCommand(defaultLogFile string) *cobra.Command {
 }
 
 func makeCommands(globalParams *subcommands.GlobalParams) []*cobra.Command {
-	globalConfGetter := func() subcommands.GlobalParams {
-		return subcommands.GlobalParams{
+	globalConfGetter := func() *subcommands.GlobalParams {
+		return &subcommands.GlobalParams{
 			ConfPath:   globalParams.ConfPath,
 			ConfigName: globalParams.ConfigName,
 			LoggerName: "TRACE",

@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -24,11 +24,9 @@ import (
 )
 
 // MakeCommand returns the start subcommand for the 'trace-agent' command.
-func MakeCommand(globalParamsGetter func() subcommands.GlobalParams) *cobra.Command {
+func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
 
-	cliParams := &RunParams{
-		GlobalParams: globalParamsGetter(),
-	}
+	cliParams := &RunParams{}
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Start datadog trace-agent.",
@@ -36,7 +34,8 @@ func MakeCommand(globalParamsGetter func() subcommands.GlobalParams) *cobra.Comm
 The Datadog trace-agent aggregates, samples, and forwards traces to datadog
 submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
-			return RunTraceAgentFct(cliParams, "", Start)
+			cliParams.GlobalParams = globalParamsGetter()
+			return RunTraceAgentFct(cliParams, "./bin/agent/dist/datadog.yaml", Start)
 		},
 	}
 
@@ -54,18 +53,15 @@ type Params struct {
 }
 
 func RunTraceAgentFct(cliParams *RunParams, defaultConfPath string, fct interface{}) error {
-	params := &Params{}
-
+	if cliParams.ConfPath == "" {
+		cliParams.ConfPath = defaultConfPath
+	}
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
-		fx.Supply(params),
-		fx.Supply(config.NewParams(
-			defaultConfPath,
-			config.WithConfigLoadSecrets(false),
-			config.WithConfigMissingOK(true),
-			config.WithConfigName("trace-agent")),
-		),
+		fx.Supply(config.NewParams(config.WithTraceConfFilePath(cliParams.ConfPath))),
 		config.Module,
+		// fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
+		// coreconfig.Module,
 	)
 }
 
@@ -86,7 +82,7 @@ func Start(cliParams *RunParams, config config.Component) error {
 		handleSignal(cancelFunc)
 	}()
 
-	runAgent(ctx, cliParams)
+	runAgent(ctx, cliParams, config)
 
 	return nil
 }
