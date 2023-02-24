@@ -10,6 +10,7 @@ import (
 	"github.com/justincormack/go-memfd"
 )
 
+// This represent a symlink to a sealed ram-backed file
 type ProtectedFile interface {
 	Close() error
 	Reader() io.Reader
