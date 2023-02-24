@@ -692,37 +692,6 @@ func TestJavaInjection(t *testing.T) {
 		},
 		{
 			// Test the java jdk client https request is working
-			name: "java_jdk_client_httpbin",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				o, err := exec.Command("java", "-version").CombinedOutput()
-				if err != nil {
-					t.Fatalf("java -version failed to exec %v", err)
-				}
-				t.Skipf("unsure how to parse different java -version %s", string(o))
-				cfg.JavaDir = legacyJavaDir
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaHost(t, "Wget", []string{"https://httpbin.org/anything/java-tls-request"}, regexp.MustCompile("Response code = .*"))
-			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
-					payload := getConnections(t, tr)
-					for key := range payload.HTTP {
-						if key.Path.Content == "/anything/java-tls-request" {
-							return true
-						}
-					}
-
-					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
-			},
-		},
-		{
-			// Test the java jdk client https request is working
 			name: "java_jdk_client_httpbin_docker_java15",
 			context: testContext{
 				extras: make(map[string]interface{}),
