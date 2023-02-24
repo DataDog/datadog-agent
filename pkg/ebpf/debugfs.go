@@ -28,9 +28,9 @@ import (
 const kProbeTelemetryName = "network_tracer_kprobes"
 
 var (
-	myPid int
+	myPid  int
 	gauges map[string]telemetry.Gauge
-	mu sync.Mutex
+	mu     sync.Mutex
 )
 
 func init() {
@@ -100,7 +100,6 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 
 // setOrCreateGauge checks the gauges map from the KprobeStats object for a Gauge. It creates the Gauge if it doesn't exist and sets it using val.
 func setOrCreateGauge(key string, val float64) {
-
 	if _, ok := gauges[key]; !ok {
 		gauges[key] = telemetry.NewGauge(kProbeTelemetryName, key, []string{}, fmt.Sprintf("Gauge tracking value of %s", key))
 	}
