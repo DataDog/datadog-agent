@@ -22,13 +22,13 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	sysconfig *sysconfig.Config
+	Sysconfig *sysconfig.Config
 }
 
 func newCheck(deps dependencies) types.ProvidesCheck {
 	return types.ProvidesCheck{
 		CheckComponent: &check{
-			connectionsCheck: checks.NewConnectionsCheck(deps.sysconfig),
+			connectionsCheck: checks.NewConnectionsCheck(deps.Sysconfig),
 		},
 	}
 }

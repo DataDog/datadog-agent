@@ -261,7 +261,10 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo) {
 	go util.HandleSignals(exit)
 
-	var allChecks []types.CheckComponent
+	var allChecks struct {
+		fx.In
+		Checks []types.CheckComponent `group:"check"`
+	}
 	app := fx.New(
 		fx.Supply(
 			syscfg,
@@ -278,8 +281,8 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 		fx.Invoke(func(runnerComp.Component) {}),
 	)
 
-	// Look to see if any checks are enabled before starting the agent
-	if !anyChecksEnabled(allChecks) {
+	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
+	if !anyChecksEnabled(allChecks.Checks) {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
