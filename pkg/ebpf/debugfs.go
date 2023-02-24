@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -26,8 +27,11 @@ import (
 
 const kProbeTelemetryName = "network_tracer_kprobes"
 
-var myPid int
-var gauges map[string]telemetry.Gauge
+var (
+	myPid int
+	gauges map[string]telemetry.Gauge
+	mu sync.Mutex
+)
 
 func init() {
 	myPid = manager.Getpid()
@@ -83,8 +87,10 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 		event = strings.ToLower(event)
 		hitsKey := fmt.Sprintf("%s_hits", event)
 		missesKey := fmt.Sprintf("%s_misses", event)
-		setOrCreateGauge(gauges, hitsKey, float64(st.Hits))
-		setOrCreateGauge(gauges, missesKey, float64(st.Misses))
+		mu.Lock()
+		setOrCreateGauge(hitsKey, float64(st.Hits))
+		setOrCreateGauge(missesKey, float64(st.Misses))
+		mu.Unlock()
 		res[hitsKey] = st.Hits
 		res[missesKey] = st.Misses
 	}
@@ -93,7 +99,8 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 }
 
 // setOrCreateGauge checks the gauges map from the KprobeStats object for a Gauge. It creates the Gauge if it doesn't exist and sets it using val.
-func setOrCreateGauge(gauges map[string]telemetry.Gauge, key string, val float64) {
+func setOrCreateGauge(key string, val float64) {
+
 	if _, ok := gauges[key]; !ok {
 		gauges[key] = telemetry.NewGauge(kProbeTelemetryName, key, []string{}, fmt.Sprintf("Gauge tracking value of %s", key))
 	}

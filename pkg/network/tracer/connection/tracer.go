@@ -373,7 +373,7 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	var zero uint64
 	mp, _, err := t.m.GetMap(string(probes.TelemetryMap))
 	if err != nil {
-		log.Warnf("error retrieving telemetry map: %s", err)
+		// log.Warnf("error retrieving telemetry map: %s", err)
 		return nil
 	}
 

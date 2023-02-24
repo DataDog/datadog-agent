@@ -326,6 +326,10 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 	m := map[string]int64{
 		"state_size": 0,
 	}
+	// Merge telemetry from the consumer
+	for k, v := range e.consumer.GetStats() {
+		m[k] = v
+	}
 	if registers, err := e.getEbpfTelemetry(); err != nil {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
