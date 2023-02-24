@@ -215,7 +215,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(evNS, "enable_discarders"), true) // TODO verify this default
 	cfg.BindEnvAndSetDefault(join(evNS, "enable_kernel_filters"), true)
 	cfg.BindEnvAndSetDefault(join(evNS, "flush_discarder_window"), 3)
-	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/runtime-security.sock")
+	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
+	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 	cfg.BindEnvAndSetDefault(join(evNS, "pid_cache_size"), 10000)
 	cfg.BindEnvAndSetDefault(join(evNS, "load_controller.events_count_threshold"), 20000)
 	cfg.BindEnvAndSetDefault(join(evNS, "load_controller.discarder_timeout"), 60)
@@ -236,6 +237,9 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 	cfg.BindEnvAndSetDefault(join(evNS, "runtime_compilation.enabled"), false)
 	cfg.BindEnv(join(evNS, "runtime_compilation.compiled_constants_enabled"))
+	cfg.BindEnvAndSetDefault(join(evNS, "activity_dump.enabled"), false)
+	cfg.BindEnvAndSetDefault(join(evNS, "network.enabled"), true)
+	cfg.BindEnvAndSetDefault(join(evNS, "events_stats.polling_interval"), 20)
 
 	// process event monitoring data limits for network tracer
 	cfg.BindEnv(join(evNS, "network_process", "max_processes_tracked"))
@@ -244,12 +248,12 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
 
 	// CWS
+	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
@@ -258,9 +262,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 1)

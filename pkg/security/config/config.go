@@ -22,6 +22,8 @@ type Policy struct {
 
 // Config holds the configuration for the runtime security agent
 type Config struct {
+	// SocketPath is the path to the socket that is used to communicate with the security agent
+	SocketPath string
 	// RuntimeEnabled defines if the runtime security module should be enabled
 	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
@@ -73,6 +75,7 @@ func NewConfig() *Config {
 		SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
 		RemoteConfigurationEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"),
 
+		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.retention"),

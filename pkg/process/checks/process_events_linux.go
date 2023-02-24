@@ -17,6 +17,7 @@ import (
 
 	payload "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -82,8 +83,7 @@ func (e *ProcessEventsCheck) start() {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (e *ProcessEventsCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	return config.SystemProbe.GetBool("event_monitoring_config.process.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

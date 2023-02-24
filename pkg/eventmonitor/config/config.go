@@ -40,8 +40,11 @@ type Config struct {
 	// This is used during reload to avoid removing all the discarders at the same time.
 	FlushDiscarderWindow int
 
-	// SocketPath is the path to the socket that is used to communicate with the security agent
+	// SocketPath is the path to the socket that is used to communicate with the process agent
 	SocketPath string
+
+	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
+	EventServerBurst int
 
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
@@ -137,7 +140,8 @@ func NewConfig(spConfig *config.Config, isRuntimeEnabled bool) (*Config, error) 
 		EnableApprovers:                    getBool("enable_approvers"),
 		EnableDiscarders:                   getBool("enable_discarders"),
 		FlushDiscarderWindow:               getInt("flush_discarder_window"),
-		SocketPath:                         getString("socket"),
+		SocketPath:                         coreconfig.SystemProbe.GetString("event_monitoring_config.socket"),
+		EventServerBurst:                   coreconfig.SystemProbe.GetInt("event_monitoring_config.event_server.burst"),
 		PIDCacheSize:                       getInt("pid_cache_size"),
 		LoadControllerEventsCountThreshold: int64(getInt("load_controller.events_count_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(getInt("load_controller.discarder_timeout")) * time.Second,
