@@ -40,6 +40,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	var err error
 	enabledAnalyzers := config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
 	trivyConfiguration := trivy.DefaultCollectorConfig(enabledAnalyzers)
+	trivyConfiguration.ClearCacheOnClose = config.Datadog.GetBool("container_image_collection.sbom.clear_cache_on_exit")
 	trivyConfiguration.ContainerdAccessor = func() (cutil.ContainerdItf, error) {
 		return c.containerdClient, nil
 	}
