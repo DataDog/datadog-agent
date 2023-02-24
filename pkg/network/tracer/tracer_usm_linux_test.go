@@ -14,11 +14,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	nethttp "net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -26,21 +28,23 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/sys/unix"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type connTag = uint64
@@ -67,6 +71,10 @@ func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
 }
 
+func javaTLSSupported(t *testing.T) bool {
+	return httpSupported(t) && httpsSupported(t)
+}
+
 func goTLSSupported() bool {
 	cfg := config.New()
 	return runtime.GOARCH == "amd64" && cfg.EnableRuntimeCompiler
@@ -87,6 +95,15 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 }
 
 func TestHTTPStats(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTPStats(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPStats(t, false)
+	})
+}
+
+func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	if !httpSupported(t) {
 		t.Skip("HTTP monitoring feature not available")
 		return
@@ -94,6 +111,7 @@ func TestHTTPStats(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
 	tr := setupTracer(t, cfg)
 
 	// Start an HTTP server on localhost:8080
@@ -102,7 +120,7 @@ func TestHTTPStats(t *testing.T) {
 		Addr: serverAddr,
 		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
 			io.Copy(io.Discard, req.Body)
-			w.WriteHeader(200)
+			w.WriteHeader(204)
 		}),
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
@@ -138,11 +156,9 @@ func TestHTTPStats(t *testing.T) {
 
 	// Verify HTTP stats
 	require.NotNil(t, httpReqStats)
-	assert.Nil(t, httpReqStats.Stats(100), "100s")            // number of requests with response status 100
-	assert.Equal(t, 1, httpReqStats.Stats(200).Count, "200s") // 200
-	assert.Nil(t, httpReqStats.Stats(300), "300s")            // 300
-	assert.Nil(t, httpReqStats.Stats(400), "400s")            // 400
-	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
+	require.Len(t, httpReqStats.Data, 1)
+	require.NotNil(t, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)])
+	require.Equal(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -211,7 +227,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -219,9 +235,11 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	tr := setupTracer(t, cfg)
 
 	// not ideal but, short process are hard to catch
-	for _, lib := range prefechLibs {
-		f, _ := os.Open(lib)
-		defer f.Close()
+	for _, lib := range prefetchLibs {
+		f, err := os.Open(lib)
+		if err != nil {
+			t.Cleanup(func() { f.Close() })
+		}
 	}
 	time.Sleep(time.Second)
 
@@ -237,11 +255,12 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
-			if !stats.HasStats(200) {
+			req, exists := stats.Data[200]
+			if !exists {
 				continue
 			}
 
-			statsTags := stats.Stats(200).StaticTags
+			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
 			foundPathAndHTTPTag := false
@@ -454,7 +473,10 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) bool {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+		if key.Path.Content != req.URL.Path {
+			continue
+		}
+		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
 			return true
 		}
 	}
@@ -564,6 +586,127 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 	})
 }
 
+// Java Injection and TLS tests
+
+func TestJavaInjection(t *testing.T) {
+
+	if !javaTLSSupported(t) {
+		t.Skip("java TLS platform not supported")
+	}
+
+	log.SetupLogger(seelog.Default, "debug")
+
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableJavaTLSSupport = true
+
+	dir, _ := testutil.CurDir()
+	{ // create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
+		agentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
+		require.NoError(t, err)
+		defer os.RemoveAll(agentDir)
+		cfg.JavaDir = agentDir
+		_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/agent-usm.jar")
+		require.NoError(t, err)
+	}
+
+	// testContext shares the context of a given test.
+	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
+	// attributes to the `extras` map.
+	type testContext struct {
+		// A dynamic map that allows extending the context easily between phases of the test.
+		extras map[string]interface{}
+	}
+
+	tests := []struct {
+		name            string
+		context         testContext
+		preTracerSetup  func(t *testing.T, ctx testContext)
+		postTracerSetup func(t *testing.T, ctx testContext)
+		validation      func(t *testing.T, ctx testContext, tr *Tracer)
+		teardown        func(t *testing.T, ctx testContext)
+	}{
+		{
+			// Test the java hotspot injection is working
+			name: "java_hotspot_injection_8u151",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
+				// if RunJavaVersion failing to start it's probably because the java process has not been injected
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+				os.Remove(testfile)
+			},
+		},
+		{
+			// Test the java hotspot injection is working
+			name: "java_hotspot_injection_21",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				// if RunJavaVersion failing to start it's probably because the java process has not been injected
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+				os.Remove(testfile)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.teardown != nil {
+				t.Cleanup(func() {
+					tt.teardown(t, tt.context)
+				})
+			}
+			if tt.preTracerSetup != nil {
+				tt.preTracerSetup(t, tt.context)
+			}
+			tr := setupTracer(t, cfg)
+			tt.postTracerSetup(t, tt.context)
+			tt.validation(t, tt.context, tr)
+		})
+	}
+}
+
 // GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	if !goTLSSupported() || !httpSupported(t) || !httpsSupported(t) {
@@ -633,7 +776,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	nettestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
+	tracertestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
@@ -650,7 +793,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(closeServer)
 
 	// spin-up goTLS client but don't issue requests yet
-	issueRequestsFn := nettestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	issueRequestsFn := tracertestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
@@ -693,7 +836,10 @@ func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map
 			}
 
 			expectedStatus := testutil.StatusFromPath(req.URL.Path)
-			if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+			if key.Path.Content != req.URL.Path {
+				continue
+			}
+			if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
 				occurrences++
 				reqs[req] = true
 				break

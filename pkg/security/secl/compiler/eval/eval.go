@@ -121,7 +121,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 
 		// regID not specified or `_` generate one
 		if regID == "" || regID == "_" {
-			regID = RandString(8)
+			regID = state.newAnonymousRegID()
 		}
 
 		if info, exists := state.registersInfo[regID]; exists {

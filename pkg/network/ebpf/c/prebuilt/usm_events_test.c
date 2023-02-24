@@ -46,7 +46,7 @@ int tracepoint__syscalls__sys_enter_write(struct syscalls_enter_write_args *ctx)
 
     // these functions are dynamically defined by `USM_EVENTS_INIT`
     test_batch_enqueue(&event);
-    test_flush_batch((void*)ctx);
+    test_batch_flush((void*)ctx);
     return 0;
 }
 

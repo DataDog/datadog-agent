@@ -215,7 +215,7 @@ func TestProcessMessageValid(t *testing.T) {
 
 	lc.processMessage(&message)
 
-	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	received, timed := demux.WaitForNumberOfSamples(7, 0, 100*time.Millisecond)
 	assert.Len(t, received, 7)
 	assert.Len(t, timed, 0)
 	demux.Reset()
@@ -416,7 +416,7 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 
 	go lc.processMessage(message)
 
-	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	received, timed := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
 	assert.Len(t, received, 2)
 	assert.Len(t, timed, 0)
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
@@ -866,7 +866,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 100*time.Millisecond)
 	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
 	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
 	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{

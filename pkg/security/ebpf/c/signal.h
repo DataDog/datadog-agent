@@ -23,24 +23,34 @@ SYSCALL_KPROBE2(kill, int, pid, int, type) {
         return 0;
     }
 
-    /* make a lookup for the target PID in case we are namespaced */
-    /* TODO: make a lookup with the key addition of ns or cgroup id */
-    u32 root_nr = get_root_nr((u32)pid);
-    if (!root_nr) {
-        root_nr = pid;
-    }
-
     /* cache the signal and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
         .type = EVENT_SIGNAL,
         .signal = {
-            .pid = root_nr,
+            .namespaced_pid = pid, // keep the namespaced pid for now
             .type = type,
         },
     };
     cache_syscall(&syscall);
     return 0;
 }
+
+SEC("kprobe/kill_pid_info")
+int kprobe_kill_pid_info(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SIGNAL);
+    if (!syscall || syscall->signal.root_ns_pid) {
+        return 0;
+    }
+
+    struct pid *pid = (struct pid *)PT_REGS_PARM3(ctx);
+    if (!pid) {
+        return 0;
+    }
+    syscall->signal.root_ns_pid = get_pid_from_root_pidns(pid);
+
+    return 0;
+}
+
 
 /* hook here to grab the EPERM retval */
 SEC("kretprobe/check_kill_permission")
@@ -57,11 +67,18 @@ int kretprobe_check_kill_permission(struct pt_regs* ctx) {
         return 0;
     }
 
+    u32 pid = syscall->signal.root_ns_pid;
+    if (!pid) {
+        pid = get_root_nr(syscall->signal.namespaced_pid);
+        if (!pid) {
+            pid = syscall->signal.namespaced_pid;
+        }
+    }
+
     /* constuct and send the event */
     struct signal_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
-        .pid = syscall->signal.pid,
+        .pid = pid,
         .type = syscall->signal.type,
     };
     struct proc_cache_t *entry = fill_process_context(&event.process);

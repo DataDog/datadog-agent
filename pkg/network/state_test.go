@@ -1383,6 +1383,15 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 }
 
 func TestHTTPStats(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTPStats(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPStats(t, false)
+	})
+}
+
+func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	c := ConnectionStats{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
@@ -1393,8 +1402,7 @@ func TestHTTPStats(t *testing.T) {
 	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "/testpath", true, http.MethodGet)
 
 	httpStats := make(map[http.Key]*http.RequestStats)
-	var rs http.RequestStats
-	httpStats[key] = &rs
+	httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 
 	// Register client & pass in HTTP stats
 	state := newDefaultState()
@@ -1409,6 +1417,15 @@ func TestHTTPStats(t *testing.T) {
 }
 
 func TestHTTPStatsWithMultipleClients(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTPStatsWithMultipleClients(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPStatsWithMultipleClients(t, false)
+	})
+}
+
+func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) {
 	c := ConnectionStats{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
@@ -1419,8 +1436,7 @@ func TestHTTPStatsWithMultipleClients(t *testing.T) {
 	getStats := func(path string) map[http.Key]*http.RequestStats {
 		httpStats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
-		var rs http.RequestStats
-		httpStats[key] = &rs
+		httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 		return httpStats
 	}
 
@@ -1511,7 +1527,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 			intraHost: true,
 		},
 		{
-			name: "local connection with nat on both sides",
+			name: "local connection with nat on both sides (outgoing)",
 			conn: ConnectionStats{
 				Source:    util.AddressFromString("1.1.1.1"),
 				Dest:      util.AddressFromString("169.254.169.254"),
@@ -1529,7 +1545,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 			intraHost: true,
 		},
 		{
-			name: "local connection with nat on both sides",
+			name: "local connection with nat on both sides (incoming)",
 			conn: ConnectionStats{
 				Source:    util.AddressFromString("127.0.0.1"),
 				Dest:      util.AddressFromString("1.1.1.1"),

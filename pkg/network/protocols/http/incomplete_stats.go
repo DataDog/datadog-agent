@@ -100,7 +100,7 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
 
-	if tx.StatusClass() == 0 {
+	if tx.StatusCode() == 0 {
 		parts.requests = append(parts.requests, tx)
 	} else {
 		parts.responses = append(parts.responses, tx)

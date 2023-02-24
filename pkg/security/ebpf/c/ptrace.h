@@ -39,16 +39,15 @@ int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     }
 
     // try to resolve namespaced nr
-    u32 namespace_nr = get_root_nr(syscall->ptrace.pid);
-    if (namespace_nr == 0) {
-        namespace_nr = syscall->ptrace.pid;
+    u32 pid = get_root_nr(syscall->ptrace.pid);
+    if (pid == 0) {
+        pid = syscall->ptrace.pid;
     }
 
     struct ptrace_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
         .request = syscall->ptrace.request,
-        .pid = namespace_nr,
+        .pid = pid,
         .addr = syscall->ptrace.addr,
     };
 

@@ -144,7 +144,16 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 }
 
 func TestSerialization(t *testing.T) {
-	var httpReqStats http.RequestStats
+	t.Run("status code", func(t *testing.T) {
+		testSerialization(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testSerialization(t, false)
+	})
+}
+
+func testSerialization(t *testing.T, aggregateByStatusCode bool) {
+	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
@@ -227,40 +236,17 @@ func TestSerialization(t *testing.T) {
 				"/testpath",
 				true,
 				http.MethodGet,
-			): &httpReqStats,
+			): httpReqStats,
 		},
 	}
-	// ignore "declared but not used"
-	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:     "/testpath",
-				Method:   model.HTTPMethod_Get,
-				FullPath: true,
-				StatsByResponseStatus: []*model.HTTPStats_Data{
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-				},
+				Path:              "/testpath",
+				Method:            model.HTTPMethod_Get,
+				FullPath:          true,
+				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
 			},
 		},
 	}
@@ -436,13 +422,22 @@ func TestSerialization(t *testing.T) {
 }
 
 func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTPSerializationWithLocalhostTraffic(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPSerializationWithLocalhostTraffic(t, false)
+	})
+}
+
+func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
 	var (
 		clientPort = uint16(52800)
 		serverPort = uint16(8080)
 		localhost  = util.AddressFromString("127.0.0.1")
 	)
 
-	var httpReqStats http.RequestStats
+	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
@@ -469,25 +464,17 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				"/testpath",
 				true,
 				http.MethodGet,
-			): &httpReqStats,
+			): httpReqStats,
 		},
 	}
-	// ignore "declared but not used"
-	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:     "/testpath",
-				Method:   model.HTTPMethod_Get,
-				FullPath: true,
-				StatsByResponseStatus: []*model.HTTPStats_Data{
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-				},
+				Path:              "/testpath",
+				Method:            model.HTTPMethod_Get,
+				FullPath:          true,
+				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
 			},
 		},
 	}

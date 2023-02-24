@@ -4,7 +4,7 @@ using WixSharp;
 
 namespace WixSetup
 {
-    public class CustomAction<T> : ManagedAction where T : new ()
+    public class CustomAction<T> : ManagedAction
     {
         public CustomAction(
             Id id,

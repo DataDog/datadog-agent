@@ -46,7 +46,7 @@ func (f *regoInputFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: inputs,
 	}
 
-	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}, nil); err != nil {
+	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -80,6 +80,7 @@ func (f *regoInputFixture) run(t *testing.T) {
 	env.On("Hostname").Return("hostname_test").Once()
 	env.On("DumpInputPath").Return(tf.Name()).Once()
 	env.On("ShouldSkipRegoEval").Return(false).Once()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	defer env.AssertExpectations(t)
 
@@ -124,7 +125,7 @@ func TestRegoInputCheck(t *testing.T) {
 				},
 			},
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{"FOO=foo", "BAR=bar"}, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{"FOO=foo", "BAR=bar"}),
 			},
 			expectedInput: `
 				{

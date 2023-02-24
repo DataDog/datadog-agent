@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,7 +56,8 @@ func newTelemetry() (*telemetry, error) {
 }
 
 func (t *telemetry) count(tx httpTX) {
-	switch tx.StatusClass() {
+	statusClass := (tx.StatusCode() / 100) * 100
+	switch statusClass {
 	case 100:
 		t.hits1XX.Add(1)
 	case 200:

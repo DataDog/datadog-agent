@@ -21,8 +21,8 @@ const serviceEnvVar = "DD_SERVICE"
 // cloudRunServiceName is the environment variable of the service name tag (this is used only for the serverless agent)
 const cloudRunServiceName = "K_SERVICE"
 
-// cloudRunRevisionName is the environment variable of the revision name (this is used only for the serverless agent)
-const cloudRunRevisionName = "K_REVISION"
+// containerAppName is the environment variable of the container app name (this is used only for the serverless agent)
+const containerAppName = "CONTAINER_APP_NAME"
 
 // Tailer consumes and processes a channel of strings, and sends them to a
 // stream of log messages.
@@ -67,7 +67,7 @@ func (t *Tailer) run() {
 	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {
 		origin := message.NewOrigin(t.source)
-		origin.SetService(computeServiceName(logline.Lambda, os.Getenv(serviceEnvVar)))
+		origin.SetService(getServiceName())
 
 		t.source.Config.ChannelTagsMutex.Lock()
 		// while access to this field is controlled by the mutex, the slice it
@@ -97,16 +97,15 @@ func buildMessage(logline *config.ChannelMessage, origin *message.Origin) *messa
 	return message.NewMessage(logline.Content, origin, status, time.Now().UnixNano())
 }
 
-func computeServiceName(lambdaConfig *config.Lambda, serviceName string) string {
-	if isServerlessOrigin(lambdaConfig) {
-		if len(serviceName) > 0 {
-			return strings.ToLower(serviceName)
-		}
-		return strings.ToLower(os.Getenv(cloudRunServiceName))
+func getServiceName() string {
+	if service := os.Getenv(serviceEnvVar); service != "" {
+		return strings.ToLower(service)
+	}
+	if cloudRunService := os.Getenv(cloudRunServiceName); cloudRunService != "" {
+		return strings.ToLower(cloudRunService)
+	}
+	if containerAppName := os.Getenv(containerAppName); containerAppName != "" {
+		return strings.ToLower(containerAppName)
 	}
 	return "agent"
-}
-
-func isServerlessOrigin(lambdaConfig *config.Lambda) bool {
-	return lambdaConfig != nil || (len(os.Getenv(cloudRunServiceName)) > 0 && len(os.Getenv(cloudRunRevisionName)) > 0)
 }
