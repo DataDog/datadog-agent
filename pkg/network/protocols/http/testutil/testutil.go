@@ -42,7 +42,7 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 			time.Sleep(options.SlowResponse)
 		}
 		statusCode := StatusFromPath(req.URL.Path)
-		w.WriteHeader(statusCode)
+		w.WriteHeader(int(statusCode))
 
 		defer req.Body.Close()
 		io.Copy(w, req.Body)
@@ -94,13 +94,14 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 var pathParser = regexp.MustCompile(`/(\d{3})/.+`)
 
 // StatusFromPath returns the status code present in the first segment of the request path
-func StatusFromPath(path string) (status int) {
+func StatusFromPath(path string) uint16 {
 	matches := pathParser.FindStringSubmatch(path)
 	if len(matches) == 2 {
-		status, _ = strconv.Atoi(matches[1])
+		status, _ := strconv.Atoi(matches[1])
+		return uint16(status)
 	}
 
-	return
+	return 0
 }
 
 func CurDir() (string, error) {

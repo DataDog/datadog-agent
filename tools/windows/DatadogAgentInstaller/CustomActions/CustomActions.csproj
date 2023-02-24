@@ -24,6 +24,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -32,13 +33,14 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x64</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
+    <LangVersion>latest</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
@@ -46,17 +48,23 @@
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>x64</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
+    <LangVersion>latest</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="CiInfo.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
     <Compile Include="CompilerExtensions.cs" />
     <Compile Include="ConfigCustomActions.cs" />
+    <Compile Include="Flare.cs" />
+    <Compile Include="IInstallerHttpClient.cs" />
+    <Compile Include="InstallerWebClient.cs" />
+    <Compile Include="InstallInfoCustomActions.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="ISession.cs" />
     <Compile Include="SessionWrapper.cs" />
+    <Compile Include="Telemetry.cs" />
     <Compile Include="UserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -89,4 +97,15 @@
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent>echo namespace Datadog.CustomActions &gt; "$(ProjectDir)\CiInfo.cs"
+echo { &gt;&gt; "$(ProjectDir)\CiInfo.cs"
+echo     ///^&lt;summary^&gt;Info about the continuous integration server build that produced this binary. This code is automatically generated.^&lt;/summary^&gt; &gt;&gt; "$(ProjectDir)\CiInfo.cs"
+echo     public static class CiInfo &gt;&gt; "$(ProjectDir)\CiInfo.cs"
+echo     { &gt;&gt; "$(ProjectDir)\CiInfo.cs"
+echo         ///^&lt;summary^&gt;The PACKAGE_VERSION matches the Agent version^&lt;/summary^&gt; &gt;&gt; "$(ProjectDir)\CiInfo.cs"
+echo         public const string PackageVersion = ("%25PACKAGE_VERSION%25" == "" ? @"7.99.0" : "%25PACKAGE_VERSION%25"); &gt;&gt; "$(ProjectDir)\CiInfo.cs"
+echo     } &gt;&gt; "$(ProjectDir)\CiInfo.cs"
+echo } &gt;&gt; "$(ProjectDir)\CiInfo.cs"</PreBuildEvent>
+  </PropertyGroup>
 </Project>

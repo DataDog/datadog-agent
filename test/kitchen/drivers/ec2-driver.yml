@@ -97,6 +97,10 @@ platforms:
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
     <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  provisioner:
+    command_prefix: TMPDIR=<%= ENV['KITCHEN_CI_ROOT_PATH'] %>
+  <% end %>
   driver:
     <% if windows %>
     connection_timeout: 20
