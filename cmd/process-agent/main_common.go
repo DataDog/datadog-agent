@@ -263,21 +263,20 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	runApp(exit, syscfg, hostInfo, enabledChecks)
+	runApp(exit, syscfg, hostInfo)
 
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
 	}
 }
 
-func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) {
+func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo) {
 	go util.HandleSignals(exit)
 
 	app := fx.New(
 		fx.Supply(
 			syscfg,
 			hostInfo,
-			enabledChecks,
 		),
 		process.Bundle,
 

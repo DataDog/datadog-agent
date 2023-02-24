@@ -42,13 +42,11 @@ func TestRunnerLifecycle(t *testing.T) {
 		fx.Supply(
 			&checks.HostInfo{},
 			&sysconfig.Config{},
-			[]checks.Check{
-				newMockCheck(t, "process"),
-			},
 		),
 
 		Module,
 		submitter.MockModule,
+		processcheck.Module,
 	), func(runner Component) {
 		// Start and stop the component
 	})
