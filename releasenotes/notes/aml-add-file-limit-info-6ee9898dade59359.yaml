@@ -8,10 +8,10 @@
 ---
 features:
   - |
-    In the agent.log, a DEBUG, WARN, and ERROR log are being added to report
-    how many file handles the core agent process has open. The DEBUG log will
-    report the info, the WARN log will appear when the Core Agent is over 90%
-    of the OS file limit, and the ERROR log will appear when the Core Agent
-    has reached 100% of the OS file limit. In the Agent status command, fields 
-    CoreAgentProcessOpenFiles and OSFileLimit are being added to the Logs
+    In the agent.log, a DEBUG, WARN, and ERROR log have been added to report
+    how many file handles the core Agent process has open. The DEBUG log
+    reports the info, the WARN log appears when the core Agent is over 90%
+    of the OS file limit, and the ERROR log appears when the core Agent
+    has reached 100% of the OS file limit. In the Agent status command, fields
+    CoreAgentProcessOpenFiles and OSFileLimit have been added to the Logs
     Agent section. This feature is currently for Linux only.
