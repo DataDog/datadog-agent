@@ -134,7 +134,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		}
 
 		return nil
-	})
+	}, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stack: %w", err)
 	}
