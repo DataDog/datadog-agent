@@ -1269,7 +1269,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	assert.EqualValues(t, 0, conns[0].Last.RecvBytes)
 
 	// Ensure we don't have underflows / unordered conns
-	assert.Zero(t, statsUnderflows)
+	assert.Zero(t, statsUnderflows.Load())
 
 	assert.Len(t, state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns, 0)
 }
