@@ -109,7 +109,7 @@ func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFi
 	return protectedFile, err
 }
 
-// verify reads the asset in the provided directory and verifies the content hash matches what is expected.
+// verify reads the asset from the reader and verifies the content hash matches what is expected.
 func (a *asset) verify(source io.Reader) error {
 	h := sha256.New()
 	if _, err := io.Copy(h, source); err != nil {
