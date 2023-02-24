@@ -12,7 +12,6 @@ import (
 
 	"go.uber.org/fx"
 
-	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -50,7 +49,7 @@ func newConfig(deps dependencies) (Component, error) {
 	}
 
 	if deps.Params.configLoadSecurityAgent {
-		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
+		if err := config.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
 			return returnErrFct(err)
 		}
 	}
