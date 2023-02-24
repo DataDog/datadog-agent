@@ -279,15 +279,11 @@ int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
 
 SEC("fentry/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
+    log_debug("fexntry/tcp_retransmit\n");
     u64 tid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
-    args.sk = sk;
-    args.segs = 0;
-    args.retrans_out_pre = 0;
-    if (bpf_probe_read_kernel_with_telemetry(&(args.retrans_out_pre), sizeof(args.retrans_out_pre), &(tcp_sk(sk)->retrans_out)) < 0) {
-        return 0;
-    }
-
+    args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
+    
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
 
     return 0;
@@ -295,7 +291,7 @@ int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs,
 
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    log_debug("kretprobe/tcp_retransmit\n");
+    log_debug("fexit/tcp_retransmit\n");
     u64 tid = bpf_get_current_pid_tgid();
     if (err < 0) {
         bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
@@ -305,10 +301,8 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
     if (args == NULL) {
         return 0;
     }
-    struct sock* sock = args->sk;
     u32 retrans_out_pre = args->retrans_out_pre;
-    u32 retrans_out = 0;
-    bpf_probe_read_kernel_with_telemetry(&retrans_out, sizeof(retrans_out), &(tcp_sk(sock)->retrans_out));
+    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
 
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
 
