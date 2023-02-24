@@ -34,6 +34,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction ReportTelemetry { get; }
 
+        public ManagedAction WriteInstallInfo { get; }
+
         public AgentCustomActions()
         {
             ReadRegistryProperties = new CustomAction<UserCustomActions>(
@@ -111,8 +113,7 @@ namespace WixSetup.Datadog
                 "PYVER=[PYVER], " +
                 "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
                 "NPM=[NPM], " +
-                "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
-                "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]")
+                "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
             .HideTarget(true);
 
             // Cleanup leftover files on rollback
@@ -212,6 +213,18 @@ namespace WixSetup.Datadog
                 Step.InstallFinalize
             )
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+
+            WriteInstallInfo = new CustomAction<InstallInfoCustomActions>(
+                new Id(nameof(WriteInstallInfo)),
+                InstallInfoCustomActions.WriteInstallInfo,
+                Return.ignore,
+                When.Before,
+                Step.InstallServices,
+                // Include "Being_Reinstalled" so that if customer changes install method
+                // the install_info reflects that.
+                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
+                ).SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
+                                "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
         }
     }
 }

@@ -59,6 +59,7 @@
     <Compile Include="Flare.cs" />
     <Compile Include="IInstallerHttpClient.cs" />
     <Compile Include="InstallerWebClient.cs" />
+    <Compile Include="InstallInfoCustomActions.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="ISession.cs" />
