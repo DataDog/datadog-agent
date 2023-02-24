@@ -60,9 +60,9 @@ CONTRIBUTORS_WITH_UNCOMMENTED_HEADER = [
     'gopkg.in/Knetic/govaluate.v3',
 ]
 
+
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
-
     # we need the full vendor tree in order to perform this analysis
     from .go import deps_vendored
 

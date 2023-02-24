@@ -14,7 +14,6 @@ from test_e2e_cspm import expect_findings
 
 
 class TestE2EKubernetes(unittest.TestCase):
-
     namespace = "default"
     in_cluster = False
     expectedFindingsMasterEtcdNode = {

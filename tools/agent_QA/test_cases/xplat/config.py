@@ -6,7 +6,6 @@ class EndpointTests(TestCase):
     name = "[Endpoints] Test endpoint configs"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
         path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"

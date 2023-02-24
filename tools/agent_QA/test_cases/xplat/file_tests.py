@@ -6,7 +6,6 @@ class TailFile(TestCase):
     name = "[Files] Agent can tail a file"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -49,7 +48,6 @@ class TailFileMultiLine(TestCase):
     name = "[Files] Agent can tail multi line logs"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -85,7 +83,6 @@ class TailFileUTF16(TestCase):
     name = "[Files] Agent can tail UTF16 files"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -121,7 +118,6 @@ class TailFileWildcard(TestCase):
     name = "[Files] Agent can use wildcards to tail a file"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -157,7 +153,6 @@ class TailFileStartPosition(TestCase):
     name = "[Files] `start_position` defines where to tail from"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 

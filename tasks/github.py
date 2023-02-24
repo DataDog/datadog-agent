@@ -15,7 +15,6 @@ def trigger_macos_build(
     python_runtimes="3",
     destination=".",
 ):
-
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
@@ -45,7 +44,6 @@ def trigger_macos_test(
     python_runtimes="3",
     destination=".",
 ):
-
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
