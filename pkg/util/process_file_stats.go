@@ -5,6 +5,7 @@
 
 package util
 
+// ProcessFileStats is used to retrieve stats from gopsutil/v3/process -- these stats are used for troubleshooting purposes
 type ProcessFileStats struct {
 	AgentOpenFiles float64 `json:"agent_open_files"`
 	OsFileLimit    float64 `json:"os_file_limit"`

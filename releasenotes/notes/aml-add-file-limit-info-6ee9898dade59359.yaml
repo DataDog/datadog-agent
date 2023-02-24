@@ -12,6 +12,6 @@ features:
     how many file handles the core agent process has open. The DEBUG log will
     report the info, the WARN log will appear when the Core Agent is over 90%
     of the OS file limit, and the ERROR log will appear when the Core Agent
-    has reached 100% of the OS file limit. In the status.log, fields 
+    has reached 100% of the OS file limit. In the Agent status command, fields 
     CoreAgentProcessOpenFiles and OSFileLimit are being added to the Logs
     Agent section. This feature is currently for Linux only.
