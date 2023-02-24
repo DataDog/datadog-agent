@@ -48,7 +48,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: inputs,
 	}
 
-	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}, nil); err != nil {
+	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -76,6 +76,7 @@ func (f *regoFixture) run(t *testing.T) {
 	env.On("Hostname").Return("hostname_test").Once()
 	env.On("DumpInputPath").Return("").Once()
 	env.On("ShouldSkipRegoEval").Return(false).Once()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	defer env.AssertExpectations(t)
 
