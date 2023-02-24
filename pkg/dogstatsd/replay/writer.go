@@ -66,11 +66,9 @@ var CapPool = sync.Pool{
 
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
-	File      afero.File
 	zWriter   *zstd.Writer
 	writer    *bufio.Writer
 	Traffic   chan *CaptureBuffer
-	Location  string
 	shutdown  chan struct{}
 	ongoing   bool
 	accepting *atomic.Bool
@@ -91,18 +89,6 @@ func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
 		taggerState: make(map[int32]string),
 		accepting:   atomic.NewBool(false),
 	}
-}
-
-// Path returns the path to file where the traffic capture will be written.
-func (tc *TrafficCaptureWriter) Path() (string, error) {
-	tc.RLock()
-	defer tc.RUnlock()
-
-	if tc.File == nil {
-		return "", fmt.Errorf("No file set in writer")
-	}
-
-	return filepath.Abs(tc.File.Name())
 }
 
 // ProcessMessage receives a capture buffer and writes it to disk while also tracking
@@ -133,16 +119,9 @@ func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
 	return nil
 }
 
-// ValidateLocation validates the location passed as an argument is writable.
+// validateLocation validates the location passed as an argument is writable.
 // The location and/or and error if any are returned.
-func ValidateLocation(l string) (string, error) {
-	captureFs.RLock()
-	defer captureFs.RUnlock()
-
-	if captureFs.fs == nil {
-		return "", fmt.Errorf("no filesystem backend available, impossible to start capture")
-	}
-
+func validateLocation(fs afero.Fs, l string) (string, error) {
 	defaultLocation := l == ""
 
 	var location string
@@ -155,10 +134,10 @@ func ValidateLocation(l string) (string, error) {
 		location = l
 	}
 
-	s, err := captureFs.fs.Stat(location)
+	s, err := fs.Stat(location)
 	if os.IsNotExist(err) {
 		if defaultLocation {
-			err := captureFs.fs.MkdirAll(location, 0755)
+			err := fs.MkdirAll(location, 0755)
 			if err != nil {
 				return "", err
 			}
@@ -177,45 +156,31 @@ func ValidateLocation(l string) (string, error) {
 
 }
 
+// OpenFile checks that location is acceptable for a capture and creates a new file using given fs implementation.
+func OpenFile(fs afero.Fs, l string) (afero.File, string, error) {
+	location, err := validateLocation(fs, l)
+	if err != nil {
+		return nil, "", err
+	}
+
+	p, err := filepath.Abs(path.Join(location, fmt.Sprintf(fileTemplate, time.Now().Unix())))
+	if err != nil {
+		return nil, "", err
+	}
+
+	f, err := fs.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_EXCL, 0660)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return f, p, err
+}
+
 // Capture start the traffic capture and writes the packets to file at the
 // specified location and for the specified duration.
-func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bool) {
-
+func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, compressed bool) {
+	defer target.Close()
 	log.Debug("Starting capture...")
-
-	var (
-		err      error
-		location string
-	)
-
-	captureFs.RLock()
-	defer captureFs.RUnlock()
-
-	if captureFs.fs == nil {
-		log.Errorf("no filesystem backend available, impossible to start capture")
-		return
-	}
-
-	location, err = ValidateLocation(l)
-	if err != nil {
-		return
-	}
-
-	var target io.Writer
-
-	tc.Lock()
-	tc.Location = location
-	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
-
-	fp, err := captureFs.fs.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_EXCL, 0660)
-	if err != nil {
-		log.Errorf("There was an issue starting the capture: %v ", err)
-
-		tc.Unlock()
-		return
-	}
-	tc.File = fp
-	target = tc.File
 
 	if compressed {
 		tc.zWriter = zstd.NewWriter(target)
