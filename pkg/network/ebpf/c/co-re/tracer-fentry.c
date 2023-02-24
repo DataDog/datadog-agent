@@ -306,11 +306,11 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
     }
     u32 retrans_out_pre = args->retrans_out_pre;
     u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+    
     if (retrans_out < 0) {
         return 0;
     }
-
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
 
     return handle_retransmit(sk, retrans_out-retrans_out_pre);
 }
