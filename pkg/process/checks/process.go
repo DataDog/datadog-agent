@@ -539,7 +539,7 @@ func skipProcess(
 	cl := fp.Cmdline
 	if len(cl) == 0 {
 		cl = []string{fp.Exe}
-		log.Debugf("empty commandline, using exe:[%s] to check if the process should be skipped", cl)
+		log.Debugf("Empty commandline for pid:%d using exe:[%s] to check if the process should be skipped", fp.Pid, cl)
 	}
 	if isDisallowListed(cl, disallowList) {
 		return true
