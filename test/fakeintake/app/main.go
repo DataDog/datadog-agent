@@ -21,6 +21,7 @@ func main() {
 	fmt.Println("⌛️ Starting fake intake")
 	ready := make(chan bool, 1)
 	fi := fakeintake.NewServer(fakeintake.WithPort(8080), fakeintake.WithReadyChannel(ready))
+	fi.Start()
 	isReady := <-ready
 	if !isReady {
 		fmt.Println("Error starting fake intake")

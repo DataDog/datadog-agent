@@ -36,7 +36,8 @@ type Server struct {
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
-// options accept WithPort and WithReadyChan
+// options accept WithPort and WithReadyChan.
+// Call Server.Start() to start the server in a separate go-routine
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
@@ -56,8 +57,6 @@ func NewServer(options ...func(*Server)) *Server {
 	for _, opt := range options {
 		opt(fi)
 	}
-
-	fi.start()
 
 	return fi
 }
@@ -85,7 +84,9 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 	}
 }
 
-func (fi *Server) start() {
+// Start Starts a fake intake server in a separate go-routine
+// Notifies when ready to the ready channel
+func (fi *Server) Start() {
 	if fi.URL() != "" {
 		fmt.Printf("Fake intake alredy running at %s", fi.URL())
 		return

@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	isLocalRun = true
+	isLocalRun = false
 )
 
 func TestIntegrationClient(t *testing.T) {
@@ -27,6 +27,7 @@ func TestIntegrationClient(t *testing.T) {
 	t.Run("should get empty payloads from a server", func(t *testing.T) {
 		ready := make(chan bool, 1)
 		fi := server.NewServer(server.WithReadyChannel(ready))
+		fi.Start()
 		defer fi.Stop()
 		isReady := <-ready
 		require.True(t, isReady)
@@ -40,6 +41,7 @@ func TestIntegrationClient(t *testing.T) {
 	t.Run("should get all available payloads from a server on a given endpoint", func(t *testing.T) {
 		ready := make(chan bool, 1)
 		fi := server.NewServer(server.WithReadyChannel(ready))
+		fi.Start()
 		defer fi.Stop()
 		isReady := <-ready
 		require.True(t, isReady)
