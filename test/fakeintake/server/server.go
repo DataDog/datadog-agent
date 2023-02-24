@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -27,12 +28,17 @@ type payload struct {
 type Server struct {
 	mu     sync.RWMutex
 	server http.Server
+	ready  chan bool
+
+	url string
 
 	payloadStore map[string][]payload
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
-func NewServer(port int) *Server {
+// options accept WithPort and WithReadyChan
+// If the port is 0, a port number is automatically chosen
+func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
 		mu:           sync.RWMutex{},
 		payloadStore: map[string][]payload{},
@@ -43,8 +49,12 @@ func NewServer(port int) *Server {
 	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
 
 	fi.server = http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
+		Addr:    "127.0.0.1:0",
+	}
+
+	for _, opt := range options {
+		opt(fi)
 	}
 
 	fi.start()
@@ -52,13 +62,60 @@ func NewServer(port int) *Server {
 	return fi
 }
 
+// WithPort changes the server port.
+// If the port is 0, a port number is automatically chosen
+func WithPort(port int) func(*Server) {
+	return func(fi *Server) {
+		if fi.URL() != "" {
+			fmt.Printf("Fake intake is already running. Stop it and try again to change the port.")
+			return
+		}
+		fi.server.Addr = fmt.Sprintf("127.0.0.1:%d", port)
+	}
+}
+
+// WithReadyChannel assign a boolean channel to get notified when the server is ready.
+func WithReadyChannel(ready chan bool) func(*Server) {
+	return func(fi *Server) {
+		if fi.URL() != "" {
+			fmt.Printf("Fake intake is already running. Stop it and try again to change the ready channel.")
+			return
+		}
+		fi.ready = ready
+	}
+}
+
 func (fi *Server) start() {
+	if fi.URL() != "" {
+		fmt.Printf("Fake intake alredy running at %s", fi.URL())
+		return
+	}
 	go func() {
-		err := fi.server.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
+		// explicitly creating a listener to get the actual port
+		// as http.Server.ListenAndServe hides this information
+		// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
+		listener, err := net.Listen("tcp", fi.server.Addr)
+		if err != nil {
 			fmt.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
+
+			fi.ready <- false
+
+			return
+		}
+		fi.url = "http://" + listener.Addr().String()
+		// notify server is ready
+		fi.ready <- true
+		// server.Serve blocks and listens to requests
+		err = fi.server.Serve(listener)
+		if err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Error creating fake intake server at %s: %v", listener.Addr().String(), err)
+			return
 		}
 	}()
+}
+
+func (fi *Server) URL() string {
+	return fi.url
 }
 
 // Stop Gracefully stop the http server

@@ -19,7 +19,13 @@ func main() {
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("⌛️ Starting fake intake")
-	fi := fakeintake.NewServer(8080)
+	ready := make(chan bool, 1)
+	fi := fakeintake.NewServer(fakeintake.WithPort(8080), fakeintake.WithReadyChannel(ready))
+	isReady := <-ready
+	if !isReady {
+		fmt.Println("Error starting fake intake")
+		return
+	}
 	fmt.Println("🏃 Fake intake running")
 
 	<-sigs

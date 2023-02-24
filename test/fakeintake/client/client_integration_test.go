@@ -13,10 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/server"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
-	isLocalRun = false
+	isLocalRun = true
 )
 
 func TestIntegrationClient(t *testing.T) {
@@ -24,28 +25,34 @@ func TestIntegrationClient(t *testing.T) {
 		t.Skip("skip client integration test on the CI, connection to the server is flaky")
 	}
 	t.Run("should get empty payloads from a server", func(t *testing.T) {
-		fi := server.NewServer(8080)
+		ready := make(chan bool, 1)
+		fi := server.NewServer(server.WithReadyChannel(ready))
 		defer fi.Stop()
+		isReady := <-ready
+		require.True(t, isReady)
 
-		client := NewClient("http://localhost:8080")
+		client := NewClient(fi.URL())
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 0, len(payloads))
 	})
 
 	t.Run("should get all available payloads from a server on a given endpoint", func(t *testing.T) {
-		fi := server.NewServer(8080)
+		ready := make(chan bool, 1)
+		fi := server.NewServer(server.WithReadyChannel(ready))
 		defer fi.Stop()
+		isReady := <-ready
+		require.True(t, isReady)
 
 		// post a test payloads to fakeintake
-		serverUrl := "http://localhost:8080"
+		// serverUrl := "http://localhost:8080"
 		testEndpoint := "/foo/bar"
-		resp, err := http.Post(fmt.Sprintf("%s%s", serverUrl, testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
+		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 
-		client := NewClient(serverUrl)
+		client := NewClient(fi.URL())
 		payloads, err := client.getFakePayloads(testEndpoint)
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))
