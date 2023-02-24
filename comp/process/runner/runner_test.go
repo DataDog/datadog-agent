@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -54,34 +55,73 @@ func TestRunnerLifecycle(t *testing.T) {
 }
 
 func TestRunnerRealtime(t *testing.T) {
-	rtChan := make(chan types.RTResponse)
-	fxutil.Test(t, fx.Options(
-		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
-			[]checks.Check{
-				newMockCheck(t, "process"),
-			},
-		),
+	t.Run("rt allowed", func(t *testing.T) {
+		rtChan := make(chan types.RTResponse)
 
-		fx.Provide(
-			// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
-			// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
-			func() <-chan types.RTResponse { return rtChan },
-		),
+		mockConfig := config.Mock(t)
+		mockConfig.Set("process_config.disable_realtime_checks", false)
 
-		Module,
-		submitter.MockModule,
-	), func(r Component) {
-		rtChan <- types.RTResponse{
-			{
-				ActiveClients: 1,
-				Interval:      10,
-			},
-		}
-		assert.Eventually(t, func() bool {
-			return r.(*runner).IsRealtimeEnabled()
-		}, 1*time.Second, 10*time.Millisecond)
+		fxutil.Test(t, fx.Options(
+			fx.Supply(
+				&checks.HostInfo{},
+				&sysconfig.Config{},
+			),
+
+			fx.Provide(
+				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
+				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
+				func() <-chan types.RTResponse { return rtChan },
+			),
+
+			Module,
+			submitter.MockModule,
+			processcheck.Module,
+		), func(r Component) {
+			rtChan <- types.RTResponse{
+				{
+					ActiveClients: 1,
+					Interval:      10,
+				},
+			}
+			assert.Eventually(t, func() bool {
+				return r.(*runner).IsRealtimeEnabled()
+			}, 1*time.Second, 10*time.Millisecond)
+		})
+	})
+
+	t.Run("rt disallowed", func(t *testing.T) {
+		// Buffer the channel because the runner will never consume from it, otherwise we will deadlock
+		rtChan := make(chan types.RTResponse, 1)
+
+		mockConfig := config.Mock(t)
+		mockConfig.Set("process_config.disable_realtime_checks", true)
+
+		fxutil.Test(t, fx.Options(
+			fx.Supply(
+				&checks.HostInfo{},
+				&sysconfig.Config{},
+			),
+
+			fx.Provide(
+				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
+				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
+				func() <-chan types.RTResponse { return rtChan },
+			),
+
+			Module,
+			submitter.MockModule,
+			processcheck.Module,
+		), func(r Component) {
+			rtChan <- types.RTResponse{
+				{
+					ActiveClients: 1,
+					Interval:      10,
+				},
+			}
+			assert.Never(t, func() bool {
+				return r.(*runner).IsRealtimeEnabled()
+			}, 1*time.Second, 10*time.Millisecond)
+		})
 	})
 }
 

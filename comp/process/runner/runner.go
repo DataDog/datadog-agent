@@ -7,6 +7,7 @@ package runner
 
 import (
 	"context"
+
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
