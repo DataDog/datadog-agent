@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
@@ -90,9 +91,14 @@ type collector struct {
 
 	knownImages *knownImages
 
-	// Map of image ID => array of repo tags
-	repoTags map[string][]string
+	// Images are updated from 2 goroutines: the one that handles containerd
+	// events, and the one that extracts SBOMS.
+	// This mutex is used to handle images one at a time to avoid
+	// inconsistencies like trying to set an SBOM for an image that is being
+	// deleted.
+	handleImagesMut sync.Mutex
 
+	// SBOM Scanning
 	trivyClient  trivy.Collector // nolint: unused
 	imagesToScan chan namespacedImage
 }
@@ -108,7 +114,6 @@ func init() {
 		return &collector{
 			contToExitInfo: make(map[string]*exitInfo),
 			knownImages:    newKnownImages(),
-			repoTags:       make(map[string][]string),
 		}
 	})
 }
@@ -126,7 +131,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	if err = c.startSBOMCollection(); err != nil {
+	if err = c.startSBOMCollection(ctx); err != nil {
 		return err
 	}
 
@@ -266,7 +271,8 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 
 	for _, image := range existingImages {
 		if err := c.notifyEventForImage(ctx, namespace, image, nil); err != nil {
-			return err
+			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
+			continue
 		}
 	}
 

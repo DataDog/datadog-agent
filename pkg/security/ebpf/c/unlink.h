@@ -127,7 +127,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
             struct rmdir_event_t event = {
                 .syscall.retval = retval,
-                .event.async = syscall->async,
+                .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
                 .file = syscall->unlink.file,
             };
 
@@ -139,7 +139,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         } else {
             struct unlink_event_t event = {
                 .syscall.retval = retval,
-                .event.async = syscall->async,
+                .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
                 .file = syscall->unlink.file,
                 .flags = syscall->unlink.flags,
             };

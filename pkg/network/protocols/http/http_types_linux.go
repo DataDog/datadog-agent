@@ -53,7 +53,8 @@ const (
 	ProtocolPostgres ProtocolType = 0x7
 	ProtocolAMQP     ProtocolType = 0x8
 	ProtocolRedis    ProtocolType = 0x9
-	ProtocolMax      ProtocolType = 0xa
+	ProtocolMySQL    ProtocolType = 0xa
+	ProtocolMax      ProtocolType = 0xb
 )
 
 const (

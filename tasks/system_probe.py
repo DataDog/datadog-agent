@@ -299,6 +299,7 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/tcp_states.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
+                "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
@@ -1361,6 +1362,10 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             docker_compose = yaml.safe_load(f.read())
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
+
+    # Java tests have dynamic images in docker-compose.yml
+    for image in ["openjdk:21-oraclelinux8", "openjdk:8u151-jre"]:
+        images.add(image)
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))

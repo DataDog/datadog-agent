@@ -590,22 +590,24 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     return 0;
 }
 
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_PROG);
-    return 0;
-}
-
-// The entrypoint for all packets.
-SEC("socket/classifier")
-int socket__classifier(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);
     return 0;
 }
+
+SEC("socket/classifier_queues")
+int socket__classifier_queues(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_queues(skb);
+    return 0;
+}
+
+SEC("socket/classifier_dbs")
+int socket__classifier_dbs(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_dbs(skb);
+    return 0;
+}
+
 
 //endregion
 

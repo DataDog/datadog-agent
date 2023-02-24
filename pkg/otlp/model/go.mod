@@ -2,20 +2,17 @@ module github.com/DataDog/datadog-agent/pkg/otlp/model
 
 go 1.18
 
-replace (
-	github.com/DataDog/datadog-agent/pkg/quantile => ../../quantile
-	github.com/DataDog/datadog-agent/pkg/trace => ../../trace
-)
+replace github.com/DataDog/datadog-agent/pkg/trace => ../../trace
 
 require (
-	github.com/DataDog/datadog-agent/pkg/quantile v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.43.0-rc.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/golang/protobuf v1.5.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.8.1
-	go.opentelemetry.io/collector/pdata v1.0.0-rc4
-	go.opentelemetry.io/collector/semconv v0.70.0
+	go.opentelemetry.io/collector/pdata v1.0.0-rc5
+	go.opentelemetry.io/collector/semconv v0.71.0
 	go.uber.org/zap v1.24.0
 )
 
@@ -36,7 +33,7 @@ require (
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
 	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6 // indirect
-	google.golang.org/grpc v1.52.0 // indirect
+	google.golang.org/grpc v1.52.3 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

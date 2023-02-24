@@ -479,6 +479,7 @@ func TestHandleECSTask(t *testing.T) {
 						Name: containerName,
 					},
 				},
+				AvailabilityZone: "us-east-1c",
 			},
 			expected: []*TagInfo{
 				{
@@ -495,6 +496,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"availability_zone:us-east-1c",
+						"availability-zone:us-east-1c",
 					},
 					StandardTags: []string{},
 				},
@@ -511,6 +514,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"availability_zone:us-east-1c",
+						"availability-zone:us-east-1c",
 					},
 					StandardTags: []string{},
 				},

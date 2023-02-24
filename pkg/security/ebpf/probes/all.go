@@ -93,7 +93,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
 				EBPFFuncName: "sys_exit",
 			},
 		},
@@ -101,7 +100,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "kprobe/security_inode_getattr",
 				EBPFFuncName: "kprobe_security_inode_getattr",
 			},
 		},
@@ -248,5 +246,12 @@ func AllBPFProbeWriteUserProgramFunctions() []string {
 func GetPerfBufferStatisticsMaps() map[string]string {
 	return map[string]string{
 		"events": "events_stats",
+	}
+}
+
+// GetRingBufferStatisticsMaps returns the list of maps used to monitor the performances of each ring buffer
+func GetRingBufferStatisticsMaps() map[string]string {
+	return map[string]string{
+		"events": "events_ringbuf_stats",
 	}
 }

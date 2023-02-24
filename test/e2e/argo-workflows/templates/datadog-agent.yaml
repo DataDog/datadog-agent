@@ -122,10 +122,6 @@ spec:
                     value: "false"
                   - name: DD_REMOTE_CONFIGURATION_ENABLED
                     value: "{{inputs.parameters.remote_configuration_enabled}}"
-                  - name: DD_REMOTE_CONFIGURATION_KEY
-                    value: $DD_RC_KEY
-                  - name: DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL
-                    value: "5s"
               systemProbe:
                 logLevel: TRACE
                 env:

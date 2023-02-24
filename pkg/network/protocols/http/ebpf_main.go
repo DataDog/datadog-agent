@@ -11,7 +11,6 @@ package http
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,13 +31,10 @@ const (
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
-	protocolDispatcherSocketFilterSection  = "socket/protocol_dispatcher"
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
 	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
 	connectionStatesMap                    = "connection_states"
-
-	httpSocketFilter = "socket/http_filter"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -96,7 +91,6 @@ var tailCalls = []manager.TailCallRoute{
 		ProgArrayName: protocolDispatcherProgramsMap,
 		Key:           uint32(ProtocolHTTP),
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFSection:  httpSocketFilter,
 			EBPFFuncName: "socket__http_filter",
 		},
 	},
@@ -117,7 +111,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  probes.TCPSendMsg,
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
@@ -125,14 +118,12 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/net/netif_receive_skb",
 					EBPFFuncName: "tracepoint__net__netif_receive_skb",
 					UID:          probeUID,
 				},
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  protocolDispatcherSocketFilterSection,
 					EBPFFuncName: protocolDispatcherSocketFilterFunction,
 					UID:          probeUID,
 				},
@@ -187,26 +178,32 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureManager(e.Manager)
 	}
 
+	var err error
 	if e.cfg.EnableCORE {
-		assetName := getAssetName("http", e.cfg.BPFDebug)
-		err := ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+		err = e.initCORE()
 		if err == nil {
 			return nil
 		}
+
 		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
-			return handleInitError(fmt.Errorf("co-re load failed: %w", err))
+			return fmt.Errorf("co-re load failed: %w", err)
+		}
+		log.Warnf("co-re load failed. attempting fallback: %s", err)
+	}
+
+	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
+		err = e.initRuntimeCompiler()
+		if err == nil {
+			return nil
 		}
 
-		log.Errorf("co-re load failed: %s. attempting fallback.", err)
+		if !e.cfg.AllowPrecompiledFallback {
+			return fmt.Errorf("runtime compilation failed: %w", err)
+		}
+		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
-	buf, err := getBytecode(e.cfg)
-	if err != nil {
-		return err
-	}
-	defer buf.Close()
-
-	return e.init(buf, manager.Options{})
+	return e.initPrebuilt()
 }
 
 func (e *ebpfProgram) Start() error {
@@ -231,6 +228,29 @@ func (e *ebpfProgram) Close() error {
 		s.Stop()
 	}
 	return err
+}
+
+func (e *ebpfProgram) initCORE() error {
+	assetName := getAssetName("http", e.cfg.BPFDebug)
+	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+}
+
+func (e *ebpfProgram) initRuntimeCompiler() error {
+	bc, err := getRuntimeCompiledHTTP(e.cfg)
+	if err != nil {
+		return err
+	}
+	defer bc.Close()
+	return e.init(bc, manager.Options{})
+}
+
+func (e *ebpfProgram) initPrebuilt() error {
+	bc, err := netebpf.ReadHTTPModule(e.cfg.BPFDir, e.cfg.BPFDebug)
+	if err != nil {
+		return err
+	}
+	defer bc.Close()
+	return e.init(bc, manager.Options{})
 }
 
 func (e *ebpfProgram) setupMapCleaner() {
@@ -292,21 +312,18 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.ActivatedProbes = []manager.ProbesSelector{
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  protocolDispatcherSocketFilterSection,
 				EBPFFuncName: protocolDispatcherSocketFilterFunction,
 				UID:          probeUID,
 			},
 		},
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  probes.TCPSendMsg,
 				EBPFFuncName: "kprobe__tcp_sendmsg",
 				UID:          probeUID,
 			},
 		},
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/net/netif_receive_skb",
 				EBPFFuncName: "tracepoint__net__netif_receive_skb",
 				UID:          probeUID,
 			},
@@ -326,42 +343,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	return e.InitWithOptions(buf, options)
 }
 
-func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
-	if c.EnableRuntimeCompiler {
-		bc, err = getRuntimeCompiledHTTP(c)
-		if err != nil {
-			if !c.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network http tracer: %w", err)
-			}
-			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
-		}
-	}
-
-	if bc == nil {
-		bc, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
-		if err != nil {
-			return nil, fmt.Errorf("could not read bpf module: %s", err)
-		}
-	}
-
-	return
-}
-
 func getAssetName(module string, debug bool) string {
 	if debug {
 		return fmt.Sprintf("%s-debug.o", module)
 	}
 
 	return fmt.Sprintf("%s.o", module)
-}
-
-// wrap certain errors as `ErrNotSupported` so CO-RE tests skipped accordingly
-func handleInitError(err error) error {
-	if strings.Contains(err.Error(), "kernel without BTF support") ||
-		strings.Contains(err.Error(), "could not find BTF data on host") {
-		return &ErrNotSupported{
-			fmt.Errorf("co-re not supported on this host: %w", err),
-		}
-	}
-	return err
 }

@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -22,14 +24,14 @@ import (
 
 func TestProcessArgsFlags(t *testing.T) {
 	var argsEntry model.ArgsEntry
-	argsEntry.SetValues([]string{
+	argsEntry.Values = []string{
 		"cmd", "-abc", "--verbose", "test",
 		"-v=1", "--host=myhost",
 		"-9", "-", "--",
-	})
+	}
 
-	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, NewProcessResolverOpts(nil))
+	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts(nil))
 
 	e := model.Event{
 		Exec: model.ExecEvent{
@@ -38,7 +40,7 @@ func TestProcessArgsFlags(t *testing.T) {
 			},
 		},
 		FieldHandlers: &FieldHandlers{
-			resolvers: &Resolvers{
+			resolvers: &resolvers.Resolvers{
 				ProcessResolver: resolver,
 			},
 		},
@@ -83,14 +85,14 @@ func TestProcessArgsFlags(t *testing.T) {
 
 func TestProcessArgsOptions(t *testing.T) {
 	var argsEntry model.ArgsEntry
-	argsEntry.SetValues([]string{
+	argsEntry.Values = []string{
 		"cmd", "--config", "/etc/myfile", "--host=myhost", "--verbose",
 		"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
 		"--", "---", "-9",
-	})
+	}
 
-	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, NewProcessResolverOpts(nil))
+	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts(nil))
 
 	e := model.Event{
 		Exec: model.ExecEvent{
@@ -99,7 +101,7 @@ func TestProcessArgsOptions(t *testing.T) {
 			},
 		},
 		FieldHandlers: &FieldHandlers{
-			resolvers: &Resolvers{
+			resolvers: &resolvers.Resolvers{
 				ProcessResolver: resolver,
 			},
 		},

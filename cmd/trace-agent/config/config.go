@@ -275,6 +275,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		MaxRequestBytes:         c.MaxRequestBytes,
 		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
 		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:   coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 	}
 
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
@@ -426,6 +427,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "evp_proxy_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
 	}
+	c.DebugServerPort = coreconfig.Datadog.GetInt("apm_config.debug.port")
 	return nil
 }
 

@@ -18,20 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func enableProbe(enabled map[probes.ProbeName]string, name probes.ProbeName) {
-	if fn, ok := mainProbes[name]; ok {
-		enabled[name] = fn
-		return
-	}
-	if fn, ok := altProbes[name]; ok {
-		enabled[name] = fn
-	}
+func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
+	enabled[name] = struct{}{}
 }
 
 // enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]string, error) {
-	enabled := make(map[probes.ProbeName]string, 0)
+func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
+	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
 	ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
 
 	kv410 := kernel.VersionCode(4, 1, 0)
@@ -44,7 +38,8 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 	if c.CollectTCPConns {
 		if c.ClassificationSupported() {
 			enableProbe(enabled, probes.ProtocolClassifierEntrySocketFilter)
-			enableProbe(enabled, probes.ProtocolClassifierSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.NetDevQueue)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
@@ -121,7 +116,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 	return enabled, nil
 }
 
-func selectVersionBasedProbe(runtimeTracer bool, kv kernel.Version, dfault probes.ProbeName, versioned probes.ProbeName, reqVer kernel.Version) probes.ProbeName {
+func selectVersionBasedProbe(runtimeTracer bool, kv kernel.Version, dfault probes.ProbeFuncName, versioned probes.ProbeFuncName, reqVer kernel.Version) probes.ProbeFuncName {
 	if runtimeTracer {
 		return dfault
 	}

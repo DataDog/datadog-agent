@@ -27,15 +27,17 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -43,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -120,8 +121,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
+				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+			}),
+			flare.Module,
 			core.Bundle,
+			fx.Supply(dogstatsdServer.Params{
+				Serverless: false,
+			}),
+			dogstatsd.Bundle,
 		)
 	}
 
@@ -146,9 +153,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component, cliParams *cliParams) error {
 	defer func() {
-		stopAgent(cliParams)
+		stopAgent(cliParams, server)
 	}()
 
 	// prepare go runtime
@@ -187,7 +194,7 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 		}
 	}()
 
-	if err := startAgent(cliParams, flare); err != nil {
+	if err := startAgent(cliParams, flare, sysprobeconfig, server); err != nil {
 		return err
 	}
 
@@ -198,21 +205,35 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 }
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
-func StartAgentWithDefaults() error {
+func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
+	var dsdServer dogstatsdServer.Component
 	// run startAgent in an app, so that the log and config components get initialized
-	return fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component) error {
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare)
+	err := fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component) error {
+		dsdServer = server
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParamsWithSecrets(""),
-			LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
+			ConfigParams:         config.NewAgentParamsWithSecrets(""),
+			SysprobeConfigParams: sysprobeconfig.NewParams(),
+			LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+		}),
+		flare.Module,
 		core.Bundle,
+		fx.Supply(dogstatsdServer.Params{
+			Serverless: false,
+		}),
+		dogstatsd.Bundle,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+	return dsdServer, nil
 }
 
 // startAgent Initializes the agent process
-func startAgent(cliParams *cliParams, flare flare.Component) error {
+func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component) error {
 	var err error
 
 	// Main context passed to components
@@ -259,7 +280,7 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 	}
 
 	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(); err != nil {
+	if err := initRuntimeSettings(server); err != nil {
 		pkglog.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
@@ -343,7 +364,7 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare); err != nil {
+	if err = api.StartServer(configService, flare, server); err != nil {
 		return pkglog.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -407,14 +428,6 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 		}
 	}
 
-	// FIXME: this is necessary to fix windows agent starting as a service, since it is bypassing fx providing
-	// sysprobeconfig via the cobra run command. If this is removed, the system-probe config is not initialized
-	// correctly, and the agent does not correctly determine if system-probe is enabled. Ultimately causing the
-	// system-probe service to not start.
-	if _, err := sysconfig.New(cliParams.SysProbeConfFilePath); err != nil {
-		pkglog.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
-	}
-
 	// Detect Cloud Provider
 	go cloudproviders.DetectCloudProvider(context.Background())
 
@@ -429,8 +442,8 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		var err error
-		common.DSD, err = dogstatsd.NewServer(demux, false)
+		global.DSD = server
+		err := server.Start(demux)
 		if err != nil {
 			pkglog.Errorf("Could not start dogstatsd: %s", err)
 		} else {
@@ -488,12 +501,12 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults() {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}})
+func StopAgentWithDefaults(server dogstatsdServer.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams) {
+func stopAgent(cliParams *cliParams, server dogstatsdServer.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -508,9 +521,7 @@ func stopAgent(cliParams *cliParams) {
 			pkglog.Errorf("Error shutting down expvar server: %v", err)
 		}
 	}
-	if common.DSD != nil {
-		common.DSD.Stop()
-	}
+	server.Stop()
 	if common.OTLP != nil {
 		common.OTLP.Stop()
 	}

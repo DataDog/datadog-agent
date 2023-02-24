@@ -14,12 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	DefaultTimeout = time.Minute
+)
+
 // RunDockerServer is a template for running a protocols server in a docker.
 // - serverName is a friendly name of the server we are setting (AMQP, mongo, etc.).
 // - dockerPath is the path for the docker-compose.
 // - env is any environment variable required for running the server.
 // - serverStartRegex is a regex to be matched on the server logs to ensure it started correctly.
-func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp) {
+func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) {
 	t.Helper()
 
 	cmd := exec.Command("docker-compose", "-f", dockerPath, "up")
@@ -43,7 +47,8 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 		case <-patternScanner.DoneChan:
 			t.Logf("%s server is ready", serverName)
 			return
-		case <-time.After(time.Second * 60):
+		case <-time.After(timeout):
+			patternScanner.PrintLogs(t)
 			t.Fatalf("failed to start %s server", serverName)
 			return
 		}

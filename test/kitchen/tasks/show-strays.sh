@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 # This script lists any stray azure vms that remain from an arbitrary pipeline.
 # It's meant to be run manually to see if any cleanup is necessary.

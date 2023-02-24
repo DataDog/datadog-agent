@@ -25,4 +25,4 @@
   before_script:
   script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/clean.sh
+    - tasks/clean.sh

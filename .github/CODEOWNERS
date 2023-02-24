@@ -67,6 +67,7 @@
 /.gitlab/docker_common/                              @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/fakeintake.yml                              @DataDog/agent-e2e-testing
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
@@ -97,6 +98,8 @@
 /.gitlab/choco_deploy.yml                            @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
+
+/.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 
 /chocolatey/                            @DataDog/windows-agent
 
@@ -177,6 +180,7 @@
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
+/comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/process @DataDog/processes
 /comp/systray @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
@@ -316,7 +320,6 @@
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/runtime/tcp-queue-length.go  @DataDog/container-integrations
 /pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
-/pkg/quantile/                          @DataDog/metrics-aggregation
 /pkg/compliance/                        @DataDog/agent-security
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
@@ -371,10 +374,14 @@
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
+/test/fakeintake/                       @DataDog/agent-e2e-testing
 /test/new-e2e/                          @DataDog/agent-e2e-testing
+/test/new-e2e/ndm                       @DataDog/network-device-monitoring
+/test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm
+/test/regression/                       @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform

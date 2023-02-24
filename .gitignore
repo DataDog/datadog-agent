@@ -196,3 +196,6 @@ tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
 *obj*
 *.g.wxs
 *.DotSettings.user
+
+# e2e test intake generated binary
+test/fakeintake/build/*

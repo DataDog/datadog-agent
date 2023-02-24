@@ -4,6 +4,9 @@ require 'open3'
 require 'csv'
 require 'rexml/document'
 
+root_dir = "/tmp/ci/system-probe"
+tests_dir = ::File.join(root_dir, "tests")
+
 GOLANG_TEST_FAILURE = /FAIL:/
 
 skip_prebuilt_tests = Array.[](
@@ -21,6 +24,32 @@ co_re_tests = Array.[](
   "pkg/network/protocols/http"
 )
 
+TIMEOUTS = {
+  "pkg/network/protocols" => "5m",
+  # disable timeouts for pkg/network/tracer
+  "pkg/network/tracer$" => "0",
+}
+
+DEFAULT_TIMEOUT = "10m"
+
+def get_timeout(package)
+  match_size = 0
+  timeout = DEFAULT_TIMEOUT
+
+  # determine longest match
+  TIMEOUTS.each do |k, v|
+    k = Regexp.new(k)
+    v = String(v)
+
+    if package.match?(k) && k.source.size > match_size
+      match_size = k.source.size
+      timeout = v
+    end
+  end
+
+  timeout
+end
+
 print KernelOut.format(`cat /etc/os-release`)
 print KernelOut.format(`uname -a`)
 
@@ -35,10 +64,10 @@ platform = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
 ## 0755, which causes the test to fail.  The object files are not being built during the
 ## test, anyway, so set them to the expected value
 ##
-Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/*.o').each do |f|
+Dir.glob("#{tests_dir}/pkg/ebpf/bytecode/build/*.o").each do |f|
   FileUtils.chmod 0644, f, :verbose => true
 end
-Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/*.o').each do |f|
+Dir.glob("#{tests_dir}/pkg/ebpf/bytecode/build/co-re/*.o").each do |f|
   FileUtils.chmod 0644, f, :verbose => true
 end
 
@@ -47,12 +76,12 @@ shared_examples "passes" do |bundle, env, filter, filter_inclusive|
     print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
   end
 
-  Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
-    pkg = f.delete_prefix('/tmp/system-probe-tests/').delete_suffix('/testsuite')
+  Dir.glob("#{tests_dir}/**/testsuite").sort.each do |f|
+    pkg = f.delete_prefix("#{tests_dir}/").delete_suffix('/testsuite')
     next unless (filter_inclusive and filter.include? pkg) or (!filter_inclusive and !filter.include? pkg)
 
     base_env = {
-      "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build",
+      "DD_SYSTEM_PROBE_BPF_DIR"=>"#{tests_dir}/pkg/ebpf/bytecode/build",
       "GOVERSION"=>"unknown"
     }
     junitfile = pkg.gsub("/","-") + ".xml"
@@ -66,7 +95,7 @@ shared_examples "passes" do |bundle, env, filter, filter_inclusive|
           "--junitfile", xmlpath,
           "--jsonfile", "/tmp/pkgjson/#{bundle}/#{pkg.gsub("/","-")}.json",
           "--raw-command", "--",
-          "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1"
+          "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1", "-test.timeout=#{get_timeout(pkg)}"
         ]
 
         final_env = base_env.merge(env)

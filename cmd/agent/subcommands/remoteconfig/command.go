@@ -9,10 +9,8 @@ package remoteconfig
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
+	"os"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	"google.golang.org/grpc/metadata"
@@ -22,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -84,55 +82,7 @@ func state(cliParams *cliParams, config config.Component) error {
 		return fmt.Errorf("Couldn't get the repositories state: %v", err)
 	}
 
-	fmt.Println("\nConfiguration repository")
-	fmt.Println(strings.Repeat("-", 25))
-	printTUFRepo(s.ConfigState)
-
-	fmt.Println("\nDirector repository")
-	fmt.Println(strings.Repeat("-", 20))
-	printTUFRepo(s.DirectorState)
-	keys := make([]string, 0, len(s.TargetFilenames))
-	for k := range s.TargetFilenames {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, name := range keys {
-		fmt.Printf("    |- %s - Hash: %s\n", name, s.TargetFilenames[name])
-	}
+	flare.PrintRemoteConfigState(os.Stdout, s)
 
 	return nil
-}
-
-func getStateString(state *pbgo.FileMetaState, padding int) string {
-	if state == nil {
-		return color.YellowString(fmt.Sprintf("%*s\n", padding, "- Not found"))
-	}
-	return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
-}
-
-func printAndRemoveFile(repo map[string]*pbgo.FileMetaState, name string, prefix string, padding int) {
-	file, found := repo[name]
-	fmt.Printf("%s%s%s", prefix, name, getStateString(file, padding))
-	if found {
-		delete(repo, name)
-	}
-}
-
-func printTUFRepo(repo map[string]*pbgo.FileMetaState) {
-	printAndRemoveFile(repo, "root.json", "", 20)
-	printAndRemoveFile(repo, "timestamp.json", "|- ", 12)
-	printAndRemoveFile(repo, "snapshot.json", "|- ", 13)
-	printAndRemoveFile(repo, "targets.json", "|- ", 14)
-
-	// Sort the keys to display the delegated targets in order
-	keys := make([]string, 0, len(repo))
-	for k := range repo {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, name := range keys {
-		fmt.Printf("    |- %s %s\n", name, getStateString(repo[name], 4))
-	}
 }
