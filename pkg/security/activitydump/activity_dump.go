@@ -592,17 +592,17 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	case model.FileOpenEventType:
 		return ad.InsertFileEventInProcess(node, &event.Open.File, event, Runtime)
 	case model.DNSEventType:
-		return ad.InsertDNSEvent(node, &event.DNS, event.Rule)
+		return ad.InsertDNSEvent(node, &event.DNS, event.Rules)
 	case model.BindEventType:
-		return ad.InsertBindEvent(node, &event.Bind, event.Rule)
+		return ad.InsertBindEvent(node, &event.Bind, event.Rules)
 	case model.SyscallsEventType:
 		// for syscalls we tag the process node with the matched rule if any
-		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rule)
+		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return node.InsertSyscalls(&event.Syscalls)
 	}
 
 	// for process activity, tag the matched rule if any
-	node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rule)
+	node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 	return false
 }
 
@@ -1258,7 +1258,7 @@ func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *proc
 	}
 	evt.Bind.Addr.Port = port
 
-	if ad.InsertBindEvent(pan, &evt.Bind, nil) {
+	if ad.InsertBindEvent(pan, &evt.Bind, []*model.MatchedRule{}) {
 		// count this new entry
 		ad.addedSnapshotCount[model.BindEventType].Inc()
 	}
@@ -1416,9 +1416,9 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 }
 
 // InsertDNSEvent inserts
-func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent, rule *model.MatchedRule) bool {
+func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent, rules []*model.MatchedRule) bool {
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
-		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, rule)
+		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, rules)
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
 			if req.Type == evt.Type {
@@ -1430,12 +1430,12 @@ func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSE
 		dnsNode.Requests = append(dnsNode.Requests, *evt)
 		return true
 	}
-	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats, rule)
+	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats, rules)
 	return true
 }
 
 // InsertBindEvent inserts a bind event to the activity dump
-func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.BindEvent, rule *model.MatchedRule) bool {
+func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.BindEvent, rules []*model.MatchedRule) bool {
 	if evt.SyscallEvent.Retval != 0 {
 		return false
 	}
@@ -1456,7 +1456,7 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(ad, evt, rule) {
+	if sock.InsertBindEvent(ad, evt, rules) {
 		newNode = true
 	}
 
@@ -1589,7 +1589,7 @@ func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *
 		}
 	}
 
-	currentFan.MatchedRules = model.AppendMatchedRule(currentFan.MatchedRules, event.Rule)
+	currentFan.MatchedRules = model.AppendMatchedRule(currentFan.MatchedRules, event.Rules)
 	return somethingChanged
 }
 
@@ -1713,10 +1713,10 @@ type DNSNode struct {
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent, nodeStats *ActivityDumpNodeStats, rule *model.MatchedRule) *DNSNode {
+func NewDNSNode(event *model.DNSEvent, nodeStats *ActivityDumpNodeStats, rules []*model.MatchedRule) *DNSNode {
 	nodeStats.dnsNodes++
 	return &DNSNode{
-		MatchedRules: []*model.MatchedRule{rule},
+		MatchedRules: rules,
 		Requests:     []model.DNSEvent{*event},
 	}
 }
@@ -1736,7 +1736,7 @@ type SocketNode struct {
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
-func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent, rule *model.MatchedRule) bool {
+func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent, rules []*model.MatchedRule) bool {
 	// ignore non IPv4 / IPv6 bind events for now
 	if evt.AddrFamily != unix.AF_INET && evt.AddrFamily != unix.AF_INET6 {
 		ad.bindFamilyDrop.Inc()
@@ -1746,14 +1746,14 @@ func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent, rul
 
 	for _, n := range n.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP {
-			n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rule)
+			n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
 			return false
 		}
 	}
 
 	// insert bind event now
 	n.Bind = append(n.Bind, &BindNode{
-		MatchedRules: []*model.MatchedRule{rule},
+		MatchedRules: rules,
 		Port:         evt.Addr.Port,
 		IP:           evtIP,
 	})

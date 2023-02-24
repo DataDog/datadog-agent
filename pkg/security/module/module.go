@@ -459,9 +459,9 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
-	if rule.Definition.IsThreatScore() {
+	if ok, val := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
 		if ev.ContainerContext.ID != "" && m.config.ActivityDumpTagRulesEnabled {
-			ev.Rule = model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Policy.Name, rule.Definition.Policy.Version)
+			ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 		}
 		return // if the triggered rule is only meant to tag secdumps, dont send it
 	}

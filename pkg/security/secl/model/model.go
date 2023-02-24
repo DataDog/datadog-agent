@@ -152,13 +152,13 @@ type ContainerContext struct {
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID           string       `field:"-" json:"-"`
-	Type         uint32       `field:"-"`
-	Flags        uint32       `field:"-"`
-	Async        bool         `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw uint64       `field:"-" json:"-"`
-	Timestamp    time.Time    `field:"-"` // Timestamp of the event
-	Rule         *MatchedRule `field:"-"`
+	ID           string         `field:"-" json:"-"`
+	Type         uint32         `field:"-"`
+	Flags        uint32         `field:"-"`
+	Async        bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"-" json:"-"`
+	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
@@ -358,16 +358,21 @@ func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
 	return true
 }
 
-func AppendMatchedRule(list []*MatchedRule, mr *MatchedRule) []*MatchedRule {
-	if mr == nil {
-		return list
-	}
-	for _, rule := range list {
-		if rule.Match(mr) { // rule already present
-			return list
+// Append two lists, but avoiding duplicates
+func AppendMatchedRule(list []*MatchedRule, toAdd []*MatchedRule) []*MatchedRule {
+	for _, ta := range toAdd {
+		found := false
+		for _, l := range list {
+			if l.Match(ta) { // rule already present
+				found = true
+				break
+			}
+		}
+		if !found {
+			list = append(list, ta)
 		}
 	}
-	return append(list, mr)
+	return list
 }
 
 // SetuidEvent represents a setuid event
