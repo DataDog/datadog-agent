@@ -113,6 +113,21 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 	return externalMetrics
 }
 
+// GetDefaultMaxAge returns the configured default max age.
+func GetDefaultMaxAge() time.Duration {
+	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_age")) * time.Second
+}
+
+// GetDefaultTimeWindow returns the configured default time window
+func GetDefaultTimeWindow() time.Duration {
+	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.bucket_size")) * time.Second
+}
+
+// GetDefaultMaxTimeWindow returns the configured max time window
+func GetDefaultMaxTimeWindow() time.Duration {
+	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_time_window")) * time.Second
+}
+
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
 // TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
 func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
@@ -169,23 +184,6 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	processed = make(map[string]Point)
 	if len(queries) == 0 {
 		return processed, nil
-	}
-
-	configMaxAge := time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_age")) * time.Second
-	if configMaxAge > timeWindow {
-		timeWindow = configMaxAge
-	}
-
-	configTimeWindow := time.Duration(config.Datadog.GetInt64("external_metrics_provider.bucket_size")) * time.Second
-	if configTimeWindow > timeWindow {
-		timeWindow = configTimeWindow
-	}
-
-	// Safeguard against large time window
-	configMaxTimeWindow := time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_time_window")) * time.Second
-	if timeWindow > configMaxTimeWindow {
-		log.Warnf("Querying external metrics with a time window larger than: %v is not allowed, ceiling value", configMaxTimeWindow)
-		timeWindow = configMaxTimeWindow
 	}
 
 	chunks := makeChunks(queries)

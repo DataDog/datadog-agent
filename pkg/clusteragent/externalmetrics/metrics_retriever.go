@@ -70,7 +70,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		return
 	}
 
-	queriesByTimeWindow := getUniqueQueriesByTimeWindow(datadogMetrics)
+	queriesByTimeWindow := getBatchedQueriesByTimeWindow(datadogMetrics)
 	resultsByTimeWindow := make(map[time.Duration]map[string]autoscalers.Point)
 	globalError := false
 
@@ -142,12 +142,63 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 	}
 }
 
-func getUniqueQueriesByTimeWindow(datadogMetrics []model.DatadogMetricInternal) map[time.Duration][]string {
+func MaybeAdjustTimeWindow(timeWindow time.Duration) time.Duration {
+	configMaxAge := autoscalers.GetDefaultMaxAge()
+	if configMaxAge > timeWindow {
+		timeWindow = configMaxAge
+	}
+
+	configTimeWindow := autoscalers.GetDefaultTimeWindow()
+	if configTimeWindow > timeWindow {
+		timeWindow = configTimeWindow
+	}
+
+	// Safeguard against large time window
+	configMaxTimeWindow := autoscalers.GetDefaultMaxTimeWindow()
+	if timeWindow > configMaxTimeWindow {
+		log.Warnf("Querying external metrics with a time window larger than: %v is not allowed, ceiling value", configMaxTimeWindow)
+		timeWindow = configMaxTimeWindow
+	}
+
+	return timeWindow
+}
+
+func getBatchedQueriesByTimeWindow(datadogMetrics []model.DatadogMetricInternal) map[time.Duration][]string {
+	maxTimeWindowPerQuery := make(map[string]time.Duration)
+	defaultTimeWindow := autoscalers.GetDefaultTimeWindow()
+
+	// First we want to get the maximum time window per query, but we only do that up to the
+	// default time window, this is to allow us to batch those queries together. We do not do that
+	// above the default time window because it could have effect on the returned values (and it might
+	// already have effects if the default time window is more than a few hours).
+	for _, datadogMetric := range datadogMetrics {
+		query := datadogMetric.Query()
+		timeWindow := MaybeAdjustTimeWindow(datadogMetric.GetTimeWindow())
+
+		if timeWindow > defaultTimeWindow {
+			continue
+		}
+
+		if w, found := maxTimeWindowPerQuery[query]; !found || timeWindow > w {
+			maxTimeWindowPerQuery[query] = timeWindow
+		}
+	}
+
+	// Now we create a map of timeWindow to list of queries. All these queries will be executed with
+	// this time window.
 	queriesByTimeWindow := make(map[time.Duration][]string)
 	unique := make(map[string]struct{}, len(datadogMetrics))
 	for _, datadogMetric := range datadogMetrics {
 		query := datadogMetric.Query()
-		timeWindow := datadogMetric.TimeWindow
+		timeWindow := MaybeAdjustTimeWindow(datadogMetric.GetTimeWindow())
+
+		// Adjust to the maximum time window found for this query (but not if it's bigger than the default)
+		if timeWindow <= defaultTimeWindow {
+			if w, found := maxTimeWindowPerQuery[query]; found {
+				timeWindow = w
+			}
+		}
+
 		key := query + "-" + timeWindow.String()
 		if _, found := unique[key]; !found {
 			unique[key] = struct{}{}
