@@ -209,8 +209,9 @@ namespace WixSetup.Datadog
                 Telemetry.Report,
                 Return.ignore,
                 When.After,
-                Step.InstallFinalize)
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+                Step.InstallFinalize
+            )
+            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
         }
     }
 }

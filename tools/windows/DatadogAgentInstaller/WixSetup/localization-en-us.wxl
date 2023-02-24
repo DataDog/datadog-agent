@@ -58,7 +58,7 @@
 	<String Id ="SendFlareDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Send a diagnostic report of this installation error to Datadog.</String>
 	<String Id ="SendFlareDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Flare </String>
 	<String Id ="SendFlareDialogKeyLabel" Overridable="yes" Localizable="yes">Clicking on the Send Flare button will send a diagnostic report to Datadog, including the install logs.</String>
-	<String Id ="SendFlareHelpText" Overridable="yes" Localizable="yes">If you like you can specify your e-mail address in the text box below and a member of our support staff will follow up with you.</String>
+	<String Id ="SendFlareHelpText" Overridable="yes" Localizable="yes">Submit your email address in the text box below for a follow-up from Datadog support. (Optional)</String>
 
 	<String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
 	<String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>
