@@ -16,8 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 func TestDogStatsDReverseProxy(t *testing.T) {
@@ -84,7 +85,7 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 		t.Skip("Couldn't find available UDP port to run test. Skipping.")
 	}
 	cfg := config.New()
-	cfg.StatsdHost = "127.0.0.1"
+	cfg.StatsdHost = "localhost"
 	cfg.StatsdPort = port
 
 	address := fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
@@ -108,7 +109,7 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Check that both payloads were sent over (without a newline).
-	ln.SetReadDeadline(time.Now().Add(30 * time.Second))
+	ln.SetReadDeadline(time.Now().Add(5 * time.Second))
 	buf := make([]byte, len(msg)-len(sep))
 	n, _, err := ln.ReadFrom(buf)
 	require.NoError(t, err)
