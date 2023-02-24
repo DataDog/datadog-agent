@@ -122,7 +122,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1
 	github.com/gorilla/mux v1.8.0
-	github.com/gosnmp/gosnmp v1.34.1-0.20220306115220-ca8397b73095
+	github.com/gosnmp/gosnmp v1.35.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b
