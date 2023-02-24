@@ -19,7 +19,6 @@ import (
 	// Refactor relevant bits
 	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
@@ -69,15 +68,15 @@ type TrafficCaptureWriter struct {
 	zWriter   *zstd.Writer
 	writer    *bufio.Writer
 	Traffic   chan *CaptureBuffer
-	shutdown  chan struct{}
 	ongoing   bool
-	accepting *atomic.Bool
+	accepting bool
 
 	sharedPacketPoolManager *packets.PoolManager
 	oobPacketPoolManager    *packets.PoolManager
 
 	taggerState map[int32]string
 
+	// Synchronizes access to ongoing, accepting and closing of Traffic
 	sync.RWMutex
 }
 
@@ -87,19 +86,15 @@ func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
 	return &TrafficCaptureWriter{
 		Traffic:     make(chan *CaptureBuffer, depth),
 		taggerState: make(map[int32]string),
-		accepting:   atomic.NewBool(false),
 	}
 }
 
-// ProcessMessage receives a capture buffer and writes it to disk while also tracking
+// processMessage receives a capture buffer and writes it to disk while also tracking
 // the PID map to be persisted to the taggerState. Should not normally be called directly.
-func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
+func (tc *TrafficCaptureWriter) processMessage(msg *CaptureBuffer) error {
+	err := tc.writeNext(msg)
 
-	tc.Lock()
-
-	err := tc.WriteNext(msg)
 	if err != nil {
-		tc.Unlock()
 		return err
 	}
 
@@ -114,7 +109,6 @@ func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
 	if tc.oobPacketPoolManager != nil {
 		tc.oobPacketPoolManager.Put(msg.Oob)
 	}
-	tc.Unlock()
 
 	return nil
 }
@@ -190,17 +184,17 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 		tc.writer = bufio.NewWriter(target)
 	}
 
-	// Do not use `tc.shutdown` directly as `tc.shutdown` can be set to nil
-	shutdown := make(chan struct{})
-	tc.shutdown = shutdown
-
+	tc.Lock()
+	if tc.ongoing {
+		log.Errorf("capture is already running")
+	}
 	tc.ongoing = true
-	tc.accepting.Store(true)
+	tc.accepting = true
+	tc.Unlock()
 
-	err = tc.WriteHeader()
+	err := tc.writeHeader()
 	if err != nil {
 		log.Errorf("There was an issue writing the capture file header: %v ", err)
-		tc.Unlock()
 
 		return
 	}
@@ -211,7 +205,6 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 	if tc.oobPacketPoolManager != nil {
 		tc.oobPacketPoolManager.SetPassthru(false)
 	}
-	tc.Unlock()
 
 	done := make(chan struct{})
 	defer close(done)
@@ -225,47 +218,22 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 		}
 	}()
 
-process:
-	for {
-		select {
-		case msg := <-tc.Traffic:
-			err = tc.ProcessMessage(msg)
+	for msg := range tc.Traffic {
+		err = tc.processMessage(msg)
 
-			if err != nil {
-				log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
-				tc.StopCapture()
-			}
-		case <-shutdown:
-			log.Debug("Capture shutting down")
-			tc.accepting.Store(false)
-			break process
+		if err != nil {
+			log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
+			tc.StopCapture()
 		}
 	}
 
-	// write any packets remaining in the channel.
-cleanup:
-	for {
-		select {
-		case msg := <-tc.Traffic:
-			err = tc.ProcessMessage(msg)
-
-			if err != nil {
-				log.Errorf("There was an issue writing the captured message to disk, the message will be dropped: %v", err)
-			}
-		default:
-			break cleanup
-		}
-	}
-
-	n, err := tc.WriteState()
+	n, err := tc.writeState()
 	if err != nil {
 		log.Warnf("There was an issue writing the capture state, capture file may be corrupt: %v", err)
 	} else {
 		log.Warnf("Wrote %d bytes for capture tagger state", n)
 	}
 
-	tc.Lock()
-	defer tc.Unlock()
 	err = tc.writer.Flush()
 	if err != nil {
 		log.Errorf("There was an error flushing the underlying writer while stopping the capture: %v", err)
@@ -278,9 +246,9 @@ cleanup:
 		}
 	}
 
-	tc.File.Close()
+	tc.Lock()
+	defer tc.Unlock()
 	tc.ongoing = false
-
 }
 
 // StopCapture stops the ongoing capture if in process.
@@ -292,6 +260,11 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 		return
 	}
 
+	if tc.accepting {
+		close(tc.Traffic)
+		tc.accepting = false
+	}
+
 	if tc.sharedPacketPoolManager != nil {
 		tc.sharedPacketPoolManager.SetPassthru(true)
 	}
@@ -299,18 +272,15 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 		tc.oobPacketPoolManager.SetPassthru(true)
 	}
 
-	if tc.shutdown != nil {
-		close(tc.shutdown)
-		tc.shutdown = nil
-	}
-
 	log.Debug("Capture was stopped")
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
 func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) bool {
+	tc.RLock()
+	defer tc.RUnlock()
 
-	if tc.accepting.Load() {
+	if tc.accepting {
 		tc.Traffic <- msg
 		return true
 	}
@@ -348,13 +318,13 @@ func (tc *TrafficCaptureWriter) IsOngoing() bool {
 	return tc.ongoing
 }
 
-// WriteHeader writes the .dog file format header to the capture file.
-func (tc *TrafficCaptureWriter) WriteHeader() error {
+// writeHeader writes the .dog file format header to the capture file.
+func (tc *TrafficCaptureWriter) writeHeader() error {
 	return WriteHeader(tc.writer)
 }
 
-// WriteState writes the tagger state to the capture file.
-func (tc *TrafficCaptureWriter) WriteState() (int, error) {
+// writeState writes the tagger state to the capture file.
+func (tc *TrafficCaptureWriter) writeState() (int, error) {
 
 	pbState := &pb.TaggerState{
 		State:  make(map[string]*pb.Entity),
@@ -362,7 +332,6 @@ func (tc *TrafficCaptureWriter) WriteState() (int, error) {
 	}
 
 	// iterate entities
-	tc.RLock()
 	for _, id := range tc.taggerState {
 		entity, err := tagger.GetEntity(id)
 		if err != nil {
@@ -386,7 +355,6 @@ func (tc *TrafficCaptureWriter) WriteState() (int, error) {
 		}
 		pbState.State[id] = &entry
 	}
-	tc.RUnlock()
 
 	log.Debugf("Going to write STATE: %#v", pbState)
 
@@ -415,9 +383,9 @@ func (tc *TrafficCaptureWriter) WriteState() (int, error) {
 	return n + 8, err
 }
 
-// WriteNext writes the next CaptureBuffer after serializing it to a protobuf format.
+// writeNext writes the next CaptureBuffer after serializing it to a protobuf format.
 // Continuing writes after an error calling this function would result in a corrupted file
-func (tc *TrafficCaptureWriter) WriteNext(msg *CaptureBuffer) error {
+func (tc *TrafficCaptureWriter) writeNext(msg *CaptureBuffer) error {
 	buff, err := proto.Marshal(&msg.Pb)
 	if err != nil {
 		return err
