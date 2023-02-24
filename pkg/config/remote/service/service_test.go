@@ -108,6 +108,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 
 	dir, err := os.MkdirTemp("", "testdbdir")
 	assert.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dir) })
 	config.Datadog.Set("run_path", dir)
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
 	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
