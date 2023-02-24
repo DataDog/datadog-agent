@@ -162,8 +162,8 @@ github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c h1:w4mZkX45/iUye
 github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
 github.com/DataDog/nikos v1.10.0 h1:6LaTJja+06hn93TKv+PBywxazJbkXqYBzrHNdLO8QPA=
 github.com/DataDog/nikos v1.10.0/go.mod h1:Akd6ZjhqCE5wkpy+r2vLzrOyZNrPg+APYr+i+DnHJFM=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.0 h1:vwDsR+BeruDFa66Bj+Y/aPBa4cweWwsNMKI04e9mPto=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.0/go.mod h1:qW+xU9EdDaoyRmNmEhYFGPgTqXjxIYB1V2B/L4BQ/18=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.1 h1:qpBV1/RYCLgQMZuyqOuo0qcZFF+vKT65z3dSmUUF5Wo=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.1/go.mod h1:qW+xU9EdDaoyRmNmEhYFGPgTqXjxIYB1V2B/L4BQ/18=
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8CwZNAY=
 github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
