@@ -574,6 +574,18 @@ func (m *FileActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.MatchedRules) > 0 {
+		for iNdEx := len(m.MatchedRules) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.MatchedRules[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x4a
+		}
+	}
 	if m.GenerationType != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.GenerationType))
 		i--
@@ -713,6 +725,18 @@ func (m *DNSNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.MatchedRules) > 0 {
+		for iNdEx := len(m.MatchedRules) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.MatchedRules[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x12
+		}
 	}
 	if len(m.Requests) > 0 {
 		for iNdEx := len(m.Requests) - 1; iNdEx >= 0; iNdEx-- {
@@ -1098,6 +1122,18 @@ func (m *BindNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.MatchedRules) > 0 {
+		for iNdEx := len(m.MatchedRules) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.MatchedRules[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x1a
+		}
 	}
 	if len(m.Ip) > 0 {
 		i -= len(m.Ip)
@@ -1573,6 +1609,12 @@ func (m *FileActivityNode) SizeVT() (n int) {
 	if m.GenerationType != 0 {
 		n += 1 + sov(uint64(m.GenerationType))
 	}
+	if len(m.MatchedRules) > 0 {
+		for _, e := range m.MatchedRules {
+			l = e.SizeVT()
+			n += 1 + l + sov(uint64(l))
+		}
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -1604,6 +1646,12 @@ func (m *DNSNode) SizeVT() (n int) {
 	_ = l
 	if len(m.Requests) > 0 {
 		for _, e := range m.Requests {
+			l = e.SizeVT()
+			n += 1 + l + sov(uint64(l))
+		}
+	}
+	if len(m.MatchedRules) > 0 {
+		for _, e := range m.MatchedRules {
 			l = e.SizeVT()
 			n += 1 + l + sov(uint64(l))
 		}
@@ -1782,6 +1830,12 @@ func (m *BindNode) SizeVT() (n int) {
 	l = len(m.Ip)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
+	}
+	if len(m.MatchedRules) > 0 {
+		for _, e := range m.MatchedRules {
+			l = e.SizeVT()
+			n += 1 + l + sov(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -3688,6 +3742,47 @@ func (m *FileActivityNode) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MatchedRules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if len(m.MatchedRules) == cap(m.MatchedRules) {
+				m.MatchedRules = append(m.MatchedRules, &MatchedRule{})
+			} else {
+				m.MatchedRules = m.MatchedRules[:len(m.MatchedRules)+1]
+				if m.MatchedRules[len(m.MatchedRules)-1] == nil {
+					m.MatchedRules[len(m.MatchedRules)-1] = &MatchedRule{}
+				}
+			}
+			if err := m.MatchedRules[len(m.MatchedRules)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -3880,6 +3975,40 @@ func (m *DNSNode) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Requests = append(m.Requests, &DNSInfo{})
 			if err := m.Requests[len(m.Requests)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MatchedRules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.MatchedRules = append(m.MatchedRules, &MatchedRule{})
+			if err := m.MatchedRules[len(m.MatchedRules)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -5019,6 +5148,40 @@ func (m *BindNode) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Ip = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MatchedRules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.MatchedRules = append(m.MatchedRules, &MatchedRule{})
+			if err := m.MatchedRules[len(m.MatchedRules)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

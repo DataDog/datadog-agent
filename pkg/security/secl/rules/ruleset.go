@@ -97,6 +97,15 @@ func (rd *RuleDefinition) GetTags() []string {
 	return tags
 }
 
+// IsThreatScore returns true if the rule contains the tag ruleset:threat_score
+func (rd *RuleDefinition) IsThreatScore() bool {
+	ruleset, ok := rd.Tags["ruleset"]
+	if ok && ruleset == "threat_score" {
+		return true
+	}
+	return false
+}
+
 // MergeWith merges rule rd2 into rd
 func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {

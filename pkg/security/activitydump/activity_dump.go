@@ -44,7 +44,6 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -593,12 +592,17 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	case model.FileOpenEventType:
 		return ad.InsertFileEventInProcess(node, &event.Open.File, event, Runtime)
 	case model.DNSEventType:
-		return ad.InsertDNSEvent(node, &event.DNS)
+		return ad.InsertDNSEvent(node, &event.DNS, event.Rule)
 	case model.BindEventType:
-		return ad.InsertBindEvent(node, &event.Bind)
+		return ad.InsertBindEvent(node, &event.Bind, event.Rule)
 	case model.SyscallsEventType:
+		// for syscalls we tag the process node with the matched rule if any
+		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rule)
 		return node.InsertSyscalls(&event.Syscalls)
 	}
+
+	// for process activity, tag the matched rule if any
+	node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rule)
 	return false
 }
 
@@ -646,7 +650,6 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
 			if root.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.processResolver) {
-				root.appendSeenPID(entry.Pid)
 				return root
 			}
 		}
@@ -669,7 +672,6 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
 			if child.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.processResolver) {
-				child.appendSeenPID(entry.Pid)
 				return child
 			}
 		}
@@ -1052,42 +1054,11 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 	return nil
 }
 
-// MatchedRules contains the identification of one rule that has match
-type MatchedRule struct {
-	RuleID        string
-	RuleVersion   string
-	PolicyName    string
-	PolicyVersion string
-}
-
-// NewMatchedRule return a new MatchedRule instance
-func NewMatchedRule(ruleID, ruleVersion, policyName, policyVersion string) *MatchedRule {
-	return &MatchedRule{
-		RuleID:        ruleID,
-		RuleVersion:   ruleVersion,
-		PolicyName:    policyName,
-		PolicyVersion: policyVersion,
-	}
-}
-
-func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
-	if mr2 == nil ||
-		mr.RuleID != mr2.RuleID ||
-		mr.RuleVersion != mr2.RuleVersion ||
-		mr.PolicyName != mr2.PolicyName ||
-		mr.PolicyVersion != mr2.PolicyVersion {
-		return false
-	}
-	return true
-}
-
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
-	GenerationType NodeGenerationType
 	Process        model.Process
-
-	SeenPIDs     []uint32
-	MatchedRules []*MatchedRule
+	GenerationType NodeGenerationType
+	MatchedRules   []*model.MatchedRule
 
 	Files    map[string]*FileActivityNode
 	DNSNames map[string]*DNSNode
@@ -1101,29 +1072,10 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 	nodeStats.processNodes++
 	return &ProcessActivityNode{
 		Process:        entry.Process,
-		SeenPIDs:       []uint32{entry.Pid},
 		GenerationType: generationType,
 		Files:          make(map[string]*FileActivityNode),
 		DNSNames:       make(map[string]*DNSNode),
 	}
-}
-
-func (pan *ProcessActivityNode) appendSeenPID(pid uint32) {
-	for _, p := range pan.SeenPIDs {
-		if p == pid {
-			return
-		}
-	}
-	pan.SeenPIDs = append(pan.SeenPIDs, pid)
-}
-
-func (pan *ProcessActivityNode) haveSeenPID(pid uint32) bool {
-	for _, p := range pan.SeenPIDs {
-		if p == pid {
-			return true
-		}
-	}
-	return false
 }
 
 // nolint: unused
@@ -1306,7 +1258,7 @@ func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *proc
 	}
 	evt.Bind.Addr.Port = port
 
-	if ad.InsertBindEvent(pan, &evt.Bind) {
+	if ad.InsertBindEvent(pan, &evt.Bind, nil) {
 		// count this new entry
 		ad.addedSnapshotCount[model.BindEventType].Inc()
 	}
@@ -1464,8 +1416,9 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 }
 
 // InsertDNSEvent inserts
-func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent) bool {
+func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent, rule *model.MatchedRule) bool {
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
+		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, rule)
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
 			if req.Type == evt.Type {
@@ -1477,12 +1430,12 @@ func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSE
 		dnsNode.Requests = append(dnsNode.Requests, *evt)
 		return true
 	}
-	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats)
+	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats, rule)
 	return true
 }
 
 // InsertBindEvent inserts a bind event to the activity dump
-func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.BindEvent) bool {
+func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.BindEvent, rule *model.MatchedRule) bool {
 	if evt.SyscallEvent.Retval != 0 {
 		return false
 	}
@@ -1503,7 +1456,7 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(ad, evt) {
+	if sock.InsertBindEvent(ad, evt, rule) {
 		newNode = true
 	}
 
@@ -1535,6 +1488,7 @@ newSyscallLoop:
 
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
+	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
 	File           *model.FileEvent
@@ -1635,6 +1589,7 @@ func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *
 		}
 	}
 
+	currentFan.MatchedRules = model.AppendMatchedRule(currentFan.MatchedRules, event.Rule)
 	return somethingChanged
 }
 
@@ -1752,19 +1707,24 @@ func (fan *FileActivityNode) debug(w io.Writer, prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
+	MatchedRules []*model.MatchedRule
+
 	Requests []model.DNSEvent
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent, nodeStats *ActivityDumpNodeStats) *DNSNode {
+func NewDNSNode(event *model.DNSEvent, nodeStats *ActivityDumpNodeStats, rule *model.MatchedRule) *DNSNode {
 	nodeStats.dnsNodes++
 	return &DNSNode{
-		Requests: []model.DNSEvent{*event},
+		MatchedRules: []*model.MatchedRule{rule},
+		Requests:     []model.DNSEvent{*event},
 	}
 }
 
 // BindNode is used to store a bind node
 type BindNode struct {
+	MatchedRules []*model.MatchedRule
+
 	Port uint16
 	IP   string
 }
@@ -1776,7 +1736,7 @@ type SocketNode struct {
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
-func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent) bool {
+func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent, rule *model.MatchedRule) bool {
 	// ignore non IPv4 / IPv6 bind events for now
 	if evt.AddrFamily != unix.AF_INET && evt.AddrFamily != unix.AF_INET6 {
 		ad.bindFamilyDrop.Inc()
@@ -1786,14 +1746,16 @@ func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent) boo
 
 	for _, n := range n.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP {
+			n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rule)
 			return false
 		}
 	}
 
 	// insert bind event now
 	n.Bind = append(n.Bind, &BindNode{
-		Port: evt.Addr.Port,
-		IP:   evtIP,
+		MatchedRules: []*model.MatchedRule{rule},
+		Port:         evt.Addr.Port,
+		IP:           evtIP,
 	})
 	return true
 }
@@ -1827,39 +1789,5 @@ func (genType NodeGenerationType) String() string {
 		return "snapshot"
 	default:
 		return "unknown"
-	}
-}
-
-// findProcessNode find a process and return the corresponding node if any
-// IMPORTANT: the activity dump is already locked here
-func findProcessNode(pid uint32, processes []*ProcessActivityNode) *ProcessActivityNode {
-	for _, p := range processes {
-		if p.haveSeenPID(pid) {
-			return p
-		} else if len(p.Children) > 0 {
-			node := findProcessNode(pid, p.Children)
-			if node != nil {
-				return node
-			}
-		}
-	}
-	return nil
-}
-
-// tagRule tries to tag rule to an activity dump
-// IMPORTANT: the activity dump is already locked here
-func (ad *ActivityDump) tagRule(rule *rules.Rule, event *model.Event) {
-	// first find the node that matches the process
-	node := findProcessNode(event.PIDContext.Pid, ad.ProcessActivityTree)
-	if node != nil {
-		ruleToAdd := NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Policy.Name, rule.Definition.Policy.Version)
-		// check if the rule is not alrady present
-		for _, mr := range node.MatchedRules {
-			if ruleToAdd.Match(mr) { // rule already tagged
-				return
-			}
-		}
-		// if not already present, add it
-		node.MatchedRules = append(node.MatchedRules, ruleToAdd)
 	}
 }

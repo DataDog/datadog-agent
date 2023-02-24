@@ -459,20 +459,11 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
-	if ev.ContainerContext.ID != "" {
-		monitor := m.probe.GetMonitor()
-		if monitor != nil {
-			adm := monitor.GetActivityDumpManager()
-			if adm != nil {
-				// Try to match and tag activity dump nodes
-				adm.TagRule(rule, ev)
-
-				// TODO: silent evt if already present in active sec profile
-				// if adm.IsEventMatchingActiveProfile(ev) {
-				// 	return
-				// }
-			}
+	if rule.Definition.IsThreatScore() {
+		if ev.ContainerContext.ID != "" {
+			ev.Rule = model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Policy.Name, rule.Definition.Policy.Version)
 		}
+		return // if the triggered rule is only meant to tag secdumps, dont send it
 	}
 
 	// needs to be resolved here, outside of the callback as using process tree

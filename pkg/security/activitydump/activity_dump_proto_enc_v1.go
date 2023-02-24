@@ -205,12 +205,17 @@ func fileActivityNodeToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 
 	pfan := adproto.FileActivityNodeFromVTPool()
 	*pfan = adproto.FileActivityNode{
+		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           fan.Name,
 		File:           fileEventToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		FirstSeen:      timestampToProto(&fan.FirstSeen),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
+	}
+
+	for _, rule := range fan.MatchedRules {
+		pfan.MatchedRules = append(pfan.MatchedRules, matchedRuleToProto(rule))
 	}
 
 	for _, child := range fan.Children {
@@ -240,7 +245,12 @@ func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
 	}
 
 	pdn := &adproto.DNSNode{
-		Requests: make([]*adproto.DNSInfo, 0, len(dn.Requests)),
+		MatchedRules: make([]*adproto.MatchedRule, 0, len(dn.MatchedRules)),
+		Requests:     make([]*adproto.DNSInfo, 0, len(dn.Requests)),
+	}
+
+	for _, rule := range dn.MatchedRules {
+		pdn.MatchedRules = append(pdn.MatchedRules, matchedRuleToProto(rule))
 	}
 
 	for _, req := range dn.Requests {
@@ -275,16 +285,23 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 	}
 
 	for _, bn := range sn.Bind {
-		psn.Bind = append(psn.Bind, &adproto.BindNode{
-			Port: uint32(bn.Port),
-			Ip:   bn.IP,
-		})
+		pbn := &adproto.BindNode{
+			MatchedRules: make([]*adproto.MatchedRule, 0, len(bn.MatchedRules)),
+			Port:         uint32(bn.Port),
+			Ip:           bn.IP,
+		}
+
+		for _, rule := range bn.MatchedRules {
+			pbn.MatchedRules = append(pbn.MatchedRules, matchedRuleToProto(rule))
+		}
+
+		psn.Bind = append(psn.Bind, pbn)
 	}
 
 	return psn
 }
 
-func matchedRuleToProto(r *MatchedRule) *adproto.MatchedRule {
+func matchedRuleToProto(r *model.MatchedRule) *adproto.MatchedRule {
 	if r == nil {
 		return nil
 	}
