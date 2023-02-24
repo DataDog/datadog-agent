@@ -278,7 +278,7 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 		fx.Invoke(func(runnerComp.Component) {}),
 	)
 
-	// Look to see if any checks are enabled,
+	// Look to see if any checks are enabled before starting the agent
 	if !anyChecksEnabled(allChecks) {
 		log.Infof(agent6DisabledMessage)
 
