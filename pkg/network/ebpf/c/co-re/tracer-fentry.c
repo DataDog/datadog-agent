@@ -283,7 +283,10 @@ int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs,
     u64 tid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
     args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    
+    if (args.retrans_out_pre < 0) {
+        return 0;
+    }
+
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
 
     return 0;
@@ -303,6 +306,9 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
     }
     u32 retrans_out_pre = args->retrans_out_pre;
     u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
+    if (retrans_out < 0) {
+        return 0;
+    }
 
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
 
