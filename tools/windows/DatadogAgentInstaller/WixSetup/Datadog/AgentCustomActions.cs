@@ -211,8 +211,8 @@ namespace WixSetup.Datadog
                 Return.ignore,
                 When.After,
                 Step.InstallFinalize
-                )
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+            )
+            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
 
             WriteInstallInfo = new CustomAction<InstallInfoCustomActions>(
                 new Id(nameof(WriteInstallInfo)),

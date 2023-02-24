@@ -25,6 +25,8 @@ type ExecutionContext struct {
 	coldstart          bool
 	startTime          time.Time
 	endTime            time.Time
+
+	persistedStateFilePath string
 }
 
 // State represents the state of the execution context at a point in time
@@ -89,6 +91,16 @@ func (ec *ExecutionContext) UpdateEndTime(time time.Time) {
 	ec.endTime = time
 }
 
+// getPersistedStateFilePath returns the full path and filename of the
+// persisted state file.
+func (ec *ExecutionContext) getPersistedStateFilePath() string {
+	filepath := ec.persistedStateFilePath
+	if filepath == "" {
+		filepath = persistedStateFilePath
+	}
+	return filepath
+}
+
 // SaveCurrentExecutionContext stores the current context to a file
 func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 	ecs := ec.GetCurrentState()
@@ -96,7 +108,8 @@ func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(persistedStateFilePath, file, 0600)
+	filepath := ec.getPersistedStateFilePath()
+	err = os.WriteFile(filepath, file, 0600)
 	if err != nil {
 		return err
 	}
@@ -107,7 +120,8 @@ func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 func (ec *ExecutionContext) RestoreCurrentStateFromFile() error {
 	ec.m.Lock()
 	defer ec.m.Unlock()
-	file, err := os.ReadFile(persistedStateFilePath)
+	filepath := ec.getPersistedStateFilePath()
+	file, err := os.ReadFile(filepath)
 	if err != nil {
 		return err
 	}
