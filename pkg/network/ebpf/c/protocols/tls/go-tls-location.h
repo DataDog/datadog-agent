@@ -113,6 +113,19 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
         for (int i = 0; i < NUM_REGISTERS; i++) {
             if (i == regnum) {
                 tmp = ctx->regs[i];
+                // Adding a `break` statement here results in a variable ctx
+                // pointer dereference like the following:
+                //
+                // r7 += r1
+                // r1 = *(u64 *)(r7 +0)
+                //
+                // Where r7 is the ctx pointer. This in turn results in the following error
+                // ctx access var_off=(0x0; 0x<R1 value>) disallowed
+                //
+                // Without the `break` statement LLVM is generating the expected code with
+                // constant offsets
+                //
+                // r1 = *(u64 *)(r7 +<constant>)
             }
         }
 
