@@ -11,6 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 )
 
 // InitConfig is used to deserialize integration init config.
@@ -22,16 +24,19 @@ type InitConfig struct {
 
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server      string   `yaml:"server"`
-	Port        int      `yaml:"port"`
-	ServiceName string   `yaml:"service_name"`
-	Protocol    string   `yaml:"protocol"`
-	Username    string   `yaml:"username"`
-	Password    string   `yaml:"password"`
-	TnsAlias    string   `yaml:"tns_alias"`
-	TnsAdmin    string   `yaml:"tns_admin"`
-	DBM         bool     `yaml:"dbm"`
-	Tags        []string `yaml:"tags"`
+	Server                 string              `yaml:"server"`
+	Port                   int                 `yaml:"port"`
+	ServiceName            string              `yaml:"service_name"`
+	Protocol               string              `yaml:"protocol"`
+	Username               string              `yaml:"username"`
+	Password               string              `yaml:"password"`
+	TnsAlias               string              `yaml:"tns_alias"`
+	TnsAdmin               string              `yaml:"tns_admin"`
+	DBM                    bool                `yaml:"dbm"`
+	Tags                   []string            `yaml:"tags"`
+	ObfuscatorOn           bool                `yaml:"obfuscator_on"`
+	LogUnobfuscatedQueries bool                `yaml:"logUnobfuscatedQueries"`
+	ObfuscatorOptions      obfuscate.SQLConfig `yaml:"obfuscator_options"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -55,6 +60,12 @@ Protocol: '%s'
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
 	initCfg := InitConfig{}
+
+	instance.ObfuscatorOn = true
+	instance.ObfuscatorOptions.DBMS = common.IntegrationName
+	instance.ObfuscatorOptions.TableNames = true
+	instance.ObfuscatorOptions.CollectCommands = true
+	instance.ObfuscatorOptions.CollectComments = true
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
 		return nil, err
