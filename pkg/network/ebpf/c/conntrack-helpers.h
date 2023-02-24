@@ -12,6 +12,12 @@
 #include "netns.h"
 #include "ipv6.h"
 
+/* This map is used for conntrack telemetry in kernelspace
+ * only key 0 is used
+ * value is a telemetry object
+ */
+BPF_ARRAY_MAP(conntrack_telemetry, conntrack_telemetry_t, 1)
+
 static __always_inline __u32 systemprobe_pid() {
     __u64 val = 0;
     LOAD_CONSTANT("systemprobe_pid", val);

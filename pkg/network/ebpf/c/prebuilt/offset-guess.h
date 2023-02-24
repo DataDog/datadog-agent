@@ -122,7 +122,6 @@ typedef struct {
     __u32 saddr;
     __u32 status;
     __u32 netns;
-    __u16 l3num;
 } conntrack_status_t;
 
 

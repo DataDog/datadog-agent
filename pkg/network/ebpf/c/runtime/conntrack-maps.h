@@ -14,10 +14,4 @@ BPF_LRU_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1024)
 BPF_HASH_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1024)
 #endif
 
-/* This map is used for conntrack telemetry in kernelspace
- * only key 0 is used
- * value is a telemetry object
- */
-BPF_ARRAY_MAP(conntrack_telemetry, conntrack_telemetry_t, 1)
-
 #endif

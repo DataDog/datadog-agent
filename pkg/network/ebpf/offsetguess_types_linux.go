@@ -88,8 +88,7 @@ type ConntrackStatus struct {
 	Saddr         uint32
 	Status        uint32
 	Netns         uint32
-	L3num         uint16
-	Pad_cgo_0     [2]byte
+	Pad_cgo_0     [4]byte
 }
 type ConntrackState uint8
 
