@@ -213,11 +213,16 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 	}
 	tc.Unlock()
 
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
 		log.Debugf("Capture will be stopped after %v", d)
 
-		<-time.After(d)
-		tc.StopCapture()
+		select {
+		case <-time.After(d):
+			tc.StopCapture()
+		case <-done:
+		}
 	}()
 
 process:
