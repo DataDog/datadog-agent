@@ -104,16 +104,16 @@ type SQLConfig struct {
 
 	// TableNames specifies whether the obfuscator should also extract the table names that a query addresses,
 	// in addition to obfuscating.
-	TableNames bool `json:"table_names"`
+	TableNames bool `json:"table_names" yaml:"table_names"`
 
 	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
-	CollectCommands bool `json:"collect_commands"`
+	CollectCommands bool `json:"collect_commands" yaml:"collect_commands"`
 
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
-	CollectComments bool `json:"collect_comments"`
+	CollectComments bool `json:"collect_comments" yaml:"collect_comments"`
 
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
-	ReplaceDigits bool `json:"replace_digits"`
+	ReplaceDigits bool `json:"replace_digits" yaml:"replace_digits"`
 
 	// KeepSQLAlias reports whether SQL aliases ("AS") should be truncated.
 	KeepSQLAlias bool `json:"keep_sql_alias"`

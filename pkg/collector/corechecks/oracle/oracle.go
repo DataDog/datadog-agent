@@ -78,9 +78,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		connStr = fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
 	}
 
-	// connStr := fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
 	db, err := sqlx.Open("godror", connStr)
-	//db, err := sqlx.Connect("godror", connStr)
 	if err != nil {
 		log.Errorf("Failed to connect to Oracle instance | err=[%s]", err)
 		return nil, err

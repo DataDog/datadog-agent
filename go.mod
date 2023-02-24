@@ -574,6 +574,7 @@ require (
 )
 
 require (
+	github.com/creasty/defaults v1.6.0
 	github.com/godror/godror v0.36.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/ory/dockertest v3.3.5+incompatible
