@@ -1,6 +1,6 @@
 ---
 enhancements:
   - |
-    Adds support for OpenTelemetry span links to the Trace Agent otlp endpoint when converting OTLP spans (span links are added as metadata to the converted span).
+    Adds support for OpenTelemetry span links to the Trace Agent OTLP endpoint when converting OTLP spans (span links are added as metadata to the converted span).
 
 
