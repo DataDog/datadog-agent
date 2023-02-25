@@ -22,7 +22,7 @@ namespace WixSetup.Datadog
         private const string ProductContact = @"https://www.datadoghq.com/about/contact/";
 
         // same value for all versions; must not be changed
-        private static readonly Guid ProductUpgradeCode = new Guid("0c50421b-aefb-4f15-a809-7af256d608a5");
+        private static readonly Guid ProductUpgradeCode = new("0c50421b-aefb-4f15-a809-7af256d608a5");
         private static readonly string ProductLicenceRtfFilePath = Path.Combine("assets", "LICENSE.rtf");
         private static readonly string ProductIconFilePath = Path.Combine("assets", "project.ico");
         private static readonly string InstallerBackgroundImagePath = Path.Combine("assets", "dialog_background.bmp");
@@ -34,11 +34,11 @@ namespace WixSetup.Datadog
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
 
         private readonly AgentBinaries _agentBinaries;
-        private readonly AgentFeatures _agentFeatures = new AgentFeatures();
-        private readonly AgentPython _agentPython = new AgentPython();
-        private readonly AgentVersion _agentVersion = new AgentVersion();
+        private readonly AgentFeatures _agentFeatures = new();
+        private readonly AgentPython _agentPython = new();
+        private readonly AgentVersion _agentVersion = new();
         private readonly AgentSignature _agentSignature;
-        private readonly AgentCustomActions _agentCustomActions = new AgentCustomActions();
+        private readonly AgentCustomActions _agentCustomActions = new();
         private readonly AgentInstallerUI _agentInstallerUi;
 
         public AgentInstaller()
