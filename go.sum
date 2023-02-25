@@ -175,8 +175,6 @@ github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8Cw
 github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
 github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe h1:37VGGoe+SJ/blsYK0xZDy84m8hp/suVx6MBSeiZJKLc=
 github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe/go.mod h1:f1nyvEyWU3w5L8dYIQljloMO/BX0i0OK9NwGeZtvmFw=
-github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
-github.com/DataDog/viper v1.12.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8 h1:2+uhTsVJvKbLIIGJxRoI3NTSPB9rNWqmLqFAqgPWkPM=
 github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8/go.mod h1:AvpNq6Yp+0VfeNNCmpH2pU4htkxfbSlhuDS2JaSfU1M=
 github.com/DataDog/zstd v1.3.5/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
@@ -1093,6 +1091,8 @@ github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFb
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0/go.mod h1:hgWBS7lorOAVIJEQMi4ZsPv9hVvWI6+ch50m39Pf2Ks=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.10.1 h1:Y7pyy1viWfoKMUVxmjfI5X6fVLlen75kdYjeIwl9CKc=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.10.1/go.mod h1:chrfS3YoLAlKTRE5cFWvCbt8uGAjshktT4PveTUpsFQ=
+github.com/guyarb/viper v0.0.0-20230225205112-9debdabead64 h1:yKOfg4r7UytCAHsrgnEm+/FxdGLkjcuqamSvqJgq+GA=
+github.com/guyarb/viper v0.0.0-20230225205112-9debdabead64/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/h2non/filetype v1.0.5/go.mod h1:isekKqOuhMj+s/7r3rIeTErIRy4Rub5uBWHfvMusLMU=
 github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b h1:nY107LvOu01hGfxFgSZNW5hw+zSCCfDONEADbmZXrpg=
 github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b/go.mod h1:319b3zT68BvV+WRj7cwy856M2ehB3HqNOt6sy1HndBY=

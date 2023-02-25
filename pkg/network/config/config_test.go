@@ -114,9 +114,29 @@ func TestEnableHTTPStatsByStatusCode(t *testing.T) {
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
+	t.Run("old via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP-old.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("old via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP-new.yaml")
 		require.NoError(t, err)
 		cfg := New()
 

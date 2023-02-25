@@ -91,8 +91,8 @@ The payload is a JSON dict with the following fields
      (see: `process_config.container_collection.enabled`)
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
     `network_config.enabled` config option in `system-probe.yaml`).
-  - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-probe.yaml`).
-  - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-probe.yaml`).
+  - `feature_usm_http_enabled` - **bool**: True if HTTP monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http_monitoring` config option in `system-probe.yaml`).
+  - `feature_usm_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_https_monitoring` config option in `system-probe.yaml`).
   - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_java_tls_support` config option in `system-probe.yaml`).
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_go_tls_support` config option in `system-probe.yaml`).
   - `feature_enable_http_stats_by_status_code` - **bool**: True if HTTP stats aggregation should be by status code rather than status code family (see: `service_monitoring_config.enable_http_stats_by_status_code` config option in `system-probe.yaml`).

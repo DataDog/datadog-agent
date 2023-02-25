@@ -478,6 +478,16 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...st
 	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
 }
 
+// SetAlias adds an alias to the given configuration key.
+func (c *safeConfig) SetAlias(key, alias string) {
+	c.Viper.RegisterAlias(alias, key)
+}
+
+func (c *safeConfig) SetAliasAndEnv(key, alias string, env ...string) {
+	c.Viper.RegisterAlias(alias, key)
+	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
+}
+
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
 	config := safeConfig{

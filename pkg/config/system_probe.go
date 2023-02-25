@@ -165,9 +165,13 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
 
-	// network_config namespace only
-	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
-	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
+	// service monitoring namespace only
+	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
+	// Setting join(smNS, "enable_http_monitoring") as alias to join(netNS, "enable_http_monitoring"), will allow us to
+	// either set the field in the configuration file in either of the options.
+	cfg.SetAliasAndEnv(join(netNS, "enable_http_monitoring"), join(smNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+	cfg.BindEnv(join(smNS, "enable_https_monitoring"))
+	cfg.SetAliasAndEnv(join(netNS, "enable_https_monitoring"), join(smNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
@@ -177,6 +181,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smjtNS, "block_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_stats_by_status_code"), false)
 
+	// network config namespace only
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	httpRules := join(netNS, "http_replace_rules")

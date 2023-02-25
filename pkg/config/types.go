@@ -104,6 +104,9 @@ type ConfigLoader interface {
 	// If env is provided, it will override the name of the environment variable used for this
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
+
+	SetAlias(key, alias string)
+	SetAliasAndEnv(key, alias string, env ...string)
 }
 
 // Config represents an object that can load and store configuration parameters

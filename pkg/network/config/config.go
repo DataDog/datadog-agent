@@ -275,8 +275,8 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
-		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
-		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
+		EnableHTTPSMonitoring: cfg.GetBool(join(smNS, "enable_https_monitoring")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
@@ -373,10 +373,10 @@ func New() *Config {
 	}
 
 	if c.ServiceMonitoringEnabled {
-		cfg.Set(join(netNS, "enable_http_monitoring"), true)
+		cfg.Set(join(smNS, "enable_http_monitoring"), true)
 		c.EnableHTTPMonitoring = true
-		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
-			cfg.Set(join(netNS, "enable_https_monitoring"), true)
+		if !cfg.IsSet(join(smNS, "enable_https_monitoring")) {
+			cfg.Set(join(smNS, "enable_https_monitoring"), true)
 			c.EnableHTTPSMonitoring = true
 		}
 
