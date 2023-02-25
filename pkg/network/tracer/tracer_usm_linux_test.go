@@ -388,7 +388,7 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
 	}
-	
+
 	client.CloseIdleConnections()
 	requestsExist := make([]bool, len(requests))
 	expectedMissingRequestsCaught := make([]bool, len(missedRequests))
