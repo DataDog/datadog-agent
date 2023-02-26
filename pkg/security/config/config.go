@@ -144,8 +144,6 @@ type Config struct {
 	ActivityDumpLocalStorageMaxDumpsCount int
 	// ActivityDumpRemoteStorageFormats defines the formats that should be used to persist the activity dumps remotely.
 	ActivityDumpRemoteStorageFormats []StorageFormat
-	// ActivityDumpRemoteStorageCompression defines if the remote storage should compress the persisted data.
-	ActivityDumpRemoteStorageCompression bool
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
@@ -277,7 +275,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpLocalStorageDirectory:     coreconfig.SystemProbe.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
 		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
-		ActivityDumpRemoteStorageCompression:  coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
 		ActivityDumpMaxDumpCountPerWorkload:   coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
 		// activity dump dynamic fields
