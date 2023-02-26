@@ -10,13 +10,11 @@ package http
 
 /*
 #include "../../ebpf/c/tracer.h"
-#include "../../ebpf/c/protocols/tls/tags-types.h"
-#include "../../ebpf/c/protocols/http/types.h"
 #include "../../ebpf/c/protocols/http2/decoding-defs.h"
-#include "../../ebpf/c/protocols/classification/defs.h"
 */
 import "C"
 
+type http2ConnTuple = C.conn_tuple_t
 type ebpfHttp2Tx C.http2_stream_t
 
 type StaticTableEnumKey = C.static_table_key_t

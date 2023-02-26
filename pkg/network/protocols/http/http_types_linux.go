@@ -3,7 +3,7 @@
 
 package http
 
-type httpConnTuple struct {
+type httpConnTuple = struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
 	Daddr_h  uint64
@@ -33,18 +33,6 @@ type ebpfHttpTx struct {
 	Request_fragment     [160]byte
 	Tcp_seq              uint32
 	Tags                 uint64
-}
-type ebpfHttp2Tx struct {
-	Tup                   httpConnTuple
-	Response_last_seen    uint64
-	Request_started       uint64
-	Response_status_code  uint16
-	Request_method        uint8
-	Path_size             uint8
-	Request_end_of_stream bool
-	Pad_cgo_0             [3]byte
-	Request_path          [30]uint8
-	Pad_cgo_1             [2]byte
 }
 
 type libPath struct {
@@ -89,32 +77,3 @@ var (
 		Go:      "tls.library:go",
 	}
 )
-
-type StaticTableEnumKey = uint8
-
-const (
-	MethodKey StaticTableEnumKey = 0x2
-	PathKey   StaticTableEnumKey = 0x4
-	StatusKey StaticTableEnumKey = 0x9
-)
-
-type StaticTableEnumValue = uint8
-
-const (
-	GetValue       StaticTableEnumValue = 0x2
-	PostValue      StaticTableEnumValue = 0x3
-	EmptyPathValue StaticTableEnumValue = 0x4
-	IndexPathValue StaticTableEnumValue = 0x5
-	K200Value      StaticTableEnumValue = 0x8
-	K204Value      StaticTableEnumValue = 0x9
-	K206Value      StaticTableEnumValue = 0xa
-	K304Value      StaticTableEnumValue = 0xb
-	K400Value      StaticTableEnumValue = 0xc
-	K404Value      StaticTableEnumValue = 0xd
-	K500Value      StaticTableEnumValue = 0xe
-)
-
-type StaticTableValue = struct {
-	Key   uint8
-	Value uint8
-}
