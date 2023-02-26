@@ -5,25 +5,25 @@
 
 #include "protocols/http2/defs.h"
 
-// A limit of max frames we will upload from a single connection to the user mode.
+// Maximum number of iterations allowed for each frame, in relation to the total number of tail calls that may be performed.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_ITERATIONS 10
 
-// A limit of max headers frames which we except to see in the request/response.
+// A limit of max headers which we process in the request/response.
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_HEADERS_COUNT 20
 
-// A limit of max frame size in order to be able to load a max size and pass the varifier.
+// Maximum size for the path buffer, used to hold a constant buffer size that contains the path.
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_PATH_LEN 30
 
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
 
-// This determines the size of the payload fragment that is captured for each HTTP2 request.
+// This determines the size of the payload fragment that is captured for each headers frame request.
 #define HTTP2_BUFFER_SIZE (8 * 20)
 
-// The flag which will be send in the data/header frame which indicates end of stream have benn sent.
+// The flag which will be sent in the data/header frame that indicates end of stream.
 #define HTTP2_END_OF_STREAM 0x1
 
 // Http2 max batch size.

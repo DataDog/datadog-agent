@@ -32,35 +32,7 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
     out->length = bpf_ntohl(out->length << 8);
     out->stream_id = bpf_ntohl(out->stream_id << 1);
 
-    return true;
-}
-
-// This function reads the http2 frame header and validate the frame.
-static __always_inline bool read_http2_frame_header2(const char *buf, size_t buf_size, struct http2_frame *out) {
-    if (buf == NULL) {
-        log_debug("[http2] read_http2_frame_header2 abort 1");
-        return false;
-    }
-
-    if (buf_size < HTTP2_FRAME_HEADER_SIZE) {
-        log_debug("[http2] read_http2_frame_header2 abort 2 - %lu", buf_size);
-        return false;
-    }
-
-    if (is_empty_frame_header(buf)) {
-        log_debug("[http2] read_http2_frame_header2 abort 3");
-        return false;
-    }
-
-    // We extract the frame by its shape to fields.
-    // See: https://datatracker.ietf.org/doc/html/rfc7540#section-4.1
-    *out = *((struct http2_frame*)buf);
-    out->length = bpf_ntohl(out->length << 8);
-    out->stream_id = bpf_ntohl(out->stream_id << 1);
-
-    if (out->type > 9) {
-        log_debug("[http2] read_http2_frame_header2 abort 4 %lu", out->type);
-        // TODO: Use const for 9, and change -1 to ERR
+    if (out->type > HTTP2_MAX_FRAME_TYPE) {
         return false;
     }
 

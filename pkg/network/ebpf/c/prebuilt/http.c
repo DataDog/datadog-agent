@@ -63,6 +63,8 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
+    // Check if the we are running with tail calls on the current frame, if not we are creating a new iteration
+    // value for next calls.
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
     if (tail_call_state == NULL) {
         const http2_tail_call_state_t iteration_value = {};
@@ -73,6 +75,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         }
     }
 
+    // If we detection tcp termination we should remove state of the older connection.
     if (is_tcp_termination(&iterations_key.skb_info)) {
         bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
         goto delete_iteration;
@@ -82,12 +85,15 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (http2_ctx == NULL) {
         goto delete_iteration;
     }
+
+    // create the http2 ctx for the current http2 frame.
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
     http2_ctx->http2_stream_key.tup = iterations_key.tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
     http2_ctx->dynamic_index.tup = iterations_key.tup;
     iterations_key.skb_info.data_off += tail_call_state->offset;
 
+    // perform the http2 decoding part.
     __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
     if (read_size <= 0 || read_size == -1) {
         goto delete_iteration;
@@ -96,6 +102,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         goto delete_iteration;
     }
 
+    // update the tail calls state when the http2 decoding part was completed successfully.
     tail_call_state->iteration += 1;
     tail_call_state->offset += read_size;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {

@@ -48,6 +48,11 @@ type Monitor struct {
 	closeFilterFn func()
 }
 
+type staticTableEntry struct {
+	Index uint64
+	Value StaticTableValue
+}
+
 // NewMonitor returns a new Monitor instance
 func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
 	defer func() {
@@ -86,99 +91,10 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %w", err)
 	}
 
-	staticTable, _, _ := mgr.GetMap(string(probes.StaticTableMap))
-	if staticTable != nil {
-		type staticTableEntry struct {
-			Index uint64
-			Value StaticTableValue
-		}
-
-		staticTableEntries := []staticTableEntry{
-			{
-				Index: 2,
-				Value: StaticTableValue{
-					Key:   MethodKey,
-					Value: GetValue,
-				},
-			},
-			{
-				Index: 3,
-				Value: StaticTableValue{
-					Key:   MethodKey,
-					Value: PostValue,
-				},
-			},
-			{
-				Index: 4,
-				Value: StaticTableValue{
-					Key:   PathKey,
-					Value: EmptyPathValue,
-				},
-			},
-			{
-				Index: 5,
-				Value: StaticTableValue{
-					Key:   PathKey,
-					Value: IndexPathValue,
-				},
-			},
-			{
-				Index: 8,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K200Value,
-				},
-			},
-			{
-				Index: 9,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K204Value,
-				},
-			},
-			{
-				Index: 10,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K206Value,
-				},
-			},
-			{
-				Index: 11,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K304Value,
-				},
-			},
-			{
-				Index: 12,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K400Value,
-				},
-			},
-			{
-				Index: 13,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K404Value,
-				},
-			},
-			{
-				Index: 14,
-				Value: StaticTableValue{
-					Key:   StatusKey,
-					Value: K500Value,
-				},
-			},
-		}
-
-		for _, entry := range staticTableEntries {
-			err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
-
-			if err != nil {
-				fmt.Println(err)
-			}
+	if c.EnableHTTP2Monitoring {
+		err := m.createStaticTable(mgr)
+		if err != nil {
+			return nil, fmt.Errorf("error creating a static table for http2 monitoring: %w", err)
 		}
 	}
 
@@ -200,19 +116,15 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
-	finalMonitor := &Monitor{
+
+	return &Monitor{
 		ebpfProgram:    mgr,
 		telemetry:      telemetry,
+		closeFilterFn:  closeFilterFn,
 		statkeeper:     statkeeper,
 		processMonitor: processMonitor,
-		closeFilterFn:  closeFilterFn,
-	}
-
-	if c.EnableHTTP2Monitoring {
-		finalMonitor.http2Enabled = true
-	}
-
-	return finalMonitor, nil
+		http2Enabled:   c.EnableHTTP2Monitoring,
+	}, nil
 }
 
 // Start consuming HTTP events
@@ -332,4 +244,99 @@ func (m *Monitor) processHTTP2(data []byte) {
 // DumpMaps dumps the maps associated with the monitor
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.DumpMaps(maps...)
+}
+
+// createStaticTable creates a static table for http monitor.
+func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
+	staticTable, _, _ := mgr.GetMap(string(probes.StaticTableMap))
+	if staticTable != nil {
+		staticTableEntries := []staticTableEntry{
+			{
+				Index: 2,
+				Value: StaticTableValue{
+					Key:   MethodKey,
+					Value: GetValue,
+				},
+			},
+			{
+				Index: 3,
+				Value: StaticTableValue{
+					Key:   MethodKey,
+					Value: PostValue,
+				},
+			},
+			{
+				Index: 4,
+				Value: StaticTableValue{
+					Key:   PathKey,
+					Value: EmptyPathValue,
+				},
+			},
+			{
+				Index: 5,
+				Value: StaticTableValue{
+					Key:   PathKey,
+					Value: IndexPathValue,
+				},
+			},
+			{
+				Index: 8,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K200Value,
+				},
+			},
+			{
+				Index: 9,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K204Value,
+				},
+			},
+			{
+				Index: 10,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K206Value,
+				},
+			},
+			{
+				Index: 11,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K304Value,
+				},
+			},
+			{
+				Index: 12,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K400Value,
+				},
+			},
+			{
+				Index: 13,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K404Value,
+				},
+			},
+			{
+				Index: 14,
+				Value: StaticTableValue{
+					Key:   StatusKey,
+					Value: K500Value,
+				},
+			},
+		}
+
+		for _, entry := range staticTableEntries {
+			err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

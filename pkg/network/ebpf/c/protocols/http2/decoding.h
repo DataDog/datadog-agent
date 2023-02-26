@@ -434,7 +434,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
     offset += HTTP2_FRAME_HEADER_SIZE;
 
     struct http2_frame current_frame = {};
-    if (!read_http2_frame_header2(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
+    if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
         log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
         return -1;
     }
