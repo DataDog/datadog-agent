@@ -145,7 +145,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		newConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
 
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
