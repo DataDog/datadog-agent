@@ -406,7 +406,7 @@ func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
 			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
 		}
 	}
-	if formats := coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
+	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
 		var err error
 		c.ActivityDumpRemoteStorageFormats, err = ParseStorageFormats(formats)
 		if err != nil {
