@@ -34,6 +34,14 @@ int socket__protocol_dispatcher(struct __sk_buff *skb) {
     return 0;
 }
 
+// This entry point is needed to bypass a memory limit on socket filters
+// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
+SEC("socket/protocol_dispatcher_kafka")
+int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
+    dispatch_kafka(skb);
+    return 0;
+}
+
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;

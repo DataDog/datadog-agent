@@ -57,6 +57,12 @@ const (
 	ProtocolMax      ProtocolType = 0xb
 )
 
+type DispatcherProgramType uint32
+
+const (
+	DispatcherKafkaProg DispatcherProgramType = 0x0
+)
+
 const (
 	HTTPBufferSize = 0xa0
 

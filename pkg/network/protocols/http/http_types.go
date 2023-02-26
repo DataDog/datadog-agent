@@ -41,6 +41,12 @@ const (
 	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
 )
 
+type DispatcherProgramType C.dispatcher_prog_t
+
+const (
+	DispatcherKafkaProg DispatcherProgramType = C.DISPATCHER_KAFKA_PROG
+)
+
 const (
 	HTTPBufferSize = C.HTTP_BUFFER_SIZE
 

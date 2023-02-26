@@ -31,10 +31,11 @@ const (
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
-	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
-	protocolDispatcherProgramsMap          = "protocols_progs"
-	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
-	connectionStatesMap                    = "connection_states"
+	protocolDispatcherSocketFilterFunction   = "socket__protocol_dispatcher"
+	protocolDispatcherProgramsMap            = "protocols_progs"
+	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
+	dispatcherConnectionProtocolMap          = "dispatcher_connection_protocol"
+	connectionStatesMap                      = "connection_states"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -96,6 +97,13 @@ var tailCalls = []manager.TailCallRoute{
 			EBPFFuncName: "socket__http_filter",
 		},
 	},
+	{
+		ProgArrayName: protocolDispatcherClassificationPrograms,
+		Key:           uint32(DispatcherKafkaProg),
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFFuncName: "socket__protocol_dispatcher_kafka",
+		},
+	},
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
@@ -109,6 +117,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
 			{Name: connectionStatesMap},
+			{Name: protocolDispatcherClassificationPrograms},
 		},
 		Probes: []*manager.Probe{
 			{

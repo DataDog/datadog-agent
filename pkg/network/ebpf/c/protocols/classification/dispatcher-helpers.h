@@ -52,8 +52,8 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
-    } else if (skb != NULL && skb_info != NULL && is_kafka(skb, skb_info, buf, size)) {
-        *protocol = PROTOCOL_KAFKA;
+    } else if (skb != NULL && skb_info != NULL) {
+        bpf_tail_call_compat(skb, &dispatcher_classification_progs, DISPATCHER_KAFKA_PROG);
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }
@@ -110,6 +110,31 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
         bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
     }
+}
+
+static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t skb_tup = {0};
+    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
+    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
+        return;
+    }
+
+    char request_fragment[CLASSIFICATION_MAX_BUFFER];
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+    const size_t payload_length = skb->len - skb_info.data_off;
+    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
+    protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
+    if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size)) {
+        cur_fragment_protocol = PROTOCOL_KAFKA;
+    }
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        // dispatch if possible
+        log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
+        bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
+    }
+    return;
 }
 
 #endif
