@@ -17,8 +17,6 @@ import (
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -67,9 +65,6 @@ type Config struct {
 
 	StatsdHost string
 	StatsdPort int
-
-	// Settings for profiling, or nil if not enabled
-	ProfilingSettings *profiling.Settings
 }
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -109,35 +104,6 @@ func New(configPath string) (*Config, error) {
 func load() (*Config, error) {
 	cfg := aconfig.SystemProbe
 
-	var profSettings *profiling.Settings
-	if cfg.GetBool(key(spNS, "internal_profiling.enabled")) {
-		v, _ := version.Agent()
-
-		var site string
-		cfgSite := cfg.GetString(key(spNS, "internal_profiling.site"))
-		cfgURL := cfg.GetString(key(spNS, "internal_profiling.profile_dd_url"))
-		// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
-		if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
-			site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
-		} else {
-			site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
-			if cfgURL != "" {
-				site = cfgURL
-			}
-		}
-
-		profSettings = &profiling.Settings{
-			ProfilingURL:         site,
-			Env:                  cfg.GetString(key(spNS, "internal_profiling.env")),
-			Service:              "system-probe",
-			Period:               cfg.GetDuration(key(spNS, "internal_profiling.period")),
-			CPUDuration:          cfg.GetDuration(key(spNS, "internal_profiling.cpu_duration")),
-			MutexProfileFraction: cfg.GetInt(key(spNS, "internal_profiling.mutex_profile_fraction")),
-			BlockProfileRate:     cfg.GetInt(key(spNS, "internal_profiling.block_profile_rate")),
-			WithGoroutineProfile: cfg.GetBool(key(spNS, "internal_profiling.enable_goroutine_stacktraces")),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
-		}
-	}
 	c := &Config{
 		Enabled:             cfg.GetBool(key(spNS, "enabled")),
 		EnabledModules:      make(map[ModuleName]struct{}),
@@ -153,8 +119,6 @@ func load() (*Config, error) {
 
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
-
-		ProfilingSettings: profSettings,
 	}
 
 	// backwards compatible log settings

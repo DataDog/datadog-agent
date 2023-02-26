@@ -14,7 +14,7 @@ single-machine-performance-regression_detector:
     LADING_VERSION: 0.13.0
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
-    REPLICAS: 10
+    REPLICAS: 20
     CPUS: 7
     MEMORY: "30g"
   # At present we require two artifacts to exist for the 'baseline' and the

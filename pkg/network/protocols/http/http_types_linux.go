@@ -31,7 +31,6 @@ type ebpfHttpTx struct {
 	Response_status_code uint16
 	Response_last_seen   uint64
 	Request_fragment     [160]byte
-	Owned_by_src_port    uint16
 	Tcp_seq              uint32
 	Tags                 uint64
 }

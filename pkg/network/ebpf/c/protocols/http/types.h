@@ -12,7 +12,11 @@
 // _________^
 #define HTTP_STATUS_OFFSET 9
 
-// This is needed to reduce code size on multiple copy optimizations that were made in
+// Pseudo TCP sequence number representing a segment with a FIN or RST flags set
+// For more information see `http_seen_before`
+#define HTTP_TERMINATING 0xFFFFFFFF
+
+// This is needed to reduce code size on multiple copy opitmizations that were made in
 // the http eBPF program.
 _Static_assert((HTTP_BUFFER_SIZE % 8) == 0, "HTTP_BUFFER_SIZE must be a multiple of 8.");
 
@@ -43,12 +47,6 @@ typedef struct {
     __u16 response_status_code;
     __u64 response_last_seen;
     char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
-
-    // this field is used exclusively in the kernel side to prevent a TCP segment
-    // to be processed twice in the context of localhost traffic. The field will
-    // be populated with the "original" (pre-normalization) source port number of
-    // the TCP segment containing the beginning of a given HTTP request
-    __u16 owned_by_src_port;
 
     // this field is used to disambiguate segments in the context of keep-alives
     // we populate it with the TCP seq number of the request and then the response segments
