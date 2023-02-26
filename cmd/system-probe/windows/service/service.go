@@ -16,20 +16,22 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
+	runcmd "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/run"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/app"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	// last digit from window_resources/system-probe-msg.mc
-	serviceStarted          = 0x40000003
-	serviceStopped          = 0x40000004
-	altServiceStarted       = 0x40000007
-	receivedStopCommand     = 0x4000000b
-	receivedShutdownCommand = 0x4000000c
-	agentShutdownStarting   = 0x4000000d
+	serviceStarted             = 0x40000003
+	serviceStopped             = 0x40000004
+	altServiceStarted          = 0x40000007
+	receivedStopCommand        = 0x4000000b
+	receivedShutdownCommand    = 0x4000000c
+	agentShutdownStarting      = 0x4000000d
+	receivedPreShutdownCommand = 0x40000010
 
 	// errors
 	serviceFailed            = 0xc0000008
@@ -48,8 +50,8 @@ func (m *sysprobeWindowService) Execute(args []string, r <-chan svc.ChangeReques
 		changes <- svc.Status{State: svc.Stopped}
 	}()
 
-	if err := app.StartSystemProbe(); err != nil {
-		if err == app.ErrNotEnabled {
+	if err := runcmd.StartSystemProbeWithDefaults(); err != nil {
+		if err == runcmd.ErrNotEnabled {
 			changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 			return
 		}
@@ -78,7 +80,7 @@ loop:
 				break loop
 			case svc.PreShutdown:
 				log.Info("Received pre-shutdown message from service control manager")
-				elog.Info(0x40000010, config.ServiceName)
+				elog.Info(receivedPreShutdownCommand, config.ServiceName)
 				break loop
 			case svc.Shutdown:
 				log.Info("Received shutdown message from service control manager")
@@ -96,7 +98,7 @@ loop:
 	elog.Info(agentShutdownStarting, config.ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	app.StopSystemProbe()
+	runcmd.StopSystemProbeWithDefaults()
 	return
 }
 

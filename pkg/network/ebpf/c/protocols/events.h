@@ -8,7 +8,7 @@
 /* USM_EVENTS_INIT defines two functions used for the purposes of buffering and sending
    data to userspace:
    1) <name>_batch_enqueue
-   1) <name>_flush_batch
+   2) <name>_batch_flush
    For more information of this please refer to
    pkg/networks/protocols/events/README.md */
 #define USM_EVENTS_INIT(name, value, batch_size)                                        \
@@ -23,7 +23,7 @@
         return batch && batch->len == batch_size;                                       \
     }                                                                                   \
                                                                                         \
-    static __always_inline void name##_flush_batch(struct pt_regs *ctx) {               \
+    static __always_inline void name##_batch_flush(struct pt_regs *ctx) {               \
         u32 zero = 0;                                                                   \
         batch_state_t *batch_state = bpf_map_lookup_elem(&name##_batch_state, &zero);   \
         if (!batch_state) {                                                             \
@@ -71,7 +71,7 @@
             return;                                                                     \
         }                                                                               \
                                                                                         \
-        /* if this happens it indicates that <protocol>_flush_batch is not
+        /* if this happens it indicates that <protocol>_batch_flush is not
         executing often enough and/or that BATCH_PAGES_PER_CPU is not large
         enough */                                                                       \
         if (name##_batch_full(batch)) {                                                 \
@@ -95,7 +95,7 @@
              key.cpu, batch_state->idx, batch->len);                                    \
         /* if we have filled up the batch we move to the next one.
            notice the batch will be sent "asynchronously" to userspace during the
-           next call of <protocol>_flush_batch */                                       \
+           next call of <protocol>_batch_flush */                                       \
         if (name##_batch_full(batch)) {                                                 \
             batch_state->idx++;                                                         \
         }                                                                               \

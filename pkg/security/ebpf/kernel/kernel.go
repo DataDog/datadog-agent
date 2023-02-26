@@ -266,6 +266,5 @@ func (k *Version) HaveMmapableMaps() bool {
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
 func (k *Version) HaveRingBuffers() bool {
-	// This checks ring buffer maps, which appeared in 5.8
-	return k.Code != 0 && k.Code >= Kernel5_8 && features.HaveMapType(ebpf.RingBuf) == nil
+	return features.HaveMapType(ebpf.RingBuf) == nil
 }

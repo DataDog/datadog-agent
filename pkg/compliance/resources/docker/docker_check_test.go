@@ -103,6 +103,7 @@ func TestDockerImageCheck(t *testing.T) {
 	env.On("DumpInputPath").Return("").Maybe()
 	env.On("ShouldSkipRegoEval").Return(false).Maybe()
 	env.On("Hostname").Return("test-host").Maybe()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	module := `package datadog
 
@@ -120,7 +121,7 @@ findings[f] {
 	regoRule := dockerTestRule(resource, "docker_image", module)
 
 	dockerCheck := rego.NewCheck(regoRule)
-	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
 	reports := dockerCheck.Check(env)
@@ -180,7 +181,7 @@ func TestDockerNetworkCheck(t *testing.T) {
 	env.On("DumpInputPath").Return("").Maybe()
 	env.On("ShouldSkipRegoEval").Return(false).Maybe()
 	env.On("Hostname").Return("test-host").Maybe()
-
+	env.On("StatsdClient").Return(nil).Maybe()
 	module := `package datadog
 
 import data.datadog as dd
@@ -197,7 +198,7 @@ findings[f] {
 	regoRule := dockerTestRule(resource, "docker_network", module)
 
 	dockerCheck := rego.NewCheck(regoRule)
-	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
 	reports := dockerCheck.Check(env)
@@ -318,6 +319,7 @@ func TestDockerContainerCheck(t *testing.T) {
 			env.On("DumpInputPath").Return("").Maybe()
 			env.On("ShouldSkipRegoEval").Return(false).Maybe()
 			env.On("Hostname").Return("test-host").Maybe()
+			env.On("StatsdClient").Return(nil).Maybe()
 
 			module := fmt.Sprintf(`package datadog
 		
@@ -351,7 +353,7 @@ findings[f] {
 			regoRule := dockerTestRule(resource, "docker_container", module)
 
 			dockerCheck := rego.NewCheck(regoRule)
-			err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+			err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 			assert.NoError(err)
 
 			reports := dockerCheck.Check(env)
@@ -393,6 +395,7 @@ func TestDockerInfoCheck(t *testing.T) {
 	env.On("DumpInputPath").Return("").Maybe()
 	env.On("ShouldSkipRegoEval").Return(false).Maybe()
 	env.On("Hostname").Return("test-host").Maybe()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	module := `package datadog
 
@@ -430,7 +433,7 @@ findings[f] {
 	regoRule := dockerTestRule(resource, "docker_daemon", module)
 
 	dockerCheck := rego.NewCheck(regoRule)
-	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
 	reports := dockerCheck.Check(env)
@@ -465,6 +468,7 @@ func TestDockerVersionCheck(t *testing.T) {
 	env.On("DumpInputPath").Return("").Maybe()
 	env.On("ShouldSkipRegoEval").Return(false).Maybe()
 	env.On("Hostname").Return("test-host").Maybe()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	module := `package datadog
 
@@ -492,7 +496,7 @@ findings[f] {
 	regoRule := dockerTestRule(resource, "docker_daemon", module)
 
 	dockerCheck := rego.NewCheck(regoRule)
-	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
 	reports := dockerCheck.Check(env)
