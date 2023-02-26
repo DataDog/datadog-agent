@@ -67,10 +67,6 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("http monitoring is disabled")
 	}
 
-	if !c.EnableHTTP2Monitoring {
-		return nil, fmt.Errorf("http2 monitoring is disabled")
-	}
-
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		return nil, &ErrNotSupported{fmt.Errorf("couldn't determine current kernel version: %w", err)}
