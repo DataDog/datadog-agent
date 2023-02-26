@@ -152,7 +152,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.HTTP2, cs.DNS))
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps

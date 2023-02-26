@@ -36,12 +36,13 @@ var (
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	httpConsumer   *events.Consumer
-	http2Consumer  *events.Consumer
-	ebpfProgram    *ebpfProgram
-	telemetry      *telemetry
-	statkeeper     *httpStatKeeper
-	processMonitor *monitor.ProcessMonitor
+	httpConsumer    *events.Consumer
+	http2Consumer   *events.Consumer
+	ebpfProgram     *ebpfProgram
+	telemetry       *telemetry
+	statkeeper      *httpStatKeeper
+	http2Statkeeper *httpStatKeeper
+	processMonitor  *monitor.ProcessMonitor
 
 	http2Enabled bool
 	// termination
@@ -113,13 +114,19 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
 
+	var http2Statkeeper *httpStatKeeper
+	if c.EnableHTTP2Monitoring {
+		http2Statkeeper = newHTTPStatkeeper(c, telemetry)
+	}
+
 	return &Monitor{
-		ebpfProgram:    mgr,
-		telemetry:      telemetry,
-		closeFilterFn:  closeFilterFn,
-		statkeeper:     statkeeper,
-		processMonitor: processMonitor,
-		http2Enabled:   c.EnableHTTP2Monitoring,
+		ebpfProgram:     mgr,
+		telemetry:       telemetry,
+		closeFilterFn:   closeFilterFn,
+		statkeeper:      statkeeper,
+		processMonitor:  processMonitor,
+		http2Enabled:    c.EnableHTTP2Monitoring,
+		http2Statkeeper: http2Statkeeper,
 	}, nil
 }
 
@@ -208,7 +215,7 @@ func (m *Monitor) GetHTTP2Stats() map[Key]*RequestStats {
 
 	m.http2Consumer.Sync()
 	m.telemetry.log()
-	return m.statkeeper.GetAndResetAllStats()
+	return m.http2Statkeeper.GetAndResetAllStats()
 }
 
 // Stop HTTP monitoring

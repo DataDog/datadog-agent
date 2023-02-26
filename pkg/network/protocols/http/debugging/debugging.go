@@ -40,7 +40,7 @@ type Stats struct {
 }
 
 // HTTP returns a debug-friendly representation of map[http.Key]http.RequestStats
-func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Hostname) []RequestSummary {
+func HTTP(stats map[http.Key]*http.RequestStats, http2stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Hostname) []RequestSummary {
 	all := make([]RequestSummary, 0, len(stats))
 	for k, v := range stats {
 		clientAddr := formatIP(k.SrcIPLow, k.SrcIPHigh)
@@ -73,6 +73,42 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 		}
 
 		all = append(all, debug)
+	}
+
+	if len(http2stats) > 0 {
+		allhttp2 := make([]RequestSummary, 0, len(http2stats))
+		for k, v := range http2stats {
+			clientAddr := formatIP(k.SrcIPLow, k.SrcIPHigh)
+			serverAddr := formatIP(k.DstIPLow, k.DstIPHigh)
+
+			debug := RequestSummary{
+				Client: Address{
+					IP:   clientAddr.String(),
+					Port: k.SrcPort,
+				},
+				Server: Address{
+					IP:   serverAddr.String(),
+					Port: k.DstPort,
+				},
+				DNS:      getDNS(dns, serverAddr),
+				Path:     k.Path.Content,
+				Method:   k.Method.String(),
+				ByStatus: make(map[uint16]Stats),
+			}
+
+			for status, stat := range v.Data {
+				debug.StaticTags = stat.StaticTags
+				debug.DynamicTags = stat.DynamicTags
+
+				debug.ByStatus[status] = Stats{
+					Count:              stat.Count,
+					FirstLatencySample: stat.FirstLatencySample,
+					LatencyP50:         getSketchQuantile(stat.Latencies, 0.5),
+				}
+			}
+
+			all = append(allhttp2, debug)
+		}
 	}
 
 	return all
