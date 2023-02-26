@@ -11,7 +11,6 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"strings"
 	"testing"
 	"time"
@@ -19,23 +18,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
+
+// c is a stream endpoint
+// a + b are unary endpoints
 
 const (
 	srvAddr = "127.0.0.1:5050"
 )
 
-// c is a stream endpoint
-// a + b are unary endpoints
 func TestGRPCScenarios(t *testing.T) {
 	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = false
-	cfg.BPFDebug = true
 
 	s, err := grpc.NewServer(srvAddr)
 	require.NoError(t, err)

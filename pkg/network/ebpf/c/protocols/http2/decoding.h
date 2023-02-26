@@ -112,7 +112,6 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
     http2_ctx->dynamic_index.index = global_counter - (index - MAX_STATIC_TABLE_INDEX);
 
     if (bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index) == NULL) {
-//        log_debug("[http2] unable to find the dynamic value! tasik1!");
         return HEADER_NOT_INTERESTING;
     }
     headers_to_process->index = http2_ctx->dynamic_index.index;
@@ -163,7 +162,8 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
         return HEADER_ERROR;
     }
 
-    if (str_len >= HTTP2_MAX_PATH_LEN || index != 5){
+    // if the index is not path or the len of string is bigger then we support, we continue.
+    if (str_len >= HTTP2_MAX_PATH_LEN || index != kIndexPath){
         heap_buffer->offset += str_len;
         return HEADER_NOT_INTERESTING;
     }
@@ -183,7 +183,6 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
     http2_ctx->dynamic_index.index = counter - 1;
     bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
-//    log_debug("[http2] put dynamic value at %d", counter - 1);
     headers_to_process->index = counter - 1;
     headers_to_process->stream_id = stream_id;
     headers_to_process->type = kDynamicHeader;
@@ -377,13 +376,6 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
         return;
     }
 
-    // TODO: remove it
-    if (current_stream->path_size == 0){
-        log_debug("http2 path size bug stream %lu", http2_stream_key_template->stream_id);
-        return;
-    }
-
-    log_debug("http2 enqueue stream %lu", http2_stream_key_template->stream_id);
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
     current_stream->tup = http2_stream_key_template->tup;
