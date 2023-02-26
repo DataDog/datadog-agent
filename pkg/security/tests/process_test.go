@@ -2104,7 +2104,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "script",
 			check: func(event *model.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "process.file.name", "memfd:script", "process.file.name not matching")
+				assertFieldEqual(t, event, "process.file.name", "memfd:script"+"CITESTING", "process.file.name not matching")
 			},
 		},
 		{
