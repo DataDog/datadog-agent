@@ -6,6 +6,7 @@
 #include "protocols/kafka/defs.h"
 #include "protocols/kafka/types.h"
 
+// LINUX_VERSION_CODE doesn't work with runtime compilation
 #ifdef COMPILE_RUNTIME
     // Kernels before 4.7 do not know about per-cpu array maps.
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
@@ -26,10 +27,8 @@
     #endif
 
 #else
-
     BPF_PERCPU_ARRAY_MAP(kafka_client_id, __u32, char [CLIENT_ID_SIZE_TO_VALIDATE], 1)
     BPF_PERCPU_ARRAY_MAP(kafka_topic_name, __u32, char [TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE], 1)
-
 #endif
 
 #endif
