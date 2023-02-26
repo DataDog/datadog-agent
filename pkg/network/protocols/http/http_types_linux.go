@@ -69,8 +69,7 @@ const (
 )
 
 const (
-	HTTPBufferSize  = 0xa0
-	HTTP2BufferSize = 0xa0
+	HTTPBufferSize = 0xa0
 
 	libPathMaxSize = 0x78
 )

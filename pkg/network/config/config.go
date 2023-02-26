@@ -75,7 +75,7 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
-	// EnableHTTP2Monitoring specifies whether the tracer should monitor HTTP traffic
+	// EnableHTTP2Monitoring specifies whether the tracer should monitor HTTP2 traffic
 	EnableHTTP2Monitoring bool
 
 	// EnableHTTPSMonitoring specifies whether the tracer should monitor HTTPS traffic

@@ -599,7 +599,6 @@ func TestJavaInjection(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
-	cfg.EnableJavaTLSSupport = true
 	cfg.EnableHTTP2Monitoring = true
 
 	dir, _ := testutil.CurDir()

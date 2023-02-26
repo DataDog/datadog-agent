@@ -9,18 +9,19 @@
 package http
 
 import (
-	"golang.org/x/net/http2/hpack"
 	"strings"
+
+	"golang.org/x/net/http2/hpack"
 )
 
-// Path returns the URL from the request fragment captured in eBPF with
-// GET variables excluded.
+// Path returns the URL from the request fragment captured in eBPF with POST variables excluded.
 // Example:
-// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
+// For a request fragment "POST /foo?var=bar", this method will return "/foo"
 func (tx *ebpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
-	if tx.Path_size == 0 {
-		panic(tx)
+	if tx.Path_size == 0 || int(tx.Path_size) > len(tx.Request_path[:tx.Path_size]) {
+		return nil, false
 	}
+
 	// trim null byte + after
 	str, err := hpack.HuffmanDecodeToString(tx.Request_path[:tx.Path_size])
 	if err != nil {
@@ -29,12 +30,6 @@ func (tx *ebpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
 	n := copy(buffer, str)
 	// indicate if we knowingly captured the entire path
 	return buffer[:n], true
-}
-
-// StatusClass returns an integer representing the status code class
-// Example: a 404 would return 400
-func (tx *ebpfHttp2Tx) StatusClass() int {
-	return (int(tx.Response_status_code) / 100) * 100
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
@@ -104,6 +99,10 @@ func (tx *ebpfHttp2Tx) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfHttp2Tx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
+	path, ok := tx.Path(tx.Request_path[:tx.Path_size])
+	if ok {
+		output.WriteString("Path: '" + string(path) + "', ")
+	}
 	output.WriteString("}")
 	return output.String()
 }

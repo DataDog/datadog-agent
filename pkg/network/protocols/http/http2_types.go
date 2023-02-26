@@ -17,52 +17,7 @@ package http
 */
 import "C"
 
-type httpConnTuple C.conn_tuple_t
-type sslSock C.ssl_sock_t
-type sslReadArgs C.ssl_read_args_t
-
-type ebpfHttpTx C.http_transaction_t
 type ebpfHttp2Tx C.http2_stream_t
-
-type libPath C.lib_path_t
-
-type ProtocolType C.protocol_t
-
-// Add tests to TestProtocolValue
-const (
-	ProtocolUnknown  ProtocolType = C.PROTOCOL_UNKNOWN
-	ProtocolHTTP     ProtocolType = C.PROTOCOL_HTTP
-	ProtocolHTTP2    ProtocolType = C.PROTOCOL_HTTP2
-	ProtocolTLS      ProtocolType = C.PROTOCOL_TLS
-	ProtocolMONGO    ProtocolType = C.PROTOCOL_MONGO
-	ProtocolPostgres ProtocolType = C.PROTOCOL_POSTGRES
-	ProtocolAMQP     ProtocolType = C.PROTOCOL_AMQP
-	ProtocolRedis    ProtocolType = C.PROTOCOL_REDIS
-	ProtocolMySQL    ProtocolType = C.PROTOCOL_MYSQL
-	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
-)
-
-const (
-	HTTPBufferSize = C.HTTP_BUFFER_SIZE
-
-	libPathMaxSize = C.LIB_PATH_MAX_SIZE
-)
-
-type ConnTag = uint64
-
-const (
-	GnuTLS  ConnTag = C.LIBGNUTLS
-	OpenSSL ConnTag = C.LIBSSL
-	Go      ConnTag = C.GO
-)
-
-var (
-	StaticTags = map[ConnTag]string{
-		GnuTLS:  "tls.library:gnutls",
-		OpenSSL: "tls.library:openssl",
-		Go:      "tls.library:go",
-	}
-)
 
 type StaticTableEnumKey = C.static_table_key_t
 

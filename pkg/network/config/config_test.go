@@ -191,6 +191,16 @@ func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	assert.False(t, cfg.EnableJavaTLSSupport)
 }
 
+func TestDefaultDisabledHTTP2Support(t *testing.T) {
+	newConfig(t)
+
+	_, err := sysconfig.New("")
+	require.NoError(t, err)
+	cfg := New()
+
+	assert.False(t, cfg.EnableHTTP2Monitoring)
+}
+
 func TestDisableGatewayLookup(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig(t)

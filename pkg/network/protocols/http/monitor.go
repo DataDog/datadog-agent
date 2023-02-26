@@ -246,7 +246,7 @@ func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.DumpMaps(maps...)
 }
 
-// createStaticTable creates a static table for http monitor.
+// createStaticTable creates a static table for http2 monitor.
 func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 	staticTable, _, _ := mgr.GetMap(string(probes.StaticTableMap))
 	if staticTable != nil {
