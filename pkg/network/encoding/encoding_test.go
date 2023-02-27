@@ -116,7 +116,6 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				RouteIdx: -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{
-						model.ProtocolType_protocolTLS,
 						model.ProtocolType_protocolHTTP2,
 					},
 				},
@@ -142,6 +141,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	if runtime.GOOS == "linux" {
 		out.Conns[1].Tags = []uint32{0}
 		out.Conns[1].TagsChecksum = uint32(3241915907)
+		out.Conns[1].Protocol.Stack = append([]model.ProtocolType{model.ProtocolType_protocolTLS}, out.Conns[1].Protocol.Stack...)
+
 	}
 	return out
 }
