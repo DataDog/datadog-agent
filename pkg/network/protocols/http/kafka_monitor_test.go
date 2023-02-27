@@ -57,7 +57,6 @@ func TestSanity(t *testing.T) {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(seeds...),
 		kgo.DefaultProduceTopic(defaultTopicName),
-		//kgo.ConsumerGroup("my-group-identifier"),
 		kgo.ConsumeTopics(defaultTopicName),
 		kgo.MaxVersions(kversion.V2_5_0()),
 	)
