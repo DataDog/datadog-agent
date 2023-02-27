@@ -8,3 +8,12 @@ package api
 type APIFakeIntakePayloadsGETResponse struct {
 	Payloads [][]byte `json:"payloads"`
 }
+
+type RouteStat struct {
+	ID    string `json:"id"`
+	Count int    `json:"count"`
+}
+
+type APIFakeIntakeRouteStatsGETResponse struct {
+	Routes []RouteStat `json:"routes"`
+}
