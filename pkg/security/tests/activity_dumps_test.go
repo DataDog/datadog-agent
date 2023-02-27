@@ -84,7 +84,6 @@ func TestActivityDumps(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// time.Sleep(time.Second * 60)
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
 			nodes := ad.FindMatchingNodes("syscall_tester")
