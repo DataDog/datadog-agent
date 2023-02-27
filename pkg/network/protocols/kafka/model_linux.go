@@ -8,28 +8,15 @@
 
 package kafka
 
-func (tx *EbpfKafkaTx) SrcIPHigh() uint64 {
-	return tx.Tup.Saddr_h
-}
-
-func (tx *EbpfKafkaTx) SrcIPLow() uint64 {
-	return tx.Tup.Saddr_l
-}
-
-func (tx *EbpfKafkaTx) SrcPort() uint16 {
-	return tx.Tup.Sport
-}
-
-func (tx *EbpfKafkaTx) DstIPHigh() uint64 {
-	return tx.Tup.Daddr_h
-}
-
-func (tx *EbpfKafkaTx) DstIPLow() uint64 {
-	return tx.Tup.Daddr_l
-}
-
-func (tx *EbpfKafkaTx) DstPort() uint16 {
-	return tx.Tup.Dport
+func (tx *EbpfKafkaTx) ConnTuple() KeyTuple {
+	return KeyTuple{
+		SrcIPHigh: tx.Tup.Saddr_h,
+		SrcIPLow:  tx.Tup.Saddr_l,
+		DstIPHigh: tx.Tup.Daddr_h,
+		DstIPLow:  tx.Tup.Daddr_l,
+		SrcPort:   tx.Tup.Sport,
+		DstPort:   tx.Tup.Dport,
+	}
 }
 
 func (tx *EbpfKafkaTx) TopicName() string {

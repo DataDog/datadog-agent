@@ -37,14 +37,7 @@ func (statKeeper *KafkaStatKeeper) add(transaction *EbpfKafkaTx) {
 		RequestAPIKey:  transaction.Request_api_key,
 		RequestVersion: transaction.Request_api_version,
 		TopicName:      transaction.TopicName(),
-		KeyTuple: KeyTuple{
-			SrcIPHigh: transaction.SrcIPHigh(),
-			SrcIPLow:  transaction.SrcIPLow(),
-			SrcPort:   transaction.SrcPort(),
-			DstIPHigh: transaction.DstIPHigh(),
-			DstIPLow:  transaction.DstIPLow(),
-			DstPort:   transaction.DstPort(),
-		},
+		KeyTuple:       transaction.ConnTuple(),
 	}
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()
