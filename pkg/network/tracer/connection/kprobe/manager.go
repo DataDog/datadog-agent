@@ -28,7 +28,8 @@ const (
 var mainProbes = []probes.ProbeFuncName{
 	probes.NetDevQueue,
 	probes.ProtocolClassifierEntrySocketFilter,
-	probes.ProtocolClassifierSocketContFilter,
+	probes.ProtocolClassifierQueuesSocketFilter,
+	probes.ProtocolClassifierDBsSocketFilter,
 	probes.TCPSendMsg,
 	probes.TCPSendMsgReturn,
 	probes.TCPRecvMsg,

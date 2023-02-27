@@ -12,8 +12,6 @@
 package process
 
 import (
-	"github.com/DataDog/datadog-agent/comp/process/containercheck"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -25,6 +23,4 @@ import (
 var Bundle = fxutil.Bundle(
 	runner.Module,
 	submitter.Module,
-	processcheck.Module,
-	containercheck.Module,
 )

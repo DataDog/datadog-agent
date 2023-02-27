@@ -31,7 +31,6 @@ type ebpfHttpTx struct {
 	Response_status_code uint16
 	Response_last_seen   uint64
 	Request_fragment     [160]byte
-	Owned_by_src_port    uint16
 	Tcp_seq              uint32
 	Tags                 uint64
 }
@@ -69,6 +68,7 @@ const (
 	GnuTLS  ConnTag = 0x1
 	OpenSSL ConnTag = 0x2
 	Go      ConnTag = 0x4
+	Java    ConnTag = 0x8
 )
 
 var (
@@ -76,5 +76,6 @@ var (
 		GnuTLS:  "tls.library:gnutls",
 		OpenSSL: "tls.library:openssl",
 		Go:      "tls.library:go",
+		Java:    "tls.library:java",
 	}
 )

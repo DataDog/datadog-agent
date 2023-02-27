@@ -139,13 +139,13 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v13321514-644fed4
+  DATADOG_AGENT_BUILDIMAGES: v13655766-14ec95c
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
-  DATADOG_AGENT_WINBUILDIMAGES: v12605723-c5447ff
-  DATADOG_AGENT_ARMBUILDIMAGES: v12605723-c5447ff
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v13019318-b404755
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v12605723-c5447ff
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v13216831-f911126
+  DATADOG_AGENT_WINBUILDIMAGES: v13655766-14ec95c
+  DATADOG_AGENT_ARMBUILDIMAGES: v13655766-14ec95c
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v13655766-14ec95c
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v13655766-14ec95c
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v13655766-14ec95c
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -167,7 +167,7 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
-  USE_CACHING_PROXY_RUBY: "true"
+  USE_CACHING_PROXY_RUBY: "false"
   CLANG_LLVM_VER: 12.0.1
 
 #
@@ -266,13 +266,13 @@ workflow:
   rules:
     - <<: *if_main_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_PYTHON: "false"
     - <<: *if_release_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_PYTHON: "false"
     - <<: *if_deploy
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_PYTHON: "false"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"

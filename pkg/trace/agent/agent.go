@@ -59,6 +59,7 @@ type Agent struct {
 	StatsWriter           *writer.StatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
+	DebugServer           *api.DebugServer
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -109,6 +110,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
+		DebugServer:           api.NewDebugServer(conf),
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
@@ -129,6 +131,7 @@ func (a *Agent) Run() {
 		a.EventProcessor,
 		a.OTLPReceiver,
 		a.RemoteConfigHandler,
+		a.DebugServer,
 	} {
 		starter.Start()
 	}
@@ -196,6 +199,7 @@ func (a *Agent) loop() {
 				a.obfuscator,
 				a.obfuscator,
 				a.cardObfuscator,
+				a.DebugServer,
 			} {
 				stopper.Stop()
 			}
