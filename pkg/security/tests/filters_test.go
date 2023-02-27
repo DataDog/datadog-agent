@@ -228,7 +228,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		return syscall.Close(fd)
 	}, func(event *model.Event) bool {
 		return event.GetType() == "open" &&
-			event.SavedByActivityDumps &&
+			event.IsSavedByActivityDumps() &&
 			event.Open.File.Inode == getInode(t, testFile)
 	}, 3*time.Second); err != nil {
 		t.Fatal(err)

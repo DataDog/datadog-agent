@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/java"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
@@ -25,7 +27,8 @@ import (
 )
 
 const (
-	AgentUSMJar = "agent-usm.jar"
+	agentUSMJar           = "agent-usm.jar"
+	javaTLSConnectionsMap = "java_tls_connections"
 )
 
 var (
@@ -40,6 +43,8 @@ var (
 )
 
 type JavaTLSProgram struct {
+	cfg            *config.Config
+	manager        *nettelemetry.Manager
 	processMonitor *monitor.ProcessMonitor
 	cleanupExec    func()
 }
@@ -48,12 +53,14 @@ type JavaTLSProgram struct {
 var _ subprogram = &JavaTLSProgram{}
 
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
-	if !c.EnableHTTPSMonitoring || !c.EnableJavaTLSSupport {
+	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
+		log.Warnf("java tls is not enabled as EnableJavaTLSSupport: %v; EnableHTTPSMonitoring: %v; HTTPSSupported(): %v", c.EnableJavaTLSSupport, c.EnableHTTPSMonitoring, HTTPSSupported(c))
 		return nil
 	}
 
+	log.Info("java tls is enabled")
 	javaUSMAgentArgs = c.JavaAgentArgs
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, AgentUSMJar)
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
 	jar, err := os.Open(javaUSMAgentJarPath)
 	if err != nil {
 		log.Errorf("java TLS can't access to agent-usm.jar file %s : %s", javaUSMAgentJarPath, err)
@@ -63,19 +70,46 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
+		cfg:            c,
 		processMonitor: mon,
 	}
 }
 
 func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
+	p.manager = m
+	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
+		{Name: javaTLSConnectionsMap},
+	}...)
+
+	p.manager.Probes = append(m.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFFuncName: "kprobe__do_vfs_ioctl",
+			UID:          probeUID,
+		},
+			KProbeMaxActive: maxActive,
+		},
+	)
 	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
 	authID = rand.Int63()
 }
 
-func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {}
+func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
+	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
+		Type:       ebpf.Hash,
+		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.ActivatedProbes = append(options.ActivatedProbes,
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe__do_vfs_ioctl",
+				UID:          probeUID,
+			},
+		})
+}
 
-func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
-	return
+func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
 func newJavaProcess(pid uint32) {
@@ -99,7 +133,6 @@ func (p *JavaTLSProgram) Start() {
 	})
 	if err != nil {
 		log.Errorf("process monitor Subscribe() error: %s", err)
-		return
 	}
 }
 

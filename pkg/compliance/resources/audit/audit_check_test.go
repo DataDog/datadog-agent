@@ -147,6 +147,7 @@ func TestAuditCheck(t *testing.T) {
 			env.On("ShouldSkipRegoEval").Return(false).Maybe()
 			env.On("Hostname").Return("test-host").Maybe()
 			env.On("NormalizeToHostRoot", mock.AnythingOfType("string")).Return(test.hostPath)
+			env.On("StatsdClient").Return(nil).Maybe()
 			if test.expectReport.Error == nil {
 				client.On("GetFileWatchRules").Return(test.rules, nil)
 			}
@@ -211,7 +212,7 @@ findings[f] {
 `,
 			}
 			auditCheck := rego.NewCheck(regoRule)
-			err := auditCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+			err := auditCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 			assert.NoError(err)
 
 			result := auditCheck.Check(env)

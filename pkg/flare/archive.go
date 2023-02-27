@@ -169,6 +169,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
+	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
 	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return functionOutputToBytes(diagnose.RunAll), nil })
 	fb.AddFileFromFunc("connectivity.log", getDatadogConnectivity)
 	fb.AddFileFromFunc("secrets.log", getSecrets)
@@ -194,8 +195,8 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 	}
 
 	if config.Datadog.GetBool("remote_configuration.enabled") {
-		if err := getRemoteConfigDB(fb); err != nil {
-			log.Errorf("Could not export remote-config database: %s", err)
+		if err := exportRemoteConfig(fb); err != nil {
+			log.Errorf("Could not export remote-config state: %s", err)
 		}
 	}
 

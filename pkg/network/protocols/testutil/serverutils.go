@@ -54,3 +54,39 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 		}
 	}
 }
+
+func RunHostServer(t *testing.T, command []string, env []string, serverStartRegex *regexp.Regexp) {
+	if len(command) < 1 {
+		t.Fatalf("command not set %v host server", command)
+	}
+	t.Helper()
+
+	cmd := exec.Command(command[0], command[1:]...)
+	serverName := cmd.String()
+	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
+
+	cmd.Stdout = patternScanner
+	cmd.Stderr = patternScanner
+	cmd.Env = append(cmd.Env, env...)
+	go func() {
+		require.NoErrorf(t, cmd.Run(), "could not start %s on host", serverName)
+	}()
+
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Process.Release()
+	})
+
+	for {
+		select {
+		case <-patternScanner.DoneChan:
+			t.Logf("%s host server is ready", serverName)
+			patternScanner.PrintLogs(t)
+			return
+		case <-time.After(time.Second * 60):
+			patternScanner.PrintLogs(t)
+			t.Fatalf("failed to start %s host server", serverName)
+			return
+		}
+	}
+}

@@ -9,6 +9,8 @@
 package executioncontext
 
 import (
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -71,16 +73,20 @@ func TestUpdateFromStartLog(t *testing.T) {
 func TestSaveAndRestoreFromFile(t *testing.T) {
 	assert := assert.New(t)
 
+	tempfile, err := ioutil.TempFile("/tmp", "dd-lambda-extension-cache-*.json")
+	assert.Nil(err)
+	defer os.Remove(tempfile.Name())
+
 	testArn := "arn:aws:lambda:us-east-1:123456789012:function:my-super-function"
 	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	startTime := time.Now()
 	endTime := startTime.Add(10 * time.Second)
-	ec := ExecutionContext{}
+	ec := ExecutionContext{persistedStateFilePath: tempfile.Name()}
 	ec.SetFromInvocation(testArn, testRequestID)
 	ec.UpdateStartTime(startTime)
 	ec.UpdateEndTime(endTime)
 
-	err := ec.SaveCurrentExecutionContext()
+	err = ec.SaveCurrentExecutionContext()
 	assert.Nil(err)
 
 	ec.UpdateStartTime(startTime.Add(time.Hour))

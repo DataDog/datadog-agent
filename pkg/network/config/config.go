@@ -215,6 +215,10 @@ type Config struct {
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
+
+	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
+	// instead of the status code family.
+	EnableHTTPStatsByStatusCode bool
 }
 
 func join(pieces ...string) string {
@@ -292,9 +296,10 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
-		EnableJavaTLSSupport: cfg.GetBool(join(smNS, "enable_java_tls_support")),
-		JavaAgentArgs:        cfg.GetString(join(smNS, "java_agent_args")),
-		EnableGoTLSSupport:   cfg.GetBool(join(smNS, "enable_go_tls_support")),
+		EnableJavaTLSSupport:        cfg.GetBool(join(smNS, "enable_java_tls_support")),
+		JavaAgentArgs:               cfg.GetString(join(smNS, "java_agent_args")),
+		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "enable_go_tls_support")),
+		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}
 
 	if runtime.GOOS == "windows" {

@@ -72,9 +72,9 @@ kitchen_test_system_probe_linux_x64:
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
-    KITCHEN_IMAGE_SIZE: Standard_D2_v2
-    AZURE_KITCHEN_MOUNT_DIR: /mnt/kitchen_mount
-    AZURE_KITCHEN_TARGET_MOUNT_DIR: /tmp/kitchen_mount
+    KITCHEN_IMAGE_SIZE: Standard_D3_v2
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
@@ -87,7 +87,8 @@ kitchen_test_system_probe_linux_x64:
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-76,rhel-81"
+        KITCHEN_OSVERS: "centos-76"
+        KITCHEN_CI_MOUNT_PATH: "/mnt/resource/ci"
 
 kitchen_test_system_probe_linux_x64_ec2:
   extends:
@@ -99,6 +100,8 @@ kitchen_test_system_probe_linux_x64_ec2:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t2.xlarge"
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
@@ -108,6 +111,9 @@ kitchen_test_system_probe_linux_x64_ec2:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
+      - KITCHEN_PLATFORM: "centos"
+        KITCHEN_OSVERS: "rhel-86"
+        KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
 
 
 kitchen_test_system_probe_linux_arm64:
@@ -120,6 +126,8 @@ kitchen_test_system_probe_linux_arm64:
     ARCH: arm64
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
@@ -133,7 +141,7 @@ kitchen_test_system_probe_linux_arm64:
         KITCHEN_OSVERS: "debian-10,debian-11"
         KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-78,rhel-83"
+        KITCHEN_OSVERS: "centos-79,rhel-86"
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
         KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"

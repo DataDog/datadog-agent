@@ -155,7 +155,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
 
     struct mkdir_event_t event = {
         .syscall.retval = retval,
-        .event.async = syscall->async,
+        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .file = syscall->mkdir.file,
         .mode = syscall->mkdir.mode,
     };

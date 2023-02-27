@@ -10,9 +10,12 @@
             }
         },
         "ec2": {
+            "x86_64": {
+                "rhel-86": "ami-06640050dc3f556bb"
+            },
             "arm64": {
-                "centos-78": "ami-0271a6516c34c6be9",
-                "rhel-83": "ami-0698b90665a2ddcf1"
+                "centos-79": "ami-0144a5a84f5699847",
+                "rhel-86": "ami-0238411fb452f8275"
             }
         },
         "vagrant": {

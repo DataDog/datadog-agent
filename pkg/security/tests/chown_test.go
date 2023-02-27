@@ -88,7 +88,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
 		})
@@ -115,7 +117,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
 		})
@@ -152,7 +156,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
 		})
@@ -176,7 +182,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
 		})
@@ -196,7 +204,9 @@ func TestChown(t *testing.T) {
 			assertTriggeredRule(t, r, "test_rule3")
 			assert.Equal(t, int64(104), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(-1), event.Chown.GID, "wrong group")
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
 		})
@@ -216,7 +226,9 @@ func TestChown(t *testing.T) {
 			assertTriggeredRule(t, r, "test_rule4")
 			assert.Equal(t, int64(-1), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(204), event.Chown.GID, "wrong group")
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
 		})

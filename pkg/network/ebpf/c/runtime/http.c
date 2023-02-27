@@ -23,6 +23,7 @@
 #include "protocols/tls/go-tls-location.h"
 #include "protocols/tls/go-tls-conn.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/java-tls-erpc.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -46,10 +47,6 @@ int socket__http_filter(struct __sk_buff *skb) {
     if (!http_allow_packet(&http, skb, &skb_info)) {
         return 0;
     }
-
-    // src_port represents the source port number *before* normalization
-    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http.owned_by_src_port = http.tup.sport;
     normalize_tuple(&http.tup);
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
@@ -71,7 +68,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     log_debug("tracepoint/net/netif_receive_skb\n");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
     return 0;
 }
 
@@ -196,7 +193,7 @@ int uretprobe__SSL_read(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, len, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -233,7 +230,7 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -285,7 +282,7 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
@@ -337,7 +334,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;
@@ -458,7 +455,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, read_len, LIBGNUTLS);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -496,7 +493,7 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBGNUTLS);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -850,6 +847,15 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
 
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
+
+    return 0;
+}
+
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        handle_erpc_request(ctx);
+    }
 
     return 0;
 }

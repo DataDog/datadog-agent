@@ -41,7 +41,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	}
 	go testProcessor.OnInvokeEnd(&endDetails)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(time.Millisecond * 250)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 250*time.Millisecond)
 
 	assert.Len(t, timedMetrics, 0)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
@@ -379,7 +379,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -469,7 +469,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -551,7 +551,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -637,7 +637,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
