@@ -87,13 +87,15 @@ func TestSanity(t *testing.T) {
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
 		require.Equal(t, defaultTopicName, kafkaKey.TopicName)
-		if kafkaKey.RequestAPIKey == kafka.ProduceAPIKey {
+		switch kafkaKey.RequestAPIKey {
+		case kafka.ProduceAPIKey:
 			require.Equal(t, uint16(8), kafkaKey.RequestVersion)
 			numberOfProduceRequests += kafkaStat.Count
-		} else if kafkaKey.RequestAPIKey == kafka.FetchAPIKey {
-			numberOfFetchRequests += kafkaStat.Count
+			break
+		case kafka.FetchAPIKey:
 			require.Equal(t, uint16(11), kafkaKey.RequestVersion)
-		} else {
+			numberOfFetchRequests += kafkaStat.Count
+		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
 	}
