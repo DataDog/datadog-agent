@@ -101,6 +101,9 @@ var (
 	// MetricPerfBufferBytesRead is the name of the metric used to count the number of bytes read from a perf buffer
 	// Tags: map
 	MetricPerfBufferBytesRead = newRuntimeMetric(".perf_buffer.bytes.read")
+	// MetricPerfBufferBytesInUse is the name of the metric used to count the percentage of space left in the ring buffer
+	// Tags: map
+	MetricPerfBufferBytesInUse = newRuntimeMetric(".perf_buffer.bytes.in_use")
 	// MetricPerfBufferSortingError is the name of the metric used to report events reordering issues.
 	// Tags: map, event_type
 	MetricPerfBufferSortingError = newRuntimeMetric(".perf_buffer.sorting_error")
@@ -213,6 +216,9 @@ var (
 	// MetricActivityDumpDropMaxDumpReached is the name of the metric used to report that an activity dump was dropped because the maximum amount of dumps for a workload was reached
 	// Tags: -
 	MetricActivityDumpDropMaxDumpReached = newRuntimeMetric(".activity_dump.drop_max_dump_reached")
+	// MetricActivityDumpNotYetProfiledWorkload is the name of the metric used to report the count of workload not yet profiled
+	// Tags: -
+	MetricActivityDumpNotYetProfiledWorkload = newAgentMetric(".activity_dump.not_yet_profiled_workload")
 
 	// Namespace resolver metrics
 

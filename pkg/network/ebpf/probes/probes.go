@@ -26,9 +26,9 @@ const (
 	TCPv6ConnectReturn ProbeFuncName = "kretprobe__tcp_v6_connect"
 
 	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
-	ProtocolClassifierEntrySocketFilter ProbeFuncName = "socket__classifier_entry"
-	// ProtocolClassifierSocketFilter runs a classifier algorithm as a socket filter
-	ProtocolClassifierSocketFilter ProbeFuncName = "socket__classifier"
+	ProtocolClassifierEntrySocketFilter  ProbeFuncName = "socket__classifier_entry"
+	ProtocolClassifierQueuesSocketFilter ProbeFuncName = "socket__classifier_queues"
+	ProtocolClassifierDBsSocketFilter    ProbeFuncName = "socket__classifier_dbs"
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	// belongs (but hidden) for it.
@@ -179,6 +179,8 @@ const (
 	HelperErrTelemetryMap             BPFMapName = "helper_err_telemetry_map"
 	TcpRecvMsgArgsMap                 BPFMapName = "tcp_recvmsg_args"
 	ProtocolClassificationBufMap      BPFMapName = "classification_buf"
+	KafkaClientIDBufMap               BPFMapName = "kafka_client_id"
+	KafkaTopicNameBufMap              BPFMapName = "kafka_topic_name"
 	ConnectionProtocolMap             BPFMapName = "connection_protocol"
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 	ClassificationProgsMap            BPFMapName = "classification_progs"

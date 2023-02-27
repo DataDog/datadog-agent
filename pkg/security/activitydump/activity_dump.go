@@ -43,7 +43,6 @@ import (
 	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -185,7 +184,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		AgentCommit:       version.Commit,
 		KernelVersion:     adm.kernelVersion.Code.String(),
 		LinuxDistribution: adm.kernelVersion.OsRelease["PRETTY_NAME"],
-		Name:              fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
+		Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
 		ProtobufVersion:   ProtobufVersion,
 		Start:             now,
 		End:               now.Add(adm.config.ActivityDumpCgroupDumpTimeout),
@@ -205,7 +204,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		now,
 		adm.timeResolver,
 	)
-	ad.LoadConfigCookie = eval.NewCookie()
+	ad.LoadConfigCookie = utils.NewCookie()
 
 	for _, option := range options {
 		option(ad)
@@ -710,6 +709,25 @@ func (ad *ActivityDump) FindMatchingNodes(comm string) []*ProcessActivityNode {
 	return res
 }
 
+// GetImageNameTag returns the image name and tag for the profiled container
+func (ad *ActivityDump) GetImageNameTag() (string, string) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	var imageName, imageTag string
+	for _, tag := range ad.Tags {
+		if tag_name, tag_value, valid := strings.Cut(tag, ":"); valid {
+			switch tag_name {
+			case "image_name":
+				imageName = tag_value
+			case "image_tag":
+				imageTag = tag_value
+			}
+		}
+	}
+	return imageName, imageTag
+}
+
 // GetSelectorStr returns a string representation of the profile selector
 func (ad *ActivityDump) GetSelectorStr() string {
 	ad.Lock()
@@ -1046,14 +1064,12 @@ type ProcessActivityNode struct {
 // NewProcessActivityNode returns a new ProcessActivityNode instance
 func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *ProcessActivityNode {
 	nodeStats.processNodes++
-	pan := ProcessActivityNode{
+	return &ProcessActivityNode{
 		Process:        entry.Process,
 		GenerationType: generationType,
 		Files:          make(map[string]*FileActivityNode),
 		DNSNames:       make(map[string]*DNSNode),
 	}
-	pan.retain()
-	return &pan
 }
 
 // nolint: unused
@@ -1081,15 +1097,6 @@ func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
 	}
 }
 
-func (pan *ProcessActivityNode) retain() {
-	if pan.Process.ArgsEntry != nil {
-		pan.Process.ArgsEntry.Retain()
-	}
-	if pan.Process.EnvsEntry != nil {
-		pan.Process.EnvsEntry.Retain()
-	}
-}
-
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
 func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 	_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
@@ -1098,12 +1105,6 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resol
 	pan.Process.EnvsTruncated = envsTruncated
 	pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
 
-	if pan.Process.ArgsEntry != nil {
-		pan.Process.ArgsEntry.Release()
-	}
-	if pan.Process.EnvsEntry != nil {
-		pan.Process.EnvsEntry.Release()
-	}
 	pan.Process.ArgsEntry = nil
 	pan.Process.EnvsEntry = nil
 }

@@ -4,6 +4,9 @@ require 'open3'
 require 'csv'
 require 'rexml/document'
 
+root_dir = "/tmp/ci/system-probe"
+tests_dir = ::File.join(root_dir, "tests")
+
 GOLANG_TEST_FAILURE = /FAIL:/
 
 skip_prebuilt_tests = Array.[](
@@ -61,10 +64,10 @@ platform = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
 ## 0755, which causes the test to fail.  The object files are not being built during the
 ## test, anyway, so set them to the expected value
 ##
-Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/*.o').each do |f|
+Dir.glob("#{tests_dir}/pkg/ebpf/bytecode/build/*.o").each do |f|
   FileUtils.chmod 0644, f, :verbose => true
 end
-Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/*.o').each do |f|
+Dir.glob("#{tests_dir}/pkg/ebpf/bytecode/build/co-re/*.o").each do |f|
   FileUtils.chmod 0644, f, :verbose => true
 end
 
@@ -73,12 +76,13 @@ shared_examples "passes" do |bundle, env, filter, filter_inclusive|
     print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
   end
 
-  Dir.glob('/tmp/system-probe-tests/**/testsuite').sort.each do |f|
-    pkg = f.delete_prefix('/tmp/system-probe-tests/').delete_suffix('/testsuite')
+  Dir.glob("#{tests_dir}/**/testsuite").sort.each do |f|
+    pkg = f.delete_prefix("#{tests_dir}/").delete_suffix('/testsuite')
     next unless (filter_inclusive and filter.include? pkg) or (!filter_inclusive and !filter.include? pkg)
 
     base_env = {
-      "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build",
+      "DD_SYSTEM_PROBE_BPF_DIR"=>"#{tests_dir}/pkg/ebpf/bytecode/build",
+      "DD_SYSTEM_PROBE_JAVA_DIR"=>"#{tests_dir}/pkg/network/java",
       "GOVERSION"=>"unknown"
     }
     junitfile = pkg.gsub("/","-") + ".xml"

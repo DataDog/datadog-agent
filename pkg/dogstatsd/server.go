@@ -469,7 +469,7 @@ func (s *Server) handleMessages() {
 
 // Capture starts a traffic capture at the specified path and with the specified duration,
 // an empty path will default to the default location. Returns an error if any.
-func (s *Server) Capture(p string, d time.Duration, compressed bool) error {
+func (s *Server) Capture(p string, d time.Duration, compressed bool) (string, error) {
 	return s.TCapture.Start(p, d, compressed)
 }
 

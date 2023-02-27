@@ -29,10 +29,14 @@ func NewContainersTelemetry() (*ContainersTelemetry, error) {
 	}, nil
 }
 
+func (c *ContainersTelemetry) ListRunningContainers() []*workloadmeta.Container {
+	return c.MetadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+}
+
 // ReportContainers sends the metrics about currently running containers
 // This function is critical for CWS/CSPM metering. Please tread carefully.
 func (c *ContainersTelemetry) ReportContainers(metricName string) {
-	containers := c.MetadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	containers := c.ListRunningContainers()
 
 	for _, container := range containers {
 		c.Sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})

@@ -55,7 +55,7 @@ func InjectAgent(pid int, agent string, args string) error {
 	ctime, _ := proc.CreateTime()
 	age_ms := time.Now().UnixMilli() - ctime
 	if age_ms < MINIMUM_JAVA_AGE_TO_ATTACH_MS {
-		log.Debug("java attach pid %d will be delayed by %s ms", pid, MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms)
+		log.Debugf("java attach pid %d will be delayed by %d ms", pid, MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms)
 		// wait and inject the agent asynchronously
 		go func() {
 			time.Sleep(time.Duration(MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms) * time.Millisecond)

@@ -101,7 +101,6 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
 
     struct init_module_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
         .file = syscall->init_module.file,
         .loaded_from_memory = syscall->init_module.loaded_from_memory,
     };
@@ -198,7 +197,6 @@ int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval
 
     struct delete_module_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
     };
     bpf_probe_read_str(&event.name, sizeof(event.name), (void *)syscall->delete_module.name);
 
