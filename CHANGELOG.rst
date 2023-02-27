@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2023-02-22
+Release on: 2023-02-23
 
 - Please refer to the `7.43.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7430>`_ for the list of changes on the Core Checks
 
