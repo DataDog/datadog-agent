@@ -6,7 +6,7 @@
 #include "protocols/kafka/defs.h"
 #include "protocols/kafka/types.h"
 
-// LINUX_VERSION_CODE doesn't work with runtime compilation
+// LINUX_VERSION_CODE doesn't work with co-re and is relevant to runtime compilation only
 #ifdef COMPILE_RUNTIME
     // Kernels before 4.7 do not know about per-cpu array maps.
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
