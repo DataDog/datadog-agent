@@ -43,6 +43,8 @@ send_pkg_size-a6:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
     - agent_suse-x64-a6
+    - agent_deb-arm64-a6
+    - agent_rpm-arm64-a6
   before_script:
     # FIXME: tmp while we uppdate the base image
     - apt-get install -y wget rpm2cpio cpio
@@ -51,7 +53,9 @@ send_pkg_size-a6:
   script:
     - source /root/.bashrc && conda activate ddpy3
     - mkdir -p /tmp/deb/agent
+    - mkdir -p /tmp/deb/arm-agent
     - mkdir -p /tmp/rpm/agent
+    - mkdir -p /tmp/rpm/arm-agent
     - mkdir -p /tmp/suse/agent
 
     # we silence dpkg and cpio output so we don't exceed gitlab log limit
@@ -59,9 +63,16 @@ send_pkg_size-a6:
     # debian
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_amd64.deb /tmp/deb/agent > /dev/null
     - DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/agent | sed 's/\([0-9]\+\).\+/\1/')
+    # debian arm64
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_arm64.deb /tmp/deb/arm-agent > /dev/null
+    - ARM_DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/arm-agent | sed 's/\([0-9]\+\).\+/\1/')
     # centos
     - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.x86_64.rpm | cpio -idm > /dev/null
     - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
+    # centos arm64
+    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.aarch64.rpm | cpio -idm > /dev/null
+    - ARM_RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/arm-agent | sed 's/\([0-9]\+\).\+/\1/')
+
     # suse
     - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-6.*.x86_64.rpm | cpio -idm > /dev/null
     - SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/agent | sed 's/\([0-9]\+\).\+/\1/')
@@ -71,9 +82,11 @@ send_pkg_size-a6:
     - |
       curl --fail -X POST -H "Content-type: application/json" \
       -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\"]}
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:amd64\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:amd64\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:amd64\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $ARM_DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:arm64\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $ARM_RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:arm64\"]}
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
