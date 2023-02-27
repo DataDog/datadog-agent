@@ -282,14 +282,18 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	}
 	if err != nil {
 		// we can't access to the binary path here (pid probably ended already)
-		// there are not much we can do and we don't want to flood the logs
+		// there are not much we can do, and we don't want to flood the logs
 		return
 	}
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {
-		log.Debugf("could not stat binary path %s: %s", binPath, err)
-		return
+		containerizedPath := filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "root", binPath)
+		if err = syscall.Stat(containerizedPath, &stat); err != nil {
+			log.Debugf("could not stat binary path %s: %s", containerizedPath, err)
+			return
+		}
+		binPath = containerizedPath
 	}
 	binID := binaryID{
 		Id_major: unix.Major(stat.Dev),
