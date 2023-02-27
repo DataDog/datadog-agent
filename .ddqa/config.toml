@@ -69,3 +69,15 @@ jira_project = "RCM"
 jira_issue_type = "Task"
 github_team = "remote-config"
 github_labels = ["team/remote-config"]
+
+[teams."Container Integrations"]
+jira_project = "CONT"
+jira_issue_type = "Task"
+github_team = "container-integrations"
+github_labels = ["team/containers"]
+
+[teams."Container Ecosystems"]
+jira_project = "CONTECO"
+jira_issue_type = "Task"
+github_team = "container-ecosystems"
+github_labels = ["team/container-ecosystems"]
