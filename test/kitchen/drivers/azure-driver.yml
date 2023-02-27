@@ -162,20 +162,14 @@ platforms:
       <% end %>
     username: <%= vm_username %>
     password: <%= vm_password %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
   lifecycle:
     post_create:
-      <% if allow_rsa_key %>
-      - local: echo 'Allowing RSA keys in SSH config'
-      - remote: |
-          echo PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config
-          service ssh reload
-      <% end %>
-      <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
       - remote: |
           sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
           sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
           sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
-      <% end %>
+  <% end %>
 
 
   transport:
