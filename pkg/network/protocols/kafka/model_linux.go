@@ -33,3 +33,7 @@ func (tx *EbpfKafkaTx) TopicName() string {
 func (tx *EbpfKafkaTx) APIKey() uint16 {
 	return tx.Request_api_key
 }
+
+func (tx *EbpfKafkaTx) APIVersion() uint16 {
+	return tx.Request_api_version
+}

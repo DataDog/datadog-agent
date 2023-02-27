@@ -31,8 +31,8 @@ func NewKafkaStatkeeper(c *config.Config, telemetry *Telemetry) *KafkaStatKeeper
 
 func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
 	key := Key{
-		RequestAPIKey:  tx.Request_api_key,
-		RequestVersion: tx.Request_api_version,
+		RequestAPIKey:  tx.APIKey(),
+		RequestVersion: tx.APIVersion(),
 		TopicName:      tx.TopicName(),
 		KeyTuple:       tx.ConnTuple(),
 	}
