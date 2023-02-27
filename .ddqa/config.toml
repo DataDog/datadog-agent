@@ -39,6 +39,12 @@ jira_issue_type = "Task"
 github_team = "network-device-monitoring"
 github_labels = ["team/network-device-monitoring"]
 
+[teams."Network Performance Monitoring"]
+jira_project = "NET"
+jira_issue_type = "Task"
+github_team = "networks"
+github_labels = ["team/networks"]
+
 [teams."OpenTelemetry"]
 jira_project = "OTEL"
 jira_issue_type = "Task"
