@@ -140,7 +140,7 @@ func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 // GetProcessEvents sends process events through a gRPC stream
 func (p *ProcessConsumer) GetProcessEvents(params *api.GetProcessEventParams, stream api.EventMonitoringModule_GetProcessEventsServer) error {
 	msgs := 0
-	timeout := time.After(time.Duration(params.TimeoutSeconds) * time.Second)
+	timeout := time.Duration(params.TimeoutSeconds) * time.Second
 
 	for msgs < p.maxMessageBurst {
 		select {
@@ -149,7 +149,7 @@ func (p *ProcessConsumer) GetProcessEvents(params *api.GetProcessEventParams, st
 				return err
 			}
 			msgs++
-		case <-timeout:
+		case <-time.After(timeout):
 			return nil
 		}
 	}

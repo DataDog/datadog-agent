@@ -100,7 +100,7 @@ func (l *SysProbeListener) run() {
 			running = false
 			continue
 		default:
-			stream, err := l.client.GetProcessEvents(context.Background(), &api.GetProcessEventParams{TimeoutSeconds: 5})
+			stream, err := l.client.GetProcessEvents(context.Background(), &api.GetProcessEventParams{TimeoutSeconds: 1})
 			if err != nil {
 				l.connected.Store(false)
 
