@@ -945,6 +945,7 @@ func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map
 				continue
 			}
 			if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
+				fmt.Println(key.SrcPort, key.DstPort)
 				occurrences += requests.Count
 				reqs[req] = true
 				break
