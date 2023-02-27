@@ -12,16 +12,14 @@
 
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
-// This determines the size of the payload fragment that is captured for each HTTP request
+// This determines the size of the payload fragment that is captured for each Kafka request
 #define KAFKA_BUFFER_SIZE (8 * 40) // 320
 
 // This is needed to reduce code size on multiple copy optimizations that were made in
 // the http eBPF program.
 _Static_assert((KAFKA_BUFFER_SIZE % 8) == 0, "KAFKA_BUFFER_SIZE must be a multiple of 8.");
 
-//// This controls the number of Kafka transactions read from userspace at a time
+// This controls the number of Kafka transactions read from userspace at a time
 #define KAFKA_BATCH_SIZE 15
-
-#define KAFKA_PROG 0
 
 #endif
