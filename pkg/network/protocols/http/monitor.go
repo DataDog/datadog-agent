@@ -39,7 +39,8 @@ type Monitor struct {
 	httpConsumer    *events.Consumer
 	http2Consumer   *events.Consumer
 	ebpfProgram     *ebpfProgram
-	telemetry       *telemetry
+	httpTelemetry   *telemetry
+	http2Telemetry  *telemetry
 	statkeeper      *httpStatKeeper
 	http2Statkeeper *httpStatKeeper
 	processMonitor  *monitor.ProcessMonitor
@@ -109,23 +110,30 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	telemetry, err := newTelemetry()
+	httpTelemetry, err := newTelemetry()
 	if err != nil {
 		closeFilterFn()
 		return nil, err
 	}
 
-	statkeeper := newHTTPStatkeeper(c, telemetry)
+	statkeeper := newHTTPStatkeeper(c, httpTelemetry)
 	processMonitor := monitor.GetProcessMonitor()
 
 	var http2Statkeeper *httpStatKeeper
+	var http2Telemetry *telemetry
 	if c.EnableHTTP2Monitoring {
-		http2Statkeeper = newHTTPStatkeeper(c, telemetry)
+		http2Telemetry, err = newTelemetry()
+		if err != nil {
+			closeFilterFn()
+			return nil, err
+		}
+		http2Statkeeper = newHTTPStatkeeper(c, http2Telemetry)
 	}
 
 	return &Monitor{
 		ebpfProgram:     mgr,
-		telemetry:       telemetry,
+		httpTelemetry:   httpTelemetry,
+		http2Telemetry:  http2Telemetry,
 		closeFilterFn:   closeFilterFn,
 		statkeeper:      statkeeper,
 		processMonitor:  processMonitor,
@@ -194,7 +202,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		}
 	}
 	return map[string]interface{}{
-		"last_check": m.telemetry.then,
+		"last_check": m.httpTelemetry.then,
 	}
 }
 
@@ -206,7 +214,7 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 	}
 
 	m.httpConsumer.Sync()
-	m.telemetry.log()
+	m.httpTelemetry.log()
 	return m.statkeeper.GetAndResetAllStats()
 }
 
@@ -218,7 +226,7 @@ func (m *Monitor) GetHTTP2Stats() map[Key]*RequestStats {
 	}
 
 	m.http2Consumer.Sync()
-	m.telemetry.log()
+	m.http2Telemetry.log()
 	return m.http2Statkeeper.GetAndResetAllStats()
 }
 
@@ -237,14 +245,14 @@ func (m *Monitor) Stop() {
 
 func (m *Monitor) processHTTP(data []byte) {
 	tx := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
-	m.telemetry.count(tx)
+	m.httpTelemetry.count(tx)
 	m.statkeeper.Process(tx)
 }
 
 func (m *Monitor) processHTTP2(data []byte) {
 	tx := (*ebpfHttp2Tx)(unsafe.Pointer(&data[0]))
 
-	m.telemetry.count(tx)
+	m.http2Telemetry.count(tx)
 	m.http2Statkeeper.Process(tx)
 }
 
