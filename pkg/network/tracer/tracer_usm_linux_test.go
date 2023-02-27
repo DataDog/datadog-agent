@@ -76,7 +76,7 @@ func javaTLSSupported(t *testing.T) bool {
 }
 
 func goTLSSupported() bool {
-	cfg := config.New()
+	cfg := testConfig()
 	return runtime.GOARCH == "amd64" && cfg.EnableRuntimeCompiler
 }
 
@@ -595,14 +595,13 @@ func TestJavaInjection(t *testing.T) {
 	cfg.EnableJavaTLSSupport = true
 
 	dir, _ := testutil.CurDir()
-	{ // create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
-		agentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
-		require.NoError(t, err)
-		defer os.RemoveAll(agentDir)
-		cfg.JavaDir = agentDir
-		_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + agentDir + "/agent-usm.jar")
-		require.NoError(t, err)
-	}
+	legacyJavaDir := cfg.JavaDir
+	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
+	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
+	require.NoError(t, err)
+	defer os.RemoveAll(fakeAgentDir)
+	_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + fakeAgentDir + "/agent-usm.jar")
+	require.NoError(t, err)
 
 	// testContext shares the context of a given test.
 	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
@@ -627,6 +626,7 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.JavaDir = fakeAgentDir
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
@@ -637,7 +637,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
+				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait", regexp.MustCompile("loading TestAgentLoaded.agentmain.*"))
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 
 				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
@@ -658,6 +658,7 @@ func TestJavaInjection(t *testing.T) {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.JavaDir = fakeAgentDir
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
@@ -668,7 +669,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait", regexp.MustCompile("loading TestAgentLoaded.agentmain.*"))
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 
 				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
@@ -680,6 +681,32 @@ func TestJavaInjection(t *testing.T) {
 				_, err := os.Stat(testfile)
 				require.NoError(t, err)
 				os.Remove(testfile)
+			},
+		},
+		{
+			// Test the java jdk client https request is working
+			name: "java_jdk_client_httpbin_docker_java15",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.JavaDir = legacyJavaDir
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for key := range payload.HTTP {
+						if key.Path.Content == "/anything/java-tls-request" {
+							return true
+						}
+					}
+
+					return false
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
 			},
 		},
 	}
@@ -707,14 +734,14 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	}
 
 	t.Run("new process (runtime compilation)", func(t *testing.T) {
-		cfg := config.New()
+		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
 		testHTTPGoTLSCaptureNewProcess(t, cfg)
 	})
 
 	t.Run("already running process (runtime compilation)", func(t *testing.T) {
-		cfg := config.New()
+		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
 		testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
@@ -724,7 +751,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
 	// and running the CO-RE tests as well
 	t.Run("new process (co-re)", func(t *testing.T) {
-		cfg := config.New()
+		cfg := testConfig()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
@@ -732,7 +759,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 
 	t.Run("already running process (co-re)", func(t *testing.T) {
-		cfg := config.New()
+		cfg := testConfig()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false

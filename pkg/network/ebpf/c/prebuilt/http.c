@@ -22,6 +22,7 @@
 #include "protocols/http/buffer.h"
 #include "protocols/tls/https.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/java-tls-erpc.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -621,6 +622,15 @@ int kretprobe__do_sys_open(struct pt_regs* ctx) {
 SEC("kretprobe/do_sys_openat2")
 int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
     return do_sys_open_helper_exit(ctx);
+}
+
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        handle_erpc_request(ctx);
+    }
+
+    return 0;
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version
