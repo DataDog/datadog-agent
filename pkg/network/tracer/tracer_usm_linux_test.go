@@ -71,6 +71,10 @@ func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
 }
 
+func goTLSSupported(t *testing.T) bool {
+	return config.New().EnableRuntimeCompiler && httpSupported(t) && httpsSupported(t)
+}
+
 func javaTLSSupported(t *testing.T) bool {
 	return httpSupported(t) && httpsSupported(t)
 }
@@ -842,7 +846,7 @@ func TestJavaInjection(t *testing.T) {
 
 // GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	if !config.New().EnableRuntimeCompiler || !httpSupported(t) || !httpsSupported(t) {
+	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
@@ -881,7 +885,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 }
 
 func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
-	if !goTLSSupported() || !httpSupported(t) || !httpsSupported(t) {
+	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
