@@ -233,9 +233,6 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
         return false;
     }
 
-    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
-    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
-    barrier();
     char* topic_name_beginning_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
 
     // Make the verifier happy by checking that the topic name offset doesn't exceed the total fragment buffer size
@@ -265,9 +262,6 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
 }
 
 static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, __s32* result) {
-    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
-    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
-    barrier();
     char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
