@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -69,4 +70,29 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedServiceTag, se.GetServiceContext(proc.Pid))
 		})
 	}
+}
+
+func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
+	makeServiceExtractor := func(t *testing.T) (*ServiceExtractor, *mockSCM) {
+		se := NewServiceExtractor()
+		procsByPid := map[int32]*procutil.Process{1: {
+			Pid:     1,
+			Cmdline: []string{"C:\\nginx-1.23.2\\nginx.exe"},
+		}}
+		se.Extract(procsByPid)
+		scmReader, mockSCM := newSCMReaderWithMock(t)
+		se.scmReader = scmReader
+		return se, mockSCM
+	}
+
+	t.Run("disabled", func(t *testing.T) {
+		cfg := ddconfig.Mock(t)
+		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", false)
+
+		se, mockSCM := makeServiceExtractor(t)
+		mockSCM.AssertNotCalled(t, "GetServiceInfo", mock.Anything)
+
+		context := se.GetServiceContext(1)
+		assert.Equal(t, context, "process_context:nginx")
+	})
 }

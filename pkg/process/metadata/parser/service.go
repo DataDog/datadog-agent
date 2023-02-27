@@ -47,7 +47,7 @@ type ServiceExtractor struct {
 	scmScrapingEnabled    bool
 	useWindowsServiceName bool
 	serviceByPID          map[int32]*serviceMetadata
-	scmScraper            *scmReader
+	scmReader             *scmReader
 }
 
 type serviceMetadata struct {
@@ -70,7 +70,7 @@ func NewServiceExtractor() *ServiceExtractor {
 		enabled:               enabled,
 		useWindowsServiceName: useWindowsServiceName,
 		serviceByPID:          make(map[int32]*serviceMetadata),
-		scmScraper:            newSCMReader(),
+		scmReader:             newSCMReader(),
 	}
 }
 
@@ -171,7 +171,7 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 // GetWindowsServiceTags returns the process_context associated with a process by scraping the SCM.
 // If the service name is not found in the scm, an empty string is returned.
 func (d *ServiceExtractor) getWindowsServiceTags(pid int32) (string, error) {
-	entry, err := d.scmScraper.getServiceInfo(uint64(pid))
+	entry, err := d.scmReader.getServiceInfo(uint64(pid))
 	if err != nil {
 		return "", err
 	}
