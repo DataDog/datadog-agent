@@ -63,3 +63,9 @@ jira_component = "Trace Agent"
 jira_issue_type = "Task"
 github_team = "apm-go"
 github_labels = ["team/agent-apm"]
+
+[teams."Remote Config"]
+jira_project = "RCM"
+jira_issue_type = "Task"
+github_team = "remote-config"
+github_labels = ["team/remote-config"]
