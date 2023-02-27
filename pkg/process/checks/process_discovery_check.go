@@ -7,9 +7,10 @@ package checks
 
 import (
 	"fmt"
+	"time"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -17,7 +18,7 @@ import (
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck() Check {
+func NewProcessDiscoveryCheck() *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{}
 }
 
