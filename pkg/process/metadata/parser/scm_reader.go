@@ -12,14 +12,14 @@ import (
 	"fmt"
 )
 
-type scmScraper struct{}
+type scmReader struct{}
 
-// scmScraper is a cross-platform compatability wrapper around `winutil.SCMMonitor`.
+// scmReader is a cross-platform compatability wrapper around `winutil.SCMMonitor`.
 // The non-windows version does nothing, and instead only exists so that we don't get compile errors.
-func newSCMScraper() *scmScraper {
-	return &scmScraper{}
+func newSCMReader() *scmReader {
+	return &scmReader{}
 }
 
-func (s *scmScraper) getServiceInfo(pid uint64) (*WindowsServiceInfo, error) {
+func (s *scmReader) getServiceInfo(pid uint64) (*WindowsServiceInfo, error) {
 	return nil, fmt.Errrof("scm service info is only available on windows")
 }

@@ -12,19 +12,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-// scmScraper is a cross-platform compatability wrapper around `winutil.SCMMonitor`.
-// The non-windows version does nothing, and instead only exists so that we don't get compile errors.
-type scmScraper struct {
-	scmMonitor *winutil.SCMMonitor
+type mockableSCM interface {
+	GetServiceInfo(pid uint64) (*winutil.ServiceInfo, error)
 }
 
-func newSCMScraper() *scmScraper {
-	return &scmScraper{
+// scmReader is a cross-platform compatability wrapper around `winutil.SCMMonitor`.
+// The non-windows version does nothing, and instead only exists so that we don't get compile errors.
+type scmReader struct {
+	scmMonitor mockableSCM
+}
+
+func newSCMReader() *scmReader {
+	return &scmReader{
 		scmMonitor: winutil.GetServiceMonitor(),
 	}
 }
 
-func (s *scmScraper) getServiceInfo(pid uint64) (*WindowsServiceInfo, error) {
+func (s *scmReader) getServiceInfo(pid uint64) (*WindowsServiceInfo, error) {
 	monitorServiceInfo, err := s.scmMonitor.GetServiceInfo(pid)
 	if err != nil {
 		return nil, err

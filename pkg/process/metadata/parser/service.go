@@ -47,7 +47,7 @@ type ServiceExtractor struct {
 	scmScrapingEnabled    bool
 	useWindowsServiceName bool
 	serviceByPID          map[int32]*serviceMetadata
-	scmScraper            *scmScraper
+	scmScraper            *scmReader
 }
 
 type serviceMetadata struct {
@@ -70,7 +70,7 @@ func NewServiceExtractor() *ServiceExtractor {
 		enabled:               enabled,
 		useWindowsServiceName: useWindowsServiceName,
 		serviceByPID:          make(map[int32]*serviceMetadata),
-		scmScraper:            newSCMScraper(),
+		scmScraper:            newSCMReader(),
 	}
 }
 
