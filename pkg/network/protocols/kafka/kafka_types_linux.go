@@ -24,7 +24,3 @@ type EbpfKafkaTx struct {
 	Current_offset_in_request_fragment uint32
 	Topic_name                         [80]int8
 }
-
-const (
-	KAFKABufferSize = 0x140
-)

@@ -17,7 +17,3 @@ import "C"
 type kafkaConnTuple C.conn_tuple_t
 
 type EbpfKafkaTx C.kafka_transaction_batch_entry_t
-
-const (
-	KAFKABufferSize = C.KAFKA_BUFFER_SIZE
-)
