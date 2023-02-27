@@ -9,11 +9,13 @@
 package http
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/java"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -35,11 +38,20 @@ var (
 	// path to our java USM agent TLS tracer
 	javaUSMAgentJarPath = ""
 
+	// enable debug output in the injected agent-usm.jar
+	javaUSMAgentDebug = false
+
 	// default arguments passed to the injected agent-usm.jar
 	javaUSMAgentArgs = ""
+
 	// authID is used here as an identifier, simple proof of authenticity
 	// between the injected java process and the ebpf ioctl that receive the payload
 	authID = int64(0)
+
+	// The regex is matching against /proc/pid/cmdline
+	// if matching the agent-usm.jar would or not injected
+	javaAgentAllowRegex *regexp.Regexp
+	javaAgentBlockRegex *regexp.Regexp
 )
 
 type JavaTLSProgram struct {
@@ -53,14 +65,35 @@ type JavaTLSProgram struct {
 var _ subprogram = &JavaTLSProgram{}
 
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
+	var err error
+
 	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
 		log.Warnf("java tls is not enabled as EnableJavaTLSSupport: %v; EnableHTTPSMonitoring: %v; HTTPSSupported(): %v", c.EnableJavaTLSSupport, c.EnableHTTPSMonitoring, HTTPSSupported(c))
 		return nil
 	}
 
 	log.Info("java tls is enabled")
-	javaUSMAgentArgs = c.JavaAgentArgs
 	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
+	javaUSMAgentDebug = c.JavaAgentDebug
+	javaUSMAgentArgs = c.JavaAgentArgs
+
+	javaAgentAllowRegex = nil
+	javaAgentBlockRegex = nil
+	if c.JavaAgentAllowRegex != "" {
+		javaAgentAllowRegex, err = regexp.Compile(c.JavaAgentAllowRegex)
+		if err != nil {
+			javaAgentAllowRegex = nil
+			log.Errorf("JavaAgentAllowRegex regex can't be compiled %s", err)
+		}
+	}
+	if c.JavaAgentBlockRegex != "" {
+		javaAgentBlockRegex, err = regexp.Compile(c.JavaAgentBlockRegex)
+		if err != nil {
+			javaAgentBlockRegex = nil
+			log.Errorf("JavaAgentBlockRegex regex can't be compiled %s", err)
+		}
+	}
+
 	jar, err := os.Open(javaUSMAgentJarPath)
 	if err != nil {
 		log.Errorf("java TLS can't access to agent-usm.jar file %s : %s", javaUSMAgentJarPath, err)
@@ -112,12 +145,61 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
-func newJavaProcess(pid uint32) {
-	args := javaUSMAgentArgs
-	if len(args) > 0 {
-		args += " "
+// isAttachmentAllowed will return true if the pid can be attach
+// The filter is based on the process command line matching javaAgentAllowRegex and javaAgentBlockRegex regex
+// javaAgentAllowRegex has an higher priority
+//
+// # In case of only one regex (allow or block) is set, the regex will be evaluated as exclusive filter
+// /                 match  | not match
+// allowRegex only    true  | false
+// blockRegex only    false | true
+func isAttachmentAllowed(pid uint32) bool {
+	allowIsSet := javaAgentAllowRegex != nil
+	blockIsSet := javaAgentBlockRegex != nil
+	// filter is disabled (default configuration)
+	if !allowIsSet && !blockIsSet {
+		return true
 	}
-	args += "dd.usm.authID=" + strconv.FormatInt(authID, 10)
+
+	procCmdline := fmt.Sprintf("%s/%d/cmdline", util.HostProc(), pid)
+	cmd, err := os.ReadFile(procCmdline)
+	if err != nil {
+		log.Debugf("injectionFilter can't open comandline %s : %s", procCmdline, err)
+		return false
+	}
+	fullCmdline := strings.ReplaceAll(string(cmd), "\000", " ") // /proc/pid/cmdline format : arguments are separated by '\0'
+
+	// Allow have an higher priority
+	if allowIsSet && javaAgentAllowRegex.MatchString(fullCmdline) {
+		return true
+	}
+	if blockIsSet && javaAgentBlockRegex.MatchString(fullCmdline) {
+		return false
+	}
+
+	// if only one regex is set, allow regex if not match should not attach
+	if allowIsSet != blockIsSet { // allow xor block
+		if allowIsSet {
+			return false
+		}
+	}
+	return true
+}
+
+func newJavaProcess(pid uint32) {
+	if !isAttachmentAllowed(pid) {
+		log.Debugf("java pid %d attachment rejected", pid)
+		return
+	}
+
+	allArgs := []string{
+		javaUSMAgentArgs,
+		"dd.usm.authID=" + strconv.FormatInt(authID, 10),
+	}
+	if javaUSMAgentDebug {
+		allArgs = append(allArgs, "dd.trace.debug=true")
+	}
+	args := strings.Join(allArgs, " ")
 	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
 	}
