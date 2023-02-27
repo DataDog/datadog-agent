@@ -29,29 +29,19 @@ import (
 
 var defaultTopicName = "franz-kafka"
 
-func skipTestIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < MinimumKernelVersion {
-		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", MinimumKernelVersion.String()))
-	}
-}
+type BinaryType int
+
+const (
+	PREBUILT = 0
+	RUNTIME  = 1
+	CORE     = 2
+)
 
 // This test loads the Kafka binary, produce and fetch kafka messages and verifies that we capture them
 func TestSanity(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
 	kafka.RunServer(t, "127.0.0.1", "9092")
-
-	cfg := config.New()
-	// We don't have a way of enabling kafka without http at the moment
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableKafkaMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPWithKafkaMonitor(t)
 
 	seeds := []string{"localhost:9092"}
 	client, err := kgo.NewClient(
@@ -111,14 +101,6 @@ func TestSanity(t *testing.T) {
 	require.True(t, kafkaStatIsOK, "Number of produce requests: %d, number of fetch requests: %d", numberOfProduceRequests, numberOfFetchRequests)
 }
 
-type BinaryType int
-
-const (
-	PREBUILT = 0
-	RUNTIME  = 1
-	CORE     = 2
-)
-
 // This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
 func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
@@ -164,27 +146,13 @@ func loadKafkaBinary(t *testing.T, debug bool, binaryType BinaryType) {
 		cfg.EnableCORE = true
 	}
 
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	newHTTPWithKafkaMonitor(t)
 }
 
 func TestProduceClientIdEmptyString(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
 	kafka.RunServer(t, "127.0.0.1", "9092")
-
-	cfg := config.New()
-	// We don't have a way of enabling kafka without http at the moment
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableKafkaMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPWithKafkaMonitor(t)
 
 	seeds := []string{"localhost:9092"}
 	client, err := kgo.NewClient(
@@ -230,18 +198,8 @@ func TestProduceClientIdEmptyString(t *testing.T) {
 
 func TestManyProduceRequests(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
 	kafka.RunServer(t, "127.0.0.1", "9092")
-
-	cfg := config.New()
-	// We don't have a way of enabling kafka without http at the moment
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableKafkaMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPWithKafkaMonitor(t)
 
 	seeds := []string{"localhost:9092"}
 	client, err := kgo.NewClient(
@@ -288,18 +246,8 @@ func TestManyProduceRequests(t *testing.T) {
 
 func TestHTTPAndKafka(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
 	kafka.RunServer(t, "127.0.0.1", "9092")
-
-	cfg := config.New()
-	// We don't have a way of enabling kafka without http at the moment
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableKafkaMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPWithKafkaMonitor(t)
 
 	seeds := []string{"localhost:9092"}
 	client, err := kgo.NewClient(
@@ -367,17 +315,8 @@ func TestHTTPAndKafka(t *testing.T) {
 
 func TestEnableHTTPOnly(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
 	kafka.RunServer(t, "127.0.0.1", "9092")
-
-	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableKafkaMonitoring = false
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	err = monitor.Start()
-	require.NoError(t, err)
-	defer monitor.Stop()
+	monitor := newHTTPMonitor(t)
 
 	seeds := []string{"localhost:9092"}
 	client, err := kgo.NewClient(
@@ -411,4 +350,28 @@ func TestEnableHTTPOnly(t *testing.T) {
 	kafkaStats := monitor.GetKafkaStats()
 	// We expect 2 occurrences for each connection as we are working with a docker for now
 	require.Equal(t, 0, len(kafkaStats))
+}
+
+func skipTestIfKernelNotSupported(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < MinimumKernelVersion {
+		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", MinimumKernelVersion.String()))
+	}
+}
+
+func newHTTPWithKafkaMonitor(t *testing.T) *Monitor {
+	cfg := config.New()
+	// We don't have a way of enabling kafka without http at the moment
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableKafkaMonitoring = true
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	skipIfNotSupported(t, err)
+	require.NoError(t, err)
+	t.Cleanup(monitor.Stop)
+
+	err = monitor.Start()
+	skipIfNotSupported(t, err)
+	require.NoError(t, err)
+	return monitor
 }
