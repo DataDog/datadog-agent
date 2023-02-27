@@ -9,8 +9,9 @@
 package kafka
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 type KafkaStatKeeper struct {
