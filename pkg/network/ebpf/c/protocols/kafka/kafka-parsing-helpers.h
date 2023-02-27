@@ -75,7 +75,6 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     if (correlation_id < 0) {
         return false;
     }
-    kafka_transaction->base.correlation_id = correlation_id;
 
     __s16 client_id_size = 0;
     if (!kafka_read_big_endian_int16(kafka_transaction, &client_id_size)) {
@@ -86,7 +85,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     }
     log_debug("kafka: client_id_size: %d\n", client_id_size);
 
-    const char* client_id_starting_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
+    const char* client_id_starting_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
     char ch = 0;
 #pragma unroll(CLIENT_ID_SIZE_TO_VALIDATE)
     for (unsigned i = 0; i < CLIENT_ID_SIZE_TO_VALIDATE; i++) {
@@ -108,7 +107,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
 
         return false;
     }
-    kafka_transaction->base.current_offset_in_request_fragment += client_id_size;
+    kafka_transaction->current_offset_in_request_fragment += client_id_size;
 
     return true;
 }
@@ -119,7 +118,7 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
         return false;
     }
 
-    if (kafka_transaction->base.current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
         return false;
     }
 
@@ -150,7 +149,7 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
         }
         log_debug("kafka: transactional_id_size: %d\n", transactional_id_size);
         if (transactional_id_size > 0) {
-            kafka_transaction->base.current_offset_in_request_fragment += transactional_id_size;
+            kafka_transaction->current_offset_in_request_fragment += transactional_id_size;
         }
     }
 
@@ -190,20 +189,20 @@ static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_t
     // replica_id => INT32
     // max_wait_ms => INT32
     // min_bytes => INT32
-    kafka_transaction->base.current_offset_in_request_fragment += 12;
+    kafka_transaction->current_offset_in_request_fragment += 12;
 
     if (kafka_transaction->base.request_api_version >= 3) {
         // max_bytes => INT32
-        kafka_transaction->base.current_offset_in_request_fragment += 4;
+        kafka_transaction->current_offset_in_request_fragment += 4;
 
         if (kafka_transaction->base.request_api_version >= 4) {
             // isolation_level => INT8
-            kafka_transaction->base.current_offset_in_request_fragment += 1;
+            kafka_transaction->current_offset_in_request_fragment += 1;
 
             if (kafka_transaction->base.request_api_version >= 7) {
                 // session_id => INT32
                 // session_epoch => INT32
-                kafka_transaction->base.current_offset_in_request_fragment += 8;
+                kafka_transaction->current_offset_in_request_fragment += 8;
             }
         }
     }
@@ -213,9 +212,9 @@ static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_t
 
 static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t *kafka_transaction) {
     // Skipping number of entries for now
-    kafka_transaction->base.current_offset_in_request_fragment += 4;
+    kafka_transaction->current_offset_in_request_fragment += 4;
 
-    if (kafka_transaction->base.current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
         log_debug("kafka: Current offset is above the request fragment size\n");
         return false;
     }
@@ -233,7 +232,7 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
         return false;
     }
 
-    char* topic_name_beginning_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
+    char* topic_name_beginning_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
 
     // Make the verifier happy by checking that the topic name offset doesn't exceed the total fragment buffer size
     if (topic_name_beginning_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE ||
@@ -262,12 +261,12 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
 }
 
 static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, __s32* result) {
-    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
+    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
     }
     *result = read_big_endian_int32(current_offset);
-    kafka_transaction->base.current_offset_in_request_fragment += 4;
+    kafka_transaction->current_offset_in_request_fragment += 4;
     return true;
 }
 
@@ -275,12 +274,12 @@ static __always_inline bool kafka_read_big_endian_int16(kafka_transaction_t *kaf
     // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
     // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
-    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
+    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
     }
     *result = read_big_endian_int16(current_offset);
-    kafka_transaction->base.current_offset_in_request_fragment += 2;
+    kafka_transaction->current_offset_in_request_fragment += 2;
     return true;
 }
 

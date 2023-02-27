@@ -16,11 +16,9 @@ type kafkaConnTuple struct {
 }
 
 type EbpfKafkaTx struct {
-	Tup                                kafkaConnTuple
-	Request_api_key                    uint16
-	Request_api_version                uint16
-	Correlation_id                     uint32
-	Tcp_seq                            uint32
-	Current_offset_in_request_fragment uint32
-	Topic_name                         [80]int8
+	Tup                 kafkaConnTuple
+	Request_api_key     uint16
+	Request_api_version uint16
+	Topic_name          [80]int8
+	Pad_cgo_0           [4]byte
 }

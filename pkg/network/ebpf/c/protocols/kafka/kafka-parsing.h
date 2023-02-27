@@ -50,7 +50,7 @@ static __always_inline bool kafka_seen_before(kafka_transaction_t *kafka, skb_in
     // check if we've seen this TCP segment before. this can happen in the
     // context of localhost traffic where the same TCP segment can be seen
     // multiple times coming in and out from different interfaces
-    return kafka->base.tcp_seq == skb_info->tcp_seq;
+    return kafka->tcp_seq == skb_info->tcp_seq;
 }
 
 static __always_inline void kafka_update_seen_before(kafka_transaction_t *kafka_transaction, skb_info_t *skb_info) {
@@ -58,8 +58,8 @@ static __always_inline void kafka_update_seen_before(kafka_transaction_t *kafka_
         return;
     }
 
-    log_debug("kafka: kafka_update_seen_before: ktx=%llx old_seq=%llu seq=%llu\n", kafka_transaction, kafka_transaction->base.tcp_seq, skb_info->tcp_seq);
-    kafka_transaction->base.tcp_seq = skb_info->tcp_seq;
+    log_debug("kafka: kafka_update_seen_before: ktx=%llx old_seq=%llu seq=%llu\n", kafka_transaction, kafka_transaction->tcp_seq, skb_info->tcp_seq);
+    kafka_transaction->tcp_seq = skb_info->tcp_seq;
 }
 
 static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction) {
