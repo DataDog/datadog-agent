@@ -137,15 +137,11 @@ func NewCollector(collectorConfig CollectorConfig) (Collector, error) {
 }
 
 func (c *collector) Close() error {
-	if err := c.cache.Close(); err != nil {
-		return err
+	if c.config.ClearCacheOnClose {
+		return c.cache.Clear()
 	}
 
-	if err := c.cache.Clear(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.cache.Close()
 }
 
 func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error) {

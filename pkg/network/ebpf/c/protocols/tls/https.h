@@ -37,8 +37,6 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     bpf_memset(&http, 0, sizeof(http));
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer(http.request_fragment, buffer, len);
-    http.owned_by_src_port = http.tup.sport;
-    log_debug("https_process: htx=%llx sport=%d\n", &http, http.owned_by_src_port);
 
     protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &http.tup);
     if (cur_fragment_protocol_ptr == NULL) {
@@ -65,7 +63,6 @@ static __always_inline void https_finish(conn_tuple_t *t) {
     http_transaction_t http;
     bpf_memset(&http, 0, sizeof(http));
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-    http.owned_by_src_port = http.tup.sport;
 
     skb_info_t skb_info = {0};
     skb_info.tcp_flags |= TCPHDR_FIN;

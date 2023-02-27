@@ -12,6 +12,7 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/network/go/goid"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/go-delve/delve/pkg/goversion"
@@ -230,9 +231,8 @@ func (i *newProcessBinaryInspector) getGoroutineIDMetadata(abi GoABI) (Goroutine
 			// https://go.googlesource.com/go/+/refs/heads/dev.regabi/src/cmd/compile/internal-abi.md#amd64-architecture
 			runtimeGRegister = 14
 		case GoArchARM64:
-			// https://golang.org/doc/asm#arm64
-			// TODO make sure this is valid
-			runtimeGRegister = 27
+			// https://go.googlesource.com/go/+/refs/heads/master/src/cmd/compile/abi-internal.md#arm64-architecture
+			runtimeGRegister = 28
 		}
 	} else {
 		offset, err := i.getRuntimeGAddrTLSOffset()
