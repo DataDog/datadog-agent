@@ -79,32 +79,18 @@ system_probe_config:
   enable_kernel_header_download: true
   enable_runtime_compiler: true
 
-runtime_security_config:
-  enabled: {{ .RuntimeSecurityEnabled }}
+event_monitoring_config:
   runtime_compilation:
     enabled: true
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
-  socket: /tmp/test-security-probe.sock
-  flush_discarder_window: 0
   network:
     enabled: true
+  flush_discarder_window: 0
 {{if .EnableActivityDump}}
   activity_dump:
     enabled: true
-    rate_limiter: {{ .ActivityDumpRateLimiter }}
-    cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
-    traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
-    traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
-    - {{.}}
-    {{end}}
-    local_storage:
-      output_directory: {{ .ActivityDumpLocalStorageDirectory }}
-      compression: {{ .ActivityDumpLocalStorageCompression }}
-      formats: {{range .ActivityDumpLocalStorageFormats}}
-      - {{.}}
-      {{end}}
 {{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
@@ -119,6 +105,30 @@ runtime_security_config:
 {{end}}
   erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
   map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
+  envs_with_value:
+  {{range .EnvsWithValue}}
+    - {{.}}
+  {{end}}
+
+runtime_security_config:
+  enabled: {{ .RuntimeSecurityEnabled }}
+  socket: /tmp/test-security-probe.sock
+{{if .EnableActivityDump}}
+  activity_dump:
+    rate_limiter: {{ .ActivityDumpRateLimiter }}
+    cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
+    traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
+    traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
+    - {{.}}
+    {{end}}
+    local_storage:
+      output_directory: {{ .ActivityDumpLocalStorageDirectory }}
+      compression: {{ .ActivityDumpLocalStorageCompression }}
+      formats: {{range .ActivityDumpLocalStorageFormats}}
+      - {{.}}
+      {{end}}
+{{end}}
+
   self_test:
     enabled: false
 
@@ -130,10 +140,6 @@ runtime_security_config:
   {{end}}
   log_tags:
   {{range .LogTags}}
-    - {{.}}
-  {{end}}
-  envs_with_value:
-  {{range .EnvsWithValue}}
     - {{.}}
   {{end}}
 `
