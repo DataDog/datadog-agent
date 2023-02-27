@@ -47,7 +47,6 @@ func TestSanity(t *testing.T) {
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableKafkaMonitoring = true
-	cfg.BPFDebug = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
@@ -178,7 +177,6 @@ func TestProduceClientIdEmptyString(t *testing.T) {
 	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
-	cfg.BPFDebug = true
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableKafkaMonitoring = true
@@ -236,7 +234,6 @@ func TestManyProduceRequests(t *testing.T) {
 	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
-	cfg.BPFDebug = true
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableKafkaMonitoring = true
@@ -295,7 +292,6 @@ func TestHTTPAndKafka(t *testing.T) {
 	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
-	cfg.BPFDebug = true
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableKafkaMonitoring = true
@@ -375,7 +371,6 @@ func TestEnableHTTPOnly(t *testing.T) {
 	kafka.RunServer(t, "127.0.0.1", "9092")
 
 	cfg := config.New()
-	cfg.BPFDebug = true
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableKafkaMonitoring = false
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
