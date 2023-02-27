@@ -29,11 +29,11 @@ func (so *saveOutput) Write(p []byte) (n int, err error) {
 }
 
 var startTime windows.Filetime
+var startTimeOnce sync.Once
 
 func testGetProcessStartTimeAsNs(pid uint64) (uint64, error) {
-	var once sync.Once
 
-	once.Do(func() {
+	startTimeOnce.Do(func() {
 		windows.GetSystemTimeAsFileTime(&startTime)
 		// move the start a bit earlier to make sure it's always
 		// before current
