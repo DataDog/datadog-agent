@@ -35,7 +35,7 @@
 send_pkg_size-a6:
   allow_failure: true
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_a6]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
@@ -70,7 +70,7 @@ send_pkg_size-a6:
     - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.x86_64.rpm | cpio -idm > /dev/null
     - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
     # centos arm64
-    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.aarch64.rpm | cpio -idm > /dev/null
+    - cd /tmp/rpm/arm-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.aarch64.rpm | cpio -idm > /dev/null
     - ARM_RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/arm-agent | sed 's/\([0-9]\+\).\+/\1/')
 
     # suse
