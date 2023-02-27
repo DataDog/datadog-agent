@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -83,36 +85,41 @@ WHERE
 		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
 	)`
 
+type RowMetadata struct {
+	Commands       []string `json:"dd_commands,omitempty"`
+	Tables         []string `json:"dd_tables,omitempty"`
+	Comments       []string `json:"dd_comments,omitempty"`
+	QueryTruncated string   `json:"query_truncated,omitempty"`
+}
+
 type OracleActivityRow struct {
-	SessionID              uint64   `db:"SID" json:"sid,omitempty"`
-	SessionSerial          uint64   `db:"SERIAL#" json:"serial,omitempty"`
-	Username               *string  `db:"USERNAME" json:"username,omitempty"`
-	OsUser                 *string  `db:"OSUSER" json:"os_user,omitempty"`
-	Process                *string  `db:"PROCESS" json:"process,omitempty"`
-	Machine                *string  `db:"MACHINE" json:"machine,omitempty"`
-	Program                *string  `db:"PROGRAM" json:"program,omitempty"`
-	Type                   *string  `db:"TYPE" json:"type,omitempty"`
-	SqlID                  *string  `db:"SQL_ID" json:"sql_id,omitempty"`
-	ForceMatchingSignature *uint64  `db:"FORCE_MATCHING_SIGNATURE" json:"force_matching_signature,omitempty"`
-	SqlPlanHashValue       *uint64  `db:"SQL_PLAN_HASH_VALUE" json:"sql_plan_hash_value,omitempty"`
-	SqlExecStart           *string  `db:"SQL_EXEC_START" json:"sql_exec_start,omitempty"`
-	Module                 *string  `db:"MODULE" json:"module,omitempty"`
-	Action                 *string  `db:"ACTION" json:"action,omitempty"`
-	ClientInfo             *string  `db:"CLIENT_INFO" json:"client_info,omitempty"`
-	LogonTime              *string  `db:"LOGON_TIME" json:"logon_time,omitempty"`
-	ClientIdentifier       *string  `db:"CLIENT_IDENTIFIER" json:"client_identifier,omitempty"`
-	BlockingInstance       *uint64  `db:"BLOCKING_INSTANCE" json:"blocking_instance,omitempty"`
-	BlockingSession        *uint64  `db:"BLOCKING_SESSION" json:"blocking_session,omitempty"`
-	FinalBlockingInstance  *uint64  `db:"FINAL_BLOCKING_INSTANCE" json:"final_blocking_instance,omitempty"`
-	FinalBlockingSession   *uint64  `db:"FINAL_BLOCKING_SESSION" json:"final_blocking_session,omitempty"`
-	Event                  *string  `db:"EVENT" json:"event,omitempty"`
-	WaitClass              *string  `db:"WAIT_CLASS" json:"wait_class,omitempty"`
-	SqlText                *string  `db:"SQL_TEXT" json:"sql_text,omitempty"`
-	PdbName                *string  `db:"PDB_NAME" json:"pdb_name,omitempty"`
-	DDCommands             []string `json:"dd_commands,omitempty"`
-	DDTables               string   `json:"dd_tables,omitempty"`
-	DDComments             []string `json:"dd_comments,omitempty"`
-	QuerySignature         uint64   `json:"query_signature,omitempty"`
+	SessionID              uint64  `db:"SID" json:"sid,omitempty"`
+	SessionSerial          uint64  `db:"SERIAL#" json:"serial,omitempty"`
+	Username               *string `db:"USERNAME" json:"username,omitempty"`
+	OsUser                 *string `db:"OSUSER" json:"os_user,omitempty"`
+	Process                *string `db:"PROCESS" json:"process,omitempty"`
+	Machine                *string `db:"MACHINE" json:"machine,omitempty"`
+	Program                *string `db:"PROGRAM" json:"program,omitempty"`
+	Type                   *string `db:"TYPE" json:"type,omitempty"`
+	SqlID                  *string `db:"SQL_ID" json:"sql_id,omitempty"`
+	ForceMatchingSignature *uint64 `db:"FORCE_MATCHING_SIGNATURE" json:"force_matching_signature,omitempty"`
+	SqlPlanHashValue       *uint64 `db:"SQL_PLAN_HASH_VALUE" json:"sql_plan_hash_value,omitempty"`
+	SqlExecStart           *string `db:"SQL_EXEC_START" json:"sql_exec_start,omitempty"`
+	Module                 *string `db:"MODULE" json:"module,omitempty"`
+	Action                 *string `db:"ACTION" json:"action,omitempty"`
+	ClientInfo             *string `db:"CLIENT_INFO" json:"client_info,omitempty"`
+	LogonTime              *string `db:"LOGON_TIME" json:"logon_time,omitempty"`
+	ClientIdentifier       *string `db:"CLIENT_IDENTIFIER" json:"client_identifier,omitempty"`
+	BlockingInstance       *uint64 `db:"BLOCKING_INSTANCE" json:"blocking_instance,omitempty"`
+	BlockingSession        *uint64 `db:"BLOCKING_SESSION" json:"blocking_session,omitempty"`
+	FinalBlockingInstance  *uint64 `db:"FINAL_BLOCKING_INSTANCE" json:"final_blocking_instance,omitempty"`
+	FinalBlockingSession   *uint64 `db:"FINAL_BLOCKING_SESSION" json:"final_blocking_session,omitempty"`
+	Event                  *string `db:"EVENT" json:"event,omitempty"`
+	WaitClass              *string `db:"WAIT_CLASS" json:"wait_class,omitempty"`
+	SqlText                *string `db:"SQL_TEXT" json:"sql_text,omitempty"`
+	PdbName                *string `db:"PDB_NAME" json:"pdb_name,omitempty"`
+	QuerySignature         string  `json:"query_signature,omitempty"`
+	RowMetadata
 }
 
 // Metadata contains the metadata fields common to all events processed
@@ -160,12 +167,12 @@ func (c *Check) SampleSession() error {
 					log.Error("Query obfuscation SQL_ID: %s", *sample.SqlID)
 				} else {
 					*sample.SqlText = obfuscatedQuery.Query
-					sessionSamples[i].DDCommands = obfuscatedQuery.Metadata.Commands
-					sessionSamples[i].DDTables = obfuscatedQuery.Metadata.TablesCSV
-					sessionSamples[i].DDComments = obfuscatedQuery.Metadata.Comments
+					sessionSamples[i].Commands = obfuscatedQuery.Metadata.Commands
+					sessionSamples[i].Tables = strings.Split(obfuscatedQuery.Metadata.TablesCSV, ",")
+					sessionSamples[i].Comments = obfuscatedQuery.Metadata.Comments
 					h := fnv.New64a()
 					h.Write([]byte(*sample.SqlText))
-					sessionSamples[i].QuerySignature = h.Sum64()
+					sessionSamples[i].QuerySignature = strconv.FormatUint(h.Sum64(), 10)
 				}
 			}
 		}
