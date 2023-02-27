@@ -143,7 +143,7 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.6.2
 	github.com/mholt/archiver/v3 v3.5.1
-	github.com/miekg/dns v1.1.50
+	github.com/miekg/dns v1.1.51
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
