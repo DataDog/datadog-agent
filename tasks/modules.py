@@ -131,7 +131,6 @@ DEFAULT_MODULES = {
     ),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/trace": GoModule("pkg/trace", independent=True),
-    "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
