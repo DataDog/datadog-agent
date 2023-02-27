@@ -7,10 +7,10 @@
 static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka_transaction);
 static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_transaction);
 static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t *kafka_transaction);
-static __always_inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, int16_t* result);
-static __always_inline int16_t read_big_endian_int16(const char* buf);
-static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, int32_t* result);
-static __always_inline int32_t read_big_endian_int32(const char* buf);
+static __always_inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, __s16* result);
+static __always_inline __s16 read_big_endian_int16(const char* buf);
+static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, __s32* result);
+static __always_inline __s32 read_big_endian_int32(const char* buf);
 
 static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_transaction) {
     char *request_fragment = kafka_transaction->request_fragment;
@@ -18,7 +18,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         return false;
     }
 
-    int32_t message_size = 0;
+    __s32 message_size = 0;
     if (!kafka_read_big_endian_int32(kafka_transaction, &message_size)) {
         return false;
     }
@@ -27,7 +27,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         return false;
     }
 
-    int16_t request_api_key = 0;
+    __s16 request_api_key = 0;
     if (!kafka_read_big_endian_int16(kafka_transaction, &request_api_key)) {
         return false;
     }
@@ -38,7 +38,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     }
     kafka_transaction->base.request_api_key = request_api_key;
 
-    int16_t request_api_version = 0;
+    __s16 request_api_version = 0;
     if (!kafka_read_big_endian_int16(kafka_transaction, &request_api_version)) {
         return false;
     }
@@ -67,7 +67,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     }
     kafka_transaction->base.request_api_version = request_api_version;
 
-    int32_t correlation_id = 0;
+    __s32 correlation_id = 0;
     if (!kafka_read_big_endian_int32(kafka_transaction, &correlation_id)) {
         return false;
     }
@@ -77,7 +77,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     }
     kafka_transaction->base.correlation_id = correlation_id;
 
-    int16_t client_id_size = 0;
+    __s16 client_id_size = 0;
     if (!kafka_read_big_endian_int16(kafka_transaction, &client_id_size)) {
         return false;
     }
@@ -119,7 +119,6 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
         return false;
     }
 
-//    log_debug("kafka: current_offset: %d\n", kafka_transaction->base.current_offset_in_request_fragment);
     if (kafka_transaction->base.current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
         return false;
     }
@@ -145,7 +144,7 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
     }
 
     if (kafka_transaction->base.request_api_version >= 3) {
-        int16_t transactional_id_size = 0;
+        __s16 transactional_id_size = 0;
         if (!kafka_read_big_endian_int16(kafka_transaction, &transactional_id_size)) {
             return false;
         }
@@ -155,7 +154,7 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
         }
     }
 
-    int16_t acs = 0;
+    __s16 acs = 0;
     if (!kafka_read_big_endian_int16(kafka_transaction, &acs)) {
         return false;
     }
@@ -166,7 +165,7 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
         return false;
     }
 
-    int32_t timeout_ms = 0;
+    __s32 timeout_ms = 0;
     if (!kafka_read_big_endian_int32(kafka_transaction, &timeout_ms)) {
         return false;
     }
@@ -221,7 +220,7 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
         return false;
     }
 
-    int16_t topic_name_size = 0;
+    __s16 topic_name_size = 0;
     if (!kafka_read_big_endian_int16(kafka_transaction, &topic_name_size)) {
         return false;
     }
@@ -265,7 +264,7 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
     return true;
 }
 
-static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, int32_t* result) {
+static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, __s32* result) {
     // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
     // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
@@ -278,7 +277,7 @@ static __always_inline bool kafka_read_big_endian_int32(kafka_transaction_t *kaf
     return true;
 }
 
-static __always_inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, int16_t* result) {
+static __always_inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, __s16* result) {
     // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
     // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
@@ -291,13 +290,13 @@ static __always_inline bool kafka_read_big_endian_int16(kafka_transaction_t *kaf
     return true;
 }
 
-static __always_inline int32_t read_big_endian_int32(const char* buf) {
-    int32_t *val = (int32_t*)buf;
+static __always_inline __s32 read_big_endian_int32(const char* buf) {
+    __s32 *val = (__s32*)buf;
     return bpf_ntohl(*val);
 }
 
-static __always_inline int16_t read_big_endian_int16(const char* buf) {
-    int16_t *val = (int16_t*)buf;
+static __always_inline __s16 read_big_endian_int16(const char* buf) {
+    __s16 *val = (__s16*)buf;
     return bpf_ntohs(*val);
 }
 
