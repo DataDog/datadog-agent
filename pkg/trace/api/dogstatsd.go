@@ -25,11 +25,16 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 			http.Error(w, "503 Status Unavailable", http.StatusServiceUnavailable)
 		})
 	}
+	if r.conf.StatsdPort == 0 {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Agent dogstatsd UDP port not configured, but required for dogstatsd proxy.", http.StatusServiceUnavailable)
+		})
+	}
 	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(r.conf.StatsdHost, strconv.Itoa(r.conf.StatsdPort)))
 	if err != nil {
 		log.Errorf("Error resolving dogstatsd proxy addr to %s endpoint at %q: %v", "udp", addr, err)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "503 Status Unavailable", http.StatusServiceUnavailable)
+			http.Error(w, "Failed to resolve dogstatsd address", http.StatusInternalServerError)
 		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -40,10 +45,6 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 		}
 		payloads := bytes.Split(body, []byte("\n"))
 
-		if r.conf.StatsdPort == 0 {
-			http.Error(w, "Agent dogstatsd UDP port not configured, but required for dogstatsd proxy.", http.StatusServiceUnavailable)
-			return
-		}
 		conn, err := net.DialUDP("udp", nil, addr)
 		if err != nil {
 			log.Errorf("Error connecting to %s endpoint at %q: %v", "udp", addr, err)
