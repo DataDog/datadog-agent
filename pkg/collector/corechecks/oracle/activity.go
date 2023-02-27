@@ -53,8 +53,16 @@ const ACTIVITY_QUERY = `SELECT
 	ELSE
 		null
 	END blocking_session,
-    final_blocking_instance,
-    final_blocking_session, 
+	CASE WHEN final_blocking_session_status = 'VALID' THEN
+    	final_blocking_instance
+	ELSE
+		null
+	END final_blocking_instance,
+	CASE WHEN final_blocking_session_status = 'VALID' THEN
+    	final_blocking_session
+	ELSE
+		null
+	END final_blocking_session,
     CASE WHEN state = 'WAITING' THEN
 		event
 	ELSE
