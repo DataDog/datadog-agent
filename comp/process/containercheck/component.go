@@ -17,3 +17,7 @@ import (
 var Module = fxutil.Component(
 	fx.Provide(newCheck),
 )
+
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)

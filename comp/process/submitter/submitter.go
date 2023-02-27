@@ -75,6 +75,6 @@ func (s *submitter) Stop() {
 
 func newMock(t testing.TB) Component {
 	s := mocks.NewSubmitter(t)
-	s.On("Submit", mock.Anything, mock.Anything, mock.Anything).Unset()
+	s.On("Submit", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	return s
 }

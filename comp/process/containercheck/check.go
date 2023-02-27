@@ -6,8 +6,6 @@
 package containercheck
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
@@ -18,11 +16,7 @@ type check struct {
 	containerCheck *checks.ContainerCheck
 }
 
-type dependencies struct {
-	fx.In
-}
-
-func newCheck(deps dependencies) types.ProvidesCheck {
+func newCheck() types.ProvidesCheck {
 	return types.ProvidesCheck{
 		CheckComponent: &check{
 			containerCheck: checks.NewContainerCheck(),

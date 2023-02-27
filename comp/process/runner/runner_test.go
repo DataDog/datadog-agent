@@ -109,6 +109,9 @@ func TestRunnerRealtime(t *testing.T) {
 }
 
 func TestProvidedChecks(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{config.Docker: {}})
+	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
+
 	fxutil.Test(t, fx.Options(
 		fx.Supply(
 			&checks.HostInfo{},
@@ -119,8 +122,8 @@ func TestProvidedChecks(t *testing.T) {
 		submitter.MockModule,
 
 		// Checks
-		processcheck.Module,
-		containercheck.Module,
+		processcheck.MockModule,
+		containercheck.MockModule,
 	), func(r Component) {
 		providedChecks := r.GetProvidedChecks()
 

@@ -10,6 +10,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 )
 
 // Payload defines payload from the check
@@ -28,6 +29,12 @@ type ProvidesCheck struct {
 	fx.Out
 
 	CheckComponent CheckComponent `group:"check"`
+}
+
+type MockCheckParams[T checks.Check] struct {
+	fx.In
+
+	OrchestrateMock func(mock *checkMocks.Check) `optional:"true"`
 }
 
 type RTResponse []*model.CollectorStatus
