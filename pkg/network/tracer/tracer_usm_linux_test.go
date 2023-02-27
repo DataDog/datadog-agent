@@ -22,7 +22,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -73,11 +72,6 @@ func httpsSupported(t *testing.T) bool {
 
 func javaTLSSupported(t *testing.T) bool {
 	return httpSupported(t) && httpsSupported(t)
-}
-
-func goTLSSupported() bool {
-	cfg := testConfig()
-	return runtime.GOARCH == "amd64" && cfg.EnableRuntimeCompiler
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -637,7 +631,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait", regexp.MustCompile("loading TestAgentLoaded.agentmain.*"))
+				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 
 				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
@@ -653,7 +647,7 @@ func TestJavaInjection(t *testing.T) {
 		},
 		{
 			// Test the java hotspot injection is working
-			name: "java_hotspot_injection_21",
+			name: "java_hotspot_injection_21_allow_only",
 			context: testContext{
 				extras: make(map[string]interface{}),
 			},
@@ -667,10 +661,20 @@ func TestJavaInjection(t *testing.T) {
 				os.Remove(tfile.Name())
 				ctx.extras["testfile"] = tfile.Name()
 				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+
+				// testing allow/block list, as Allow list have higher priority
+				// this test will pass normally
+				cfg.JavaAgentAllowRegex = ".*JustWait.*"
+				cfg.JavaAgentBlockRegex = ""
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait", regexp.MustCompile("loading TestAgentLoaded.agentmain.*"))
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				var fake testing.T
+				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait")
+				if testSuccess {
+					t.Fatalf("AnotherWait should not be attached")
+				}
 
 				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
 			},
@@ -681,6 +685,114 @@ func TestJavaInjection(t *testing.T) {
 				_, err := os.Stat(testfile)
 				require.NoError(t, err)
 				os.Remove(testfile)
+			},
+		},
+		{
+			// Test the java hotspot injection is working
+			name: "java_hotspot_injection_21_block_only",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+
+				// block the agent attachment
+				cfg.JavaAgentAllowRegex = ""
+				cfg.JavaAgentBlockRegex = ".*JustWait.*"
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				// if RunJavaVersion failing to start it's probably because the java process has not been injected
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait")
+				var fake testing.T
+				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "JustWait")
+				if testSuccess {
+					t.Fatalf("JustWait should not be attached")
+				}
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "java_hotspot_injection_21_allowblock",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+
+				// block the agent attachment
+				cfg.JavaAgentAllowRegex = ".*JustWait.*"
+				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				var fake testing.T
+				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait")
+				if testSuccess {
+					t.Fatalf("AnotherWait should not be attached")
+				}
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "java_hotspot_injection_21_allowhigherpriority",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+
+				// allow has an higher priority
+				cfg.JavaAgentAllowRegex = ".*JustWait.*"
+				cfg.JavaAgentBlockRegex = ".*JustWait.*"
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -729,7 +841,7 @@ func TestJavaInjection(t *testing.T) {
 
 // GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	if !goTLSSupported() || !httpSupported(t) || !httpsSupported(t) {
+	if !config.New().EnableRuntimeCompiler || !httpSupported(t) || !httpsSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
 

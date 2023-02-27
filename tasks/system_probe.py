@@ -718,9 +718,6 @@ def kitchen_genconfig(
     if not image_size and provider == "azure":
         image_size = "Standard_D2_v2"
 
-    if not image_size:
-        raise Exit("Image size must be specified")
-
     if azure_sub_id is None and provider == "azure":
         raise Exit("azure subscription id must be specified with --azure-sub-id")
 
@@ -730,6 +727,8 @@ def kitchen_genconfig(
     if azure_sub_id:
         env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
 
+    env["KITCHEN_ARCH"] = arch
+    env["KITCHEN_PLATFORM"] = platform
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
             f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",

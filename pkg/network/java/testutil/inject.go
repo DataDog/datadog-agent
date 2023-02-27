@@ -11,16 +11,21 @@ package testutil
 import (
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
 // RunJavaVersion run class under java version
-func RunJavaVersion(t *testing.T, version string, class string, waitFor *regexp.Regexp) {
+func RunJavaVersion(t *testing.T, version string, class string, waitForParam ...*regexp.Regexp) bool {
 	t.Helper()
-	if waitFor == nil {
+	var waitFor *regexp.Regexp
+	if len(waitForParam) == 0 {
+		// test if injection happen
 		waitFor = regexp.MustCompile("loading TestAgentLoaded.agentmain.*")
+	} else {
+		waitFor = waitForParam[0]
 	}
 
 	dir, _ := testutil.CurDir()
@@ -28,7 +33,7 @@ func RunJavaVersion(t *testing.T, version string, class string, waitFor *regexp.
 		"IMAGE_VERSION=" + version,
 		"ENTRYCLASS=" + class,
 	}
-	protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, 20*time.Second)
 }
 
 // RunJavaHost run class under java host runtime
@@ -43,6 +48,5 @@ func RunJavaHost(t *testing.T, class string, args []string, waitFor *regexp.Rege
 		"ENTRYCLASS=" + class,
 	}
 	cmd := []string{"java", "-cp", dir + "/../testdata/", class}
-	cmd = append(cmd, args...)
 	protocolsUtils.RunHostServer(t, cmd, env, waitFor)
 }

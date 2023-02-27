@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package payloadtesthelper
+package aggregator
 
 import (
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"

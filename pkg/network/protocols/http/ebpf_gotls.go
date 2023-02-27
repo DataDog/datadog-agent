@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -159,17 +158,13 @@ type GoTLSProgram struct {
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &GoTLSProgram{}
 
-func supportedArch(arch string) bool {
-	return arch == string(bininspect.GoArchX86_64)
-}
-
 func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	if !c.EnableHTTPSMonitoring || !c.EnableGoTLSSupport {
 		return nil
 	}
 
-	if !supportedArch(runtime.GOARCH) {
-		log.Errorf("System arch %q is not supported for goTLS", runtime.GOARCH)
+	if !HTTPSSupported(c) {
+		log.Errorf("goTLS not supported by this platform")
 		return nil
 	}
 

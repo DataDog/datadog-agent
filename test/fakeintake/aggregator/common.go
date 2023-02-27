@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package payloadtesthelper
+package aggregator
 
 import (
 	"bytes"
 	"compress/zlib"
-	"encoding/json"
 	"io/ioutil"
 )
 
@@ -35,18 +34,11 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	}
 }
 
-func (agg *Aggregator[P]) UnmarshallPayloads(body []byte) error {
-	response := GetPayloadResponse{}
-
-	err := json.Unmarshal(body, &response)
-	if err != nil {
-		return err
-	}
-
+func (agg *Aggregator[P]) UnmarshallPayloads(rawPayloads [][]byte) error {
 	// reset map
 	agg.payloadsByName = map[string][]P{}
 	// build map
-	for _, data := range response.Payloads {
+	for _, data := range rawPayloads {
 		payloads, err := agg.parse(data)
 		if err != nil {
 			return err

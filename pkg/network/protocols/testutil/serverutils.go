@@ -23,7 +23,8 @@ const (
 // - dockerPath is the path for the docker-compose.
 // - env is any environment variable required for running the server.
 // - serverStartRegex is a regex to be matched on the server logs to ensure it started correctly.
-func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) {
+// return true on success
+func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) bool {
 	t.Helper()
 
 	cmd := exec.Command("docker-compose", "-f", dockerPath, "up")
@@ -45,12 +46,13 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 	for {
 		select {
 		case <-patternScanner.DoneChan:
-			t.Logf("%s server is ready", serverName)
-			return
+			t.Logf("%s server pid (docker) %d is ready", serverName, cmd.Process.Pid)
+			return true
 		case <-time.After(timeout):
 			patternScanner.PrintLogs(t)
-			t.Fatalf("failed to start %s server", serverName)
-			return
+			// please don't use t.Fatalf() here as we could test if it failed later
+			t.Errorf("failed to start %s server", serverName)
+			return false
 		}
 	}
 }
