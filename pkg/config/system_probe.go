@@ -211,8 +211,6 @@ func InitSystemProbeConfig(cfg Config) {
 	// event monitoring
 	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
 	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
-	cfg.BindEnvAndSetDefault(join(evNS, "enable_approvers"), true)
-	cfg.BindEnvAndSetDefault(join(evNS, "enable_discarders"), true) // TODO verify this default
 	cfg.BindEnvAndSetDefault(join(evNS, "enable_kernel_filters"), true)
 	cfg.BindEnvAndSetDefault(join(evNS, "flush_discarder_window"), 3)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
