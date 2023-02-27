@@ -16,6 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+// A basic mock for `winutil.SCMMonitor`.
+type mockableSCM interface {
+	GetServiceInfo(pid uint64) (*winutil.ServiceInfo, error)
+}
+
 // scmReader is a cross-platform compatability wrapper around `winutil.SCMMonitor`.
 // The non-windows version does nothing, and instead only exists so that we don't get compile errors.
 type scmReader struct {

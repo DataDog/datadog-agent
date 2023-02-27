@@ -16,6 +16,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func TestWindowsExtractServiceMetadata(t *testing.T) {
@@ -90,9 +91,32 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", false)
 
 		se, mockSCM := makeServiceExtractor(t)
-		mockSCM.AssertNotCalled(t, "GetServiceInfo", mock.Anything)
 
 		context := se.GetServiceContext(1)
 		assert.Equal(t, context, "process_context:nginx")
+		mockSCM.AssertNotCalled(t, "GetServiceInfo", mock.Anything)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		cfg := ddconfig.Mock(t)
+		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+
+		se, mockSCM := makeServiceExtractor(t)
+		mockSCM.On("GetServiceInfo", uint64(1)).Return(&winutil.ServiceInfo{
+			ServiceName: []string{"test"},
+		}, nil)
+		se.GetServiceContext(1)
+		mockSCM.AssertCalled(t, "GetServiceInfo", uint64(1))
+	})
+
+	t.Run("fallback_to_parsing", func(t *testing.T) {
+		cfg := ddconfig.Mock(t)
+		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+
+		se, mockSCM := makeServiceExtractor(t)
+		mockSCM.On("GetServiceInfo", uint64(1)).Return(nil, nil)
+		context := se.GetServiceContext(1)
+		assert.Equal(t, context, "process_context:nginx")
+		mockSCM.AssertCalled(t, "GetServiceInfo", uint64(1))
 	})
 }
