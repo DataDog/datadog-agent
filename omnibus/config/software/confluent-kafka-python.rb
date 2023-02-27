@@ -4,6 +4,7 @@ name "confluent-kafka-python"
 default_version "2.0.2"
 
 dependency "pip3"
+dependency "librdkafka"
 
 source :url => "https://github.com/confluentinc/confluent-kafka-python/archive/refs/tags/v#{version}.tar.gz",
        :sha256 => "137c82d23e931e03a2803569d51bb025a7b9a364818b08d1664800abaaa5cc63",
