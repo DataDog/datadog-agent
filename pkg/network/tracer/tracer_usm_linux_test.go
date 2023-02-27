@@ -22,7 +22,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -73,11 +72,6 @@ func httpsSupported(t *testing.T) bool {
 
 func javaTLSSupported(t *testing.T) bool {
 	return httpSupported(t) && httpsSupported(t)
-}
-
-func goTLSSupported() bool {
-	cfg := testConfig()
-	return runtime.GOARCH == "amd64" && cfg.EnableRuntimeCompiler
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -847,7 +841,7 @@ func TestJavaInjection(t *testing.T) {
 
 // GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	if !goTLSSupported() || !httpSupported(t) || !httpsSupported(t) {
+	if !config.New().EnableRuntimeCompiler || !httpSupported(t) || !httpsSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
