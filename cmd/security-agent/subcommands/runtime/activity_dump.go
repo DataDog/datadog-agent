@@ -16,14 +16,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
-	sysprobeconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
-	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -340,7 +338,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 			ad.AddStorageRequest(request)
 		}
 
-		cfg, err := secconfig.NewConfig(&sysprobeconfig.Config{})
+		cfg, err := adconfig.NewConfig()
 		if err != nil {
 			return fmt.Errorf("couldn't load configuration: %w", err)
 

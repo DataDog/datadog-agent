@@ -28,13 +28,13 @@ var EventMonitor = module.Factory{
 
 		emconfig, err := emconfig.NewConfig(sysProbeConfig, seccfg.IsRuntimeEnabled())
 		if err != nil {
-			log.Infof("invalid event monitoring configuration: %w", err)
+			log.Infof("invalid event monitoring configuration: %v", err)
 			return nil, module.ErrNotEnabled
 		}
 
 		evm, err := eventmonitor.NewEventMonitor(emconfig)
 		if err != nil {
-			log.Infof("error initializing event monitoring module: %w", err)
+			log.Infof("error initializing event monitoring module: %v", err)
 			return nil, module.ErrNotEnabled
 		}
 

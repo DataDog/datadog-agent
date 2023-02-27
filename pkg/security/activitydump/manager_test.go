@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -350,10 +350,8 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			adm := &ActivityDumpManager{
 				activeDumps: tt.fields.activeDumps,
 				config: &config.Config{
-					CWSConfig: config.CWSConfig{
-						ActivityDumpMaxDumpSize: func() int {
-							return 2048
-						},
+					ActivityDumpMaxDumpSize: func() int {
+						return 2048
 					},
 				},
 				statsdClient:       &statsd.NoOpClient{},

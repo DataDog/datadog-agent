@@ -109,7 +109,7 @@ func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 
 	data, err := e.MarshalMsg(nil)
 	if err != nil {
-		log.Errorf("Failed to marshal Process Lifecycle Event: ", err)
+		log.Errorf("Failed to marshal Process Lifecycle Event: %v", err)
 		return
 	}
 

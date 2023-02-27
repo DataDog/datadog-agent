@@ -19,10 +19,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api/mocks"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api/mocks"
 )
 
 type eventTestData struct {
@@ -218,15 +218,15 @@ func TestProcessEventsCheck(t *testing.T) {
 	// Initialize check with a mocked gRPC client
 	ctx := context.Background()
 
-	client := mocks.NewSecurityModuleClient(t)
-	stream := mocks.NewSecurityModule_GetProcessEventsClient(t)
-	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil)
+	client := mocks.NewEventMonitoringModuleClient(t)
+	stream := mocks.NewEventMonitoringModule_GetProcessEventsClient(t)
+	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{TimeoutSeconds: 1}).Return(stream, nil)
 
 	for _, test := range tests {
 		data, err := test.rawEvent.MarshalMsg(nil)
 		require.NoError(t, err)
 
-		stream.On("Recv").Once().Return(&api.SecurityProcessEventMessage{Data: data}, nil)
+		stream.On("Recv").Once().Return(&api.ProcessEventMessage{Data: data}, nil)
 	}
 	stream.On("Recv").Return(nil, io.EOF)
 

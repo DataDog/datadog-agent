@@ -42,9 +42,10 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -648,10 +649,10 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts, testDir string) (*sysconfig.Config, *config.Config, error) {
+func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if opts.eventsCountThreshold == 0 {
@@ -714,7 +715,7 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*sysconfig.Config
 		"EnvsWithValue":                       opts.envsWithValue,
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
 	}); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
@@ -737,27 +738,30 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*sysconfig.Config
 		return ddConfig.Name(), sysprobeConfig.Name(), nil
 	}()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
+		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
 	sysProbeConfig, err := sysconfig.New(sysprobeConfigName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
-	config, err := config.NewConfig(sysProbeConfig)
+
+	seccfg := secconfig.NewConfig()
+
+	config, err := config.NewConfig(sysProbeConfig, seccfg.IsRuntimeEnabled())
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
 	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
-	return sysProbeConfig, config, nil
+	return config, nil
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
@@ -789,7 +793,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	sysProbeConfig, config, err := genTestConfig(st.root, opts, st.root)
+	config, err := genTestConfig(st.root, opts, st.root)
 	if err != nil {
 		return nil, err
 	}
@@ -843,11 +847,19 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(sysProbeConfig, statsdClient, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(config)
 	if err != nil {
 		return nil, err
 	}
-	testMod.probe = testMod.eventMonitor.Probe
+
+	probe, err := sprobe.NewProbe(config, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
+	if err != nil {
+		return nil, err
+	}
+
+	testMod.eventMonitor.StatsdClient = statsdClient
+	testMod.eventMonitor.Probe = probe
+	testMod.probe = probe
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.disableRuntimeSecurity {
@@ -932,9 +944,9 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 
 func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
-	tm.config.PoliciesDir = tm.Root()
+	policiesDir := tm.Root()
 
-	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
 	if err != nil {
 		return err
 	}
@@ -1406,7 +1418,7 @@ func (tm *testModule) validateAbnormalPaths() {
 }
 
 func (tm *testModule) Close() {
-	if tm.config.RuntimeEnabled {
+	if !tm.opts.disableRuntimeSecurity {
 		tm.eventMonitor.SendStats()
 	}
 
