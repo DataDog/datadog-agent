@@ -89,29 +89,33 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg := ddconfig.Mock(t)
 		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", false)
+		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
 
 		se, mockSCM := makeServiceExtractor(t)
 
 		context := se.GetServiceContext(1)
-		assert.Equal(t, context, "process_context:nginx")
+		assert.Equal(t, "process_context:nginx", context)
 		mockSCM.AssertNotCalled(t, "GetServiceInfo", mock.Anything)
 	})
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg := ddconfig.Mock(t)
 		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
 
 		se, mockSCM := makeServiceExtractor(t)
 		mockSCM.On("GetServiceInfo", uint64(1)).Return(&winutil.ServiceInfo{
 			ServiceName: []string{"test"},
 		}, nil)
-		se.GetServiceContext(1)
+		context := se.GetServiceContext(1)
+		assert.Equal(t, "test", context)
 		mockSCM.AssertCalled(t, "GetServiceInfo", uint64(1))
 	})
 
 	t.Run("fallback_to_parsing", func(t *testing.T) {
 		cfg := ddconfig.Mock(t)
 		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
 
 		se, mockSCM := makeServiceExtractor(t)
 		mockSCM.On("GetServiceInfo", uint64(1)).Return(nil, nil)
