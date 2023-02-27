@@ -15,6 +15,12 @@ import (
 	"github.com/spf13/cast"
 )
 
+var (
+	registrationMu       sync.Mutex
+	registeredHistograms map[string]telemetry.Histogram
+	registeredCounters   map[string]telemetry.Counter
+)
+
 func NewRegoTelemetry() *regoTelemetry {
 	return &regoTelemetry{
 		inner:      opametrics.New(),
@@ -24,9 +30,10 @@ func NewRegoTelemetry() *regoTelemetry {
 	}
 }
 
-var registeredHistograms map[string]telemetry.Histogram
-
 func registerHistogram(name string) telemetry.Histogram {
+	registrationMu.Lock()
+	defer registrationMu.Unlock()
+
 	if registeredHistograms == nil {
 		registeredHistograms = make(map[string]telemetry.Histogram)
 	}
@@ -45,9 +52,10 @@ func registerHistogram(name string) telemetry.Histogram {
 	return histogram
 }
 
-var registeredCounters map[string]telemetry.Counter
-
 func registerCounter(name string) telemetry.Counter {
+	registrationMu.Lock()
+	defer registrationMu.Unlock()
+
 	if registeredCounters == nil {
 		registeredCounters = make(map[string]telemetry.Counter)
 	}
