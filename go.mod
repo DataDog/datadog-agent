@@ -557,13 +557,11 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
+require github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
+
 require (
-	github.com/DataDog/datadog-api-client-go v1.7.0 // indirect
-	github.com/go-logr/zapr v1.2.0 // indirect
-	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
+	github.com/sigstore/rekor v1.0.1 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
-	k8s.io/kube-aggregator v0.23.5 // indirect
-	k8s.io/kube-state-metrics v1.9.7 // indirect
 )
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
