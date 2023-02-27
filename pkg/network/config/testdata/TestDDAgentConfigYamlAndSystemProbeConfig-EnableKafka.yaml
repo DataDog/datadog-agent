@@ -1,2 +1,2 @@
-network_config:
+service_monitoring_config:
   enable_kafka_monitoring: true
