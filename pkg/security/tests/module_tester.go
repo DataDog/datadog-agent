@@ -100,6 +100,8 @@ runtime_security_config:
   activity_dump:
     enabled: true
     rate_limiter: {{ .ActivityDumpRateLimiter }}
+    tag_rules:
+      enabled: {{ .ActivityDumpTagRules }}
     cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
@@ -142,6 +144,8 @@ runtime_security_config:
 `
 
 const testPolicy = `---
+version: 1.2.3
+
 macros:
 {{range $Macro := .Macros}}
   - id: {{$Macro.ID}}
@@ -152,8 +156,13 @@ macros:
 rules:
 {{range $Rule := .Rules}}
   - id: {{$Rule.ID}}
+    version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    tags:
+{{- range $Tag, $Val := .Tags}}
+      {{$Tag}}: {{$Val}}
+{{- end}}
     actions:
 {{- range $Action := .Actions}}
 {{- if $Action.Set}}
@@ -193,6 +202,7 @@ type testOpts struct {
 	disableApprovers                    bool
 	enableActivityDump                  bool
 	activityDumpRateLimiter             int
+	activityDumpTagRules                bool
 	activityDumpCgroupDumpTimeout       int
 	activityDumpTracedCgroupsCount      int
 	activityDumpTracedEventTypes        []string
@@ -224,6 +234,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
+		to.activityDumpTagRules == opts.activityDumpTagRules &&
 		to.activityDumpCgroupDumpTimeout == opts.activityDumpCgroupDumpTimeout &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
@@ -700,6 +711,7 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		"DisableApprovers":                    opts.disableApprovers,
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
+		"ActivityDumpTagRules":                opts.activityDumpTagRules,
 		"ActivityDumpCgroupDumpTimeout":       opts.activityDumpCgroupDumpTimeout,
 		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,

@@ -45,9 +45,18 @@ func TestActivityDumps(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	rules := []*rules.RuleDefinition{
+		{
+			ID:         "tag_rule_threat_score_file",
+			Expression: `open.file.name == "tag-open"`,
+			Tags:       map[string]string{"ruleset": "threat_score"},
+			Version:    "4.5.6",
+		},
+	}
+
 	outputDir := t.TempDir()
 	defer os.RemoveAll(outputDir)
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, rules, testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -56,6 +65,7 @@ func TestActivityDumps(t *testing.T) {
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		activityDumpTagRules:                true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -430,6 +440,58 @@ func TestActivityDumps(t *testing.T) {
 		}
 		assert.Equal(t, testActivityDumpTracedCgroupsCount, len(dumps))
 	})
+
+	t.Run("activity-dump-tag-rule-file", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		filePath := filepath.Join(test.st.Root(), "tag-open")
+
+		cmd := dockerInstance.Command("touch", []string{filePath}, []string{})
+		_, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDump(dump.Name, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tempPathParts := strings.Split(filePath, "/")
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
+			nodes := ad.FindMatchingNodes("touch")
+			if nodes == nil || len(nodes) != 1 {
+				t.Fatal("Node not found in activity dump")
+			}
+			node := nodes[0]
+
+			var next *activitydump.FileActivityNode
+			var found bool
+			current := node.Files
+			for _, part := range tempPathParts {
+				if part == "" {
+					continue
+				}
+				next, found = current[part]
+				if !found {
+					return false
+				}
+				current = next.Children
+			}
+			if next == nil || len(next.MatchedRules) != 1 ||
+				next.MatchedRules[0].RuleID != "tag_rule_threat_score_file" ||
+				next.MatchedRules[0].RuleVersion != "4.5.6" {
+				return false
+			}
+			return true
+		})
+	})
+
 }
 
 func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, validator func(ad *activitydump.ActivityDump) bool) {

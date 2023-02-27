@@ -1202,7 +1202,9 @@ func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileE
 
 	// create new child
 	if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
-		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType, &ad.nodeStats)
+		node := NewFileActivityNode(fileEvent, event, parent, generationType, &ad.nodeStats)
+		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
+		pan.Files[parent] = node
 	} else {
 		child := NewFileActivityNode(nil, nil, parent, generationType, &ad.nodeStats)
 		ad.InsertFileEventInFile(child, fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
@@ -1539,6 +1541,8 @@ func (fan *FileActivityNode) enrichFromEvent(event *model.Event) {
 		fan.FirstSeen = event.FieldHandlers.ResolveEventTimestamp(event)
 	}
 
+	fan.MatchedRules = model.AppendMatchedRule(fan.MatchedRules, event.Rules)
+
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
 		fan.Open = &OpenNode{
@@ -1588,8 +1592,6 @@ func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *
 			continue
 		}
 	}
-
-	currentFan.MatchedRules = model.AppendMatchedRule(currentFan.MatchedRules, event.Rules)
 	return somethingChanged
 }
 
@@ -1685,6 +1687,7 @@ func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActi
 		FirstSeen:      a.FirstSeen,
 		Open:           a.Open, // if the 2 fans are compatible, a.Open should be equal to b.Open
 		Children:       newChildren,
+		MatchedRules:   model.AppendMatchedRule(a.MatchedRules, b.MatchedRules),
 	}, true
 }
 
