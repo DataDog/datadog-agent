@@ -36,8 +36,6 @@ const (
 	dispatcherConnectionProtocolMap        = "dispatcher_connection_protocol"
 	connectionStatesMap                    = "connection_states"
 
-	http2SocketFilter = "socket/http2_filter"
-
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
 	// enough for typical workloads (e.g. some amount of processes blocked on
