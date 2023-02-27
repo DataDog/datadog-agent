@@ -51,10 +51,10 @@ func TestSanity(t *testing.T) {
 		kgo.MaxVersions(kversion.V2_5_0()),
 	)
 	require.NoError(t, err)
+	defer client.Close()
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	err = client.Ping(ctxTimeout)
 	cancel()
-	defer client.Close()
 	require.NoError(t, err)
 
 	// Create the topic
@@ -162,10 +162,10 @@ func TestProduceClientIdEmptyString(t *testing.T) {
 		kgo.ClientID(""),
 	)
 	require.NoError(t, err)
+	defer client.Close()
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	err = client.Ping(ctxTimeout)
 	cancel()
-	defer client.Close()
 	require.NoError(t, err)
 
 	// Create the topic
@@ -207,10 +207,10 @@ func TestManyProduceRequests(t *testing.T) {
 		kgo.MaxVersions(kversion.V2_5_0()),
 	)
 	require.NoError(t, err)
+	defer client.Close()
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	err = client.Ping(ctxTimeout)
 	cancel()
-	defer client.Close()
 	require.NoError(t, err)
 
 	// Create the topic
@@ -255,10 +255,10 @@ func TestHTTPAndKafka(t *testing.T) {
 		kgo.MaxVersions(kversion.V2_5_0()),
 	)
 	require.NoError(t, err)
+	defer client.Close()
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	err = client.Ping(ctxTimeout)
 	cancel()
-	defer client.Close()
 	require.NoError(t, err)
 
 	// Create the topic
@@ -324,10 +324,10 @@ func TestEnableHTTPOnly(t *testing.T) {
 		kgo.MaxVersions(kversion.V1_0_0()),
 	)
 	require.NoError(t, err)
+	defer client.Close()
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	err = client.Ping(ctxTimeout)
 	cancel()
-	defer client.Close()
 	require.NoError(t, err)
 
 	// Create the topic
