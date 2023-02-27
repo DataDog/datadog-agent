@@ -14,9 +14,7 @@ import (
 	"golang.org/x/net/http2/hpack"
 )
 
-// Path returns the URL from the request fragment captured in eBPF with POST variables excluded.
-// Example:
-// For a request fragment "POST /foo?var=bar", this method will return "/foo"
+// Path returns the URL from the request fragment captured in eBPF.
 func (tx *ebpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
 	if tx.Path_size == 0 || int(tx.Path_size) > len(tx.Request_path[:tx.Path_size]) {
 		return nil, false
@@ -99,7 +97,8 @@ func (tx *ebpfHttp2Tx) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfHttp2Tx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
-	path, ok := tx.Path(tx.Request_path[:tx.Path_size])
+	buf := make([]byte, 0, tx.Path_size)
+	path, ok := tx.Path(buf)
 	if ok {
 		output.WriteString("Path: '" + string(path) + "', ")
 	}

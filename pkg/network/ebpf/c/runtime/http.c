@@ -63,8 +63,11 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-    // Check if the we are running with tail calls on the current frame, if not we are creating a new iteration
-    // value for next calls.
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
     if (tail_call_state == NULL) {
         const http2_tail_call_state_t iteration_value = {};
@@ -75,7 +78,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         }
     }
 
-    // If we detection tcp termination we should remove state of the older connection.
+    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&iterations_key.skb_info)) {
         bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
         goto delete_iteration;

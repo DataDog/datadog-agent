@@ -49,6 +49,10 @@ type Monitor struct {
 	closeFilterFn func()
 }
 
+// The staticTableEntry represents an entry in the static table that contains an index in the table and a value.
+// The value itself contains both the key and the corresponding value in the static table.
+// For instance, index 2 in the static table has a value of method: GET, and index 3 has a value of method: POST.
+// It is not possible to save the index by the key because we need to distinguish between the values attached to the key.
 type staticTableEntry struct {
 	Index uint64
 	Value StaticTableValue
@@ -241,7 +245,7 @@ func (m *Monitor) processHTTP2(data []byte) {
 	tx := (*ebpfHttp2Tx)(unsafe.Pointer(&data[0]))
 
 	m.telemetry.count(tx)
-	m.statkeeper.Process(tx)
+	m.http2Statkeeper.Process(tx)
 }
 
 // DumpMaps dumps the maps associated with the monitor
@@ -340,6 +344,8 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 				return err
 			}
 		}
+	} else {
+		return errors.New("http2 static table is null")
 	}
 	return nil
 }

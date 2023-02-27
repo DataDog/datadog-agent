@@ -23,7 +23,7 @@ type http2Encoder struct {
 }
 
 // aggregationWrapper is meant to handle collision scenarios where multiple
-// `ConnectionStats` objects may claim the same `HTTPAggregations` object because
+// `ConnectionStats` objects may claim the same `HTTP2Aggregations` object because
 // they generate the same http.KeyTuple
 // TODO: we should probably revisit/get rid of this if we ever replace socket
 // filters by kprobes, since in that case we would have access to PIDs, and
@@ -32,7 +32,7 @@ type http2AggregationWrapper struct {
 	*model.HTTP2Aggregations
 
 	// we keep track of the source and destination ports of the first
-	// `ConnectionStats` to claim this `HTTPAggregations` object
+	// `ConnectionStats` to claim this `HTTP2Aggregations` object
 	sport, dport uint16
 }
 
@@ -69,13 +69,13 @@ func (a *http2AggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTT
 		// legit scenario where we're dealing with the opposite ends of the
 		// same connection, which means both server and client are in the same host.
 		// In this particular case it is correct to have both connections
-		// (client:server and server:client) referencing the same HTTP data.
+		// (client:server and server:client) referencing the same HTTP2 data.
 		return a.HTTP2Aggregations
 	}
 
 	// Return nil otherwise. This is to prevent multiple `ConnectionStats` with
 	// exactly the same source and destination addresses but different PIDs to
-	// "bind" to the same HTTPAggregations object, which would result in a
+	// "bind" to the same HTTP2Aggregations object, which would result in a
 	// overcount problem. (Note that this is due to the fact that
 	// `http.KeyTuple` doesn't have a PID field.) This happens mostly in the
 	// context of pre-fork web servers, where multiple worker processes share the
@@ -84,7 +84,7 @@ func (a *http2AggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTT
 }
 
 func newHTTP2Encoder(payload *network.Connections) *http2Encoder {
-	if len(payload.HTTP) == 0 {
+	if len(payload.HTTP2) == 0 {
 		return nil
 	}
 
@@ -106,30 +106,16 @@ func newHTTP2Encoder(payload *network.Connections) *http2Encoder {
 	return encoder
 }
 
-func (e *httpEncoder) GetHTTP2AggregationsAndTags(c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
-	if e == nil {
-		return nil, 0, nil
-	}
-
-	keyTuples := network.HTTPKeyTuplesFromConn(c)
-	for _, key := range keyTuples {
-		if aggregation := e.aggregations[key]; aggregation != nil {
-			return e.aggregations[key].ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
-		}
-	}
-	return nil, 0, nil
-}
-
 func (e *http2Encoder) buildAggregations(payload *network.Connections) {
 	aggrSize := make(map[http.KeyTuple]int)
 	for key := range payload.HTTP {
 		aggrSize[key.KeyTuple]++
 	}
 
-	for key, stats := range payload.HTTP {
+	for key, stats := range payload.HTTP2 {
 		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
-			// if there is no matching connection don't even bother to serialize HTTP data
+			// if there is no matching connection don't even bother to serialize HTTP2 data
 			e.orphanEntries++
 			continue
 		}

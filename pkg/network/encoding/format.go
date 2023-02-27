@@ -89,17 +89,13 @@ func FormatConnection(
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
-	httpStats2, staticHTTP2Tags, dynamicHTTP2Tags := http2Encoder.GetHTTP2AggregationsAndTags(conn)
+	httpStats2, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
 	if httpStats2 != nil {
 		c.Http2Aggregations, _ = proto.Marshal(httpStats2)
 	}
 
 	conn.StaticTags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
-
-	// currently we will use the tags for both http, and http2.
-	conn.StaticTags |= staticHTTP2Tags
-	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicHTTP2Tags)
 
 	return c
 }

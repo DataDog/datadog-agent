@@ -10,9 +10,10 @@ package http
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
-	"math"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -113,8 +114,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
-			{Name: "http2_static_table"},
-			{Name: "http2_dynamic_table"},
 			{Name: connectionStatesMap},
 		},
 		Probes: []*manager.Probe{
@@ -138,6 +137,10 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 				},
 			},
 		},
+	}
+
+	if c.EnableHTTP2Monitoring {
+		mgr.Maps = append(mgr.Maps, &manager.Map{Name: "http2_dynamic_table"}, &manager.Map{Name: "http2_static_table"})
 	}
 
 	subprogramProbesResolvers := make([]probeResolver, 0, 3)
@@ -353,7 +356,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	// configure event stream
 	events.Configure("http", e.Manager.Manager, &options)
-	events.Configure("http2", e.Manager.Manager, &options)
+	if e.cfg.EnableHTTP2Monitoring {
+		events.Configure("http2", e.Manager.Manager, &options)
+	}
 
 	return e.InitWithOptions(buf, options)
 }

@@ -23,9 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
 
-// c is a stream endpoint
-// a + b are unary endpoints
-
 const (
 	srvAddr = "127.0.0.1:5050"
 )
@@ -41,6 +38,8 @@ func TestGRPCScenarios(t *testing.T) {
 	s.Run()
 	t.Cleanup(s.Stop)
 
+	// c is a stream endpoint
+	// a + b are unary endpoints
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, differentClients bool)
