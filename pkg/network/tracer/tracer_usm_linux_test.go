@@ -852,7 +852,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 // tracer.
 func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
 	const (
-		serverPort          = "8081"
+		serverPort          = "8443"
 		expectedOccurrences = 10
 	)
 
@@ -887,7 +887,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
 	const (
-		serverPort          = "8081"
+		serverPort          = "8443"
 		expectedOccurrences = 10
 	)
 
