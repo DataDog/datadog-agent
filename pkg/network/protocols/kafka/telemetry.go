@@ -24,7 +24,7 @@ type Telemetry struct {
 	dropped   *libtelemetry.Metric // this happens when KafkaStatKeeper reaches capacity
 }
 
-func NewTelemetry() (*Telemetry, error) {
+func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.kafka",
 		libtelemetry.OptExpvar,
@@ -39,7 +39,7 @@ func NewTelemetry() (*Telemetry, error) {
 		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
 	}
 
-	return t, nil
+	return t
 }
 
 func (t *Telemetry) Count(_ *EbpfKafkaTx) {

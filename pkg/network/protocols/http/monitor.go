@@ -116,11 +116,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	if c.EnableKafkaMonitoring {
 		// Kafka related
-		kafkaTelemetry, err := kafka.NewTelemetry()
-		if err != nil {
-			closeFilterFn()
-			return nil, err
-		}
+		kafkaTelemetry := kafka.NewTelemetry()
 		kafkaStatkeeper := kafka.NewKafkaStatkeeper(c, kafkaTelemetry)
 		httpMonitor.kafkaEnabled = true
 		httpMonitor.kafkaTelemetry = kafkaTelemetry
