@@ -77,12 +77,16 @@ func TestSanity(t *testing.T) {
 		t.FailNow()
 	}
 
-	// Wait for the kafka monitor to process the Kafka traffic
-	time.Sleep(time.Second * 2)
-
-	kafkaStats := monitor.GetKafkaStats()
 	// We expect 2 occurrences for each connection as we are working with a docker
-	require.Equal(t, 4, len(kafkaStats))
+	expectedStatsCount := 4
+	statsCount := 0
+	var kafkaStats map[kafka.Key]*kafka.RequestStat
+	require.Eventually(t, func() bool {
+		kafkaStats = monitor.GetKafkaStats()
+		statsCount = len(kafkaStats)
+		return expectedStatsCount == statsCount
+	}, time.Second*3, time.Millisecond*100, "Expected to find a %d stats, instead captured %d", expectedStatsCount, statsCount)
+
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
@@ -184,17 +188,20 @@ func TestProduceClientIdEmptyString(t *testing.T) {
 	cancel()
 	require.NoError(t, err, "record had a produce error while synchronously producing")
 
-	// Wait for the kafka monitor to process the Kafka traffic
-	time.Sleep(time.Second * 2)
-
-	kafkaStats := monitor.GetKafkaStats()
-	// We expect 2 occurrences for each connection as we are working with a docker for now
-	require.Equal(t, 2, len(kafkaStats))
+	expectedStatsCount := 2
+	statsCount := 0
+	var kafkaStats map[kafka.Key]*kafka.RequestStat
+	require.Eventually(t, func() bool {
+		kafkaStats = monitor.GetKafkaStats()
+		statsCount = len(kafkaStats)
+		return expectedStatsCount == statsCount
+	}, time.Second*3, time.Millisecond*100, "Expected to find a %d stats, instead captured %d", expectedStatsCount, statsCount)
 	for kafkaKey, kafkaStat := range kafkaStats {
 		if kafkaKey.RequestAPIKey != kafka.ProduceAPIKey {
 			require.FailNow(t, "Expecting only produce requests")
 		}
-		require.Equal(t, 1, kafkaStat.Count)
+		count := kafkaStat.Count
+		require.Equal(t, 1, count)
 	}
 }
 
@@ -232,12 +239,15 @@ func TestManyProduceRequests(t *testing.T) {
 		require.NoError(t, err, "record had a produce error while synchronously producing")
 	}
 
-	// Wait for the kafka monitor to process the Kafka traffic
-	time.Sleep(time.Second * 2)
+	expectedStatsCount := 2
+	statsCount := 0
+	var kafkaStats map[kafka.Key]*kafka.RequestStat
+	require.Eventually(t, func() bool {
+		kafkaStats = monitor.GetKafkaStats()
+		statsCount = len(kafkaStats)
+		return expectedStatsCount == statsCount
+	}, time.Second*3, time.Millisecond*100, "Expected to find a %d stats, instead captured %d", expectedStatsCount, statsCount)
 
-	kafkaStats := monitor.GetKafkaStats()
-	// We expect 2 occurrences for each connection as we are working with a docker for now
-	require.Equal(t, 2, len(kafkaStats))
 	for kafkaKey, kafkaStat := range kafkaStats {
 		if kafkaKey.RequestAPIKey != kafka.ProduceAPIKey {
 			require.FailNow(t, "Expecting only produce requests")
@@ -294,9 +304,6 @@ func TestHTTPAndKafka(t *testing.T) {
 	}
 	srvDoneFn()
 
-	// Wait for the kafka monitor to process the Kafka traffic
-	time.Sleep(time.Second * 2)
-
 	occurrences := 0
 	require.Eventually(t, func() bool {
 		httpStats := monitor.GetHTTPStats()
@@ -304,9 +311,15 @@ func TestHTTPAndKafka(t *testing.T) {
 		return occurrences == expectedOccurrences
 	}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
 
-	kafkaStats := monitor.GetKafkaStats()
-	// We expect 2 occurrences for each connection as we are working with a docker for now
-	require.Equal(t, 2, len(kafkaStats))
+	expectedStatsCount := 2
+	statsCount := 0
+	var kafkaStats map[kafka.Key]*kafka.RequestStat
+	require.Eventually(t, func() bool {
+		kafkaStats = monitor.GetKafkaStats()
+		statsCount = len(kafkaStats)
+		return expectedStatsCount == statsCount
+	}, time.Second*3, time.Millisecond*100, "Expected to find a %d stats, instead captured %d", expectedStatsCount, statsCount)
+
 	for kafkaKey, kafkaStat := range kafkaStats {
 		if kafkaKey.RequestAPIKey != kafka.ProduceAPIKey {
 			require.FailNow(t, "Expecting only produce requests")
@@ -346,7 +359,7 @@ func TestEnableHTTPOnly(t *testing.T) {
 	cancel()
 	require.NoError(t, err, "record had a produce error while synchronously producing")
 
-	// Wait for the kafka monitor to process the Kafka traffic
+	// We have to wait here, polling is not going to work when expecting 0 occurrences
 	time.Sleep(time.Second * 2)
 
 	kafkaStats := monitor.GetKafkaStats()
