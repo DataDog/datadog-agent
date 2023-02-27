@@ -35,11 +35,11 @@
 send_pkg_size-a6:
   allow_failure: true
   rules:
-    !reference [.on_all_builds_a6]
+    !reference [.on_deploy_a6]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs:
+  dependencies:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
     - agent_suse-x64-a6
@@ -93,11 +93,11 @@ send_pkg_size-a6:
 send_pkg_size-a7:
   allow_failure: true
   rules:
-    !reference [.on_all_builds_a7]
+    !reference [.on_deploy_a7]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs:
+  dependencies:
     - agent_deb-x64-a7
     - agent_deb-arm64-a7
     - iot_agent_deb-x64
@@ -207,10 +207,16 @@ send_pkg_size-a7:
 
             curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_amd64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
 
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_amd64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+            curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_arm64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_arm64.deb"
+
+            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_amd64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:amd64
+
+            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_arm64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:arm64
 
             set +e
             inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_amd64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
+            failures=$((${failures}+$?))
+            inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_arm64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_arm64.deb"
             failures=$((${failures}+$?))
             set -e
 
@@ -219,9 +225,17 @@ send_pkg_size-a7:
               curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
               curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
 
-              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
-              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+              curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/aarch64/${flavor}-${last_stable}-1.aarch64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.aarch64.rpm"
 
+              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:amd64
+              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:amd64
+              if [[ "$flavor" != "datadog-dogstatsd" ]]; then
+                add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.aarch64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:arm64
+                set +e
+                inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.aarch64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.aarch64.rpm"
+                failures=$((${failures}+$?))
+                set -e
+              fi
               set +e
               inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
               failures=$((${failures}+$?))
