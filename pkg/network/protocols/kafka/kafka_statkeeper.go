@@ -30,15 +30,11 @@ func NewKafkaStatkeeper(c *config.Config, telemetry *Telemetry) *KafkaStatKeeper
 }
 
 func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
-	statKeeper.add(tx)
-}
-
-func (statKeeper *KafkaStatKeeper) add(transaction *EbpfKafkaTx) {
 	key := Key{
-		RequestAPIKey:  transaction.Request_api_key,
-		RequestVersion: transaction.Request_api_version,
-		TopicName:      transaction.TopicName(),
-		KeyTuple:       transaction.ConnTuple(),
+		RequestAPIKey:  tx.Request_api_key,
+		RequestVersion: tx.Request_api_version,
+		TopicName:      tx.TopicName(),
+		KeyTuple:       tx.ConnTuple(),
 	}
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()
