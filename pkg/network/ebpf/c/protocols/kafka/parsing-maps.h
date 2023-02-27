@@ -1,5 +1,5 @@
-#ifndef KAFKA_PARSING_MAPS_H
-#define KAFKA_PARSING_MAPS_H
+#ifndef __KAFKA_PARSING_MAPS_H
+#define __KAFKA_PARSING_MAPS_H
 
 BPF_PERCPU_ARRAY_MAP(kafka_heap, __u32, kafka_transaction_t, 1)
 /*
