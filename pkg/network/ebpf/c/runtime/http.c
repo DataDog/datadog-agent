@@ -351,6 +351,8 @@ int uprobe__SSL_shutdown(struct pt_regs *ctx) {
     }
 
     https_finish(t);
+    http_batch_flush(ctx);
+
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
     return 0;
 }
@@ -516,6 +518,7 @@ SEC("uprobe/gnutls_bye")
 int uprobe__gnutls_bye(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     gnutls_goodbye(ssl_session);
+    http_batch_flush(ctx);
     return 0;
 }
 
@@ -524,6 +527,7 @@ SEC("uprobe/gnutls_deinit")
 int uprobe__gnutls_deinit(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     gnutls_goodbye(ssl_session);
+    http_batch_flush(ctx);
     return 0;
 }
 
@@ -726,6 +730,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
 
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
     https_process(t, (void*) call_data_ptr->b_data, bytes_written, GO);
+    http_batch_flush(ctx);
 
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
     return 0;
@@ -816,6 +821,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 
     log_debug("[go-tls-read] processing %s\n", call_data_ptr->b_data);
     https_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
+    http_batch_flush(ctx);
 
     bpf_map_delete_elem(&go_tls_read_args, &call_key);
     return 0;
@@ -844,6 +850,7 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     }
 
     https_finish(t);
+    http_batch_flush(ctx);
 
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
