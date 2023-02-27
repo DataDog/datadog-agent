@@ -39,7 +39,7 @@ static int __always_inline handle_request(struct pt_regs *ctx, conn_tuple_t* con
     bpf_map_update_with_telemetry(java_tls_connections, connection, &val, BPF_ANY);
     log_debug("[java-tls-handle_request] handling tls request of size: %d\n", bytes_read);
     https_process(connection, data+sizeof(bytes_read), bytes_read, JAVA_TLS);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
     return 0;
 }
 
