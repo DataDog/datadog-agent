@@ -104,7 +104,8 @@ func TestSanity(t *testing.T) {
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
 	}
-	kafkaStatIsOK := numberOfProduceRequests == 2 || numberOfFetchRequests == 2
+	// kgo clisnt is sending an extra fetch request before running the test, so double the expected fetch request
+	kafkaStatIsOK := numberOfProduceRequests == 2 && numberOfFetchRequests == 4
 	require.True(t, kafkaStatIsOK, "Number of produce requests: %d, number of fetch requests: %d", numberOfProduceRequests, numberOfFetchRequests)
 }
 
