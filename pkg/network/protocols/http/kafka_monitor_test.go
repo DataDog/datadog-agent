@@ -172,10 +172,6 @@ func loadKafkaBinary(t *testing.T, debug bool, binaryType BinaryType) {
 	defer monitor.Stop()
 }
 
-func TestLoadKafkaBinaryCORE(t *testing.T) {
-
-}
-
 func TestProduceClientIdEmptyString(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 

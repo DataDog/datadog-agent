@@ -3,4 +3,4 @@
 # in a single place instead of changing it for each goland configuration
 
 # shellcheck disable=SC2034
-REMOTE_MACHINE_IP="10.211.55.33"
+REMOTE_MACHINE_IP=""
