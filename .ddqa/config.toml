@@ -107,6 +107,12 @@ jira_issue_type = "Task"
 github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
 
+[teams."Database Monitoring"]
+jira_project = "DBM"
+jira_issue_type = "Task"
+github_team = "database-monitoring"
+github_labels = ["team/database-monitoring"]
+
 [teams."Container App"]
 jira_project = "CAP"
 jira_issue_type = "Task"
