@@ -1544,9 +1544,9 @@ api_key:
 
 {{- if .DataStreamsModule }}
 
-#############################################################
+#############################################
 ## System Probe Data Streams Configuration ##
-#############################################################
+#############################################
 
 # data_streams_config:
 ## @param enabled - boolean - optional - default: false
