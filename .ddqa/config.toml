@@ -94,3 +94,9 @@ jira_project = "PROC"
 jira_issue_type = "Task"
 github_team = "processes"
 github_labels = ["team/processes"]
+
+[teams."Windows Agent"]
+jira_project = "WA"
+jira_issue_type = "Task"
+github_team = "windows-agent"
+github_labels = ["team/windows-agent"]
