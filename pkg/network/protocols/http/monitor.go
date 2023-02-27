@@ -121,10 +121,6 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		httpMonitor.kafkaEnabled = true
 		httpMonitor.kafkaTelemetry = kafkaTelemetry
 		httpMonitor.kafkaStatkeeper = kafkaStatkeeper
-	} else {
-		httpMonitor.kafkaEnabled = false
-		httpMonitor.kafkaTelemetry = nil
-		httpMonitor.kafkaStatkeeper = nil
 	}
 
 	return httpMonitor, nil
