@@ -17,11 +17,10 @@ import (
 )
 
 const (
-	spNS                 = "system_probe_config"
-	netNS                = "network_config"
-	smNS                 = "service_monitoring_config"
-	dataStreamsNamespace = "data_streams_config"
-	evNS                 = "event_monitoring_config"
+	spNS  = "system_probe_config"
+	netNS = "network_config"
+	smNS  = "service_monitoring_config"
+	evNS  = "event_monitoring_config"
 
 	defaultConnsMessageBatchSize = 600
 
