@@ -88,3 +88,9 @@ jira_component = "CWS Agent"
 jira_issue_type = "Task"
 github_team = "agent-security"
 github_labels = ["team/agent-security"]
+
+[teams."Processes"]
+jira_project = "PROC"
+jira_issue_type = "Task"
+github_team = "processes"
+github_labels = ["team/processes"]
