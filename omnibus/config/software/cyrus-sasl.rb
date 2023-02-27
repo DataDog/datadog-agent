@@ -1,20 +1,13 @@
-# https://github.com/confluentinc/librdkafka#build-from-source
+name "cyrus-sasl"
+default_version "2.1.28"
 
-name "librdkafka"
-default_version "2.0.2"
-
-dependency "cyrus-sasl"
-
-source :url => "https://github.com/confluentinc/librdkafka/archive/refs/tags/v#{version}.tar.gz",
+source :url => "https://github.com/cyrusimap/cyrus-sasl/releases/download/cyrus-sasl-#{version}/cyrus-sasl-#{version}.tar.gz",
        :sha256 => "f321bcb1e015a34114c83cf1aa7b99ee260236aab096b85c003170c90a47ca9d",
        :extract => :seven_zip
 
-relative_path "librdkafka-#{version}"
+relative_path "cyrus-sasl-#{version}"
 
 build do
-
-  license "BSD-style"
-  license_file "https://raw.githubusercontent.com/confluentinc/librdkafka/master/LICENSE"
 
   env = {
     "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
