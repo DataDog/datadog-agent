@@ -19,16 +19,19 @@ GOLANG_TEST_FAILURE = /FAIL:/
 def check_output(output, wait_thr, tag="")
   test_failures = []
 
+  puts "Begin Test Output"
   output.each_line do |line|
     stripped_line = line.strip
     puts KernelOut.format(stripped_line, tag)
     test_failures << KernelOut.format(stripped_line, tag) if line =~ GOLANG_TEST_FAILURE
   end
+  puts "End Test Output"
 
   if test_failures.empty? && !wait_thr.value.success?
     test_failures << KernelOut.format("Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured.", tag)
   end
 
+  puts "Test Failures"
   puts test_failures.join("\n")
 end
 
