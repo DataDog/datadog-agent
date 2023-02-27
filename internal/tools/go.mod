@@ -12,7 +12,7 @@ require (
 	github.com/vektra/mockery/v2 v2.20.2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
-	gotest.tools/gotestsum v1.8.2
+	gotest.tools/gotestsum v1.9.0
 )
 
 // we want to force this version, since 1.0.6 changed the public API
