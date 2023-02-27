@@ -165,12 +165,11 @@ platforms:
   <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
   lifecycle:
     post_create:
-      - remote: |
-          sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
-          sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
-          sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
+    - remote: |
+        sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
   <% end %>
-
 
   transport:
     <% if windows %>
