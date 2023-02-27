@@ -183,7 +183,7 @@ require (
 	github.com/twmb/murmur3 v1.1.6
 	github.com/uptrace/bun v1.1.12
 	github.com/uptrace/bun/dialect/pgdialect v1.1.12
-	github.com/uptrace/bun/driver/pgdriver v1.1.9
+	github.com/uptrace/bun/driver/pgdriver v1.1.12
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.2.0-beta.0.20220404152918-5e915e014938
 	github.com/vishvananda/netns v0.0.0-20220913150850-18c4f4234207
@@ -528,7 +528,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.13.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	golang.org/x/crypto v0.5.0 // indirect
+	golang.org/x/crypto v0.6.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/oauth2 v0.3.0 // indirect
 	golang.org/x/term v0.5.0 // indirect
