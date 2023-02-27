@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	spNS  = "system_probe_config"
-	netNS = "network_config"
-	smNS  = "service_monitoring_config"
-	evNS  = "event_monitoring_config"
+	spNS   = "system_probe_config"
+	netNS  = "network_config"
+	smNS   = "service_monitoring_config"
+	evNS   = "event_monitoring_config"
+	smjtNS = smNS + ".java_tls"
 
 	defaultConnsMessageBatchSize = 600
 
@@ -173,6 +174,11 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_java_tls_support"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "java_agent_args"), defaultServiceMonitoringJavaAgentArgs)
+	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
+	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
+	cfg.BindEnvAndSetDefault(join(smjtNS, "allow_regex"), "")
+	cfg.BindEnvAndSetDefault(join(smjtNS, "block_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_stats_by_status_code"), false)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")

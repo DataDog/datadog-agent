@@ -24,6 +24,7 @@
 #include "protocols/tls/go-tls-location.h"
 #include "protocols/tls/go-tls-conn.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/java-tls-erpc.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -912,6 +913,15 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
 
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
+
+    return 0;
+}
+
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        handle_erpc_request(ctx);
+    }
 
     return 0;
 }

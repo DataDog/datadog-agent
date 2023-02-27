@@ -6,6 +6,8 @@
 package client
 
 import (
+	_ "embed"
+
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,8 +19,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//go:embed fixtures/api_v2_series_response
+var apiV2SeriesResponse []byte
+
+//go:embed fixtures/api_v1_check_run_response
+var apiV1CheckRunResponse []byte
+
 func TestClient(t *testing.T) {
-	t.Run("should properly format the request", func(t *testing.T) {
+	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// allow requests only to "/foo/bar"
 			routes := r.URL.Query()["endpoint"]
@@ -46,7 +54,7 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "/foo/bar", string(payloads[2]))
 	})
 
-	t.Run("should handle response with errors", func(t *testing.T) {
+	t.Run("getFakePayloads should handle response with errors", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 		}))
@@ -56,5 +64,35 @@ func TestClient(t *testing.T) {
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.Error(t, err, "Expecting error")
 		assert.Nil(t, payloads)
+	})
+
+	t.Run("getMetrics", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2SeriesResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getMetrics()
+		assert.NoError(t, err)
+		assert.True(t, client.metricAggregator.ContainsPayloadName("system.load.1"))
+		assert.False(t, client.metricAggregator.ContainsPayloadName("totoro"))
+		assert.True(t, client.metricAggregator.ContainsPayloadNameAndTags("snmp.ifAdminStatus", []string{"interface:lo", "snmp_profile:generic-router"}))
+		assert.False(t, client.metricAggregator.ContainsPayloadNameAndTags("snmp.ifAdminStatus", []string{"totoro"}))
+	})
+
+	t.Run("getChekRun", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV1CheckRunResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getCheckRuns()
+		assert.NoError(t, err)
+		assert.True(t, client.checkRunAggregator.ContainsPayloadName("snmp.can_check"))
+		assert.False(t, client.checkRunAggregator.ContainsPayloadName("totoro"))
+		assert.True(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"check:snmp"}))
+		assert.False(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"totoro"}))
 	})
 }

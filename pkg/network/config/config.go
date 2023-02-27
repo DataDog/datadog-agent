@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	spNS  = "system_probe_config"
-	netNS = "network_config"
-	smNS  = "service_monitoring_config"
-	evNS  = "event_monitoring_config"
+	spNS   = "system_probe_config"
+	netNS  = "network_config"
+	smNS   = "service_monitoring_config"
+	evNS   = "event_monitoring_config"
+	smjtNS = smNS + ".java_tls"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -102,8 +103,17 @@ type Config struct {
 	// Currently Windows only
 	HTTPMaxRequestFragment int64
 
+	// JavaAgentDebug will enable debug output of the injected USM agent
+	JavaAgentDebug bool
+
 	// JavaAgentArgs arguments pass through injected USM agent
 	JavaAgentArgs string
+
+	// JavaAgentAllowRegex (Higher priority) define a regex, if matching /proc/pid/cmdline the java agent will be injected
+	JavaAgentAllowRegex string
+
+	// JavaAgentBlockRegex define a regex, if matching /proc/pid/cmdline the java agent will not be injected
+	JavaAgentBlockRegex string
 
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
@@ -300,8 +310,11 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
-		EnableJavaTLSSupport:        cfg.GetBool(join(smNS, "enable_java_tls_support")),
-		JavaAgentArgs:               cfg.GetString(join(smNS, "java_agent_args")),
+		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
+		JavaAgentDebug:              cfg.GetBool(join(smjtNS, "debug")),
+		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
+		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
+		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "enable_go_tls_support")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}

@@ -47,20 +47,7 @@ func (s *server) IsRunning() bool {
 }
 
 func (s *server) Capture(p string, d time.Duration, compressed bool) (string, error) {
-
-	err := s.server.Capture(p, d, compressed)
-	if err != nil {
-		return "", err
-	}
-
-	// wait for the capture to start
-	for !s.server.TCapture.IsOngoing() {
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	path, err := s.server.TCapture.Path()
-
-	return path, err
+	return s.server.Capture(p, d, compressed)
 }
 
 func (s *server) GetJSONDebugStats() ([]byte, error) {

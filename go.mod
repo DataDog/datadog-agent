@@ -26,7 +26,6 @@ replace (
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
-	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
@@ -43,10 +42,9 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.0
 	github.com/DataDog/agent-payload/v5 v5.0.74-0.20230227084103-0da53becb656
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.43.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.43.0-rc.3.0.20230206114529-17c7dfde736c
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.43.0-rc.3
@@ -59,7 +57,9 @@ require (
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.10.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.1
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
@@ -150,7 +150,7 @@ require (
 	github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.49.1
+	github.com/open-policy-agent/opa v0.49.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.71.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2
@@ -177,7 +177,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/streadway/amqp v1.0.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6
