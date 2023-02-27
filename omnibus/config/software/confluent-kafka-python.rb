@@ -16,7 +16,7 @@ build do
   license_file "./LICENSE.txt"
 
   build_env = {
-    "CFLAGS" => "-I#{install_dir}/embedded/include"
+    "CFLAGS" => "-I#{install_dir}/embedded/include -std=c99"
   }
 
   if windows?
