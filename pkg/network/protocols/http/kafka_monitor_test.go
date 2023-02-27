@@ -95,6 +95,7 @@ func TestSanity(t *testing.T) {
 		case kafka.FetchAPIKey:
 			require.Equal(t, uint16(11), kafkaKey.RequestVersion)
 			numberOfFetchRequests += kafkaStat.Count
+			break
 		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
