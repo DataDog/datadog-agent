@@ -159,7 +159,6 @@ func TestProduceClientIdEmptyString(t *testing.T) {
 		kgo.SeedBrokers(seeds...),
 		kgo.DefaultProduceTopic(defaultTopicName),
 		kgo.MaxVersions(kversion.V1_0_0()),
-		//V3_0_0
 		kgo.ClientID(""),
 	)
 	require.NoError(t, err)
