@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	spNS   = "system_probe_config"
-	netNS  = "network_config"
-	smNS   = "service_monitoring_config"
+	spNS                 = "system_probe_config"
+	netNS                = "network_config"
+	smNS                 = "service_monitoring_config"
 	dataStreamsNamespace = "data_streams_config"
-	evNS   = "event_monitoring_config"
-	smjtNS = smNS + ".java_tls"
+	evNS                 = "event_monitoring_config"
+	smjtNS               = smNS + ".java_tls"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
