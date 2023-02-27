@@ -39,7 +39,7 @@ send_pkg_size-a6:
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  dependencies:
+  needs:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
     - agent_suse-x64-a6
@@ -93,17 +93,22 @@ send_pkg_size-a6:
 send_pkg_size-a7:
   allow_failure: true
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_all_builds_a7]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  dependencies:
+  needs:
     - agent_deb-x64-a7
+    - agent_deb-arm64-a7
     - iot_agent_deb-x64
+    - iot_agent_deb-arm64
     - dogstatsd_deb-x64
+    - dogstatsd_deb-arm64
     - agent_heroku_deb-x64-a7
+    - agent_rpm-arm64-a7
     - agent_rpm-x64-a7
     - iot_agent_rpm-x64
+    - iot_agent_rpm-arm64
     - dogstatsd_rpm-x64
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
@@ -118,28 +123,31 @@ send_pkg_size-a7:
 
     - source /root/.bashrc && conda activate ddpy3
     - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent /tmp/deb/heroku-agent
+    - mkdir -p /tmp/arm-deb/agent /tmp/arm-deb/dogstatsd /tmp/arm-deb/iot-agent
     - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd /tmp/rpm/iot-agent
+    - mkdir -p /tmp/arm-rpm/agent /tmp/arm-rpm/iot-agent
     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd /tmp/suse/iot-agent
 
     - |
         add_metrics() {
             local base="${1}"
             local os="${2}"
+            local arch="${3}"
 
             # record the total uncompressed size of each package
-            add_metric datadog.agent.package.size $(du -sB1 ${base}/agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
-            add_metric datadog.agent.package.size $(du -sB1 ${base}/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH
-            add_metric datadog.agent.package.size $(du -sB1 ${base}/iot-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH
-            if [[ "$os" == "debian" ]]; then add_metric datadog.agent.package.size $(du -sB1 ${base}/heroku-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:heroku-agent agent:7 bucket_branch:$BUCKET_BRANCH; fi
+            add_metric datadog.agent.package.size $(du -sB1 ${base}/agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            if [[ "$arch" == "amd64" || "$os" == "debian" ]]; then add_metric datadog.agent.package.size $(du -sB1 ${base}/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}; fi
+            add_metric datadog.agent.package.size $(du -sB1 ${base}/iot-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            if [[ "$os" == "debian" && "$arch" == "amd64" ]]; then add_metric datadog.agent.package.size $(du -sB1 ${base}/heroku-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:heroku-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:amd64; fi
 
             # record the size of each of the important binaries in each package
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/trace-agent | sed 's/\([0-9]\+\).\+/\1/') bin:trace-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/security-agent | sed 's/\([0-9]\+\).\+/\1/') bin:security-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/process-agent | sed 's/\([0-9]\+\).\+/\1/') bin:process-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/system-probe | sed 's/\([0-9]\+\).\+/\1/') bin:system-probe os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/iot-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/trace-agent | sed 's/\([0-9]\+\).\+/\1/') bin:trace-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/security-agent | sed 's/\([0-9]\+\).\+/\1/') bin:security-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/process-agent | sed 's/\([0-9]\+\).\+/\1/') bin:process-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/system-probe | sed 's/\([0-9]\+\).\+/\1/') bin:system-probe os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            if [[ "$arch" == "amd64" || "$os" == "debian" ]]; then add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}; fi 
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/iot-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
         }
 
     # We silence dpkg and cpio output so we don't exceed gitlab log limit
@@ -149,19 +157,30 @@ send_pkg_size-a7:
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb /tmp/deb/iot-agent > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb /tmp/deb/dogstatsd > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_7*_amd64.deb /tmp/deb/heroku-agent > /dev/null
-    - add_metrics /tmp/deb debian
+    - add_metrics /tmp/deb debian amd64
+
+    # debian arm64
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_arm64.deb /tmp/arm-deb/agent > /dev/null
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_arm64.deb /tmp/arm-deb/iot-agent > /dev/null
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_arm64.deb /tmp/arm-deb/dogstatsd > /dev/null
+    - add_metrics /tmp/arm-deb debian arm64
 
     # centos
     - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/rpm/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - add_metrics /tmp/rpm centos
+    - add_metrics /tmp/rpm centos amd64
+
+    # centos arm64
+    - cd /tmp/arm-rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.aarch64.rpm | cpio -idm > /dev/null
+    - cd /tmp/arm-rpm/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.aarch64.rpm | cpio -idm > /dev/null
+    - add_metrics /tmp/arm-rpm centos arm64
 
     # suse
     - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/suse/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-iot-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - add_metrics /tmp/suse suse
+    - add_metrics /tmp/suse suse amd64
 
     # Send package and binary size metrics
     - !reference [.send_metrics, script]
