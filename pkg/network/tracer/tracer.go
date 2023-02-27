@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -136,11 +135,6 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 		config.EnableHTTPMonitoring = false
 		config.EnableHTTPSMonitoring = false
-	}
-	kafkaSupported := currKernelVersion >= kafka.MinimumKernelVersion
-	if !kafkaSupported && config.EnableKafkaMonitoring {
-		log.Warnf("kafka monitoring is explicitly enabled, but the kernel version (%v) is not supported, disabling kafka monitoring", currKernelVersion)
-		config.EnableKafkaMonitoring = false
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)

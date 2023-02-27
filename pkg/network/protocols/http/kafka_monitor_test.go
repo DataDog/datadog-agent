@@ -31,8 +31,8 @@ var defaultTopicName = "franz-kafka"
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	if currKernelVersion < kafka.MinimumKernelVersion {
-		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", kafka.MinimumKernelVersion.String()))
+	if currKernelVersion < MinimumKernelVersion {
+		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", MinimumKernelVersion.String()))
 	}
 }
 
