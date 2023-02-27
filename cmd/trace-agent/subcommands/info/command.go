@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -34,6 +35,8 @@ func RunTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 	return fxutil.OneShot(fct,
 		fx.Supply(config.NewParams(config.WithTraceConfFilePath(params.ConfPath))),
 		config.Module,
+		fx.Supply(coreconfig.NewAgentParamsWithSecrets(params.ConfPath)),
+		coreconfig.Module,
 		// fx.Supply(log.LogForOneShot(params.LoggerName, "off", true)),
 		// log.Module,
 	)

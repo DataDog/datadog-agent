@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
@@ -60,8 +61,8 @@ func RunTraceAgentFct(cliParams *RunParams, defaultConfPath string, fct interfac
 		fx.Supply(cliParams),
 		fx.Supply(config.NewParams(config.WithTraceConfFilePath(cliParams.ConfPath))),
 		config.Module,
-		// fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
-		// coreconfig.Module,
+		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
+		coreconfig.Module,
 	)
 }
 
