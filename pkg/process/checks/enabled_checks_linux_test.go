@@ -16,21 +16,27 @@ import (
 
 func TestProcessEventsCheckEnabled(t *testing.T) {
 	scfg := &sysconfig.Config{}
-	cfg := config.Mock(t)
+	setFeatures(t)
 
 	t.Run("default", func(t *testing.T) {
+		config.Mock(t)
+
 		enabledChecks := getEnabledChecks(scfg)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
 	t.Run("enabled", func(t *testing.T) {
+		cfg := config.Mock(t)
 		cfg.Set("process_config.event_collection.enabled", true)
+
 		enabledChecks := getEnabledChecks(scfg)
 		assertContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
+		cfg := config.Mock(t)
 		cfg.Set("process_config.event_collection.enabled", false)
+
 		enabledChecks := getEnabledChecks(scfg)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})

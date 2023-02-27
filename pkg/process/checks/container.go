@@ -61,11 +61,11 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ContainerCheck) IsEnabled() bool {
 	// The process and container checks are mutually exclusive
-	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") || !ddconfig.IsAnyContainerFeaturePresent() {
 		return false
 	}
 
-	return ddconfig.Datadog.GetBool("process_config.container_collection.enabled") && ddconfig.IsAnyContainerFeaturePresent()
+	return ddconfig.Datadog.GetBool("process_config.container_collection.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
