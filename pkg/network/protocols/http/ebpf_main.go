@@ -95,12 +95,13 @@ var tailCalls = []manager.TailCallRoute{
 			EBPFFuncName: "socket__http_filter",
 		},
 	},
-	{
-		ProgArrayName: protocolDispatcherProgramsMap,
-		Key:           uint32(ProtocolHTTP2),
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "socket__http2_filter",
-		},
+}
+
+var http2TailCall = manager.TailCallRoute{
+	ProgArrayName: protocolDispatcherProgramsMap,
+	Key:           uint32(ProtocolHTTP2),
+	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		EBPFFuncName: "socket__http2_filter",
 	},
 }
 
@@ -174,6 +175,10 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 func (e *ebpfProgram) Init() error {
 	var undefinedProbes []manager.ProbeIdentificationPair
+	if e.cfg.EnableHTTP2Monitoring {
+		tailCalls = append(tailCalls, http2TailCall)
+	}
+
 	for _, tc := range tailCalls {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
@@ -358,6 +363,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	events.Configure("http", e.Manager.Manager, &options)
 	if e.cfg.EnableHTTP2Monitoring {
 		events.Configure("http2", e.Manager.Manager, &options)
+		options.TailCallRouter = append(options.TailCallRouter, http2TailCall)
+
 	}
 
 	return e.InitWithOptions(buf, options)
