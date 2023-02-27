@@ -123,7 +123,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
-	files := fileProvider.FilesToTail(logSources)
+	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(1, len(files))
 	suite.False(files[0].IsWildcardPath)
@@ -136,7 +136,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
-	files := fileProvider.FilesToTail(logSources)
+	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -183,7 +183,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
-	files := fileProvider.FilesToTail(logSources)
+	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(2, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -198,7 +198,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
-	files := fileProvider.FilesToTail(logSources)
+	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -221,7 +221,7 @@ func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	fileProvider := NewFileProvider(filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	files := fileProvider.FilesToTail(logSources)
+	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(5, len(files))
 	for i := 0; i < len(files); i++ {
 		suite.Assert().True(files[i].IsWildcardPath)
@@ -238,7 +238,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
-	files := fileProvider.FilesToTail(logSources)
+	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
@@ -257,7 +257,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
 	status.InitStatus(util.CreateSources(logSources))
-	files := fileProvider.FilesToTail(logSources)
+	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
@@ -277,7 +277,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	os.Remove(fmt.Sprintf("%s/1/2.log", suite.testDir))
 	os.Remove(fmt.Sprintf("%s/1/3.log", suite.testDir))
 	os.Remove(fmt.Sprintf("%s/2/2.log", suite.testDir))
-	files = fileProvider.FilesToTail(logSources)
+	files = fileProvider.FilesToTail(true, logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[0].Messages.GetMessages())
 
@@ -291,7 +291,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 
 	os.Remove(fmt.Sprintf("%s/2/1.log", suite.testDir))
 
-	files = fileProvider.FilesToTail(logSources)
+	files = fileProvider.FilesToTail(true, logSources)
 	suite.Equal(1, len(files))
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[0].Messages.GetMessages())
 
@@ -307,7 +307,7 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
 	}
 
-	files := fileProvider.FilesToTail(logSources)
+	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(3, len(files))
 	for i := 0; i < len(files); i++ {
 		suite.Assert().True(files[i].IsWildcardPath)
@@ -388,7 +388,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
 				sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 			}
-			files := fileProvider.FilesToTail(sources)
+			files := fileProvider.FilesToTail(true, sources)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a/z"), files[0].Path)
 			assert.Equal(t, fs.path("a/b"), files[1].Path)
@@ -417,7 +417,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcardC", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/c*")}),
 				sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 			}
-			files := fileProvider.FilesToTail(sources)
+			files := fileProvider.FilesToTail(true, sources)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a/addd"), files[0].Path)
 			assert.Equal(t, fs.path("a/accc"), files[1].Path)
@@ -438,7 +438,7 @@ func TestFilesToTail(t *testing.T) {
 			sources := []*sources.LogSource{
 				sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")}),
 			}
-			files := fileProvider.FilesToTail(sources)
+			files := fileProvider.FilesToTail(true, sources)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a.log"), files[0].Path)
 			assert.Equal(t, fs.path("q.log"), files[1].Path)
@@ -458,7 +458,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcard a", &config.LogsConfig{Type: config.FileType, Path: fs.path("a*")}),
 				sources.NewLogSource("wildcard b", &config.LogsConfig{Type: config.FileType, Path: fs.path("b*")}),
 			}
-			files := fileProvider.FilesToTail(sources)
+			files := fileProvider.FilesToTail(true, sources)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("abb.log"), files[0].Path)
 			assert.Equal(t, fs.path("aaa.log"), files[1].Path)
@@ -482,7 +482,7 @@ func TestFilesToTail(t *testing.T) {
 			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
 			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 		}
-		files := fileProvider.FilesToTail(sources)
+		files := fileProvider.FilesToTail(true, sources)
 		assert.Len(t, files, 2)
 		assert.Equal(t, fs.path("a/c"), files[0].Path)
 		assert.Equal(t, fs.path("b/c"), files[1].Path)
@@ -645,4 +645,94 @@ func TestApplyOrdering(t *testing.T) {
 			assert.Equal(t, "/tmp/1/2017.log", files[4].Path)
 		})
 	})
+}
+
+func TestContainerIDInContainerLogFile(t *testing.T) {
+	assert := assert.New(t)
+
+	logSource := sources.NewLogSource("mylogsource", nil)
+	logSource.SetSourceType(sources.DockerSourceType)
+	logSource.Config = &config.LogsConfig{
+		Type: config.FileType,
+		Path: "/var/log/pods/file-uuid-foo-bar.log",
+
+		Identifier: "abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd",
+	}
+
+	// create an empty file that will represent the log file that would have been found in /var/log/containers
+	ContainersLogsDir = "/tmp/"
+	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+
+	err := os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	defer func() {
+		// cleaning up after the test run
+		os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+		os.Remove("/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
+	}()
+
+	assert.NoError(err, "error while creating the temporary file")
+
+	file := tailer.File{
+		Path:           "/var/log/pods/file-uuid-foo-bar.log",
+		IsWildcardPath: false,
+		Source:         sources.NewReplaceableSource(logSource),
+	}
+
+	// we've found a symlink validating that the file we have just scanned is concerning the container we're currently processing for this source
+	assert.False(shouldIgnore(true, &file), "the file existing in ContainersLogsDir is pointing to the same container, scanned file should be tailed")
+
+	// now, let's change the container for which we are trying to scan files,
+	// because the symlink is pointing from another container, we should ignore
+	// that log file
+	file.Source.Config().Identifier = "1234123412341234123412341234123412341234123412341234123412341234"
+	assert.True(shouldIgnore(true, &file), "the file existing in ContainersLogsDir is not pointing to the same container, scanned file should be ignored")
+
+	// in this scenario, no link is found in /var/log/containers, thus, we should not ignore the file
+	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	assert.False(shouldIgnore(true, &file), "no files existing in ContainersLogsDir, we should not ignore the file we have just scanned")
+
+	// in this scenario, the file we've found doesn't look like a container ID
+	os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
+	assert.False(shouldIgnore(true, &file), "no container ID found, we don't want to ignore this scanned file")
+}
+
+func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {
+	fs := newTempFs(t)
+
+	ContainersLogsDir = "/tmp/"
+	fs.mkDir("a")
+	fs.createFile("a/a.log")
+	fs.createFile("a/b.log")
+	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	os.Remove("/tmp/myapp_my-namespace_myapp-cbadefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+
+	// File we want include
+	_ = os.Symlink(fs.path("a/a.log"), "/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	// File we want to ignore (the id is different)
+	_ = os.Symlink(fs.path("a/b.log"), "/tmp/myapp_my-namespace_myapp-cbadefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	defer func() {
+		// cleaning up after the test run
+		os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+		os.Remove("/tmp/myapp_my-namespace_myapp-cbadefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	}()
+
+	fs.mkDir("b")
+	fs.createFile("b/b")
+
+	kubeSource := sources.NewLogSource("mylogsource", nil)
+	kubeSource.SetSourceType(sources.KubernetesSourceType)
+	kubeSource.Config = &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("a/*.log"),
+
+		Identifier: "abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd",
+	}
+
+	fileProvider := NewFileProvider(6, WildcardUseFileName)
+	sources := []*sources.LogSource{
+		kubeSource,
+		sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
+	}
+	files := fileProvider.FilesToTail(true, sources)
+	assert.Len(t, files, 2) // 1 file from docker source, 1 file from non-docker source.
 }
