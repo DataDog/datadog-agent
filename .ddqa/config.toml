@@ -81,3 +81,10 @@ jira_project = "CONTECO"
 jira_issue_type = "Task"
 github_team = "container-ecosystems"
 github_labels = ["team/container-ecosystems"]
+
+[teams."Security And Compliance Agent"]
+jira_project = "SEC"
+jira_component = "CWS Agent"
+jira_issue_type = "Task"
+github_team = "agent-security"
+github_labels = ["team/agent-security"]
