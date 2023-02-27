@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -239,6 +240,21 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
 	}})
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestDisableEnhancedMetrics(t *testing.T) {
+	os.Setenv("DD_ENHANCED_METRICS", "false")
+	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+	tags := []string{"functionname:test-function"}
+
+	go SendInvocationEnhancedMetric(tags, demux)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
 }
 
