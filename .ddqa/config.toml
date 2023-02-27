@@ -100,3 +100,9 @@ jira_project = "WA"
 jira_issue_type = "Task"
 github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
+
+[teams."Container App"]
+jira_project = "CAP"
+jira_issue_type = "Task"
+github_team = "container-app"
+github_labels = ["team/container-app"]
