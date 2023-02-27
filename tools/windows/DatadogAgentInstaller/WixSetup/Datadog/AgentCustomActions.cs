@@ -32,7 +32,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction SendFlare { get; }
 
-        public ManagedAction ReportTelemetry { get; }
+        public ManagedAction ReportInstallFailure { get; }
+        public ManagedAction ReportInstallSuccess { get; }
 
         public ManagedAction WriteInstallInfo { get; }
 
@@ -77,12 +78,24 @@ namespace WixSetup.Datadog
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
+            ReportInstallFailure = new CustomAction<Telemetry>(
+                    new Id(nameof(ReportInstallFailure)),
+                    Telemetry.ReportFailure,
+                    Return.ignore,
+                    When.Before,
+                    Step.StartServices
+                )
+                {
+                    Execute = Execute.rollback
+                }
+                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+
             WriteConfig = new CustomAction<ConfigCustomActions>(
                 new Id(nameof(WriteConfig)),
                 ConfigCustomActions.WriteConfig,
                 Return.check,
-                When.Before,
-                Step.StartServices,
+                When.After,
+                new Step(ReportInstallFailure.Id),
                 Condition.NOT_BeingRemoved & NOT_Being_Reinstalled
             )
             {
@@ -205,12 +218,16 @@ namespace WixSetup.Datadog
                 Sequence = Sequence.NotInSequence
             };
 
-            ReportTelemetry = new CustomAction<Telemetry>(
-                new Id(nameof(ReportTelemetry)),
-                Telemetry.Report,
+            // Hitting this CustomAction always means the install succeeded
+            // because when an install fails, it rollbacks from the `InstallFinalize`
+            // step.
+            ReportInstallSuccess = new CustomAction<Telemetry>(
+                new Id(nameof(ReportInstallSuccess)),
+                Telemetry.ReportFailure,
                 Return.ignore,
                 When.After,
-                Step.InstallFinalize
+                Step.InstallFinalize,
+                Condition.NOT_Installed & Condition.NOT_BeingRemoved
             )
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
 

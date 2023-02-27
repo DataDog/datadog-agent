@@ -1,7 +1,6 @@
 using System;
 using Microsoft.Deployment.WindowsInstaller;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
 
 namespace Datadog.CustomActions
@@ -46,8 +45,8 @@ namespace Datadog.CustomActions
         ""event_name"": ""{eventName}"",
         ""tags"": {{
             ""agent_platform"": ""Windows"",
-            ""agent_version"": ""{ agentVersion}"",
-            ""script_version"": ""{ installerVersion}""
+            ""agent_version"": ""{agentVersion}"",
+            ""script_version"": ""{installerVersion}""
         }}
     }}
 }}";
@@ -59,25 +58,12 @@ namespace Datadog.CustomActions
             });
         }
 
-        private static ActionResult Report(ISession session)
+        private static ActionResult Report(ISession session, string eventName)
         {
             try
             {
-                var telemetry = DefaultTelemetry(session);
-                var wixLogLocation = session["MsiLogFileLocation"];
-                if (!string.IsNullOrEmpty(wixLogLocation) &&
-                    File.Exists(wixLogLocation))
-                {
-                    var log = File.ReadAllText(wixLogLocation);
-                    if (log.Contains("Product: Datadog Agent -- Installation failed."))
-                    {
-                        telemetry.ReportTelemetry("agent.installation.error");
-                    }
-                    else
-                    {
-                        telemetry.ReportTelemetry("agent.installation.success");
-                    }
-                }
+                session.Log("Sending installation telemetry");
+                DefaultTelemetry(session).ReportTelemetry(eventName);
             }
             catch (Exception e)
             {
@@ -88,9 +74,15 @@ namespace Datadog.CustomActions
         }
 
         [CustomAction]
-        public static ActionResult Report(Session session)
+        public static ActionResult ReportFailure(Session session)
         {
-            return Report(new SessionWrapper(session));
+            return Report(new SessionWrapper(session), "agent.installation.error");
+        }
+
+        [CustomAction]
+        public static ActionResult ReportSuccess(Session session)
+        {
+            return Report(new SessionWrapper(session), "agent.installation.success");
         }
     }
 }
