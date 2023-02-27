@@ -44,18 +44,6 @@ type CaptureBuffer struct {
 	Buff        *packets.Packet
 }
 
-// for testing purposes
-type backendFs struct {
-	fs afero.Fs
-
-	sync.RWMutex
-}
-
-// captureFs, used exclusively for testing purposes
-var captureFs = backendFs{
-	fs: afero.NewOsFs(),
-}
-
 // CapPool is a pool of CaptureBuffer
 var CapPool = sync.Pool{
 	New: func() interface{} {

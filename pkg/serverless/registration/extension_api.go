@@ -37,6 +37,7 @@ func RegisterExtension(runtimeURL string, registrationRoute string, timeout time
 	if err != nil {
 		return "", fmt.Errorf("registerExtension: error while POST register route: %v", err)
 	}
+	defer response.Body.Close()
 
 	if !isAValidResponse(response) {
 		return "", fmt.Errorf("registerExtension: didn't receive an HTTP 200")

@@ -34,7 +34,10 @@ type flareResponse struct {
 // SendFlareWithHostname sends a flare with a set hostname
 func SendFlareWithHostname(archivePath string, caseID string, email string, hostname string) (string, error) {
 	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname)
-	return analyzeResponse(r, err)
+	response, err := analyzeResponse(r, err)
+	defer r.Body.Close()
+
+	return response, err
 }
 
 func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string) io.ReadCloser {
