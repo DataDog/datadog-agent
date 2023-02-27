@@ -34,6 +34,7 @@ TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/co
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
 
 is_windows = sys.platform == "win32"
 
@@ -636,6 +637,9 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
+        if pkg.endswith("java"):
+            shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
+
         gotls_client_dir = os.path.join("testutil", "gotls_client")
         gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
         gotls_extra_path = os.path.join(pkg, gotls_client_dir)
@@ -1089,6 +1093,10 @@ def build_object_files(
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
+        java_dir = os.path.join("pkg", "network", "java")
+        ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
+        ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
+
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
             ctx.run(
@@ -1368,7 +1376,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:8u151-jre"]:
+    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre"]:
         images.add(image)
 
     for image in images:

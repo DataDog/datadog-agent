@@ -59,6 +59,7 @@ const (
 	GnuTLS  ConnTag = C.LIBGNUTLS
 	OpenSSL ConnTag = C.LIBSSL
 	Go      ConnTag = C.GO
+	Java    ConnTag = C.JAVA_TLS
 )
 
 var (
@@ -66,5 +67,6 @@ var (
 		GnuTLS:  "tls.library:gnutls",
 		OpenSSL: "tls.library:openssl",
 		Go:      "tls.library:go",
+		Java:    "tls.library:java",
 	}
 )

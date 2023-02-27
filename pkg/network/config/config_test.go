@@ -171,7 +171,7 @@ func TestEnableJavaTLSSupport(t *testing.T) {
 	t.Run("via ENV variable", func(t *testing.T) {
 		newConfig(t)
 
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_JAVA_TLS_SUPPORT", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_JAVA_TLS_ENABLED", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()

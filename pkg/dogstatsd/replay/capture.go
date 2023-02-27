@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/spf13/afero"
 )
 
 const (
@@ -56,19 +57,19 @@ func (tc *TrafficCapture) IsOngoing() bool {
 }
 
 // Start starts a TrafficCapture and returns an error in the event of an issue.
-func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) error {
+func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
 	if tc.IsOngoing() {
-		return fmt.Errorf("Ongoing capture in progress")
+		return "", fmt.Errorf("Ongoing capture in progress")
 	}
 
-	_, err := ValidateLocation(p)
+	target, path, err := OpenFile(afero.NewOsFs(), p)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	go tc.writer.Capture(p, d, compressed)
+	go tc.writer.Capture(target, d, compressed)
 
-	return nil
+	return path, nil
 
 }
 
@@ -78,14 +79,6 @@ func (tc *TrafficCapture) Stop() {
 	defer tc.Unlock()
 
 	tc.writer.StopCapture()
-}
-
-// Path returns the path to the underlying TrafficCapture file, and an error if any.
-func (tc *TrafficCapture) Path() (string, error) {
-	tc.RLock()
-	defer tc.RUnlock()
-
-	return tc.writer.Path()
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.

@@ -23,6 +23,7 @@
 #include "protocols/tls/go-tls-location.h"
 #include "protocols/tls/go-tls-conn.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/java-tls-erpc.h"
 #include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3
@@ -860,24 +861,43 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        handle_erpc_request(ctx);
+    }
+
+    return 0;
+}
+
 static __always_inline void* get_tls_base(struct task_struct* task) {
 #if defined(__TARGET_ARCH_x86)
     // X86 (RUNTIME & CO-RE)
     return (void *)BPF_CORE_READ(task, thread.fsbase);
 #elif defined(__TARGET_ARCH_arm64)
-    // ARM64
-#ifdef COMPILE_RUNTIME
+#if defined(COMPILE_RUNTIME)
     // ARM64 (RUNTIME)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-    return (void *)BPF_CORE_READ(task, thread.tp_value);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
     return (void *)BPF_CORE_READ(task, thread.uw.tp_value);
+#else
+    // This branch (kernel < 5.5) won't ever be executed, but is needed for
+    // for the runtime compilation/program load to work in older kernels.
+    return NULL;
 #endif
 #else
-    // CO-RE ARM64
-    return NULL;
-#endif // CO-RE ARM64
-#endif // defined(__TARGET_ARCH_arm64)
+    // ARM64 (CO-RE)
+    // Note that all Kernels currently supported by GoTLS monitoring (>= 5.5) do
+    // have the field below, but if we don't check for its existence the program
+    // *load* may fail in older Kernels, even if GoTLS monitoring is disabled.
+    if (bpf_core_field_exists(task->thread.uw)) {
+        return (void *)BPF_CORE_READ(task, thread.uw.tp_value);
+    } else {
+        return NULL;
+    }
+#endif
+#else
+    #error "Unsupported platform"
+#endif
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version
