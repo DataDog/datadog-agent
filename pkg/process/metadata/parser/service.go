@@ -6,7 +6,6 @@
 package parser
 
 import (
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -100,27 +99,27 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
-func (d *ServiceExtractor) GetServiceContext(pid int32) string {
+func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
-		return ""
+		return nil
 	}
 
 	if runtime.GOOS == "windows" && d.useWindowsServiceName {
-		tag, err := d.getWindowsServiceTags(pid)
+		tags, err := d.getWindowsServiceTags(pid)
 		if err != nil {
 			log.Warn("Failed to get service data from SCM:", err.Error())
 		}
 
 		// Service tag was found from the SCM, return it.
-		if tag != "" {
-			return tag
+		if len(tags) > 0 {
+			return tags
 		}
 	}
 
 	if meta, ok := d.serviceByPID[pid]; ok {
-		return meta.serviceContext
+		return []string{meta.serviceContext}
 	}
-	return ""
+	return nil
 }
 
 func extractServiceMetadata(cmd []string) *serviceMetadata {
@@ -169,16 +168,20 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 
 // GetWindowsServiceTags returns the process_context associated with a process by scraping the SCM.
 // If the service name is not found in the scm, an empty string is returned.
-func (d *ServiceExtractor) getWindowsServiceTags(pid int32) (string, error) {
+func (d *ServiceExtractor) getWindowsServiceTags(pid int32) ([]string, error) {
 	entry, err := d.scmReader.getServiceInfo(uint64(pid))
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	if entry == nil {
+		return nil, nil
 	}
 
-	if len(entry.ServiceName) > 0 {
-		return fmt.Sprintf("process_context:%s", entry.ServiceName[0]), nil
+	serviceTags := make([]string, 0, len(entry.ServiceName))
+	for _, serviceName := range entry.ServiceName {
+		serviceTags = append(serviceTags, "process_context:"+serviceName)
 	}
-	return "", nil
+	return serviceTags, nil
 }
 
 func removeFilePath(s string) string {

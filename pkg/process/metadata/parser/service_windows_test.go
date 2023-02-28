@@ -68,7 +68,7 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 
 			se := NewServiceExtractor()
 			se.Extract(procsByPid)
-			assert.Equal(t, tt.expectedServiceTag, se.GetServiceContext(proc.Pid))
+			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
 	}
 }
@@ -88,13 +88,13 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg := ddconfig.Mock(t)
-		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", false)
 		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
+		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", false)
 
 		se, mockSCM := makeServiceExtractor(t)
 
 		context := se.GetServiceContext(1)
-		assert.Equal(t, "process_context:nginx", context)
+		assert.Equal(t, []string{"process_context:nginx"}, context)
 		mockSCM.AssertNotCalled(t, "GetServiceInfo", mock.Anything)
 	})
 
@@ -108,7 +108,21 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 			ServiceName: []string{"test"},
 		}, nil)
 		context := se.GetServiceContext(1)
-		assert.Equal(t, "test", context)
+		assert.Equal(t, []string{"process_context:test"}, context)
+		mockSCM.AssertCalled(t, "GetServiceInfo", uint64(1))
+	})
+
+	t.Run("enabled, multiple results", func(t *testing.T) {
+		cfg := ddconfig.Mock(t)
+		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
+
+		se, mockSCM := makeServiceExtractor(t)
+		mockSCM.On("GetServiceInfo", uint64(1)).Return(&winutil.ServiceInfo{
+			ServiceName: []string{"test", "test2"},
+		}, nil)
+		context := se.GetServiceContext(1)
+		assert.Equal(t, []string{"process_context:test", "process_context:test2"}, context)
 		mockSCM.AssertCalled(t, "GetServiceInfo", uint64(1))
 	})
 
@@ -120,7 +134,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 		se, mockSCM := makeServiceExtractor(t)
 		mockSCM.On("GetServiceInfo", uint64(1)).Return(nil, nil)
 		context := se.GetServiceContext(1)
-		assert.Equal(t, context, "process_context:nginx")
+		assert.Equal(t, []string{"process_context:nginx"}, context)
 		mockSCM.AssertCalled(t, "GetServiceInfo", uint64(1))
 	})
 }
