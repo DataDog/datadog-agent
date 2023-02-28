@@ -54,6 +54,7 @@ type ebpfProgram struct {
 	subprograms     []subprogram
 	probesResolvers []probeResolver
 	mapCleaner      *ddebpf.MapCleaner
+	tailCallRouter  []manager.TailCallRoute
 }
 
 type probeResolver interface {
@@ -87,23 +88,6 @@ type subprogram interface {
 	ConfigureOptions(*manager.Options)
 	Start()
 	Stop()
-}
-
-var tailCalls = []manager.TailCallRoute{
-	{
-		ProgArrayName: protocolDispatcherProgramsMap,
-		Key:           uint32(ProtocolHTTP),
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "socket__http_filter",
-		},
-	},
-	{
-		ProgArrayName: protocolDispatcherClassificationPrograms,
-		Key:           uint32(DispatcherKafkaProg),
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "socket__protocol_dispatcher_kafka",
-		},
-	},
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
@@ -161,6 +145,23 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		subprograms = append(subprograms, openSSLProg)
 	}
 
+	tailCalls := []manager.TailCallRoute{
+		{
+			ProgArrayName: protocolDispatcherProgramsMap,
+			Key:           uint32(ProtocolHTTP),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "socket__http_filter",
+			},
+		},
+		{
+			ProgArrayName: protocolDispatcherClassificationPrograms,
+			Key:           uint32(DispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "socket__protocol_dispatcher_kafka",
+			},
+		},
+	}
+
 	// If Kafka monitoring is enabled, the kafka parsing function is added to the dispatcher mechanism.
 	if c.EnableKafkaMonitoring {
 		tailCalls = append(tailCalls, manager.TailCallRoute{
@@ -178,6 +179,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		offsets:         offsets,
 		subprograms:     subprograms,
 		probesResolvers: subprogramProbesResolvers,
+		tailCallRouter:  tailCalls,
 	}
 
 	return program, nil
@@ -185,7 +187,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 func (e *ebpfProgram) Init() error {
 	var undefinedProbes []manager.ProbeIdentificationPair
-	for _, tc := range tailCalls {
+	for _, tc := range e.tailCallRouter {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
 
@@ -341,7 +343,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		options.ExcludedFunctions = []string{"socket__kafka_filter"}
 	}
 
-	options.TailCallRouter = tailCalls
+	options.TailCallRouter = e.tailCallRouter
 	options.ActivatedProbes = []manager.ProbesSelector{
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
