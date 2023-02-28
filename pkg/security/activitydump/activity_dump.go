@@ -596,8 +596,9 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	case model.BindEventType:
 		return ad.InsertBindEvent(node, &event.Bind, event.Rules)
 	case model.SyscallsEventType:
+		// TODO (jrs): reactivate this tagging once we'll be able to write rules on used syscalls
 		// for syscalls we tag the process node with the matched rule if any
-		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
+		// node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return node.InsertSyscalls(&event.Syscalls)
 	}
 
