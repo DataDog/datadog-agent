@@ -734,5 +734,5 @@ func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {
 		sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 	}
 	files := fileProvider.FilesToTail(true, sources)
-	assert.Len(t, files, 2) // 1 file from docker source, 1 file from non-docker source.
+	assert.Len(t, files, 2) // 1 file from k8s source, 1 file from regular file source.
 }
