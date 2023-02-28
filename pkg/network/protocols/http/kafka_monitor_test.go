@@ -27,7 +27,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kversion"
 )
 
-var defaultTopicName = "franz-kafka"
+const defaultTopicName = "franz-kafka"
 
 type BinaryType int
 
