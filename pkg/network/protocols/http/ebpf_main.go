@@ -153,24 +153,25 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 				EBPFFuncName: "socket__http_filter",
 			},
 		},
-		{
-			ProgArrayName: protocolDispatcherClassificationPrograms,
-			Key:           uint32(DispatcherKafkaProg),
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "socket__protocol_dispatcher_kafka",
-			},
-		},
 	}
 
-	// If Kafka monitoring is enabled, the kafka parsing function is added to the dispatcher mechanism.
+	// If Kafka monitoring is enabled, the kafka parsing function and the Kafka dispatching function are added to the dispatcher mechanism.
 	if c.EnableKafkaMonitoring {
-		tailCalls = append(tailCalls, manager.TailCallRoute{
-			ProgArrayName: protocolDispatcherProgramsMap,
-			Key:           uint32(ProtocolKafka),
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "socket__kafka_filter",
+		tailCalls = append(tailCalls,
+			manager.TailCallRoute{
+				ProgArrayName: protocolDispatcherProgramsMap,
+				Key:           uint32(ProtocolKafka),
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "socket__kafka_filter",
+				},
 			},
-		})
+			manager.TailCallRoute{
+				ProgArrayName: protocolDispatcherClassificationPrograms,
+				Key:           uint32(DispatcherKafkaProg),
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "socket__protocol_dispatcher_kafka",
+				},
+			})
 	}
 
 	program := &ebpfProgram{
@@ -340,7 +341,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	//	If Kafka monitoring is not enabled, loading the program will cause a verifier issue and should be avoided.
 	if !e.cfg.EnableKafkaMonitoring {
-		options.ExcludedFunctions = []string{"socket__kafka_filter"}
+		options.ExcludedFunctions = []string{"socket__kafka_filter", "socket__protocol_dispatcher_kafka"}
 	}
 
 	options.TailCallRouter = e.tailCallRouter
