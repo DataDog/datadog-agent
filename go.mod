@@ -40,7 +40,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
-	github.com/DataDog/agent-payload/v5 v5.0.72
+	github.com/DataDog/agent-payload/v5 v5.0.73
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.43.0-rc.3
