@@ -138,6 +138,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 			closeFilterFn()
 			return nil, err
 		}
+		// for now the max HTTP2 entries would be taken from the maxHTTPEntries.
 		http2Statkeeper = newHTTPStatkeeper(c, http2Telemetry)
 	}
 

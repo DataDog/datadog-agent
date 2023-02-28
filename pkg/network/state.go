@@ -94,6 +94,7 @@ type telemetry struct {
 	timeSyncCollisions    int64
 	dnsStatsDropped       int64
 	httpStatsDropped      int64
+	http2StatsDropped     int64
 	dnsPidCollisions      int64
 }
 
@@ -153,6 +154,7 @@ type networkState struct {
 	maxClientStats int
 	maxDNSStats    int
 	maxHTTPStats   int
+	maxHTTP2Stats  int
 }
 
 // NewState creates a new network state
@@ -293,12 +295,13 @@ func (ns *networkState) logTelemetry() {
 		timeSyncCollisions:    ns.telemetry.timeSyncCollisions - ns.lastTelemetry.timeSyncCollisions,
 		dnsStatsDropped:       ns.telemetry.dnsStatsDropped - ns.lastTelemetry.dnsStatsDropped,
 		httpStatsDropped:      ns.telemetry.httpStatsDropped - ns.lastTelemetry.httpStatsDropped,
+		http2StatsDropped:     ns.telemetry.http2StatsDropped - ns.lastTelemetry.http2StatsDropped,
 		dnsPidCollisions:      ns.telemetry.dnsPidCollisions - ns.lastTelemetry.dnsPidCollisions,
 	}
 
 	// Flush log line if any metric is non-zero
 	if delta.statsUnderflows > 0 || delta.statsCookieCollisions > 0 || delta.closedConnDropped > 0 || delta.connDropped > 0 || delta.timeSyncCollisions > 0 ||
-		delta.dnsStatsDropped > 0 || delta.httpStatsDropped > 0 || delta.dnsPidCollisions > 0 {
+		delta.dnsStatsDropped > 0 || delta.httpStatsDropped > 0 || delta.dnsPidCollisions > 0 || delta.http2StatsDropped > 0 {
 		s := "state telemetry: "
 		s += " [%d stats stats_underflows]"
 		s += " [%d stats cookie collisions]"
@@ -306,6 +309,7 @@ func (ns *networkState) logTelemetry() {
 		s += " [%d closed connections dropped]"
 		s += " [%d dns stats dropped]"
 		s += " [%d HTTP stats dropped]"
+		s += " [%d HTTP2 stats dropped]"
 		s += " [%d DNS pid collisions]"
 		s += " [%d time sync collisions]"
 		log.Warnf(s,
@@ -315,6 +319,7 @@ func (ns *networkState) logTelemetry() {
 			delta.closedConnDropped,
 			delta.dnsStatsDropped,
 			delta.httpStatsDropped,
+			delta.http2StatsDropped,
 			delta.dnsPidCollisions,
 			delta.timeSyncCollisions)
 	}
@@ -500,16 +505,16 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 	for key, stats := range allStats {
 		for _, client := range ns.clients {
 			prevStats, ok := client.http2StatsDelta[key]
-			if !ok && len(client.http2StatsDelta) >= ns.maxHTTPStats {
-				ns.telemetry.httpStatsDropped++
+			if !ok && len(client.http2StatsDelta) >= ns.maxHTTP2Stats {
+				ns.telemetry.http2StatsDropped++
 				continue
 			}
 
 			if prevStats != nil {
 				prevStats.CombineWith(stats)
-				client.httpStatsDelta[key] = prevStats
+				client.http2StatsDelta[key] = prevStats
 			} else {
-				client.httpStatsDelta[key] = stats
+				client.http2StatsDelta[key] = stats
 			}
 		}
 	}
@@ -675,6 +680,7 @@ func (ns *networkState) GetStats() map[string]interface{} {
 			"time_sync_collisions":    ns.telemetry.timeSyncCollisions,
 			"dns_stats_dropped":       ns.telemetry.dnsStatsDropped,
 			"http_stats_dropped":      ns.telemetry.httpStatsDropped,
+			"http2_stats_dropped":     ns.telemetry.http2StatsDropped,
 			"dns_pid_collisions":      ns.telemetry.dnsPidCollisions,
 		},
 		"current_time":       time.Now().Unix(),
