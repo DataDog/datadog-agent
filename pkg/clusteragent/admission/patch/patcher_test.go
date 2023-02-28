@@ -71,6 +71,8 @@ func TestPatchDeployment(t *testing.T) {
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "false")
 	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.version")
 	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.config.v1")
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "1234")
 	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
 	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "1234")
 

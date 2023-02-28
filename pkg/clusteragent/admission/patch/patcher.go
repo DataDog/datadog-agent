@@ -90,6 +90,8 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	}
 	deploy.Annotations[k8sutil.RcIDAnnotKey] = req.ID
 	deploy.Annotations[k8sutil.RcRevisionAnnotKey] = revision
+	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
+	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 	newObj, err := json.Marshal(deploy)
 	if err != nil {
 		return fmt.Errorf("failed to encode object: %v", err)
@@ -122,8 +124,6 @@ func enableConfig(deploy *corev1.Deployment, req PatchRequest) error {
 	}
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
 	deploy.Spec.Template.Annotations[configAnnotKey] = string(conf)
-	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 	return nil
 }
 
@@ -139,6 +139,4 @@ func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
 	delete(deploy.Spec.Template.Annotations, versionAnnotKey)
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
 	delete(deploy.Spec.Template.Annotations, configAnnotKey)
-	delete(deploy.Spec.Template.Annotations, k8sutil.RcIDAnnotKey)
-	delete(deploy.Spec.Template.Annotations, k8sutil.RcRevisionAnnotKey)
 }
