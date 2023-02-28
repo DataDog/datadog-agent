@@ -388,7 +388,7 @@ func shouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
 		return nil
 	})
 
-	// this is not an error if we we are not currently looking for container logs files,
+	// this is not an error if we are not currently looking for container logs files,
 	// so not problem and just return false.
 	// Still, we write a debug message to be able to troubleshoot that
 	// in cases we're legitimately looking for containers logs.
