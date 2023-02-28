@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsonpatch "github.com/evanphx/json-patch"
@@ -72,7 +73,7 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	if deploy.Annotations == nil {
 		deploy.Annotations = make(map[string]string)
 	}
-	if deploy.Annotations[common.RcIDAnnotKey] == req.ID && deploy.Annotations[common.RcRevisionAnnotKey] == revision {
+	if deploy.Annotations[k8sutil.RcIDAnnotKey] == req.ID && deploy.Annotations[k8sutil.RcRevisionAnnotKey] == revision {
 		log.Infof("Remote Config ID %q with revision %q has already been applied to object %s, skipping", req.ID, revision, req.K8sTarget)
 		return nil
 	}
@@ -87,8 +88,8 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	default:
 		return fmt.Errorf("unknown action %q", req.Action)
 	}
-	deploy.Annotations[common.RcIDAnnotKey] = req.ID
-	deploy.Annotations[common.RcRevisionAnnotKey] = revision
+	deploy.Annotations[k8sutil.RcIDAnnotKey] = req.ID
+	deploy.Annotations[k8sutil.RcRevisionAnnotKey] = revision
 	newObj, err := json.Marshal(deploy)
 	if err != nil {
 		return fmt.Errorf("failed to encode object: %v", err)
@@ -121,6 +122,8 @@ func enableConfig(deploy *corev1.Deployment, req PatchRequest) error {
 	}
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
 	deploy.Spec.Template.Annotations[configAnnotKey] = string(conf)
+	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
+	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 	return nil
 }
 
@@ -136,4 +139,6 @@ func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
 	delete(deploy.Spec.Template.Annotations, versionAnnotKey)
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
 	delete(deploy.Spec.Template.Annotations, configAnnotKey)
+	delete(deploy.Spec.Template.Annotations, k8sutil.RcIDAnnotKey)
+	delete(deploy.Spec.Template.Annotations, k8sutil.RcRevisionAnnotKey)
 }

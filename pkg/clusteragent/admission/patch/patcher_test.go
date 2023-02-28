@@ -55,6 +55,8 @@ func TestPatchDeployment(t *testing.T) {
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest"}`)
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "123")
 	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
 	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "123")
 
@@ -84,6 +86,8 @@ func TestPatchDeployment(t *testing.T) {
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest","tracing_tags":["k1:v1","k2:v2"]}`)
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "12345")
 	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
 	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "12345")
 }

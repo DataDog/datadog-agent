@@ -8,6 +8,8 @@
 
 package ksm
 
+import "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+
 // ksmMetricPrefix defines the KSM metrics namespace
 const ksmMetricPrefix = "kubernetes_state."
 
@@ -225,5 +227,12 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"persistentvolume"}
 	default:
 		return []string{kind, "namespace"}
+	}
+}
+
+func defaultAnnotationsAsTags() map[string]map[string]string {
+	return map[string]map[string]string{
+		"pod":        {kubernetes.RcIDAnnotKey: kubernetes.RcIDTagName, kubernetes.RcRevisionAnnotKey: kubernetes.RcRevisionTagName},
+		"deployment": {kubernetes.RcIDAnnotKey: kubernetes.RcIDTagName, kubernetes.RcRevisionAnnotKey: kubernetes.RcRevisionTagName},
 	}
 }
