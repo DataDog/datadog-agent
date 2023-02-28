@@ -110,6 +110,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
 	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	service, err := NewService()
+	t.Cleanup(func() { service.Stop() })
 	assert.NoError(t, err)
 	service.api = api
 	service.clock = clock
