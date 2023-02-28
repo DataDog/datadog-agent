@@ -697,8 +697,8 @@ def kitchen_test(ctx, target=None, provider=None):
     args = [
         f"--platform {images[target]}",
         f"--osversions {target}",
-        f"--provider vagrant",
-        f"--testfiles system-probe-test",
+        "--provider vagrant",
+        "--testfiles system-probe-test",
         f"--platformfile {platform_file}",
         f"--arch {vagrant_arch}"
     ]
@@ -758,8 +758,8 @@ def kitchen_genconfig(
         f"--provider={provider}",
         f"--arch={arch}",
         f"--imagesize={image_size}",
-        f"--testfiles=system-probe-test",
-        f"--platformfile=platforms.json",
+        "--testfiles=system-probe-test",
+        "--platformfile=platforms.json",
     ]
 
     env["KITCHEN_ARCH"] = arch
