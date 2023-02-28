@@ -243,7 +243,6 @@ send_pkg_size-a7:
     - !reference [.add_metric_func, script]
 
     - ls -l $OMNIBUS_PACKAGE_DIR
-    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
     - source /root/.bashrc && conda activate ddpy3
     - export failures=0
     - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
