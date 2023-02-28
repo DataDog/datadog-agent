@@ -11,6 +11,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,12 @@ func TestGRPCScenarios(t *testing.T) {
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = false
+
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < http.MinimumKernelVersion {
+		t.Skipf("USM can not run on kernel before %v", http.MinimumKernelVersion)
+	}
 
 	s, err := grpc.NewServer(srvAddr)
 	require.NoError(t, err)
