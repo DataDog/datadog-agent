@@ -1,6 +1,8 @@
 name "cyrus-sasl"
 default_version "2.1.28"
 
+dependency "gdbm"
+
 source :url => "https://github.com/cyrusimap/cyrus-sasl/releases/download/cyrus-sasl-#{version}/cyrus-sasl-#{version}.tar.gz",
        :sha256 => "7ccfc6abd01ed67c1a0924b353e526f1b766b21f42d4562ee635a8ebfc5bb38c",
        :extract => :seven_zip
