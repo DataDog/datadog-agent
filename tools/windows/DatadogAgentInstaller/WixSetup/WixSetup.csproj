@@ -2,7 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net481</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>$(MSBuildProjectName.Replace(" ", "_").Replace("-", "_"))</RootNamespace>
     <Platforms>x64</Platforms>
@@ -19,10 +19,10 @@
     <None Remove="*.wixobj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Cave.Compression" Version="2.1.0" />
-    <PackageReference Include="LZMA-SDK" Version="19.0.0" />
+    <PackageReference Include="LZMA-SDK" Version="22.1.1" />
     <PackageReference Include="NineDigit.WixSharpExtensions" Version="1.0.14" />
-    <PackageReference Include="WixSharp" Version="1.20.2" />
+    <PackageReference Include="SharpZipLib" Version="1.3.3" />
+    <PackageReference Include="WixSharp" Version="1.20.3" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CustomActions\CustomActions.csproj" />
