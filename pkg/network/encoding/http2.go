@@ -108,7 +108,7 @@ func newHTTP2Encoder(payload *network.Connections) *http2Encoder {
 
 func (e *http2Encoder) buildAggregations(payload *network.Connections) {
 	aggrSize := make(map[http.KeyTuple]int)
-	for key := range payload.HTTP {
+	for key := range payload.HTTP2 {
 		aggrSize[key.KeyTuple]++
 	}
 
