@@ -1,12 +1,12 @@
 ---
 features:
   - |
-    Enabling ``dogstatsd_metrics_stats_enable`` will now enable ``dogstatsd_stats_logging``. ``dogstatsd_stats_logging`` when abled will generate dogstatsd log files at:
+    Enabling ``dogstatsd_metrics_stats_enable`` will now enable ``dogstatsd_stats_logging``. ``dogstatsd_stats_logging``.  When enabled, ``dogstatsd_stats_logging`` generates dogstatsd log files at:
       - For ``Windows``: ``c:\programdata\datadog\logs\dogstatsd_info\dogstatsd-stats.log``
       - For ``Linux``: ``/var/log/datadog/dogstatsd_info/dogstatsd-stats.log``
       - For ``MacOS``: ``/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log``
-    These log files will also be automatically attached to the flare  
+    These log files are also automatically attached to the flare.
   - |
-    Users can also adjust the dogstatsd-stats logging by using:
+    You can adjust the dogstatsd-stats logging by using:
       - dogstatsd_log_file_max_size: ``SizeInBytes`` (default: ``dogstatsd_log_file_max_size:"10Mb"``)
       - dogstatsd_log_file_max_rolls: ``Int`` (default: ``dogstatsd_log_file_max_rolls:3``)
