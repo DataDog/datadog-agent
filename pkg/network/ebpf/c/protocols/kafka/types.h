@@ -27,8 +27,6 @@ typedef struct {
 
 // Kafka transaction information associated to a certain socket (tuple_t)
 typedef struct {
-    char request_fragment[KAFKA_BUFFER_SIZE];
-
     // this field is used to disambiguate segments in the context of keep-alives
     // we populate it with the TCP seq number of the request and then the response segments
     __u32 tcp_seq;
