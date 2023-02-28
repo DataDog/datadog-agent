@@ -4,7 +4,7 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "tracer.h"
-#include "types.h"
+#include "protocols/kafka/types.h"
 #include "protocols/kafka/parsing-maps.h"
 #include "protocols/events.h"
 
@@ -17,7 +17,7 @@ USM_EVENTS_INIT(kafka, kafka_transaction_batch_entry_t, KAFKA_BATCH_SIZE);
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
 // Has to be a template and not a function, as we have pragma unroll.
-#define CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(max_buffer_size, real_size, buffer)                                                              \
+#define CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(max_buffer_size, real_size, buffer)                                                  \
     char ch = 0;                                                                                                                        \
 _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                                                                           \
     for (int j = 0; j < max_buffer_size; j++) {                                                                                         \
@@ -118,9 +118,7 @@ static __always_inline void parser_read_into_buffer_topic_name(char *buffer, str
 
 static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction, struct __sk_buff* skb, __u32 offset) {
     /*
-        We perform Kafka request validation as we can get data this is not classified in the dispatcher,
-        for example when a connection is already cached in the dispatcher as a Kafka connection, the dispatcher
-        won't verify that it's a Kafka request.
+        We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
 
     kafka_header_t kafka_header;

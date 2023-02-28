@@ -406,9 +406,7 @@ func New() *Config {
 		}
 	}
 
-	if c.DataStreamsEnabled {
-		c.EnableKafkaMonitoring = true
-	}
+	c.EnableKafkaMonitoring = c.DataStreamsEnabled
 
 	if c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring enabled")
