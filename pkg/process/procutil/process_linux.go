@@ -223,7 +223,7 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 
 		if len(cmdline) == 0 {
 			if statInfo.flags&0x00200000 == 0x00200000 {
-				log.Debugf("Skipping kernel process pid:%d", pid)
+				log.Tracef("Skipping kernel process pid:%d", pid)
 				// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
 				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
 				//       A process must also have the PF_KTHREAD flag set to detect if the process is in fact a kernel thread
