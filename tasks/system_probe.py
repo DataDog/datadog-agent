@@ -700,7 +700,7 @@ def kitchen_test(ctx, target=None, provider=None):
         "--provider vagrant",
         "--testfiles system-probe-test",
         f"--platformfile {platform_file}",
-        f"--arch {vagrant_arch}"
+        f"--arch {vagrant_arch}",
     ]
 
     with ctx.cd(KITCHEN_DIR):
