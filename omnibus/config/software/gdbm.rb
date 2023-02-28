@@ -3,7 +3,7 @@ default_version "1.23"
 
 source :url => "http://ftp.gnu.org/gnu/gdbm/gdbm-#{version}.tar.gz",
        :sha256 => "74b1081d21fff13ae4bd7c16e5d6e504a4c26f7cde1dca0d963a484174bbcacd",
-       :extract => :seven_zip,
+       :extract => :seven_zip
 
 relative_path "gdbm-#{version}"
 
