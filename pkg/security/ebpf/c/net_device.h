@@ -99,6 +99,25 @@ int kprobe_veth_newlink(struct pt_regs *ctx) {
     return 0;
 };
 
+SEC("kprobe/rtnl_create_link")
+int kprobe_rtnl_create_link(struct pt_regs *ctx) {
+    struct rtnl_link_ops *ops = (struct rtnl_link_ops*)PT_REGS_PARM4(ctx);
+    if (!ops) {
+        return 0;
+    }
+
+    if (ops->kind[0] != 'v' || ops->kind[0] != 'e' || ops->kind[0] != 't' || ops->kind[0] != 'h') {
+        return 0;
+    }
+
+    u64 id = bpf_get_current_pid_tgid();
+    struct veth_state_t state = {
+        .state = STATE_NEWLINK,
+    };
+    bpf_map_update_elem(&veth_state_machine, &id, &state, BPF_ANY);
+    return 0;
+}
+
 SEC("kprobe/register_netdevice")
 int kprobe_register_netdevice(struct pt_regs *ctx) {
     u64 id = bpf_get_current_pid_tgid();

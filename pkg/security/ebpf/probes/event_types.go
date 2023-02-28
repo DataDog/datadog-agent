@@ -25,8 +25,9 @@ var NetworkNFNatSelectors = []manager.ProbesSelector{
 
 // NetworkVethSelectors is the list of probes that should be activated if the `veth` module is loaded
 var NetworkVethSelectors = []manager.ProbesSelector{
-	&manager.AllOf{Selectors: []manager.ProbesSelector{
+	&manager.OneOf{Selectors: []manager.ProbesSelector{
 		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_veth_newlink"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_rtnl_create_link"}},
 	}},
 }
 
