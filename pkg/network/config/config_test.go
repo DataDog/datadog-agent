@@ -144,6 +144,17 @@ func TestEnableDataStreams(t *testing.T) {
 
 		assert.True(t, cfg.DataStreamsEnabled)
 	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.DataStreamsEnabled)
+	})
 }
 
 func TestEnableJavaTLSSupport(t *testing.T) {
