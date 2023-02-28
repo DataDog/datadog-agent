@@ -8,6 +8,11 @@
 
 package forwarder
 
-func initOrchestratorExpVars() {}
+// k8SResource is a node type for k8s.
+type k8SResource int32
 
-func bumpOrchestratorPayload(nodeType int) {}
+// String returns the string value of this k8SResource.
+func (k8SResource) String() string { return "" }
+
+// nodeTypes returns the current existing NodesTypes as a slice to iterate over.
+func nodeTypes() []k8SResource { return nil }

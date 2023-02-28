@@ -11,9 +11,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
+	transactionsIntakeOrchestrator = map[k8SResource]*expvar.Int{}
+
 	highPriorityQueueFull            = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
 	transactionsInputCountByEndpoint = expvar.Map{}
@@ -68,6 +71,23 @@ func initEndpointExpvars() {
 	for _, endpoint := range endpoints {
 		transaction.TransactionsSuccessByEndpoint.Set(endpoint.Name, expvar.NewInt(endpoint.Name))
 	}
+}
+
+func initOrchestratorExpVars() {
+	for _, nodeType := range nodeTypes() {
+		transactionsIntakeOrchestrator[nodeType] = &expvar.Int{}
+		transaction.TransactionsExpvars.Set(nodeType.String(), transactionsIntakeOrchestrator[nodeType])
+	}
+	transaction.TransactionsExpvars.Set("OrchestratorManifest", &transactionsOrchestratorManifest)
+}
+
+func bumpOrchestratorPayload(nodeType int) {
+	e, ok := transactionsIntakeOrchestrator[k8SResource(nodeType)]
+	if !ok {
+		log.Errorf("Unknown NodeType %v, cannot bump expvar", nodeType)
+		return
+	}
+	e.Add(1)
 }
 
 func initTransactionsExpvars() {
