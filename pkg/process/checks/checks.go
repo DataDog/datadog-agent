@@ -8,6 +8,8 @@ package checks
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Name for check performed by process-agent or system-probe
@@ -117,4 +119,19 @@ func RTName(checkName string) string {
 	default:
 		return ""
 	}
+}
+
+func canEnableContainerChecks(config ddconfig.Config, displayFeatureWarning bool) bool {
+	// The process and container checks are mutually exclusive
+	if config.GetBool("process_config.process_collection.enabled") {
+		return false
+	}
+	if !ddconfig.IsAnyContainerFeaturePresent() {
+		if displayFeatureWarning {
+			_ = log.Warn("Disabled container checks because no container environment detected (see list of detected features in `agent status`)")
+		}
+		return false
+	}
+
+	return ddconfig.Datadog.GetBool("process_config.container_collection.enabled")
 }

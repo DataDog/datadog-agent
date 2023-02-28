@@ -59,13 +59,9 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 }
 
 // IsEnabled returns true if the check is enabled by configuration
+// Keep in mind that ContainerRTCheck.IsEnabled should only be enabled if the `ContainerCheck` is enabled
 func (c *ContainerCheck) IsEnabled() bool {
-	// The process and container checks are mutually exclusive
-	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") || !ddconfig.IsAnyContainerFeaturePresent() {
-		return false
-	}
-
-	return ddconfig.Datadog.GetBool("process_config.container_collection.enabled")
+	return canEnableContainerChecks(ddconfig.Datadog, true)
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

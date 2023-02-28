@@ -43,16 +43,8 @@ func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (r *RTContainerCheck) IsEnabled() bool {
-	// The process and container checks are mutually exclusive
-	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") || !ddconfig.IsAnyContainerFeaturePresent() {
-		return false
-	}
-
-	var (
-		containerCollectionEnabled = ddconfig.Datadog.GetBool("process_config.container_collection.enabled")
-		rtChecksEnabled            = !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
-	)
-	return containerCollectionEnabled && rtChecksEnabled
+	rtChecksEnabled := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+	return canEnableContainerChecks(ddconfig.Datadog, false) && rtChecksEnabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
