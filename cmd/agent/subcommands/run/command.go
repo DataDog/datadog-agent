@@ -58,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -121,7 +122,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+				LogParams:            log.LogForDaemon("CORE", "log_file", constants.DefaultLogFile),
 			}),
 			flare.Module,
 			core.Bundle,
@@ -216,7 +217,7 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParamsWithSecrets(""),
 			SysprobeConfigParams: sysprobeconfig.NewParams(),
-			LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+			LogParams:            log.LogForDaemon("CORE", "log_file", constants.DefaultLogFile),
 		}),
 		flare.Module,
 		core.Bundle,
@@ -243,7 +244,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysp
 	syslogURI := pkgconfig.GetSyslogURI()
 	jmxLogFile := pkgconfig.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
+		jmxLogFile = constants.DefaultJmxLogFile
 	}
 
 	if pkgconfig.Datadog.GetBool("disable_file_logging") {

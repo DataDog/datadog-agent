@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -120,12 +121,13 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = constants.DefaultLogFile
 	}
 	jmxLogFile := config.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
+		jmxLogFile = constants.DefaultJmxLogFile
 	}
+	dogstatsDLogFile := constants.DefaultDogstatsDLogFile
 
 	// If we're not in an FX app we fallback to pkgflare implementation. Once all app have been migrated to flare we
 	// could remove this.
@@ -133,9 +135,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 	var err error
 	log.Infof("Making a flare")
 	if flare != nil {
-		filePath, err = flare.Create(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+		filePath, err = flare.Create(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile, dogstatsDLogFile}, profile, nil)
 	} else {
-		filePath, err = pkgflare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+		filePath, err = pkgflare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile, dogstatsDLogFile}, profile, nil)
 	}
 
 	if err != nil || filePath == "" {

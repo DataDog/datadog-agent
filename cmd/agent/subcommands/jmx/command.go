@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -77,7 +78,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		if cliParams.saveFlare {
 			// Windows cannot accept ":" in file names
 			filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-			cliParams.logFile = filepath.Join(common.DefaultJMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
+			cliParams.logFile = filepath.Join(constants.DefaultJMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
 			cliParams.jmxLogLevel = "debug"
 		}
 

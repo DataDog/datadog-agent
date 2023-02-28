@@ -11,6 +11,7 @@ package run
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,12 +37,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 
-	"go.uber.org/fx"
 	"os"
 	"os/signal"
 	"regexp"
 	"syscall"
 	"time"
+
+	"go.uber.org/fx"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent-cloudfoundry' command.
@@ -54,7 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", common.DefaultDCALogFile),
+					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", constants.DefaultDCALogFile),
 				}),
 				core.Bundle,
 			)

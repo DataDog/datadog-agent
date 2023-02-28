@@ -1738,6 +1738,17 @@ api_key:
 #
 # dogstatsd_stats_enable: false
 
+## @param dogstatsd_stats_logging - boolean - optional - default: true
+## Set to true to write DogstatsD metrics that the agent received to dogstats_stats log files
+#
+# dogstatsd_stats_logging: true
+
+## @param dogstatsd_log_file_max_size - custom - optional - default: 10MB
+## Maximum size of dogstatsd log file. Use either a size (e.g. 10MB) or
+## provide value in bytes: 10485760
+#
+# dogstatsd_log_file_max_size: 10MB
+
 ## @param dogstatsd_queue_size - integer - optional - default: 1024
 ## @env DD_DOGSTATSD_QUEUE_SIZE - integer - optional - default: 1024
 ## Configure the internal queue size of the Dogstatsd server.

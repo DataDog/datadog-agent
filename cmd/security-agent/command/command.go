@@ -7,12 +7,13 @@ package command
 
 import (
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 	"path"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
+	"github.com/DataDog/datadog-agent/pkg/util/constants"
 )
 
 type GlobalParams struct {
@@ -24,8 +25,8 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 const LoggerName = "SECURITY"
 
 var defaultSecurityAgentConfigFilePaths = []string{
-	path.Join(common.DefaultConfPath, "datadog.yaml"),
-	path.Join(common.DefaultConfPath, "security-agent.yaml"),
+	path.Join(constants.DefaultConfPath, "datadog.yaml"),
+	path.Join(constants.DefaultConfPath, "security-agent.yaml"),
 }
 
 // MakeCommand makes the top-level Cobra command for this command.

@@ -6,9 +6,10 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/constants"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewSecurityAgentParams(t *testing.T) {
@@ -47,7 +48,7 @@ func TestNewSecurityAgentParams(t *testing.T) {
 		configComponentParams := NewSecurityAgentParams(test.input)
 
 		require.Equal(t, true, configComponentParams.configLoadSecurityAgent, "configLoadSecurityAgent values not matching")
-		require.Equal(t, common.DefaultConfPath, configComponentParams.defaultConfPath, "defaultConfPath values not matching")
+		require.Equal(t, constants.DefaultConfPath, configComponentParams.defaultConfPath, "defaultConfPath values not matching")
 		require.Equal(t, true, configComponentParams.configLoadSecrets, "configLoadSecrets values not matching")
 		require.Equal(t, false, configComponentParams.configMissingOK, "configMissingOK values not matching")
 	}

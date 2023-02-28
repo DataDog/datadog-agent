@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/constants"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -189,12 +190,12 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = constants.DefaultLogFile
 	}
 
 	jmxLogFile := config.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
+		jmxLogFile = constants.DefaultJmxLogFile
 	}
 
 	// Set session token

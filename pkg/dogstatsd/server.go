@@ -18,11 +18,13 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	slog "github.com/cihub/seelog"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/internal/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
@@ -32,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -172,6 +175,12 @@ type Server struct {
 	originTelemetry bool
 
 	enrichConfig enrichConfig
+
+	// DogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
+	DogstatsdDebugLogger slog.LoggerInterface
+
+	// DogstatsdLogging determine whether to log dogstats-stats metric to a log file base on the env var dogstatsd_stats_logging
+	DogstatsdLogging bool
 }
 
 // metricStat holds how many times a metric has been
@@ -289,6 +298,42 @@ func NewServer(serverless bool) *Server {
 		}
 	}
 
+	// Creating a new logger
+	cfg := seelogCfg.NewSeelogConfig(
+		"dogstatsd",
+		"info",
+		"common",
+		"",
+		"%Date %Time | %Msg %n",
+		false)
+
+	// Configuring the log file path
+	logFile := config.Datadog.GetString("dogstatsd_log_file")
+	if logFile == "" {
+		logFile = constants.DefaultDogstatsDLogFile
+	}
+
+	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
+	dogstatsd_log_file_max_rolls := config.Datadog.GetInt("dogstatsd_log_file_max_rolls")
+	if dogstatsd_log_file_max_rolls < 1 {
+		dogstatsd_log_file_max_rolls = 3
+		log.Warnf("Invalid value for dogstatsd_log_file_max_rolls, please make sure the value is higher than 0")
+	}
+
+	// Configure the logger
+	cfg.EnableFileLogging(logFile, config.Datadog.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsd_log_file_max_rolls))
+
+	var dogstatsdLogger slog.LoggerInterface
+	seelogConfigStr, err := cfg.Render()
+	if err == nil {
+		dogstatsdLogger, err = slog.LoggerFromConfigAsString(seelogConfigStr)
+		if err != nil {
+			log.Error(err)
+		}
+	} else {
+		log.Error(err)
+	}
+
 	s := &Server{
 		Started:                 false,
 		Statistics:              stats,
@@ -325,6 +370,8 @@ func NewServer(serverless bool) *Server {
 			serverlessMode:            serverless,
 			originOptOutEnabled:       config.Datadog.GetBool("dogstatsd_origin_optout_enabled"),
 		},
+		DogstatsdLogging:     config.Datadog.GetBool("dogstatsd_stats_logging"),
+		DogstatsdDebugLogger: dogstatsdLogger,
 	}
 	return s
 }
@@ -795,6 +842,15 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	ms.Name = sample.Name
 	ms.Tags = strings.Join(s.debugTagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
+
+	name := fmt.Sprintf("Metric Name: %s |", ms.Name)
+	tags := fmt.Sprintf(" Tags: {%s} |", ms.Tags)
+	count := fmt.Sprintf(" Count: %d |", ms.Count)
+	ls := fmt.Sprintf(" Last Seen: %v ", ms.LastSeen)
+
+	if s.DogstatsdDebugLogger != nil && s.DogstatsdLogging == true {
+		s.DogstatsdDebugLogger.Infof(name + tags + count + ls)
+	}
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}
 }
