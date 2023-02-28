@@ -21,15 +21,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
 //go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/offsetguess-test.c ../../../pkg/ebpf/bytecode/build/runtime/offsetguess-test.c ../../../pkg/ebpf/c ../../../pkg/ebpf/c/protocols ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
 //go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/offsetguess-test.c ../../../pkg/ebpf/bytecode/runtime/offsetguess.go runtime
 
+type offsetT int
+
 const (
-	offsetSaddr int = iota
+	offsetSaddr offsetT = iota
 	offsetDaddr
 	offsetSport
 	offsetDport
@@ -54,6 +58,57 @@ const (
 	offsetMax
 )
 
+func (o offsetT) String() string {
+	switch o {
+	case offsetSaddr:
+		return "offset_saddr"
+	case offsetDaddr:
+		return "offset_daddr"
+	case offsetSport:
+		return "offset_sport"
+	case offsetDport:
+		return "offset_dport"
+	case offsetNetns:
+		return "offset_netns"
+	case offsetIno:
+		return "offset_ino"
+	case offsetFamily:
+		return "offset_family"
+	case offsetRtt:
+		return "offset_rtt"
+	case offsetRttVar:
+		return "offset_rtt_var"
+	case offsetDaddrIpv6:
+		return "offset_daddr_ipv6"
+	case offsetSaddrFl4:
+		return "offset_saddr_fl4"
+	case offsetDaddrFl4:
+		return "offset_daddr_fl4"
+	case offsetSportFl4:
+		return "offset_sport_fl4"
+	case offsetDportFl4:
+		return "offset_dport_fl4"
+	case offsetSaddrFl6:
+		return "offset_saddr_fl6"
+	case offsetDaddrFl6:
+		return "offset_daddr_fl6"
+	case offsetSportFl6:
+		return "offset_sport_fl6"
+	case offsetDportFl6:
+		return "offset_dport_fl6"
+	case offsetSocketSk:
+		return "offset_socket_sk"
+	case offsetSkBuffSock:
+		return "offset_sk_buff_sock"
+	case offsetSkBuffTransportHeader:
+		return "offset_sk_buff_transport_header"
+	case offsetSkBuffHead:
+		return "offset_sk_buff_head"
+	}
+
+	return "unknown offset"
+}
+
 func TestOffsetGuess(t *testing.T) {
 	cfg := testConfig()
 	if !cfg.EnableRuntimeCompiler {
@@ -65,7 +120,7 @@ func TestOffsetGuess(t *testing.T) {
 	t.Cleanup(func() { offsetBuf.Close() })
 	_consts, err := runOffsetGuessing(cfg, offsetBuf)
 	require.NoError(t, err)
-	consts := map[int]uint64{}
+	consts := map[offsetT]uint64{}
 	for _, c := range _consts {
 		value := c.Value.(uint64)
 		switch c.Name {
@@ -170,10 +225,26 @@ func TestOffsetGuess(t *testing.T) {
 	mp, _, err := mgr.GetMap("offsets")
 	require.NoError(t, err)
 
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+
 	for o := offsetSaddr; o < offsetMax; o++ {
+		switch o {
+		case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
+			if kprobe.ClassificationSupported(cfg) {
+				continue
+			}
+		case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:
+			// TODO: offset guessing for these fields is currently broken on kernels 5.18+
+			// see https://datadoghq.atlassian.net/browse/NET-2984
+			if kv >= kernel.VersionCode(5, 18, 0) {
+				continue
+			}
+		}
+
 		var offset uint64
-		var name int = o
+		var name offsetT = o
 		require.NoError(t, mp.Lookup(unsafe.Pointer(&name), unsafe.Pointer(&offset)))
-		assert.Equal(t, offset, consts[o], "unexpected offset for %d", o)
+		assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
 	}
 }

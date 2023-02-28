@@ -80,9 +80,11 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
     offset = offsetof(struct tcp_sock, mdev_us);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 
+#ifdef FEATURE_IPV6_ENABLED
     o = OFFSET_DADDR_IPV6;
     offset = offsetof(struct sock, sk_v6_daddr);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
+#endif
 
     o = OFFSET_SADDR_FL4;
     offset = offsetof(struct flowi4, saddr);
@@ -100,6 +102,7 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
     offset = offsetof(struct flowi4, fl4_dport);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 
+#ifdef FEATURE_IPV6_ENABLED
     o = OFFSET_SADDR_FL6;
     offset = offsetof(struct flowi6, saddr);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
@@ -115,6 +118,7 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
     o = OFFSET_DPORT_FL6;
     offset = offsetof(struct flowi6, fl6_dport);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
+#endif
 
     o = OFFSET_SOCKET_SK;
     offset = offsetof(struct socket, sk);
