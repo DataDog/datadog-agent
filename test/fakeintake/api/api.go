@@ -15,5 +15,5 @@ type RouteStat struct {
 }
 
 type APIFakeIntakeRouteStatsGETResponse struct {
-	Routes []RouteStat `json:"routes"`
+	Routes map[string]RouteStat `json:"routes"`
 }

@@ -201,10 +201,10 @@ func (fi *Server) getRouteStats(w http.ResponseWriter, req *http.Request) {
 	routes := fi.safeGetRouteStats()
 	// build response
 	resp := api.APIFakeIntakeRouteStatsGETResponse{
-		Routes: []api.RouteStat{},
+		Routes: map[string]api.RouteStat{},
 	}
 	for route, count := range routes {
-		resp.Routes = append(resp.Routes, api.RouteStat{ID: route, Count: count})
+		resp.Routes[route] = api.RouteStat{ID: route, Count: count}
 	}
 	jsonResp, err := json.Marshal(resp)
 	if err != nil {

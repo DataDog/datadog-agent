@@ -128,12 +128,12 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
 		expectedGETResponse := api.APIFakeIntakeRouteStatsGETResponse{
-			Routes: []api.RouteStat{
-				{
+			Routes: map[string]api.RouteStat{
+				"/api/v2/series": {
 					ID:    "/api/v2/series",
 					Count: 2,
 				},
-				{
+				"/api/v2/logs": {
 					ID:    "/api/v2/logs",
 					Count: 1,
 				},
