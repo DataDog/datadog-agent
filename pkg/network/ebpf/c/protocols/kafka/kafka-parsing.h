@@ -172,7 +172,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     offset += sizeof(s32);
     READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-            return false;
+        return false;
     }
     bpf_memset(kafka_transaction->base.topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
     parser_read_into_buffer_topic_name((char *)kafka_transaction->base.topic_name, skb, offset);

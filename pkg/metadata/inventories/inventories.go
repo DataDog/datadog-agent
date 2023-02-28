@@ -91,7 +91,6 @@ const (
 	AgentNetworksEnabled                AgentMetadataName = "feature_networks_enabled"
 	AgentNetworksHTTPEnabled            AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled           AgentMetadataName = "feature_networks_https_enabled"
-	AgentUSMKafkaEnabled                AgentMetadataName = "feature_usm_kafka_enabled"
 	AgentUSMJavaTLSEnabled              AgentMetadataName = "feature_usm_java_tls_enabled"
 	AgentUSMEnableHTTPStatsByStatusCode AgentMetadataName = "feature_enable_http_stats_by_status_code"
 	AgentUSMGoTLSEnabled                AgentMetadataName = "feature_usm_go_tls_enabled"
