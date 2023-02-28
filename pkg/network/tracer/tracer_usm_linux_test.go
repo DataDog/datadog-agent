@@ -893,14 +893,14 @@ func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
-		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
+		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg, "7443")
 	})
 
 	t.Run("already running process (runtime compilation)", func(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
-		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
+		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg, "7444")
 	})
 
 	// note: this is a bit of hack since CI runs an entire package either as
@@ -911,7 +911,7 @@ func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
+		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg, "7445")
 	})
 
 	t.Run("already running process (co-re)", func(t *testing.T) {
@@ -919,7 +919,7 @@ func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
+		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg, "7446")
 	})
 }
 
@@ -993,9 +993,8 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
-func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
+func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config, serverPort string) {
 	const (
-		serverPort          = "8443"
 		expectedOccurrences = 10
 	)
 
@@ -1028,9 +1027,8 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
-func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
+func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config, serverPort string) {
 	const (
-		serverPort          = "8443"
 		expectedOccurrences = 10
 	)
 
