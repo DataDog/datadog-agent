@@ -428,26 +428,13 @@ func newHTTPWithKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
 func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	t.Run("prebuilt release binary", func(t *testing.T) {
-		loadKafkaBinary(t, false, PREBUILT)
-	})
-	t.Run("prebuilt debug binary", func(t *testing.T) {
-		loadKafkaBinary(t, true, PREBUILT)
-	})
-
-	t.Run("runtime release binary", func(t *testing.T) {
-		loadKafkaBinary(t, false, RUNTIME)
-	})
-	t.Run("runtime debug binary", func(t *testing.T) {
-		loadKafkaBinary(t, true, RUNTIME)
-	})
-
-	t.Run("CO-RE release binary", func(t *testing.T) {
-		loadKafkaBinary(t, false, CORE)
-	})
-	t.Run("CO-RE debug binary", func(t *testing.T) {
-		loadKafkaBinary(t, true, CORE)
-	})
+	for mode, debug := range map[string]bool{"debug": true, "release": false} {
+		for runType, val := range map[string]BinaryType{"CORE": CORE, "RUNTIME": RUNTIME, "PREBUILT": PREBUILT} {
+			t.Run(fmt.Sprintf("%s %s binary", runType, mode), func(t *testing.T) {
+				loadKafkaBinary(t, debug, val)
+			})
+		}
+	}
 }
 
 func loadKafkaBinary(t *testing.T, debug bool, binaryType BinaryType) {
