@@ -363,8 +363,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	events.Configure("http", e.Manager.Manager, &options)
 	if e.cfg.EnableHTTP2Monitoring {
 		events.Configure("http2", e.Manager.Manager, &options)
-		options.TailCallRouter = append(options.TailCallRouter, http2TailCall)
-
 	}
 
 	return e.InitWithOptions(buf, options)

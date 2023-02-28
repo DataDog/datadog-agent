@@ -253,10 +253,10 @@ func testIDCollisionRegressionHTTP2(t *testing.T, aggregateByStatusCode bool) {
 
 func TestHTTP2LocalhostScenario(t *testing.T) {
 	t.Run("status code", func(t *testing.T) {
-		testLocalhostScenario(t, true)
+		testHTTP2LocalhostScenario(t, true)
 	})
 	t.Run("status class", func(t *testing.T) {
-		testLocalhostScenario(t, false)
+		testHTTP2LocalhostScenario(t, false)
 	})
 }
 

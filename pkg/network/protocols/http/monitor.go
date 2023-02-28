@@ -282,7 +282,9 @@ func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 // createStaticTable creates a static table for http2 monitor.
 func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 	staticTable, _, _ := mgr.GetMap(string(probes.StaticTableMap))
-	if staticTable != nil {
+	if staticTable == nil {
+		return errors.New("http2 static table is null")
+	} else {
 		staticTableEntries := []staticTableEntry{
 			{
 				Index: 2,
@@ -370,8 +372,6 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 				return err
 			}
 		}
-	} else {
-		return errors.New("http2 static table is null")
 	}
 	return nil
 }

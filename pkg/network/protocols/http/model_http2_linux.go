@@ -83,8 +83,6 @@ func (tx *ebpfHttp2Tx) SetRequestMethod(m Method) {
 	tx.Request_method = uint8(m)
 }
 
-// StaticTags returns an uint64 representing the tags bitfields
-// Tags are defined here : pkg/network/ebpf/kprobe_types.go
 func (tx *ebpfHttp2Tx) StaticTags() uint64 {
 	return 0
 }
