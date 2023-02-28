@@ -11,7 +11,7 @@ docker_trigger_internal:
       artifacts: false
     - job: docker_build_agent7_jmx_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   variables:
     IMAGE_VERSION: tmpl-v6
@@ -38,7 +38,7 @@ docker_trigger_cluster_agent_internal:
       artifacts: false
     - job: docker_build_cluster_agent_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   variables:
     IMAGE_VERSION: tmpl-v2

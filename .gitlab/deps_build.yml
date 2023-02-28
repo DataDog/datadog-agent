@@ -73,14 +73,14 @@
 
 build_clang_x64:
   extends: .build_clang_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
 
 build_clang_arm64:
   extends: .build_clang_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -102,14 +102,14 @@ build_clang_arm64:
 
 build_omnibus-nikos_x64:
   extends: .build_omnibus-nikos_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_x64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_x64$DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_NIKOS_BUILDIMAGES
   tags: ["runner:main"]
   variables:
     ARCH: amd64
 
 build_omnibus-nikos_arm64:
   extends: .build_omnibus-nikos_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_arm64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_arm64$DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_NIKOS_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -130,7 +130,7 @@ build_vcpkg_deps:
       -m 4096M
       -v "$(Get-Location):c:\mnt"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite"
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       C:\mnt\tasks\winbuildscripts\build_vcpkg_deps.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
@@ -138,7 +138,7 @@ build_processed_btfhub_archive:
   rules:
     !reference [.manual]
   stage: deps_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
   script:
     - git clone https://github.com/aquasecurity/btfhub-archive.git

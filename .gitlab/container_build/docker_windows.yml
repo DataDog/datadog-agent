@@ -52,7 +52,7 @@
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS=true
       -v "$(Get-Location):C:\mnt"
-      -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       powershell
       -C C:\mnt\ci-scripts\docker-login.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
