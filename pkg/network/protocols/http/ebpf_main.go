@@ -363,6 +363,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	events.Configure("http", e.Manager.Manager, &options)
 	if e.cfg.EnableHTTP2Monitoring {
 		events.Configure("http2", e.Manager.Manager, &options)
+	} else {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, "socket__http2_filter")
 	}
 
 	return e.InitWithOptions(buf, options)

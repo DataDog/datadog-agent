@@ -258,7 +258,9 @@ func (m *Monitor) Stop() {
 	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
 	m.httpConsumer.Stop()
-	m.http2Consumer.Stop()
+	if m.http2Enabled {
+		m.http2Consumer.Stop()
+	}
 	m.closeFilterFn()
 }
 
