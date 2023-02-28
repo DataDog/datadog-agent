@@ -54,6 +54,8 @@ pull_test_dockers_arm64:
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
+      - $CI_PROJECT_DIR/kitchen_logs
+      - $DD_AGENT_TESTING_DIR/kitchen.yml
 
 .retrieve_test_dockers:
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
