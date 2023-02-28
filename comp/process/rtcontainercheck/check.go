@@ -18,10 +18,6 @@ type check struct {
 	rtContainerCheck *checks.RTContainerCheck
 }
 
-type dependencies struct {
-	fx.In
-}
-
 type result struct {
 	fx.Out
 

@@ -18,10 +18,6 @@ type check struct {
 	processEventsCheck *checks.ProcessEventsCheck
 }
 
-type dependencies struct {
-	fx.In
-}
-
 type result struct {
 	fx.Out
 

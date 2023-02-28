@@ -18,10 +18,6 @@ type check struct {
 	podCheck *checks.PodCheck
 }
 
-type dependencies struct {
-	fx.In
-}
-
 type result struct {
 	fx.Out
 
