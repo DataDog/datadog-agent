@@ -157,7 +157,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	require.NotNil(t, httpReqStats)
 	require.Len(t, httpReqStats.Data, 1)
 	require.NotNil(t, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)])
-	require.Equal(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count)
+	require.Equalf(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count, "%v", httpReqStats)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -893,14 +893,14 @@ func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
-		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg, "7443")
+		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
 	})
 
 	t.Run("already running process (runtime compilation)", func(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
-		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg, "7444")
+		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
 	})
 
 	// note: this is a bit of hack since CI runs an entire package either as
@@ -911,7 +911,7 @@ func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg, "7445")
+		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
 	})
 
 	t.Run("already running process (co-re)", func(t *testing.T) {
@@ -919,7 +919,7 @@ func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg, "7446")
+		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
 	})
 }
 
@@ -993,8 +993,9 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
-func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config, serverPort string) {
+func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
 	const (
+		serverPort          = "8443"
 		expectedOccurrences = 10
 	)
 
@@ -1027,8 +1028,9 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config, 
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
-func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config, serverPort string) {
+func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
 	const (
+		serverPort          = "8443"
 		expectedOccurrences = 10
 	)
 
