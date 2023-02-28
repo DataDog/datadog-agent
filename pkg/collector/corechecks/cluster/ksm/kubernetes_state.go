@@ -659,9 +659,13 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfigWithoutLabelsMap
 // mergeAnnotationsAsTags adds extra annotations as tags to the configured mapping.
 // User-defined annotations as tags are prioritized.
 func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
+	if k.instance.AnnotationsAsTags == nil {
+		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
+	}
 	for resource, mapping := range extra {
 		_, found := k.instance.AnnotationsAsTags[resource]
 		if !found {
+			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
 			k.instance.AnnotationsAsTags[resource] = mapping
 			continue
 		}

@@ -1215,6 +1215,53 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	}
 }
 
+func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		conf     map[string]map[string]string
+		extra    map[string]map[string]string
+		expected map[string]map[string]string
+	}{
+		{
+			name:     "nominal",
+			conf:     make(map[string]map[string]string),
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
+		},
+		{
+			name:     "nil conf",
+			conf:     nil,
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
+		},
+		{
+			name:     "collision",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
+		},
+		{
+			name:     "no collision",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
+		},
+		{
+			name:     "nil extra",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    nil,
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: &KSMConfig{AnnotationsAsTags: tt.conf}}
+			k.mergeAnnotationsAsTags(tt.extra)
+			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.AnnotationsAsTags))
+		})
+	}
+}
+
 var metadataMetrics = []string{
 	"kube_cronjob_info",
 	"kube_job_info",
