@@ -198,7 +198,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
 		if err != nil {
-			log.Debug("Unable to save the current state")
+			log.Warnf("Unable to save the current state. Failed with: %s", err)
 		}
 		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
 		daemon.TellDaemonRuntimeDone()

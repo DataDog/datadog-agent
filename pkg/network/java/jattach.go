@@ -15,12 +15,12 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
-// MINIMUM_JAVA_AGE_MS is the minimum age of a java process to be able to attach it
-// else the java process would crash if he receive the SIGQUIT too early ("Signal Dispatch" thread is not ready)
+// MINIMUM_JAVA_AGE_TO_ATTACH_MS is the minimum age of a java process to be able to attach it
+// else the java process would crash if he receives the SIGQUIT too early ("Signal Dispatch" thread is not ready)
 // In other words that the only reliable safety thing we could check to assume a java process started (System.main execution)
 // Looking a proc/pid/status.Thread numbers is not reliable as it depend on numbers of cores and JRE version/implementation
 //
-// The issue is describe here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
+// The issue is described here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
 // if java received a SIGQUIT and the JVM is not started yet, java will print 'quit (core dumped)'
 // SIGQUIT is sent as part of the hotspot protocol handshake
 const MINIMUM_JAVA_AGE_TO_ATTACH_MS = 10000
