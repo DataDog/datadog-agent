@@ -113,16 +113,11 @@ func (e *Event) Done() {
 	}
 }
 
-func newGauge(name string, help string, tags ...string) telemetry.Gauge {
-	return telemetry.NewGauge(telemetryModuleName, name,
-		append([]string{}, tags...), help)
-}
-
 // Telemetry
 var (
 	enobufs     = newGauge("enobufs", "description")
 	throttles   = newGauge("throttles", "description")
-	samplingPct = nettelemetry.NewStatGaugeWrapper(telemetryModuleName, "sampling_pct", []string{}, "description")
+	samplingPct = newGaugeWrapper("sampling_pct", "description")
 	readErrors  = newGauge("read_errors", "description")
 	msgErrors   = newGauge("msg_errors", "description")
 )

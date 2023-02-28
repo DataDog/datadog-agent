@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -88,10 +89,15 @@ func newGaugeWrapper(name string, help string, tags ...string) nettelemetry.Stat
 		append([]string{}, tags...), help)
 }
 
+func newGauge(name string, help string, tags ...string) telemetry.Gauge {
+	return telemetry.NewGauge(telemetryModuleName, name,
+		append([]string{}, tags...), help)
+}
+
 var (
 	gets                     = newGaugeWrapper("gets_total", "description")
 	registers                = newGaugeWrapper("registers_total", "description")
-	evicts                   = newGaugeWrapper("evicts_total", "description")
+	evictsTotal              = newGaugeWrapper("evicts_total", "description")
 	nanoSecondsPerGet        = newGauge("nanoseconds_per_get", "description")
 	nanoSecondsPerRegister   = newGauge("nanoseconds_per_register", "description")
 	nanoSecondsPerUnRegister = newGauge("nanoseconds_per_unregister", "description")
@@ -253,10 +259,10 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 				continue
 			}
 
-			ev := ctr.cache.Add(c, false)
+			evicts := ctr.cache.Add(c, false)
 			registers.Inc()
 			ctr.setNanosPerRegister()
-			evicts.Add(int64(ev))
+			evictsTotal.Add(int64(evicts))
 		}
 	}
 }
@@ -275,11 +281,11 @@ func (ctr *realConntracker) register(c Con) int {
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	ev := ctr.cache.Add(c, true)
+	evicts := ctr.cache.Add(c, true)
 
 	registers.Inc()
 	ctr.setNanosPerRegister()
-	evicts.Add(int64(ev))
+	evictsTotal.Add(int64(evicts))
 	ctr.stats.registersTotalTime.Add(time.Now().UnixNano() - then)
 
 	return 0

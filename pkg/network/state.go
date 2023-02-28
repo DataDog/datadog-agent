@@ -110,19 +110,6 @@ type stateTelemetry struct {
 	dnsPidCollisions      int64
 }
 
-// func newTelemetry() stateTelemetry {
-// 	return stateTelemetry{
-// 		closedConnDropped:     nettelemetry.NewStatGaugeWrapper(stateModuleName, "closed_conn_dropped", []string{}, "desc"),
-// 		connDropped:           nettelemetry.NewStatGaugeWrapper(stateModuleName, "conn_dropped", []string{}, "desc"),
-// 		statsUnderflows:       nettelemetry.NewStatGaugeWrapper(stateModuleName, "stats_underflows", []string{}, "desc"),
-// 		statsCookieCollisions: nettelemetry.NewStatGaugeWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "desc"),
-// 		timeSyncCollisions:    nettelemetry.NewStatGaugeWrapper(stateModuleName, "time_sync_collisions", []string{}, "desc"),
-// 		dnsStatsDropped:       nettelemetry.NewStatGaugeWrapper(stateModuleName, "dns_stats_dropped", []string{}, "desc"),
-// 		httpStatsDropped:      nettelemetry.NewStatGaugeWrapper(stateModuleName, "http_stats_dropped", []string{}, "desc"),
-// 		dnsPidCollisions:      nettelemetry.NewStatGaugeWrapper(stateModuleName, "dns_pid_collisions", []string{}, "desc"),
-// 	}
-// }
-
 const minClosedCapacity = 1024
 
 type client struct {
@@ -182,8 +169,7 @@ type networkState struct {
 // NewState creates a new network state
 func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int) State {
 	return &networkState{
-		clients: map[string]*client{},
-		// telemetry:      stateTelemetry{},
+		clients:        map[string]*client{},
 		clientExpiry:   clientExpiry,
 		maxClosedConns: maxClosedConns,
 		maxClientStats: maxClientStats,

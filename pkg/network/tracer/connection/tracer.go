@@ -326,10 +326,6 @@ func removeConnection(conn *network.ConnectionStats) {
 	}
 }
 
-// func (t *tracerTelemetry) get() map[string]interface{} {
-// 	return atomicstats.Report(t)
-// }
-
 func (t *tracer) Remove(conn *network.ConnectionStats) error {
 	t.removeTuple.Sport = conn.SPort
 	t.removeTuple.Dport = conn.DPort

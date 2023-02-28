@@ -128,7 +128,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 
 	p := pc.processEvent(entry)
 	if p == nil {
-		eventsSkipped.Add(1)
+		eventsSkipped.Inc()
 		return
 	}
 
@@ -136,7 +136,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	case pc.in <- p:
 	default:
 		// dropped
-		eventsDropped.Add(1)
+		eventsDropped.Inc()
 	}
 }
 
@@ -200,7 +200,7 @@ func (pc *processCache) add(p *process) {
 	pc.cacheByPid[p.Pid] = pl.update(p)
 
 	if evicted {
-		cacheEvicts.Add(1)
+		cacheEvicts.Inc()
 	}
 }
 

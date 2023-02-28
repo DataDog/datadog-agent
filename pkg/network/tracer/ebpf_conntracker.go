@@ -340,7 +340,6 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 
 func (e *ebpfConntracker) RefreshTelemetry() {
 	for {
-
 		if registers, err := e.getEbpfTelemetry(); err != nil {
 			log.Tracef("error retrieving the telemetry struct: %s", err)
 		} else {

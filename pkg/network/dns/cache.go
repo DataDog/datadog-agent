@@ -108,7 +108,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	var (
 		resolved   = make(map[util.Address][]Hostname)
 		unresolved = make(map[util.Address]struct{})
-		oversize   = make(map[util.Address]struct{})
+		oversized          = make(map[util.Address]struct{})
 	)
 
 	collectNamesForIP := func(addr util.Address) {
@@ -120,7 +120,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 			return
 		}
 
-		if _, ok := oversize[addr]; ok {
+		if _, ok := oversized[addr]; ok {
 			return
 		}
 
@@ -128,7 +128,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 		if len(names) == 0 {
 			unresolved[addr] = struct{}{}
 		} else if len(names) == c.maxDomainsPerIP {
-			oversize[addr] = struct{}{}
+			oversized[addr] = struct{}{}
 		} else {
 			resolved[addr] = names
 		}
@@ -141,7 +141,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	// Update stats for telemetry
 	lookups.Add(float64((len(resolved) + len(unresolved))))
 	resolved_tel.Add(float64(len(resolved)))
-	oversized_tel.Add(float64(len(oversize)))
+	oversized_tel.Add(float64(len(oversized)))
 
 	return resolved
 }
