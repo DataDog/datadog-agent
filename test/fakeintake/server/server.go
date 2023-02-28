@@ -100,13 +100,18 @@ func (fi *Server) Start() {
 		if err != nil {
 			fmt.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
 
-			fi.ready <- false
+			if fi.ready != nil {
+				fi.ready <- false
+			}
 
 			return
 		}
 		fi.url = "http://" + listener.Addr().String()
-		// notify server is ready
-		fi.ready <- true
+		// notify server is ready, if anybody is listening
+		if fi.ready != nil {
+			fi.ready <- true
+		}
+		log.Print("Really starting now")
 		// server.Serve blocks and listens to requests
 		err = fi.server.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
@@ -122,7 +127,15 @@ func (fi *Server) URL() string {
 
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
-	return fi.server.Shutdown(context.Background())
+	if fi.URL() == "" {
+		return fmt.Errorf("server not running")
+	}
+	err := fi.server.Shutdown(context.Background())
+	if err != nil {
+		return err
+	}
+	fi.url = ""
+	return nil
 }
 
 type postPayloadResponse struct {
