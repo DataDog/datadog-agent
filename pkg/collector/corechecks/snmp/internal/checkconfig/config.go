@@ -63,8 +63,8 @@ type DeviceDigest string
 type InterfaceConfig struct {
 	MatchField string `yaml:"match_field"` // e.g. name, index
 	MatchValue string `yaml:"match_value"` // e.g. eth0 (name), 10 (index)
-	InSpeed    uint64 `yaml:"in_speed"`    // inbound speed override in bps
-	OutSpeed   uint64 `yaml:"out_speed"`   // outbound speed override in bps
+	InSpeed    uint64 `yaml:"in_speed"`    // inbound speed override in bits per sec
+	OutSpeed   uint64 `yaml:"out_speed"`   // outbound speed override in bits per sec
 }
 
 // InitConfig is used to deserialize integration init config
