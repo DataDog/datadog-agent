@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+// +build linux
+
 package encoding
 
 import (
@@ -12,9 +15,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
-func TestFormatProtocols(t *testing.T) {
+func TestFormatTLSProtocols(t *testing.T) {
 	tests := []struct {
 		name       string
 		protocol   network.ProtocolType
@@ -22,71 +26,42 @@ func TestFormatProtocols(t *testing.T) {
 		want       *model.ProtocolStack
 	}{
 		{
-			name:     "unknown protocol",
-			protocol: network.ProtocolUnknown,
+			name:       "GnuTLS - unknown protocol",
+			protocol:   network.ProtocolUnknown,
+			staticTags: http.GnuTLS,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolTLS,
 					model.ProtocolType_protocolUnknown,
 				},
 			},
 		},
 		{
-			name:     "unclassified protocol",
-			protocol: network.ProtocolUnclassified,
+			name:       "OpenSSL - HTTP protocol",
+			protocol:   network.ProtocolHTTP,
+			staticTags: http.OpenSSL,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
-					model.ProtocolType_protocolUnknown,
-				},
-			},
-		},
-		{
-			name:     "http protocol",
-			protocol: network.ProtocolHTTP,
-			want: &model.ProtocolStack{
-				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolTLS,
 					model.ProtocolType_protocolHTTP,
 				},
 			},
 		},
 		{
-			name:     "kafka protocol",
-			protocol: network.ProtocolKafka,
+			name:       "GoTLS - MySQL protocol",
+			protocol:   network.ProtocolMySQL,
+			staticTags: http.Go,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
-					model.ProtocolType_protocolKafka,
+					model.ProtocolType_protocolTLS,
+					model.ProtocolType_protocolMySQL,
 				},
 			},
 		},
 		{
-			name:     "amqp protocol",
-			protocol: network.ProtocolAMQP,
-			want: &model.ProtocolStack{
-				Stack: []model.ProtocolType{
-					model.ProtocolType_protocolAMQP,
-				},
-			},
-		},
-		{
-			name:     "redis protocol",
-			protocol: network.ProtocolRedis,
-			want: &model.ProtocolStack{
-				Stack: []model.ProtocolType{
-					model.ProtocolType_protocolRedis,
-				},
-			},
-		},
-		{
-			name:     "mongo protocol",
-			protocol: network.ProtocolMongo,
-			want: &model.ProtocolStack{
-				Stack: []model.ProtocolType{
-					model.ProtocolType_protocolMongo,
-				},
-			},
-		},
-		{
-			name:     "mysql protocol",
-			protocol: network.ProtocolMySQL,
+			name:       "Unknown static tags - MySQL protocol",
+			protocol:   network.ProtocolMySQL,
+			staticTags: 1 << 10,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolMySQL,

@@ -27,7 +27,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+type monitorState = string
+
+const (
+	Disabled   monitorState = "Disabled"
+	Running    monitorState = "Running"
+	NotRunning monitorState = "Not Running"
+)
+
 var (
+	state        = Disabled
 	startupError error
 )
 
@@ -58,13 +67,15 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
+			state = NotRunning
 			err = fmt.Errorf("could not instantiate http monitor: %w", err)
 			startupError = err
 		}
 	}()
 
 	if !c.EnableHTTPMonitoring {
-		return nil, fmt.Errorf("http monitoring is disabled")
+		state = Disabled
+		return nil, nil
 	}
 
 	kversion, err := kernel.HostVersion()
@@ -105,6 +116,8 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
+
+	state = Running
 
 	httpMonitor := &Monitor{
 		ebpfProgram:    mgr,
@@ -180,14 +193,19 @@ func (m *Monitor) Start() error {
 }
 
 func (m *Monitor) GetUSMStats() map[string]interface{} {
-	if m == nil {
-		return map[string]interface{}{
-			"Error": startupError.Error(),
-		}
+	response := map[string]interface{}{
+		"state": state,
 	}
-	return map[string]interface{}{
-		"last_check": m.telemetry.then,
+
+	if startupError != nil {
+		response["error"] = startupError.Error()
 	}
+
+	if m != nil {
+		response["last_check"] = m.telemetry.then
+	}
+
+	return response
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
