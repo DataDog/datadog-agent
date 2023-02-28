@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	go_ora "github.com/sijms/go-ora/v2"
 )
 
 // Check represents one Oracle instance check.
@@ -62,7 +63,9 @@ func (c *Check) Run() error {
 
 	if c.dbmEnabled {
 		err = c.SampleSession()
-		return log.Errorf("Sampling session: %v", err)
+		if err != nil {
+			return log.Errorf("Sampling session: %v", err)
+		}
 	}
 
 	return nil
@@ -72,15 +75,34 @@ func (c *Check) Run() error {
 func (c *Check) Connect() (*sqlx.DB, error) {
 
 	var connStr string
+	var oracleDriver string
 	if c.config.TnsAlias != "" {
 		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, c.config.Username, c.config.Password, c.config.TnsAlias)
+		oracleDriver = "godror"
 	} else {
-		connStr = fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
+		//godror ezconnect string
+		if c.config.InstanceConfig.UseGodrorWithEZConnect {
+			oracleDriver = "godror"
+			connStr = fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
+		} else {
+			oracleDriver = "oracle"
+			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{})
+		}
+
+		//connStr = fmt.Sprintf("oracle://%s:%s@%s:%d/%s", c.config.Username, c.config.Password, c.config.Server, c.config.Port, c.config.ServiceName)
 	}
 
-	db, err := sqlx.Open("godror", connStr)
+	log.Tracef("Connect string: %s", connStr)
+
+	//db, err := sqlx.Open("godror", connStr)
+	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
 		log.Errorf("Failed to connect to Oracle instance | err=[%s]", err)
+		return nil, err
+	}
+	err = db.Ping()
+	if err != nil {
+		log.Errorf("Failed to ping to Oracle instance | err=[%s]", err)
 		return nil, err
 	}
 	return db, nil

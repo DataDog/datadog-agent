@@ -1,7 +1,6 @@
 package oracle
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -13,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/godror/godror"
 )
 
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
@@ -27,7 +25,7 @@ type ActivitySnapshot struct {
 	OracleActivityRows []OracleActivityRow `json:"oracle_activity,omitempty"`
 }
 
-const ACTIVITY_QUERY = `SELECT 
+const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 	sid,
 	serial#,
 	username,
@@ -79,7 +77,7 @@ const ACTIVITY_QUERY = `SELECT
 	pdb_name
 FROM sys.dd_session
 WHERE 
-	( module != 'datadog agent' AND action != 'session sampling' OR module is null OR action is null) 
+	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL ) 
 	AND (
 		NOT (state = 'WAITING' AND wait_class = 'Idle')
 		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
@@ -141,13 +139,15 @@ func (c *Check) SampleSession() error {
 	start := time.Now()
 
 	sessionSamples := []OracleActivityRow{}
-	// err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
+	err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
 
-	err := c.db.SelectContext(
-		godror.ContextWithTraceTag(context.Background(), godror.TraceTag{
-			Module: "datadog agent",
-			Action: "session sampling",
-		}), &sessionSamples, ACTIVITY_QUERY)
+	/*
+		err := c.db.SelectContext(
+			godror.ContextWithTraceTag(context.Background(), godror.TraceTag{
+				Module: "datadog agent",
+				Action: "session sampling",
+			}), &sessionSamples, ACTIVITY_QUERY)
+	*/
 
 	if err != nil {
 		log.Errorf("Session sampling ", err)
@@ -157,7 +157,7 @@ func (c *Check) SampleSession() error {
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	if c.config.ObfuscatorOn {
 		for i, sample := range sessionSamples {
-			if *sample.SqlText != "" {
+			if sample.SqlText != nil && *sample.SqlText != "" {
 				obfuscatedQuery, err := o.ObfuscateSQLString(*sample.SqlText)
 				if err != nil {
 					error_text := fmt.Sprintf("query obfuscation failed for SQL_ID: %s", *sample.SqlID)
