@@ -84,7 +84,7 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 	}
 
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
-		collectorConfig.ArtifactOption.OnlyDirs = []string{"/etc", "/var/lib/dpkg", "/var/lib/rpm", "/lib/apk"}
+		collectorConfig.ArtifactOption.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
 	}
 
 	return collectorConfig
