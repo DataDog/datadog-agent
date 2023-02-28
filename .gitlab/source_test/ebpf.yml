@@ -63,7 +63,7 @@
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}$Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX:$Env:DATADOG_AGENT_WINBUILDIMAGES
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\sysprobe.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   artifacts:
