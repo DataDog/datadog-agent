@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,7 +19,7 @@ import (
 
 // Telemetry
 var (
-	length        = nettelemetry.NewStatGaugeWrapper(dnsModuleName, "length", []string{}, "description")
+	length        = telemetry.NewGauge(dnsModuleName, "length", []string{}, "description")
 	lookups       = telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "description")
 	resolved_tel  = telemetry.NewGauge(dnsModuleName, "resolved", []string{}, "description")
 	added         = telemetry.NewGauge(dnsModuleName, "added", []string{}, "description")
@@ -88,7 +87,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	}
 
 	// Update cache length for telemetry purposes
-	length.Set(int64((len(c.data))))
+	length.Set(float64((len(c.data))))
 
 	return true
 }
@@ -108,7 +107,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	var (
 		resolved   = make(map[util.Address][]Hostname)
 		unresolved = make(map[util.Address]struct{})
-		oversized          = make(map[util.Address]struct{})
+		oversized  = make(map[util.Address]struct{})
 	)
 
 	collectNamesForIP := func(addr util.Address) {
@@ -147,7 +146,7 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 }
 
 func (c *reverseDNSCache) Len() int {
-	return int(length.Load())
+	return len(c.data)
 }
 
 func (c *reverseDNSCache) Close() {
@@ -178,7 +177,7 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	c.mux.Unlock()
 
 	expired_tel.Set(float64(expired))
-	length.Set(int64(total))
+	length.Set(float64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Now().Sub(now), total, expired,
