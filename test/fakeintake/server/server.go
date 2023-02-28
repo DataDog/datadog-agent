@@ -90,6 +90,9 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 func (fi *Server) Start() {
 	if fi.URL() != "" {
 		fmt.Printf("Fake intake alredy running at %s", fi.URL())
+		if fi.ready != nil {
+			fi.ready <- true
+		}
 		return
 	}
 	go func() {
@@ -111,7 +114,6 @@ func (fi *Server) Start() {
 		if fi.ready != nil {
 			fi.ready <- true
 		}
-		log.Print("Really starting now")
 		// server.Serve blocks and listens to requests
 		err = fi.server.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
