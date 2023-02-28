@@ -231,7 +231,7 @@ func TestOffsetGuess(t *testing.T) {
 	for o := offsetSaddr; o < offsetMax; o++ {
 		switch o {
 		case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
-			if kprobe.ClassificationSupported(cfg) {
+			if !kprobe.ClassificationSupported(cfg) {
 				continue
 			}
 		case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:
