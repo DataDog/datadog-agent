@@ -138,7 +138,9 @@ func NewCollector(collectorConfig CollectorConfig) (Collector, error) {
 
 func (c *collector) Close() error {
 	if c.config.ClearCacheOnClose {
-		return c.cache.Clear()
+		if err := c.cache.Clear(); err != nil {
+			return fmt.Errorf("error when clearing trivy cache: %w", err)
+		}
 	}
 
 	return c.cache.Close()

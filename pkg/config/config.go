@@ -1118,6 +1118,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
 	config.BindEnvAndSetDefault("container_image_collection.sbom.clear_cache_on_exit", true)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_ttl", 60*60) // Integer seconds. Only used with Badger
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
