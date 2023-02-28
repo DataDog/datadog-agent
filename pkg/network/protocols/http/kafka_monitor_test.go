@@ -14,7 +14,6 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -68,10 +67,11 @@ type kafkaParsingTestAttributes struct {
 	configuration func() *config.Config
 }
 
-func skipIfNotLinux(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("test is supported on linux machine only")
-	}
+type kafkaParsingValidation struct {
+	expectedNumberOfProduceRequests int
+	expectedNumberOfFetchRequests   int
+	expectedApiVersionProduce       int
+	expectedApiVersionFetch         int
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
@@ -83,7 +83,6 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 }
 
 func TestKafkaProtocolParsing(t *testing.T) {
-	skipIfNotLinux(t)
 	skipTestIfKernelNotSupported(t)
 
 	clientHost := "localhost"
@@ -162,7 +161,12 @@ func TestKafkaProtocolParsing(t *testing.T) {
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
 
 				// kgo client is sending an extra fetch request before running the test, so double the expected fetch request
-				validateProduceFetchCount(t, kafkaStats, topicName, 2, 4, 8, 11)
+				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+					expectedNumberOfProduceRequests: 2,
+					expectedNumberOfFetchRequests:   4,
+					expectedApiVersionProduce:       8,
+					expectedApiVersionFetch:         11,
+				})
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -199,7 +203,12 @@ func TestKafkaProtocolParsing(t *testing.T) {
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
 
-				validateProduceFetchCount(t, kafkaStats, topicName, 2, 0, 5, 0)
+				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+					expectedNumberOfProduceRequests: 2,
+					expectedNumberOfFetchRequests:   0,
+					expectedApiVersionProduce:       5,
+					expectedApiVersionFetch:         0,
+				})
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -238,7 +247,12 @@ func TestKafkaProtocolParsing(t *testing.T) {
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
-				validateProduceFetchCount(t, kafkaStats, topicName, numberOfIterations*2, 0, 8, 0)
+				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+					expectedNumberOfProduceRequests: numberOfIterations * 2,
+					expectedNumberOfFetchRequests:   0,
+					expectedApiVersionProduce:       8,
+					expectedApiVersionFetch:         0,
+				})
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -298,7 +312,13 @@ func TestKafkaProtocolParsing(t *testing.T) {
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
-				validateProduceFetchCount(t, kafkaStats, topicName, 2, 0, 8, 0)
+				validateProduceFetchCount(t, kafkaStats, topicName,
+					kafkaParsingValidation{
+						expectedNumberOfProduceRequests: 2,
+						expectedNumberOfFetchRequests:   0,
+						expectedApiVersionProduce:       8,
+						expectedApiVersionFetch:         0,
+					})
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -370,27 +390,28 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 	return kafkaStats
 }
 
-func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.RequestStat, topicName string,
-	expectedNumberOfProduceRequests, expectedNumberOfFetchRequests, expectedApiVersionProduce, expectedApiVersionFetch int) {
+func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.RequestStat, topicName string, validation kafkaParsingValidation) {
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
 		require.Equal(t, topicName, kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
-			require.Equal(t, uint16(expectedApiVersionProduce), kafkaKey.RequestVersion)
+			require.Equal(t, uint16(validation.expectedApiVersionProduce), kafkaKey.RequestVersion)
 			numberOfProduceRequests += kafkaStat.Count
 			break
 		case kafka.FetchAPIKey:
-			require.Equal(t, uint16(expectedApiVersionFetch), kafkaKey.RequestVersion)
+			require.Equal(t, uint16(validation.expectedApiVersionFetch), kafkaKey.RequestVersion)
 			numberOfFetchRequests += kafkaStat.Count
 			break
 		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
 	}
-	require.Equal(t, expectedNumberOfProduceRequests, numberOfProduceRequests, "Expected %d produce requests but got %d", expectedNumberOfProduceRequests, numberOfProduceRequests)
-	require.Equal(t, expectedNumberOfFetchRequests, numberOfFetchRequests, "Expected %d produce requests but got %d", expectedNumberOfFetchRequests, numberOfFetchRequests)
+	require.Equal(t, validation.expectedNumberOfProduceRequests, numberOfProduceRequests,
+		"Expected %d produce requests but got %d", validation.expectedNumberOfProduceRequests, numberOfProduceRequests)
+	require.Equal(t, validation.expectedNumberOfFetchRequests, numberOfFetchRequests,
+		"Expected %d produce requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
 }
 
 func testProtocolParsingInner(t *testing.T, params kafkaParsingTestAttributes, cfg *config.Config) {
