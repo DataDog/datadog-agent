@@ -727,9 +727,9 @@ def kitchen_genconfig(
     if not arch:
         arch = CURRENT_ARCH
 
-    if arch == "x64" or arch == "x86_64":
+    if arch_mapping[arch] == "x64":
         arch = "x86_64"
-    elif arch == "arm64":
+    elif arch_mapping[arch] == "arm64":
         arch = "arm64"
     else:
         raise Exit("unsupported arch specified")
