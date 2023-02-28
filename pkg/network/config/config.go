@@ -289,7 +289,6 @@ func New() *Config {
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		EnableKafkaMonitoring: cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
@@ -408,7 +407,6 @@ func New() *Config {
 	}
 
 	if c.DataStreamsEnabled {
-		cfg.Set(join(smNS, "enable_kafka_monitoring"), true)
 		c.EnableKafkaMonitoring = true
 	}
 

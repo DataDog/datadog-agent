@@ -135,25 +135,14 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
-func TestEnableKafkaMonitoring(t *testing.T) {
+func TestEnableDataStreams(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableKafka.yaml")
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDataStreams.yaml")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableKafkaMonitoring)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_KAFKA_MONITORING", "true")
-
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.EnableKafkaMonitoring)
+		assert.True(t, cfg.DataStreamsEnabled)
 	})
 }
 

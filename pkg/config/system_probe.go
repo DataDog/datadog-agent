@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	spNS   = "system_probe_config"
-	netNS  = "network_config"
-	smNS   = "service_monitoring_config"
-	evNS   = "event_monitoring_config"
-	smjtNS = smNS + ".java_tls"
-
+	spNS                         = "system_probe_config"
+	netNS                        = "network_config"
+	smNS                         = "service_monitoring_config"
+	dataStreamsNamespace         = "data_streams_config"
+	evNS                         = "event_monitoring_config"
+	smjtNS                       = smNS + ".java_tls"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
@@ -169,8 +169,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
-	cfg.BindEnv(join(smNS, "enable_kafka_monitoring"))
-
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
@@ -214,6 +212,9 @@ func InitSystemProbeConfig(cfg Config) {
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
+
+	// data streams
+	cfg.BindEnvAndSetDefault(join(dataStreamsNamespace, "enabled"), false, "DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED")
 
 	// event monitoring
 	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
