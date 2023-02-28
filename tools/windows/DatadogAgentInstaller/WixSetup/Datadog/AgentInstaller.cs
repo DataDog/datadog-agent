@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using Datadog.CustomActions;
+using Microsoft.Deployment.WindowsInstaller;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -50,7 +52,7 @@ namespace WixSetup.Datadog
 
         public Project ConfigureProject()
         {
-            var project = new Project("Datadog Agent",
+            var project = new ManagedProject("Datadog Agent",
                 new User
                 {
                     // CreateUser fails with ERROR_BAD_USERNAME if Name is a fully qualified user name
@@ -108,7 +110,8 @@ namespace WixSetup.Datadog
                     Win64 = true
                 },
                 new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
-            )
+            );
+            project
             .SetCustomActions(_agentCustomActions)
             .SetProjectInfo(
                 upgradeCode: ProductUpgradeCode,
@@ -149,10 +152,10 @@ namespace WixSetup.Datadog
                     }
                 ),
                 new Dir("logs")
-            )
+            );
+
             // enable the ability to repair the installation even when the original MSI is no longer available.
-            //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008 R2
-            ;
+            project.EnableResilientPackage();
 
             // Set this explicitly to false so that we're not tempted to set it to true
             // in the future. This flag causes Wix to ignore the fourth product version,
@@ -161,8 +164,9 @@ namespace WixSetup.Datadog
             project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
             project.ReinstallMode = "amus";
             project.Platform = Platform.x64;
-            // MSI 4.0+ required
-            project.InstallerVersion = 400;
+            // MSI 5.0 was shipped in Windows Server 2012 R2.
+            // https://learn.microsoft.com/en-us/windows/win32/msi/released-versions-of-windows-installer
+            project.InstallerVersion = 500;
             project.DefaultFeature = _agentFeatures.MainApplication;
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;
