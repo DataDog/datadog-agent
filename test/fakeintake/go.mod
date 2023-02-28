@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 )
 
 require (

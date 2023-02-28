@@ -14,7 +14,7 @@ require (
 	github.com/containerd/cgroups v1.0.4
 	github.com/google/go-cmp v0.5.8
 	github.com/karrick/godirwalk v1.17.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 )
 
 require (
