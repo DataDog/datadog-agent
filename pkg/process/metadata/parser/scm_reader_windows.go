@@ -21,7 +21,7 @@ type mockableSCM interface {
 	GetServiceInfo(pid uint64) (*winutil.ServiceInfo, error)
 }
 
-// scmReader is a cross-platform compatability wrapper around `winutil.SCMMonitor`.
+// scmReader is a cross-platform compatibility wrapper around `winutil.SCMMonitor`.
 // The non-windows version does nothing, and instead only exists so that we don't get compile errors.
 type scmReader struct {
 	scmMonitor mockableSCM

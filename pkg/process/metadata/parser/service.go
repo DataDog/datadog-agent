@@ -44,7 +44,6 @@ var _ metadata.Extractor = &ServiceExtractor{}
 // ServiceExtractor infers a service tag by extracting it from a process
 type ServiceExtractor struct {
 	enabled               bool
-	scmScrapingEnabled    bool
 	useWindowsServiceName bool
 	serviceByPID          map[int32]*serviceMetadata
 	scmReader             *scmReader

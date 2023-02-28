@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 var (
@@ -55,7 +54,6 @@ type ConnectionsCheck struct {
 	processData      *ProcessData
 
 	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
-	scmMonitor                  *winutil.SCMMonitor
 }
 
 // ProcessConnRates describes connection rates for processes
