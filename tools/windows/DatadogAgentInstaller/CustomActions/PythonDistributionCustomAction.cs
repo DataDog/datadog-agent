@@ -78,28 +78,19 @@ namespace Datadog.CustomActions
                         $"Decompressing {pythonDistributionName} distribution",
                         ""
                     );
-                    if (session.Message(InstallMessage.ActionStart, actionRecord) != MessageResult.OK)
-                    {
-                        throw new Exception("Could not set the progress bar template");
-                    }
+                    session.Message(InstallMessage.ActionStart, actionRecord);
 
                     {
                         using var record = new Record(MessageRecordFields.ActionInfo,
                             0,  // Number of ticks the progress bar moves for each ActionData message. This field is ignored if Field 3 is 0.
                             0   // The current action will send explicit ProgressReport messages.
                             );
-                        if (session.Message(InstallMessage.Progress, record) != MessageResult.OK)
-                        {
-                            throw new Exception("Could not set the progress bar properties");
-                        }
+                        session.Message(InstallMessage.Progress, record);
                     }
                     Decompress(embedded);
                     {
                         using var record = new Record(MessageRecordFields.ProgressReport, pythonDistributionSize);
-                        if (session.Message(InstallMessage.Progress, record) != MessageResult.OK)
-                        {
-                            throw new Exception("Could not set the progress bar properties");
-                        }
+                        session.Message(InstallMessage.Progress, record);
                     }
                 }
                 else

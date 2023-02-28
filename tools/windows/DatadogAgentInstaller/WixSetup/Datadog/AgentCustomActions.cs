@@ -255,7 +255,7 @@ namespace WixSetup.Datadog
             // step.
             ReportInstallSuccess = new CustomAction<Telemetry>(
                 new Id(nameof(ReportInstallSuccess)),
-                Telemetry.ReportFailure,
+                Telemetry.ReportSuccess,
                 Return.ignore,
                 When.After,
                 Step.InstallFinalize,

@@ -2,6 +2,7 @@ using System;
 using Microsoft.Deployment.WindowsInstaller;
 using System.Collections.Generic;
 using System.Reflection;
+using Datadog.CustomActions.Extensions;
 
 namespace Datadog.CustomActions
 {
@@ -27,8 +28,8 @@ namespace Datadog.CustomActions
 
         public void ReportTelemetry(string eventName)
         {
-            var apikey = _session["APIKEY"];
-            var site = _session["SITE"];
+            var apikey = _session.Property("APIKEY");
+            var site = _session.Property("SITE");
             if (string.IsNullOrEmpty(site))
             {
                 site = DefaultSite;
