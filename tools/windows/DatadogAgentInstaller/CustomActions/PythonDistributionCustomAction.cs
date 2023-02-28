@@ -1,15 +1,38 @@
 using Microsoft.Deployment.WindowsInstaller;
 using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using Cave.Compression.Tar;
 using Datadog.CustomActions.Extensions;
 using System.Text;
+using ICSharpCode.SharpZipLib.Tar;
 
 namespace Datadog.CustomActions
 {
     public class PythonDistributionCustomAction
     {
+        public static class MessageRecordFields
+        {
+            /// <summary>
+            /// Resets progress bar and sets the expected total number of ticks in the bar.
+            /// </summary>
+            public const int MasterReset = 0;
+
+            /// <summary>
+            /// Provides information related to progress messages to be sent by the current action.
+            /// </summary>
+            public const int ActionInfo = 1;
+
+            /// <summary>
+            /// Increments the progress bar.
+            /// </summary>
+            public const int ProgressReport = 1;
+
+            /// <summary>
+            /// Enables an action (such as CustomAction) to add ticks to the expected total number of progress of the progress bar.
+            /// </summary>
+            public const int ProgressAddition = 1;
+        }
+
         static void Decompress(string compressedFileName)
         {
             var decoder = new SevenZip.Compression.LZMA.Decoder();
@@ -26,28 +49,58 @@ namespace Datadog.CustomActions
                     outStream.Flush();
                 }
             }
-
-
             var outputPath = Path.GetDirectoryName(Path.GetFullPath(compressedFileName));
             using (var inStream = File.OpenRead($"{compressedFileName}.tar"))
-            using (var tarInStream = new TarReader(inStream, false))
+            using (var tarArchive = TarArchive.CreateInputTarArchive(inStream, Encoding.UTF8))
             {
-                tarInStream.UnpackTo(outputPath, null, null);
+                tarArchive.ExtractContents(outputPath);
             }
             File.Delete($"{compressedFileName}.tar");
             File.Delete($"{compressedFileName}");
         }
 
-        private static ActionResult DecompressPythonDistribution(ISession session, string compressedDisitributionFile)
+        private static ActionResult DecompressPythonDistribution(
+            ISession session,
+            string compressedDistributionFile,
+            string pythonDistributionName,
+            int pythonDistributionSize)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
 
             try
             {
-                var embedded = Path.Combine(projectLocation, compressedDisitributionFile);
+                var embedded = Path.Combine(projectLocation, compressedDistributionFile);
+
                 if (File.Exists(embedded))
                 {
+                    using var actionRecord = new Record(
+                        "Decompress Python distribution",
+                        $"Decompressing {pythonDistributionName} distribution",
+                        ""
+                    );
+                    if (session.Message(InstallMessage.ActionStart, actionRecord) != MessageResult.OK)
+                    {
+                        throw new Exception("Could not set the progress bar template");
+                    }
+
+                    {
+                        using var record = new Record(MessageRecordFields.ActionInfo,
+                            0,  // Number of ticks the progress bar moves for each ActionData message. This field is ignored if Field 3 is 0.
+                            0   // The current action will send explicit ProgressReport messages.
+                            );
+                        if (session.Message(InstallMessage.Progress, record) != MessageResult.OK)
+                        {
+                            throw new Exception("Could not set the progress bar properties");
+                        }
+                    }
                     Decompress(embedded);
+                    {
+                        using var record = new Record(MessageRecordFields.ProgressReport, pythonDistributionSize);
+                        if (session.Message(InstallMessage.Progress, record) != MessageResult.OK)
+                        {
+                            throw new Exception("Could not set the progress bar properties");
+                        }
+                    }
                 }
                 else
                 {
@@ -61,7 +114,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"Error while decompressing {compressedDisitributionFile}: {e}");
+                session.Log($"Error while decompressing {compressedDistributionFile}: {e}");
                 return ActionResult.Failure;
             }
 
@@ -70,18 +123,69 @@ namespace Datadog.CustomActions
 
         private static ActionResult DecompressPythonDistributions(ISession session)
         {
-            var actionResult = DecompressPythonDistribution(session, "embedded2.COMPRESSED");
+            int size = 0;
+            var embedded2Size = session.Property("embedded2_SIZE");
+            if (!string.IsNullOrEmpty(embedded2Size))
+            {
+                size = int.Parse(embedded2Size);
+            }
+            var actionResult = DecompressPythonDistribution(session, "embedded2.COMPRESSED", "Python 2", size);
             if (actionResult != ActionResult.Success)
             {
                 return actionResult;
             }
-            return DecompressPythonDistribution(session, "embedded3.COMPRESSED");
+            var embedded3Size = session.Property("embedded3_SIZE");
+            if (!string.IsNullOrEmpty(embedded3Size))
+            {
+                size  = int.Parse(embedded3Size);
+            }
+            return DecompressPythonDistribution(session, "embedded3.COMPRESSED", "Python 3", size);
         }
 
         [CustomAction]
         public static ActionResult DecompressPythonDistributions(Session session)
         {
             return DecompressPythonDistributions(new SessionWrapper(session));
+        }
+
+        private static ActionResult PrepareDecompressPythonDistributions(ISession session)
+        {
+            try
+            {
+                int total = 0;
+                var embedded2Size = session.Property("embedded2_SIZE");
+                if (!string.IsNullOrEmpty(embedded2Size))
+                {
+                    total += int.Parse(embedded2Size);
+                }
+                var embedded3Size = session.Property("embedded3_SIZE");
+                if (!string.IsNullOrEmpty(embedded3Size))
+                {
+                    total += int.Parse(embedded3Size);
+                }
+                // Add embedded Python size to the progress bar size
+                // Even though we can't record accurate progress, it will look like it's
+                // moving every time we decompress a Python distribution.
+                using var record = new Record(MessageRecordFields.ProgressAddition, total);
+                if (session.Message(InstallMessage.Progress, record) != MessageResult.OK)
+                {
+                    session.Log("Could not set the progress bar size");
+                    return ActionResult.Failure;
+                }
+            }
+            catch (Exception e)
+            {
+                session.Log($"Error settings the progress bar size: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult PrepareDecompressPythonDistributions(Session session)
+        {
+            return PrepareDecompressPythonDistributions(new SessionWrapper(session));
         }
     }
 }
