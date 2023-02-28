@@ -44,9 +44,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	trivyConfiguration.ContainerdAccessor = func() (cutil.ContainerdItf, error) {
 		return c.containerdClient, nil
 	}
-	trivyConfiguration.CacheProvider = func() (cache.Cache, error) {
-		return trivy.NewLocalCache(config.Datadog.GetString("container_image_collection.sbom.cache_directory"))
-	}
+	trivyConfiguration.CacheProvider = cacheProvider(true)
 
 	c.trivyClient, err = trivy.NewCollector(trivyConfiguration)
 	if err != nil {
@@ -153,6 +151,26 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, image *workloadmeta
 	// Updating workloadmeta entities directly is not thread-safe, that's why we
 	// generate an update event here instead.
 	return c.handleImageCreateOrUpdate(ctx, image.Namespace, image.Name, &sbom)
+}
+
+func cacheProvider(useBadgerDB bool) func() (cache.Cache, error) {
+	cacheDir := config.Datadog.GetString("container_image_collection.sbom.cache_directory")
+
+	if useBadgerDB {
+		return func() (cache.Cache, error) {
+			return trivy.NewBadgerCache(cacheDir, cacheTTL())
+		}
+	}
+
+	// Leaving this here for now, just in case Badger does not work well for us
+	// and we need to switch back to Bolt DB.
+	return func() (cache.Cache, error) {
+		return trivy.NewBoltCache(cacheDir)
+	}
+}
+
+func cacheTTL() time.Duration {
+	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.cache_ttl")) * time.Second
 }
 
 func scanningTimeout() time.Duration {

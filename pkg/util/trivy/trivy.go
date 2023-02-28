@@ -80,7 +80,7 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 	}
 
 	collectorConfig.CacheProvider = func() (cache.Cache, error) {
-		return NewLocalCache(cacheLocation)
+		return NewBoltCache(cacheLocation)
 	}
 
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
@@ -141,7 +141,9 @@ func NewCollector(collectorConfig CollectorConfig) (Collector, error) {
 
 func (c *collector) Close() error {
 	if c.config.ClearCacheOnClose {
-		return c.cache.Clear()
+		if err := c.cache.Clear(); err != nil {
+			return fmt.Errorf("error when clearing trivy cache: %w", err)
+		}
 	}
 
 	return c.cache.Close()
