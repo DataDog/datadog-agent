@@ -358,8 +358,8 @@ func TestHandleKubePod(t *testing.T) {
 					},
 					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						"admission_rc_id:id",
-						"admission_rc_rev:123",
+						"dd_remote_config_id:id",
+						"dd_remote_config_rev:123",
 					},
 					StandardTags: []string{},
 				},
