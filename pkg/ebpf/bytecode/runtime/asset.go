@@ -88,7 +88,7 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 		}
 	}()
 
-	if err = a.verify(protectedFile.Reader()); err != nil {
+	if err = a.verify(protectedFile); err != nil {
 		a.tm.compilationResult = verificationError
 		return nil, fmt.Errorf("error reading input file: %s", err)
 	}
@@ -110,9 +110,9 @@ func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFi
 }
 
 // verify reads the asset from the reader and verifies the content hash matches what is expected.
-func (a *asset) verify(source io.Reader) error {
+func (a *asset) verify(source ProtectedFile) error {
 	h := sha256.New()
-	if _, err := io.Copy(h, source); err != nil {
+	if _, err := io.Copy(h, source.Reader()); err != nil {
 		return fmt.Errorf("error hashing file: %w", err)
 	}
 	if fmt.Sprintf("%x", h.Sum(nil)) != a.hash {
