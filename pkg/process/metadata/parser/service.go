@@ -168,7 +168,7 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 }
 
 // GetWindowsServiceTags returns the process_context associated with a process by scraping the SCM.
-// If the service name is not found in the scm, an empty string is returned.
+// If the service name is not found in the scm, a nil slice is returned.
 func (d *ServiceExtractor) getWindowsServiceTags(pid int32) ([]string, error) {
 	entry, err := d.scmReader.getServiceInfo(uint64(pid))
 	if err != nil {
