@@ -23,7 +23,7 @@ func main() {
 	ready := make(chan bool, 1)
 	fi := fakeintake.NewServer(fakeintake.WithPort(8080), fakeintake.WithReadyChannel(ready))
 	fi.Start()
-	timeout := time.NewTimer(250 * time.Millisecond)
+	timeout := time.NewTimer(5 * time.Second)
 
 	select {
 	case isReady := <-ready:
