@@ -11,6 +11,7 @@ build_vcpkg_deps                     @DataDog/windows-agent
 tests_*                              @DataDog/multiple
 tests_ebpf                           @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
+prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
 
 # Golang dependency list generation (currently disabled)
 golang_deps_generate                 @DataDog/agent-shared-components
