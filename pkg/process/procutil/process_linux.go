@@ -57,6 +57,7 @@ type statInfo struct {
 	ppid       int32
 	createTime int64
 	nice       int32
+	flags      uint32
 	cpuStat    *CPUTimesStat
 }
 
@@ -217,14 +218,20 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 		}
 
 		cmdline := p.getCmdline(pathForPID)
-		if len(cmdline) == 0 {
-			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
-			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			continue
-		}
-
 		statusInfo := p.parseStatus(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
+
+		if len(cmdline) == 0 {
+			if statInfo.flags&0x00200000 == 0x00200000 {
+				log.Debugf("Skipping kernel process pid:%d", pid)
+				// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
+				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
+				//       A process must also have the PF_KTHREAD flag set to detect if the process is in fact a kernel thread
+				//       See: https://github.com/torvalds/linux/commit/7b34e4283c685f5cc6ba6d30e939906eee0d4bcf
+				continue
+			}
+			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
+		}
 
 		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
 		// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
@@ -569,7 +576,7 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
 	prevCharIsSpace := false
-	var ppidStr, utimeStr, stimeStr, startTimeStr string
+	var ppidStr, flagStr, utimeStr, stimeStr, startTimeStr string
 
 	for _, c := range content {
 		if unicode.IsSpace(rune(c)) {
@@ -585,6 +592,8 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		switch spaces {
 		case 2:
 			ppidStr += string(c)
+		case 7:
+			flagStr += string(c)
 		case 12:
 			utimeStr += string(c)
 		case 13:
@@ -601,6 +610,11 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	ppid, err := strconv.ParseInt(ppidStr, 10, 32)
 	if err == nil {
 		sInfo.ppid = int32(ppid)
+	}
+
+	flags, err := strconv.ParseInt(flagStr, 10, 32)
+	if err == nil {
+		sInfo.flags = uint32(flags)
 	}
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)

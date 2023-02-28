@@ -675,6 +675,7 @@ func TestParseStatContent(t *testing.T) {
 					System:    21.84,
 					Timestamp: now.Unix(),
 				},
+				flags: 4194560,
 			},
 		},
 		// command line has brackets around
@@ -688,6 +689,7 @@ func TestParseStatContent(t *testing.T) {
 					System:    21.84,
 					Timestamp: now.Unix(),
 				},
+				flags: 4194560,
 			},
 		},
 		// fields are separated by multiple white spaces
@@ -701,6 +703,7 @@ func TestParseStatContent(t *testing.T) {
 					System:    0,
 					Timestamp: now.Unix(),
 				},
+				flags: 69238880,
 			},
 		},
 	} {
