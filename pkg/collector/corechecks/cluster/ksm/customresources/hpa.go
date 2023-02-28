@@ -215,11 +215,10 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGeneratorWithStability(
+		*generator.NewFamilyGenerator(
 			"kube_horizontalpodautoscaler_status_target_metric",
 			"The current metric status used by this autoscaler when calculating the desired replica count.",
 			metric.Gauge,
-			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(a.Status.CurrentMetrics))
