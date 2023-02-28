@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Added grpc parsing logic to system-probe
+    Added HTTP/2 parsing logic to Universal Service Monitoring.
