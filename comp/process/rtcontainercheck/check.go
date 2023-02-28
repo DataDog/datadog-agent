@@ -22,11 +22,22 @@ type dependencies struct {
 	fx.In
 }
 
-func newCheck(deps dependencies) types.ProvidesCheck {
-	return types.ProvidesCheck{
-		CheckComponent: &check{
-			rtContainerCheck: checks.NewRTContainerCheck(),
+type result struct {
+	fx.Out
+
+	Check     types.ProvidesCheck
+	Component Component
+}
+
+func newCheck() result {
+	c := &check{
+		rtContainerCheck: checks.NewRTContainerCheck(),
+	}
+	return result{
+		Check: types.ProvidesCheck{
+			CheckComponent: c,
 		},
+		Component: c,
 	}
 }
 

@@ -25,11 +25,22 @@ type dependencies struct {
 	Sysconfig *sysconfig.Config
 }
 
-func newCheck(deps dependencies) types.ProvidesCheck {
-	return types.ProvidesCheck{
-		CheckComponent: &check{
-			connectionsCheck: checks.NewConnectionsCheck(deps.Sysconfig),
+type result struct {
+	fx.Out
+
+	Check     types.ProvidesCheck
+	Component Component
+}
+
+func newCheck(deps dependencies) result {
+	c := &check{
+		connectionsCheck: checks.NewConnectionsCheck(deps.Sysconfig),
+	}
+	return result{
+		Check: types.ProvidesCheck{
+			CheckComponent: c,
 		},
+		Component: c,
 	}
 }
 

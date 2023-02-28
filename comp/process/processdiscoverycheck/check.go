@@ -6,6 +6,8 @@
 package processdiscoverycheck
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
@@ -16,11 +18,22 @@ type check struct {
 	processDiscoveryCheck *checks.ProcessDiscoveryCheck
 }
 
-func newCheck() types.ProvidesCheck {
-	return types.ProvidesCheck{
-		CheckComponent: &check{
-			processDiscoveryCheck: checks.NewProcessDiscoveryCheck(),
+type result struct {
+	fx.Out
+
+	Check     types.ProvidesCheck
+	Component Component
+}
+
+func newCheck() result {
+	c := &check{
+		processDiscoveryCheck: checks.NewProcessDiscoveryCheck(),
+	}
+	return result{
+		Check: types.ProvidesCheck{
+			CheckComponent: c,
 		},
+		Component: c,
 	}
 }
 
