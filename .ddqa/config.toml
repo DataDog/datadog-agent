@@ -57,6 +57,12 @@ jira_issue_type = "Task"
 github_team = "ebpf-platform"
 github_labels = ["team/ebpf-platform"]
 
+[teams."Agent Integrations"]
+jira_project = "AI"
+jira_issue_type = "Task"
+github_team = "agent-integrations"
+github_labels = ["team/integrations"]
+
 [teams."Platform Integrations"]
 jira_project = "PINT"
 jira_issue_type = "Task"
