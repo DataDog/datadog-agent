@@ -16,7 +16,7 @@
                    _STR(name)" batch is too large");                                    \
                                                                                         \
     BPF_PERCPU_ARRAY_MAP(name##_batch_state, __u32, batch_state_t, 1)                   \
-    BPF_PERF_EVENT_ARRAY_MAP(name##_batch_events, __u32, 1)                             \
+    BPF_PERF_EVENT_ARRAY_MAP(name##_batch_events, __u32, 0)                             \
     BPF_HASH_MAP(name##_batches, batch_key_t, batch_data_t, 1)                          \
                                                                                         \
     static __always_inline bool name##_batch_full(batch_data_t *batch) {                \
