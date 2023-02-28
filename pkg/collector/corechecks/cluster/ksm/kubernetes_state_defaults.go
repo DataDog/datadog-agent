@@ -71,7 +71,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_horizontalpodautoscaler_status_desired_replicas":                                     "hpa.desired_replicas",
 		"kube_horizontalpodautoscaler_status_current_replicas":                                     "hpa.current_replicas",
 		"kube_horizontalpodautoscaler_spec_target_metric":                                          "hpa.spec_target_metric",
-		"kube_horizontalpodautoscaler_status_target_metric": 										"hpa,status_target_metric",
+		"kube_horizontalpodautoscaler_status_target_metric": 										"hpa.status_target_metric",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_lowerbound":     "vpa.lower_bound",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_target":         "vpa.target",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_uncappedtarget": "vpa.uncapped_target",
