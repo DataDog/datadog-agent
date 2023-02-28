@@ -98,11 +98,6 @@ int __attribute__((always_inline)) start_veth_state_machine() {
     return 0;
 }
 
-SEC("kprobe/veth_newlink")
-int kprobe_veth_newlink(struct pt_regs *ctx) {
-    return start_veth_state_machine();
-};
-
 SEC("kprobe/rtnl_create_link")
 int kprobe_rtnl_create_link(struct pt_regs *ctx) {
     struct rtnl_link_ops *ops = (struct rtnl_link_ops*)PT_REGS_PARM4(ctx);
