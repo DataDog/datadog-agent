@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
@@ -67,7 +66,7 @@ type collector struct {
 
 // DefaultCollectorConfig returns a default collector configuration
 // However, accessors still need to be filled in externally
-func DefaultCollectorConfig(enabledAnalyzers []string) CollectorConfig {
+func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) CollectorConfig {
 	collectorConfig := CollectorConfig{
 		ArtifactOption: artifact.Option{
 			Offline:           true,
@@ -78,6 +77,10 @@ func DefaultCollectorConfig(enabledAnalyzers []string) CollectorConfig {
 			DisabledHandlers:  DefaultDisabledHandlers(),
 		},
 		ClearCacheOnClose: true,
+	}
+
+	collectorConfig.CacheProvider = func() (cache.Cache, error) {
+		return NewLocalCache(cacheLocation)
 	}
 
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
@@ -144,7 +147,7 @@ func (c *collector) Close() error {
 	return c.cache.Close()
 }
 
-func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error) {
+func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {
 	client, err := c.config.ContainerdAccessor()
 	if err != nil {
 		return nil, fmt.Errorf("unable to access containerd client, err: %w", err)
@@ -171,7 +174,7 @@ func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	return bom, nil
 }
 
-func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error) {
+func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {
 	client, err := c.config.ContainerdAccessor()
 	if err != nil {
 		return nil, fmt.Errorf("unable to access containerd client, err: %w", err)
@@ -206,7 +209,11 @@ func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	fsArtifact, err := local2.NewArtifact(imagePath, c.cache, c.config.ArtifactOption)
+	return c.ScanFilesystem(ctx, imagePath)
+}
+
+func (c *collector) ScanFilesystem(ctx context.Context, path string) (Report, error) {
+	fsArtifact, err := local2.NewArtifact(path, c.cache, c.config.ArtifactOption)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
@@ -219,9 +226,9 @@ func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 	return bom, nil
 }
 
-func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (*cyclonedxgo.BOM, error) {
+func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (Report, error) {
 	s := scanner.NewScanner(local.NewScanner(c.applier, c.detector, c.vulnClient), artifact)
-	report, err := s.ScanArtifact(ctx, types.ScanOptions{
+	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
 		SecurityChecks:      []string{},
 		ScanRemovedPackages: false,
@@ -231,12 +238,8 @@ func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (*cycl
 		return nil, err
 	}
 
-	bom, err := c.marshaler.Marshal(report)
-	if err != nil {
-		return nil, err
-	}
-
-	// We don't need the dependencies attribute. Remove to save memory.
-	bom.Dependencies = nil
-	return bom, nil
+	return &TrivyReport{
+		Report:    trivyReport,
+		marshaler: c.marshaler,
+	}, nil
 }

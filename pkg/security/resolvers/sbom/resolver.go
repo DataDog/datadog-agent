@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
+//go:build linux && trivy
+// +build linux,trivy
 
 package sbom
 
@@ -16,9 +16,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	trivyReport "github.com/aquasecurity/trivy/pkg/types"
+	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
+	"k8s.io/utils/temp"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -28,20 +29,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
 // SBOMSource defines is the default log source for the SBOM events
 const SBOMSource = "runtime-security-agent"
 
-type Package struct {
-	Name    string
-	Version string
-}
-
 type SBOM struct {
 	sync.RWMutex
 
-	report *trivyReport.Report
+	report *trivy.TrivyReport
 	files  map[string]*Package
 
 	Host        string
@@ -95,7 +92,7 @@ type Resolver struct {
 	scannerChan    chan *SBOM
 	config         *config.Config
 	statsdClient   statsd.ClientInterface
-	trivyScanner   *TrivyCollector
+	trivyScanner   trivy.Collector
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -110,7 +107,18 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.Config, tagsResolver *tags.Resolver, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	trivyScanner, err := NewTrivyCollector()
+	trivyConfiguration := trivy.DefaultCollectorConfig([]string{trivy.OSAnalyzers}, "")
+	trivyConfiguration.CacheProvider = func() (cache.Cache, error) {
+		tmpDir, err := temp.CreateTempDir("sbom-resolver")
+		if err != nil {
+			return nil, err
+		}
+		return cache.NewFSCache(tmpDir.Name)
+	}
+	trivyConfiguration.ClearCacheOnClose = true
+	trivyConfiguration.ArtifactOption.Slow = false
+
+	trivyScanner, err := trivy.NewCollector(trivyConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -194,15 +202,19 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	report, err := r.trivyScanner.ScanRootfs(context.Background(), root)
+	report, err := r.trivyScanner.ScanFilesystem(context.Background(), root)
 	if err != nil {
 		r.failedSBOMGenerations.Inc()
 		return fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
 	}
 
-	sbom.report = report
-
 	seclog.Infof("SBOM successfully generated from %s", root)
+
+	trivyReport, ok := report.(*trivy.TrivyReport)
+	if !ok {
+		return fmt.Errorf("failed to convert report for %s: %w", root, err)
+	}
+	sbom.report = trivyReport
 
 	return nil
 }
