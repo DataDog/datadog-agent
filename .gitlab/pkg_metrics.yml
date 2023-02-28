@@ -207,16 +207,10 @@ send_pkg_size-a7:
 
             curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_amd64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
 
-            curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_arm64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_arm64.deb"
-
             add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_amd64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:amd64
-
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_arm64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:arm64
 
             set +e
             inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_amd64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
-            failures=$((${failures}+$?))
-            inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_arm64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_arm64.deb"
             failures=$((${failures}+$?))
             set -e
 
@@ -224,22 +218,57 @@ send_pkg_size-a7:
               # We don't build RPM packages for the heroku flavor
               curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
               curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
-
-              curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/aarch64/${flavor}-${last_stable}-1.aarch64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.aarch64.rpm"
-
               add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:amd64
               add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:amd64
-              if [[ "$flavor" != "datadog-dogstatsd" ]]; then
-                add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.aarch64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:arm64
-                set +e
-                inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.aarch64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.aarch64.rpm"
-                failures=$((${failures}+$?))
-                set -e
-              fi
               set +e
               inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
               failures=$((${failures}+$?))
               inv package.compare-size --package-type "${flavor} suse rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR_SUSE/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
+              failures=$((${failures}+$?))
+              set -e
+            fi
+        done
+
+    # Send package size metrics
+    - !reference [.send_metrics, script]
+
+    # Make the job fail if at least one package is above threshold
+    - if [ "${failures}" -ne "0" ]; then false; fi
+
+.check_arm64_pkg_size:
+  stage: pkg_metrics
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    - !reference [.add_metric_func, script]
+
+    - ls -l $OMNIBUS_PACKAGE_DIR
+    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
+    - source /root/.bashrc && conda activate ddpy3
+    - export failures=0
+    - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
+    # Get stable packages from S3 buckets, send new package sizes & compare stable and new package sizes
+    # The loop assumes that all flavors start with "da", which is currently the case
+    # We want to run all package size comparisons before failing, so we set +e while doing the comparisons
+    # to get the error codes without exiting the shell.
+    - |
+        for flavor in ${FLAVORS}; do
+            mkdir -p "/tmp/stable/${flavor}"
+
+            curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_arm64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_arm64.deb"
+
+            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_arm64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:arm64
+
+            set +e
+            inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_arm64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_arm64.deb"
+            failures=$((${failures}+$?))
+            set -e
+
+            if [[ "$flavor" != "datadog-dogstatsd" ]]; then 
+              curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/aarch64/${flavor}-${last_stable}-1.aarch64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.aarch64.rpm"
+              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.aarch64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:arm64
+              set +e
+              inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.aarch64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.aarch64.rpm"
               failures=$((${failures}+$?))
               set -e
             fi
@@ -259,6 +288,26 @@ check_pkg_size-a6:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
     - agent_suse-x64-a6
+    - agent_deb-arm64-a6
+    - agent_rpm-arm64-a6
+  variables:
+    MAJOR_VERSION: 6
+    FLAVORS: "datadog-agent"
+  before_script:
+    # FIXME: ["datadog-agent"]="25000000" should be replaced by "15000000"
+    # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
+    - |
+        declare -Ar max_sizes=(
+            ["datadog-agent"]="25000000"
+        )
+
+check_pkg_size-arm64-a6:
+  extends: .check_arm64_pkg_size
+  rules:
+    !reference [.on_all_builds_a6]
+  needs:
+    - agent_deb-arm64-a6
+    - agent_rpm-arm64-a6
   variables:
     MAJOR_VERSION: 6
     FLAVORS: "datadog-agent"
@@ -276,11 +325,16 @@ check_pkg_size-a7:
     !reference [.on_a7]
   needs:
     - agent_deb-x64-a7
+    - agent_deb-arm64-a7
     - iot_agent_deb-x64
+    - iot_agent_deb-arm64
     - dogstatsd_deb-x64
+    - dogstatsd_deb-arm64
     - agent_heroku_deb-x64-a7
     - agent_rpm-x64-a7
+    - agent_rpm-arm64-a7
     - iot_agent_rpm-x64
+    - iot_agent_rpm-arm64
     - dogstatsd_rpm-x64
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
@@ -299,4 +353,29 @@ check_pkg_size-a7:
             ["datadog-iot-agent"]="10000000"
             ["datadog-dogstatsd"]="10000000"
             ["datadog-heroku-agent"]="25000000"
+        )
+
+check_pkg_size-arm64-a7:
+  extends: .check_arm64_pkg_size
+  rules:
+    !reference [.on_all_builds_a7]
+  needs:
+    - agent_deb-arm64-a7
+    - iot_agent_deb-arm64
+    - dogstatsd_deb-arm64
+    - agent_rpm-arm64-a7
+    - iot_agent_rpm-arm64
+  variables:
+    MAJOR_VERSION: 7
+    FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
+  before_script:
+    # FIXME: ["datadog-agent"]="25000000" and ["datadog-heroku-agent"]="25000000" should
+    # be replaced by "15000000"
+    # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
+    # If this happens often we could exclude system-probe from the heroku build, it's not used.
+    - |
+        declare -Ar max_sizes=(
+            ["datadog-agent"]="25000000"
+            ["datadog-iot-agent"]="10000000"
+            ["datadog-dogstatsd"]="10000000"
         )
