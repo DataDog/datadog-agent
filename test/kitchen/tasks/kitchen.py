@@ -219,14 +219,12 @@ def load_user_env(_, provider, varsfile):
     if os.path.exists(varsfile):
         with open(varsfile, "r") as f:
             vars = json.load(f)
-            if 'global' in vars:
-                for key, val in vars['global'].items():
-                    if commentpattern.match(key):
-                        continue
-                    env[key] = val
-            if provider in vars:
-                for key, val in vars[provider].items():
-                    if commentpattern.match(key):
-                        continue
-                    env[key] = val
+            for key, val in vars.get("global", {}).items():
+                if commentpattern.match(key):
+                    continue
+                env[key] = val
+            for key, val in vars.get(provider, {}).items():
+                if commentpattern.match(key):
+                    continue
+                env[key] = val
     return env
