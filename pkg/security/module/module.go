@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
@@ -167,11 +168,11 @@ func (m *Module) Start() error {
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
 		if triggerred, err := m.RunSelfTest(true); err != nil {
-			err = fmt.Errorf("failed to run self test: %s", err)
+			err = fmt.Errorf("failed to run self test: %w", err)
 			if !triggerred {
 				return err
 			}
-			seclog.Warnf("failed to run self tests: %s", err)
+			seclog.Warnf("%s", err)
 		}
 	}
 
@@ -262,7 +263,7 @@ func (m *Module) Start() error {
 	return nil
 }
 
-func (m *Module) displayApplyRuleSetReport(report *sprobe.ApplyRuleSetReport) {
+func (m *Module) displayApplyRuleSetReport(report *kfilters.ApplyRuleSetReport) {
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 }

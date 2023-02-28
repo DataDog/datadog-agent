@@ -275,6 +275,7 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		"tracepoint__net__netif_receive_skb",
 		"kprobe__" + excludeSysOpen,
 		"kretprobe__" + excludeSysOpen,
+		"kprobe__do_vfs_ioctl",
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {

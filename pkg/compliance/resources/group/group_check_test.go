@@ -124,11 +124,12 @@ func TestGroupCheck(t *testing.T) {
 			env.On("DumpInputPath").Return("").Maybe()
 			env.On("ShouldSkipRegoEval").Return(false).Maybe()
 			env.On("Hostname").Return("test-host").Maybe()
+			env.On("StatsdClient").Return(nil).Maybe()
 
 			regoRule := resource_test.NewTestRule(test.resource, "group", test.module)
 
 			dockerCheck := rego.NewCheck(regoRule)
-			err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+			err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 			assert.NoError(err)
 
 			reports := dockerCheck.Check(env)

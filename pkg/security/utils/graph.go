@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"strings"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // Node describes an edge of a dot node
@@ -89,7 +87,7 @@ func NewNodeID(inner uint64) NodeID {
 // NewRandomNodeID returns a new random NodeID
 func NewRandomNodeID() NodeID {
 	return NodeID{
-		inner: eval.RandNonZeroUint64(),
+		inner: RandNonZeroUint64(),
 	}
 }
 

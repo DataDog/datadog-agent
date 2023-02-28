@@ -12,11 +12,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/appsec-internal-go/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
+	"github.com/DataDog/go-libddwaf"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/go-libddwaf"
 	"github.com/pkg/errors"
 )
 
@@ -93,7 +95,7 @@ func newAppSec() (*AppSec, error) {
 		return nil, err
 	}
 
-	handle, err := waf.NewHandle([]byte(staticRecommendedRule), cfg.obfuscator.KeyRegex, cfg.obfuscator.ValueRegex)
+	handle, err := waf.NewHandle([]byte(appsec.StaticRecommendedRules), cfg.obfuscator.KeyRegex, cfg.obfuscator.ValueRegex)
 	if err != nil {
 		return nil, err
 	}

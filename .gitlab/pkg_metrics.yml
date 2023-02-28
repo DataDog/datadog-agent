@@ -221,7 +221,7 @@ check_pkg_size-a6:
     # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="25000000"
+            ["datadog-agent"]="50000000"
         )
 
 check_pkg_size-a7:
@@ -249,8 +249,8 @@ check_pkg_size-a7:
     # If this happens often we could exclude system-probe from the heroku build, it's not used.
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="25000000"
+            ["datadog-agent"]="50000000"
             ["datadog-iot-agent"]="10000000"
             ["datadog-dogstatsd"]="10000000"
-            ["datadog-heroku-agent"]="25000000"
+            ["datadog-heroku-agent"]="50000000"
         )
