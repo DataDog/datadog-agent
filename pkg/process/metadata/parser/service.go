@@ -112,6 +112,7 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 
 		// Service tag was found from the SCM, return it.
 		if len(tags) > 0 {
+			log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
 			return tags
 		}
 	}
