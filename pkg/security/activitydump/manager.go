@@ -393,7 +393,7 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 		newDump.AddStorageRequest(config.NewStorageRequest(
 			config.RemoteStorage,
 			format,
-			adm.config.ActivityDumpRemoteStorageCompression,
+			true, // force remote compression
 			"",
 		))
 	}
