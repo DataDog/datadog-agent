@@ -5,7 +5,7 @@
 #include "bpf_telemetry.h"
 #include "tracer.h"
 #include "types.h"
-#include "parsing-maps.h"
+#include "protocols/kafka/parsing-maps.h"
 #include "protocols/events.h"
 
 // forward declaration
