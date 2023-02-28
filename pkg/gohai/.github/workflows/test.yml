@@ -5,7 +5,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-10.15, macos-latest, windows-latest]
+        os: [ubuntu-20.04, ubuntu-latest, macos-11, macos-latest, windows-2019, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8
