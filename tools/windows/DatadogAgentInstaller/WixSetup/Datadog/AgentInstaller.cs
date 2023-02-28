@@ -205,17 +205,7 @@ namespace WixSetup.Datadog
             project.CustomUI = _agentInstallerUi;
 
             project.ResolveWildCards(pruneEmptyDirectories: true);
-            project.AfterInstall += args =>
-            {
-                if (args.Result == ActionResult.Success)
-                {
-                    Telemetry.ReportSuccess(args.Session);
-                }
-                else
-                {
-                    Telemetry.ReportFailure(args.Session);
-                }
-            };
+
             return project;
         }
 
