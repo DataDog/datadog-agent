@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    On Windows, when service inference is enabled, `process_context` tags can now be populated by the service name
+    in the SCM. This feature is controlled by the either `service_monitoring_config.process_service_inference.enabled` config setting,
+    in the user's `datadog.yaml` config file, or the `DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME` 
+    environment variable, and is on by default.
