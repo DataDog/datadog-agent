@@ -20,13 +20,22 @@ func TestFindAddr(t *testing.T) {
 		assert.Equal(t, addr, `\\.\pipe\sock.pipe`)
 	})
 
-	t.Run("tcp", func(t *testing.T) {
+	t.Run("udp-localhost", func(t *testing.T) {
 		addr, err := findAddr(&config.AgentConfig{
 			StatsdHost: "localhost",
 			StatsdPort: 123,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, addr, `localhost:123`)
+	})
+
+	t.Run("udp-ipv6", func(t *testing.T) {
+		addr, err := findAddr(&config.AgentConfig{
+			StatsdHost: "::1",
+			StatsdPort: 123,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, addr, `[::1]:123`) // must add the square brackets to properly connect
 	})
 
 	t.Run("socket", func(t *testing.T) {

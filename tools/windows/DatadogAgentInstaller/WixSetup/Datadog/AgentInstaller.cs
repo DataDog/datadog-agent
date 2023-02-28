@@ -144,7 +144,7 @@ namespace WixSetup.Datadog
                     {
                         Name = "Datadog Agent Manager",
                         Target = "[AGENT]ddtray.exe",
-                        Arguments = "\"-launch-gui\"",
+                        Arguments = "\"--launch-gui\"",
                         WorkingDirectory = "AGENT",
                     }
                 ),

@@ -49,6 +49,7 @@ func NewServer(options ...func(*Server)) *Server {
 	mux.HandleFunc("/", fi.handleDatadogRequest)
 	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
 	mux.HandleFunc("/fakeintake/health/", fi.getFakeHealth)
+	mux.HandleFunc("/fakeintake/routestats/", fi.getRouteStats)
 
 	fi.server = http.Server{
 		Handler: mux,
@@ -273,4 +274,42 @@ func (fi *Server) safeGetPayloads(route string) [][]byte {
 		payloads = append(payloads, p.data)
 	}
 	return payloads
+}
+
+func (fi *Server) getRouteStats(w http.ResponseWriter, req *http.Request) {
+	log.Print("Handling getRouteStats request")
+	routes := fi.safeGetRouteStats()
+	// build response
+	resp := api.APIFakeIntakeRouteStatsGETResponse{
+		Routes: map[string]api.RouteStat{},
+	}
+	for route, count := range routes {
+		resp.Routes[route] = api.RouteStat{ID: route, Count: count}
+	}
+	jsonResp, err := json.Marshal(resp)
+	if err != nil {
+		writeHttpResponse(w, httpResponse{
+			contentType: "text/plain",
+			statusCode:  http.StatusInternalServerError,
+			body:        []byte(err.Error()),
+		})
+		return
+	}
+
+	// send response
+	writeHttpResponse(w, httpResponse{
+		contentType: "application/json",
+		statusCode:  http.StatusOK,
+		body:        jsonResp,
+	})
+}
+
+func (fi *Server) safeGetRouteStats() map[string]int {
+	routes := map[string]int{}
+	fi.mu.Lock()
+	defer fi.mu.Unlock()
+	for route, payloads := range fi.payloadStore {
+		routes[route] = len(payloads)
+	}
+	return routes
 }

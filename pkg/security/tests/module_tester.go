@@ -452,14 +452,14 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 	var data interface{}
 	if err := json.Unmarshal(eventJSON, &data); err != nil {
 		tb.Error(err)
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 		return
 	}
 
 	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
 	if err != nil {
 		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 		return
 	}
 
@@ -469,21 +469,21 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 		pce, ok := entry.(map[string]interface{})
 		if !ok {
 			tb.Errorf("invalid process cache entry, %+v", entry)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 
 		pid, ok := pce["pid"].(float64)
 		if !ok || pid == 0 {
 			tb.Errorf("invalid pid, %+v", pce)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 
 		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
 		if prevPID != 0 && pid != prevPID && pid != prevPPID {
 			tb.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 		prevPID = pid
@@ -492,7 +492,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 			ppid, ok := pce["ppid"].(float64)
 			if !ok {
 				tb.Errorf("invalid pid, %+v", pce)
-				tb.Error(eventJSON)
+				tb.Error(string(eventJSON))
 				return
 			}
 
@@ -502,7 +502,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 
 	if prevPID != 1 {
 		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 	}
 }
 
@@ -537,7 +537,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 			tb.Errorf("failed to marshal event: %v", err)
 			return
 		}
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 	}
 }
 

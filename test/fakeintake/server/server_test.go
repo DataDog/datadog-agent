@@ -85,22 +85,9 @@ func TestServer(t *testing.T) {
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
 		fi := NewServer()
 
-		request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
-		assert.NoError(t, err, "Error creating POST request")
-		postResponse := httptest.NewRecorder()
-		fi.handleDatadogRequest(postResponse, request)
+		postSomePayloads(t, fi)
 
-		request, err = http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|7|tag:valid,owner:pducolin"))
-		assert.NoError(t, err, "Error creating POST request")
-		postResponse = httptest.NewRecorder()
-		fi.handleDatadogRequest(postResponse, request)
-
-		request, err = http.NewRequest(http.MethodPost, "/api/v2/logs", strings.NewReader("I am just a poor log"))
-		assert.NoError(t, err, "Error creating POST request")
-		postResponse = httptest.NewRecorder()
-		fi.handleDatadogRequest(postResponse, request)
-
-		request, err = http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/series", nil)
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/series", nil)
 		assert.NoError(t, err, "Error creating GET request")
 		getResponse := httptest.NewRecorder()
 
@@ -199,4 +186,53 @@ func TestServer(t *testing.T) {
 		err = fi.Stop()
 		assert.NoError(t, err)
 	})
+	t.Run("should store multiple payloads on any route and return the list of routes", func(t *testing.T) {
+		fi := NewServer()
+
+		postSomePayloads(t, fi)
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/routestats", nil)
+		assert.NoError(t, err, "Error creating GET request")
+		getResponse := httptest.NewRecorder()
+
+		fi.getRouteStats(getResponse, request)
+
+		assert.Equal(t, http.StatusOK, getResponse.Code)
+
+		expectedGETResponse := api.APIFakeIntakeRouteStatsGETResponse{
+			Routes: map[string]api.RouteStat{
+				"/api/v2/series": {
+					ID:    "/api/v2/series",
+					Count: 2,
+				},
+				"/api/v2/logs": {
+					ID:    "/api/v2/logs",
+					Count: 1,
+				},
+			},
+		}
+		actualGETResponse := api.APIFakeIntakeRouteStatsGETResponse{}
+		body, err := io.ReadAll(getResponse.Body)
+		assert.NoError(t, err, "Error reading GET response")
+		json.Unmarshal(body, &actualGETResponse)
+
+		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
+	})
+}
+
+func postSomePayloads(t *testing.T, fi *Server) {
+	request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
+	require.NoError(t, err, "Error creating POST request")
+	postResponse := httptest.NewRecorder()
+	fi.handleDatadogRequest(postResponse, request)
+
+	request, err = http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|7|tag:valid,owner:pducolin"))
+	require.NoError(t, err, "Error creating POST request")
+	postResponse = httptest.NewRecorder()
+	fi.handleDatadogRequest(postResponse, request)
+
+	request, err = http.NewRequest(http.MethodPost, "/api/v2/logs", strings.NewReader("I am just a poor log"))
+	require.NoError(t, err, "Error creating POST request")
+	postResponse = httptest.NewRecorder()
+	fi.handleDatadogRequest(postResponse, request)
 }
