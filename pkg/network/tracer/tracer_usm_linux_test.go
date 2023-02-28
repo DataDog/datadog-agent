@@ -157,7 +157,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	require.NotNil(t, httpReqStats)
 	require.Len(t, httpReqStats.Data, 1)
 	require.NotNil(t, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)])
-	require.Equal(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count)
+	require.Equalf(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count, "%v", httpReqStats)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {

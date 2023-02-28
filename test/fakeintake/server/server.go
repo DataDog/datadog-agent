@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -27,12 +28,18 @@ type payload struct {
 type Server struct {
 	mu     sync.RWMutex
 	server http.Server
+	ready  chan bool
+
+	url string
 
 	payloadStore map[string][]payload
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
-func NewServer(port int) *Server {
+// options accept WithPort and WithReadyChan.
+// Call Server.Start() to start the server in a separate go-routine
+// If the port is 0, a port number is automatically chosen
+func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
 		mu:           sync.RWMutex{},
 		payloadStore: map[string][]payload{},
@@ -41,29 +48,97 @@ func NewServer(port int) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", fi.handleDatadogRequest)
 	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
+	mux.HandleFunc("/fakeintake/health/", fi.getFakeHealth)
+	mux.HandleFunc("/fakeintake/routestats/", fi.getRouteStats)
 
 	fi.server = http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
+		Addr:    "127.0.0.1:0",
 	}
 
-	fi.start()
+	for _, opt := range options {
+		opt(fi)
+	}
 
 	return fi
 }
 
-func (fi *Server) start() {
+// WithPort changes the server port.
+// If the port is 0, a port number is automatically chosen
+func WithPort(port int) func(*Server) {
+	return func(fi *Server) {
+		if fi.URL() != "" {
+			fmt.Printf("Fake intake is already running. Stop it and try again to change the port.")
+			return
+		}
+		fi.server.Addr = fmt.Sprintf("127.0.0.1:%d", port)
+	}
+}
+
+// WithReadyChannel assign a boolean channel to get notified when the server is ready.
+func WithReadyChannel(ready chan bool) func(*Server) {
+	return func(fi *Server) {
+		if fi.URL() != "" {
+			fmt.Printf("Fake intake is already running. Stop it and try again to change the ready channel.")
+			return
+		}
+		fi.ready = ready
+	}
+}
+
+// Start Starts a fake intake server in a separate go-routine
+// Notifies when ready to the ready channel
+func (fi *Server) Start() {
+	if fi.URL() != "" {
+		fmt.Printf("Fake intake alredy running at %s", fi.URL())
+		if fi.ready != nil {
+			fi.ready <- true
+		}
+		return
+	}
 	go func() {
-		err := fi.server.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
+		// explicitly creating a listener to get the actual port
+		// as http.Server.ListenAndServe hides this information
+		// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
+		listener, err := net.Listen("tcp", fi.server.Addr)
+		if err != nil {
 			fmt.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
+
+			if fi.ready != nil {
+				fi.ready <- false
+			}
+
+			return
+		}
+		fi.url = "http://" + listener.Addr().String()
+		// notify server is ready, if anybody is listening
+		if fi.ready != nil {
+			fi.ready <- true
+		}
+		// server.Serve blocks and listens to requests
+		err = fi.server.Serve(listener)
+		if err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Error creating fake intake server at %s: %v", listener.Addr().String(), err)
+			return
 		}
 	}()
 }
 
+func (fi *Server) URL() string {
+	return fi.url
+}
+
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
-	return fi.server.Shutdown(context.Background())
+	if fi.URL() == "" {
+		return fmt.Errorf("server not running")
+	}
+	err := fi.server.Shutdown(context.Background())
+	if err != nil {
+		return err
+	}
+	fi.url = ""
+	return nil
 }
 
 type postPayloadResponse struct {
@@ -173,6 +248,12 @@ func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func (fi *Server) getFakeHealth(w http.ResponseWriter, req *http.Request) {
+	writeHttpResponse(w, httpResponse{
+		statusCode: http.StatusOK,
+	})
+}
+
 func (fi *Server) safeAppendPayload(route string, data []byte) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
@@ -193,4 +274,42 @@ func (fi *Server) safeGetPayloads(route string) [][]byte {
 		payloads = append(payloads, p.data)
 	}
 	return payloads
+}
+
+func (fi *Server) getRouteStats(w http.ResponseWriter, req *http.Request) {
+	log.Print("Handling getRouteStats request")
+	routes := fi.safeGetRouteStats()
+	// build response
+	resp := api.APIFakeIntakeRouteStatsGETResponse{
+		Routes: map[string]api.RouteStat{},
+	}
+	for route, count := range routes {
+		resp.Routes[route] = api.RouteStat{ID: route, Count: count}
+	}
+	jsonResp, err := json.Marshal(resp)
+	if err != nil {
+		writeHttpResponse(w, httpResponse{
+			contentType: "text/plain",
+			statusCode:  http.StatusInternalServerError,
+			body:        []byte(err.Error()),
+		})
+		return
+	}
+
+	// send response
+	writeHttpResponse(w, httpResponse{
+		contentType: "application/json",
+		statusCode:  http.StatusOK,
+		body:        jsonResp,
+	})
+}
+
+func (fi *Server) safeGetRouteStats() map[string]int {
+	routes := map[string]int{}
+	fi.mu.Lock()
+	defer fi.mu.Unlock()
+	for route, payloads := range fi.payloadStore {
+		routes[route] = len(payloads)
+	}
+	return routes
 }
