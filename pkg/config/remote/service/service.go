@@ -67,6 +67,9 @@ type Service struct {
 	// The number of errors we're currently tracking within the context of our backoff policy
 	backoffErrorCount int
 
+	// Handle to stop the services main goroutine
+	cancel context.CancelFunc
+
 	clock         clock.Clock
 	hostname      string
 	traceAgentEnv string
@@ -235,6 +238,7 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 // Start the remote configuration management service
 func (s *Service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel
 	go func() {
 		defer cancel()
 
@@ -267,6 +271,14 @@ func (s *Service) Start(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+func (s *Service) Stop() error {
+	if s.cancel != nil {
+		s.cancel()
+	}
+
+	return s.db.Close()
 }
 
 func (s *Service) calculateRefreshInterval() time.Duration {

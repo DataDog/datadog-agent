@@ -123,6 +123,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
@@ -201,6 +202,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
@@ -266,6 +268,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 
@@ -331,6 +334,7 @@ func TestService(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
@@ -472,6 +476,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	api := &mockAPI{}
 
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	client := &pbgo.Client{
 		Id: clientID,
@@ -562,6 +567,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -599,6 +605,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -636,6 +643,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -673,6 +681,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -710,6 +719,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	// Mock that customers set the value, making overrides not allowed
 	service.refreshIntervalOverrideAllowed = false
@@ -760,6 +770,7 @@ func TestConfigExpiration(t *testing.T) {
 	api := &mockAPI{}
 
 	service := newTestService(t, api, uptaneClient, clock)
+	defer service.Stop()
 
 	client := &pbgo.Client{
 		Id: clientID,
