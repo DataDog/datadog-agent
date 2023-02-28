@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -21,9 +22,13 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
-	go GenerateEnhancedMetricsFromFunctionLog("JavaScript heap out of memory", reportLogTime, tags, demux)
+	isOOM := ContainsOutOfMemoryLog("JavaScript heap out of memory")
+	if isOOM {
+		GenerateEnhancedMetricsFromFunctionLog(reportLogTime, tags, demux)
+	}
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
+	assert.True(t, isOOM)
 	assert.Len(t, generatedMetrics, 2, "two enhanced metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
@@ -47,10 +52,13 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
-
-	go GenerateEnhancedMetricsFromFunctionLog("Task timed out after 30.03 seconds", time.Now(), tags, demux)
+	isOOM := ContainsOutOfMemoryLog("Task timed out after 30.03 seconds")
+	if isOOM {
+		GenerateEnhancedMetricsFromFunctionLog(time.Now(), tags, demux)
+	}
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.False(t, isOOM)
 	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
 }
@@ -239,6 +247,21 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
 	}})
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestDisableEnhancedMetrics(t *testing.T) {
+	os.Setenv("DD_ENHANCED_METRICS", "false")
+	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+	tags := []string{"functionname:test-function"}
+
+	go SendInvocationEnhancedMetric(tags, demux)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
 }
 
