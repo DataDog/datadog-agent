@@ -333,7 +333,6 @@ func (s *Server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
 	s.demultiplexer = demultiplexer
-	s.health = health.RegisterLiveness("dogstatsd-main")
 
 	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
@@ -412,6 +411,7 @@ func (s *Server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	s.handleMessages()
 	s.Started = true
+	s.health = health.RegisterLiveness("dogstatsd-main")
 
 	// start the debug loop
 	// ----------------------
