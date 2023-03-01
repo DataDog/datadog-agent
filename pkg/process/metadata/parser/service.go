@@ -53,6 +53,8 @@ type serviceMetadata struct {
 	serviceContext string
 }
 
+// WindowsServiceInfo represents service data that is parsed from the SCM. On non-Windows platforms these fields should always be empty.
+// On Windows, multiple services can be binpacked into a single `svchost.exe`, which is why `ServiceName` and `DisplayName` are slices.
 type WindowsServiceInfo struct {
 	ServiceName []string
 	DisplayName []string
@@ -107,7 +109,7 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if runtime.GOOS == "windows" && d.useWindowsServiceName {
 		tags, err := d.getWindowsServiceTags(pid)
 		if err != nil {
-			log.Warn("Failed to get service data from SCM:", err.Error())
+			log.Warnf("Failed to get service data from SCM for pid %v:%v", pid, err.Error())
 		}
 
 		// Service tag was found from the SCM, return it.
