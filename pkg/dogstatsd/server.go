@@ -301,7 +301,7 @@ func NewServer(serverless bool) *Server {
 		listeners:               nil,
 		stopChan:                make(chan bool),
 		serverlessFlushChan:     make(chan bool),
-		health:                  health.RegisterLiveness("dogstatsd-main"),
+		health:                  nil,
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
 		extraTags:               extraTags,
@@ -333,6 +333,7 @@ func (s *Server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
 	s.demultiplexer = demultiplexer
+	s.health = health.RegisterLiveness("dogstatsd-main")
 
 	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
