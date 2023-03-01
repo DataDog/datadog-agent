@@ -20,6 +20,7 @@ import (
 const Traces DataType = "traces"
 
 func setupAPM(config Config) {
+	// MTOFF: should apm_config.features go in this list of "Known"s? I don't understand what SetKnown does.
 	config.SetKnown("apm_config.obfuscation.elasticsearch.enabled")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.keep_values")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
@@ -52,6 +53,7 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
+	config.SetKnown("apm_config.features")
 
 	bindVectorOptions(config, Traces)
 
@@ -106,6 +108,9 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.obfuscation.credit_cards.enabled", "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
+	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
+	// MTOFF: THis one is just for testing. IDK how to add apm_config.features via datadog.yaml when building the agent
+	config.SetEnvKeyTransformer("apm_config.features", parseKVList("apm_config.features"))
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

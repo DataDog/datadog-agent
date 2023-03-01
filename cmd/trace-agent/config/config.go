@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -221,6 +220,16 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 
 	if coreconfig.Datadog.IsSet("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = coreconfig.Datadog.GetFloat64("apm_config.max_remote_traces_per_second")
+	}
+	if k := "apm_config.features"; coreconfig.Datadog.IsSet(k) {
+		tempFeats := coreconfig.Datadog.GetStringSlice(k)
+		for _, feat := range tempFeats {
+			c.Features[feat] = struct{}{}
+		}
+		if c.HasFeature("big_resource"){
+			c.MaxResourceLen = 15_000
+		}
+		fmt.Printf("\nMTOFF: c.Features is: %v, type %T\n", c.Features, c.Features)
 	}
 
 	if k := "apm_config.ignore_resources"; coreconfig.Datadog.IsSet(k) {
@@ -586,7 +595,7 @@ func acquireHostname(c *config.AgentConfig) error {
 	if err != nil {
 		return err
 	}
-	if features.Has("disable_empty_hostname") && reply.Hostname == "" {
+	if _, ok := c.Features["disable_empty_hostname"]; ok && reply.Hostname == "" {
 		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
 		return errors.New("empty hostname disallowed")
 	}
@@ -605,7 +614,7 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
-	if emptyDisallowed := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
+	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
 		if emptyDisallowed {
 			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
 		}

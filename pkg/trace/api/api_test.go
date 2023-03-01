@@ -1102,12 +1102,12 @@ func TestWatchdog(t *testing.T) {
 		if testing.Short() {
 			return
 		}
-		defer testutil.WithFeatures("429")()
 
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
 		conf.MaxMemory = 1e10
 		conf.WatchdogInterval = time.Minute // we trigger manually
+		conf.Features["429"] = struct{}{}
 
 		r := newTestReceiverFromConfig(conf)
 		r.Start()

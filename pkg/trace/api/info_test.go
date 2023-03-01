@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 // ensureKeys takes 2 maps, expect and result, and ensures that the set of keys in expect and
@@ -290,6 +289,7 @@ func TestInfoHandler(t *testing.T) {
 				},
 			},
 		},
+		Features: map[string]struct{}{"feature_flag": struct{}{}},
 	}
 
 	expectedKeys := map[string]interface{}{
@@ -330,7 +330,6 @@ func TestInfoHandler(t *testing.T) {
 	}
 
 	rcv := newTestReceiverFromConfig(conf)
-	defer testutil.WithFeatures("feature_flag")()
 	_, h := rcv.makeInfoHandler()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/info", nil)

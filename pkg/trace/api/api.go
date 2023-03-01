@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -88,7 +87,7 @@ type HTTPReceiver struct {
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.TelemetryCollector) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
-	if features.Has("429") {
+	if _, ok := conf.Features["429"]; ok{
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
 	return &HTTPReceiver{

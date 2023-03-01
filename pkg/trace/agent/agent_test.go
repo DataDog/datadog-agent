@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -595,8 +594,8 @@ func TestConcentratorInput(t *testing.T) {
 
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
-			defer testutil.WithFeatures(tc.features)()
 			cfg := config.New()
+			cfg.Features[tc.features] = struct{}{}
 			cfg.Endpoints[0].APIKey = "test"
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
@@ -948,7 +947,8 @@ func TestSampling(t *testing.T) {
 }
 
 func TestSample(t *testing.T) {
-	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10}
+	// MTOFF
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10, Features: make(map[string]struct{})}
 	a := &Agent{
 		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
@@ -1009,8 +1009,10 @@ func TestSample(t *testing.T) {
 			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
 			assert.Equal(t, tt.sampledNoFeature, keep)
 
-			features.Set("error_rare_sample_tracer_drop")
-			defer features.Set("")
+			// features.Set("error_rare_sample_tracer_drop")
+			// defer features.Set("")
+			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
+			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
 			_, keep, _ = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
 			assert.Equal(t, tt.sampledWithFeature, keep)
 		})
@@ -1299,8 +1301,9 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 // Mimics behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
-		(&Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{})}).obfuscateSpan(span)
-		Truncate(span)
+		a := &Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{}), conf: config.New()}
+		a.obfuscateSpan(span)
+		a.Truncate(span)
 	}
 	return t
 }
@@ -1530,7 +1533,7 @@ func TestConvertStats(t *testing.T) {
 		Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
 		obfuscator:  obfuscate.NewObfuscator(obfuscate.Config{}),
 		Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
-		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
+		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname", MaxResourceLen: 5000},
 	}
 	for _, testCase := range testCases {
 		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)

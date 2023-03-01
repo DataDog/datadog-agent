@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -117,14 +116,14 @@ type ObfuscationConfig struct {
 }
 
 // Export returns an obfuscate.Config matching o.
-func (o *ObfuscationConfig) Export() obfuscate.Config {
+func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
 		SQL: obfuscate.SQLConfig{
-			TableNames:       features.Has("table_names"),
-			ReplaceDigits:    features.Has("quantize_sql_tables") || features.Has("replace_sql_digits"),
-			KeepSQLAlias:     features.Has("keep_sql_alias"),
-			DollarQuotedFunc: features.Has("dollar_quoted_func"),
-			Cache:            features.Has("sql_cache"),
+			TableNames:       conf.HasFeature("table_names"),
+			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
+			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
+			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
+			Cache:            conf.HasFeature("sql_cache"),
 		},
 		ES: obfuscate.JSONConfig{
 			Enabled:            o.ES.Enabled,
@@ -290,6 +289,9 @@ type DebuggerProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
+
+	Features map[string]struct{}
+
 	Enabled      bool
 	AgentVersion string
 	GitCommit    string
@@ -385,6 +387,9 @@ type AgentConfig struct {
 
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
+
+	// MaxResourceLen the maximum length the resource can have
+	MaxResourceLen int
 
 	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
 	RequireTags []*Tag
@@ -492,6 +497,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation:                 &ObfuscationConfig{},
+		MaxResourceLen: 5000,
 
 		GlobalTags: make(map[string]string),
 
@@ -507,6 +513,8 @@ func New() *AgentConfig {
 		},
 
 		InAzureAppServices: inAzureAppServices(os.Getenv),
+
+		Features: make(map[string]struct{}),
 	}
 }
 
@@ -551,6 +559,19 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return transport
+}
+
+func (c *AgentConfig) HasFeature(feat string) bool {
+	_, ok := c.Features[feat]
+	return ok
+}
+
+func (c *AgentConfig) AllFeatures() []string {
+	feats := []string{}
+	for feat := range c.Features {		
+		feats = append(feats, feat)
+	}
+	return feats
 }
 
 func inAzureAppServices(getenv func(string) string) bool {

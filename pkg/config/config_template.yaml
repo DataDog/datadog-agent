@@ -1197,6 +1197,12 @@ api_key:
   #
   # connection_limit: 2000
 
+  ## @param features - list of strings - optional
+  ## @env DD_APM_FEATURES - comma separated list of strings - optional
+  # Configure additional Trace Agent features not otherwise specified
+  #
+  # features: ["feature1","feature2","feature3"]
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
