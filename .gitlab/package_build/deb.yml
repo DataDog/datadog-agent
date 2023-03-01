@@ -133,6 +133,7 @@ agent_deb-arm64-a7:
 
 .iot_agent_build_common_deb:
   script:
+    - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]

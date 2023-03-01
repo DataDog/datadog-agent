@@ -77,6 +77,7 @@ build_iot_agent-binary_x64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - source /root/.bashrc
     - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7
     - $S3_CP_CMD $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
@@ -93,5 +94,6 @@ build_iot_agent-binary_arm64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - source /root/.bashrc
     - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7
