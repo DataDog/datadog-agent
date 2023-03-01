@@ -55,9 +55,9 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	for _, interfaceStatus := range interfaces {
 		status := string(computeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus))
 		interfaceTags := []string{
-			"status:" + status, 
-			"admin_status:" + interfaceStatus.AdminStatus.AsString(), 
-			"oper_status:" + interfaceStatus.OperStatus.AsString(), 
+			"status:" + status,
+			"admin_status:" + interfaceStatus.AdminStatus.AsString(),
+			"oper_status:" + interfaceStatus.OperStatus.AsString(),
 			"interface_index:" + strconv.Itoa(int(interfaceStatus.Index)),
 		}
 		if interfaceStatus.Name != "" {
