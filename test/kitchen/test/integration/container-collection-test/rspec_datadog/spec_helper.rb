@@ -30,8 +30,21 @@ def os
   )
 end
 
+def get_with_retries(uri_or_host, path, port, max_retries=10)
+  retries = 0
+  begin
+    return Net::HTTP.get(uri_or_host, path, port)
+  rescue Error
+    if retries < max_retries
+      retries += 1
+      sleep 1
+      retry
+    end
+  end
+end
+
 def get_runtime_config
-  res = Net::HTTP.get('localhost', '/config', 6162)
+  res = get_with_retries('localhost', '/config', 6162)
   YAML.load(res)
 end
 
@@ -48,6 +61,6 @@ def is_process_running?(pname)
 end
 
 def check_enabled?(check_name)
-  res = Net::HTTP.get('localhost', '/debug/vars', 6062)
+  res = get_with_retries('localhost', '/debug/vars', 6062)
   JSON.parse(res)["enabled_checks"].include? check_name
 end
