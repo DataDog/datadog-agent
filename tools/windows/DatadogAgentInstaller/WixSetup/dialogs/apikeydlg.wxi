@@ -4,10 +4,6 @@
              Property="APIKEY" />
     <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
              Text="Back">
-
-      <Publish Event="NewDialog" Value="MaintenanceTypeDlg">WixUI_InstallMode = "Repair"</Publish>
-      <Publish Event="NewDialog" Value="CustomizeDlg">NOT INSTALLED</Publish>
-      <Publish Event="NewDialog" Value="LicenseAgreementDlg">NOT INSTALLED</Publish>
     </Control>
     <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes"
              Text="Next">
