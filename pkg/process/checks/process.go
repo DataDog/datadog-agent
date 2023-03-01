@@ -36,7 +36,7 @@ const (
 )
 
 // NewProcessCehck returns an instance of the ProcessCheck.
-func NewProcessCheck() Check {
+func NewProcessCheck() *ProcessCheck {
 	return &ProcessCheck{
 		scrubber: procutil.NewDefaultDataScrubber(),
 	}
@@ -154,8 +154,7 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	return ddconfig.Datadog.GetBool("process_config.process_collection.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

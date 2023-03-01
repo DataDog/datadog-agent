@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package processcheck
+package rtcontainercheck
 
 import (
 	"go.uber.org/fx"
@@ -15,7 +15,7 @@ import (
 var _ types.CheckComponent = (*check)(nil)
 
 type check struct {
-	processCheck *checks.ProcessCheck
+	rtContainerCheck *checks.RTContainerCheck
 }
 
 type result struct {
@@ -27,7 +27,7 @@ type result struct {
 
 func newCheck() result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(),
+		rtContainerCheck: checks.NewRTContainerCheck(),
 	}
 	return result{
 		Check: types.ProvidesCheck{
@@ -38,5 +38,5 @@ func newCheck() result {
 }
 
 func (c *check) Object() checks.Check {
-	return c.processCheck
+	return c.rtContainerCheck
 }

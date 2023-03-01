@@ -13,6 +13,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -37,12 +38,16 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck() Check {
-	return &ConnectionsCheck{}
+func NewConnectionsCheck(syscfg *sysconfig.Config) *ConnectionsCheck {
+	return &ConnectionsCheck{
+		syscfg: syscfg,
+	}
 }
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
+	syscfg *sysconfig.Config
+
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
 	tracerClientID         string
@@ -99,8 +104,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
+	return npmModuleEnabled && c.syscfg.Enabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

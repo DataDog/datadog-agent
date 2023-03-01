@@ -302,11 +302,15 @@ func (s *CheckSubmitter) Start() error {
 }
 
 func (s *CheckSubmitter) Stop() {
+	close(s.exit)
+
 	s.processResults.Stop()
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
 	s.podResults.Stop()
 	s.eventResults.Stop()
+
+	s.wg.Wait()
 
 	s.processForwarder.Stop()
 	s.rtProcessForwarder.Stop()
@@ -314,8 +318,6 @@ func (s *CheckSubmitter) Stop() {
 	s.podForwarder.Stop()
 	s.eventForwarder.Stop()
 
-	close(s.exit)
-	s.wg.Wait()
 	close(s.rtNotifierChan)
 }
 

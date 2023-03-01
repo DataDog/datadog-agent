@@ -9,13 +9,16 @@ import (
 	"fmt"
 	"time"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck() Check {
+func NewProcessDiscoveryCheck() *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{}
 }
 
@@ -42,8 +45,17 @@ func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo) err
 
 // IsEnabled returns true if the check is enabled by configuration
 func (d *ProcessDiscoveryCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	// The Process and Process Discovery checks are mutually exclusive
+	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+		return false
+	}
+
+	if ddconfig.IsECSFargate() {
+		log.Debug("Process discovery is not supported on ECS Fargate")
+		return false
+	}
+
+	return ddconfig.Datadog.GetBool("process_config.process_discovery.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

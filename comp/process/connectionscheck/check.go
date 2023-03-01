@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package processcheck
+package connectionscheck
 
 import (
 	"go.uber.org/fx"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
@@ -15,7 +16,13 @@ import (
 var _ types.CheckComponent = (*check)(nil)
 
 type check struct {
-	processCheck *checks.ProcessCheck
+	connectionsCheck *checks.ConnectionsCheck
+}
+
+type dependencies struct {
+	fx.In
+
+	Sysconfig *sysconfig.Config
 }
 
 type result struct {
@@ -25,9 +32,9 @@ type result struct {
 	Component Component
 }
 
-func newCheck() result {
+func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(),
+		connectionsCheck: checks.NewConnectionsCheck(deps.Sysconfig),
 	}
 	return result{
 		Check: types.ProvidesCheck{
@@ -38,5 +45,5 @@ func newCheck() result {
 }
 
 func (c *check) Object() checks.Check {
-	return c.processCheck
+	return c.connectionsCheck
 }
