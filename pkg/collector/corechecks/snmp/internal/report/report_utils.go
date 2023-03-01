@@ -154,3 +154,22 @@ func netmaskToPrefixlen(netmask string) int {
 	length, _ := stringMask.Size()
 	return length
 }
+
+// getInterfaceConfig retrieves checkconfig.InterfaceConfig by index and tags
+func getInterfaceConfig(interfaceConfigs []checkconfig.InterfaceConfig, index string, tags []string) (checkconfig.InterfaceConfig, error) {
+	var ifName string
+	for _, tag := range tags {
+		tagElems := strings.SplitN(tag, ":", 2)
+		if len(tagElems) == 2 && tagElems[0] == "interface" {
+			ifName = tagElems[1]
+			break
+		}
+	}
+	for _, ifConfig := range interfaceConfigs {
+		if (ifConfig.MatchField == "name" && ifConfig.MatchValue == ifName) ||
+			(ifConfig.MatchField == "index" && ifConfig.MatchValue == index) {
+			return ifConfig, nil
+		}
+	}
+	return checkconfig.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
+}

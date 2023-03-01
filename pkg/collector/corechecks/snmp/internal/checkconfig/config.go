@@ -59,6 +59,14 @@ var uptimeMetricConfig = MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
 
+// InterfaceConfig interface related configs (e.g. interface speed override)
+type InterfaceConfig struct {
+	MatchField string `yaml:"match_field"` // e.g. name, index
+	MatchValue string `yaml:"match_value"` // e.g. eth0 (name), 10 (index)
+	InSpeed    uint64 `yaml:"in_speed"`    // inbound speed override in bits per sec
+	OutSpeed   uint64 `yaml:"out_speed"`   // outbound speed override in bits per sec
+}
+
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles                     profileConfigMap `yaml:"profiles"`
@@ -130,6 +138,10 @@ type InstanceConfig struct {
 	// the integration will fetch OIDs from the devices and deduct which metrics  can be monitored (from all OOTB profile metrics definition)
 	DetectMetricsEnabled         *Boolean `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int      `yaml:"experimental_detect_metrics_refresh_interval"`
+
+	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
+	// it's only supported for single device instance (`ip_address`)
+	InterfaceConfigs []InterfaceConfig `yaml:"interface_configs"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -178,6 +190,7 @@ type CheckConfig struct {
 	DiscoveryInterval        int
 	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
+	InterfaceConfigs         []InterfaceConfig
 }
 
 // RefreshWithProfile refreshes config based on profile
@@ -477,6 +490,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.InstanceTags = instance.Tags
 	c.MetricTags = instance.MetricTags
+	c.InterfaceConfigs = instance.InterfaceConfigs
 
 	c.AddUptimeMetric()
 
@@ -629,6 +643,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
 	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
+	newConfig.InterfaceConfigs = c.InterfaceConfigs
 
 	return &newConfig
 }

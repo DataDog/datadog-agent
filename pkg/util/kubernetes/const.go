@@ -26,6 +26,18 @@ const (
 	// KubeAppManagedByLabelKey is the label key of the tool being used to manage the operation of an application
 	KubeAppManagedByLabelKey = "app.kubernetes.io/managed-by"
 
+	// RcIDAnnotKey is the key of the RC ID annotation
+	RcIDAnnotKey = "admission.datadoghq.com/rc.id"
+
+	// RcIDTagName is the key of the RC ID tag
+	RcIDTagName = "dd_remote_config_id"
+
+	// RcRevisionAnnotKey is the key of the RC revision annotation
+	RcRevisionAnnotKey = "admission.datadoghq.com/rc.rev"
+
+	// RcRevisionTagName is the key of the RC revision tag
+	RcRevisionTagName = "dd_remote_config_rev"
+
 	// EnvTagEnvVar is the environment variable of the env standard tag
 	EnvTagEnvVar = "DD_ENV"
 	// ServiceTagEnvVar is the environment variable of the service standard tag
