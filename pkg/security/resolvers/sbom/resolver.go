@@ -327,12 +327,9 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 		return nil
 	}
 
-	seclog.Tracef("resolving %s for container %s", file.PathnameStr, containerID)
-
 	sbom.Lock()
 	defer sbom.Unlock()
 
-	seclog.Tracef("returning %v", sbom.files[file.PathnameStr])
 	return sbom.files[file.PathnameStr]
 }
 

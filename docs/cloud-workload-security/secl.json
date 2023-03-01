@@ -218,28 +218,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "process.ancestors.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "process.ancestors.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "process.ancestors.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "process.ancestors.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "process.ancestors.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -353,28 +338,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "process.ancestors.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "process.ancestors.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "process.ancestors.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "process.ancestors.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "process.ancestors.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -593,28 +563,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "process.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "process.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "process.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "process.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "process.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -728,28 +683,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "process.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "process.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "process.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "process.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "process.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -938,28 +878,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "process.parent.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "process.parent.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "process.parent.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "process.parent.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "process.parent.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -1073,28 +998,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "process.parent.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "process.parent.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "process.parent.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "process.parent.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "process.parent.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -1369,28 +1279,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "chmod.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "chmod.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "chmod.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "chmod.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "chmod.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -1508,28 +1403,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "chown.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "chown.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "chown.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "chown.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "chown.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -1766,28 +1646,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "exec.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "exec.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "exec.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "exec.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "exec.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -1901,28 +1766,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "exec.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "exec.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "exec.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "exec.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "exec.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -2160,28 +2010,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "exit.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "exit.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "exit.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "exit.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "exit.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -2295,28 +2130,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "exit.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "exit.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "exit.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "exit.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "exit.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -2454,28 +2274,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "link.file.destination.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "link.file.destination.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "link.file.destination.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "link.file.destination.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "link.file.destination.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -2554,28 +2359,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "link.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "link.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "link.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "link.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "link.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -2673,28 +2463,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "load_module.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "load_module.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "load_module.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "load_module.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "load_module.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -2812,28 +2587,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "mkdir.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "mkdir.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "mkdir.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "mkdir.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "mkdir.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -2931,28 +2691,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "mmap.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "mmap.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "mmap.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "mmap.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "mmap.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -3118,28 +2863,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "open.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "open.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "open.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "open.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "open.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -3347,28 +3077,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "ptrace.tracee.ancestors.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "ptrace.tracee.ancestors.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "ptrace.tracee.ancestors.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "ptrace.tracee.ancestors.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "ptrace.tracee.ancestors.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -3482,28 +3197,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "ptrace.tracee.ancestors.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "ptrace.tracee.ancestors.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "ptrace.tracee.ancestors.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "ptrace.tracee.ancestors.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "ptrace.tracee.ancestors.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -3722,28 +3422,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "ptrace.tracee.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "ptrace.tracee.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "ptrace.tracee.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "ptrace.tracee.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "ptrace.tracee.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -3857,28 +3542,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "ptrace.tracee.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "ptrace.tracee.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "ptrace.tracee.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "ptrace.tracee.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "ptrace.tracee.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -4067,28 +3737,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "ptrace.tracee.parent.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "ptrace.tracee.parent.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "ptrace.tracee.parent.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "ptrace.tracee.parent.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "ptrace.tracee.parent.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -4202,28 +3857,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "ptrace.tracee.parent.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "ptrace.tracee.parent.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "ptrace.tracee.parent.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "ptrace.tracee.parent.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "ptrace.tracee.parent.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -4396,28 +4036,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "removexattr.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "removexattr.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "removexattr.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "removexattr.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "removexattr.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -4520,28 +4145,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "rename.file.destination.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "rename.file.destination.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "rename.file.destination.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "rename.file.destination.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "rename.file.destination.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -4620,28 +4230,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "rename.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "rename.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "rename.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "rename.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "rename.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -4739,28 +4334,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "rmdir.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "rmdir.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "rmdir.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "rmdir.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "rmdir.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -4975,28 +4555,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "setxattr.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "setxattr.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "setxattr.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "setxattr.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "setxattr.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -5199,28 +4764,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "signal.target.ancestors.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "signal.target.ancestors.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "signal.target.ancestors.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "signal.target.ancestors.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "signal.target.ancestors.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -5334,28 +4884,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "signal.target.ancestors.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "signal.target.ancestors.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "signal.target.ancestors.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "signal.target.ancestors.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "signal.target.ancestors.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -5574,28 +5109,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "signal.target.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "signal.target.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "signal.target.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "signal.target.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "signal.target.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -5709,28 +5229,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "signal.target.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "signal.target.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "signal.target.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "signal.target.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "signal.target.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -5919,28 +5424,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "signal.target.parent.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "signal.target.parent.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "signal.target.parent.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "signal.target.parent.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "signal.target.parent.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -6054,28 +5544,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "signal.target.parent.interpreter.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "signal.target.parent.interpreter.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "signal.target.parent.interpreter.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "signal.target.parent.interpreter.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "signal.target.parent.interpreter.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -6243,28 +5718,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "splice.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "splice.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "splice.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "splice.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "splice.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -6372,28 +5832,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "unlink.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "unlink.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "unlink.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "unlink.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "unlink.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -6515,28 +5960,13 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "utimes.file.package.major",
-          "definition": "Major version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-major-doc"
-        },
-        {
-          "name": "utimes.file.package.minor",
-          "definition": "Minor version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-minor-doc"
-        },
-        {
           "name": "utimes.file.package.name",
-          "definition": "Name of the package that provided this file",
+          "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
-          "name": "utimes.file.package.patch",
-          "definition": "Patch version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-patch-doc"
-        },
-        {
           "name": "utimes.file.package.version",
-          "definition": "Full version of the package that provided this file",
+          "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
@@ -7815,157 +7245,10 @@
       ]
     },
     {
-      "name": "*.package.major",
-      "link": "common-fileevent-package-major-doc",
-      "type": "int",
-      "definition": "Major version of the package that provided this file",
-      "prefixes": [
-        "chmod.file",
-        "chown.file",
-        "exec.file",
-        "exec.interpreter.file",
-        "exit.file",
-        "exit.interpreter.file",
-        "link.file",
-        "link.file.destination",
-        "load_module.file",
-        "mkdir.file",
-        "mmap.file",
-        "open.file",
-        "process.ancestors.file",
-        "process.ancestors.interpreter.file",
-        "process.file",
-        "process.interpreter.file",
-        "process.parent.file",
-        "process.parent.interpreter.file",
-        "ptrace.tracee.ancestors.file",
-        "ptrace.tracee.ancestors.interpreter.file",
-        "ptrace.tracee.file",
-        "ptrace.tracee.interpreter.file",
-        "ptrace.tracee.parent.file",
-        "ptrace.tracee.parent.interpreter.file",
-        "removexattr.file",
-        "rename.file",
-        "rename.file.destination",
-        "rmdir.file",
-        "setxattr.file",
-        "signal.target.ancestors.file",
-        "signal.target.ancestors.interpreter.file",
-        "signal.target.file",
-        "signal.target.interpreter.file",
-        "signal.target.parent.file",
-        "signal.target.parent.interpreter.file",
-        "splice.file",
-        "unlink.file",
-        "utimes.file"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.package.minor",
-      "link": "common-fileevent-package-minor-doc",
-      "type": "int",
-      "definition": "Minor version of the package that provided this file",
-      "prefixes": [
-        "chmod.file",
-        "chown.file",
-        "exec.file",
-        "exec.interpreter.file",
-        "exit.file",
-        "exit.interpreter.file",
-        "link.file",
-        "link.file.destination",
-        "load_module.file",
-        "mkdir.file",
-        "mmap.file",
-        "open.file",
-        "process.ancestors.file",
-        "process.ancestors.interpreter.file",
-        "process.file",
-        "process.interpreter.file",
-        "process.parent.file",
-        "process.parent.interpreter.file",
-        "ptrace.tracee.ancestors.file",
-        "ptrace.tracee.ancestors.interpreter.file",
-        "ptrace.tracee.file",
-        "ptrace.tracee.interpreter.file",
-        "ptrace.tracee.parent.file",
-        "ptrace.tracee.parent.interpreter.file",
-        "removexattr.file",
-        "rename.file",
-        "rename.file.destination",
-        "rmdir.file",
-        "setxattr.file",
-        "signal.target.ancestors.file",
-        "signal.target.ancestors.interpreter.file",
-        "signal.target.file",
-        "signal.target.interpreter.file",
-        "signal.target.parent.file",
-        "signal.target.parent.interpreter.file",
-        "splice.file",
-        "unlink.file",
-        "utimes.file"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "*.package.name",
       "link": "common-fileevent-package-name-doc",
       "type": "string",
-      "definition": "Name of the package that provided this file",
-      "prefixes": [
-        "chmod.file",
-        "chown.file",
-        "exec.file",
-        "exec.interpreter.file",
-        "exit.file",
-        "exit.interpreter.file",
-        "link.file",
-        "link.file.destination",
-        "load_module.file",
-        "mkdir.file",
-        "mmap.file",
-        "open.file",
-        "process.ancestors.file",
-        "process.ancestors.interpreter.file",
-        "process.file",
-        "process.interpreter.file",
-        "process.parent.file",
-        "process.parent.interpreter.file",
-        "ptrace.tracee.ancestors.file",
-        "ptrace.tracee.ancestors.interpreter.file",
-        "ptrace.tracee.file",
-        "ptrace.tracee.interpreter.file",
-        "ptrace.tracee.parent.file",
-        "ptrace.tracee.parent.interpreter.file",
-        "removexattr.file",
-        "rename.file",
-        "rename.file.destination",
-        "rmdir.file",
-        "setxattr.file",
-        "signal.target.ancestors.file",
-        "signal.target.ancestors.interpreter.file",
-        "signal.target.file",
-        "signal.target.interpreter.file",
-        "signal.target.parent.file",
-        "signal.target.parent.interpreter.file",
-        "splice.file",
-        "unlink.file",
-        "utimes.file"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.package.patch",
-      "link": "common-fileevent-package-patch-doc",
-      "type": "int",
-      "definition": "Patch version of the package that provided this file",
+      "definition": "[Experimental] Name of the package that provided this file",
       "prefixes": [
         "chmod.file",
         "chown.file",
@@ -8014,7 +7297,7 @@
       "name": "*.package.version",
       "link": "common-fileevent-package-version-doc",
       "type": "string",
-      "definition": "Full version of the package that provided this file",
+      "definition": "[Experimental] Full version of the package that provided this file",
       "prefixes": [
         "chmod.file",
         "chown.file",
