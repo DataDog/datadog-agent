@@ -663,18 +663,19 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
 
 
 @task
-def kitchen_test(ctx, target=None, provider="virtualbox"):
+def kitchen_test(ctx, target=None, provider=None):
     """
-    Run tests (locally) using chef kitchen against an array of different platforms.
+    Run tests (locally with vagrant) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
     * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
     """
 
-    vagrant_arch = ""
     if CURRENT_ARCH == "x64":
         vagrant_arch = "x86_64"
+        provider = provider or "virtualbox"
     elif CURRENT_ARCH == "arm64":
         vagrant_arch = "arm64"
+        provider = provider or "parallels"
     else:
         raise Exit(f"Unsupported vagrant arch for {CURRENT_ARCH}", code=1)
 
@@ -693,9 +694,18 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
         )
         raise Exit(code=1)
 
+    args = [
+        f"--platform {images[target]}",
+        f"--osversions {target}",
+        "--provider vagrant",
+        "--testfiles system-probe-test",
+        f"--platformfile {platform_file}",
+        f"--arch {vagrant_arch}",
+    ]
+
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test --platformfile {platform_file} --arch {vagrant_arch}",
+            f"inv kitchen.genconfig {' '.join(args)}",
             env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
@@ -703,14 +713,23 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
 
 @task
 def kitchen_genconfig(
-    ctx, ssh_key, platform, osversions, image_size=None, provider="azure", arch=None, azure_sub_id=None
+    ctx,
+    ssh_key,
+    platform,
+    osversions,
+    image_size=None,
+    provider="azure",
+    arch=None,
+    azure_sub_id=None,
+    ec2_device_name="/dev/sda1",
+    mount_path="/mnt/ci",
 ):
     if not arch:
         arch = CURRENT_ARCH
 
-    if arch == "x64":
+    if arch_mapping[arch] == "x64":
         arch = "x86_64"
-    elif arch == "arm64":
+    elif arch_mapping[arch] == "arm64":
         arch = "arm64"
     else:
         raise Exit("unsupported arch specified")
@@ -722,16 +741,32 @@ def kitchen_genconfig(
         raise Exit("azure subscription id must be specified with --azure-sub-id")
 
     env = {
-        "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
+        "KITCHEN_CI_MOUNT_PATH": mount_path,
+        "KITCHEN_CI_ROOT_PATH": "/tmp/ci",
     }
-    if azure_sub_id:
-        env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+    if provider == "azure":
+        env["KITCHEN_RSA_SSH_KEY_PATH"] = ssh_key
+        if azure_sub_id:
+            env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+    elif provider == "ec2":
+        env["KITCHEN_EC2_SSH_KEY_PATH"] = ssh_key
+        env["KITCHEN_EC2_DEVICE_NAME"] = ec2_device_name
+
+    args = [
+        f"--platform={platform}",
+        f"--osversions={osversions}",
+        f"--provider={provider}",
+        f"--arch={arch}",
+        f"--imagesize={image_size}",
+        "--testfiles=system-probe-test",
+        "--platformfile=platforms.json",
+    ]
 
     env["KITCHEN_ARCH"] = arch
     env["KITCHEN_PLATFORM"] = platform
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
+            f"inv -e kitchen.genconfig {' '.join(args)}",
             env=env,
         )
 

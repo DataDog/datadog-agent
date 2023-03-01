@@ -153,7 +153,8 @@ func runCheckCmd(cliParams *cliParams) error {
 		net.SetSystemProbePath(syscfg.SocketAddress)
 	}
 
-	all := checks.All()
+	// TODO: Remove dependency on syscfg once runCheckCmd is migrated to components
+	all := checks.All(syscfg)
 	names := make([]string, 0, len(all))
 	for _, ch := range all {
 		names = append(names, ch.Name())

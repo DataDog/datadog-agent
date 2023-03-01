@@ -22,6 +22,9 @@ type TestAgentDemultiplexer struct {
 	aggregatedSamples []metrics.MetricSample
 	noAggSamples      []metrics.MetricSample
 	sync.Mutex
+
+	events        chan []*metrics.Event
+	serviceChecks chan []*metrics.ServiceCheck
 }
 
 // AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
@@ -40,7 +43,7 @@ func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
 func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
-	return a.aggregator.GetBufferedChannels()
+	return a.events, a.serviceChecks
 }
 
 // SendSamplesWithoutAggregation implements a fake no aggregation pipeline ingestion part,
@@ -150,6 +153,8 @@ func InitTestAgentDemultiplexerWithOpts(opts AgentDemultiplexerOptions) *TestAge
 	demux := InitAndStartAgentDemultiplexer(opts, "hostname")
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
+		events:             make(chan []*metrics.Event),
+		serviceChecks:      make(chan []*metrics.ServiceCheck),
 	}
 	return &testAgent
 }

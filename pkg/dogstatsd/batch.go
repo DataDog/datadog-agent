@@ -76,7 +76,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 
 	// the Serverless Agent doesn't have to support service checks nor events so
 	// it doesn't run an Aggregator.
-	e, sc = demux.Aggregator().GetBufferedChannels()
+	e, sc = demux.GetEventsAndServiceChecksChannels()
 
 	// prepare on-time samples buffers
 	samples := make([]metrics.MetricSampleBatch, pipelineCount)
