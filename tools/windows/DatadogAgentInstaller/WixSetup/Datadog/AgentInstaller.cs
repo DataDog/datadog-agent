@@ -38,13 +38,21 @@ namespace WixSetup.Datadog
         private readonly AgentBinaries _agentBinaries;
         private readonly AgentFeatures _agentFeatures = new();
         private readonly AgentPython _agentPython = new();
-        private readonly AgentVersion _agentVersion = new();
+        private readonly AgentVersion _agentVersion;
         private readonly AgentSignature _agentSignature;
         private readonly AgentCustomActions _agentCustomActions = new();
         private readonly AgentInstallerUI _agentInstallerUi;
 
-        public AgentInstaller()
+        public AgentInstaller(string version = null)
         {
+            if (version == null)
+            {
+                _agentVersion = new AgentVersion();
+            }
+            else
+            {
+                _agentVersion = new AgentVersion(version);
+            }
             _agentBinaries = new AgentBinaries(BinSource, InstallerSource);
             _agentSignature = new AgentSignature(this, _agentPython, _agentBinaries);
             _agentInstallerUi = new AgentInstallerUI(this, _agentCustomActions);
@@ -197,6 +205,17 @@ namespace WixSetup.Datadog
                 document
                     .Select("Wix/Product")
                     .AddElement("CustomActionRef", "Id=WixFailWhenDeferred");
+                document
+                    .Select("Wix/Product/InstallExecuteSequence")
+                    .AddElement("DeleteServices", value: "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                document
+                    .Select("Wix/Product")
+                    .AddElement("Property",
+                        "Id=DATADOGYAMLEXISTS")
+                    .AddElement("DirectorySearch",
+                        "Id=DatadogYamlSearchDirId; Path=[APPLICATIONDATADIRECTORY_BEFORE_APPSEARCH]; Depth=0; AssignToProperty=yes")
+                    .AddElement("FileSearch",
+                        "Id=DatadogYamlSearchFileId; Name=datadog.yaml");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -206,6 +225,36 @@ namespace WixSetup.Datadog
 
             project.ResolveWildCards(pruneEmptyDirectories: true);
 
+#if DEBUG
+            project.BeforeInstall += args =>
+            {
+                var installed = args.Session.Property("Installed");
+                var wixUpgradeDetected = args.Session.Property("WIX_UPGRADE_DETECTED");
+                var remove = args.Session.Property("REMOVE");
+                var upgradingProductCode = args.Session.Property("UPGRADINGPRODUCTCODE");
+                var upgrading = args.Session.Property("Upgrading");
+                var uninstalling = args.Session.Property("Uninstalling");
+
+                var firstInstall = string.IsNullOrEmpty(installed) && string.IsNullOrEmpty(wixUpgradeDetected);
+                var upgrade =  !string.IsNullOrEmpty(wixUpgradeDetected) && remove != "ALL";
+                var uninstall =  !string.IsNullOrEmpty(installed) && remove == "ALL" && !(!string.IsNullOrEmpty(wixUpgradeDetected) || !string.IsNullOrEmpty(upgradingProductCode));
+                var maintenance = !string.IsNullOrEmpty(installed) && string.IsNullOrEmpty(uninstalling) &&
+                                  !string.IsNullOrEmpty(upgradingProductCode);
+                var removingForUpgrade = remove == "ALL" && !string.IsNullOrEmpty(upgradingProductCode);
+
+                MessageBox.Show($"installed={installed}\n" +
+                                $"wixUpgradeDetected={wixUpgradeDetected}\n" +
+                                $"remove={remove}\n" +
+                                $"upgradingProductCode={upgradingProductCode}\n" +
+                                $"upgrading={upgrading}\n" +
+                                $"uninstalling={uninstalling}\n\n" +
+                                $"firstInstall={firstInstall}\n" +
+                                $"upgrade={upgrade}\n" +
+                                $"uninstall={uninstall}\n" +
+                                $"maintenance={maintenance}\n" +
+                                $"removingForUpgrade={removingForUpgrade}", "BeforeInstall");
+            };
+#endif
             return project;
         }
 

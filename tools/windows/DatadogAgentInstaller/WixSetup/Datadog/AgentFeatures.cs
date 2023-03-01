@@ -17,7 +17,7 @@ namespace WixSetup.Datadog
             {
                 Id = new Id("NPM")
             };
-            MainApplication = new Feature(MainApplicationName, description: string.Empty, isEnabled: true, allowChange: true, configurableDir: "PROJECTLOCATION")
+            MainApplication = new Feature(MainApplicationName, description: string.Empty, isEnabled: true, allowChange: false, configurableDir: "PROJECTLOCATION")
             {
                 Id = new Id("MainApplication")
             };

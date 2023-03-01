@@ -29,6 +29,7 @@ namespace WixSetup.Datadog
 
         public AgentInstallerUI(IWixProjectEvents wixProjectEvents, AgentCustomActions agentCustomActions)
         {
+            Properties.Remove("ARPNOMODIFY");
             wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
             DialogRefs = new List<string>
             {
