@@ -95,14 +95,12 @@ func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 		_ = os.Remove(file.Name())
 		return err
 	}
-	defer file.Close()
-
 	s.currentSizeInBytes += bufferSize
 	s.filenames = append(s.filenames, file.Name())
 	s.telemetry.setFileSize(bufferSize)
 	s.telemetry.setCurrentSizeInBytes(s.GetDiskSpaceUsed())
 	s.telemetry.setFilesCount(s.getFilesCount())
-	return nil
+	return file.Close()
 }
 
 // ExtractLast extracts the last transactions stored.
