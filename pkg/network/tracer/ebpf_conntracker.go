@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -97,6 +98,22 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		buf, err = netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
 		if err != nil {
 			return nil, fmt.Errorf("could not read bpf module: %s", err)
+		}
+
+		guesser, err := offsetguess.NewConntrackOffsetGuesser(constants)
+		if err != nil {
+			return nil, fmt.Errorf("error creating offset guesser for ebpf conntracker: %w", err)
+		}
+
+		offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not load offset guessing module: %w", err)
+		}
+		defer offsetBuf.Close()
+
+		constants, err = runOffsetGuessing(cfg, offsetBuf, guesser)
+		if err != nil {
+			return nil, fmt.Errorf("could not guess offsets for ebpf conntracker: %w", err)
 		}
 	}
 	defer buf.Close()

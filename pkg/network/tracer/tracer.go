@@ -146,7 +146,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
-		if constantEditors, err = runOffsetGuessing(config, offsetBuf); err != nil {
+		if constantEditors, err = runOffsetGuessing(config, offsetBuf, offsetguess.NewTracerOffsetGuesser()); err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
 	}
@@ -285,49 +285,30 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 	return rdns
 }
 
-func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) (editors []manager.ConstantEditor, err error) {
-	guessOffsets := func(guesser offsetguess.OffsetGuesser) error {
-		if err := offsetguess.SetupOffsetGuesser(guesser, config, buf); err != nil {
-			return err
+func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader, guesser offsetguess.OffsetGuesser) (editors []manager.ConstantEditor, err error) {
+	if err := offsetguess.SetupOffsetGuesser(guesser, config, buf); err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		err := guesser.Manager().Stop(manager.CleanAll)
+		if err != nil {
+			log.Warnf("error stopping offset ebpf manager: %s", err)
+		}
+	}()
+
+	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
+	for i := 0; i < 5; i++ {
+		start := time.Now()
+		if editors, err = guesser.Guess(config); err == nil {
+			log.Infof("offset guessing complete (took %v)", time.Since(start))
+			return editors, nil
 		}
 
-		defer func() {
-			err := guesser.Manager().Stop(manager.CleanAll)
-			if err != nil {
-				log.Warnf("error stopping offset ebpf manager: %s", err)
-			}
-		}()
-
-		// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-		var eds []manager.ConstantEditor
-		for i := 0; i < 5; i++ {
-			start := time.Now()
-			if eds, err = guesser.Guess(config); err == nil {
-				log.Infof("offset guessing complete (took %v)", time.Since(start))
-				editors = append(editors, eds...)
-				return nil
-			}
-
-			time.Sleep(1 * time.Second)
-		}
-
-		return fmt.Errorf("error guessing offsets: %s", err)
+		time.Sleep(1 * time.Second)
 	}
 
-	if err = guessOffsets(offsetguess.NewTracerOffsetGuesser()); err != nil {
-		return nil, err
-	}
-
-	var cog offsetguess.OffsetGuesser
-	if cog, err = offsetguess.NewConntrackOffsetGuesser(editors); err != nil {
-		return nil, err
-	}
-
-	if err = guessOffsets(cog); err != nil {
-		return nil, err
-	}
-
-	return editors, nil
+	return nil, err
 }
 
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {

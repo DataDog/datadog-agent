@@ -31,16 +31,23 @@ import (
 const sizeofNfConntrackTuple = 40
 
 type conntrackOffsetGuesser struct {
-	m      *manager.Manager
-	status *netebpf.ConntrackStatus
+	m           *manager.Manager
+	status      *netebpf.ConntrackStatus
+	ipv6Enabled uint64
 }
 
 func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, error) {
 	var offsetIno uint64
+	var ipv6Enabled uint64
 	for _, c := range consts {
-		if c.Name == "offset_ino" {
+		switch c.Name {
+		case "offset_ino":
 			offsetIno = c.Value.(uint64)
-			break
+		case "ipv6_enabled":
+			ipv6Enabled = c.Value.(uint64)
+			if offsetIno > 0 {
+				break
+			}
 		}
 	}
 
@@ -63,7 +70,8 @@ func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, 
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 			},
 		},
-		status: &netebpf.ConntrackStatus{Offset_ino: offsetIno},
+		status:      &netebpf.ConntrackStatus{Offset_ino: offsetIno},
+		ipv6Enabled: ipv6Enabled,
 	}, nil
 }
 
@@ -84,6 +92,7 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_ct_status", Value: c.status.Offset_status},
 		{Name: "offset_ct_netns", Value: c.status.Offset_netns},
 		{Name: "offset_ct_ino", Value: c.status.Offset_ino},
+		{Name: "ipv6_enabled", Value: c.ipv6Enabled},
 	}
 }
 
