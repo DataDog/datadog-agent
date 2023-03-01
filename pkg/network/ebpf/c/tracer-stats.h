@@ -9,6 +9,7 @@
 #include "tracer-telemetry.h"
 #include "cookie.h"
 #include "sock.h"
+#include "protocols/tls/tags-types.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
@@ -46,6 +47,49 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
+static __always_inline bool is_tls_helper(conn_tuple_t *t) {
+    if (bpf_map_lookup_elem(&tls_connection, t) != NULL) {
+        return true;
+    }
+    return false;
+}
+
+// is_tls_connection check if a connection has been classified as TLS protocol in the protocol_classifier_entrypoint(skb)
+static __always_inline bool is_tls_connection(conn_tuple_t *t) {
+    conn_tuple_t conn_tuple_copy = *t;
+    // The classifier is a socket filter and there we are not accessible for pid and netns.
+    // The key is based of the source & dest addresses and ports, and the metadata.
+    conn_tuple_copy.netns = 0;
+    conn_tuple_copy.pid = 0;
+    if (is_tls_helper(&conn_tuple_copy)) {
+        return true;
+    }
+
+    conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
+    if (cached_skb_conn_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
+        if (is_tls_helper(&skb_tup)) {
+            return true;
+        }
+    }
+
+    flip_tuple(&conn_tuple_copy);
+    if (is_tls_helper(&conn_tuple_copy)) {
+        return true;
+    }
+
+    cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
+    if (cached_skb_conn_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
+        if (is_tls_helper(&skb_tup)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// get_protocol return the protocol has been classified in the protocol_classifier_entrypoint(skb)
 static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
     conn_tuple_t conn_tuple_copy = *t;
     // The classifier is a socket filter and there we are not accessible for pid and netns.
@@ -84,6 +128,7 @@ static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
     return PROTOCOL_UNKNOWN;
 }
 
+// update_conn_stats update the connection metadata : protocol, tags, timestamp, direction, packets, bytes sent and received
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
     __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
     conn_stats_ts_t *val = NULL;
@@ -98,6 +143,9 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
             log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
             val->protocol = protocol;
         }
+    }
+    if (is_tls_connection(t)) {
+        val->conn_tags |= CONN_TLS;
     }
 
     // If already in our map, increment size in-place
@@ -140,6 +188,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
 }
 
+// update_tcp_stats update rtt, retransmission and state on of a TCP connection
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // query stats without the PID from the tuple
     __u32 pid = t->pid;

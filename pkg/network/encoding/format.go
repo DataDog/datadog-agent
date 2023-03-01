@@ -81,7 +81,7 @@ func FormatConnection(
 	c.IntraHost = conn.IntraHost
 	c.LastTcpEstablished = conn.Last.TCPEstablished
 	c.LastTcpClosed = conn.Last.TCPClosed
-	c.Protocol = formatProtocol(conn.Protocol)
+	c.Protocol = formatProtocol(conn.Protocol, conn.StaticTags)
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
@@ -307,14 +307,16 @@ func unsafeStringSlice(key string) []byte {
 //				model.ProtocolType_protocolHTTP2,
 //			},
 //		}
-func formatProtocol(protocol network.ProtocolType) *model.ProtocolStack {
+func formatProtocol(protocol network.ProtocolType, staticTags uint64) *model.ProtocolStack {
 	if protocol == network.ProtocolUnclassified {
 		protocol = network.ProtocolUnknown
 	}
 
+	stack := []model.ProtocolType{}
+	if network.IsTLSTag(staticTags) {
+		stack = append(stack, model.ProtocolType(network.ProtocolTLS))
+	}
 	return &model.ProtocolStack{
-		Stack: []model.ProtocolType{
-			model.ProtocolType(protocol),
-		},
+		Stack: append(stack, model.ProtocolType(protocol)),
 	}
 }

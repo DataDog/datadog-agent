@@ -17,9 +17,10 @@
 #include "protocols/mysql/helpers.h"
 #include "protocols/redis/helpers.h"
 #include "protocols/postgres/helpers.h"
+#include "protocols/tls/tls.h"
 
 // Checks if a given buffer is http, http2, gRPC.
-static __always_inline protocol_t classify_http_protocols(const char *buf, __u32 size) {
+static __always_inline protocol_t classify_applayer_protocols(const char *buf, __u32 size) {
     if (is_http(buf, size)) {
         return PROTOCOL_HTTP;
     }
@@ -86,6 +87,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    // connection is TLS encrypted
+    if (bpf_map_lookup_elem(&tls_connection, &skb_tup) != NULL) {
+        return;
+    }
+
     protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
     if (cur_fragment_protocol_ptr) {
         return;
@@ -106,7 +112,15 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 
-    protocol_t cur_fragment_protocol = classify_http_protocols(request_fragment, final_fragment_size);
+    if (is_tls(request_fragment, final_fragment_size)) {
+        const bool t = true;
+        bpf_map_update_with_telemetry(tls_connection, &skb_tup, &t, BPF_ANY);
+        flip_tuple(&skb_tup);
+        bpf_map_update_with_telemetry(tls_connection, &skb_tup, &t, BPF_ANY);
+        return;
+    }
+
+    protocol_t cur_fragment_protocol = classify_applayer_protocols(request_fragment, final_fragment_size);
     // If there has been a change in the classification, save the new protocol.
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         save_protocol(&skb_tup, cur_fragment_protocol);

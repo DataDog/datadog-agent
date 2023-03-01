@@ -44,20 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-type connTag = uint64
-
-const (
-	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
-	tagOpenSSL connTag = 2 // netebpf.OpenSSL
-)
-
-var (
-	staticTags = map[connTag]string{
-		tagGnuTLS:  "tls.library:gnutls",
-		tagOpenSSL: "tls.library:openssl",
-	}
-)
-
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -223,6 +209,9 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
+	/* enable protocol classification : TLS */
+	cfg.ProtocolClassificationEnabled = true
+	cfg.CollectTCPConns = true
 	tr := setupTracer(t, cfg)
 
 	// not ideal but, short process are hard to catch
@@ -254,14 +243,23 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
+			foundPathAndHTTPTag := false
 			if key.Path.Content == "/200/foobar" && (statsTags == tagGnuTLS || statsTags == tagOpenSSL) {
+				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, staticTags[statsTags])
-				return true
+			}
+			if foundPathAndHTTPTag {
+				for _, c := range payload.Conns {
+					if c.SPort == key.SrcPort && c.DPort == key.DstPort && network.IsTLSTag(c.StaticTags) {
+						return true
+					}
+				}
+				t.Logf("HTTP connection %v doesn't contain ConnTagTLS\n", key)
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 			for _, c := range payload.Conns {
 				possibleKeyTuples := network.HTTPKeyTuplesFromConn(c)
-				t.Logf("conn sport %d dport %d tags %x connKey [%v] or [%v]\n", c.SPort, c.DPort, c.Tags, possibleKeyTuples[0], possibleKeyTuples[1])
+				t.Logf("conn sport %d dport %d tags %x staticTags %x connKey [%v] or [%v]\n", c.SPort, c.DPort, c.Tags, c.StaticTags, possibleKeyTuples[0], possibleKeyTuples[1])
 			}
 		}
 
@@ -762,6 +760,38 @@ func TestJavaInjection(t *testing.T) {
 					for key := range payload.HTTP {
 						if key.Path.Content == "/anything/java-tls-request" {
 							return true
+						}
+					}
+
+					return false
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
+			},
+		},
+		{
+			// Test the java jdk client https request is working
+			name: "java_jdk_client_httpbin_docker_withTLSclassification_java15",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.JavaDir = legacyJavaDir
+				cfg.ProtocolClassificationEnabled = true
+				cfg.CollectTCPConns = true
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for key := range payload.HTTP {
+						if key.Path.Content == "/anything/java-tls-request" {
+							for _, c := range payload.Conns {
+								if c.SPort == key.SrcPort && c.DPort == key.DstPort && network.IsTLSTag(c.StaticTags) {
+									return true
+								}
+							}
 						}
 					}
 

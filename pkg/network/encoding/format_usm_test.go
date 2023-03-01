@@ -48,6 +48,24 @@ func TestFormatProtocols(t *testing.T) {
 			},
 		},
 		{
+			name:     "http2 protocol",
+			protocol: network.ProtocolHTTP2,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolHTTP2,
+				},
+			},
+		},
+		{
+			name:     "tls protocol",
+			protocol: network.ProtocolTLS,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolTLS,
+				},
+			},
+		},
+		{
 			name:     "kafka protocol",
 			protocol: network.ProtocolKafka,
 			want: &model.ProtocolStack{
@@ -95,7 +113,7 @@ func TestFormatProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, formatProtocol(tt.protocol), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, formatProtocol(tt.protocol, 0), "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }

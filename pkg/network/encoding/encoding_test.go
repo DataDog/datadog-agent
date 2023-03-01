@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"testing"
@@ -30,8 +31,9 @@ type connTag = uint64
 
 // ConnTag constant must be the same for all platform
 const (
-	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
-	tagOpenSSL connTag = 2 // netebpf.OpenSSL
+	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
+	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
+	tagTLS     connTag = 0x10 // network.ConnTagTLS
 )
 
 func newConfig(t *testing.T) {
@@ -115,7 +117,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 
 				RouteIdx: -1,
 				Protocol: &model.ProtocolStack{
-					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP2},
+					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
 			},
 		},
@@ -134,11 +136,12 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			UsmEnabled: false,
 		},
-		Tags: network.GetStaticTags(1),
+		Tags: network.GetStaticTags(tagOpenSSL | tagTLS),
 	}
+	sort.Strings(out.Tags)
 	if runtime.GOOS == "linux" {
-		out.Conns[1].Tags = []uint32{0}
-		out.Conns[1].TagsChecksum = uint32(3241915907)
+		out.Conns[1].Tags = []uint32{0, 1}
+		out.Conns[1].TagsChecksum = uint32(3359960845)
 	}
 	return out
 }
@@ -202,7 +205,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 					Type:       network.UDP,
 					Family:     network.AFINET6,
 					Direction:  network.LOCAL,
-					StaticTags: uint64(1),
+					StaticTags: tagOpenSSL | tagTLS,
 					Protocol:   network.ProtocolHTTP2,
 				},
 			},
@@ -269,6 +272,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
+		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
@@ -294,6 +298,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
+		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
@@ -320,6 +325,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
+		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
@@ -348,6 +354,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
+		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
@@ -401,6 +408,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+		sort.Strings(result.Tags)
 
 		assert.Equal(out, result)
 	})
@@ -420,6 +428,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+		sort.Strings(result.Tags)
 
 		assert.Equal(out, result)
 	})
@@ -493,14 +502,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown),
+				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown),
+				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{

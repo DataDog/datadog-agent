@@ -11,6 +11,8 @@ import (
 
 type ProtocolType uint16
 
+type ProtocolFlagsType uint8
+
 const (
 	ProtocolUnclassified = ProtocolType(model.ProtocolType_protocolUnclassified)
 	ProtocolUnknown      = ProtocolType(model.ProtocolType_protocolUnknown)
