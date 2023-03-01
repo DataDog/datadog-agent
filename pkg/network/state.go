@@ -154,7 +154,6 @@ type networkState struct {
 	maxClientStats int
 	maxDNSStats    int
 	maxHTTPStats   int
-	maxHTTP2Stats  int
 }
 
 // NewState creates a new network state
@@ -505,7 +504,8 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 	for key, stats := range allStats {
 		for _, client := range ns.clients {
 			prevStats, ok := client.http2StatsDelta[key]
-			if !ok && len(client.http2StatsDelta) >= ns.maxHTTP2Stats {
+			// Currently, we are using maxHTTPStats for HTTP2.
+			if !ok && len(client.http2StatsDelta) >= ns.maxHTTPStats {
 				ns.telemetry.http2StatsDropped++
 				continue
 			}
