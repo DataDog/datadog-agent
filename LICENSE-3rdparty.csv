@@ -528,6 +528,7 @@ core,github.com/cavaliergopher/grab/v3,BSD-3-Clause,Copyright (c) 2017 Ryan Arms
 core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 Ryan Armstrong. All rights reserved
 core,github.com/cenkalti/backoff,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Copyright (c) 2014 Cenk Altı
+core,github.com/cespare/xxhash,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/cihub/seelog,BSD-3-Clause,"Copyright (c) 2012, Cloud Instruments Co., Ltd. <info@cin.io>"
 core,github.com/cilium/ebpf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -632,6 +633,17 @@ core,github.com/coreos/pkg/dlopen,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/cri-o/ocicni/pkg/ocicni,Apache-2.0,"Copyright 2016 Red Hat, Inc"
 core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved | Copyright (C) 2017 SUSE LLC. All rights reserved
 core,github.com/davecgh/go-spew/spew,ISC,Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
+core,github.com/dgraph-io/badger/v3,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/fb,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/options,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/pb,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/skl,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/table,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/trie,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/y,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/ristretto,Apache-2.0,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
+core,github.com/dgraph-io/ristretto/z,MIT,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
+core,github.com/dgraph-io/ristretto/z/simd,MIT,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
 core,github.com/dgryski/go-rendezvous,MIT,Copyright (c) 2017-2020 Damian Gryski <damian@gryski.com>
 core,github.com/dimchansky/utfbom,Apache-2.0,"Copyright (c) 2018-2020, Dmitrij Koniajev (dimchansky@gmail.com)"
@@ -839,6 +851,7 @@ core,github.com/golang/protobuf/ptypes/struct,BSD-3-Clause,Copyright (c) 2009 Th
 core,github.com/golang/protobuf/ptypes/timestamp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/wrappers,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/snappy,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
+core,github.com/google/flatbuffers/go,Apache-2.0,Copyright (c) 2014 Google
 core,github.com/google/go-cmp/cmp,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/diff,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/flags,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
