@@ -339,11 +339,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		},
 	}
 
-	//	If Kafka monitoring is not enabled, loading the program will cause a verifier issue and should be avoided.
-	if !e.cfg.EnableKafkaMonitoring {
-		options.ExcludedFunctions = []string{"socket__kafka_filter", "socket__protocol_dispatcher_kafka"}
-	}
-
 	options.TailCallRouter = e.tailCallRouter
 	options.ActivatedProbes = []manager.ProbesSelector{
 		&manager.ProbeSelector{
@@ -373,10 +368,13 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		s.ConfigureOptions(&options)
 	}
 
-	// configure event stream
+	// Configure event streams
 	events.Configure("http", e.Manager.Manager, &options)
 	if e.cfg.EnableKafkaMonitoring {
 		events.Configure("kafka", e.Manager.Manager, &options)
+	} else {
+		// If Kafka monitoring is not enabled, loading the program will cause a verifier issue and should be avoided.
+		options.ExcludedFunctions = append(options.ExcludedFunctions, "socket__kafka_filter", "socket__protocol_dispatcher_kafka")
 	}
 
 	return e.InitWithOptions(buf, options)
