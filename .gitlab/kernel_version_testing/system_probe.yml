@@ -91,7 +91,7 @@ pull_test_dockers_arm64:
 package_dependencies_x64:
   extends:
     - .package_dependencies
-  needs: ["tests_ebpf_x64", "pull_test_dockers_x64"]
+  needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64", "pull_test_dockers_x64"]
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
@@ -99,7 +99,7 @@ package_dependencies_x64:
 package_dependencies_arm64:
   extends:
     - .package_dependencies
-  needs: ["tests_ebpf_arm64", "pull_test_dockers_arm64"]
+  needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64", "pull_test_dockers_arm64"]
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
