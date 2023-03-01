@@ -947,7 +947,6 @@ func TestSampling(t *testing.T) {
 }
 
 func TestSample(t *testing.T) {
-	// MTOFF
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10, Features: make(map[string]struct{})}
 	a := &Agent{
 		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),

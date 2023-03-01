@@ -229,7 +229,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		if c.HasFeature("big_resource"){
 			c.MaxResourceLen = 15_000
 		}
-		fmt.Printf("\nMTOFF: c.Features is: %v, type %T\n", c.Features, c.Features)
+		log.Debug("Found APM feature flags: %v", c.Features)
 	}
 
 	if k := "apm_config.ignore_resources"; coreconfig.Datadog.IsSet(k) {

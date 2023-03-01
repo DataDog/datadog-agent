@@ -7,7 +7,6 @@ package agent
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"time"
 
@@ -490,7 +489,6 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 		ts.TracesPriorityNone.Inc()
 	}
 	if _, ok := a.conf.Features["error_rare_sample_tracer_drop"]; ok {
-		fmt.Println("\nMTOFF: error_rare_sample_tracer_drop feature implementing")
 		if isManualUserDrop(priority, pt) {
 			return 0, false, nil
 		}
