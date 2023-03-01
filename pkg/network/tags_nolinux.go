@@ -12,7 +12,3 @@ package network
 func GetStaticTags(staticTags uint64) (tags []string) {
 	return tags
 }
-
-func IsTLSTag(staticTags uint64) bool {
-	return false
-}

@@ -115,9 +115,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 
 				RouteIdx: -1,
 				Protocol: &model.ProtocolStack{
-					Stack: []model.ProtocolType{
-						model.ProtocolType_protocolHTTP2,
-					},
+					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP2},
 				},
 			},
 		},
@@ -141,8 +139,6 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	if runtime.GOOS == "linux" {
 		out.Conns[1].Tags = []uint32{0}
 		out.Conns[1].TagsChecksum = uint32(3241915907)
-		out.Conns[1].Protocol.Stack = append([]model.ProtocolType{model.ProtocolType_protocolTLS}, out.Conns[1].Protocol.Stack...)
-
 	}
 	return out
 }
@@ -497,14 +493,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:         formatProtocol(network.ProtocolUnknown),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:         formatProtocol(network.ProtocolUnknown),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
