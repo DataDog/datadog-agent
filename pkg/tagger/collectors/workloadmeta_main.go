@@ -22,10 +22,11 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	staticSource    = workloadmetaCollectorName + "-static"
-	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
-	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	staticSource         = workloadmetaCollectorName + "-static"
+	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	containerImageSource = workloadmetaCollectorName + "+" + string(workloadmeta.KindContainerImageMetadata)
 )
 
 // CollectorPriorities holds collector priorities
@@ -188,4 +189,5 @@ func init() {
 	CollectorPriorities[podSource] = NodeOrchestrator
 	CollectorPriorities[taskSource] = NodeOrchestrator
 	CollectorPriorities[containerSource] = NodeRuntime
+	CollectorPriorities[containerImageSource] = NodeRuntime
 }

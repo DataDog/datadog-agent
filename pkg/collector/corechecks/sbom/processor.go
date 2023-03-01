@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -138,6 +140,11 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
+	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, collectors.HighCardinality)
+	if err != nil {
+		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
+	}
+
 	// In containerd some images are created without a repo digest, and it's
 	// also possible to remove repo digests manually.
 	// This means that the set of repos that we need to handle is the union of
@@ -160,20 +167,42 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 	}
 
 	for repo := range repos {
+		repoSplitted := strings.Split(repo, "/")
+		shortName := repoSplitted[len(repoSplitted)-1]
+
 		id := repo + "@" + img.ID
 
-		tags := make([]string, 0, len(img.RepoTags))
+		repoTags := make([]string, 0, len(img.RepoTags))
 		for _, repoTag := range img.RepoTags {
 			if strings.HasPrefix(repoTag, repo+":") {
-				tags = append(tags, strings.SplitN(repoTag, ":", 2)[1])
+				repoTags = append(repoTags, strings.SplitN(repoTag, ":", 2)[1])
 			}
+		}
+
+		// Because we split a single image entity into different payloads if it has several repo digests,
+		// me must re-compute `image_name`, `short_image` and `image_tag` tags.
+		ddTags2 := make([]string, 0, len(ddTags))
+		for _, ddTag := range ddTags {
+			if !strings.HasPrefix(ddTag, "image_name:") &&
+				!strings.HasPrefix(ddTag, "short_image:") &&
+				!strings.HasPrefix(ddTag, "image_tag:") {
+				ddTags2 = append(ddTags2, ddTag)
+			}
+		}
+
+		ddTags2 = append(ddTags2,
+			"image_name:"+repo,
+			"short_image:"+shortName)
+		for _, t := range repoTags {
+			ddTags2 = append(ddTags2, "image_tag:"+t)
 		}
 
 		p.queue <- &model.SBOMEntity{
 			Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 			Id:                 id,
+			DdTags:             ddTags2,
 			GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
-			Tags:               tags,
+			RepoTags:           repoTags,
 			InUse:              inUse,
 			GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
 			Sbom: &sbom.SBOMEntity_Cyclonedx{

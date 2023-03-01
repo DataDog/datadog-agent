@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -17,6 +19,10 @@ import (
 	model "github.com/DataDog/agent-payload/v5/contimage"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+var /* const */ (
+	sourceAgent = "agent"
 )
 
 type processor struct {
@@ -29,6 +35,7 @@ func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time
 			sender.ContainerImage([]model.ContainerImagePayload{
 				{
 					Version: "v1",
+					Source:  &sourceAgent,
 					Images:  images,
 				},
 			})
@@ -54,6 +61,11 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 }
 
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
+	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, collectors.HighCardinality)
+	if err != nil {
+		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
+	}
+
 	var lastCreated *timestamppb.Timestamp = nil
 	layers := make([]*model.ContainerImage_ContainerImageLayer, 0, len(img.Layers))
 	for _, layer := range img.Layers {
@@ -101,10 +113,10 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 
 		id := repo + "@" + img.ID
 
-		tags := make([]string, 0, len(img.RepoTags))
+		repoTags := make([]string, 0, len(img.RepoTags))
 		for _, repoTag := range img.RepoTags {
 			if strings.HasPrefix(repoTag, repo+":") {
-				tags = append(tags, strings.SplitN(repoTag, ":", 2)[1])
+				repoTags = append(repoTags, strings.SplitN(repoTag, ":", 2)[1])
 			}
 		}
 
@@ -115,12 +127,31 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 			}
 		}
 
+		// Because we split a single image entity into different payloads if it has several repo digests,
+		// me must re-compute `image_name`, `short_image` and `image_tag` tags.
+		ddTags2 := make([]string, 0, len(ddTags))
+		for _, ddTag := range ddTags {
+			if !strings.HasPrefix(ddTag, "image_name:") &&
+				!strings.HasPrefix(ddTag, "short_image:") &&
+				!strings.HasPrefix(ddTag, "image_tag:") {
+				ddTags2 = append(ddTags2, ddTag)
+			}
+		}
+
+		ddTags2 = append(ddTags2,
+			"image_name:"+repo,
+			"short_image:"+shortName)
+		for _, t := range repoTags {
+			ddTags2 = append(ddTags2, "image_tag:"+t)
+		}
+
 		p.queue <- &model.ContainerImage{
 			Id:          id,
+			DdTags:      ddTags2,
 			Name:        repo,
 			Registry:    registry,
 			ShortName:   shortName,
-			Tags:        tags,
+			RepoTags:    repoTags,
 			Digest:      img.ID,
 			Size:        img.SizeBytes,
 			RepoDigests: repoDigests,
