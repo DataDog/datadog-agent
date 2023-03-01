@@ -138,6 +138,12 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		config.EnableHTTPSMonitoring = false
 	}
 
+	http2Supported := http.HTTP2Supported()
+	if !http2Supported && config.ServiceMonitoringEnabled {
+		config.EnableHTTP2Monitoring = false
+		log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http.HTTP2MinimumKernelVersion, currKernelVersion)
+	}
+
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
