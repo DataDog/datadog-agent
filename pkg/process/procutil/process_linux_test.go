@@ -162,8 +162,10 @@ func testProcessesByPID(t *testing.T) {
 
 	// make sure the process that has no command line doesn't get included in the output
 	for pid, expectProc := range expectedProcs {
-		cmd := strings.Join(probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))), " ")
-		if cmd == "" {
+		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
+		cmd := strings.Join(probe.getCmdline(pathForPID), " ")
+		statInfo := probe.parseStat(pathForPID, pid, time.Now())
+		if cmd == "" && isKernelThread(statInfo.flags) {
 			assert.NotContains(t, procByPID, pid)
 		} else {
 			assert.Contains(t, procByPID, pid)
@@ -180,7 +182,6 @@ func testProcessesByPID(t *testing.T) {
 
 		assert.NotEmpty(t, proc.Pid)
 		assert.NotEmpty(t, proc.Name)
-		assert.NotEmpty(t, proc.Cmdline)
 
 		// Make sure that the memory stats are not collected
 		assert.Empty(t, proc.Stats.MemInfoEx)
@@ -197,7 +198,7 @@ func compareProcess(t *testing.T, procV1, procV2 *Process) {
 	assert.Equal(t, procV1.Username, procV2.Username)
 	assert.Equal(t, procV1.Cwd, procV2.Cwd)
 	assert.Equal(t, procV1.Exe, procV2.Exe)
-	assert.Equal(t, procV1.Name, procV2.Name)
+	assert.Equal(t, procV1.Name, procV2.Name, "expected:%+v actual:%+v", procV1, procV2)
 	assert.ElementsMatch(t, procV1.Uids, procV2.Uids)
 	assert.ElementsMatch(t, procV1.Gids, procV2.Gids)
 	compareStats(t, procV1.Stats, procV2.Stats)

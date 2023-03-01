@@ -222,12 +222,11 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 		statInfo := p.parseStat(pathForPID, pid, now)
 
 		if len(cmdline) == 0 {
-			if statInfo.flags&0x00200000 == 0x00200000 {
+			if isKernelThread(statInfo.flags) {
 				log.Tracef("Skipping kernel process pid:%d", pid)
-				// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
+				// NOTE: The agent's process check currently skips all processes that are kernel threads which have
+				//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
 				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-				//       A process must also have the PF_KTHREAD flag set to detect if the process is in fact a kernel thread
-				//       See: https://github.com/torvalds/linux/commit/7b34e4283c685f5cc6ba6d30e939906eee0d4bcf
 				continue
 			}
 			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
@@ -863,4 +862,10 @@ func getClockTicks() float64 {
 		}
 	}
 	return clockTicks
+}
+
+// isKernelThread checks if the PF_KTHREAD flag is set which identifies this process as a kernel thread
+//  See: https://github.com/torvalds/linux/commit/7b34e4283c685f5cc6ba6d30e939906eee0d4bcf
+func isKernelThread(flags uint32) bool {
+	return flags&0x00200000 == 0x00200000
 }
