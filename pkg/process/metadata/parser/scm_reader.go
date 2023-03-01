@@ -14,7 +14,7 @@ import (
 
 type scmReader struct{}
 
-// scmReader is a cross-platform compatability wrapper around `winutil.SCMMonitor`.
+// scmReader is a cross-platform compatibility wrapper around `winutil.SCMMonitor`.
 // The non-windows version does nothing, and instead only exists so that we don't get compile errors.
 func newSCMReader() *scmReader {
 	return &scmReader{}
