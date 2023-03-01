@@ -45,7 +45,6 @@ def get_with_retries(uri_or_host, path, port, max_retries=10)
   end
 end
 
-
 def get_runtime_config
   res = get_with_retries('localhost', '/config', 6162)
   YAML.load(res)
