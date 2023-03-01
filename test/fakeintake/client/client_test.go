@@ -95,4 +95,19 @@ func TestClient(t *testing.T) {
 		assert.True(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"check:snmp"}))
 		assert.False(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"totoro"}))
 	})
+
+	t.Run("GetServerHealth", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/fakeintake/health" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.GetServerHealth()
+		assert.NoError(t, err)
+	})
 }

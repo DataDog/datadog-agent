@@ -68,11 +68,16 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessAc
 	ppan := &ProcessActivityNode{
 		Process:        protoDecodeProcessNode(pan.Process),
 		GenerationType: NodeGenerationType(pan.GenerationType),
+		MatchedRules:   make([]*model.MatchedRule, 0, len(pan.MatchedRules)),
 		Children:       make([]*ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make(map[string]*FileActivityNode, len(pan.Files)),
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]int, 0, len(pan.Syscalls)),
+	}
+
+	for _, rule := range pan.MatchedRules {
+		ppan.MatchedRules = append(ppan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
 
 	for _, child := range pan.Children {
@@ -197,12 +202,17 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileActivityNod
 	}
 
 	pfan := &FileActivityNode{
+		MatchedRules:   make([]*model.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           fan.Name,
 		File:           protoDecodeFileEvent(fan.File),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		FirstSeen:      protoDecodeTimestamp(fan.FirstSeen),
 		Open:           protoDecodeOpenNode(fan.Open),
 		Children:       make(map[string]*FileActivityNode, len(fan.Children)),
+	}
+
+	for _, rule := range fan.MatchedRules {
+		pfan.MatchedRules = append(pfan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
 
 	for _, child := range fan.Children {
@@ -235,7 +245,12 @@ func protoDecodeDNSNode(dn *adproto.DNSNode) *DNSNode {
 	}
 
 	pdn := &DNSNode{
-		Requests: make([]model.DNSEvent, 0, len(dn.Requests)),
+		MatchedRules: make([]*model.MatchedRule, 0, len(dn.MatchedRules)),
+		Requests:     make([]model.DNSEvent, 0, len(dn.Requests)),
+	}
+
+	for _, rule := range dn.MatchedRules {
+		pdn.MatchedRules = append(pdn.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
 
 	for _, req := range dn.Requests {
@@ -269,13 +284,35 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 	}
 
 	for _, bindNode := range sn.GetBind() {
-		socketNode.Bind = append(socketNode.Bind, &BindNode{
-			Port: uint16(bindNode.Port),
-			IP:   bindNode.Ip,
-		})
+		psn := &BindNode{
+			MatchedRules: make([]*model.MatchedRule, 0, len(bindNode.MatchedRules)),
+			Port:         uint16(bindNode.Port),
+			IP:           bindNode.Ip,
+		}
+
+		for _, rule := range bindNode.MatchedRules {
+			psn.MatchedRules = append(psn.MatchedRules, protoDecodeProtoMatchedRule(rule))
+		}
+
+		socketNode.Bind = append(socketNode.Bind, psn)
 	}
 
 	return socketNode
+}
+
+func protoDecodeProtoMatchedRule(r *adproto.MatchedRule) *model.MatchedRule {
+	if r == nil {
+		return nil
+	}
+
+	rule := &model.MatchedRule{
+		RuleID:        r.RuleId,
+		RuleVersion:   r.RuleVersion,
+		PolicyName:    r.PolicyName,
+		PolicyVersion: r.PolicyVersion,
+	}
+
+	return rule
 }
 
 func protoDecodeTimestamp(nanos uint64) time.Time {
