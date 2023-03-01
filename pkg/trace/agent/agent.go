@@ -88,8 +88,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
-	
-	//
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = metrics.Client
@@ -409,10 +407,8 @@ func (a *Agent) discardSpans(p *api.Payload) {
 }
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	_, enabledCIDStats := a.conf.Features["enable_cid_stats"]
-	_, disabledCIDStats := a.conf.Features["disable_cid_stats"]
-	enableContainers := enabledCIDStats || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if !enableContainers || disabledCIDStats {
+	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
+	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
 		in.ContainerID = ""
@@ -488,7 +484,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	} else {
 		ts.TracesPriorityNone.Inc()
 	}
-	if _, ok := a.conf.Features["error_rare_sample_tracer_drop"]; ok {
+	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
 		if isManualUserDrop(priority, pt) {
 			return 0, false, nil
 		}

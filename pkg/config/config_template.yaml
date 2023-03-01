@@ -1199,7 +1199,7 @@ api_key:
 
   ## @param features - list of strings - optional
   ## @env DD_APM_FEATURES - comma separated list of strings - optional
-  # Configure additional Trace Agent features not otherwise specified
+  ## Configure additional Trace Agent features not otherwise specified
   #
   # features: ["feature1","feature2","feature3"]
 

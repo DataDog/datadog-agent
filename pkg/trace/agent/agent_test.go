@@ -1007,9 +1007,6 @@ func TestSample(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
 			assert.Equal(t, tt.sampledNoFeature, keep)
-
-			// features.Set("error_rare_sample_tracer_drop")
-			// defer features.Set("")
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
 			_, keep, _ = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)

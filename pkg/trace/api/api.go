@@ -87,7 +87,7 @@ type HTTPReceiver struct {
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.TelemetryCollector) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
-	if _, ok := conf.Features["429"]; ok{
+	if conf.HasFeature("429"){
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
 	return &HTTPReceiver{

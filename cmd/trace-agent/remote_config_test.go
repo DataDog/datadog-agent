@@ -25,8 +25,6 @@ import (
 )
 
 func TestConfigEndpoint(t *testing.T) {
-	// defer func(old string) { features.Set(old) }(strings.Join(features.All(), ","))
-
 	var tcs = []struct {
 		name               string
 		reqBody            string
