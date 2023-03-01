@@ -155,7 +155,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		}
 	}
 	return map[string]interface{}{
-		"last_check": m.telemetry.then,
+		"last_check": then,
 	}
 }
 

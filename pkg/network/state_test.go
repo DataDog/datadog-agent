@@ -1223,6 +1223,7 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 }
 
 func TestUnorderedCloseEvent(t *testing.T) {
+	statsUnderflows.Set(0)
 	conn := ConnectionStats{
 		Pid:       123,
 		Type:      TCP,
