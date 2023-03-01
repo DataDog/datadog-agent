@@ -6,6 +6,7 @@
 #include <net/sock.h>
 #include <net/inet_sock.h>
 #include <net/flow.h>
+#include <net/netfilter/nf_conntrack.h>
 #include <linux/tcp.h>
 
 typedef enum {
@@ -31,9 +32,22 @@ typedef enum {
     OFFSET_SK_BUFF_SOCK,
     OFFSET_SK_BUFF_TRANSPORT_HEADER,
     OFFSET_SK_BUFF_HEAD,
+    OFFSET_CT_ORIGIN,
+    OFFSET_CT_REPLY,
+    OFFSET_CT_STATUS,
+    OFFSET_CT_NETNS,
+    OFFSET_CT_INO,
 } offset_t;
 
 BPF_HASH_MAP(offsets, offset_t, u64, 1024)
+
+static __always_inline u64 get_ino_offset() {
+#if defined(_LINUX_NS_COMMON_H)
+    return offsetof(struct net, ns) + offsetof(struct ns_common, inum);
+#else
+    return offsetof(struct net, proc_inum);
+#endif
+}
 
 SEC("kprobe/tcp_getsockopt")
 int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
@@ -62,13 +76,9 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
     o = OFFSET_NETNS;
     offset = offsetof(struct sock, sk_net);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
+
     o = OFFSET_INO;
-#if defined(_LINUX_NS_COMMON_H)
-    offset = offsetof(struct net, ns);
-    offset += offsetof(struct ns_common, inum);
-#else
-    offset = offsetof(struct net, proc_inum);
-#endif
+    offset = get_ino_offset();
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 #endif
 
@@ -134,6 +144,30 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
 
     o = OFFSET_SK_BUFF_HEAD;
     offset = offsetof(struct sk_buff, head);
+    bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
+
+    o = OFFSET_CT_ORIGIN;
+    offset = offsetof(struct nf_conn, tuplehash);
+    offset += IP_CT_DIR_ORIGINAL * sizeof(struct nf_conntrack_tuple_hash);
+    offset += offsetof(struct nf_conntrack_tuple_hash, tuple);
+    bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
+
+    o = OFFSET_CT_REPLY;
+    offset = offsetof(struct nf_conn, tuplehash);
+    offset += IP_CT_DIR_REPLY * sizeof(struct nf_conntrack_tuple_hash);
+    offset += offsetof(struct nf_conntrack_tuple_hash, tuple);
+    bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
+
+    o = OFFSET_CT_STATUS;
+    offset = offsetof(struct nf_conn, status);
+    bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
+
+    o = OFFSET_CT_NETNS;
+    offset = offsetof(struct nf_conn, ct_net);
+    bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
+
+    o = OFFSET_CT_INO;
+    offset = get_ino_offset();
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 
     return 0;
