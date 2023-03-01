@@ -1,17 +1,13 @@
-name "cyrus-sasl"
-default_version "2.1.28"
+# https://github.com/confluentinc/librdkafka#build-from-source
 
-dependency "gdbm"
+name "e2fsprogs"
+default_version "1.47.0"
 
-if redhat?
-    dependency "e2fsprogs"
-end
-
-source :url => "https://github.com/cyrusimap/cyrus-sasl/releases/download/cyrus-sasl-#{version}/cyrus-sasl-#{version}.tar.gz",
-       :sha256 => "7ccfc6abd01ed67c1a0924b353e526f1b766b21f42d4562ee635a8ebfc5bb38c",
+source :url => "https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v#{version}/e2fsprogs-#{version}.tar.gz",
+       :sha256 => "0b4fe723d779b0927fb83c9ae709bc7b40f66d7df36433bef143e41c54257084",
        :extract => :seven_zip
 
-relative_path "cyrus-sasl-#{version}"
+relative_path "e2fsprogs-#{version}"
 
 build do
 
