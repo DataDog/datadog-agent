@@ -394,16 +394,18 @@ api_key:
 #
 # ec2_metadata_timeout: 300
 
-## @param ec2_prefer_imdsv2 - boolean - optional - default: false
-## @env DD_EC2_PREFER_IMDSV2 - boolean - optional - default: false
+## @param ec2_prefer_imdsv2 - boolean - optional - default: true
+## @env DD_EC2_PREFER_IMDSV2 - boolean - optional - default: true
 ## If this flag is true then the agent will request EC2 metadata using IMDS v2,
 ## which offers additional security for accessing metadata. However, in some
 ## situations (such as a containerized agent on a plain EC2 instance) it may
 ## require additional configuration on the AWS side. See the AWS guidelines
 ## for further details:
 ## https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html#instance-metadata-transition-to-version-2
+##
+## When the agent fails to fetch a IMDSv2 token it falls back on IMDSv1.
 #
-# ec2_prefer_imdsv2: false
+# ec2_prefer_imdsv2: true
 
 ## @param collect_gce_tags - boolean - optional - default: true
 ## @env DD_COLLECT_GCE_TAGS - boolean - optional - default: true

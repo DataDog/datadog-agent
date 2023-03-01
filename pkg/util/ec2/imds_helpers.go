@@ -61,7 +61,7 @@ func doHTTPRequest(ctx context.Context, url string) (string, error) {
 	if config.Datadog.GetBool("ec2_prefer_imdsv2") {
 		tokenValue, err := token.Get(ctx)
 		if err != nil {
-			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
+			log.Warnf("'ec2_prefer_imdsv2' is set to true in but the agent could not fetch a IMDSv2 token, falling back on IMDSv1: %s", err)
 		} else {
 			headers["X-aws-ec2-metadata-token"] = tokenValue
 			source = metadataSourceIMDSv2
