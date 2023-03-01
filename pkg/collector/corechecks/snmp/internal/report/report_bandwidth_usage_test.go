@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -29,7 +30,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
-		interfaceConfigs []checkconfig.InterfaceConfig
+		interfaceConfigs []snmpintegration.InterfaceConfig
 		expectedMetric   []Metric
 		expectedError    error
 	}{
@@ -297,7 +298,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			},
 			fullIndex: "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{{
+			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "name",
 				MatchValue: "eth0",
 				InSpeed:    160_000_000,
@@ -342,7 +343,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			},
 			fullIndex: "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{{
+			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
 				MatchValue: "9",
 				InSpeed:    160_000_000,
@@ -414,14 +415,14 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
-		interfaceConfigs []checkconfig.InterfaceConfig
+		interfaceConfigs []snmpintegration.InterfaceConfig
 		expectedMetric   []Metric
 	}{
 		{
 			name:      "InSpeed and OutSpeed Override",
 			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{{
+			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
 				MatchValue: "9",
 				InSpeed:    160_000_000,
@@ -447,7 +448,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			name:      "InSpeed Override but not OutSpeed Override",
 			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{{
+			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
 				MatchValue: "9",
 				InSpeed:    160_000_000,
@@ -472,7 +473,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			name:      "InSpeed and OutSpeed config with zero values",
 			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{{
+			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
 				MatchValue: "9",
 				InSpeed:    0,
@@ -497,7 +498,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			name:             "no interface config found",
 			symbol:           checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex:        "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{},
+			interfaceConfigs: []snmpintegration.InterfaceConfig{},
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHighSpeed
@@ -517,7 +518,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			name:             "no interface config found and no ifHighSpeed",
 			symbol:           checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex:        "9",
-			interfaceConfigs: []checkconfig.InterfaceConfig{},
+			interfaceConfigs: []snmpintegration.InterfaceConfig{},
 			values:           &valuestore.ResultValueStore{},
 			expectedMetric:   []Metric{},
 		},

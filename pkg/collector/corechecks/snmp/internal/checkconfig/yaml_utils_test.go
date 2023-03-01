@@ -24,6 +24,10 @@ type MyBoolean struct {
 	SomeBool Boolean `yaml:"my_field"`
 }
 
+type MyInterfaceConfigs struct {
+	SomeInterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
+}
+
 func TestStringArray_UnmarshalYAML_array(t *testing.T) {
 	myStruct := MyStringArray{}
 	expected := MyStringArray{SomeIds: StringArray{"aaa", "bbb"}}
@@ -160,4 +164,56 @@ my_field: "foo"
 `)
 	err := yaml.Unmarshal(data, &myStruct)
 	assert.EqualError(t, err, "cannot convert `foo` to boolean")
+}
+
+func Test_InterfaceConfigs_UnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		name   string
+		data   []byte
+		result MyInterfaceConfigs
+	}{
+		{
+			name: "interface config as yaml struct",
+			data: []byte(`
+interface_configs:
+  - match_field: "name"
+    match_value: "eth0"
+    in_speed: 25
+    out_speed: 10
+`),
+			result: MyInterfaceConfigs{
+				SomeInterfaceConfigs: InterfaceConfigs{
+					{
+						MatchField: "name",
+						MatchValue: "eth0",
+						InSpeed:    25,
+						OutSpeed:   10,
+					},
+				},
+			},
+		},
+		{
+			name: "interface config as json string",
+			data: []byte(`
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]'
+`),
+			result: MyInterfaceConfigs{
+				SomeInterfaceConfigs: InterfaceConfigs{
+					{
+						MatchField: "name",
+						MatchValue: "eth0",
+						InSpeed:    25,
+						OutSpeed:   10,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			myStruct := MyInterfaceConfigs{}
+			yaml.Unmarshal(tt.data, &myStruct)
+			assert.Equal(t, tt.result, myStruct)
+		})
+	}
 }
