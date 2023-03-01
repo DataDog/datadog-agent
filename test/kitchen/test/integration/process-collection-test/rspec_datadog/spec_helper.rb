@@ -39,6 +39,8 @@ def get_with_retries(uri_or_host, path, port, max_retries=10)
       retries += 1
       sleep 1
       retry
+    else
+      raise "Failed to connect to a running agent"
     end
   end
 end
