@@ -1003,6 +1003,8 @@ def run_ninja(
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
     else:
+        with open("compile_commands.json", "w") as compiledb:
+            ctx.run(f"ninja -f {nf_path} -t compdb {target}", out_stream=compiledb)
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
