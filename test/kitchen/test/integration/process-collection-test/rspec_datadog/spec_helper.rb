@@ -44,17 +44,8 @@ def get_with_retries(uri_or_host, path, port, max_retries=10)
 end
 
 def get_runtime_config
-  retries = 0
-  begin
-    res = get_with_retries('localhost', '/config', 6162)
-    return YAML.load(res)
-  rescue Error
-    if retries < 10
-      retries += 1
-      sleep 1
-      retry
-    end
-  end
+  res = get_with_retries('localhost', '/config', 6162)
+  YAML.load(res)
 end
 
 def is_process_running?(pname)
