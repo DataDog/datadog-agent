@@ -249,6 +249,7 @@ def ninja_runtime_compilation_files(nw):
         "pkg/network/protocols/http/compile.go": "http",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
+        "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
