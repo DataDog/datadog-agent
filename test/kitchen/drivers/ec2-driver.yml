@@ -32,11 +32,7 @@ driver:
   <% if ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
   aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
   <% end %>
-  <% if ENV['KITCHEN_EC2_SG_IDS'] %>
-  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] %>
-  <% else %>
-  security_group_ids: ["sg-7fedd80a","sg-46506837"]
-  <% end %>
+  security_group_ids: <%= ENV['KITCHEN_EC2_SG_IDS'] || ["sg-7fedd80a","sg-46506837"] %>
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
