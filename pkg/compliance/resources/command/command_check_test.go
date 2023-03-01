@@ -107,11 +107,12 @@ func (f *commandFixture) run(t *testing.T) {
 	env.On("DumpInputPath").Return("").Maybe()
 	env.On("ShouldSkipRegoEval").Return(false).Maybe()
 	env.On("Hostname").Return("test-host").Maybe()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	regoRule := resource_test.NewTestRule(f.resource, "command", f.module)
 
 	commandCheck := rego.NewCheck(regoRule)
-	err := commandCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+	err := commandCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
 	reports := commandCheck.Check(env)

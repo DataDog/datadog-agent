@@ -234,7 +234,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.Config, useSyscallWrapper, p.StatsdClient)
+	loader := ebpf.NewProbeLoader(p.Config, useSyscallWrapper, p.UseRingBuffers(), p.StatsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -930,29 +930,21 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *Probe) validEventTypeForConfig(eventType string) bool {
+	if eventType == "dns" && !p.Config.NetworkEnabled {
+		return false
+	}
+	return true
+}
+
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
 func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
-		if eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
-		}
-	}
-
-	if p.Config.NetworkEnabled {
-		activatedProbes = append(activatedProbes, probes.NetworkSelectors...)
-
-		// add probes depending on loaded modules
-		loadedModules, err := utils.FetchLoadedModules()
-		if err == nil {
-			if _, ok := loadedModules["veth"]; ok {
-				activatedProbes = append(activatedProbes, probes.NetworkVethSelectors...)
-			}
-			if _, ok := loadedModules["nf_nat"]; ok {
-				activatedProbes = append(activatedProbes, probes.NetworkNFNatSelectors...)
-			}
 		}
 	}
 
