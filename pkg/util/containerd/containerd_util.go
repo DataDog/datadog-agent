@@ -10,6 +10,7 @@ package containerd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -35,7 +36,13 @@ const (
 	// The check config is used if the containerd socket is detected.
 	// However we want to cover cases with custom config files.
 	containerdDefaultSocketPath = "/var/run/containerd/containerd.sock"
+
+	// DefaultAllowedSpecMaxSize is the recommended maxSize for Spec parsing
+	DefaultAllowedSpecMaxSize = 2 * 1024 * 1024
 )
+
+// ErrSpecTooLarge is returned when container Spec is too large
+var ErrSpecTooLarge = errors.New("Container spec is too large")
 
 // ContainerdItf is the interface implementing a subset of methods that leverage the Containerd api.
 type ContainerdItf interface {
@@ -45,7 +52,6 @@ type ContainerdItf interface {
 	Container(namespace string, id string) (containerd.Container, error)
 	ContainerWithContext(ctx context.Context, namespace string, id string) (containerd.Container, error)
 	Containers(namespace string) ([]containerd.Container, error)
-	EnvVars(namespace string, ctn containerd.Container) (map[string]string, error)
 	GetEvents() containerd.EventService
 	Info(namespace string, ctn containerd.Container) (containers.Container, error)
 	Labels(namespace string, ctn containerd.Container) (map[string]string, error)
@@ -54,15 +60,13 @@ type ContainerdItf interface {
 	Image(namespace string, name string) (containerd.Image, error)
 	ImageOfContainer(namespace string, ctn containerd.Container) (containerd.Image, error)
 	ImageSize(namespace string, ctn containerd.Container) (int64, error)
-	Spec(namespace string, ctn containerd.Container) (*oci.Spec, error)
-	SpecWithContext(ctx context.Context, namespace string, ctn containerd.Container) (*oci.Spec, error)
+	Spec(namespace string, ctn containers.Container, maxSize int) (*oci.Spec, error)
 	Metadata() (containerd.Version, error)
 	Namespaces(ctx context.Context) ([]string, error)
 	TaskMetrics(namespace string, ctn containerd.Container) (*types.Metric, error)
 	TaskPids(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error)
 	Status(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error)
 	CallWithClientContext(namespace string, f func(context.Context) error) error
-	Annotations(namespace string, ctn containerd.Container) (map[string]string, error)
 	IsSandbox(namespace string, ctn containerd.Container) (bool, error)
 	MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
 }
@@ -204,15 +208,6 @@ func (c *ContainerdUtil) Containers(namespace string) ([]containerd.Container, e
 	return c.cl.Containers(ctxNamespace)
 }
 
-// EnvVars returns the env variables of a containerd container
-func (c *ContainerdUtil) EnvVars(namespace string, ctn containerd.Container) (map[string]string, error) {
-	spec, err := c.Spec(namespace, ctn)
-	if err != nil {
-		return nil, err
-	}
-	return EnvVarsFromSpec(spec)
-}
-
 // EnvVarsFromSpec returns the env variables of a containerd container from its Spec
 func EnvVarsFromSpec(spec *oci.Spec) (map[string]string, error) {
 	envs := make(map[string]string)
@@ -297,19 +292,17 @@ func (c *ContainerdUtil) LabelsWithContext(ctx context.Context, namespace string
 	return ctn.Labels(ctxNamespace)
 }
 
-// Spec interfaces with the containerd api to get container OCI Spec
-func (c *ContainerdUtil) Spec(namespace string, ctn containerd.Container) (*oci.Spec, error) {
-	return c.SpecWithContext(context.Background(), namespace, ctn)
-}
+// Spec unmarshal Spec from container.Info(), will return parsed Spec if size < maxSize
+func (c *ContainerdUtil) Spec(namespace string, ctn containers.Container, maxSize int) (*oci.Spec, error) {
+	if len(ctn.Spec.Value) >= maxSize {
+		return nil, fmt.Errorf("unable to get spec for container: %s/%s, err: %w", namespace, ctn.ID, ErrSpecTooLarge)
+	}
 
-// SpecWithContext interfaces with the containerd api to get container OCI Spec
-// It allows passing the parent context
-func (c *ContainerdUtil) SpecWithContext(ctx context.Context, namespace string, ctn containerd.Container) (*oci.Spec, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.queryTimeout)
-	defer cancel()
-	ctxNamespace := namespaces.WithNamespace(ctx, namespace)
-
-	return ctn.Spec(ctxNamespace)
+	var s oci.Spec
+	if err := json.Unmarshal(ctn.Spec.Value, &s); err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 // TaskMetrics interfaces with the containerd api to get the metrics from a container
@@ -363,16 +356,6 @@ func (c *ContainerdUtil) Status(namespace string, ctn containerd.Container) (con
 	return taskStatus.Status, nil
 }
 
-// Annotations returns the container annotations from its spec
-func (c *ContainerdUtil) Annotations(namespace string, ctn containerd.Container) (map[string]string, error) {
-	spec, err := c.Spec(namespace, ctn)
-	if err != nil {
-		return nil, err
-	}
-
-	return spec.Annotations, nil
-}
-
 // IsSandbox returns whether a container is a sandbox (a.k.a pause container).
 // It checks the io.cri-containerd.kind label and the io.kubernetes.cri.container-type annotation.
 // Ref:
@@ -384,16 +367,7 @@ func (c *ContainerdUtil) IsSandbox(namespace string, ctn containerd.Container) (
 		return false, err
 	}
 
-	if labels["io.cri-containerd.kind"] == "sandbox" {
-		return true, nil
-	}
-
-	annotations, err := c.Annotations(namespace, ctn)
-	if err != nil {
-		return false, err
-	}
-
-	return annotations["io.kubernetes.cri.container-type"] == "sandbox", nil
+	return labels["io.cri-containerd.kind"] == "sandbox", nil
 }
 
 func (c *ContainerdUtil) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {

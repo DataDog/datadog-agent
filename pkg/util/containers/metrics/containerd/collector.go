@@ -15,9 +15,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containerd"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -109,7 +111,12 @@ func (c *containerdCollector) GetContainerStats(containerNS, containerID string,
 	}
 
 	// Filling information from Spec
-	OCISpec, err := c.client.Spec(containerNS, container)
+	var OCISpec *oci.Spec
+	info, err := c.client.Info(containerNS, container)
+	if err == nil {
+		OCISpec, err = c.client.Spec(containerNS, info, containerd.DefaultAllowedSpecMaxSize)
+	}
+
 	if err == nil {
 		fillStatsFromSpec(containerStats, OCISpec)
 	} else {
