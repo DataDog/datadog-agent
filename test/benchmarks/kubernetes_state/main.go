@@ -231,6 +231,6 @@ func main() {
 	pprof.StopCPUProfile()
 
 	cancel()
-
+	file.Sync()
 	fmt.Printf("KSMCheck.Run() returned %v in %s\n", err, elapsed)
 }

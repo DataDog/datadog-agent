@@ -140,5 +140,6 @@ func GenerateCertificates(config *CertificatesConfig) error {
 		return err
 	}
 	pem.Encode(keyOut, p)
-	return nil
+	certOut.Sync()
+	return keyOut.Sync()
 }
