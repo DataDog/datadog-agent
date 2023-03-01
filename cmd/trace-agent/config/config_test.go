@@ -24,7 +24,6 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
 func TestMain(m *testing.M) {
@@ -326,10 +325,7 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			features.Set("disable_empty_hostname")
-			defer func() { features.Set(os.Getenv("DD_APM_FEATURES")) }()
-
-			cfg := config.AgentConfig{DDAgentBin: makeProgram("", 0)}
+			cfg := config.AgentConfig{DDAgentBin: makeProgram("", 0), Features: map[string]struct{}{"disable_empty_hostname": struct{}{}}}
 			defer os.Remove(cfg.DDAgentBin)
 			assert.NoError(t, acquireHostnameFallback(&cfg))
 			assert.Equal(t, "fallback.host", cfg.Hostname)
