@@ -344,7 +344,7 @@ func batchConnections(
 
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
-			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
@@ -453,14 +453,17 @@ func groupSize(total, maxBatchSize int) int32 {
 }
 
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
-func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string) []string {
-	tagCount := len(tagOffsets) + len(serviceCtx)
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtxs ...string) []string {
+	tagCount := len(tagOffsets) + len(serviceCtxs)
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
 		tagsStr = append(tagsStr, tags[t])
 	}
-	if serviceCtx != "" {
-		tagsStr = append(tagsStr, serviceCtx)
+
+	for _, serviceCtx := range serviceCtxs {
+		if serviceCtx != "" {
+			tagsStr = append(tagsStr, serviceCtx)
+		}
 	}
 
 	return tagsStr
