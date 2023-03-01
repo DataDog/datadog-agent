@@ -20,7 +20,7 @@ const (
 	spNS                         = "system_probe_config"
 	netNS                        = "network_config"
 	smNS                         = "service_monitoring_config"
-	dataStreamsNamespace         = "data_streams_config"
+	dsNS                         = "data_streams_config"
 	evNS                         = "event_monitoring_config"
 	smjtNS                       = smNS + ".java_tls"
 	defaultConnsMessageBatchSize = 600
@@ -214,7 +214,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 
 	// data streams
-	cfg.BindEnvAndSetDefault(join(dataStreamsNamespace, "enabled"), false, "DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED")
+	cfg.BindEnvAndSetDefault(join(dsNS, "enabled"), false, "DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED")
 
 	// event monitoring
 	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
