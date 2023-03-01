@@ -40,7 +40,7 @@ func demuxOpts() aggregator.AgentDemultiplexerOptions {
 	return opts
 }
 
-func TestBasicSample(t *testing.T) {
+func Test_Run_simpleCase(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -314,6 +314,144 @@ tags:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", telemetryTags)
+
+	chk.Cancel()
+}
+
+func Test_Run_customIfSpeed(t *testing.T) {
+	checkconfig.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{sessionFactory: sessionFactory}
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_device_metadata: false
+interface_configs:
+  - match_field: "name"
+    match_value: "if10"
+    in_speed: 50000000
+    out_speed: 40000000
+metrics:
+- table:
+    OID: 1.3.6.1.2.1.2.2
+    name: ifTable
+  forced_type: monotonic_count_and_rate
+  symbols:
+  - OID: 1.3.6.1.2.1.31.1.1.1.6
+    name: ifHCInOctets
+  - OID: 1.3.6.1.2.1.31.1.1.1.10
+    name: ifHCOutOctets
+  metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.1
+      name: ifName
+    tag: interface
+- table:
+    OID: 1.3.6.1.2.1.31.1.1
+    name: ifXTable
+  symbols:
+  - OID: 1.3.6.1.2.1.31.1.1.1.15
+    name: ifHighSpeed
+  metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.1
+      name: ifName
+    tag: interface
+`)
+
+	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender.SetupAcceptAll()
+
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.3.0",
+				Type:  gosnmp.TimeTicks,
+				Value: 20,
+			},
+		},
+	}
+
+	bulkBatch1Packet1 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("if10"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.10.1",
+				Type:  gosnmp.Integer,
+				Value: 1_000_000,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.15.1",
+				Type:  gosnmp.Gauge32,
+				Value: uint(100),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.6.1",
+				Type:  gosnmp.Integer,
+				Value: 2_000_000,
+			},
+		},
+	}
+	bulkBatch1Packet2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+		},
+	}
+
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("Get", mock.Anything).Return(&packet, nil)
+	sess.On("Get", mock.Anything).Return(&packet, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.10", "1.3.6.1.2.1.31.1.1.1.15", "1.3.6.1.2.1.31.1.1.1.6"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch1Packet1, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.31.1.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.10.1", "1.3.6.1.2.1.31.1.1.1.15.1", "1.3.6.1.2.1.31.1.1.1.6.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch1Packet2, nil)
+
+	err = chk.Run()
+	assert.Nil(t, err)
+
+	tags := []string{"snmp_device:1.2.3.4", "interface:if10"}
+	sender.AssertMetric(t, "Gauge", "snmp.ifHighSpeed", float64(100), "", tags)
+	sender.AssertMetric(t, "Gauge", "snmp.ifInSpeed", float64(50_000_000), "", tags)
+	sender.AssertMetric(t, "Gauge", "snmp.ifOutSpeed", float64(40_000_000), "", tags)
+
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifHCInOctets", float64(2_000_000), "", tags)
+	sender.AssertMetric(t, "Rate", "snmp.ifHCInOctets.rate", float64(2_000_000), "", tags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifHCOutOctets", float64(1_000_000), "", tags)
+	sender.AssertMetric(t, "Rate", "snmp.ifHCOutOctets.rate", float64(1_000_000), "", tags)
+
+	// ((2000000 * 8) / (50 * 1000000)) * 100 = 32
+	//   ^ifHCInOctets   ^custom in_speed
+	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthInUsage.rate", float64(32), "", tags)
+	// ((1000000 * 8) / (40 * 1000000)) * 100 = 20
+	//   ^ifHCOutOctets   ^custom out_speed
+	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthOutUsage.rate", float64(20), "", tags)
 
 	chk.Cancel()
 }

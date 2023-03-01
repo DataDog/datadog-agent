@@ -90,7 +90,7 @@ func CreateHTTPTransport() *http.Transport {
 		sslKeyLogFile := config.Datadog.GetString("sslkeylogfile")
 		if sslKeyLogFile != "" {
 			var err error
-			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 			if err != nil {
 				log.Warnf("Failed to open %s for writing NSS keys: %v", sslKeyLogFile, err)
 			}

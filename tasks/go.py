@@ -18,7 +18,7 @@ from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 
-def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64"):
+def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
@@ -33,8 +33,10 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
     results = []
     for target in targets:
         print(f"running golangci on {target}")
+        concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
+        tags_arg = " ".join(tags)
         result = ctx.run(
-            f'golangci-lint run --timeout 20m0s --build-tags "{" ".join(tags)}" {target}/...',
+            f'golangci-lint run --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
             env=env,
             warn=True,
         )
@@ -44,14 +46,14 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64"):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     """
-    results = run_golangci_lint(ctx, targets, rtloader_root, build_tags, build, arch)
+    results = run_golangci_lint(ctx, targets, rtloader_root, build_tags, build, arch, concurrency)
 
     should_fail = False
     for result in results:
@@ -284,7 +286,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.19.5 linux/amd64"
+    # result is like "go version go1.19.6 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

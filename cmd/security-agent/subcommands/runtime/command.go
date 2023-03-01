@@ -22,8 +22,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -40,7 +38,7 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -52,6 +50,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -478,7 +477,7 @@ func checkPoliciesInner(dir string) error {
 		return err
 	}
 
-	report, err := sprobe.NewApplyRuleSetReport(cfg, ruleSet)
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}
@@ -604,7 +603,7 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 		Event: event,
 	}
 
-	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
+	approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
 	if err != nil {
 		report.Error = err
 	} else {

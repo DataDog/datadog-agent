@@ -100,6 +100,8 @@ runtime_security_config:
   activity_dump:
     enabled: true
     rate_limiter: {{ .ActivityDumpRateLimiter }}
+    tag_rules:
+      enabled: {{ .ActivityDumpTagRules }}
     cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
@@ -142,6 +144,8 @@ runtime_security_config:
 `
 
 const testPolicy = `---
+version: 1.2.3
+
 macros:
 {{range $Macro := .Macros}}
   - id: {{$Macro.ID}}
@@ -152,8 +156,13 @@ macros:
 rules:
 {{range $Rule := .Rules}}
   - id: {{$Rule.ID}}
+    version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    tags:
+{{- range $Tag, $Val := .Tags}}
+      {{$Tag}}: {{$Val}}
+{{- end}}
     actions:
 {{- range $Action := .Actions}}
 {{- if $Action.Set}}
@@ -193,6 +202,7 @@ type testOpts struct {
 	disableApprovers                    bool
 	enableActivityDump                  bool
 	activityDumpRateLimiter             int
+	activityDumpTagRules                bool
 	activityDumpCgroupDumpTimeout       int
 	activityDumpTracedCgroupsCount      int
 	activityDumpTracedEventTypes        []string
@@ -224,6 +234,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
+		to.activityDumpTagRules == opts.activityDumpTagRules &&
 		to.activityDumpCgroupDumpTimeout == opts.activityDumpCgroupDumpTimeout &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
@@ -452,14 +463,14 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 	var data interface{}
 	if err := json.Unmarshal(eventJSON, &data); err != nil {
 		tb.Error(err)
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 		return
 	}
 
 	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
 	if err != nil {
 		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 		return
 	}
 
@@ -469,21 +480,21 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 		pce, ok := entry.(map[string]interface{})
 		if !ok {
 			tb.Errorf("invalid process cache entry, %+v", entry)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 
 		pid, ok := pce["pid"].(float64)
 		if !ok || pid == 0 {
 			tb.Errorf("invalid pid, %+v", pce)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 
 		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
 		if prevPID != 0 && pid != prevPID && pid != prevPPID {
 			tb.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 		prevPID = pid
@@ -492,7 +503,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 			ppid, ok := pce["ppid"].(float64)
 			if !ok {
 				tb.Errorf("invalid pid, %+v", pce)
-				tb.Error(eventJSON)
+				tb.Error(string(eventJSON))
 				return
 			}
 
@@ -502,7 +513,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 
 	if prevPID != 1 {
 		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 	}
 }
 
@@ -537,7 +548,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 			tb.Errorf("failed to marshal event: %v", err)
 			return
 		}
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 	}
 }
 
@@ -700,6 +711,7 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		"DisableApprovers":                    opts.disableApprovers,
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
+		"ActivityDumpTagRules":                opts.activityDumpTagRules,
 		"ActivityDumpCgroupDumpTimeout":       opts.activityDumpCgroupDumpTimeout,
 		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,

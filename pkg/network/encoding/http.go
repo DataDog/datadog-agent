@@ -19,18 +19,13 @@ type httpEncoder struct {
 	staticTags     map[http.KeyTuple]uint64
 	dynamicTagsSet map[http.KeyTuple]map[string]struct{}
 
-	// pre-allocated objects
-	dataPool []model.HTTPStats_Data
-	ptrPool  []*model.HTTPStats_Data
-	poolIdx  int
-
 	orphanEntries int
 }
 
 // aggregationWrapper is meant to handle collision scenarios where multiple
 // `ConnectionStats` objects may claim the same `HTTPAggregations` object because
 // they generate the same http.KeyTuple
-// TODO: we should probably revist/get rid of this if we ever replace socket
+// TODO: we should probably revisit/get rid of this if we ever replace socket
 // filters by kprobes, since in that case we would have access to PIDs, and
 // could incorporate that information in the `http.KeyTuple` struct.
 type aggregationWrapper struct {
@@ -69,7 +64,7 @@ func (a *aggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTTPAggr
 	// "bind" to the same HTTPAggregations object, which would result in a
 	// overcount problem. (Note that this is due to the fact that
 	// `http.KeyTuple` doesn't have a PID field.) This happens mostly in the
-	// context of pre-fork web servers, where multiple worker proceses share the
+	// context of pre-fork web servers, where multiple worker processes share the
 	// same socket
 	return nil
 }
@@ -83,11 +78,6 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 		aggregations:   make(map[http.KeyTuple]*aggregationWrapper, len(payload.Conns)),
 		staticTags:     make(map[http.KeyTuple]uint64, len(payload.Conns)),
 		dynamicTagsSet: make(map[http.KeyTuple]map[string]struct{}, len(payload.Conns)),
-
-		// pre-allocate all data objects at once
-		dataPool: make([]model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
-		ptrPool:  make([]*model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
-		poolIdx:  0,
 	}
 
 	// pre-populate aggregation map with keys for all existent connections
@@ -140,20 +130,20 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 		}
 
 		ms := &model.HTTPStats{
-			Path:                  key.Path.Content,
-			FullPath:              key.Path.FullPath,
-			Method:                model.HTTPMethod(key.Method),
-			StatsByResponseStatus: e.getDataSlice(),
+			Path:              key.Path.Content,
+			FullPath:          key.Path.FullPath,
+			Method:            model.HTTPMethod(key.Method),
+			StatsByStatusCode: make(map[int32]*model.HTTPStats_Data, len(stats.Data)),
 		}
 
 		staticTags := e.staticTags[key.KeyTuple]
 		var dynamicTags map[string]struct{}
-		for i, data := range ms.StatsByResponseStatus {
-			class := (i + 1) * 100
-			if !stats.HasStats(class) {
-				continue
+		for status, s := range stats.Data {
+			data, ok := ms.StatsByStatusCode[int32(status)]
+			if !ok {
+				ms.StatsByStatusCode[int32(status)] = &model.HTTPStats_Data{}
+				data = ms.StatsByStatusCode[int32(status)]
 			}
-			s := stats.Stats(class)
 			data.Count = uint32(s.Count)
 
 			if latencies := s.Latencies; latencies != nil {
@@ -182,13 +172,4 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
 	}
-}
-
-func (e *httpEncoder) getDataSlice() []*model.HTTPStats_Data {
-	ptrs := e.ptrPool[e.poolIdx : e.poolIdx+http.NumStatusClasses]
-	for i := range ptrs {
-		ptrs[i] = &e.dataPool[e.poolIdx+i]
-	}
-	e.poolIdx += http.NumStatusClasses
-	return ptrs
 }

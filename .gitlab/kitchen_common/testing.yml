@@ -155,7 +155,8 @@
   variables:
     KITCHEN_EC2_REGION: us-east-1
     KITCHEN_EC2_SUBNET: subnet-c18341ed
-    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
+    KITCHEN_EC2_SG_IDS:
+    - sg-0f5617ceb3e5a6c39
 
 # Kitchen: Test types (test suite * agent flavor + location in each cloud provider)
 # -------------------------------

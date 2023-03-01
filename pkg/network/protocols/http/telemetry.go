@@ -58,7 +58,8 @@ func newTelemetry() (*telemetry, error) {
 }
 
 func (t *telemetry) count(tx httpTX) {
-	switch tx.StatusClass() {
+	statusClass := (tx.StatusCode() / 100) * 100
+	switch statusClass {
 	case 100:
 		t.hits1XX.Add(1)
 	case 200:

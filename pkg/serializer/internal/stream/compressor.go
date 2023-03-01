@@ -103,7 +103,10 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 // that could actually fit after compression. That said it is probably impossible
 // to have a 2MB+ item that is valid for the backend.
 func (c *Compressor) checkItemSize(data []byte) bool {
-	return len(data) < c.maxUnzippedItemSize && compression.CompressBound(len(data)) < c.maxZippedItemSize
+	maxEffectivePayloadSize := (c.maxPayloadSize - len(c.footer) - len(c.header))
+	compressedWillFit := compression.CompressBound(len(data)) < c.maxZippedItemSize && compression.CompressBound(len(data)) < maxEffectivePayloadSize
+
+	return len(data) < c.maxUnzippedItemSize && compressedWillFit
 }
 
 // hasRoomForItem checks if the current payload has enough room to store the given item

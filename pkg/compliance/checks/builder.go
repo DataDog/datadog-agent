@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/open-policy-agent/opa/metrics"
-
 	cache "github.com/patrickmn/go-cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -81,7 +79,7 @@ func WithMaxEvents(max int) BuilderOption {
 	}
 }
 
-// WithStatsd configures the statsd client
+// WithStatsd configures the statsd client for compliance metrics
 func WithStatsd(client statsd.ClientInterface) BuilderOption {
 	return func(b *builder) error {
 		b.statsdClient = client
@@ -427,6 +425,10 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 	return compliance.CheckStatusList{}
 }
 
+func (b *builder) StatsdClient() statsd.ClientInterface {
+	return b.statsdClient
+}
+
 func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
 	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
@@ -459,14 +461,8 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 		}
 	}
 
-	var m metrics.Metrics
-	m = newRegoTelemetry()
-	if config.Datadog.GetBool("compliance_config.opa.metrics.enabled") {
-		m = newRegoMetrics(m, b.statsdClient)
-	}
-
 	regoCheck := rego.NewCheck(rule)
-	if err := regoCheck.CompileRule(rule, ruleScope, meta, m); err != nil {
+	if err := regoCheck.CompileRule(rule, ruleScope, meta); err != nil {
 		return nil, err
 	}
 

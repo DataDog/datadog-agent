@@ -2,6 +2,175 @@
 Release Notes
 =============
 
+.. _Release Notes_7.43.0:
+
+7.43.0 / 6.43.0
+======
+
+.. _Release Notes_7.43.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-02-23
+
+- Please refer to the `7.43.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7430>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.43.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The command line arguments to the Datadog Agent Manager for Windows ``ddtray.exe``
+  have changed from single-dash arguments to double-dash arguments.
+  For example, ``-launch-gui`` must now be provided as ``--launch-gui``.
+  The start menu shortcut created by the installer will be automatically updated.
+  Any custom scripts or shortcuts that launch ``ddtray.exe`` with arguments must be updated manually.
+
+
+.. _Release Notes_7.43.0_New Features:
+
+New Features
+------------
+
+- NDM: Add snmp.device.reachable/unreachable metrics to all monitored devices.
+
+- Add a new ``container_image`` long running check to collect information about container images.
+
+- Enable orchestrator manifest collection by default
+
+- Add a new ``sbom`` core check to collect the software bill of materials of containers.
+
+- The Agent now leverages DMI (Desktop Management Interface) information on Unix to get the instance ID on Amazon EC2 when the metadata endpoint fails or
+is not accessible. The instance ID is exposed through DMI only on AWS Nitro instances.
+This will not change the hostname of the Agent upon upgrading, but will add it to the list of host aliases.
+
+- Adds the option to collect and store in workloadmeta the software bill of
+  materials (SBOM) of containerd images using Trivy. This feature is disabled
+  by default. It can be enabled by setting
+  `container_image_collection.sbom.enabled` to true.
+  Note: This feature is CPU and IO intensive.
+
+
+.. _Release Notes_7.43.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds a new ``snmp.interface_status`` metric reflecting the same status as within NDM.
+
+- APM: Ported a faster implementation of NormalizeTag with a fast-path for already normalized ASCII tags. Should marginally improve CPU usage of the trace-agent.
+
+- The external metrics server now automatically adjusts the query time window based on the Datadog metrics `MaxAge` attribute.
+
+- Added parity to Unix-based ``permissions.log`` Flare file on
+  Windows. ``permissions.log`` file list the original rights/ACL
+  of the files copied into a Agent flare. This will ease
+  troubleshooting permissions issues.
+
+- [corechecks/snmp] Add `id` and `source_type` to NDM Topology Links
+
+- Add an ``--instance-filter`` option to the Agent check command.
+
+- APM: Disable ``max_memory`` and ``max_cpu_percent`` by default in containerized environments (Docker-only, ECS and CI).
+  Users rely on the orchestrator / container runtime to set resource limits.
+  Note: ``max_memory`` and ``max_cpu_percent`` have been disabled by default in Kubernetes environments since Agent ``7.18.0``.
+
+- Agents are now built with Go ``1.19.5``.
+
+- To reduce "cluster-agent" memory consomption when `cluster_agent.collect_kubernetes_tags`
+  option is enabled, we introduce `cluster_agent.kubernetes_resources_collection.pod_annotations_exclude` option
+  to exclude Pod annotation from the extracted Pod metadata.
+
+- Introduce a new option `enabled_rfc1123_compliant_cluster_name_tag`
+  that enforces the `kube_cluster_name` tag value to be
+  an RFC1123 compliant cluster name. It can be disabled by setting this
+  new option to `false`.
+
+- Allows profiling for the Process Agent to be dynamically enabled from the CLI with `process-agent config set internal_profiling`. Optionally, once profiling is enabled, block, mutex, and goroutine profiling can also be enabled with `process-agent config set runtime_block_profile_rate`, `process-agent config set runtime_mutex_profile_fraction`, and `process-agent config set internal_profiling_goroutines`.
+
+- Adds a new process discovery hint in the process agent when the regular process and container checks run.
+
+- Added new telemetry metrics (``pymem.*``) to track Python heap usage.
+
+- There are two default config files. Optionally, you can provide override config files.
+  The change in this release is that for both sets, if the first config is inaccessible, the security agent startup process fails. Previously, the security agent would continue to attempt to start up even if the first config file is inaccessible.
+  To illustrate this, in the default case, the config files are datadog.yaml and security-agent.yaml, and in that order. If datadog.yaml is inaccessible, the security agent fails immediately. If you provide overrides, like foo.yaml and bar.yaml, the security agent fails immediately if foo.yaml is inaccessible.
+  In both sets, if any additional config files are missing, the security agent continues to attempt to start up, with a log message about an inaccessible config file. This is not a change from previous behavior.
+
+- [corechecks/snmp] Add IP Addresses to NDM Metadata interfaces
+
+- [corechecks/snmp] Add LLDP remote device IP address.
+
+- prometheus_scrape: Adds support for `tag_by_endpoint` and `collect_counters_with_distributions` in the `prometheus_scrape.checks[].configurations[]` items.
+
+- The OTLP ingest endpoint now supports the same settings and protocols as the OpenTelemetry Collector OTLP receiver v0.68.0.
+
+
+.. _Release Notes_7.43.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The command line arguments to the Datadog Agent Manager for Windows ``ddtray.exe``
+  have changed from single-dash arguments to double-dash arguments.
+  For example, ``-launch-gui`` must now be provided as ``--launch-gui``.
+
+- system_probe_config.enable_go_tls_support is deprecated and replaced by service_monitoring_config.enable_go_tls_support.
+
+
+.. _Release Notes_7.43.0_Security Notes:
+
+Security Notes
+--------------
+
+- Some HTTP requests sent by the Datadog Agent to Datadog endpoints were including the Datadog API key in the query parameters (in the URL).
+  This meant that the keys could potentially have been logged in various locations, for example, in a forward or a reverse proxy server logs the Agent connected to.
+  We have updated all requests to not send the API key as a query parameter.
+  Anyone who uses a proxy to connect the Agent to Datadog endpoints should make sure their proxy forwards all Datadog headers (patricularly ``DD-Api-Key``).
+  Failure to not send all Datadog headers could cause payloads to be rejected by our endpoints.
+
+
+.. _Release Notes_7.43.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The secret command now correctly displays the ACL on a path with spaces.
+
+- APM: Lower default incoming trace payload limit to 25MB. This more closely aligns with the backend limit. Some users may see traces rejected by the Agent that the Agent would have previously accepted, but would have subsequently been rejected by the trace intake. The Agent limit can still be configured via `apm_config.max_payload_size`.
+
+- APM: Fix the `trace-agent -info` command when remote configuration is enabled.
+
+- APM: Fix parsing of SQL Server identifiers enclosed in square brackets.
+
+- Remove files created by system-probe at uninstall time.
+
+- Fix the `kubernetes_state_core` check so that the host alias name
+  creation uses a normalized (RFC1123 compliant) cluster name.
+
+- Fix an issue in Autodiscovery that could prevent Cluster Checks containing secrets (ENC[] syntax) to be unscheduled properly.
+
+- Fix panic due to uninitialized Obfuscator logger
+
+- On Windows, fixes bug in which HTTP connections were not properly accounted
+  for when the client and server were the same host (loopback).
+
+- The Openmetrics check is no longer scheduled for Kubernetes headless services.
+
+
+.. _Release Notes_7.43.0_Other Notes:
+
+Other Notes
+-----------
+
+- Upgrade of the cgosymbolizer dependency to use
+  ``github.com/ianlancetaylor/cgosymbolizer``.
+
+- The Datadog Agent Manager ``ddtray.exe`` now requires admin to launch.
+
+
 .. _Release Notes_7.42.0:
 
 7.42.0 / 6.42.0

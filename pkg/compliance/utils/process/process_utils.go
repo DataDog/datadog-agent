@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,7 +22,10 @@ const (
 	processCacheMaxAge = 5 * time.Minute
 )
 
-var processTablesCache *simplelru.LRU[string, Processes]
+var (
+	processTablesCacheMu sync.Mutex
+	processTablesCache   *simplelru.LRU[string, Processes]
+)
 
 func init() {
 	processTablesCache, _ = simplelru.NewLRU[string, Processes](16, nil)
@@ -166,6 +170,8 @@ func parseCmdLineFlags(cmdline []string) map[string]string {
 
 // FindProcessesByName returns a list of *ProcessMetadata matching the given name.
 func FindProcessesByName(searchedName string) (Processes, error) {
+	processTablesCacheMu.Lock()
+	defer processTablesCacheMu.Unlock()
 	processTableMatching, ok := processTablesCache.Get(searchedName)
 	if ok {
 		for _, p := range processTableMatching {
@@ -188,6 +194,8 @@ func FindProcessesByName(searchedName string) (Processes, error) {
 
 // PurgeCache cleans up the process table cache.
 func PurgeCache() {
+	processTablesCacheMu.Lock()
+	defer processTablesCacheMu.Unlock()
 	processTablesCache.Purge()
 }
 

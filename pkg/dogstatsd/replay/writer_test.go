@@ -8,7 +8,6 @@ package replay
 import (
 	"io"
 	"math/rand"
-	"path"
 	"runtime"
 	"sync"
 	"testing"
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,20 +25,12 @@ import (
 )
 
 func writerTest(t *testing.T, z bool) {
-	captureFs.Lock()
-	originalFs := captureFs.fs
-	captureFs.fs = afero.NewMemMapFs()
-	captureFs.Unlock()
+	fs := afero.NewMemMapFs()
 
 	// setup directory
-	captureFs.fs.MkdirAll("foo/bar", 0777)
-
-	defer func() {
-		captureFs.Lock()
-		defer captureFs.Unlock()
-
-		captureFs.fs = originalFs
-	}()
+	fs.MkdirAll("foo/bar", 0777)
+	file, path, err := OpenFile(fs, "foo/bar")
+	require.NoError(t, err)
 
 	writer := NewTrafficCaptureWriter(1)
 
@@ -98,7 +90,7 @@ func writerTest(t *testing.T, z bool) {
 		defer wg.Done()
 
 		close(start)
-		writer.Capture("foo/bar", testDuration, z)
+		writer.Capture(file, testDuration, z)
 	}(&wg)
 
 	wgc := make(chan struct{})
@@ -116,26 +108,20 @@ func writerTest(t *testing.T, z bool) {
 	}
 
 	// assert file
-	writer.RLock()
-	assert.NotNil(t, writer.File)
-	assert.False(t, writer.ongoing)
+	assert.False(t, writer.IsOngoing())
 
-	stats, _ := writer.File.Stat()
+	stats, _ := file.Stat()
 	assert.Greater(t, stats.Size(), int64(0))
 
 	var (
-		err    error
 		buf    []byte
 		reader *TrafficCaptureReader
 	)
 
-	info, err := writer.File.Stat()
-	assert.Nil(t, err)
-	fp, err := captureFs.fs.Open(path.Join(writer.Location, info.Name()))
+	fp, err := fs.Open(path)
 	assert.Nil(t, err)
 	buf, err = afero.ReadAll(fp)
 	assert.Nil(t, err)
-	writer.RUnlock()
 
 	if z {
 		buf, err = zstd.Decompress(nil, buf)
@@ -176,28 +162,18 @@ func TestWriterCompressed(t *testing.T) {
 }
 
 func TestValidateLocation(t *testing.T) {
-	captureFs.Lock()
-	originalFs := captureFs.fs
-	captureFs.fs = afero.NewMemMapFs()
-	captureFs.Unlock()
+	fs := afero.NewMemMapFs()
 
 	locationBad := "foo/bar"
 	locationGood := "bar/quz"
 
 	// setup directory
-	captureFs.fs.MkdirAll(locationBad, 0770)
-	captureFs.fs.MkdirAll(locationGood, 0776)
+	fs.MkdirAll(locationBad, 0770)
+	fs.MkdirAll(locationGood, 0776)
 
-	defer func() {
-		captureFs.Lock()
-		defer captureFs.Unlock()
-
-		captureFs.fs = originalFs
-	}()
-
-	_, err := ValidateLocation(locationBad)
+	_, err := validateLocation(fs, locationBad)
 	assert.NotNil(t, err)
-	l, err := ValidateLocation(locationGood)
+	l, err := validateLocation(fs, locationGood)
 	assert.Nil(t, err)
 	assert.Equal(t, locationGood, l)
 }

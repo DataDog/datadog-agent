@@ -6,6 +6,7 @@
 package snmp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"strings"
 	"testing"
 
@@ -233,6 +234,12 @@ snmp_listener:
      community_string: someCommunityString
      snmp_version: someSnmpVersion
      network_address: 127.1.0.0/30
+     interface_configs:
+       '127.1.0.1':
+         - match_field: "name"
+           match_value: "eth0"
+           in_speed: 50
+           out_speed: 25
 `))
 	assert.NoError(t, err)
 
@@ -253,6 +260,16 @@ snmp_listener:
 	assert.Equal(t, "someCommunityString", networkConf.Community)
 	assert.Equal(t, "someSnmpVersion", networkConf.Version)
 	assert.Equal(t, "127.1.0.0/30", networkConf.Network)
+	assert.Equal(t, map[string][]snmpintegration.InterfaceConfig{
+		"127.1.0.1": {
+			{
+				MatchField: "name",
+				MatchValue: "eth0",
+				InSpeed:    50,
+				OutSpeed:   25,
+			},
+		},
+	}, networkConf.InterfaceConfigs)
 
 	/////////////////
 	// legacy configs

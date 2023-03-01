@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -272,19 +273,19 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) {
 	go util.HandleSignals(exit)
 
-	var s fx.Shutdowner
 	app := fx.New(
 		fx.Supply(
 			syscfg,
 			hostInfo,
 			enabledChecks,
 		),
-		runnerComp.Module,
+		process.Bundle,
+
+		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
 		// Invoke the runner to call its start hook
 		fx.Invoke(func(runnerComp.Component) {}),
-		fx.Populate(&s),
 	)
 	err := app.Start(context.Background())
 	if err != nil {
@@ -294,7 +295,7 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 
 	// Set up an exit channel
 	<-exit
-	err = s.Shutdown()
+	err = app.Stop(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to properly stop the process agent: %v", err)
 	} else {
@@ -321,9 +322,9 @@ func initRuntimeSettings() {
 	// NOTE: Any settings you want to register should simply be added here
 	processRuntimeSettings := []settings.RuntimeSetting{
 		settings.LogLevelRuntimeSetting{},
-		settings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction"),
-		settings.RuntimeBlockProfileRate("runtime_block_profile_rate"),
-		settings.ProfilingGoroutines("internal_profiling_goroutines"),
+		settings.RuntimeMutexProfileFraction{},
+		settings.RuntimeBlockProfileRate{},
+		settings.ProfilingGoroutines{},
 		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
 	}
 
