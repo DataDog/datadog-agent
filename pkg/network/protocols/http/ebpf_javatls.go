@@ -68,7 +68,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error
 
 	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
-		log.Warnf("java tls is not enabled as EnableJavaTLSSupport: %v; EnableHTTPSMonitoring: %v; HTTPSSupported(): %v", c.EnableJavaTLSSupport, c.EnableHTTPSMonitoring, HTTPSSupported(c))
+		log.Info("java tls is not enabled")
 		return nil
 	}
 
