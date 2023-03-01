@@ -16,9 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func Test_getScalarValueFromSymbol(t *testing.T) {
@@ -731,15 +733,15 @@ func Test_netmaskToPrefixlen(t *testing.T) {
 func Test_getInterfaceConfig(t *testing.T) {
 	tests := []struct {
 		name                    string
-		interfaceConfigs        []checkconfig.InterfaceConfig
+		interfaceConfigs        []snmpintegration.InterfaceConfig
 		index                   string
 		tags                    []string
-		expectedInterfaceConfig checkconfig.InterfaceConfig
+		expectedInterfaceConfig snmpintegration.InterfaceConfig
 		expectedError           string
 	}{
 		{
 			name: "matched by name",
-			interfaceConfigs: []checkconfig.InterfaceConfig{
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
 				{
 					MatchField: "name",
 					MatchValue: "eth0",
@@ -750,7 +752,7 @@ func Test_getInterfaceConfig(t *testing.T) {
 			tags: []string{
 				"interface:eth0",
 			},
-			expectedInterfaceConfig: checkconfig.InterfaceConfig{
+			expectedInterfaceConfig: snmpintegration.InterfaceConfig{
 				MatchField: "name",
 				MatchValue: "eth0",
 				InSpeed:    80,
@@ -758,7 +760,7 @@ func Test_getInterfaceConfig(t *testing.T) {
 		},
 		{
 			name: "matched by index",
-			interfaceConfigs: []checkconfig.InterfaceConfig{
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
 				{
 					MatchField: "index",
 					MatchValue: "10",
@@ -769,7 +771,7 @@ func Test_getInterfaceConfig(t *testing.T) {
 			tags: []string{
 				"interface:eth0",
 			},
-			expectedInterfaceConfig: checkconfig.InterfaceConfig{
+			expectedInterfaceConfig: snmpintegration.InterfaceConfig{
 				MatchField: "index",
 				MatchValue: "10",
 				InSpeed:    80,
@@ -777,7 +779,7 @@ func Test_getInterfaceConfig(t *testing.T) {
 		},
 		{
 			name: "not matched",
-			interfaceConfigs: []checkconfig.InterfaceConfig{
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
 				{
 					MatchField: "index",
 					MatchValue: "99",

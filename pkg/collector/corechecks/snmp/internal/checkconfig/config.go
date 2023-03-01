@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
@@ -141,7 +142,7 @@ type InstanceConfig struct {
 
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
-	InterfaceConfigs []InterfaceConfig `yaml:"interface_configs"`
+	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -190,7 +191,7 @@ type CheckConfig struct {
 	DiscoveryInterval        int
 	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
-	InterfaceConfigs         []InterfaceConfig
+	InterfaceConfigs         []snmpintegration.InterfaceConfig
 }
 
 // RefreshWithProfile refreshes config based on profile

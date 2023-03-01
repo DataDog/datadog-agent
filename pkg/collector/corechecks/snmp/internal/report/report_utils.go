@@ -10,9 +10,12 @@ import (
 	"net"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkconfig.SymbolConfig) (valuestore.ResultValue, error) {
@@ -155,8 +158,8 @@ func netmaskToPrefixlen(netmask string) int {
 	return length
 }
 
-// getInterfaceConfig retrieves checkconfig.InterfaceConfig by index and tags
-func getInterfaceConfig(interfaceConfigs []checkconfig.InterfaceConfig, index string, tags []string) (checkconfig.InterfaceConfig, error) {
+// getInterfaceConfig retrieves snmpintegration.InterfaceConfig by index and tags
+func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, index string, tags []string) (snmpintegration.InterfaceConfig, error) {
 	var ifName string
 	for _, tag := range tags {
 		tagElems := strings.SplitN(tag, ":", 2)
@@ -171,5 +174,5 @@ func getInterfaceConfig(interfaceConfigs []checkconfig.InterfaceConfig, index st
 			return ifConfig, nil
 		}
 	}
-	return checkconfig.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
+	return snmpintegration.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
 }

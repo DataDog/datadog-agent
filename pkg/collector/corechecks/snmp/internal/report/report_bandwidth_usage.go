@@ -10,6 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
@@ -116,7 +118,7 @@ func (ms *MetricSender) sendIfSpeedMetrics(symbol checkconfig.SymbolConfig, full
 	interfaceConfig, err := getInterfaceConfig(ms.interfaceConfigs, fullIndex, tags)
 	if err != nil {
 		log.Tracef("continue with empty interfaceConfig: %s", err)
-		interfaceConfig = checkconfig.InterfaceConfig{}
+		interfaceConfig = snmpintegration.InterfaceConfig{}
 	}
 
 	ifHighSpeed, err := ms.getIfHighSpeed(fullIndex, values)
