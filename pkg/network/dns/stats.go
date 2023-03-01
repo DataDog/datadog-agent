@@ -12,7 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,12 +27,16 @@ const (
 	failedResponse
 	// query means the packet contains a DNS query
 	query
+	// Subsystem name for telemetry purposes
+	dnsStatKeeperModuleName = "dnsStatKeeper"
+	// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
+	// for 10000 entries.
+	maxStateMapSize = 10000
 )
 
-// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
-// for 10000 entries.
-const (
-	maxStateMapSize = 10000
+var (
+	lastNumStats     = telemetry.NewGauge(dnsStatKeeperModuleName, "last_num_stats", []string{}, "")
+	lastDroppedStats = nettelemetry.NewStatGaugeWrapper(dnsStatKeeperModuleName, "last_dropped_stats", []string{}, "")
 )
 
 type dnsPacketInfo struct {
@@ -66,8 +71,6 @@ type dnsStatKeeper struct {
 	numStats         int
 	maxStats         int
 	droppedStats     int
-	lastNumStats     telemetry.StatGaugeWrapper
-	lastDroppedStats telemetry.StatGaugeWrapper
 }
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
@@ -78,8 +81,6 @@ func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 		exit:             make(chan struct{}),
 		maxSize:          maxStateMapSize,
 		maxStats:         maxStats,
-		lastNumStats:     telemetry.NewStatGaugeWrapper("dnsStatKeeper", "last_num_stats", []string{}, ""),
-		lastDroppedStats: telemetry.NewStatGaugeWrapper("dnsStatKeeper", "last_dropped_stats", []string{}, ""),
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)
@@ -167,10 +168,9 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.stats[info.key] = allStats
 }
 
-func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
-	numStats := d.lastNumStats.Load()
-	droppedStats := d.lastDroppedStats.Load()
-	return int32(numStats), int32(droppedStats)
+func (d *dnsStatKeeper) GetNumStats() int32 {
+	droppedStats := lastDroppedStats.Load()
+	return int32(droppedStats)
 }
 
 func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
@@ -179,8 +179,8 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(StatsByKeyByNameByType)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
-	d.lastNumStats.Set(int64(d.numStats))
-	d.lastDroppedStats.Set(int64(d.droppedStats))
+	lastNumStats.Set(float64(d.numStats))
+	lastDroppedStats.Set(int64(d.droppedStats))
 	d.numStats = 0
 	d.droppedStats = 0
 	return ret

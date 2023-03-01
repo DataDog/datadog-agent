@@ -127,7 +127,7 @@ func (s *socketFilterSnooper) GetDNSStats() StatsByKeyByNameByType {
 func (s *socketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.source.Stats()
 	if s.statKeeper != nil {
-		_, dropedStats := s.statKeeper.GetNumStats()
+		dropedStats := s.statKeeper.GetNumStats()
 		stats["dropped_stats"] = int64(dropedStats)
 	}
 	return stats
