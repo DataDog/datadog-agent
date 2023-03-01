@@ -139,9 +139,10 @@ func load() (*Config, error) {
 
 	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
 	npmEnabled := cfg.GetBool("network_config.enabled")
-	usmEnabled := cfg.GetBool(key(smNS, "enabled")) || cfg.GetBool(key(dsmNS, "enabled"))
+	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
+	dsmEnabled := cfg.GetBool(key(dsmNS, "enabled"))
 
-	if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
+	if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled && !dsmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
 		log.Info("`system_probe_config.enabled` is deprecated, enable NPM with `network_config.enabled` instead")
@@ -150,7 +151,7 @@ func load() (*Config, error) {
 		npmEnabled = true
 	}
 
-	if npmEnabled || usmEnabled {
+	if npmEnabled || usmEnabled || dsmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {
@@ -185,8 +186,8 @@ func load() (*Config, error) {
 	cfg.Set(key(spNS, "enabled"), c.Enabled)
 
 	if cfg.GetBool(key(smNS, "process_service_inference", "enabled")) {
-		if !usmEnabled {
-			log.Info("service monitoring is disabled, disabling process service inference")
+		if !usmEnabled && !dsmEnabled {
+			log.Info("Both service monitoring and data streams monitoring are disabled, disabling process service inference")
 			cfg.Set(key(smNS, "process_service_inference", "enabled"), false)
 		} else {
 			log.Info("process service inference is enabled")
