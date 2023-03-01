@@ -865,7 +865,7 @@ func getClockTicks() float64 {
 }
 
 // isKernelThread checks if the PF_KTHREAD flag is set which identifies this process as a kernel thread
-//  See: https://github.com/torvalds/linux/commit/7b34e4283c685f5cc6ba6d30e939906eee0d4bcf
+// See: https://github.com/torvalds/linux/commit/7b34e4283c685f5cc6ba6d30e939906eee0d4bcf
 func isKernelThread(flags uint32) bool {
 	return flags&0x00200000 == 0x00200000
 }
