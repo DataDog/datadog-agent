@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -663,7 +664,7 @@ func TestConvertAndEnrichWithServiceTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, convertAndEnrichWithServiceCtx(tags, tt.tagOffsets, []string{tt.serviceTag}))
+			assert.Equal(t, tt.expected, convertAndEnrichWithServiceCtx(tags, tt.tagOffsets, tt.serviceTag))
 		})
 	}
 }
