@@ -182,6 +182,11 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 	if _, err = file.Write(raw.Bytes()); err != nil {
 		return fmt.Errorf("couldn't write to file [%s]: %w", outputPath, err)
 	}
+
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("could not close close file [%s]: %w", outputPath, err)
+	}
+
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, ad.GetSelectorStr(), outputPath)
 	return nil
 }

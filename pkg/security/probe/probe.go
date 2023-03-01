@@ -1065,8 +1065,8 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	if err := encoder.Encode(dump); err != nil {
 		return "", err
 	}
-
-	return fp.Name(), nil
+	err = fp.Close()
+	return fp.Name(), err
 }
 
 // FlushDiscarders invalidates all the discarders
@@ -1148,8 +1148,11 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
-	defer handle.Close()
-	return p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	err = p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	if cerr := handle.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method

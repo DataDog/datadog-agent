@@ -735,6 +735,8 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 }
 
 func downloadPolicy(log log.Component, config config.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
+	var err error
+
 	apiKey := config.GetString("api_key")
 	appKey := config.GetString("app_key")
 
@@ -759,7 +761,12 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() {
+			cerr := f.Close()
+			if err == nil {
+				err = cerr
+			}
+		}()
 		outputWriter = f
 	}
 

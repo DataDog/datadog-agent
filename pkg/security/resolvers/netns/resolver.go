@@ -156,10 +156,11 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manag
 	if err != nil {
 		return
 	}
-	defer handle.Close()
-
 	for _, queuedDevice := range nn.networkDevicesQueue {
 		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager)
+	}
+	if err := handle.Close(); err != nil {
+		seclog.Warnf("could not close namespace handle: %v", err)
 	}
 	nn.flushNetworkDevicesQueue()
 }
@@ -327,6 +328,9 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 			}
 		}
 	}
+	if err = handle.Close(); err != nil {
+		seclog.Warnf("could not close namespace handle: %v", err)
+	}
 	return attachedDeviceCountNoLazyDeletion
 }
 
@@ -432,8 +436,11 @@ func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	// if we can, make sure the manager has a valid netlink socket to this handle before removing everything
 	handle, err := netns.getNamespaceHandleDup()
 	if err == nil {
-		defer handle.Close()
 		_, _ = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+		err = handle.Close()
+		if err != nil {
+			seclog.Warnf("could not close namespace handle: %v", err)
+		}
 	}
 
 	// close network namespace handle to release the namespace
@@ -626,6 +633,12 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 		return resp
 	}
 
+	if err = dumpFile.Close(); err != nil {
+		resp.Error = fmt.Sprintf("couldn't encode list of network namespace: %v", err)
+		seclog.Warnf(resp.Error)
+		return resp
+	}
+
 	// create graph file
 	graphFile, err := newTmpFile("network-namespace-graph-*.dot")
 	if err != nil {
@@ -638,6 +651,12 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 
 	// generate dot graph
 	if err = nr.generateGraph(dump, graphFile); err != nil {
+		resp.Error = fmt.Sprintf("couldn't generate dot graph: %v", err)
+		seclog.Warnf(resp.Error)
+		return resp
+	}
+
+	if err = graphFile.Close(); err != nil {
 		resp.Error = fmt.Sprintf("couldn't generate dot graph: %v", err)
 		seclog.Warnf(resp.Error)
 		return resp

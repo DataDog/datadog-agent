@@ -1185,9 +1185,9 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer dump.Close()
 
 	if err := os.Chmod(dump.Name(), 0400); err != nil {
+		dump.Close()
 		return "", err
 	}
 
@@ -1203,7 +1203,7 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 
 	fmt.Fprintf(dump, `}`)
 
-	return dump.Name(), err
+	return dump.Name(), dump.Close()
 }
 
 // GetCacheSize returns the cache size of the process resolver
