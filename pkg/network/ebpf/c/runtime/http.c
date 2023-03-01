@@ -71,7 +71,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // If not, creating a new one to be used for further processing
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
     if (tail_call_state == NULL) {
-        const http2_tail_call_state_t iteration_value = {};
+        http2_tail_call_state_t iteration_value = {};
         bpf_map_update_with_telemetry(http2_iterations, &iterations_key, &iteration_value, BPF_NOEXIST);
         tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
         if (tail_call_state == NULL) {
