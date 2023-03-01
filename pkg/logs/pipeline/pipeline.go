@@ -22,6 +22,7 @@ import (
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
 	InputChan chan *message.Message
+	flushChan chan struct{}
 	processor *processor.Processor
 	strategy  sender.Strategy
 	sender    *sender.Sender
@@ -40,11 +41,9 @@ func NewPipeline(outputChan chan *message.Payload,
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+	flushChan := make(chan struct{})
 
 	var logsSender *sender.Sender
-
-	strategy := getStrategy(strategyInput, senderInput, endpoints, serverless, pipelineID)
-	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	var encoder processor.Encoder
 	if serverless {
@@ -57,11 +56,15 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
+	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, pipelineID)
+	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
+
 	inputChan := make(chan *message.Message, config.ChanSize)
 	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
 		InputChan: inputChan,
+		flushChan: flushChan,
 		processor: processor,
 		strategy:  strategy,
 		sender:    logsSender,
@@ -84,6 +87,7 @@ func (p *Pipeline) Stop() {
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
+	p.flushChan <- struct{}{}
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
@@ -111,13 +115,13 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 	return client.NewDestinations(reliable, additionals)
 }
 
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
+		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan)
 }
