@@ -17,21 +17,20 @@ USM_EVENTS_INIT(kafka, kafka_transaction_batch_entry_t, KAFKA_BATCH_SIZE);
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
 // Has to be a template and not a function, as we have pragma unroll.
-#define CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(max_buffer_size, real_size, buffer)                                                  \
-    char ch = 0;                                                                                                                        \
-_Pragma( STRINGIFY(unroll(max_buffer_size)) )                                                                                           \
-    for (int j = 0; j < max_buffer_size; j++) {                                                                                         \
-        /* Verifies we are not exceeding the real client_id_size, and if we do, we finish the iteration as we reached */                \
-        /* to the end of the buffer and all checks have been successful. */                                                             \
-        if (j + 1 > real_size) {                                                                                                        \
-            break;                                                                                                                      \
-        }                                                                                                                               \
-        ch = buffer[j];                                                                                                                 \
-        if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {  \
-            continue;                                                                                                                   \
-        }                                                                                                                               \
-        return false;                                                                                                                   \
-    }                                                                                                                                   \
+#define CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(max_buffer_size, real_size, buffer)                                                      \
+    char ch = 0;                                                                                                                            \
+_Pragma( STRINGIFY(unroll(max_buffer_size)) )                                                                                               \
+    for (int j = 0; j < max_buffer_size; j++) {                                                                                             \
+        /* Verifies we are not exceeding the real client_id_size, and if we do, we finish the iteration as we reached */                    \
+        /* to the end of the buffer and all checks have been successful. */                                                                 \
+        if (j < real_size) {                                                                                                                \
+            ch = buffer[j];                                                                                                                 \
+            if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {  \
+                continue;                                                                                                                   \
+            }                                                                                                                               \
+        }                                                                                                                                   \
+        return false;                                                                                                                       \
+    }                                                                                                                                       \
 
 SEC("socket/kafka_filter")
 int socket__kafka_filter(struct __sk_buff* skb) {
