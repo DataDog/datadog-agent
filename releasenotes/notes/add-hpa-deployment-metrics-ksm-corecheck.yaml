@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Added support for `kube_horizontalpodautoscaler_status_current_target_metric` (KSM v2.6.0)
+    and `kube_deployment_status_replicas_ready`.
