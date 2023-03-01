@@ -155,7 +155,7 @@ func (r *HTTPReceiver) Start() {
 		ConnContext:  connContext,
 	}
 
-	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
 	ln, err := r.listenTCP(addr)
 	if err != nil {
 		r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)

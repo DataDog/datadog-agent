@@ -1081,11 +1081,13 @@ func TestExpvar(t *testing.T) {
 		return
 	}
 
-	r := newTestReceiverFromConfig(config.New())
-	r.Start()
-	defer r.Stop()
+	c := config.New()
+	c.DebugServerPort = 5012
+	s := NewDebugServer(c)
+	s.Start()
+	defer s.Stop()
 
-	resp, err := http.Get("http://localhost:8126/debug/vars")
+	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
 	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
