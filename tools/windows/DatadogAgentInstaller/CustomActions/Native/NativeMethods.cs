@@ -1,10 +1,8 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
-using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions.Native
 {

@@ -13,7 +13,7 @@
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Build image
-    - docker buildx build --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} $BUILD_CONTEXT
+    - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} $BUILD_CONTEXT
     # Squash image
     - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
   # Workaround for temporary network failures

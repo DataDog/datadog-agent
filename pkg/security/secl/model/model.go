@@ -152,12 +152,13 @@ type ContainerContext struct {
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID           string    `field:"-" json:"-"`
-	Type         uint32    `field:"-"`
-	Flags        uint32    `field:"-"`
-	Async        bool      `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw uint64    `field:"-" json:"-"`
-	Timestamp    time.Time `field:"-"` // Timestamp of the event
+	ID           string         `field:"-" json:"-"`
+	Type         uint32         `field:"-"`
+	Flags        uint32         `field:"-"`
+	Async        bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"-" json:"-"`
+	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
@@ -326,6 +327,52 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 // GetProcessServiceTag uses the field handler
 func (ev *Event) GetProcessServiceTag() string {
 	return ev.FieldHandlers.GetProcessServiceTag(ev)
+}
+
+// MatchedRules contains the identification of one rule that has match
+type MatchedRule struct {
+	RuleID        string
+	RuleVersion   string
+	PolicyName    string
+	PolicyVersion string
+}
+
+// NewMatchedRule return a new MatchedRule instance
+func NewMatchedRule(ruleID, ruleVersion, policyName, policyVersion string) *MatchedRule {
+	return &MatchedRule{
+		RuleID:        ruleID,
+		RuleVersion:   ruleVersion,
+		PolicyName:    policyName,
+		PolicyVersion: policyVersion,
+	}
+}
+
+func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
+	if mr2 == nil ||
+		mr.RuleID != mr2.RuleID ||
+		mr.RuleVersion != mr2.RuleVersion ||
+		mr.PolicyName != mr2.PolicyName ||
+		mr.PolicyVersion != mr2.PolicyVersion {
+		return false
+	}
+	return true
+}
+
+// Append two lists, but avoiding duplicates
+func AppendMatchedRule(list []*MatchedRule, toAdd []*MatchedRule) []*MatchedRule {
+	for _, ta := range toAdd {
+		found := false
+		for _, l := range list {
+			if l.Match(ta) { // rule already present
+				found = true
+				break
+			}
+		}
+		if !found {
+			list = append(list, ta)
+		}
+	}
+	return list
 }
 
 // SetuidEvent represents a setuid event

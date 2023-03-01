@@ -71,3 +71,15 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads [][]byte, err err
 	}
 	return response.Payloads, nil
 }
+
+func (c *Client) GetServerHealth() error {
+	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/health", c.fakeIntakeURL))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error code %v", resp.StatusCode)
+	}
+	return nil
+}

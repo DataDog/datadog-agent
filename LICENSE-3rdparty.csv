@@ -1159,6 +1159,7 @@ core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,Copyright (c)
 core,github.com/opencontainers/selinux/pkg/pwalk,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/pkg/pwalkdir,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/openshift/api/quota/v1,Apache-2.0,"Copyright 2020 Red Hat, Inc."
+core,github.com/openshift/api/security/v1,Apache-2.0,"Copyright 2020 Red Hat, Inc."
 core,github.com/opentracing/opentracing-go,Apache-2.0,Copyright 2016 The OpenTracing Authors
 core,github.com/opentracing/opentracing-go/ext,Apache-2.0,Copyright 2016 The OpenTracing Authors
 core,github.com/opentracing/opentracing-go/log,Apache-2.0,Copyright 2016 The OpenTracing Authors
@@ -1261,6 +1262,7 @@ core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright 
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/mock,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/require,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
+core,github.com/stretchr/testify/suite,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/syndtr/gocapability/capability,BSD-2-Clause,Copyright 2013 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb/cache,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>

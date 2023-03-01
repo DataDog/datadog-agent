@@ -149,6 +149,8 @@ type Config struct {
 	ActivityDumpSyscallMonitorPeriod time.Duration
 	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
 	ActivityDumpMaxDumpCountPerWorkload int
+	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:thread_score)
+	ActivityDumpTagRulesEnabled bool
 
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
@@ -277,6 +279,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpLocalStorageCompression:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
 		ActivityDumpMaxDumpCountPerWorkload:   coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
+		ActivityDumpTagRulesEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_size")
