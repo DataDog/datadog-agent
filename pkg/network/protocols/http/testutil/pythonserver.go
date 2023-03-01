@@ -64,7 +64,6 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) (func(), error
 	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, host, port, crtPath, keyPath)
 	scriptFile, err := writeTempFile("python_openssl_script", pythonSSLServer)
 	require.NoError(t, err)
-	defer scriptFile.Close()
 
 	cmd := exec.Command("python3", scriptFile.Name(), strconv.FormatBool(options.EnableTLS))
 	go require.NoError(t, cmd.Start())
@@ -92,7 +91,7 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 		return nil, err
 	}
 
-	return f, nil
+	return f, f.Close()
 }
 
 func rawConnect(ctx context.Context, t *testing.T, host string, port string) {
