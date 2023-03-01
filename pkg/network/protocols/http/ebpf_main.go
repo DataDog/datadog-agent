@@ -375,8 +375,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	// configure event stream
 	events.Configure("http", e.Manager.Manager, &options)
-	// Regardless of whether Kafka is enabled or not, it's necessary to configure the batch map as it's present in the HTTP binary
-	events.Configure("kafka", e.Manager.Manager, &options)
+	if e.cfg.EnableKafkaMonitoring {
+		events.Configure("kafka", e.Manager.Manager, &options)
+	}
 
 	return e.InitWithOptions(buf, options)
 }
