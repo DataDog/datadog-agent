@@ -17,10 +17,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -34,14 +36,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-var (
-	metaScheduler  *metadata.Scheduler
-	statsd         *dogstatsd.Server
-	dogstatsdStats *http.Server
-)
-
 type CLIParams struct {
 	confPath string
+}
+
+type DogstatsdComponents struct {
+	DogstatsdServer dogstatsdServer.Component
+	DogstatsdStats  *http.Server
+	MetaScheduler   *metadata.Scheduler
 }
 
 const (
@@ -89,19 +91,29 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			config.WithConfigMissingOK(true),
 			config.WithConfigName("dogstatsd")),
 		),
+		fx.Supply(logComponent.LogForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module,
+		logComponent.Module,
+		fx.Supply(dogstatsdServer.Params{
+			Serverless: false,
+		}),
+		dogstatsd.Bundle,
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, params *Params) error {
+func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
-	defer StopAgent(cancel)
+
+	components := &DogstatsdComponents{
+		DogstatsdServer: server,
+	}
+	defer StopAgent(cancel, components)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunAgent(ctx, cliParams, config, params)
+	err := RunAgent(ctx, cliParams, config, params, components)
 	if err != nil {
 		return err
 	}
@@ -112,19 +124,19 @@ func start(cliParams *CLIParams, config config.Component, params *Params) error 
 	return nil
 }
 
-func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, components *DogstatsdComponents) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
 
 	// go_expvar server
 	port := config.GetInt("dogstatsd_stats_port")
-	dogstatsdStats = &http.Server{
+	components.DogstatsdStats = &http.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 		Handler: http.DefaultServeMux,
 	}
 	go func() {
-		if err := dogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := components.DogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
 		}
 	}()
@@ -197,13 +209,13 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
-	metaScheduler = metadata.NewScheduler(demux)
-	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
-		metaScheduler.Stop()
+	components.MetaScheduler = metadata.NewScheduler(demux) //nolint:staticcheck
+	if err = metadata.SetupMetadataCollection(components.MetaScheduler, []string{"host"}); err != nil {
+		components.MetaScheduler.Stop()
 		return
 	}
 
-	if err = metadata.SetupInventories(metaScheduler, nil); err != nil {
+	if err = metadata.SetupInventories(components.MetaScheduler, nil); err != nil {
 		return
 	}
 
@@ -218,7 +230,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		}
 	}
 
-	statsd, err = dogstatsd.NewServer(demux, false)
+	err = components.DogstatsdServer.Start(demux)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
@@ -248,7 +260,7 @@ func handleSignals(stopCh chan struct{}) {
 	}
 }
 
-func StopAgent(cancel context.CancelFunc) {
+func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -262,19 +274,17 @@ func StopAgent(cancel context.CancelFunc) {
 	cancel()
 
 	// stop metaScheduler and statsd if they are instantiated
-	if metaScheduler != nil {
-		metaScheduler.Stop()
+	if components.MetaScheduler != nil {
+		components.MetaScheduler.Stop()
 	}
 
-	if dogstatsdStats != nil {
-		if err := dogstatsdStats.Shutdown(context.Background()); err != nil {
+	if components.DogstatsdStats != nil {
+		if err := components.DogstatsdStats.Shutdown(context.Background()); err != nil {
 			log.Errorf("Error shutting down dogstatsd stats server: %s", err)
 		}
 	}
 
-	if statsd != nil {
-		statsd.Stop()
-	}
+	components.DogstatsdServer.Stop()
 
 	log.Info("See ya!")
 	log.Flush()

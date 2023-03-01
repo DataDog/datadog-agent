@@ -56,10 +56,7 @@ func TestNewServer(t *testing.T) {
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
-	assert.NotNil(t, s)
-	assert.True(t, s.Started)
+	s := requireStart(t, demux)
 
 	s.Stop()
 }
@@ -74,8 +71,7 @@ func TestStopServer(t *testing.T) {
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+	s := requireStart(t, demux)
 	s.Stop()
 
 	// check that the port can be bound, try for 100 ms
@@ -134,8 +130,7 @@ func TestUDPReceive(t *testing.T) {
 
 	demux := aggregator.InitTestAgentDemultiplexerWithOpts(opts)
 	defer demux.Stop(false)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+	s := requireStart(t, demux)
 	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
@@ -205,7 +200,7 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-metric packet
 	conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples = demux.WaitForNumberOfSamples(2, 0, time.Second*2)
 	require.Len(t, samples, 2)
 	require.Len(t, timedSamples, 0)
 	sample1 := samples[0]
@@ -222,7 +217,7 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-value packet
 	conn.Write([]byte("daemon1:666:123|c\ndaemon2:1000|c"))
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples = demux.WaitForNumberOfSamples(3, 0, time.Second*2)
 	require.Len(t, samples, 3)
 	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
@@ -244,7 +239,7 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-value packet with skip empty
 	conn.Write([]byte("daemon1::666::123::::|c\ndaemon2:1000|c"))
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples = demux.WaitForNumberOfSamples(3, 0, time.Second*2)
 	require.Len(t, samples, 3)
 	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
@@ -266,7 +261,7 @@ func TestUDPReceive(t *testing.T) {
 
 	//	// slightly malformed multi-metric packet, should still be parsed in whole
 	conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples = demux.WaitForNumberOfSamples(2, 0, time.Second*2)
 	require.Len(t, samples, 2)
 	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
@@ -327,7 +322,7 @@ func TestUDPReceive(t *testing.T) {
 
 	// Late metric and a normal one
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888\ndaemon2:666|c"))
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples = demux.WaitForNumberOfSamples(1, 1, time.Second*2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 1)
 	sample = timedSamples[0]
@@ -421,8 +416,8 @@ func TestUDPForward(t *testing.T) {
 
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+
+	s := requireStart(t, demux)
 	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
@@ -460,8 +455,7 @@ func TestHistToDist(t *testing.T) {
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+	s := requireStart(t, demux)
 	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
@@ -554,8 +548,7 @@ func TestE2EParsing(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+	s := requireStart(t, demux)
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
@@ -577,8 +570,7 @@ func TestE2EParsing(t *testing.T) {
 	defer config.Datadog.SetDefault("dogstatsd_eol_required", []string{})
 
 	demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
-	s, err = NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+	s = requireStart(t, demux)
 
 	// Test metric expecting an EOL
 	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
@@ -601,8 +593,7 @@ func TestExtraTags(t *testing.T) {
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+	s := requireStart(t, demux)
 	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
@@ -635,8 +626,7 @@ func TestStaticTags(t *testing.T) {
 	defer config.SetDetectedFeatures(nil)
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+	s := requireStart(t, demux)
 	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
@@ -670,13 +660,12 @@ func TestDebugStatsSpike(t *testing.T) {
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
 
-	s, err := NewServer(demux, false)
+	s := requireStart(t, demux)
+
 	clk := clock.NewMock()
 	s.Debug = newDSDServerDebugWithClock(clk)
 
-	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
-	require.NoError(t, err, "cannot start DSD")
 
 	s.EnableMetricsStats()
 	sample := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
@@ -731,10 +720,9 @@ func TestDebugStats(t *testing.T) {
 
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
-	s, err := NewServer(demux, false)
+	s := requireStart(t, demux)
 	clk := clock.NewMock()
 	s.Debug = newDSDServerDebugWithClock(clk)
-	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
 	s.EnableMetricsStats()
@@ -820,8 +808,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
-	s, err := NewServer(demux, false)
-	require.NoError(t, err, "cannot start DSD")
+	s := requireStart(t, demux)
 
 	assert.Nil(t, s.mapper)
 
@@ -937,8 +924,7 @@ dogstatsd_mapper_profiles:
 
 			demux := mockDemultiplexer()
 			defer demux.Stop(false)
-			s, err := NewServer(demux, false)
-			require.NoError(t, err, "Case `%s` failed. NewServer should not return error %v", scenario.name, err)
+			s := requireStart(t, demux)
 
 			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
@@ -979,8 +965,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	demux := mockDemultiplexer()
-	s, err := NewServer(demux, false)
-	require.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s := requireStart(t, demux)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 	s.Stop()
 	demux.Stop(false)
@@ -988,8 +973,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
 	t.Setenv("DD_TAGS", "hello:world")
 	demux = mockDemultiplexer()
-	s, err = NewServer(demux, false)
-	require.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s = requireStart(t, demux)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 	s.Stop()
 	demux.Stop(false)
@@ -997,8 +981,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
 	t.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
 	demux = mockDemultiplexer()
-	s, err = NewServer(demux, false)
-	require.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s = requireStart(t, demux)
 	require.Len(s.extraTags, 2, "two tags should have been read")
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
 	require.Equal(s.extraTags[1], "hello:world", "the tag hello:world should be set")
@@ -1011,8 +994,8 @@ func testProcessedMetricsOrigin(t *testing.T) {
 
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
-	s, err := NewServer(demux, false)
-	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s := requireStart(t, demux)
+
 	s.Stop()
 
 	assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
@@ -1020,7 +1003,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 
 	parser := newParser(newFloat64ListPool())
 	samples := []metrics.MetricSample{}
-	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
 	assert.NoError(err)
 	assert.Len(samples, 1)
 
@@ -1099,8 +1082,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 func testContainerIDParsing(t *testing.T) {
 	assert := assert.New(t)
 
-	s, err := NewServer(mockDemultiplexer(), false)
-	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s := requireStart(t, mockDemultiplexer())
 	s.Stop()
 
 	parser := newParser(newFloat64ListPool())
@@ -1140,8 +1122,7 @@ func TestContainerIDParsing(t *testing.T) {
 func testOriginOptout(t *testing.T, enabled bool) {
 	assert := assert.New(t)
 
-	s, err := NewServer(mockDemultiplexer(), false)
-	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s := requireStart(t, mockDemultiplexer())
 	s.Stop()
 
 	parser := newParser(newFloat64ListPool())
@@ -1190,4 +1171,13 @@ func TestOriginOptout(t *testing.T) {
 			testOriginOptout(t, enabled)
 		})
 	}
+}
+
+func requireStart(t *testing.T, demux aggregator.Demultiplexer) *Server {
+	s := NewServer(false)
+	err := s.Start(demux)
+	require.NoError(t, err, "cannot start DSD")
+	assert.NotNil(t, s)
+	assert.True(t, s.Started)
+	return s
 }

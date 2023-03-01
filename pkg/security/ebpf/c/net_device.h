@@ -89,15 +89,38 @@ struct bpf_map_def SEC("maps/netdevice_lookup_cache") netdevice_lookup_cache = {
     .max_entries = 1024,
 };
 
-SEC("kprobe/veth_newlink")
-int kprobe_veth_newlink(struct pt_regs *ctx) {
+int __attribute__((always_inline)) start_veth_state_machine() {
     u64 id = bpf_get_current_pid_tgid();
     struct veth_state_t state = {
         .state = STATE_NEWLINK,
     };
     bpf_map_update_elem(&veth_state_machine, &id, &state, BPF_ANY);
     return 0;
-};
+}
+
+SEC("kprobe/rtnl_create_link")
+int kprobe_rtnl_create_link(struct pt_regs *ctx) {
+    struct rtnl_link_ops *ops = (struct rtnl_link_ops*)PT_REGS_PARM4(ctx);
+    if (!ops) {
+        return 0;
+    }
+
+    char *kind_ptr;
+    if (bpf_probe_read(&kind_ptr, sizeof(char*), &ops->kind) < 0 || !kind_ptr) {
+        return 0;
+    }
+
+    char kind[5];
+    if (bpf_probe_read_str(kind, 5, kind_ptr) < 0) {
+        return 0;
+    }
+
+    if (kind[0] != 'v' || kind[1] != 'e' || kind[2] != 't' || kind[3] != 'h' || kind[4] != 0) {
+        return 0;
+    }
+
+    return start_veth_state_machine();
+}
 
 SEC("kprobe/register_netdevice")
 int kprobe_register_netdevice(struct pt_regs *ctx) {
@@ -224,7 +247,6 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
     if (state == NULL) {
         // this is a simple device registration
         struct net_device_event_t evt = {
-            .event.async = 0,
             .device = device,
         };
 
@@ -273,7 +295,6 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
             if (peer_device->netns != device.netns) {
                 // send event
                 struct veth_pair_event_t evt = {
-                    .event.async = 0,
                     .host_device = device,
                     .peer_device = *peer_device,
                 };
@@ -321,7 +342,6 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(struct pt_regs
 
     // send event
     struct veth_pair_event_t evt = {
-        .event.async = 0,
         .host_device = *peer_device,
         .peer_device = *device,
     };

@@ -13,7 +13,7 @@
     KITCHEN_PLATFORM: "ubuntu"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
 
 # Kitchen: scenarios (os * agent * (cloud + arch))
 # -------------------------------

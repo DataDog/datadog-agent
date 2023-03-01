@@ -46,7 +46,7 @@ pull_test_dockers_arm64:
   script:
     - echo -n "--tags ci.job.name:${CI_JOB_NAME}" > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/tags.txt
     - echo -n "${CI_JOB_URL}" > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_url.txt
-    - bash -l tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
   artifacts:
@@ -54,6 +54,7 @@ pull_test_dockers_arm64:
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
+      - $CI_PROJECT_DIR/kitchen_logs
 
 .retrieve_test_dockers:
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
@@ -68,18 +69,18 @@ kitchen_test_system_probe_linux_x64:
     - .kitchen_test_system_probe
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  needs: [ "tests_ebpf_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
+  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
-    KITCHEN_IMAGE_SIZE: Standard_D2_v2
-    AZURE_KITCHEN_MOUNT_DIR: /mnt/kitchen_mount
-    AZURE_KITCHEN_TARGET_MOUNT_DIR: /tmp/kitchen_mount
+    KITCHEN_IMAGE_SIZE: Standard_D3_v2
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
     - pushd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -87,27 +88,33 @@ kitchen_test_system_probe_linux_x64:
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-76,rhel-81"
+        KITCHEN_OSVERS: "centos-76"
+        KITCHEN_CI_MOUNT_PATH: "/mnt/resource/ci"
 
 kitchen_test_system_probe_linux_x64_ec2:
   extends:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
+  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t2.xlarge"
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
     - pushd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
+      - KITCHEN_PLATFORM: "centos"
+        KITCHEN_OSVERS: "rhel-86"
+        KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
 
 
 kitchen_test_system_probe_linux_arm64:
@@ -115,16 +122,18 @@ kitchen_test_system_probe_linux_arm64:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2_spot_instances
-  needs: [ "tests_ebpf_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64" ]
+  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64" ]
   variables:
     ARCH: arm64
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
     - pushd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -133,7 +142,7 @@ kitchen_test_system_probe_linux_arm64:
         KITCHEN_OSVERS: "debian-10,debian-11"
         KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-78,rhel-83"
+        KITCHEN_OSVERS: "centos-79,rhel-86"
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
         KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
@@ -155,6 +164,6 @@ kitchen_test_system_probe_windows_x64:
     - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
     - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
     - pushd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+    - tasks/kitchen_setup.sh
   script:
-    - bash -l tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION

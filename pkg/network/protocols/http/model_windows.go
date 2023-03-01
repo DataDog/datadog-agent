@@ -11,7 +11,6 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
-
 	"fmt"
 	"strconv"
 	"strings"
@@ -20,12 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
-
-// StatusClass returns an integer representing the status code class
-// Example: a 404 would return 400
-func statusClass(statusCode uint16) int {
-	return (int(statusCode) / 100) * 100
-}
 
 func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
 	return nsTimestampToFloat(uint64(responseLastSeen - requestStarted))
@@ -71,10 +64,6 @@ func dstIPHigh(tup *driver.ConnTupleType) uint64 {
 //
 // driverHttpTX interface
 //
-
-func (tx *WinHttpTransaction) StatusClass() int {
-	return statusClass(tx.Txn.ResponseStatusCode)
-}
 
 func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)

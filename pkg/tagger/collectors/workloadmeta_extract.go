@@ -276,6 +276,14 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		tags.AddOrchestrator("oshift_deployment", deployName)
 	}
 
+	// Admission + Remote Config correlation tags
+	if rcID, found := pod.Annotations[kubernetes.RcIDAnnotKey]; found {
+		tags.AddLow(kubernetes.RcIDTagName, rcID)
+	}
+	if rcRev, found := pod.Annotations[kubernetes.RcRevisionAnnotKey]; found {
+		tags.AddLow(kubernetes.RcRevisionTagName, rcRev)
+	}
+
 	for _, owner := range pod.Owners {
 		tags.AddLow(kubernetes.OwnerRefKindTagName, strings.ToLower(owner.Kind))
 		tags.AddOrchestrator(kubernetes.OwnerRefNameTagName, owner.Name)
@@ -335,7 +343,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
 		taskTags.AddLow("region", task.Region)
-		taskTags.AddLow("availability_zone", task.AvailabilityZone)
+		taskTags.AddLow("availability_zone", task.AvailabilityZone) // Deprecated
+		taskTags.AddLow("availability-zone", task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {
 		addResourceTags(taskTags, task.ContainerInstanceTags)
 		addResourceTags(taskTags, task.Tags)

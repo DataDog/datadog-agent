@@ -24,14 +24,17 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
+	sapi "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -39,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -152,7 +154,7 @@ func (m *Module) Start() error {
 
 	// runtime security is disabled but might be used by other component like process
 	if !m.config.IsRuntimeEnabled() {
-		if m.config.EventMonitoring {
+		if m.config.IsEventMonitoringEnabled() {
 			// Currently select process related event type.
 			// TODO external monitors should be allowed to select the event types
 			return m.probe.SelectProbes([]eval.EventType{
@@ -165,7 +167,13 @@ func (m *Module) Start() error {
 	}
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
-		_ = m.RunSelfTest(true)
+		if triggerred, err := m.RunSelfTest(true); err != nil {
+			err = fmt.Errorf("failed to run self test: %w", err)
+			if !triggerred {
+				return err
+			}
+			seclog.Warnf("%s", err)
+		}
 	}
 
 	var policyProviders []rules.PolicyProvider
@@ -218,7 +226,7 @@ func (m *Module) Start() error {
 	}
 
 	if err := m.LoadPolicies(policyProviders, true); err != nil {
-		seclog.Errorf("failed to load policies: %s", err)
+		return fmt.Errorf("failed to load policies: %s", err)
 	}
 
 	m.wg.Add(1)
@@ -255,7 +263,7 @@ func (m *Module) Start() error {
 	return nil
 }
 
-func (m *Module) displayReport(report *sprobe.Report) {
+func (m *Module) displayApplyRuleSetReport(report *kfilters.ApplyRuleSetReport) {
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 }
@@ -323,18 +331,6 @@ func (m *Module) ReloadPolicies() error {
 	return m.LoadPolicies(m.policyProviders, true)
 }
 
-func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*rules.RuleSet, *multierror.Error) {
-	ruleOpts, evalOpts := rules.NewEvalOpts(getEventTypeEnabled(m.config))
-
-	// approver ruleset
-	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-
-	// load policies
-	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
-
-	return approverRuleSet, loadApproversErrs
-}
-
 // LoadPolicies loads the policies
 func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
@@ -345,27 +341,14 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	m.reloading.Store(true)
 	defer m.reloading.Store(false)
 
-	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
-
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
-
-	approverRuleSet, loadApproversErrs := m.getApproverRuleset(policyProviders)
-	// non fatal error, just log
-	if loadApproversErrs != nil {
-		logLoadingErrors("error while loading policies for approvers: %+v", loadApproversErrs)
-	}
-
-	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
-	if err != nil {
-		return err
-	}
 
 	// standard ruleset
 	ruleSet := m.probe.NewRuleSet()
 
 	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
-	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {
+	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
 
@@ -376,17 +359,18 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	// notify listeners
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet, loadApproversErrs)
+		m.rulesLoaded(ruleSet, loadErrs)
 	}
 
 	// add module as listener for ruleset events
 	ruleSet.AddListener(m)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(ruleSet, approvers)
+	report, err := m.probe.ApplyRuleSet(ruleSet)
 	if err != nil {
 		return err
 	}
+	m.displayApplyRuleSetReport(report)
 
 	// set the rate limiters
 	m.rateLimiter.Apply(ruleSet, events.AllCustomRuleIDs())
@@ -398,11 +382,9 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	m.apiServer.Apply(ruleIDs)
 
-	m.displayReport(report)
-
 	if sendLoadedReport {
-		ReportRuleSetLoaded(m.eventSender, m.statsdClient, ruleSet, loadApproversErrs)
-		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
+		ReportRuleSetLoaded(m.eventSender, m.statsdClient, ruleSet, loadErrs)
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
 	}
 
 	return nil
@@ -455,7 +437,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *model.Event) {
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
-	if event.SavedByActivityDumps {
+	if event.IsSavedByActivityDumps() {
 		return
 	}
 
@@ -476,6 +458,13 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
+
+	if ok, val := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
+		if ev.ContainerContext.ID != "" && m.config.ActivityDumpTagRulesEnabled {
+			ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
+		}
+		return // if the triggered rule is only meant to tag secdumps, dont send it
+	}
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
@@ -579,7 +568,7 @@ func (m *Module) statsSender() {
 			}
 
 			// Event monitoring may run independently of CWS products
-			if m.config.NetworkProcessEventMonitoringEnabled || m.config.ProcessEventMonitoringEnabled {
+			if m.config.IsEventMonitoringEnabled() {
 				_ = m.statsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():
@@ -690,7 +679,7 @@ func NewModule(cfg *sconfig.Config, opts Opts) (module.Module, error) {
 }
 
 // RunSelfTest runs the self tests
-func (m *Module) RunSelfTest(sendLoadedReport bool) error {
+func (m *Module) RunSelfTest(sendLoadedReport bool) (bool, error) {
 	prevProviders, providers := m.policyProviders, m.policyProviders
 	if len(prevProviders) > 0 {
 		defer func() {
@@ -704,12 +693,12 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 	providers = append(providers, m.selfTester)
 
 	if err := m.LoadPolicies(providers, false); err != nil {
-		return err
+		return false, err
 	}
 
 	success, fails, err := m.selfTester.RunSelfTest()
 	if err != nil {
-		return err
+		return true, err
 	}
 
 	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
@@ -719,7 +708,7 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 		ReportSelfTest(m.eventSender, m.statsdClient, success, fails)
 	}
 
-	return nil
+	return true, nil
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {

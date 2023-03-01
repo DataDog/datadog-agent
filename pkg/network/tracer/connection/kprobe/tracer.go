@@ -35,10 +35,17 @@ var (
 	tailCalls = []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           0,
+			Key:           netebpf.ClassificationQueues,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  probes.ProtocolClassifierSocketFilter,
-				EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationDBs,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
 				UID:          probeUID,
 			},
 		},
@@ -50,6 +57,9 @@ var (
 // filter, and a tracepoint (4.7.0+)
 func ClassificationSupported(config *config.Config) bool {
 	if !config.ProtocolClassificationEnabled {
+		return false
+	}
+	if !config.CollectTCPConns {
 		return false
 	}
 	currentKernelVersion, err := kernel.HostVersion()
@@ -109,10 +119,9 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	var undefinedProbes []manager.ProbeIdentificationPair
 
 	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported(config) && config.CollectTCPConns {
+	if ClassificationSupported(config) {
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
-			EBPFSection:  probes.ProtocolClassifierEntrySocketFilter,
-			EBPFFuncName: mainProbes[probes.ProtocolClassifierEntrySocketFilter],
+			EBPFFuncName: probes.ProtocolClassifierEntrySocketFilter,
 			UID:          probeUID,
 		})
 		if socketFilterProbe == nil {
@@ -131,9 +140,11 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		// in classification, preventing the program to load even though
 		// we won't use it. We change the type to a simple array map to
 		// circumvent that.
-		mgrOpts.MapSpecEditors[probes.ProtocolClassificationBufMap] = manager.MapSpecEditor{
-			Type:       ebpf.Array,
-			EditorFlag: manager.EditType,
+		for _, mapName := range []string{probes.ProtocolClassificationBufMap, probes.KafkaClientIDBufMap, probes.KafkaTopicNameBufMap} {
+			mgrOpts.MapSpecEditors[mapName] = manager.MapSpecEditor{
+				Type:       ebpf.Array,
+				EditorFlag: manager.EditType,
+			}
 		}
 	}
 
@@ -143,7 +154,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
+		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
 			mgrOpts.ExcludedFunctions = append(mgrOpts.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
@@ -153,9 +164,8 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
 	}
 
-	for probeName, funcName := range enabledProbes {
+	for funcName := range enabledProbes {
 		probeIdentifier := manager.ProbeIdentificationPair{
-			EBPFSection:  probeName,
 			EBPFFuncName: funcName,
 			UID:          probeUID,
 		}

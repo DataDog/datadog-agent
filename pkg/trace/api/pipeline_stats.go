@@ -25,12 +25,12 @@ const (
 )
 
 // pipelineStatsEndpoint returns the pipeline intake url and the corresponding API key.
-func pipelineStatsEndpoint(cfg *config.AgentConfig) (url *url.URL, apiKey string, err error) {
+func pipelineStatsEndpoint(cfg *config.AgentConfig) (*url.URL, string, error) {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		return nil, "", errors.New("config was not properly validated")
 	}
 	urlStr := cfg.Endpoints[0].Host + pipelineStatsURLSuffix
-	url, err = url.Parse(urlStr)
+	url, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, "", fmt.Errorf("error parsing pipeline stats intake URL %q: %v", urlStr, err)
 	}

@@ -19,10 +19,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// MinimumKernelVersion indicates the minimum kernel version required for HTTP monitoring
 var MinimumKernelVersion kernel.Version
 
 func init() {
 	MinimumKernelVersion = kernel.VersionCode(4, 14, 0)
+}
+
+// ErrNotSupported indicates that the current host doesn't fullfil the
+// requirements for HTTP monitoring
+type ErrNotSupported struct {
+	error
+}
+
+func (e *ErrNotSupported) Unwrap() error {
+	return e.error
 }
 
 func runningOnARM() bool {
@@ -38,7 +49,7 @@ func HTTPSSupported(c *config.Config) bool {
 	}
 
 	if runningOnARM() {
-		return kversion >= kernel.VersionCode(5, 5, 0) && c.EnableRuntimeCompiler
+		return kversion >= kernel.VersionCode(5, 5, 0) && (c.EnableRuntimeCompiler || c.EnableCORE)
 	}
 
 	return kversion >= MinimumKernelVersion

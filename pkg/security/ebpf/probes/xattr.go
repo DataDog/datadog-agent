@@ -15,14 +15,12 @@ var xattrProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/vfs_setxattr",
 			EBPFFuncName: "kprobe_vfs_setxattr",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/vfs_removexattr",
 			EBPFFuncName: "kprobe_vfs_removexattr",
 		},
 	},

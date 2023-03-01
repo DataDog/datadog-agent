@@ -27,7 +27,7 @@ from .utils import (
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 35 * 1024
+MAX_BINARY_SIZE = 37 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 
@@ -294,7 +294,8 @@ def image_build(ctx, arch='amd64', skip_build=False):
 
     client = docker.from_env()
 
-    src = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    binary_name = bin_name("dogstatsd")
+    src = os.path.join(STATIC_BIN_PATH, binary_name)
     dst = os.path.join("Dockerfiles", "dogstatsd", "alpine", "static")
 
     if not skip_build:
@@ -305,11 +306,18 @@ def image_build(ctx, arch='amd64', skip_build=False):
     if not os.path.exists(dst):
         os.makedirs(dst)
 
-    shutil.copy(src, dst)
+    shutil.copy(src, os.path.join(dst, f"{binary_name}.{arch}"))
     build_context = "Dockerfiles/dogstatsd/alpine"
-    dockerfile_path = f"{arch}/Dockerfile"
+    dockerfile_path = "Dockerfile"
 
-    client.images.build(path=build_context, dockerfile=dockerfile_path, rm=True, tag=DOGSTATSD_TAG)
+    client.images.build(
+        path=build_context,
+        dockerfile=dockerfile_path,
+        rm=True,
+        tag=DOGSTATSD_TAG,
+        platform=f"linux/{arch}",
+        buildargs={"TARGETARCH": arch},
+    )
     ctx.run(f"rm -rf {build_context}/static")
 
 

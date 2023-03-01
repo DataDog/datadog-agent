@@ -16,7 +16,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -151,6 +151,47 @@ func TestOTLPNameRemapping(t *testing.T) {
 	case p := <-out:
 		assert.Equal(t, "new", p.TracerPayload.Chunks[0].Spans[0].Name)
 	}
+}
+
+func TestCreateChunks(t *testing.T) {
+	cfg := config.New()
+	cfg.OTLPReceiver.ProbabilisticSampling = 50
+	o := NewOTLPReceiver(nil, cfg)
+	const (
+		traceID1 = 123           // sampled by 50% rate
+		traceID2 = 1237892138897 // not sampled by 50% rate
+		traceID3 = 1237892138898 // not sampled by 50% rate
+	)
+	traces := map[uint64]pb.Trace{
+		traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
+		traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
+		traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
+	}
+	priorities := map[uint64]sampler.SamplingPriority{
+		traceID3: sampler.PriorityUserKeep,
+	}
+	chunks := o.createChunks(traces, priorities)
+	var found int
+	for _, c := range chunks {
+		id := c.Spans[0].TraceID
+		require.ElementsMatch(t, c.Spans, traces[id])
+		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
+		switch id {
+		case traceID1:
+			found += 1
+			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
+			require.Equal(t, int32(1), c.Priority)
+		case traceID2:
+			found += 2
+			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
+			require.Equal(t, int32(0), c.Priority)
+		case traceID3:
+			found += 3
+			require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"])
+			require.Equal(t, int32(2), c.Priority)
+		}
+	}
+	require.Equal(t, 6, found)
 }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
@@ -546,7 +587,7 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("status2Error", func(t *testing.T) {
-		for _, tt := range []struct {
+		for _, tt := range []*struct {
 			status ptrace.StatusCode
 			msg    string
 			events ptrace.SpanEventSlice

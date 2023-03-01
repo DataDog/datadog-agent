@@ -43,15 +43,17 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -98,6 +100,8 @@ runtime_security_config:
   activity_dump:
     enabled: true
     rate_limiter: {{ .ActivityDumpRateLimiter }}
+    tag_rules:
+      enabled: {{ .ActivityDumpTagRules }}
     cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
@@ -140,6 +144,8 @@ runtime_security_config:
 `
 
 const testPolicy = `---
+version: 1.2.3
+
 macros:
 {{range $Macro := .Macros}}
   - id: {{$Macro.ID}}
@@ -150,8 +156,13 @@ macros:
 rules:
 {{range $Rule := .Rules}}
   - id: {{$Rule.ID}}
+    version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    tags:
+{{- range $Tag, $Val := .Tags}}
+      {{$Tag}}: {{$Val}}
+{{- end}}
     actions:
 {{- range $Action := .Actions}}
 {{- if $Action.Set}}
@@ -191,6 +202,7 @@ type testOpts struct {
 	disableApprovers                    bool
 	enableActivityDump                  bool
 	activityDumpRateLimiter             int
+	activityDumpTagRules                bool
 	activityDumpCgroupDumpTimeout       int
 	activityDumpTracedCgroupsCount      int
 	activityDumpTracedEventTypes        []string
@@ -222,6 +234,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
+		to.activityDumpTagRules == opts.activityDumpTagRules &&
 		to.activityDumpCgroupDumpTimeout == opts.activityDumpCgroupDumpTimeout &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
@@ -441,7 +454,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
-	eventJSON, err := sprobe.MarshalEvent(event, probe)
+	eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -450,14 +463,14 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 	var data interface{}
 	if err := json.Unmarshal(eventJSON, &data); err != nil {
 		tb.Error(err)
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 		return
 	}
 
 	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
 	if err != nil {
 		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 		return
 	}
 
@@ -467,21 +480,21 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 		pce, ok := entry.(map[string]interface{})
 		if !ok {
 			tb.Errorf("invalid process cache entry, %+v", entry)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 
 		pid, ok := pce["pid"].(float64)
 		if !ok || pid == 0 {
 			tb.Errorf("invalid pid, %+v", pce)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 
 		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
 		if prevPID != 0 && pid != prevPID && pid != prevPPID {
 			tb.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
-			tb.Error(eventJSON)
+			tb.Error(string(eventJSON))
 			return
 		}
 		prevPID = pid
@@ -490,7 +503,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 			ppid, ok := pce["ppid"].(float64)
 			if !ok {
 				tb.Errorf("invalid pid, %+v", pce)
-				tb.Error(eventJSON)
+				tb.Error(string(eventJSON))
 				return
 			}
 
@@ -500,7 +513,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 
 	if prevPID != 1 {
 		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 	}
 }
 
@@ -530,12 +543,12 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := sprobe.MarshalEvent(event, probe)
+		eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
 		}
-		tb.Error(eventJSON)
+		tb.Error(string(eventJSON))
 	}
 }
 
@@ -647,7 +660,7 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
+func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, err
@@ -698,6 +711,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"DisableApprovers":                    opts.disableApprovers,
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
+		"ActivityDumpTagRules":                opts.activityDumpTagRules,
 		"ActivityDumpCgroupDumpTimeout":       opts.activityDumpCgroupDumpTimeout,
 		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
@@ -717,23 +731,35 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		return nil, err
 	}
 
-	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
+		ddConfig, err := os.OpenFile(path.Join(testDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
+		if err != nil {
+			return "", "", err
+		}
+		defer ddConfig.Close()
+
+		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
+		if err != nil {
+			return "", "", err
+		}
+		defer sysprobeConfig.Close()
+
+		_, err = io.Copy(sysprobeConfig, buffer)
+		if err != nil {
+			return "", "", err
+		}
+		return ddConfig.Name(), sysprobeConfig.Name(), nil
+	}()
 	if err != nil {
 		return nil, err
 	}
-	defer sysprobeConfig.Close()
 
-	_, err = io.Copy(sysprobeConfig, buffer)
-	if err != nil {
-		return nil, err
-	}
-
-	err = sysconfig.SetupOptionalDatadogConfig()
+	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
+	agentConfig, err := sysconfig.New(sysprobeConfigName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -777,7 +803,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	config, err := genTestConfig(st.root, opts)
+	config, err := genTestConfig(st.root, opts, st.root)
 	if err != nil {
 		return nil, err
 	}
@@ -1014,7 +1040,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := sprobe.MarshalEvent(ev, tm.probe)
+	b, err := serializers.MarshalEvent(ev, tm.probe.GetResolvers())
 	return string(b), err
 }
 
@@ -1159,7 +1185,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1167,10 +1193,8 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if len(eventType) > 0 {
-			if event.GetEventType() != eventType[0] {
-				return
-			}
+		if event.GetEventType() != eventType {
+			return
 		}
 
 		select {
@@ -1767,7 +1791,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 	return dumps, nil
 }
 
-func (tm *testModule) DecodeActivityDump(path string) (*sprobe.ActivityDump, error) {
+func (tm *testModule) DecodeActivityDump(path string) (*activitydump.ActivityDump, error) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return nil, errors.New("No monitor")
@@ -1778,7 +1802,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*sprobe.ActivityDump, err
 		return nil, errors.New("No activity dump manager")
 	}
 
-	ad := sprobe.NewActivityDump(adm)
+	ad := activitydump.NewActivityDump(adm)
 	if ad == nil {
 		return nil, errors.New("Creation of new activity dump fails")
 	}
@@ -1938,7 +1962,7 @@ func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *
 }
 
 //nolint:deadcode,unused
-func searchForOpen(ad *sprobe.ActivityDump) bool {
+func searchForOpen(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Files) > 0 {
 			return true
@@ -1948,7 +1972,7 @@ func searchForOpen(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForDns(ad *sprobe.ActivityDump) bool {
+func searchForDns(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.DNSNames) > 0 {
 			return true
@@ -1958,7 +1982,7 @@ func searchForDns(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForBind(ad *sprobe.ActivityDump) bool {
+func searchForBind(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Sockets) > 0 {
 			return true
@@ -1968,7 +1992,7 @@ func searchForBind(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForSyscalls(ad *sprobe.ActivityDump) bool {
+func searchForSyscalls(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Syscalls) > 0 {
 			return true
@@ -1978,7 +2002,7 @@ func searchForSyscalls(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*sprobe.ActivityDump, error) {
+func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*activitydump.ActivityDump, error) {
 	var fileProtobuf string
 	// decode the dump
 	for _, file := range id.OutputFiles {

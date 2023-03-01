@@ -15,43 +15,43 @@ var mountProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/attach_recursive_mnt",
 			EBPFFuncName: "kprobe_attach_recursive_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/propagate_mnt",
 			EBPFFuncName: "kprobe_propagate_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_sb_umount",
 			EBPFFuncName: "kprobe_security_sb_umount",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/clone_mnt",
 			EBPFFuncName: "kprobe_clone_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/__attach_mnt",
 			EBPFFuncName: "kprobe___attach_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/attach_mnt",
 			EBPFFuncName: "kprobe_attach_mnt",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_mnt_set_mountpoint",
 		},
 	},
 }

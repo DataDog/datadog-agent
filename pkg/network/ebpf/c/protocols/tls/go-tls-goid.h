@@ -1,8 +1,11 @@
 #ifndef __GO_TLS_GOID_H
 #define __GO_TLS_GOID_H
 
+#include "ktypes.h"
+#if defined(COMPILE_PREBUILT) || defined(COMPILE_RUNTIME)
 #include "kconfig.h"
 #include <linux/sched.h>
+#endif
 
 #include "bpf_helpers.h"
 

@@ -128,7 +128,11 @@ func (s *ServerlessTraceAgent) Stop() {
 	}
 }
 
+<<<<<<< HEAD
 func (s *ServerlessTraceAgent) SetSpanModifier(fn func(*pb.Span)) {
+=======
+func (s *ServerlessTraceAgent) SetSpanModifier(fn func(*pb.TraceChunk, *pb.Span)) {
+>>>>>>> main
 	s.ta.ModifySpan = fn
 }
 

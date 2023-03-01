@@ -10,6 +10,7 @@ package http
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -40,31 +40,10 @@ var (
 	emptyBody = []byte(nil)
 )
 
-func newHTTPTestMonitor(t *testing.T) *Monitor {
-	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	require.NoError(t, monitor.Start())
-	t.Cleanup(monitor.Stop)
-	return monitor
-}
-
-func skipTestIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < MinimumKernelVersion {
-		t.Skip(fmt.Sprintf("HTTP feature not available on pre %s kernels", MinimumKernelVersion.String()))
-	}
-}
-
 func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
+	monitor := newHTTPMonitor(t)
 	serverAddr := "localhost:8081"
-
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
-
-	monitor := newHTTPTestMonitor(t)
 
 	client := nethttp.Client{}
 
@@ -92,7 +71,8 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
 // we send another request. We expect to capture the another request but not the incomplete requests.
 func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
+	monitor := newHTTPMonitor(t)
+
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
@@ -103,8 +83,6 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	})
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-
-	monitor := newHTTPTestMonitor(t)
 
 	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
 	wg := sync.WaitGroup{}
@@ -143,7 +121,6 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 }
 
 func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -182,11 +159,10 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			monitor := newHTTPMonitor(t)
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlives: true,
 			})
-
-			monitor := newHTTPTestMonitor(t)
 
 			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
@@ -201,7 +177,6 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 }
 
 func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -238,6 +213,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
 			t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
+			monitor := newHTTPMonitor(t)
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
@@ -246,8 +222,6 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 				ReadTimeout:  serverTimeout,
 				SlowResponse: slowResponseTimeout,
 			})
-
-			monitor := newHTTPTestMonitor(t)
 
 			// Perform a number of random requests
 			req := requestGenerator(t, targetAddr, emptyBody)()
@@ -267,8 +241,6 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 }
 
 func TestHTTPMonitorIntegration(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -285,8 +257,6 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 }
 
 func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
 
@@ -305,7 +275,7 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 }
 
 func TestUnknownMethodRegression(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
+	monitor := newHTTPMonitor(t)
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
@@ -317,8 +287,6 @@ func TestUnknownMethodRegression(t *testing.T) {
 		EnableKeepAlives: true,
 	})
 	defer srvDoneFn()
-
-	monitor := newHTTPTestMonitor(t)
 
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
 	for i := 0; i < 100; i++ {
@@ -336,9 +304,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 }
 
 func TestRSTPacketRegression(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-
-	monitor := newHTTPTestMonitor(t)
+	monitor := newHTTPMonitor(t)
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -371,9 +337,7 @@ func TestRSTPacketRegression(t *testing.T) {
 }
 
 func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-
-	monitor := newHTTPTestMonitor(t)
+	monitor := newHTTPMonitor(t)
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -428,10 +392,9 @@ func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
 
 	// after this response, request, response cycle we should ensure that
 	// we got a full HTTP transaction
-	stats := monitor.GetHTTPStats()
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
-	includesRequest(t, stats, &nethttp.Request{URL: url, Method: "GET"})
+	assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
 }
 
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
@@ -444,6 +407,9 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 			require.NoError(t, err)
 			requestsExist[reqIndex] = requestsExist[reqIndex] || included
 		}
+		if allTrue(requestsExist) {
+			return
+		}
 	}
 
 	for reqIndex, exists := range requestsExist {
@@ -451,10 +417,19 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	}
 }
 
-func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
+func allTrue(x []bool) bool {
+	for _, v := range x {
+		if !v {
+			return false
+		}
+	}
+	return true
+}
 
-	monitor := newHTTPTestMonitor(t)
+func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
+	monitor := newHTTPMonitor(t)
+
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
 	// Perform a number of random requests
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
@@ -571,10 +546,36 @@ func countRequestOccurrences(allStats map[Key]*RequestStats, req *nethttp.Reques
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
 	for key, stats := range allStats {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+		if key.Path.Content != req.URL.Path {
+			continue
+		}
+		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
 			occurrences++
 		}
 	}
 
 	return occurrences
+}
+
+func newHTTPMonitor(t *testing.T) *Monitor {
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	skipIfNotSupported(t, err)
+	require.NoError(t, err)
+	t.Cleanup(monitor.Stop)
+
+	// at this stage the test can be legitimally skipped due to missing BTF information
+	// in the context of CO-RE
+	err = monitor.Start()
+	skipIfNotSupported(t, err)
+	require.NoError(t, err)
+	return monitor
+}
+
+func skipIfNotSupported(t *testing.T, err error) {
+	notSupported := new(ErrNotSupported)
+	if errors.As(err, &notSupported) {
+		t.Skipf("skipping test because this kernel is not supported: %s", notSupported)
+	}
 }

@@ -34,6 +34,7 @@ TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/co
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
 
 is_windows = sys.platform == "win32"
 
@@ -207,20 +208,22 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
-    network_co_re_dir = os.path.join(network_c_dir, "co-re")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_co_re_flags = f"-I{network_co_re_dir} -Ipkg/network/ebpf/c"
     network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
-    network_co_re_programs = ["tracer-fentry"]
+    network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
         infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{prog}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
-    for prog in network_co_re_programs:
-        infile = os.path.join(network_co_re_dir, f"{prog}.c")
+    for prog_path in network_co_re_programs:
+        prog = os.path.basename(prog_path)
+        src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
+        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
+
+        infile = os.path.join(src_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
@@ -297,6 +300,7 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/tcp_states.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
+                "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
@@ -629,6 +633,9 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
+        if pkg.endswith("java"):
+            shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
+
         gotls_client_dir = os.path.join("testutil", "gotls_client")
         gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
         gotls_extra_path = os.path.join(pkg, gotls_client_dir)
@@ -711,9 +718,6 @@ def kitchen_genconfig(
     if not image_size and provider == "azure":
         image_size = "Standard_D2_v2"
 
-    if not image_size:
-        raise Exit("Image size must be specified")
-
     if azure_sub_id is None and provider == "azure":
         raise Exit("azure subscription id must be specified with --azure-sub-id")
 
@@ -723,6 +727,8 @@ def kitchen_genconfig(
     if azure_sub_id:
         env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
 
+    env["KITCHEN_ARCH"] = arch
+    env["KITCHEN_PLATFORM"] = platform
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
             f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
@@ -1082,6 +1088,10 @@ def build_object_files(
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
+        java_dir = os.path.join("pkg", "network", "java")
+        ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
+        ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
+
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
             ctx.run(
@@ -1359,6 +1369,10 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             docker_compose = yaml.safe_load(f.read())
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
+
+    # Java tests have dynamic images in docker-compose.yml
+    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre"]:
+        images.add(image)
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))

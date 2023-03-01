@@ -1,5 +1,8 @@
 provisioner:
   name: chef_solo
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  root_path: <%= ENV['KITCHEN_CI_ROOT_PATH'] %>/kitchen
+  <% end %>
   product_name: chef
   # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
   <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
@@ -29,7 +32,11 @@ driver:
   <% if ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
   aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
   <% end %>
-  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] || ["sg-7fedd80a","sg-46506837"] %>
+  <% if ENV['KITCHEN_EC2_SG_IDS'] %>
+  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] %>
+  <% else %>
+  security_group_ids: ["sg-7fedd80a","sg-46506837"]
+  <% end %>
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
@@ -94,6 +101,10 @@ platforms:
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
     <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  provisioner:
+    command_prefix: TMPDIR=<%= ENV['KITCHEN_CI_ROOT_PATH'] %>
+  <% end %>
   driver:
     <% if windows %>
     connection_timeout: 20
@@ -111,7 +122,7 @@ platforms:
       <% end %>
         ebs:
           volume_type: gp2
-          volume_size: 45
+          volume_size: 100
           delete_on_termination: true
     <% if allow_rsa_key || al2022 %>
     user_data: |
@@ -124,12 +135,20 @@ platforms:
     <% if al2022 %>
       sudo dnf install -y libxcrypt-compat
     <% end %>
+  <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || al2022 %>
+  lifecycle:
+    post_create:
+  <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+    - remote: |
+        sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
+  <% end %>
   <% if al2022 %>
   # Add a hook after creating the host, to make sure we wait until the user_data
   # script has been run.
   # Snippet taken from the kitchen docs: https://kitchen.ci/docs/reference/lifecycle-hooks/
-  lifecycle:
-    post_create:
     - local: echo 'Awaiting cloud-init completion'
     - remote: |
         declare i=0;

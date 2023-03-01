@@ -12,12 +12,14 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/alecthomas/units"
 	lib "github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,17 +60,18 @@ type PerfBufferMonitor struct {
 	probe        *Probe
 	config       *config.Config
 	statsdClient statsd.ClientInterface
+	eRPC         *erpc.ERPC
+
 	// numCPU holds the current count of CPU
 	numCPU int
 	// perfBufferStatsMaps holds the pointers to the statistics kernel maps
-	perfBufferStatsMaps map[string]*lib.Map
-	// perfBufferSize holds the size of each perf buffer, indexed by the name of the perf buffer
-	perfBufferSize map[string]float64
+	perfBufferStatsMaps map[string]*perfBufferStatMap
 
 	// perfBufferMapNameToStatsMapsName maps a perf buffer to its statistics maps
 	perfBufferMapNameToStatsMapsName map[string]string
-	// statsMapsNamePerfBufferMapName maps a statistic map to its perf buffer
-	statsMapsNameToPerfBufferMapName map[string]string
+
+	// ringBufferMapNameToStatsMapsName maps a ring buffer to its statistics maps
+	ringBufferMapNameToStatsMapsName map[string]string
 
 	// stats holds the collected user space metrics
 	stats map[string][][model.MaxKernelEventType]PerfMapStats
@@ -87,17 +90,27 @@ type PerfBufferMonitor struct {
 	shouldBumpGeneration *atomic.Bool
 }
 
+type ringBufferStatMap struct {
+	*lib.Map
+	capacity uint64
+}
+
+type perfBufferStatMap struct {
+	ebpfMap           *lib.Map
+	ebpfRingBufferMap *ringBufferStatMap
+}
+
 // NewPerfBufferMonitor instantiates a new event statistics counter
 func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
 		config:              p.Config,
 		statsdClient:        p.StatsdClient,
-		perfBufferStatsMaps: make(map[string]*lib.Map),
-		perfBufferSize:      make(map[string]float64),
+		eRPC:                p.Erpc,
+		perfBufferStatsMaps: make(map[string]*perfBufferStatMap),
 
 		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
-		statsMapsNameToPerfBufferMapName: make(map[string]string),
+		ringBufferMapNameToStatsMapsName: probes.GetRingBufferStatisticsMaps(),
 
 		stats:             make(map[string][][model.MaxKernelEventType]PerfMapStats),
 		kernelStats:       make(map[string][][model.MaxKernelEventType]PerfMapStats),
@@ -112,9 +125,13 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	}
 	pbm.numCPU = numCPU
 
-	// compute statsMapPerfMap
-	for perfMap, statsMap := range pbm.perfBufferMapNameToStatsMapsName {
-		pbm.statsMapsNameToPerfBufferMapName[statsMap] = perfMap
+	maps := make(map[string]int, len(p.Manager.PerfMaps)+len(p.Manager.RingBuffers))
+	for _, pm := range p.Manager.PerfMaps {
+		maps[pm.Name] = pm.PerfRingBufferSize
+	}
+
+	for _, rb := range p.Manager.RingBuffers {
+		maps[rb.Name] = rb.RingBufferSize
 	}
 
 	// Select perf buffer statistics maps
@@ -127,26 +144,31 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 			return nil, err
 		}
 
-		pbm.perfBufferStatsMaps[perfMapName] = stats
-		// set default perf buffer size, it will be readjusted in the next loop if needed
-		if stats.Type() == lib.RingBuf {
-			pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultRingBufferSize)
-		} else {
-			pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultPerfRingBufferSize)
+		pbm.perfBufferStatsMaps[perfMapName] = &perfBufferStatMap{ebpfMap: stats}
+
+		if p.UseRingBuffers() {
+			// set default perf buffer size, it will be readjusted in the next loop if needed
+			if ringbufStatsMapName := pbm.ringBufferMapNameToStatsMapsName[perfMapName]; ringbufStatsMapName != "" {
+				ringBufferStats, found, _ := p.Manager.GetMap(ringbufStatsMapName)
+				if !found {
+					return nil, fmt.Errorf("map %s not found", ringbufStatsMapName)
+				}
+
+				ringBufferMap, found, _ := p.Manager.GetMap(perfMapName)
+				if !found {
+					return nil, fmt.Errorf("map %s not found", perfMapName)
+				}
+
+				pbm.perfBufferStatsMaps[perfMapName].ebpfRingBufferMap = &ringBufferStatMap{
+					Map:      ringBufferStats,
+					capacity: uint64(ringBufferMap.MaxEntries()),
+				}
+			}
 		}
 	}
 
-	maps := make(map[string]int, len(p.Manager.PerfMaps)+len(p.Manager.RingBuffers))
-	for _, pm := range p.Manager.PerfMaps {
-		maps[pm.Name] = pm.PerfRingBufferSize
-	}
-
-	for _, rb := range p.Manager.RingBuffers {
-		maps[rb.Name] = rb.RingBufferSize
-	}
-
 	// Prepare user space counters
-	for mapName, size := range maps {
+	for mapName := range maps {
 		var stats, kernelStats [][model.MaxKernelEventType]PerfMapStats
 		var usrLostEvents []*atomic.Uint64
 		var sortingErrorStats [model.MaxKernelEventType]*atomic.Int64
@@ -165,11 +187,6 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 		pbm.kernelStats[mapName] = kernelStats
 		pbm.readLostEvents[mapName] = usrLostEvents
 		pbm.sortingErrorStats[mapName] = sortingErrorStats
-
-		// update perf buffer size if needed
-		if size != 0 {
-			pbm.perfBufferSize[mapName] = float64(size)
-		}
 	}
 	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxKernelEventType)
 	return &pbm, nil
@@ -189,7 +206,7 @@ func (pbm *PerfBufferMonitor) getLostCount(perfMap string, cpu int) uint64 {
 }
 
 // GetLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
-// return the sum of all the lost events of all the cpus.
+// return the sum of all the lost events of all the cpus. (only used in tests)
 func (pbm *PerfBufferMonitor) GetLostCount(perfMap string, cpu int) uint64 {
 	var total uint64
 
@@ -217,7 +234,7 @@ func (pbm *PerfBufferMonitor) GetKernelLostCount(perfMap string, cpu int, evtTyp
 	var shouldCount bool
 
 	// query the kernel maps
-	_ = pbm.collectAndSendKernelStats(nil)
+	_ = pbm.collectAndSendKernelStats(&statsd.NoOpClient{})
 
 	for cpuID := range pbm.kernelStats[perfMap] {
 		if cpu == -1 || cpu == cpuID {
@@ -247,7 +264,7 @@ func (pbm *PerfBufferMonitor) getAndResetReadLostCount(perfMap string, cpu int) 
 
 // GetAndResetLostCount returns the number of lost events and resets the counter for a given map and cpu. If a cpu of -1 is
 // provided, the function will reset the counters of all the cpus for the provided map, and return the sum of all the
-// lost events of all the cpus of the provided map.
+// lost events of all the cpus of the provided map.  (only used in tests)
 func (pbm *PerfBufferMonitor) GetAndResetLostCount(perfMap string, cpu int) uint64 {
 	var total uint64
 
@@ -297,7 +314,7 @@ func (pbm *PerfBufferMonitor) swapKernelLostCount(eventType model.EventType, per
 	return pbm.kernelStats[perfMap][cpu][eventType].Lost.Swap(value)
 }
 
-// GetEventStats returns the number of received events of the specified type
+// GetEventStats returns the number of received events of the specified type (only used in tests)
 func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap string, cpu int) (PerfMapStats, PerfMapStats) {
 	stats, kernelStats := NewPerfMapStats(), NewPerfMapStats()
 	var maps []string
@@ -444,6 +461,19 @@ func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterf
 	return nil
 }
 
+func (pbm *PerfBufferMonitor) getRingbufUsage(statsMap *perfBufferStatMap) (uint64, error) {
+	if err := pbm.eRPC.Request(&erpc.ERPCRequest{OP: erpc.GetRingbufUsage}); err != nil {
+		return 0, err
+	}
+
+	var ringUsage uint64
+	if err := statsMap.ebpfRingBufferMap.Lookup(int32(0), &ringUsage); err != nil {
+		return 0, fmt.Errorf("failed to retrieve ring buffer usage")
+	}
+
+	return ringUsage, nil
+}
+
 func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInterface) error {
 	var (
 		id       uint32
@@ -463,10 +493,11 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 		// total and perEvent are used for alerting
 		var total uint64
 		perEvent := map[string]uint64{}
-		tags[1] = fmt.Sprintf("map:%s", perfMapName)
+		mapNameTag := fmt.Sprintf("map:%s", perfMapName)
+		tags[1] = mapNameTag
 
 		// loop through all the values of the active buffer
-		iterator = statsMap.Iterate()
+		iterator = statsMap.ebpfMap.Iterate()
 		for iterator.Next(&id, &cpuStats) {
 			if id == 0 {
 				// first event type is 1
@@ -508,10 +539,8 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 					}
 				}
 
-				if client != nil {
-					if err := pbm.sendKernelStats(client, stats, tags); err != nil {
-						return err
-					}
+				if err := pbm.sendKernelStats(client, stats, tags); err != nil {
+					return err
 				}
 				total += stats.Lost.Load()
 				perEvent[evtType.String()] += stats.Lost.Load()
@@ -519,6 +548,20 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 		}
 		if err := iterator.Err(); err != nil {
 			return fmt.Errorf("failed to dump the statistics buffer of map %s: %w", perfMapName, err)
+		}
+
+		if statsMap.ebpfRingBufferMap != nil {
+			ringUsage, err := pbm.getRingbufUsage(statsMap)
+			if err != nil {
+				return err
+			}
+
+			// The capacity of ring buffer has to be a power of 2 and a multiple of 4096,
+			// the cardinality is low so we use it as a tag.
+			tags := []string{pbm.config.StatsTagsCardinality, mapNameTag, units.ToString(int64(statsMap.ebpfRingBufferMap.capacity), 1024, "", "M")}
+			if err := client.Gauge(metrics.MetricPerfBufferBytesInUse, float64(ringUsage*100/statsMap.ebpfRingBufferMap.capacity), tags, 1.0); err != nil {
+				return err
+			}
 		}
 
 		// send an alert if events were lost
@@ -529,7 +572,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 
 			// snapshot traced cgroups if a CgroupTracing event was lost
 			if pbm.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
-				pbm.probe.monitor.activityDumpManager.snapshotTracedCgroups()
+				pbm.probe.monitor.activityDumpManager.SnapshotTracedCgroups()
 			}
 		}
 	}

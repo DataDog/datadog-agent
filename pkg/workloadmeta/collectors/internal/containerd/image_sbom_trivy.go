@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aquasecurity/trivy/pkg/fanal/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,53 +32,96 @@ func sbomCollectionIsEnabled() bool {
 	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
 }
 
-func (c *collector) startSBOMCollection() error {
+func (c *collector) startSBOMCollection(ctx context.Context) error {
 	if !sbomCollectionIsEnabled() {
 		return nil
 	}
 
 	var err error
 	enabledAnalyzers := config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
-	trivyConfiguration, err := trivy.DefaultCollectorConfig(enabledAnalyzers)
-	if err != nil {
-		return fmt.Errorf("error initializing trivy client: %w", err)
-	}
-
+	trivyConfiguration := trivy.DefaultCollectorConfig(enabledAnalyzers)
+	trivyConfiguration.ClearCacheOnClose = config.Datadog.GetBool("container_image_collection.sbom.clear_cache_on_exit")
 	trivyConfiguration.ContainerdAccessor = func() (cutil.ContainerdItf, error) {
 		return c.containerdClient, nil
 	}
+	trivyConfiguration.CacheProvider = func() (cache.Cache, error) {
+		return trivy.NewLocalCache(config.Datadog.GetString("container_image_collection.sbom.cache_directory"))
+	}
+
 	c.trivyClient, err = trivy.NewCollector(trivyConfiguration)
 	if err != nil {
 		return fmt.Errorf("error initializing trivy client: %w", err)
 	}
 
-	c.imagesToScan = make(chan namespacedImage, imagesToScanBufferSize)
+	imgEventsCh := c.store.Subscribe(
+		"SBOM collector",
+		workloadmeta.NormalPriority,
+		workloadmeta.NewFilter(
+			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
+			workloadmeta.SourceAll,
+			workloadmeta.EventTypeSet,
+		),
+	)
+
+	imagesToScanCh := make(chan *workloadmeta.ContainerImageMetadata, imagesToScanBufferSize)
 
 	go func() {
-		for imageToScan := range c.imagesToScan {
-			scanContext, cancel := context.WithTimeout(context.Background(), scanningTimeout())
-			if err := c.extractBOMWithTrivy(scanContext, imageToScan); err != nil {
-				log.Warnf("error extracting SBOM for image: namespace=%s name=%s, err: %s", imageToScan.namespace, imageToScan.image.Name(), err)
+		for {
+			select {
+			// We don't want to keep scanning if image channel is not empty but context is expired
+			case <-ctx.Done():
+				close(imagesToScanCh)
+				return
+
+			case eventBundle := <-imgEventsCh:
+				close(eventBundle.Ch)
+
+				for _, event := range eventBundle.Events {
+					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
+
+					if image.SBOM != nil {
+						// BOM already stored. Can happen when the same image ID
+						// is referenced with different names.
+						log.Debugf("Image: %s/%s (id %s) SBOM already available", image.Namespace, image.Name, image.ID)
+						continue
+					}
+
+					// Don't scan the image here. Enqueue it instead because we
+					// need to keep reading events from workloadmeta to avoid
+					// blocking it.
+
+					imagesToScanCh <- image
+				}
+			}
+		}
+	}()
+
+	go func() {
+		defer func() {
+			err := c.trivyClient.Close()
+			if err != nil {
+				log.Warnf("Unable to close trivy client: %v", err)
+			}
+		}()
+
+		for image := range imagesToScanCh {
+			scanContext, cancel := context.WithTimeout(ctx, scanningTimeout())
+			if err := c.extractBOMWithTrivy(scanContext, image); err != nil {
+				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
 			}
 			cancel()
+
+			time.Sleep(timeBetweenScans())
 		}
 	}()
 
 	return nil
 }
 
-func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespacedImage) error {
-	storedImage, err := c.store.GetImage(imageToScan.imageID)
+func (c *collector) extractBOMWithTrivy(ctx context.Context, image *workloadmeta.ContainerImageMetadata) error {
+	containerdImage, err := c.containerdClient.Image(image.Namespace, image.Name)
 	if err != nil {
-		log.Infof("Image: %s/%s (id %s) not found in Workloadmeta, skipping scan", imageToScan.namespace, imageToScan.image.Name(), imageToScan.imageID)
-		return nil
-	}
-
-	if storedImage.SBOM != nil {
-		// BOM already stored. Can happen when the same image ID is referenced
-		// with different names.
-		log.Debugf("Image: %s/%s (id %s) SBOM already available", imageToScan.namespace, imageToScan.image.Name(), imageToScan.imageID)
-		return nil
+		return err
 	}
 
 	scanFunc := c.trivyClient.ScanContainerdImage
@@ -85,7 +130,7 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespa
 	}
 
 	tStartScan := time.Now()
-	cycloneDXBOM, err := scanFunc(ctx, storedImage, imageToScan.image)
+	cycloneDXBOM, err := scanFunc(ctx, image, containerdImage)
 	if err != nil {
 		return err
 	}
@@ -100,11 +145,9 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespa
 		GenerationDuration: scanDuration,
 	}
 
-	time.Sleep(timeBetweenScans())
-
 	// Updating workloadmeta entities directly is not thread-safe, that's why we
 	// generate an update event here instead.
-	return c.handleImageCreateOrUpdate(ctx, imageToScan.namespace, storedImage.Name, &sbom)
+	return c.handleImageCreateOrUpdate(ctx, image.Namespace, image.Name, &sbom)
 }
 
 func scanningTimeout() time.Duration {

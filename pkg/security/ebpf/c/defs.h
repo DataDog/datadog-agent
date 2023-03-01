@@ -178,6 +178,12 @@
 
 #define IS_KTHREAD(ppid, pid) ppid == 2 || pid == 2
 
+#ifndef USE_RING_BUFFER
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+  #define USE_RING_BUFFER 1
+ #endif
+#endif
+
 enum event_type
 {
     EVENT_ANY = 0,
@@ -227,14 +233,17 @@ enum event_type
     EVENT_ALL = 0xffffffff // used as a mask for all the events
 };
 
+enum {
+    EVENT_FLAGS_ASYNC = 1<<0, // async, mostly io_uring
+    EVENT_FLAGS_SAVED_BY_AD = 1<<1, // event send because of activity dump
+    EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1<<2, // event is a AD sample
+};
+
 struct kevent_t {
     u64 cpu;
     u64 timestamp;
     u32 type;
-    u8 async;
-    u8 saved_by_ad;
-    u8 is_activity_dump_sample;
-    u8 padding;
+    u32 flags;
 };
 
 struct syscall_t {
@@ -345,6 +354,10 @@ struct perf_map_stats_t {
     u64 lost;
 };
 
+struct ring_buffer_stats_t {
+    u64 usage;
+};
+
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .max_entries = 0,
@@ -357,13 +370,34 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     .max_entries = EVENT_MAX,
 };
 
+#if USE_RING_BUFFER == 1
+struct bpf_map_def SEC("maps/events_ringbuf_stats") events_ringbuf_stats = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 1,
+};
+
+void __attribute__((always_inline)) store_ring_buffer_stats() {
+    // check needed for code elimination
+    u64 use_ring_buffer;
+    LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);
+    if (use_ring_buffer) {
+        int zero = 0;
+        struct ring_buffer_stats_t *stats = bpf_map_lookup_elem(&events_ringbuf_stats, &zero);
+        if (stats)
+            stats->usage = bpf_ringbuf_query(&events, 0);
+    }
+}
+#endif
+
 void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
     struct kevent_t *header = kernel_event;
     header->type = event_type;
     header->cpu = bpf_get_smp_processor_id();
     header->timestamp = bpf_ktime_get_ns();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+#if USE_RING_BUFFER == 1
     u64 use_ring_buffer;
     LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);
     int perf_ret;

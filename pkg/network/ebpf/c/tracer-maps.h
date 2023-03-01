@@ -21,7 +21,7 @@ BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, __u64, 1024)
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
-BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32, 0)
+BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32)
 
 /* We use this map as a container for batching closed tcp/udp connections
  * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
@@ -91,12 +91,5 @@ BPF_HASH_MAP(do_sendfile_args, __u64, struct sock *, 1024)
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
-
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
-#define CLASSIFICATION_PROG 0
-BPF_PROG_ARRAY(classification_progs, 1)
 
 #endif

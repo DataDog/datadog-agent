@@ -14,6 +14,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsonpatch "github.com/evanphx/json-patch"
@@ -41,7 +43,9 @@ func (p *patcher) start(stopCh <-chan struct{}) {
 	for {
 		select {
 		case req := <-p.deploymentsQueue:
+			metrics.PatchAttempts.Inc()
 			if err := p.patchDeployment(req); err != nil {
+				metrics.PatchErrors.Inc()
 				log.Error(err.Error())
 			}
 		case <-stopCh:
@@ -69,7 +73,7 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	if deploy.Annotations == nil {
 		deploy.Annotations = make(map[string]string)
 	}
-	if deploy.Annotations[common.RcIDAnnotKey] == req.ID && deploy.Annotations[common.RcRevisionAnnotKey] == revision {
+	if deploy.Annotations[k8sutil.RcIDAnnotKey] == req.ID && deploy.Annotations[k8sutil.RcRevisionAnnotKey] == revision {
 		log.Infof("Remote Config ID %q with revision %q has already been applied to object %s, skipping", req.ID, revision, req.K8sTarget)
 		return nil
 	}
@@ -84,8 +88,10 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	default:
 		return fmt.Errorf("unknown action %q", req.Action)
 	}
-	deploy.Annotations[common.RcIDAnnotKey] = req.ID
-	deploy.Annotations[common.RcRevisionAnnotKey] = revision
+	deploy.Annotations[k8sutil.RcIDAnnotKey] = req.ID
+	deploy.Annotations[k8sutil.RcRevisionAnnotKey] = revision
+	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
+	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 	newObj, err := json.Marshal(deploy)
 	if err != nil {
 		return fmt.Errorf("failed to encode object: %v", err)
@@ -95,8 +101,11 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 		return fmt.Errorf("failed to build the JSON patch: %v", err)
 	}
 	log.Infof("Patching %s with patch %s", req.K8sTarget, string(patch))
-	_, err = p.k8sClient.AppsV1().Deployments(req.K8sTarget.Namespace).Patch(context.TODO(), req.K8sTarget.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
-	return err
+	if _, err = p.k8sClient.AppsV1().Deployments(req.K8sTarget.Namespace).Patch(context.TODO(), req.K8sTarget.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return err
+	}
+	metrics.PatchCompleted.Inc()
+	return nil
 }
 
 func enableConfig(deploy *corev1.Deployment, req PatchRequest) error {

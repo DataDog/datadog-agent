@@ -28,6 +28,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
@@ -207,7 +208,6 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/" + probe,
 					EBPFFuncName: "kprobe__" + probe,
 					UID:          probeUID,
 				},
@@ -215,7 +215,6 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/" + probe,
 					EBPFFuncName: "kretprobe__" + probe,
 					UID:          probeUID,
 				},
@@ -255,14 +254,12 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/" + probe,
 					EBPFFuncName: "kprobe__" + probe,
 					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/" + probe,
 					EBPFFuncName: "kretprobe__" + probe,
 					UID:          probeUID,
 				},
@@ -278,6 +275,7 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		"tracepoint__net__netif_receive_skb",
 		"kprobe__" + excludeSysOpen,
 		"kretprobe__" + excludeSysOpen,
+		"kprobe__do_vfs_ioctl",
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
@@ -302,7 +300,7 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		return errtelemetry.PatchEBPFTelemetry(m, false, nil)
 	}
 
-	bc, err := getBytecode(c)
+	bc, err := netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
 	require.NoError(t, err)
 	err = mgr.InitWithOptions(bc, options)
 	require.NoError(t, err)

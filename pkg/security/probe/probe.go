@@ -25,10 +25,13 @@ import (
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -36,22 +39,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/ringbuffer"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 )
-
-// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
-type ActivityDumpHandler interface {
-	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
-}
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
@@ -62,7 +66,7 @@ type EventHandler interface {
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
 	Init(*manager.Manager, *config.Config) error
-	SetMonitor(*PerfBufferMonitor)
+	SetMonitor(reorderer.LostEventCounter)
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
@@ -89,7 +93,7 @@ type Probe struct {
 	// Events section
 	handlers      [model.MaxAllEventType][]EventHandler
 	monitor       *Monitor
-	resolvers     *Resolvers
+	resolvers     *resolvers.Resolvers
 	event         *model.Event
 	fieldHandlers *FieldHandlers
 	scrubber      *procutil.DataScrubber
@@ -98,14 +102,14 @@ type Probe struct {
 	eventStream EventStream
 
 	// ActivityDumps section
-	activityDumpHandler ActivityDumpHandler
+	activityDumpHandler activitydump.ActivityDumpHandler
 
 	// Approvers / discarders section
 	Erpc                               *erpc.ERPC
 	erpcRequest                        *erpc.ERPCRequest
 	pidDiscarders                      *pidDiscarders
 	inodeDiscarders                    *inodeDiscarders
-	approvers                          map[eval.EventType]activeApprovers
+	approvers                          map[eval.EventType]kfilters.ActiveApprovers
 	discarderRateLimiter               *rate.Limiter
 	notifyDiscarderPushedCallbacks     []NotifyDiscarderPushedCallback
 	notifyDiscarderPushedCallbacksLock sync.Mutex
@@ -117,7 +121,7 @@ type Probe struct {
 }
 
 // GetResolvers returns the resolvers of Probe
-func (p *Probe) GetResolvers() *Resolvers {
+func (p *Probe) GetResolvers() *resolvers.Resolvers {
 	return p.resolvers
 }
 
@@ -145,7 +149,7 @@ func (p *Probe) UseRingBuffers() bool {
 
 func (p *Probe) sanityChecks() error {
 	// make sure debugfs is mounted
-	if mounted, err := utilkernel.IsDebugFSMounted(); !mounted {
+	if mounted, err := utilkernel.IsDebugFSOrTraceFSMounted(); !mounted {
 		return err
 	}
 
@@ -230,7 +234,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.Config, useSyscallWrapper, p.StatsdClient)
+	loader := ebpf.NewProbeLoader(p.Config, useSyscallWrapper, p.UseRingBuffers(), p.StatsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -253,10 +257,6 @@ func (p *Probe) Init() error {
 	}
 
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
-	if p.Config.AgentMonitoringEvents {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetSelectorsPerEventType()["*"]...)
-
-	}
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -272,6 +272,10 @@ func (p *Probe) Init() error {
 	p.monitor, err = NewMonitor(p)
 	if err != nil {
 		return err
+	}
+
+	if p.monitor.activityDumpManager != nil {
+		p.monitor.activityDumpManager.AddActivityDumpHandler(p.activityDumpHandler)
 	}
 
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
@@ -299,7 +303,7 @@ func (p *Probe) Start() error {
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
-func (p *Probe) AddActivityDumpHandler(handler ActivityDumpHandler) {
+func (p *Probe) AddActivityDumpHandler(handler activitydump.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
 }
 
@@ -311,7 +315,7 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := MarshalEvent(event, p)
+		eventJSON, err := serializers.MarshalEvent(event, p.resolvers)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -329,17 +333,10 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	p.monitor.ProcessEvent(event)
 }
 
-// DispatchActivityDump sends an activity dump to the probe activity dump handler
-func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
-	if handler := p.activityDumpHandler; handler != nil {
-		handler.HandleActivityDump(dump)
-	}
-}
-
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := MarshalCustomEvent(event)
+		eventJSON, err := serializers.MarshalCustomEvent(event)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -437,7 +434,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
-	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventStreamMap, CPU)
+	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, reorderer.EventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -635,7 +632,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+		if process.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 			return
 		}
 
@@ -653,7 +650,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
 
-			var errResolution *ErrPathResolution
+			var errResolution *path.ErrPathResolution
 			if errors.As(err, &errResolution) {
 				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
 			}
@@ -815,7 +812,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return
 	}
 
@@ -869,7 +866,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
+func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode, flags kfilters.PolicyFlag) error {
 	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 	table, err := managerhelper.Map(p.Manager, "filter_policy")
 	if err != nil {
@@ -881,7 +878,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 		return errors.New("unable to parse the eval event type")
 	}
 
-	policy := &FilterPolicy{
+	policy := &kfilters.FilterPolicy{
 		Mode:  mode,
 		Flags: flags,
 	}
@@ -891,14 +888,14 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 
 // SetApprovers applies approvers and removes the unused ones
 func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	handler, exists := allApproversHandlers[eventType]
+	handler, exists := kfilters.AllApproversHandlers[eventType]
 	if !exists {
 		return nil
 	}
 
 	newApprovers, err := handler(approvers)
 	if err != nil {
-		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
+		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 	}
 
 	for _, newApprover := range newApprovers {
@@ -933,29 +930,21 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *Probe) validEventTypeForConfig(eventType string) bool {
+	if eventType == "dns" && !p.Config.NetworkEnabled {
+		return false
+	}
+	return true
+}
+
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
 func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
-		if eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
-		}
-	}
-
-	if p.Config.NetworkEnabled {
-		activatedProbes = append(activatedProbes, probes.NetworkSelectors...)
-
-		// add probes depending on loaded modules
-		loadedModules, err := utils.FetchLoadedModules()
-		if err == nil {
-			if _, ok := loadedModules["veth"]; ok {
-				activatedProbes = append(activatedProbes, probes.NetworkVethSelectors...)
-			}
-			if _, ok := loadedModules["nf_nat"]; ok {
-				activatedProbes = append(activatedProbes, probes.NetworkNFNatSelectors...)
-			}
 		}
 	}
 
@@ -1165,11 +1154,11 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
 // flushes the network namespace in the network namespace resolver as well.
-func (p *Probe) FlushNetworkNamespace(namespace *NetworkNamespace) {
+func (p *Probe) FlushNetworkNamespace(namespace *netns.NetworkNamespace) {
 	p.resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
 
 	// cleanup internal structures
-	p.resolvers.TCResolver.FlushNetworkNamespaceID(namespace.nsID, p.Manager)
+	p.resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager)
 }
 
 func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
@@ -1182,12 +1171,12 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	p.resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
 	// Resolve mount point
-	if err := p.fieldHandlers.SetMountPoint(ev, m); err != nil {
+	if err := p.resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 		seclog.Debugf("failed to set mount point: %v", err)
 		return err
 	}
 	// Resolve root
-	if err := p.fieldHandlers.SetMountRoot(ev, m); err != nil {
+	if err := p.resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
 		seclog.Debugf("failed to set mount root: %v", err)
 		return err
 	}
@@ -1199,6 +1188,33 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	return nil
+}
+
+// ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	ars, err := kfilters.NewApplyRuleSetReport(p.Config, rs)
+	if err != nil {
+		return nil, err
+	}
+
+	for eventType, report := range ars.Policies {
+		if err := p.ApplyFilterPolicy(eventType, report.Mode, report.Flags); err != nil {
+			return nil, err
+		}
+		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := p.FlushDiscarders(); err != nil {
+		return nil, fmt.Errorf("failed to flush discarders: %w", err)
+	}
+
+	if err := p.SelectProbes(rs.GetEventTypes()); err != nil {
+		return nil, fmt.Errorf("failed to select probes: %w", err)
+	}
+
+	return ars, nil
 }
 
 // NewProbe instantiates a new runtime security agent probe
@@ -1215,7 +1231,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p := &Probe{
 		Opts:                 opts,
 		Config:               config,
-		approvers:            make(map[eval.EventType]activeApprovers),
+		approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
 		managerOptions:       ebpf.NewDefaultOptions(),
 		ctx:                  ctx,
 		cancelFnc:            cancel,
@@ -1289,6 +1305,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
+	areCGroupADsEnabled := config.ActivityDumpTracedCgroupsCount > 0
+
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 		manager.ConstantEditor{
@@ -1301,7 +1319,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "mount_id_offset",
-			Value: resolvers.GetMountIDOffset(p.kernelVersion),
+			Value: mount.GetMountIDOffset(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "getattr2",
@@ -1309,27 +1327,27 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_unlink_dentry_position",
-			Value: resolvers.GetVFSLinkDentryPosition(p.kernelVersion),
+			Value: mount.GetVFSLinkDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_mkdir_dentry_position",
-			Value: resolvers.GetVFSMKDirDentryPosition(p.kernelVersion),
+			Value: mount.GetVFSMKDirDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_link_target_dentry_position",
-			Value: resolvers.GetVFSLinkTargetDentryPosition(p.kernelVersion),
+			Value: mount.GetVFSLinkTargetDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_setxattr_dentry_position",
-			Value: resolvers.GetVFSSetxattrDentryPosition(p.kernelVersion),
+			Value: mount.GetVFSSetxattrDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_removexattr_dentry_position",
-			Value: resolvers.GetVFSRemovexattrDentryPosition(p.kernelVersion),
+			Value: mount.GetVFSRemovexattrDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_rename_input_type",
-			Value: resolvers.GetVFSRenameInputType(p.kernelVersion),
+			Value: mount.GetVFSRenameInputType(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "check_helper_call_input",
@@ -1337,7 +1355,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled(config)),
+			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
@@ -1388,7 +1406,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
-	resolvers, err := NewResolvers(config, p)
+	resolvers, err := resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc)
 	if err != nil {
 		return nil, err
 	}
@@ -1400,9 +1418,9 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.zeroEvent()
 
 	if useRingBuffers {
-		p.eventStream = NewRingBuffer(p.handleEvent)
+		p.eventStream = ringbuffer.New(p.handleEvent)
 	} else {
-		p.eventStream, err = NewOrderedPerfMap(p.ctx, p.handleEvent, p.StatsdClient)
+		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEvent, p.StatsdClient)
 		if err != nil {
 			return nil, err
 		}
@@ -1415,6 +1433,56 @@ func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
 	if !p.Config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
 		p.Config.RuntimeCompiledConstantsEnabled = true
+	}
+}
+
+const (
+	netStructHasProcINum uint64 = 0
+	netStructHasNS       uint64 = 1
+)
+
+// getNetStructType returns whether the net structure has a namespace attribute
+func getNetStructType(kv *kernel.Version) uint64 {
+	if kv.IsRH7Kernel() {
+		return netStructHasProcINum
+	}
+	return netStructHasNS
+}
+
+const (
+	doForkListInput uint64 = iota
+	doForkStructInput
+)
+
+func getAttr2(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.IsRH7Kernel() {
+		return 1
+	}
+	return 0
+}
+
+// getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
+func getDoForkInput(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
+		return doForkStructInput
+	}
+	return doForkListInput
+}
+
+// getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
+// space
+func getCGroupWriteConstants() manager.ConstantEditor {
+	cgroupWriteConst := uint64(1)
+	kv, err := kernel.NewKernelVersion()
+	if err == nil {
+		if kv.IsRH7Kernel() {
+			cgroupWriteConst = 2
+		}
+	}
+
+	return manager.ConstantEditor{
+		Name:  "cgroup_write_type",
+		Value: cgroupWriteConst,
 	}
 }
 

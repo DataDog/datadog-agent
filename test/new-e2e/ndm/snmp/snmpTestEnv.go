@@ -13,8 +13,8 @@ import (
 	"path"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	"github.com/DataDog/test-infra-definitions/aws/ec2/ec2"
-	"github.com/DataDog/test-infra-definitions/datadog/agent"
+	ec2vm "github.com/DataDog/test-infra-definitions/aws/scenarios/vm/ec2VM"
+	"github.com/DataDog/test-infra-definitions/datadog/agent/docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -53,15 +53,16 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) 
 		"ddinfra:aws/defaultKeyPairName": auto.ConfigValue{Value: keyPairName},
 	}
 
-	upResult, err := stackManager.GetStack(snmpTestEnv.context, snmpTestEnv.envName, snmpTestEnv.name, config, func(ctx *pulumi.Context) error {
+	_, upResult, err := stackManager.GetStack(snmpTestEnv.context, snmpTestEnv.envName, snmpTestEnv.name, config, func(ctx *pulumi.Context) error {
 		// setup VM
-		vm, err := ec2.NewVM(ctx)
+		vm, err := ec2vm.NewUnixEc2VM(ctx)
 		if err != nil {
 			return err
 		}
 
+		filemanager := vm.GetFileManager()
 		// upload snmpsim data files
-		createDataDirCommand, dataPath, err := vm.FileManager.TempDirectory("data")
+		createDataDirCommand, dataPath, err := filemanager.TempDirectory("data")
 		if err != nil {
 			return err
 		}
@@ -76,7 +77,7 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) 
 				return err
 			}
 			dontUseSudo := false
-			fileCommand, err := vm.FileManager.CopyInlineFile(fileName, pulumi.String(fileContent), path.Join(dataPath, fileName), dontUseSudo,
+			fileCommand, err := filemanager.CopyInlineFile(fileName, pulumi.String(fileContent), path.Join(dataPath, fileName), dontUseSudo,
 				pulumi.DependsOn([]pulumi.Resource{createDataDirCommand}))
 			if err != nil {
 				return err
@@ -84,25 +85,29 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) 
 			fileCommands = append(fileCommands, fileCommand)
 		}
 
-		createConfigDirCommand, configPath, err := vm.FileManager.TempDirectory("config")
+		createConfigDirCommand, configPath, err := filemanager.TempDirectory("config")
 		if err != nil {
 			return err
 		}
 		// edit snmp config file
 		dontUseSudo := false
-		configCommand, err := vm.FileManager.CopyInlineFile("snmp.yaml", pulumi.String(snmpConfig), path.Join(configPath, "snmp.yaml"), dontUseSudo,
+		configCommand, err := filemanager.CopyInlineFile("snmp.yaml", pulumi.String(snmpConfig), path.Join(configPath, "snmp.yaml"), dontUseSudo,
 			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
 		if err != nil {
 			return err
 		}
 
 		// install agent and snmpsim on docker
-		envVars := pulumi.StringMap{"DATA_DIR": pulumi.String(dataPath), "CONFIG_DIR": pulumi.String(configPath)}
+		envVars := map[string]string{"DATA_DIR": dataPath, "CONFIG_DIR": configPath}
 		composeDependencies := []pulumi.Resource{createDataDirCommand, configCommand}
 		composeDependencies = append(composeDependencies, fileCommands...)
-		_, err = agent.NewDockerAgentInstallation(vm.CommonEnvironment, vm.DockerManager, snmpCompose, envVars, pulumi.DependsOn(composeDependencies))
+		_, err = docker.NewAgentDockerInstaller(
+			vm,
+			docker.WithComposeContent(snmpCompose, envVars),
+			docker.WithPulumiResources(pulumi.DependsOn(composeDependencies)),
+		)
 		return err
-	})
+	}, false)
 
 	if err != nil {
 		return nil, err

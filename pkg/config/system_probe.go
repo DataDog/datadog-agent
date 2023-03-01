@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	spNS  = "system_probe_config"
-	netNS = "network_config"
-	smNS  = "service_monitoring_config"
-	evNS  = "event_monitoring_config"
+	spNS   = "system_probe_config"
+	netNS  = "network_config"
+	smNS   = "service_monitoring_config"
+	evNS   = "event_monitoring_config"
+	smjtNS = smNS + ".java_tls"
 
 	defaultConnsMessageBatchSize = 600
 
@@ -169,9 +170,12 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
-
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_java_tls_support"), false)
-	cfg.BindEnvAndSetDefault(join(smNS, "java_agent_args"), defaultServiceMonitoringJavaAgentArgs)
+	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
+	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
+	cfg.BindEnvAndSetDefault(join(smjtNS, "allow_regex"), "")
+	cfg.BindEnvAndSetDefault(join(smjtNS, "block_regex"), "")
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_stats_by_status_code"), false)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
@@ -272,11 +276,9 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
-	bindEnvAndSetLogsConfigKeys(cfg, "runtime_security_config.activity_dump.remote_storage.endpoints.")
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
 	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
 	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})

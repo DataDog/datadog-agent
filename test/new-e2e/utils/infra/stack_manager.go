@@ -61,9 +61,16 @@ func newStackManager(ctx context.Context) (*StackManager, error) {
 }
 
 // GetStack creates or return a stack based on env+stack name
-func (sm *StackManager) GetStack(ctx context.Context, envName string, name string, config auto.ConfigMap, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
+func (sm *StackManager) GetStack(ctx context.Context, envName string, name string, config auto.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
 	sm.lock.RLock()
 	defer sm.lock.RUnlock()
+
+	var getStack func(context.Context, string, string, pulumi.RunFunc, ...auto.LocalWorkspaceOption) (auto.Stack, error)
+	if failOnMissing {
+		getStack = auto.SelectStackInlineSource
+	} else {
+		getStack = auto.UpsertStackInlineSource
+	}
 
 	// Set environment
 	if config == nil {
@@ -75,22 +82,24 @@ func (sm *StackManager) GetStack(ctx context.Context, envName string, name strin
 	stackID := stackID(envName, name)
 	stack := sm.stacks[stackID]
 	if stack == nil {
-		newStack, err := auto.UpsertStackInlineSource(ctx, finalStackName, projectName, deployFunc)
+		newStack, err := getStack(ctx, finalStackName, projectName, deployFunc)
 		if err != nil {
-			return auto.UpResult{}, err
+			return nil, auto.UpResult{}, err
 		}
+
 		stack = &newStack
 		sm.stacks[stackID] = stack
 	}
 
 	err := stack.SetAllConfig(ctx, config)
 	if err != nil {
-		return auto.UpResult{}, err
+		return nil, auto.UpResult{}, err
 	}
 
 	upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
 	defer cancel()
-	return stack.Up(upCtx, optup.ProgressStreams(os.Stdout))
+	upResult, err := stack.Up(upCtx, optup.ProgressStreams(os.Stdout))
+	return stack, upResult, err
 }
 
 func (sm *StackManager) DeleteStack(ctx context.Context, envName string, name string) error {

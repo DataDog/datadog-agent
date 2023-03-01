@@ -144,13 +144,13 @@ type Config struct {
 	ActivityDumpLocalStorageMaxDumpsCount int
 	// ActivityDumpRemoteStorageFormats defines the formats that should be used to persist the activity dumps remotely.
 	ActivityDumpRemoteStorageFormats []StorageFormat
-	// ActivityDumpRemoteStorageCompression defines if the remote storage should compress the persisted data.
-	ActivityDumpRemoteStorageCompression bool
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
 	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
 	ActivityDumpMaxDumpCountPerWorkload int
+	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:thread_score)
+	ActivityDumpTagRulesEnabled bool
 
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
@@ -180,8 +180,6 @@ type Config struct {
 	// ProcessEventMonitoringEnabled is set to true if `runtime_security_config.event_monitoring.process.enabled`
 	// is set to true
 	ProcessEventMonitoringEnabled bool
-	// EventMonitoring enables event monitoring. Send events to external consumer.
-	EventMonitoring bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool
 	// EventStreamUseRingBuffer specifies whether to use eBPF ring buffers when available
@@ -193,6 +191,10 @@ type Config struct {
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *Config) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+func (c *Config) IsEventMonitoringEnabled() bool {
+	return c.NetworkProcessEventMonitoringEnabled || c.ProcessEventMonitoringEnabled
 }
 
 func setEnv() {
@@ -275,9 +277,9 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpLocalStorageDirectory:     coreconfig.SystemProbe.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
 		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
-		ActivityDumpRemoteStorageCompression:  coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
 		ActivityDumpMaxDumpCountPerWorkload:   coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
+		ActivityDumpTagRulesEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_size")
@@ -404,7 +406,7 @@ func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
 			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
 		}
 	}
-	if formats := coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
+	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
 		var err error
 		c.ActivityDumpRemoteStorageFormats, err = ParseStorageFormats(formats)
 		if err != nil {

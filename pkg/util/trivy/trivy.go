@@ -21,7 +21,6 @@ import (
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/aquasecurity/trivy-db/pkg/db"
-	"github.com/aquasecurity/trivy/pkg/commands/operation"
 	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
@@ -30,7 +29,6 @@ import (
 	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/scanner/local"
@@ -50,16 +48,16 @@ const (
 
 // CollectorConfig allows to pass configuration
 type CollectorConfig struct {
-	ArtifactCache      cache.ArtifactCache
-	LocalArtifactCache cache.LocalArtifactCache
 	ArtifactOption     artifact.Option
-
+	CacheProvider      CacheProvider
+	ClearCacheOnClose  bool
 	ContainerdAccessor func() (containerdUtil.ContainerdItf, error)
 }
 
 // Collector uses trivy to generate a SBOM
 type collector struct {
 	config     CollectorConfig
+	cache      cache.Cache
 	applier    local.Applier
 	detector   local.OspkgDetector
 	dbConfig   db.Config
@@ -69,15 +67,8 @@ type collector struct {
 
 // DefaultCollectorConfig returns a default collector configuration
 // However, accessors still need to be filled in externally
-func DefaultCollectorConfig(enabledAnalyzers []string) (CollectorConfig, error) {
-	cache, err := operation.NewCache(flag.CacheOptions{CacheBackend: "fs"})
-	if err != nil {
-		return CollectorConfig{}, err
-	}
-
+func DefaultCollectorConfig(enabledAnalyzers []string) CollectorConfig {
 	collectorConfig := CollectorConfig{
-		ArtifactCache:      cache,
-		LocalArtifactCache: cache,
 		ArtifactOption: artifact.Option{
 			Offline:           true,
 			NoProgress:        true,
@@ -86,13 +77,14 @@ func DefaultCollectorConfig(enabledAnalyzers []string) (CollectorConfig, error) 
 			SBOMSources:       []string{},
 			DisabledHandlers:  DefaultDisabledHandlers(),
 		},
+		ClearCacheOnClose: true,
 	}
 
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
 		collectorConfig.ArtifactOption.OnlyDirs = []string{"/etc", "/var/lib/dpkg", "/var/lib/rpm", "/lib/apk"}
 	}
 
-	return collectorConfig, nil
+	return collectorConfig
 }
 
 func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
@@ -128,15 +120,28 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 
 func NewCollector(collectorConfig CollectorConfig) (Collector, error) {
 	dbConfig := db.Config{}
+	fanalCache, err := collectorConfig.CacheProvider()
+	if err != nil {
+		return nil, err
+	}
 
 	return &collector{
 		config:     collectorConfig,
-		applier:    applier.NewApplier(collectorConfig.LocalArtifactCache),
+		cache:      fanalCache,
+		applier:    applier.NewApplier(fanalCache),
 		detector:   ospkg.Detector{},
 		dbConfig:   dbConfig,
 		vulnClient: vulnerability.NewClient(dbConfig),
 		marshaler:  cyclonedx.NewMarshaler(""),
 	}, nil
+}
+
+func (c *collector) Close() error {
+	if c.config.ClearCacheOnClose {
+		return c.cache.Clear()
+	}
+
+	return c.cache.Close()
 }
 
 func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error) {
@@ -153,7 +158,7 @@ func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	imageArtifact, err := image2.NewArtifact(fanalImage, c.config.ArtifactCache, c.config.ArtifactOption)
+	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, c.config.ArtifactOption)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
@@ -201,7 +206,7 @@ func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	fsArtifact, err := local2.NewArtifact(imagePath, c.config.ArtifactCache, c.config.ArtifactOption)
+	fsArtifact, err := local2.NewArtifact(imagePath, c.cache, c.config.ArtifactOption)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}

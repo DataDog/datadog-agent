@@ -336,6 +336,36 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
+			name: "pod with admission + remote config annotations",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"admission.datadoghq.com/rc.id":  "id",
+						"admission.datadoghq.com/rc.rev": "123",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"dd_remote_config_id:id",
+						"dd_remote_config_rev:123",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "static tags",
 			staticTags: map[string]string{
 				"eks_fargate_node": "foobar",
@@ -479,6 +509,7 @@ func TestHandleECSTask(t *testing.T) {
 						Name: containerName,
 					},
 				},
+				AvailabilityZone: "us-east-1c",
 			},
 			expected: []*TagInfo{
 				{
@@ -495,6 +526,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"availability_zone:us-east-1c",
+						"availability-zone:us-east-1c",
 					},
 					StandardTags: []string{},
 				},
@@ -511,6 +544,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"availability_zone:us-east-1c",
+						"availability-zone:us-east-1c",
 					},
 					StandardTags: []string{},
 				},

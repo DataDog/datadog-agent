@@ -94,3 +94,10 @@ const (
 
 const BatchSize = 0x4
 const SizeofBatch = 0x1f0
+
+type ClassificationProgram = uint32
+
+const (
+	ClassificationQueues ClassificationProgram = 0x0
+	ClassificationDBs    ClassificationProgram = 0x1
+)

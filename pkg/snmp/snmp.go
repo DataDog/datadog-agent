@@ -13,13 +13,15 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
-
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/viper"
 	"github.com/gosnmp/gosnmp"
+
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
 const (
@@ -73,6 +75,9 @@ type Config struct {
 	Namespace                   string   `mapstructure:"namespace"`
 	Tags                        []string `mapstructure:"tags"`
 	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
+
+	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
+	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -212,36 +217,14 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 		return nil, fmt.Errorf("SNMP version not supported: %s", c.Version)
 	}
 
-	var authProtocol gosnmp.SnmpV3AuthProtocol
-	lowerAuthProtocol := strings.ToLower(c.AuthProtocol)
-	if lowerAuthProtocol == "" {
-		authProtocol = gosnmp.NoAuth
-	} else if lowerAuthProtocol == "md5" {
-		authProtocol = gosnmp.MD5
-	} else if lowerAuthProtocol == "sha" {
-		authProtocol = gosnmp.SHA
-	} else {
-		return nil, fmt.Errorf("Unsupported authentication protocol: %s", c.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(c.AuthProtocol)
+	if err != nil {
+		return nil, err
 	}
 
-	var privProtocol gosnmp.SnmpV3PrivProtocol
-	lowerPrivProtocol := strings.ToLower(c.PrivProtocol)
-	if lowerPrivProtocol == "" {
-		privProtocol = gosnmp.NoPriv
-	} else if lowerPrivProtocol == "des" {
-		privProtocol = gosnmp.DES
-	} else if lowerPrivProtocol == "aes" {
-		privProtocol = gosnmp.AES
-	} else if lowerPrivProtocol == "aes192" {
-		privProtocol = gosnmp.AES192
-	} else if lowerPrivProtocol == "aes192c" {
-		privProtocol = gosnmp.AES192C
-	} else if lowerPrivProtocol == "aes256" {
-		privProtocol = gosnmp.AES256
-	} else if lowerPrivProtocol == "aes256c" {
-		privProtocol = gosnmp.AES256C
-	} else {
-		return nil, fmt.Errorf("Unsupported privacy protocol: %s", c.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(c.PrivProtocol)
+	if err != nil {
+		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv

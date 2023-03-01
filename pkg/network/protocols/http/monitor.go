@@ -23,9 +23,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+)
+
+type monitorState = string
+
+const (
+	Disabled   monitorState = "Disabled"
+	Running    monitorState = "Running"
+	NotRunning monitorState = "Not Running"
 )
 
 var (
+	state        = Disabled
 	startupError error
 )
 
@@ -44,48 +54,62 @@ type Monitor struct {
 	closeFilterFn func()
 }
 
-func setStartupErrorAndReturn(err error) error {
-	if err != nil {
-		err = fmt.Errorf("could not instantiate http monitor: %w", err)
-		startupError = err
+// NewMonitor returns a new Monitor instance
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
+	defer func() {
+		// capture error and wrap it
+		if err != nil {
+			state = NotRunning
+			err = fmt.Errorf("could not instantiate http monitor: %w", err)
+			startupError = err
+		}
+	}()
+
+	if !c.EnableHTTPMonitoring {
+		state = Disabled
+		return nil, nil
 	}
 
-	return err
-}
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, &ErrNotSupported{fmt.Errorf("couldn't determine current kernel version: %w", err)}
+	}
 
-// NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
-	if !c.EnableHTTPMonitoring {
-		return nil, setStartupErrorAndReturn(fmt.Errorf("http monitoring is disabled"))
+	if kversion < MinimumKernelVersion {
+		return nil, &ErrNotSupported{
+			fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String()),
+		}
 	}
 
 	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
-		return nil, setStartupErrorAndReturn(fmt.Errorf("error setting up http ebpf program: %s", err))
+		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
 	}
 
 	if err := mgr.Init(); err != nil {
-		return nil, setStartupErrorAndReturn(fmt.Errorf("error initializing http ebpf program: %s", err))
+		return nil, fmt.Errorf("error initializing http ebpf program: %w", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: protocolDispatcherSocketFilterSection, EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
 	if filter == nil {
-		return nil, setStartupErrorAndReturn(fmt.Errorf("error retrieving socket filter"))
+		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
-		return nil, setStartupErrorAndReturn(fmt.Errorf("error enabling HTTP traffic inspection: %s", err))
+		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
 	telemetry, err := newTelemetry()
 	if err != nil {
 		closeFilterFn()
-		return nil, setStartupErrorAndReturn(err)
+		return nil, err
 	}
 
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 	processMonitor := monitor.GetProcessMonitor()
+
+	state = Running
 
 	return &Monitor{
 		ebpfProgram:    mgr,
@@ -138,14 +162,19 @@ func (m *Monitor) Start() error {
 }
 
 func (m *Monitor) GetUSMStats() map[string]interface{} {
-	if m == nil {
-		return map[string]interface{}{
-			"Error": startupError.Error(),
-		}
+	response := map[string]interface{}{
+		"state": state,
 	}
-	return map[string]interface{}{
-		"last_check": m.telemetry.then,
+
+	if startupError != nil {
+		response["error"] = startupError.Error()
 	}
+
+	if m != nil {
+		response["last_check"] = m.telemetry.then
+	}
+
+	return response
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:

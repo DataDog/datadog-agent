@@ -36,6 +36,7 @@ const (
 	ProtocolPostgres ProtocolType = C.PROTOCOL_POSTGRES
 	ProtocolAMQP     ProtocolType = C.PROTOCOL_AMQP
 	ProtocolRedis    ProtocolType = C.PROTOCOL_REDIS
+	ProtocolMySQL    ProtocolType = C.PROTOCOL_MYSQL
 	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
 )
 
@@ -51,6 +52,7 @@ const (
 	GnuTLS  ConnTag = C.LIBGNUTLS
 	OpenSSL ConnTag = C.LIBSSL
 	Go      ConnTag = C.GO
+	Java    ConnTag = C.JAVA_TLS
 )
 
 var (
@@ -58,5 +60,6 @@ var (
 		GnuTLS:  "tls.library:gnutls",
 		OpenSSL: "tls.library:openssl",
 		Go:      "tls.library:go",
+		Java:    "tls.library:java",
 	}
 )

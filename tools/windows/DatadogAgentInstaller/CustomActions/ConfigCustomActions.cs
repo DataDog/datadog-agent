@@ -36,23 +36,21 @@ namespace Datadog.CustomActions
             }
             try
             {
-                using (var input = new StreamReader(configFilePath))
-                {
-                    var deserializer = new DeserializerBuilder()
+                using var input = new StreamReader(configFilePath);
+                var deserializer = new DeserializerBuilder()
                     .IgnoreUnmatchedProperties()
                     .WithNamingConvention(UnderscoredNamingConvention.Instance)
                     .Build();
 
-                    var datadogConfig = deserializer.Deserialize<DatadogConfig>(input);
-                    if (string.IsNullOrEmpty(session["APIKEY"]))
-                    {
-                        session["APIKEY"] = datadogConfig.ApiKey;
-                    }
+                var datadogConfig = deserializer.Deserialize<DatadogConfig>(input);
+                if (string.IsNullOrEmpty(session.Property("APIKEY")))
+                {
+                    session["APIKEY"] = datadogConfig.ApiKey;
+                }
 
-                    if (string.IsNullOrEmpty(session["SITE"]))
-                    {
-                        session["SITE"] = datadogConfig.Site;
-                    }
+                if (string.IsNullOrEmpty(session.Property("SITE")))
+                {
+                    session["SITE"] = datadogConfig.Site;
                 }
             }
             catch (Exception e)

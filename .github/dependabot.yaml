@@ -35,20 +35,6 @@ updates:
       interval: weekly
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
-    directory: /pkg/otlp/model
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-platform
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: gomod
     directory: /pkg/trace
     labels:
       - dependencies
@@ -77,20 +63,6 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # See https://github.com/DataDog/datadog-agent/pull/10112
       - dependency-name: github.com/mailru/easyjson
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: gomod
-    directory: /pkg/quantile
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/metrics-aggregation
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100

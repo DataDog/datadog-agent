@@ -77,7 +77,7 @@ func (s *agentRunner) Run(conf []byte) error {
 	if err != nil {
 		return fmt.Errorf("agent: error creating config: %v", err)
 	}
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(10 * time.Second)
 	exit := s.runAgentConfig(cfgPath)
 	for {
 		select {
@@ -119,18 +119,26 @@ func (s *agentRunner) Kill() {
 	}
 	proc, err := os.FindProcess(pid)
 	if err != nil {
+		if s.verbose {
+			log.Print("couldn't find process: ", err)
+		}
 		return
 	}
 	if err := proc.Kill(); err != nil {
 		if s.verbose {
 			log.Print("couldn't kill running agent: ", err)
 		}
+		return
 	}
 	if _, err := proc.Wait(); err != nil {
 		if s.verbose {
 			log.Print("error waiting for process to exit", err)
 		}
+		return
 	}
+	s.mu.Lock()
+	s.pid = 0
+	s.mu.Unlock()
 }
 
 func (s *agentRunner) runAgentConfig(path string) <-chan error {
@@ -150,10 +158,6 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	ch := make(chan error, 1) // don't block
 	go func() {
 		ch <- cmd.Wait()
-		os.Remove(path)
-		s.mu.Lock()
-		s.pid = 0
-		s.mu.Unlock()
 		if s.verbose {
 			log.Print("agent: killed")
 		}

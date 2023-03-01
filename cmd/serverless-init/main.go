@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -43,13 +44,20 @@ func main() {
 	logConfig := log.CreateConfig(origin)
 	log.SetupLog(logConfig, tags)
 
+	// The datadog-agent requires Load to be called or it could
+	// panic down the line.
+	_, err := config.Load()
+	if err != nil {
+		logger.Debugf("Error loading config: %v\n", err)
+	}
+
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, tags)
 
 	metricAgent := setupMetricAgent(tags)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
-	go metricAgent.Flush()
+	go flushMetricsAgent(metricAgent)
 	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
 }
 
@@ -62,6 +70,7 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
+	config.Datadog.Set("use_v2_api.series", false)
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	delete(tags, "container_id")
@@ -69,6 +78,12 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)
 	return metricAgent
+}
+
+func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
+	for range time.Tick(3 * time.Second) {
+		metricAgent.Flush()
+	}
 }
 
 func setupProxy() {

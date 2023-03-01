@@ -1,10 +1,18 @@
 #ifndef __HTTPS_H
 #define __HTTPS_H
 
+#ifdef COMPILE_CORE
+#include "ktypes.h"
+#define MINORBITS	20
+#define MINORMASK	((1U << MINORBITS) - 1)
+#define MAJOR(dev)	((unsigned int) ((dev) >> MINORBITS))
+#define MINOR(dev)	((unsigned int) ((dev) & MINORMASK))
+#else
 #include <linux/dcache.h>
 #include <linux/fs.h>
 #include <linux/mm_types.h>
 #include <linux/sched.h>
+#endif
 
 #include "bpf_builtins.h"
 #include "port_range.h"
@@ -29,8 +37,6 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     bpf_memset(&http, 0, sizeof(http));
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer(http.request_fragment, buffer, len);
-    http.owned_by_src_port = http.tup.sport;
-    log_debug("https_process: htx=%llx sport=%d\n", &http, http.owned_by_src_port);
 
     protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &http.tup);
     if (cur_fragment_protocol_ptr == NULL) {
@@ -57,7 +63,6 @@ static __always_inline void https_finish(conn_tuple_t *t) {
     http_transaction_t http;
     bpf_memset(&http, 0, sizeof(http));
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-    http.owned_by_src_port = http.tup.sport;
 
     skb_info_t skb_info = {0};
     skb_info.tcp_flags |= TCPHDR_FIN;
@@ -153,30 +158,28 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
  */
 static __always_inline tls_offsets_data_t* get_offsets_data() {
     struct task_struct *t = (struct task_struct *) bpf_get_current_task();
-    struct mm_struct *mm;
-    struct file *exe_file;
     struct inode *inode;
-    struct super_block *sb;
+    go_tls_offsets_data_key_t key;
     dev_t dev_id;
 
-    bpf_probe_read(&mm, sizeof(mm), &t->mm);
-    bpf_probe_read(&exe_file, sizeof(exe_file), &mm->exe_file);
-    bpf_probe_read(&inode, sizeof(inode), &exe_file->f_inode);
+    inode = BPF_CORE_READ(t, mm, exe_file, f_inode);
     if (!inode) {
-        log_debug("get_offsets_data: could not read inode struct pointer\n");
+        log_debug("get_offsets_data: could not read f_inode field\n");
         return NULL;
     }
 
-    bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
-    if (!sb) {
-        log_debug("get_offsets_data: could not read superblock struct pointer\n");
+    int err;
+    err = BPF_CORE_READ_INTO(&key.ino, inode, i_ino);
+    if (err) {
+        log_debug("get_offsets_data: could not read i_ino field\n");
         return NULL;
     }
 
-    go_tls_offsets_data_key_t key;
-
-    bpf_probe_read(&key.ino, sizeof(key.ino), &inode->i_ino);
-    bpf_probe_read(&dev_id, sizeof(dev_id), &sb->s_dev);
+    err = BPF_CORE_READ_INTO(&dev_id, inode, i_sb, s_dev);
+    if (err) {
+        log_debug("get_offsets_data: could not read s_dev field\n");
+        return NULL;
+    }
 
     key.device_id_major = MAJOR(dev_id);
     key.device_id_minor = MINOR(dev_id);

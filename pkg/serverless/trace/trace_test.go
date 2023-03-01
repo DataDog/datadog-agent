@@ -10,6 +10,7 @@ package trace
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,9 +19,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
+func setupTraceAgentTest(t *testing.T) {
+	// ensure a free port is used for starting the trace agent
+	if port, err := testutil.FindTCPPort(); err == nil {
+		t.Setenv("DD_RECEIVER_PORT", strconv.Itoa(port))
+	}
+}
+
 func TestStartEnabledFalse(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	lambdaSpanChan := make(chan *pb.Span)
 	var agent = &ServerlessTraceAgent{}
 	agent.Start(false, nil, lambdaSpanChan, random.Random.Uint64())
@@ -39,6 +50,8 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 }
 
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	var agent = &ServerlessTraceAgent{}
 	lambdaSpanChan := make(chan *pb.Span)
 	agent.Start(true, &LoadConfigMocked{}, lambdaSpanChan, random.Random.Uint64())
@@ -49,6 +62,8 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 }
 
 func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	var agent = &ServerlessTraceAgent{}
 	lambdaSpanChan := make(chan *pb.Span)
 
@@ -61,6 +76,8 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 }
 
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	var agent = &ServerlessTraceAgent{}
 	lambdaSpanChan := make(chan *pb.Span)
 
@@ -72,6 +89,8 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 }
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	startTime := time.Now()
 	lambdaSpanChan := make(chan *pb.Span)
 

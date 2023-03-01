@@ -152,13 +152,13 @@ type ContainerContext struct {
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID                   string    `field:"-" json:"-"`
-	Type                 uint32    `field:"-"`
-	Async                bool      `field:"async" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	SavedByActivityDumps bool      `field:"-"`               // True if the event should have been discarded if the AD were disabled
-	IsActivityDumpSample bool      `field:"-"`               // True if the event was sampled for the activity dumps
-	TimestampRaw         uint64    `field:"-" json:"-"`
-	Timestamp            time.Time `field:"-"` // Timestamp of the event
+	ID           string         `field:"-" json:"-"`
+	Type         uint32         `field:"-"`
+	Flags        uint32         `field:"-"`
+	Async        bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"-" json:"-"`
+	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
@@ -262,6 +262,16 @@ func (e *Event) Init() {
 	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
 }
 
+// IsSavedByActivityDumps return whether saved by AD
+func (e *Event) IsSavedByActivityDumps() bool {
+	return e.Flags&EventFlagsSavedByAD > 0
+}
+
+// IsSavedByActivityDumps return whether AD sample
+func (e *Event) IsActivityDumpSample() bool {
+	return e.Flags&EventFlagsActivityDumpSample > 0
+}
+
 // GetType returns the event type
 func (e *Event) GetType() string {
 	return EventType(e.Type).String()
@@ -317,6 +327,52 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 // GetProcessServiceTag uses the field handler
 func (ev *Event) GetProcessServiceTag() string {
 	return ev.FieldHandlers.GetProcessServiceTag(ev)
+}
+
+// MatchedRules contains the identification of one rule that has match
+type MatchedRule struct {
+	RuleID        string
+	RuleVersion   string
+	PolicyName    string
+	PolicyVersion string
+}
+
+// NewMatchedRule return a new MatchedRule instance
+func NewMatchedRule(ruleID, ruleVersion, policyName, policyVersion string) *MatchedRule {
+	return &MatchedRule{
+		RuleID:        ruleID,
+		RuleVersion:   ruleVersion,
+		PolicyName:    policyName,
+		PolicyVersion: policyVersion,
+	}
+}
+
+func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
+	if mr2 == nil ||
+		mr.RuleID != mr2.RuleID ||
+		mr.RuleVersion != mr2.RuleVersion ||
+		mr.PolicyName != mr2.PolicyName ||
+		mr.PolicyVersion != mr2.PolicyVersion {
+		return false
+	}
+	return true
+}
+
+// Append two lists, but avoiding duplicates
+func AppendMatchedRule(list []*MatchedRule, toAdd []*MatchedRule) []*MatchedRule {
+	for _, ta := range toAdd {
+		found := false
+		for _, l := range list {
+			if l.Match(ta) { // rule already present
+				found = true
+				break
+			}
+		}
+		if !found {
+			list = append(list, ta)
+		}
+	}
+	return list
 }
 
 // SetuidEvent represents a setuid event
@@ -471,13 +527,11 @@ type FileFields struct {
 	CTime uint64 `field:"change_time"`                                                 // SECLDoc[change_time] Definition:`Change time of the file`
 	MTime uint64 `field:"modification_time"`                                           // SECLDoc[modification_time] Definition:`Modification time of the file`
 
-	MountID      uint32 `field:"mount_id"`                                             // SECLDoc[mount_id] Definition:`Mount ID of the file`
-	Inode        uint64 `field:"inode"`                                                // SECLDoc[inode] Definition:`Inode of the file`
-	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer"` // SECLDoc[in_upper_layer] Definition:`Indicator of the file layer, for example, in an OverlayFS`
+	PathKey
+	InUpperLayer bool `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer"` // SECLDoc[in_upper_layer] Definition:`Indicator of the file layer, for example, in an OverlayFS`
 
-	NLink  uint32 `field:"-" json:"-"`
-	PathID uint32 `field:"-" json:"-"`
-	Flags  int32  `field:"-" json:"-"`
+	NLink uint32 `field:"-" json:"-"`
+	Flags int32  `field:"-" json:"-"`
 }
 
 // IsFileless return whether it is a file less access
@@ -979,6 +1033,40 @@ type VethPairEvent struct {
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+}
+
+// PathKey identifies an entry in the dentry cache
+type PathKey struct {
+	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
+	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
+	PathID  uint32 `field:"-"`
+}
+
+func (p *PathKey) Write(buffer []byte) {
+	ByteOrder.PutUint64(buffer[0:8], p.Inode)
+	ByteOrder.PutUint32(buffer[8:12], p.MountID)
+	ByteOrder.PutUint32(buffer[12:16], p.PathID)
+}
+
+// IsNull returns true if a key is invalid
+func (p *PathKey) IsNull() bool {
+	return p.Inode == 0 && p.MountID == 0
+}
+
+func (p *PathKey) String() string {
+	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (p *PathKey) MarshalBinary() ([]byte, error) {
+	if p.IsNull() {
+		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
+	}
+
+	buff := make([]byte, 16)
+	p.Write(buff)
+
+	return buff, nil
 }
 
 // ExtraFieldHandlers handlers not hold by any field

@@ -22,12 +22,13 @@ GITHUB_SLACK_MAP = {
     "@DataDog/serverless": "#serverless-agent",
     "@DataDog/remote-config": "#remote-config-monitoring",
     "@DataDog/agent-all": "#datadog-agent-pipelines",
-    "@DataDog/ebpf-platform": "#ebpf-platform",
+    "@DataDog/ebpf-platform": "#ebpf-platform-ops",
     "@DataDog/Networks": "#network-performance-monitoring",
     "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
     "@DataDog/windows-agent": "#windows-agent",
     "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
     "@DataDog/opentelemetry": "#opentelemetry-ops",
+    "@DataDog/agent-e2e-testing": "#agent-testing-and-qa",
 }
 
 
