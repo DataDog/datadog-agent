@@ -303,7 +303,6 @@ func (s *CheckSubmitter) Start() error {
 
 func (s *CheckSubmitter) Stop() {
 	close(s.exit)
-	close(s.rtNotifierChan)
 
 	s.processResults.Stop()
 	s.rtProcessResults.Stop()
@@ -318,6 +317,8 @@ func (s *CheckSubmitter) Stop() {
 	s.connectionsForwarder.Stop()
 	s.podForwarder.Stop()
 	s.eventForwarder.Stop()
+
+	close(s.rtNotifierChan)
 }
 
 func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
