@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -1791,6 +1792,90 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		assert.Equal(t, uint64(50), delta.Conns[0].Last.SentBytes)
 	})
 
+}
+
+func TestKafkaStats(t *testing.T) {
+	c := ConnectionStats{
+		Source: util.AddressFromString("1.1.1.1"),
+		Dest:   util.AddressFromString("0.0.0.0"),
+		SPort:  1000,
+		DPort:  80,
+	}
+
+	key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "my-topic")
+
+	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
+	kafkaStats[key] = &kafka.RequestStat{Count: 2}
+
+	// Register client & pass in Kafka stats
+	state := newDefaultState()
+	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil, kafkaStats)
+
+	// Verify connection has Kafka data embedded in it
+	assert.Len(t, delta.Kafka, 1)
+
+	// Verify Kafka data has been flushed
+	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil, nil)
+	assert.Len(t, delta.Kafka, 0)
+}
+
+func TestKafkaStatsWithMultipleClients(t *testing.T) {
+	c := ConnectionStats{
+		Source: util.AddressFromString("1.1.1.1"),
+		Dest:   util.AddressFromString("0.0.0.0"),
+		SPort:  1000,
+		DPort:  80,
+	}
+
+	getStats := func(topicName string) map[kafka.Key]*kafka.RequestStat {
+		kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
+		key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, topicName)
+		kafkaStats[key] = &kafka.RequestStat{Count: 2}
+		return kafkaStats
+	}
+
+	client1 := "client1"
+	client2 := "client2"
+	client3 := "client3"
+	state := newDefaultState()
+
+	// Register the first two clients
+	state.RegisterClient(client1)
+	state.RegisterClient(client2)
+
+	// We should have nothing on first call
+	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil, nil).Kafka, 0)
+	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil, nil).Kafka, 0)
+
+	// Store the connection to both clients & pass HTTP stats to the first client
+	c.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnections([]ConnectionStats{c})
+
+	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, nil, getStats("my-topic"))
+	assert.Len(t, delta.Kafka, 1)
+
+	// Verify that the HTTP stats were also stored in the second client
+	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil, nil)
+	assert.Len(t, delta.Kafka, 1)
+
+	// Register a third client & verify that it does not have the Kafka stats
+	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil, nil)
+	assert.Len(t, delta.Kafka, 0)
+
+	c.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnections([]ConnectionStats{c})
+
+	// Pass in new Kafka stats to the first client
+	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, nil, getStats("my-topic"))
+	assert.Len(t, delta.Kafka, 1)
+
+	// And the second client
+	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil, getStats("my-topic2"))
+	assert.Len(t, delta.Kafka, 2)
+
+	// Verify that the third client also accumulated both new HTTP stats
+	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, nil, nil)
+	assert.Len(t, delta.Kafka, 2)
 }
 
 func generateRandConnections(n int) []ConnectionStats {
