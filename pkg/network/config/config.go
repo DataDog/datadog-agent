@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	spNS                 = "system_probe_config"
-	netNS                = "network_config"
-	smNS                 = "service_monitoring_config"
-	dataStreamsNamespace = "data_streams_config"
-	evNS                 = "event_monitoring_config"
-	smjtNS               = smNS + ".java_tls"
+	spNS   = "system_probe_config"
+	netNS  = "network_config"
+	smNS   = "service_monitoring_config"
+	dsNS   = "data_streams_config"
+	evNS   = "event_monitoring_config"
+	smjtNS = smNS + ".java_tls"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -255,7 +255,7 @@ func New() *Config {
 
 		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
-		DataStreamsEnabled:       cfg.GetBool(join(dataStreamsNamespace, "enabled")),
+		DataStreamsEnabled:       cfg.GetBool(join(dsNS, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
 		TCPConnTimeout:   2 * time.Minute,
