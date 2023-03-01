@@ -12,6 +12,7 @@
     IMG_VARIABLES: ""
     IMG_SIGNING: ""
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - source /root/.bashrc
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
     - ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG+-release}"
     - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"

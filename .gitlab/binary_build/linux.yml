@@ -10,8 +10,8 @@ build_dogstatsd_static-binary_x64:
   variables:
     ARCH: amd64
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
     - inv -e dogstatsd.build --static --major-version 7
@@ -27,8 +27,8 @@ build_dogstatsd_static-binary_arm64:
   variables:
     ARCH: arm64
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
     - inv -e dogstatsd.build --static --major-version 7
@@ -42,8 +42,8 @@ build_dogstatsd-binary_x64:
   tags: ["runner:main"]
   needs: ["lint_deb-x64", "tests_deb-x64-py3", "go_deps"]
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
     - inv -e dogstatsd.build --major-version 7
@@ -59,8 +59,8 @@ build_dogstatsd-binary_arm64:
   variables:
     ARCH: arm64
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
     - inv -e dogstatsd.build --major-version 7

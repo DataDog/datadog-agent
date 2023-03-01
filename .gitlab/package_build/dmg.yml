@@ -31,4 +31,5 @@ agent_dmg-x64-a7:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
   before_script:
+    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7

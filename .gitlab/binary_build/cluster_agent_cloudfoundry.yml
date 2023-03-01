@@ -13,8 +13,8 @@ cluster_agent_cloudfoundry-build_amd64:
   variables:
     ARCH: amd64
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
     - inv -e cluster-agent-cloudfoundry.build

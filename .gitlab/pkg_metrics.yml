@@ -51,7 +51,7 @@ send_pkg_size-a6:
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
   script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
     - mkdir -p /tmp/deb/amd64-agent
     - mkdir -p /tmp/deb/arm64-agent
     - mkdir -p /tmp/rpm/amd64-agent
@@ -119,9 +119,10 @@ send_pkg_size-a7:
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
   script:
+    - source /root/.bashrc
     - !reference [.add_metric_func, script]
 
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
     - mkdir -p /tmp/amd64-deb/agent /tmp/amd64-deb/dogstatsd /tmp/amd64-deb/iot-agent /tmp/amd64-deb/heroku-agent
     - mkdir -p /tmp/arm64-deb/agent /tmp/arm64-deb/dogstatsd /tmp/arm64-deb/iot-agent
     - mkdir -p /tmp/amd64-rpm/agent /tmp/amd64-rpm/dogstatsd /tmp/amd64-rpm/iot-agent
@@ -190,11 +191,13 @@ send_pkg_size-a7:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   script:
+    - source /root/.bashrc
     - !reference [.add_metric_func, script]
 
     - ls -l $OMNIBUS_PACKAGE_DIR
     - if [[ "${ARCH}" == "amd64" ]]; then ls -l $OMNIBUS_PACKAGE_DIR_SUSE; fi
-    - source /root/.bashrc && conda activate ddpy3
+
+    - source /root/.bashrc
     - export failures=0
     - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
     # Get stable packages from S3 buckets, send new package sizes & compare stable and new package sizes

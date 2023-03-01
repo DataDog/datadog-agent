@@ -9,6 +9,7 @@ tests_macos:
   variables:
     PYTHON_RUNTIMES: '3'
   script:
+    - source /root/.bashrc
     - export GITHUB_KEY_B64=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_key_b64 --with-decryption --query "Parameter.Value" --out text)
     - export GITHUB_APP_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_app_id --with-decryption --query "Parameter.Value" --out text)
     - export GITHUB_INSTALLATION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_installation_id --with-decryption --query "Parameter.Value" --out text)

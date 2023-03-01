@@ -17,6 +17,7 @@ go_deps:
   tags: ["runner:main"]
   needs: []
   script:
+    - source /root/.bashrc
     - inv -e deps --verbose
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
   artifacts:
@@ -31,6 +32,7 @@ go_tools_deps:
   tags: ["runner:main"]
   needs: []
   script:
+    - source /root/.bashrc
     - inv -e download-tools
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache_tools.tar.gz .
   artifacts:
