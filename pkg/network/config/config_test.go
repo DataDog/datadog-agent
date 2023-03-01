@@ -425,6 +425,26 @@ network_config:
 	})
 }
 
+func TestMaxKafkaStatsBuffered(t *testing.T) {
+	t.Run("value set through env var", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_KAFKA_STATS_BUFFERED", "50000")
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxKafkaStatsBuffered)
+	})
+
+	t.Run("value set through yaml", func(t *testing.T) {
+		newConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_kafka_stats_buffered: 30000
+`)
+
+		assert.Equal(t, 30000, cfg.MaxKafkaStatsBuffered)
+	})
+}
+
 func TestNetworkConfigEnabled(t *testing.T) {
 	ys := true
 
