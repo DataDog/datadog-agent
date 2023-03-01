@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: apm_config.features is now configurable from the agent configuration file. It was previously only configurable via DD_APM_FEATURES.
+    APM: apm_config.features is now configurable from the Agent configuration file. It was previously only configurable via DD_APM_FEATURES.
