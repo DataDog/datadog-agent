@@ -49,7 +49,7 @@ func HTTPSSupported(c *config.Config) bool {
 	}
 
 	if runningOnARM() {
-		return kversion >= kernel.VersionCode(5, 5, 0) && c.EnableRuntimeCompiler
+		return kversion >= kernel.VersionCode(5, 5, 0) && (c.EnableRuntimeCompiler || c.EnableCORE)
 	}
 
 	return kversion >= MinimumKernelVersion

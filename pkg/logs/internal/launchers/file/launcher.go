@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -210,6 +211,12 @@ func (s *Launcher) scan() {
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+
+	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
+	fileStats, err := util.GetProcessFileStats()
+	if err == nil {
+		CheckProcessTelemetry(fileStats)
+	}
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -426,4 +433,13 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern))
+}
+
+func CheckProcessTelemetry(stats *util.ProcessFileStats) {
+	if stats.AgentOpenFiles/stats.OsFileLimit > 0.9 {
+		log.Warnf("Agent process is close to OS file limit of %v. Agent process currently has %v files open.", stats.OsFileLimit, stats.AgentOpenFiles)
+	} else if stats.AgentOpenFiles/stats.OsFileLimit >= 1 {
+		log.Errorf("Agent process has reached the OS open file limit: %v. This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.", stats.OsFileLimit)
+	}
+	log.Debugf("Agent process currently has %v files open. OS file limit is currently set to %v.", stats.AgentOpenFiles, stats.OsFileLimit)
 }

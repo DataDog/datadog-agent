@@ -44,9 +44,9 @@
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
-    - invoke -e golangci-lint --build system-probe ./pkg
+    - invoke -e golangci-lint --build system-probe --concurrency 4 ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e golangci-lint --targets=./pkg/security/tests --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
+    - invoke -e golangci-lint --targets=./pkg/security/tests --concurrency 4 --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 
 .tests_windows_sysprobe:
   stage: source_test
@@ -76,7 +76,7 @@
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   variables:
     ARCH: amd64
     TASK_ARCH: x64
@@ -84,7 +84,7 @@ tests_ebpf_x64:
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   variables:
     ARCH: arm64
     TASK_ARCH: arm64
@@ -112,14 +112,14 @@ tests_ebpf_arm64:
 prepare_ebpf_functional_tests_arm64:
   extends: .prepare_ebpf_functional_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   variables:
     ARCH: arm64
 
 prepare_ebpf_functional_tests_x64:
   extends: .prepare_ebpf_functional_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   variables:
     ARCH: amd64
 

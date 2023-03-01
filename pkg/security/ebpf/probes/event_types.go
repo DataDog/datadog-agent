@@ -26,7 +26,7 @@ var NetworkNFNatSelectors = []manager.ProbesSelector{
 // NetworkVethSelectors is the list of probes that should be activated if the `veth` module is loaded
 var NetworkVethSelectors = []manager.ProbesSelector{
 	&manager.AllOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_veth_newlink"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_rtnl_create_link"}},
 	}},
 }
 
@@ -189,6 +189,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___attach_mnt"}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_attach_mnt"}},
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_set_mountpoint"}},
 			}},
 
 			// Rename probes
@@ -435,6 +436,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		"dns": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.AllOf{Selectors: NetworkSelectors},
+				&manager.AllOf{Selectors: NetworkVethSelectors},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_socket_bind"}},
 			}},
 		},
@@ -443,9 +445,6 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 	// add probes depending on loaded modules
 	loadedModules, err := utils.FetchLoadedModules()
 	if err == nil {
-		if _, ok := loadedModules["veth"]; ok {
-			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkVethSelectors...)
-		}
 		if _, ok := loadedModules["nf_nat"]; ok {
 			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkNFNatSelectors...)
 		}

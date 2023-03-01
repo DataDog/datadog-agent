@@ -36,6 +36,33 @@ if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
 fi
 
+if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
+  # Examples:
+  #  - 20   = defaults to highest patch version x.20.2
+  #  - 20.0 = sets explicit patch version x.20.0
+  # Note: Specifying an invalid minor version will terminate the script.
+  agent_minor_version=$DD_AGENT_MINOR_VERSION
+  # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
+  agent_minor_version_without_patch="${agent_minor_version%.*}"
+  if [ "$agent_minor_version" != "$agent_minor_version_without_patch" ]; then
+      agent_patch_version="${agent_minor_version#*.}"
+  fi
+fi
+
+function find_latest_patch_version_for() {
+    major_minor="$1"
+    patch_versions=$(curl "https://s3.amazonaws.com/dd-agent?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -o "datadog-agent-${major_minor}.[0-9]*-1.dmg")
+    if [ -z "$patch_versions" ]; then
+        echo "-1"
+    fi
+    # first `cut` extracts patch version and `-1`, e.g. 2-1
+    # second `cut` removes the `-1`, e.g. 2
+    # then we sort numerically in reverse order
+    # and finally take the first (== the latest) patch version
+    latest_patch=$(echo "$patch_versions" | cut -d. -f3 | cut -d- -f1 | sort -rn | head -n 1)
+    echo "$latest_patch"
+}
+
 systemdaemon_install=false
 systemdaemon_user_group=
 if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
@@ -92,20 +119,48 @@ if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] 
     echo -e "\033[31mDatadog Agent doesn't support macOS < 10.12.\033[0m\n"
     exit 1
 elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ]; then
-    echo -e "\033[33mWarning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.\033[0m"
-    dmg_version="${agent_major_version}.34.0-1"
+    if [ -n "${agent_minor_version}" ]; then
+        if [ "${agent_minor_version_without_patch}" -gt 34 ]; then
+            echo -e "\033[31mmacOS 10.12 only supports Datadog Agent $agent_major_version up to $agent_major_version.34.\033[0m\n"
+            exit 1;
+        fi
+    else
+        echo -e "\033[33mWarning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.\033[0m"
+        agent_minor_version_without_patch=34
+        agent_patch_version=0
+    fi
 elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 13 ]; then
-    echo -e "\033[33mWarning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.\033[0m"
-    dmg_version="${agent_major_version}.38.2-1"
+    if [ -n "${agent_minor_version}" ]; then
+        if [ "${agent_minor_version_without_patch}" -gt 38 ]; then
+            echo -e "\033[31mmacOS 10.13 only supports Datadog Agent $agent_major_version up to $agent_major_version.38.\033[0m\n"
+            exit 1;
+        fi
+    else
+        echo -e "\033[33mWarning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.\033[0m"
+        agent_minor_version_without_patch=38
+        agent_patch_version=2
+    fi
 else
     if [ "${agent_major_version}" -eq 6 ]; then
         echo -e "\033[31mThe latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7\033[0m\n"
         exit 1
     else
-        dmg_version="7-latest"
+        if [ -z "${agent_minor_version}" ]; then
+            dmg_version="7-latest"
+        fi
     fi
 fi
 
+if [ -z "$dmg_version" ]; then
+    if [ -z "$agent_patch_version" ]; then
+        agent_patch_version=$(find_latest_patch_version_for "${agent_major_version}.${agent_minor_version_without_patch}")
+        if [ -z "$agent_patch_version" ] || [ "$agent_patch_version" -lt 0 ]; then
+            echo -e "\033[33mWarning: Failed to obtain latest patch version for Agent ${agent_major_version}.${agent_minor_version_without_patch}. Defaulting to '0'.\033[0m"
+            agent_patch_version=0
+        fi
+    fi
+    dmg_version="${agent_major_version}.${agent_minor_version_without_patch}.${agent_patch_version}-1"
+fi
 dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
 
 if [ "$upgrade" ]; then
@@ -246,7 +301,10 @@ function plist_modify_user_group() {
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
 rm -f $dmg_file
-curl --fail --progress-bar $dmg_url > $dmg_file
+if ! curl --fail --progress-bar "$dmg_url" > $dmg_file; then
+    printf "\033[31mCouldn't download the installer for macOS Agent version ${dmg_version}.\033[0m\n"
+    exit 1;
+fi
 printf "\033[34m\n* Installing datadog-agent, you might be asked for your sudo password...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"
