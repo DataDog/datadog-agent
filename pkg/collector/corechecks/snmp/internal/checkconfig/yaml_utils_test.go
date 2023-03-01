@@ -227,10 +227,10 @@ interface_configs: '['
 		{
 			name: "invalid overall yaml",
 			data: []byte(`
-interface_configs: {}
+interface_configs: {
 `),
 			result:        MyInterfaceConfigs{},
-			expectedError: "yaml: unmarshal errors",
+			expectedError: "yaml: line 2: did not find expected node content",
 		},
 		{
 			name: "invalid interface_configs yaml",
