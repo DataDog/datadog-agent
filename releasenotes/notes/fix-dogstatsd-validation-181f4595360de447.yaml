@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    NDM: Add snmp.device.reachable/unreachable metrics to all monitored devices.
+    Corrects dogstatsd metric message validation to support all current (and some future) dogstatsd features

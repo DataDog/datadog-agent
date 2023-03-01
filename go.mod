@@ -50,7 +50,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.43.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.43.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
+	github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56
 	github.com/DataDog/ebpf-manager v0.2.3
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
@@ -274,7 +274,7 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/DataDog/aptly v1.5.0 // indirect
-	github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6 // indirect
+	github.com/DataDog/extendeddaemonset v0.9.0-rc.2 // indirect
 	github.com/DataDog/gostackparse v0.5.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DisposaBoy/JsonConfigReader v0.0.0-20171218180944-5ea4d0ddac55 // indirect

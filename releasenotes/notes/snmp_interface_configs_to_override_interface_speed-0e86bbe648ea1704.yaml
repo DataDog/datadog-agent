@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
-    NDM: Add snmp.device.reachable/unreachable metrics to all monitored devices.
+    [corechecks/snmp] Add ``interface_configs`` to override interface speed.

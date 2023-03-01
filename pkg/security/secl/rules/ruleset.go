@@ -87,14 +87,12 @@ type RuleDefinition struct {
 }
 
 // GetTags returns the tags associated to a rule
-func (rd *RuleDefinition) GetTags() []string {
-	tags := []string{}
-	for k, v := range rd.Tags {
-		tags = append(
-			tags,
-			fmt.Sprintf("%s:%s", k, v))
+func (rd *RuleDefinition) GetTag(tagKey string) (bool, string) {
+	tagValue, ok := rd.Tags[tagKey]
+	if ok {
+		return true, tagValue
 	}
-	return tags
+	return false, ""
 }
 
 // MergeWith merges rule rd2 into rd

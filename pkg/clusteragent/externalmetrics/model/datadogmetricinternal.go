@@ -46,6 +46,7 @@ type DatadogMetricInternal struct {
 	UpdateTime           time.Time
 	Error                error
 	MaxAge               time.Duration
+	TimeWindow           time.Duration
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -61,6 +62,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		Autogen:              false,
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
 		MaxAge:               datadogMetric.Spec.MaxAge.Duration,
+		TimeWindow:           datadogMetric.Spec.TimeWindow.Duration,
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
@@ -131,7 +133,7 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 	}
 }
 
-// Query returns the query that should be used to fetch metrics
+// query returns the query that should be used to fetch metrics
 func (d *DatadogMetricInternal) Query() string {
 	if d.resolvedQuery != nil {
 		return *d.resolvedQuery
@@ -153,7 +155,17 @@ func (d *DatadogMetricInternal) UpdateFrom(current datadoghq.DatadogMetric) {
 	}
 	d.query = currentSpec.Query
 	d.MaxAge = currentSpec.MaxAge.Duration
+	d.TimeWindow = currentSpec.TimeWindow.Duration
 	d.AlwaysActive = hasForceActiveAnnotation(current)
+}
+
+// GetTimeWindow gets the time window for the metric, if unset defaults to max age.
+func (d *DatadogMetricInternal) GetTimeWindow() time.Duration {
+	timeWindow := d.TimeWindow
+	if timeWindow == 0 {
+		timeWindow = d.MaxAge
+	}
+	return timeWindow
 }
 
 // shouldResolveQuery returns whether we should try to resolve a new query
