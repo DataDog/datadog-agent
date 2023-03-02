@@ -424,7 +424,7 @@ func main() {
 	writer.Flush()
 	err = outputFile.Close()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %s", err)
+		fmt.Printf("ERROR: %s", err)
 		os.Exit(1)
 	}
 
