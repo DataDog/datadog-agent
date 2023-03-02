@@ -569,16 +569,15 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
+	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/sigstore/rekor v1.0.1 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
 )
 
 require (
-	github.com/creasty/defaults v1.6.0
 	github.com/godror/godror v0.36.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/ory/dockertest v3.3.5+incompatible
-	gopkg.in/guregu/null.v4 v4.0.0
 )
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
