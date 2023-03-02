@@ -29,6 +29,9 @@ namespace WixSetup.Datadog
 
         public AgentInstallerUI(IWixProjectEvents wixProjectEvents, AgentCustomActions agentCustomActions)
         {
+            // ARPNOMODIFY=1 disables the "Change" button in the Control Panel, so remove it so that we have
+            // our button.
+            // https://learn.microsoft.com/en-us/windows/win32/msi/arpnomodify
             Properties.Remove("ARPNOMODIFY");
             wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
             DialogRefs = new List<string>
