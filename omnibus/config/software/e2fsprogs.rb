@@ -1,5 +1,3 @@
-# https://github.com/confluentinc/librdkafka#build-from-source
-
 name "e2fsprogs"
 default_version "1.47.0"
 
@@ -18,7 +16,7 @@ build do
   }
 
   command "./configure --prefix=#{install_dir}/embedded", :env => env
-  command "make", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
-  command "make install", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
+  command "make", :env => env
+  command "make install", :env => env
 
 end

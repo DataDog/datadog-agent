@@ -23,7 +23,7 @@ build do
   }
 
   command "./configure --enable-sasl --prefix=#{install_dir}/embedded", :env => env
-  command "make", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
-  command "make install", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
+  command "make", :env => env
+  command "make install", :env => env
 
 end
