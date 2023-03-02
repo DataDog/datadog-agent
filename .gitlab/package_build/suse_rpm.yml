@@ -44,7 +44,7 @@
     - mkdir -p /tmp/nikos
     - tar -xf /tmp/nikos.tar.gz -C /tmp/nikos
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --nikos-path=/tmp/nikos
+    - inv -e agent.omnibus-build --log-level debug --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --nikos-path=/tmp/nikos
     - ls -la $OMNIBUS_PACKAGE_DIR
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
