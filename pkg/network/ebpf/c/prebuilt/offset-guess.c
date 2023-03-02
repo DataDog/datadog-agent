@@ -17,7 +17,7 @@ static const __u8 SIZEOF_DADDR = sizeof_member(tracer_status_t, daddr);
 static const __u8 SIZEOF_FAMILY = sizeof_member(tracer_status_t, family);
 static const __u8 SIZEOF_SPORT = sizeof_member(tracer_status_t, sport);
 static const __u8 SIZEOF_DPORT = sizeof_member(tracer_status_t, dport);
-static const __u8 SIZEOF_NETNS = sizeof((struct net*)0);
+static const __u8 SIZEOF_NETNS = sizeof((void*)0);
 static const __u8 SIZEOF_NETNS_INO = sizeof_member(tracer_status_t, netns);
 static const __u8 SIZEOF_RTT = sizeof_member(tracer_status_t, rtt);
 static const __u8 SIZEOF_RTT_VAR = sizeof_member(tracer_status_t, rtt_var);
@@ -30,14 +30,27 @@ static const __u8 SIZEOF_SADDR_FL6 = sizeof_member(tracer_status_t, saddr_fl6) /
 static const __u8 SIZEOF_DADDR_FL6 = sizeof_member(tracer_status_t, daddr_fl6) / 4;
 static const __u8 SIZEOF_SPORT_FL6 = sizeof_member(tracer_status_t, sport_fl6);
 static const __u8 SIZEOF_DPORT_FL6 = sizeof_member(tracer_status_t, dport_fl6);
-static const __u8 SIZEOF_SOCKET_SK = sizeof(uintptr_t);
-static const __u8 SIZEOF_SK_BUFF_SOCK = sizeof(uintptr_t);
+static const __u8 SIZEOF_SOCKET_SK = sizeof((void*)0);
+static const __u8 SIZEOF_SK_BUFF_SOCK = sizeof((void*)0);
 static const __u8 SIZEOF_SK_BUFF_TRANSPORT_HEADER = sizeof_member(tracer_status_t, transport_header);
-static const __u8 SIZEOF_SK_BUFF_HEAD = sizeof(uintptr_t);
+static const __u8 SIZEOF_SK_BUFF_HEAD = sizeof((void*)0);
 
+// aligned_offset returns an offset that when added to
+// p, would produce an address that is mod size (aligned).
+//
+// This function works in concert with the offset guessing
+// code in pkg/network/tracer/offsetguess.go that will
+// increment the returned here by 1 (thus yielding an offset
+// that will not produce an aligned address anymore). When
+// that offset is passed in here on subsequent calls, it
+// has the affect of producing an offset that will move
+// p to the next address mod size.
 static __always_inline u64 aligned_offset(void *p, u64 offset, uintptr_t size) {
     u64 _p = (u64)p;
     _p += offset;
+    // for a value of _p that is not mod size
+    // we want to advance to the next _p that is
+    // mod size
     _p = _p + size - 1 - (_p + size - 1) % size;
     return (char*)_p - (char*)p;
 }
