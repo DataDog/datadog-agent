@@ -61,7 +61,7 @@ func tsDropped(td *info.TracesDropped) *info.TagStats {
 }
 
 func TestNormalizeOK(t *testing.T) {
-	a := &Agent{conf : config.New()}
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	assert.NoError(t, a.normalize(ts, s))
@@ -69,7 +69,7 @@ func TestNormalizeOK(t *testing.T) {
 }
 
 func TestNormalizeServicePassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.Service
@@ -79,7 +79,7 @@ func TestNormalizeServicePassThru(t *testing.T) {
 }
 
 func TestNormalizeEmptyServiceNoLang(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = ""
@@ -89,7 +89,7 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 }
 
 func TestNormalizeEmptyServiceWithLang(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = ""
@@ -102,7 +102,7 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 }
 
 func TestNormalizeLongService(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = strings.Repeat("CAMEMBERT", 100)
@@ -112,7 +112,7 @@ func TestNormalizeLongService(t *testing.T) {
 }
 
 func TestNormalizeNamePassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.Name
@@ -122,7 +122,7 @@ func TestNormalizeNamePassThru(t *testing.T) {
 }
 
 func TestNormalizeEmptyName(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Name = ""
@@ -132,7 +132,7 @@ func TestNormalizeEmptyName(t *testing.T) {
 }
 
 func TestNormalizeLongName(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Name = strings.Repeat("CAMEMBERT", 100)
@@ -142,7 +142,7 @@ func TestNormalizeLongName(t *testing.T) {
 }
 
 func TestNormalizeNameNoAlphanumeric(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Name = "/"
@@ -152,7 +152,7 @@ func TestNormalizeNameNoAlphanumeric(t *testing.T) {
 }
 
 func TestNormalizeNameForMetrics(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	expNames := map[string]string{
 		"pylons.controller": "pylons.controller",
 		"trace-api.request": "trace_api.request",
@@ -169,7 +169,7 @@ func TestNormalizeNameForMetrics(t *testing.T) {
 }
 
 func TestNormalizeResourcePassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.Resource
@@ -179,7 +179,7 @@ func TestNormalizeResourcePassThru(t *testing.T) {
 }
 
 func TestNormalizeEmptyResource(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Resource = ""
@@ -189,7 +189,7 @@ func TestNormalizeEmptyResource(t *testing.T) {
 }
 
 func TestNormalizeTraceIDPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.TraceID
@@ -199,7 +199,7 @@ func TestNormalizeTraceIDPassThru(t *testing.T) {
 }
 
 func TestNormalizeNoTraceID(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.TraceID = 0
@@ -208,13 +208,13 @@ func TestNormalizeNoTraceID(t *testing.T) {
 }
 
 func TestNormalizeComponent2Name(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	assert := assert.New(t)
 
 	t.Run("on", func(t *testing.T) {
-		a := &Agent{ conf: config.New() }
-		a.conf.Features = map[string]struct{}{"component2name": struct{}{}}
+		a := &Agent{conf: config.New()}
+		a.conf.Features = map[string]struct{}{"component2name": {}}
 
 		t.Run("with", func(t *testing.T) {
 			s := newTestSpan()
@@ -240,7 +240,7 @@ func TestNormalizeComponent2Name(t *testing.T) {
 }
 
 func TestNormalizeSpanIDPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.SpanID
@@ -250,7 +250,7 @@ func TestNormalizeSpanIDPassThru(t *testing.T) {
 }
 
 func TestNormalizeNoSpanID(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.SpanID = 0
@@ -259,7 +259,7 @@ func TestNormalizeNoSpanID(t *testing.T) {
 }
 
 func TestNormalizeStart(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	t.Run("pass-through", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpan()
@@ -294,7 +294,7 @@ func TestNormalizeStart(t *testing.T) {
 }
 
 func TestNormalizeDurationPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.Duration
@@ -304,7 +304,7 @@ func TestNormalizeDurationPassThru(t *testing.T) {
 }
 
 func TestNormalizeEmptyDuration(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Duration = 0
@@ -314,7 +314,7 @@ func TestNormalizeEmptyDuration(t *testing.T) {
 }
 
 func TestNormalizeNegativeDuration(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Duration = -50
@@ -324,7 +324,7 @@ func TestNormalizeNegativeDuration(t *testing.T) {
 }
 
 func TestNormalizeLargeDuration(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Duration = int64(math.MaxInt64)
@@ -334,7 +334,7 @@ func TestNormalizeLargeDuration(t *testing.T) {
 }
 
 func TestNormalizeErrorPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.Error
@@ -344,7 +344,7 @@ func TestNormalizeErrorPassThru(t *testing.T) {
 }
 
 func TestNormalizeMetricsPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.Metrics
@@ -354,7 +354,7 @@ func TestNormalizeMetricsPassThru(t *testing.T) {
 }
 
 func TestNormalizeMetaPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.Meta
@@ -364,7 +364,7 @@ func TestNormalizeMetaPassThru(t *testing.T) {
 }
 
 func TestNormalizeParentIDPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.ParentID
@@ -374,7 +374,7 @@ func TestNormalizeParentIDPassThru(t *testing.T) {
 }
 
 func TestNormalizeTypePassThru(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	before := s.Type
@@ -384,7 +384,7 @@ func TestNormalizeTypePassThru(t *testing.T) {
 }
 
 func TestNormalizeTypeTooLong(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Type = strings.Repeat("sql", 1000)
@@ -393,7 +393,7 @@ func TestNormalizeTypeTooLong(t *testing.T) {
 }
 
 func TestNormalizeServiceTag(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = "retargeting(api-Staging "
@@ -403,7 +403,7 @@ func TestNormalizeServiceTag(t *testing.T) {
 }
 
 func TestNormalizeEnv(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Meta["env"] = "DEVELOPMENT"
@@ -413,7 +413,7 @@ func TestNormalizeEnv(t *testing.T) {
 }
 
 func TestSpecialZipkinRootSpan(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
 	s.ParentID = 42
@@ -429,7 +429,7 @@ func TestSpecialZipkinRootSpan(t *testing.T) {
 }
 
 func TestNormalizeTraceEmpty(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts, trace := newTagStats(), pb.Trace{}
 	err := a.normalizeTrace(ts, trace)
 	assert.Error(t, err)
@@ -437,7 +437,7 @@ func TestNormalizeTraceEmpty(t *testing.T) {
 }
 
 func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	span1, span2 := newTestSpan(), newTestSpan()
 
@@ -450,7 +450,7 @@ func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 }
 
 func TestNormalizeTraceInvalidSpan(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	span1, span2 := newTestSpan(), newTestSpan()
 
@@ -462,7 +462,7 @@ func TestNormalizeTraceInvalidSpan(t *testing.T) {
 }
 
 func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	span1, span2 := newTestSpan(), newTestSpan()
 
@@ -474,7 +474,7 @@ func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
 }
 
 func TestNormalizeTrace(t *testing.T) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	span1, span2 := newTestSpan(), newTestSpan()
 
@@ -547,7 +547,7 @@ func TestNormalizePopulatePriorityFromAnySpan(t *testing.T) {
 }
 
 func BenchmarkNormalization(b *testing.B) {
-	a := &Agent{ conf: config.New() }
+	a := &Agent{conf: config.New()}
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {

@@ -38,7 +38,7 @@ func testSpan() *pb.Span {
 }
 
 func TestTruncateResourcePassThru(t *testing.T) {
-	a := &Agent{ conf: config.New()}
+	a := &Agent{conf: config.New()}
 	s := testSpan()
 	before := s.Resource
 	a.Truncate(s)
@@ -46,7 +46,7 @@ func TestTruncateResourcePassThru(t *testing.T) {
 }
 
 func TestTruncateLongResource(t *testing.T) {
-	a := &Agent{ conf: config.New()}
+	a := &Agent{conf: config.New()}
 	s := testSpan()
 	s.Resource = strings.Repeat("TOOLONG", 5000)
 	a.Truncate(s)
@@ -54,7 +54,7 @@ func TestTruncateLongResource(t *testing.T) {
 }
 
 func TestTruncateMetricsPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New()}
+	a := &Agent{conf: config.New()}
 	s := testSpan()
 	before := s.Metrics
 	a.Truncate(s)
@@ -62,7 +62,7 @@ func TestTruncateMetricsPassThru(t *testing.T) {
 }
 
 func TestTruncateMetricsKeyTooLong(t *testing.T) {
-	a := &Agent{ conf: config.New()}
+	a := &Agent{conf: config.New()}
 	s := testSpan()
 	key := strings.Repeat("TOOLONG", 1000)
 	s.Metrics[key] = 42
@@ -73,7 +73,7 @@ func TestTruncateMetricsKeyTooLong(t *testing.T) {
 }
 
 func TestTruncateMetaPassThru(t *testing.T) {
-	a := &Agent{ conf: config.New()}
+	a := &Agent{conf: config.New()}
 	s := testSpan()
 	before := s.Meta
 	a.Truncate(s)
@@ -81,7 +81,7 @@ func TestTruncateMetaPassThru(t *testing.T) {
 }
 
 func TestTruncateMetaKeyTooLong(t *testing.T) {
-	a := &Agent{ conf: config.New()}
+	a := &Agent{conf: config.New()}
 	s := testSpan()
 	key := strings.Repeat("TOOLONG", 1000)
 	s.Meta[key] = "foo"
@@ -92,7 +92,7 @@ func TestTruncateMetaKeyTooLong(t *testing.T) {
 }
 
 func TestTruncateMetaValueTooLong(t *testing.T) {
-	a := &Agent{ conf: config.New()}
+	a := &Agent{conf: config.New()}
 	s := testSpan()
 	val := strings.Repeat("TOOLONG", 25000)
 	s.Meta["foo"] = val
@@ -103,7 +103,7 @@ func TestTruncateMetaValueTooLong(t *testing.T) {
 }
 
 func TestTruncateResource(t *testing.T) {
-	a := &Agent{ conf: config.New()}
+	a := &Agent{conf: config.New()}
 	t.Run("over", func(t *testing.T) {
 		r, ok := a.TruncateResource("resource")
 		assert.True(t, ok)

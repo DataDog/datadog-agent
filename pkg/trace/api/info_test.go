@@ -289,7 +289,7 @@ func TestInfoHandler(t *testing.T) {
 				},
 			},
 		},
-		Features: map[string]struct{}{"feature_flag": struct{}{}},
+		Features: map[string]struct{}{"feature_flag": {}},
 	}
 
 	expectedKeys := map[string]interface{}{
