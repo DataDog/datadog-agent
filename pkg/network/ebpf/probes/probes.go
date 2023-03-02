@@ -113,10 +113,12 @@ const (
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
 
-	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
+	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeFuncName = "kprobe__tcp_retransmit_skb"
-	// TCPRetransmitPre470 traces the return value for the tcp_retransmit_skb() system call on kernel version < 4.7
+	// TCPRetransmitPre470 traces the params for the tcp_retransmit_skb() system call on kernel version < 4.7
 	TCPRetransmitPre470 ProbeFuncName = "kprobe__tcp_retransmit_skb_pre_4_7_0"
+	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
+	TCPRetransmitRet ProbeFuncName = "kretprobe__tcp_retransmit_skb"
 
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	InetCskAcceptReturn ProbeFuncName = "kretprobe__inet_csk_accept"
