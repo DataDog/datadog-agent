@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
@@ -473,59 +472,6 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	r.sbomsCacheLock.Lock()
 	defer r.sbomsCacheLock.Unlock()
 	r.sbomsCache.Add(sbomKey, sbom)
-}
-
-// AddContextTags Adds the tags resolved by the resolver to the provided SBOM
-func (r *Resolver) AddContextTags(s *SBOM) {
-	var tagName string
-	var found bool
-
-	if s.cgroup == nil {
-		return
-	}
-
-	dumpTagNames := make([]string, 0, len(s.cgroup.Tags))
-	for _, tag := range s.cgroup.Tags {
-		dumpTagNames = append(dumpTagNames, utils.GetTagName(tag))
-	}
-
-	for _, tag := range r.contextTags {
-		tagName = utils.GetTagName(tag)
-		found = false
-
-		for _, dumpTagName := range dumpTagNames {
-			if tagName == dumpTagName {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			s.cgroup.Tags = append(s.cgroup.Tags, tag)
-		}
-	}
-}
-
-// processWorkload resolves the tags of the provided SBOM and delete it when applicable
-func (r *Resolver) processWorkload(sbom *SBOM, now time.Time) error {
-	sbom.Lock()
-	defer sbom.Unlock()
-
-	// Start by resolving the tags: even if we end up deleting the SBOM, we need the tags to put the SBOM in cache
-	// if this is the first time we send the SBOM, resolve the context tags
-	r.AddContextTags(sbom)
-
-	// resolve the service if it is defined
-	if sbom.cgroup != nil {
-		sbom.Service = utils.GetTagValue("service", sbom.cgroup.Tags)
-	}
-
-	// check if we should delete the sbom
-	if sbom.deleted.Load() || (!sbom.deleted.Load() && len(sbom.cgroup.GetPIDs()) == 0) {
-		r.deleteSBOM(sbom)
-	}
-
-	return nil
 }
 
 func (r *Resolver) SendStats() error {
