@@ -29,7 +29,6 @@ const (
 // Returns either (the serverless ID assigned by the serverless daemon + the api key as read from
 // the environment) or an error.
 func RegisterExtension(runtimeURL string, registrationRoute string, timeout time.Duration) (ID, error) {
-
 	extesionRegistrationURL := BuildURL(registrationRoute)
 	payload := createRegistrationPayload()
 
@@ -42,7 +41,7 @@ func RegisterExtension(runtimeURL string, registrationRoute string, timeout time
 	if err != nil {
 		return "", fmt.Errorf("registerExtension: error while POST register route: %v", err)
 	}
-
+	response.Body.Close()
 	if !isAValidResponse(response) {
 		return "", fmt.Errorf("registerExtension: didn't receive an HTTP 200")
 	}
@@ -90,15 +89,8 @@ func NoOpProcessEvent(ctx context.Context, id ID) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			var err error
-			var request *http.Request
-			if request, err = http.NewRequest(http.MethodGet, NextUrl(), nil); err != nil {
+			if _, err := http.NewRequest(http.MethodGet, NextUrl(), nil); err != nil {
 				return fmt.Errorf("NoOp WaitForNextInvocation: can't create the GET request: %v", err)
-			}
-			request.Header.Set(HeaderExtID, id.String())
-			client := &http.Client{Timeout: 0}
-			if _, err = client.Do(request); err != nil {
-				return fmt.Errorf("NoOp WaitForNextInvocation: while GET next route: %v", err)
 			}
 			log.Error("The extension is running as a no-op extension")
 		}
