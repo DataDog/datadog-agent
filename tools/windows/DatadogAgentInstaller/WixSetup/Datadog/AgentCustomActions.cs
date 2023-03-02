@@ -190,12 +190,12 @@ namespace WixSetup.Datadog
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             ConfigureUser = new CustomAction<UserCustomActions>(
-                    new Id(nameof(ConfigureUser)),
-                    UserCustomActions.ConfigureUser,
-                    Return.check,
-                    When.After,
-                    new Step(DecompressPythonDistributions.Id),
-                    Condition.NOT(Conditions.Uninstalling)
+                new Id(nameof(ConfigureUser)),
+                UserCustomActions.ConfigureUser,
+                Return.check,
+                When.After,
+                new Step(DecompressPythonDistributions.Id),
+                Condition.NOT(Conditions.Uninstalling)
             )
             {
                 Execute = Execute.deferred
