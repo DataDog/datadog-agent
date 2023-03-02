@@ -202,12 +202,14 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
     // Check that we didn't see this tcp segment before so we won't process
     // the same traffic twice
     log_debug("kafka: Current tcp sequence: %lu\n", skb_info->tcp_seq);
-    __u32 *last_tcp_seq = bpf_map_lookup_elem(&kafka_last_tcp_seq_per_connection, &kafka->base.tup);
+    // Hack to make verifier happy on 4.14.
+    conn_tuple_t tup = kafka->base.tup;
+    __u32 *last_tcp_seq = bpf_map_lookup_elem(&kafka_last_tcp_seq_per_connection, &tup);
     if (last_tcp_seq != NULL && *last_tcp_seq == skb_info->tcp_seq) {
         log_debug("kafka: already seen this tcp sequence: %lu\n", *last_tcp_seq);
         return false;
     }
-    bpf_map_update_with_telemetry(kafka_last_tcp_seq_per_connection, &kafka->base.tup, &skb_info->tcp_seq, BPF_ANY);
+    bpf_map_update_with_telemetry(kafka_last_tcp_seq_per_connection, &tup, &skb_info->tcp_seq, BPF_ANY);
     return true;
 }
 
