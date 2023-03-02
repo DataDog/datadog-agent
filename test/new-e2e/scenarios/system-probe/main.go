@@ -38,7 +38,7 @@ func main() {
 	armInstanceTypePtr := flag.String("instance-type-arm", "", "arm64 instance type")
 	amiIDPtr := flag.String("ami-id", "", "ami for metal instance")
 	toProvisionPtr := flag.Bool("run-provision", true, "run provision step for metal instance")
-	shutdownPtr := flag.Int("shutdown-period", 0, "add cronjob to shutdown after specified hours")
+	shutdownPtr := flag.Int("shutdown-period", 0, "shutdown after specified interval in minutes")
 
 	flag.Parse()
 
