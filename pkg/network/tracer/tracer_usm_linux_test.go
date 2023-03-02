@@ -884,7 +884,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 }
 
-func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
+func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
@@ -1015,7 +1015,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 	tr := setupTracer(t, cfg)
 
-	gotls.RunGoHTTPSServer(t, serverPort)
+	gotls.RunServer(t, serverPort)
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
@@ -1034,7 +1034,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 		expectedOccurrences = 10
 	)
 
-	gotls.RunGoHTTPSServer(t, serverPort)
+	gotls.RunServer(t, serverPort)
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{

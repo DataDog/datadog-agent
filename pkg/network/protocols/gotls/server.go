@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func RunGoHTTPSServer(t *testing.T, serverPort string) bool {
+func RunServer(t *testing.T, serverPort string) bool {
 	env := []string{
 		"HTTPS_PORT=" + serverPort,
 	}
