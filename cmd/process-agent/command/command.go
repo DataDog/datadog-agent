@@ -15,12 +15,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const LoggerName config.LoggerName = "PROCESS"
+
+// DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
+var DaemonLogParams = logComponent.LogForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
 
 // GlobalParams contains the values of agent-global Cobra flags.
 //

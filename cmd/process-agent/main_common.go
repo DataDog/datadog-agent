@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
@@ -90,11 +91,6 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		}()
 	}
 
-	if err := command.BootstrapConfig(globalParams.ConfFilePath, false); err != nil {
-		_ = log.Critical(err)
-		cleanupAndExit(1)
-	}
-
 	initRuntimeSettings()
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -116,6 +112,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 
 	// Start workload metadata store before tagger (used for containerCollection)
 	var workloadmetaCollectors workloadmeta.CollectorCatalog
+	// TODO: move these configs to after ddconfig.Datadog is called
 	if ddconfig.Datadog.GetBool("process_config.remote_workloadmeta") {
 		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	} else {
@@ -247,6 +244,8 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams, hostInfo *ch
 				SysprobeConfigParams: sysprobeconfig.NewParams(
 					sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
 				),
+				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				LogParams:    command.DaemonLogParams,
 			},
 		),
 		// Populate dependencies required for initialization in this function.
