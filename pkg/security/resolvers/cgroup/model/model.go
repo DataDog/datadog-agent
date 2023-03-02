@@ -59,8 +59,8 @@ func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
 
 // GetPIDs returns the list of root pids for the current workload
 func (cgce *CacheEntry) GetPIDs() []uint32 {
-	cgce.Lock()
-	defer cgce.Unlock()
+	cgce.RLock()
+	defer cgce.RUnlock()
 
 	return cgce.PIDs.Keys()
 }
@@ -71,6 +71,14 @@ func (cgce *CacheEntry) RemovePID(pid uint32) {
 	defer cgce.Unlock()
 
 	cgce.PIDs.Remove(pid)
+}
+
+// AddPID adds a pid to the list of pids
+func (cgce *CacheEntry) AddPID(pid uint32) {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	cgce.PIDs.Add(pid, 0)
 }
 
 // SetTags sets the tags for the provided workload

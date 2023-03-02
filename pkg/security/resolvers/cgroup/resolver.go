@@ -119,7 +119,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 	entry, exists := cr.workloads.Get(process.ContainerID)
 	if exists {
-		entry.PIDs.Add(process.Pid, 0)
+		entry.AddPID(process.Pid)
 		return
 	}
 
