@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"math/rand"
 	"net"
@@ -851,41 +852,33 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 }
 
 func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
-	t.Skip("Skipping a flaky test")
 	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
+	cfg := config.New()
+	cfg.EnableRuntimeCompiler = true
+	cfg.EnableCORE = false
+	cfg.AllowRuntimeCompiledFallback = false
+
 	t.Run("new process (runtime compilation)", func(t *testing.T) {
-		cfg := config.New()
-		cfg.EnableRuntimeCompiler = true
-		cfg.EnableCORE = false
 		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
 	})
 
 	t.Run("already running process (runtime compilation)", func(t *testing.T) {
-		cfg := config.New()
-		cfg.EnableRuntimeCompiler = true
-		cfg.EnableCORE = false
 		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
 	})
 
+	cfg.EnableCORE = true
+	cfg.EnableRuntimeCompiler = false
 	// note: this is a bit of hack since CI runs an entire package either as
 	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
 	// and running the CO-RE tests as well
 	t.Run("new process (co-re)", func(t *testing.T) {
-		cfg := config.New()
-		cfg.EnableCORE = true
-		cfg.EnableRuntimeCompiler = false
-		cfg.AllowRuntimeCompiledFallback = false
 		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
 	})
 
 	t.Run("already running process (co-re)", func(t *testing.T) {
-		cfg := config.New()
-		cfg.EnableCORE = true
-		cfg.EnableRuntimeCompiler = false
-		cfg.AllowRuntimeCompiledFallback = false
 		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
 	})
 }
@@ -964,27 +957,36 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 		expectedOccurrences = 10
 	)
 
-	// problems with aggregation
-	client := &nethttp.Client{
-		Transport: &nethttp.Transport{
-			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
-			DisableKeepAlives: false,
-		},
-	}
-
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
-
 	tr := setupTracer(t, cfg)
+	// Giving the tracer time to scan running processes
+	time.Sleep(5 * time.Second)
+
+	// problems with aggregation
+	client := &nethttp.Client{
+		Transport: &nethttp.Transport{
+			ForceAttemptHTTP2: false,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				NextProtos:         []string{"http/1.1"},
+			},
+		},
+	}
 
 	gotls.RunServer(t, serverPort)
+	// Giving the tracer time to hook the new process
+	time.Sleep(5 * time.Second)
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
-		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
+		endpoint := fmt.Sprintf("https://localhost:%s/anything/%d/request-%d", serverPort, 200, i)
+		resp, err := client.Get(endpoint)
 		require.NoError(t, err)
+		buf, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		log.Infof("Sent %q and got %s", endpoint, string(buf))
 		resp.Body.Close()
 		reqs[resp.Request] = false
 	}
@@ -1003,8 +1005,11 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{
-			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
-			DisableKeepAlives: false,
+			ForceAttemptHTTP2: false,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				NextProtos:         []string{"http/1.1"},
+			},
 		},
 	}
 
@@ -1012,14 +1017,18 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	tr := setupTracer(t, cfg)
-
+	// Giving the tracer time to hook the new process
+	time.Sleep(5 * time.Second)
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
-		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
+		endpoint := fmt.Sprintf("https://localhost:%s/anything/%d/request-%d", serverPort, 200, i)
+		resp, err := client.Get(endpoint)
 		require.NoError(t, err)
+		buf, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		log.Infof("Sent %q and got %s", endpoint, string(buf))
 		resp.Body.Close()
 		reqs[resp.Request] = false
 	}

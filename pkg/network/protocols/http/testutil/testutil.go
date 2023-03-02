@@ -91,22 +91,16 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 	return func() { srv.Shutdown(context.Background()) }
 }
 
-var pathParser1 = regexp.MustCompile(`/(\d{3})/.+`)
-var pathParser2 = regexp.MustCompile(`/status/(\d{3})$`)
+var pathParser = regexp.MustCompile(`/(\d{3})/.+`)
 
 // StatusFromPath returns the status code present in the first segment of the request path
 func StatusFromPath(path string) uint16 {
-	matches := pathParser1.FindStringSubmatch(path)
+	matches := pathParser.FindStringSubmatch(path)
 	if len(matches) == 2 {
 		status, _ := strconv.Atoi(matches[1])
 		return uint16(status)
 	}
 
-	matches = pathParser2.FindStringSubmatch(path)
-	if len(matches) == 2 {
-		status, _ := strconv.Atoi(matches[1])
-		return uint16(status)
-	}
 	return 0
 }
 
