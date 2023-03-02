@@ -99,7 +99,7 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	panGraphID := utils.NewGraphID(utils.NewNodeIDFromPtr(p))
 	pan := utils.Node{
 		ID:    panGraphID,
-		Label: fmt.Sprintf("%s %s", p.Process.FileEvent.PathnameStr, args),
+		Label: p.getNodeLabel(args),
 		Size:  60,
 		Color: processColor,
 		Shape: processShape,

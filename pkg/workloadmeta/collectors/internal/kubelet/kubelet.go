@@ -281,6 +281,10 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	// done by the kubelet.
 
 	for _, e := range envSpec {
+		if !containers.EnvVarFilterFromConfig().IsIncluded(e.Name) {
+			continue
+		}
+
 		runtimeVal := e.Value
 		if runtimeVal != "" {
 			runtimeVal = expansion.Expand(runtimeVal, mappingFunc)

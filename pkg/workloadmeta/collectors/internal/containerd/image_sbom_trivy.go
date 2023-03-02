@@ -39,7 +39,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	var err error
 	enabledAnalyzers := config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
-	trivyConfiguration := trivy.DefaultCollectorConfig(enabledAnalyzers)
+	trivyConfiguration := trivy.DefaultCollectorConfig(enabledAnalyzers, "")
 	trivyConfiguration.ClearCacheOnClose = config.Datadog.GetBool("container_image_collection.sbom.clear_cache_on_exit")
 	trivyConfiguration.ContainerdAccessor = func() (cutil.ContainerdItf, error) {
 		return c.containerdClient, nil
@@ -130,7 +130,12 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, image *workloadmeta
 	}
 
 	tStartScan := time.Now()
-	cycloneDXBOM, err := scanFunc(ctx, image, containerdImage)
+	report, err := scanFunc(ctx, image, containerdImage)
+	if err != nil {
+		return err
+	}
+
+	cycloneDXBOM, err := report.ToCycloneDX()
 	if err != nil {
 		return err
 	}

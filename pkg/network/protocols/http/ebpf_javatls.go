@@ -68,7 +68,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error
 
 	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
-		log.Warnf("java tls is not enabled as EnableJavaTLSSupport: %v; EnableHTTPSMonitoring: %v; HTTPSSupported(): %v", c.EnableJavaTLSSupport, c.EnableHTTPSMonitoring, HTTPSSupported(c))
+		log.Info("java tls is not enabled")
 		return nil
 	}
 
@@ -145,9 +145,9 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
-// isAttachmentAllowed will return true if the pid can be attach
+// isAttachmentAllowed will return true if the pid can be attached
 // The filter is based on the process command line matching javaAgentAllowRegex and javaAgentBlockRegex regex
-// javaAgentAllowRegex has an higher priority
+// javaAgentAllowRegex has a higher priority
 //
 // # In case of only one regex (allow or block) is set, the regex will be evaluated as exclusive filter
 // /                 match  | not match
@@ -164,12 +164,12 @@ func isAttachmentAllowed(pid uint32) bool {
 	procCmdline := fmt.Sprintf("%s/%d/cmdline", util.HostProc(), pid)
 	cmd, err := os.ReadFile(procCmdline)
 	if err != nil {
-		log.Debugf("injectionFilter can't open comandline %s : %s", procCmdline, err)
+		log.Debugf("injection filter can't open commandline %q : %s", procCmdline, err)
 		return false
 	}
 	fullCmdline := strings.ReplaceAll(string(cmd), "\000", " ") // /proc/pid/cmdline format : arguments are separated by '\0'
 
-	// Allow have an higher priority
+	// Allow to have a higher priority
 	if allowIsSet && javaAgentAllowRegex.MatchString(fullCmdline) {
 		return true
 	}

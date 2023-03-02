@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Added `kubernetes_state.hpa.status_target_metric` and `kubernetes_state.deployment.replicas_ready` metrics part of the `kubernetes_state_core` check.

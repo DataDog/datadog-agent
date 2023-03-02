@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
@@ -23,6 +25,17 @@ import (
 // OpenFilesLimitWarningType is the key of the message generated when too many
 // files are tailed
 const openFilesLimitWarningType = "open_files_limit_warning"
+
+// rxContainerID is used in the shouldIgnore func to do a best-effort validation
+// that the file currently scanned for a source is attached to the proper container.
+// If the container ID we parse from the filename isn't matching this regexp, we *will*
+// tail the file because we prefer a false-negative than a false-positive (best-effort).
+var rxContainerID = regexp.MustCompile("^[a-fA-F0-9]{64}$")
+
+// ContainersLogsDir is the directory in which we should find containers logsfile
+// with the container ID in their filename.
+// Public to be able to change it while running unit tests.
+var ContainersLogsDir = "/var/log/containers"
 
 // WildcardSelectionStrategy is used to specify if wildcard matches should be prioritized
 // based on their filename or the modification time of each file
@@ -112,10 +125,13 @@ func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
 	w.counts[src] = matchCnt
 }
 
-func (p *FileProvider) addFilesToTailList(inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter) []*tailer.File {
+func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter) []*tailer.File {
 	// Add each file one by one up to the limit
 	for j := 0; j < len(inputFiles) && len(filesToTail) < p.filesLimit; j++ {
 		file := inputFiles[j]
+		if shouldIgnore(validatePodContainerID, file) {
+			continue
+		}
 		filesToTail = append(filesToTail, file)
 		src := file.Source.UnderlyingSource()
 		if config.ContainsWildcard(src.Config.Path) {
@@ -140,7 +156,7 @@ func (p *FileProvider) addFilesToTailList(inputFiles, filesToTail []*tailer.File
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // Files are collected according to the fileProvider's wildcardOrder and selectionMode
-func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.File {
+func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*sources.LogSource) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -165,7 +181,7 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(files, filesToTail, &wildcardFileCounter)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
 			}
 		}
 
@@ -181,7 +197,7 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 		}
 
 		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(wildcardFiles, filesToTail, &wildcardFileCounter)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter)
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
@@ -198,7 +214,7 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 				continue
 			}
 
-			filesToTail = p.addFilesToTailList(files, filesToTail, &wildcardFileCounter)
+			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
 		}
 	} else {
 		log.Errorf("Invalid file selection mode '%v', no files selected.", p.selectionMode)
@@ -324,4 +340,86 @@ func (p *FileProvider) applyOrdering(files []*tailer.File) {
 	} else if p.wildcardOrder == wildcardReverseLexicographical {
 		applyReverseLexicographicalOrdering(files)
 	}
+}
+
+// shouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
+// to validate that we will be reading a file for the correct container.
+//
+// We have to make sure that the file we just detected is tagged with the correct
+// container ID if the source is a container source and `logs_config.validate_pod_container_id`
+// is enabled`. The way k8s is storing files in /var/log/pods doesn't let us do that properly
+// (the filename doesn't contain the container ID). However, the symlinks present in
+// /var/log/containers are pointing to /var/log/pods files does, meaning that we can use them
+// to validate that the file we have found is concerning us. That's what the function
+// shouldIgnore is trying to do when the directory exists and is readable.
+// See these links for more info:
+//   - https://github.com/kubernetes/kubernetes/issues/58638
+//   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
+func shouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
+	// this method needs a source config to detect whether we should ignore that file or not
+	if file == nil || file.Source == nil || file.Source.Config() == nil {
+		return false
+	}
+
+	if !validatePodContainerID {
+		return false
+	}
+
+	if file.Source.GetSourceType() != sources.KubernetesSourceType && file.Source.GetSourceType() != sources.DockerSourceType {
+		return false
+	}
+
+	infos := make(map[string]string)
+	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
+		// we only wants to follow symlinks
+		if info == nil || info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
+			// not a symlink, we are not interested in this file
+			return nil
+		}
+
+		// resolve the symlink
+		podLogFilename, err2 := os.Readlink(containerLogFilename)
+		if err2 != nil {
+			log.Debug("Error while resolving symlink of", containerLogFilename, ":", err)
+			return nil
+		}
+
+		infos[podLogFilename] = containerLogFilename
+		return nil
+	})
+
+	// this is not an error if we are not currently looking for container logs files,
+	// so not problem and just return false.
+	// Still, we write a debug message to be able to troubleshoot that
+	// in cases we're legitimately looking for containers logs.
+	if err != nil {
+		log.Debug("Can't look for symlinks in /var/log/containers:", err)
+		return false
+	}
+
+	// container id extracted from the file found in /var/log/containers
+	base := filepath.Base(infos[file.Path]) // only the file
+	ext := filepath.Ext(base)               // file extension
+	parts := strings.Split(base, "-")       // get only the container ID part from the file
+	var containerIDFromFilename string
+	if len(parts) > 1 {
+		containerIDFromFilename = strings.TrimSuffix(parts[len(parts)-1], ext)
+	}
+
+	// basic validation of the ID that has been parsed, if it doesn't look like
+	// an ID we don't want to compare another ID to it
+	if containerIDFromFilename == "" || !rxContainerID.Match([]byte(containerIDFromFilename)) {
+		return false
+	}
+
+	if file.Source.Config().Identifier != "" && containerIDFromFilename != "" {
+		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Config().Identifier)) {
+			log.Debugf("We were about to tail a file attached to the wrong container (%s != %s), probably due to short-lived containers.",
+				containerIDFromFilename, file.Source.Config().Identifier)
+			// ignore this file, it is not concerning the container stored in file.Source
+			return true
+		}
+	}
+
+	return false
 }

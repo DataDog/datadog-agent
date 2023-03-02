@@ -298,6 +298,14 @@ CWS logs have the following JSON schema:
                     "type": "string",
                     "format": "date-time",
                     "description": "File change time"
+                },
+                "package_name": {
+                    "type": "string",
+                    "description": "System package name"
+                },
+                "package_version": {
+                    "type": "string",
+                    "description": "System package version"
                 }
             },
             "additionalProperties": false,
@@ -387,6 +395,14 @@ CWS logs have the following JSON schema:
                     "type": "string",
                     "format": "date-time",
                     "description": "File change time"
+                },
+                "package_name": {
+                    "type": "string",
+                    "description": "System package name"
+                },
+                "package_version": {
+                    "type": "string",
+                    "description": "System package version"
                 },
                 "destination": {
                     "$ref": "#/$defs/File",
@@ -1639,6 +1655,14 @@ CWS logs have the following JSON schema:
             "type": "string",
             "format": "date-time",
             "description": "File change time"
+        },
+        "package_name": {
+            "type": "string",
+            "description": "System package name"
+        },
+        "package_version": {
+            "type": "string",
+            "description": "System package version"
         }
     },
     "additionalProperties": false,
@@ -1672,6 +1696,8 @@ CWS logs have the following JSON schema:
 | `access_time` | File access time |
 | `modification_time` | File modified time |
 | `change_time` | File change time |
+| `package_name` | System package name |
+| `package_version` | System package version |
 
 
 ## `FileEvent`
@@ -1758,6 +1784,14 @@ CWS logs have the following JSON schema:
             "format": "date-time",
             "description": "File change time"
         },
+        "package_name": {
+            "type": "string",
+            "description": "System package name"
+        },
+        "package_version": {
+            "type": "string",
+            "description": "System package version"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -1810,6 +1844,8 @@ CWS logs have the following JSON schema:
 | `access_time` | File access time |
 | `modification_time` | File modified time |
 | `change_time` | File change time |
+| `package_name` | System package name |
+| `package_version` | System package version |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `group_id` | Group ID |

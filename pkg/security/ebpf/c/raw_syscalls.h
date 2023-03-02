@@ -75,6 +75,18 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
 
+    // check if we are monitoring the syscalls of the current process
+    u64 now = bpf_ktime_get_ns();
+    struct syscall_monitor_event_t event = {};
+    struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
+    fill_container_context(proc_cache_entry, &event.container);
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, TASK_COMM_LEN);
+    if (!should_trace_new_process(args, now, pid, event.container.container_id, comm)) {
+        // we're not tracing this process, ignore
+        return 0;
+    }
+
     struct syscall_monitor_entry_t *entry = bpf_map_lookup_elem(&syscall_monitor, &pid);
     if (entry == NULL) {
         bpf_map_update_elem(&syscall_monitor, &pid, &zero, BPF_NOEXIST);
@@ -97,7 +109,6 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     }
 
     // check if an event should be sent
-    u64 now = bpf_ktime_get_ns();
     u8 should_send = 0;
     struct syscall_table_key_t key = {
         .id = args->id,
@@ -125,12 +136,8 @@ shoud_send_event:
     if (should_send) {
 
         // send an event now
-        struct syscall_monitor_event_t event = {
-            .syscalls = *entry,
-            .event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE, // syscall events are used only by activity dumps
-        };
-        struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
-        fill_container_context(proc_cache_entry, &event.container);
+        event.syscalls = *entry;
+        event.event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE; // syscall events are used only by activity dumps
 
         // regardless if we successfully send the event, update the "last_sent" field to avoid spamming the perf map
         entry->last_sent = now;

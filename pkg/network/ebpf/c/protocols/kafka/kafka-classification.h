@@ -1,5 +1,5 @@
-#ifndef __KAFKA_HELPERS_H
-#define __KAFKA_HELPERS_H
+#ifndef __KAFKA_CLASSIFICATION_H
+#define __KAFKA_CLASSIFICATION_H
 
 #include "protocols/helpers/big_endian.h"
 #include "protocols/kafka/defs.h"

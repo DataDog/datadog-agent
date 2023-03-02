@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -188,59 +189,12 @@ func (fh *FieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *m
 
 // ResolveProcessArgsFlags resolves the arguments flags of the event
 func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
-	for _, arg := range fh.ResolveProcessArgv(ev, process) {
-		if len(arg) > 1 && arg[0] == '-' {
-			isFlag := true
-			name := arg[1:]
-			if len(name) >= 1 && name[0] == '-' {
-				name = name[1:]
-				isFlag = false
-			}
-
-			isOption := false
-			for _, r := range name {
-				isFlag = isFlag && model.IsAlphaNumeric(r)
-				isOption = isOption || r == '='
-			}
-
-			if len(name) > 0 {
-				if isFlag {
-					for _, r := range name {
-						flags = append(flags, string(r))
-					}
-				}
-				if !isOption && len(name) > 1 {
-					flags = append(flags, name)
-				}
-			}
-		}
-	}
-	return
+	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveProcessArgsOptions resolves the arguments options of the event
 func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
-	args := fh.ResolveProcessArgv(ev, process)
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if len(arg) > 1 && arg[0] == '-' {
-			name := arg[1:]
-			if len(name) >= 1 && name[0] == '-' {
-				name = name[1:]
-			}
-			if len(name) > 0 && model.IsAlphaNumeric(rune(name[0])) {
-				if index := strings.IndexRune(name, '='); index == -1 {
-					if i < len(args)-1 && (len(args[i+1]) == 0 || args[i+1][0] != '-') {
-						options = append(options, name+"="+args[i+1])
-						i++
-					}
-				} else {
-					options = append(options, name)
-				}
-			}
-		}
-	}
-	return
+	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveProcessEnvsTruncated returns whether the envs are truncated
@@ -447,4 +401,36 @@ func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
 func (fh *FieldHandlers) ResolveAsync(ev *model.Event) bool {
 	ev.Async = ev.Flags&model.EventFlagsAsync > 0
 	return ev.Async
+}
+
+// ResolvePackageName resolves the name of the package providing this file
+func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgName == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgName = pkg.Name
+			f.PkgVersion = pkg.Version
+		}
+	}
+	return f.PkgName
+}
+
+// ResolvePackageVersion resolves the version of the package providing this file
+func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgVersion == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgName = pkg.Name
+			f.PkgVersion = pkg.Version
+		}
+	}
+	return f.PkgVersion
 }

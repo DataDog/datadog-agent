@@ -264,6 +264,11 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 	return result
 }
 
+// ListFields returns all the fields accessed by all rules of this rule set
+func (rs *RuleSet) ListFields() []string {
+	return rs.fields
+}
+
 // GetRuleEventType return the rule EventType. Currently rules support only one eventType
 func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	eventTypes, err := rule.GetEventTypes()
