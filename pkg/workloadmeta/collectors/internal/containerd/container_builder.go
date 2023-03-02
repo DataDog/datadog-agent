@@ -17,6 +17,7 @@ import (
 	"github.com/containerd/containerd/errdefs"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -91,7 +92,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			return workloadmeta.Container{}, fmt.Errorf("retrieved empty spec for container id: %s", info.ID)
 		}
 
-		envs, err := cutil.EnvVarsFromSpec(spec)
+		envs, err := cutil.EnvVarsFromSpec(spec, containers.EnvVarFilterFromConfig().IsIncluded)
 		if err != nil {
 			return workloadmeta.Container{}, err
 		}

@@ -90,6 +90,7 @@ func TestEnvVars(t *testing.T) {
 	tests := []struct {
 		name           string
 		specEnvs       []string
+		filterFunc     func(string) bool
 		expectedResult map[string]string
 		expectsErr     bool
 	}{
@@ -97,6 +98,14 @@ func TestEnvVars(t *testing.T) {
 			name:           "valid envs",
 			specEnvs:       []string{"ENV1=val1", "ENV2=val2"},
 			expectedResult: map[string]string{"ENV1": "val1", "ENV2": "val2"},
+		},
+		{
+			name:     "valid envs",
+			specEnvs: []string{"ENV1=val1", "ENV2=val2"},
+			filterFunc: func(s string) bool {
+				return s == "ENV1"
+			},
+			expectedResult: map[string]string{"ENV1": "val1"},
 		},
 		{
 			name:       "wrong format",
@@ -113,7 +122,7 @@ func TestEnvVars(t *testing.T) {
 				},
 			}
 
-			envVars, err := EnvVarsFromSpec(spec)
+			envVars, err := EnvVarsFromSpec(spec, test.filterFunc)
 
 			if test.expectsErr {
 				require.Error(t, err)

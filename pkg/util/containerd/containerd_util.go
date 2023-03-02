@@ -209,7 +209,7 @@ func (c *ContainerdUtil) Containers(namespace string) ([]containerd.Container, e
 }
 
 // EnvVarsFromSpec returns the env variables of a containerd container from its Spec
-func EnvVarsFromSpec(spec *oci.Spec) (map[string]string, error) {
+func EnvVarsFromSpec(spec *oci.Spec, filter func(string) bool) (map[string]string, error) {
 	envs := make(map[string]string)
 	if spec == nil || spec.Process == nil {
 		return envs, nil
@@ -222,7 +222,9 @@ func EnvVarsFromSpec(spec *oci.Spec) (map[string]string, error) {
 			return nil, errors.New("unexpected environment variable format")
 		}
 
-		envs[envSplit[0]] = envSplit[1]
+		if filter == nil || filter(envSplit[0]) {
+			envs[envSplit[0]] = envSplit[1]
+		}
 	}
 
 	return envs, nil
@@ -357,10 +359,9 @@ func (c *ContainerdUtil) Status(namespace string, ctn containerd.Container) (con
 }
 
 // IsSandbox returns whether a container is a sandbox (a.k.a pause container).
-// It checks the io.cri-containerd.kind label and the io.kubernetes.cri.container-type annotation.
+// It checks the io.cri-containerd.kind label
 // Ref:
 // - https://github.com/containerd/cri/blob/release/1.4/pkg/server/helpers.go#L74
-// - https://github.com/containerd/cri/blob/release/1.4/pkg/annotations/annotations.go#L30
 func (c *ContainerdUtil) IsSandbox(namespace string, ctn containerd.Container) (bool, error) {
 	labels, err := c.Labels(namespace, ctn)
 	if err != nil {
