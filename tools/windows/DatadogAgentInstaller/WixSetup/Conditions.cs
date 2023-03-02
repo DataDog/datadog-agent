@@ -6,7 +6,7 @@ namespace WixSetup
     {
         public static readonly Condition LicenseAccepted = Condition.Create("LicenseAccepted = \"1\"");
 
-        public static readonly Condition DatadogYamlExists = Condition.Create("DATADOGYAMLEXISTS");
+        public static readonly Condition DatadogYamlExists = Condition.Create("DATADOGYAMLEXISTS=\"yes\"");
 
         // ReSharper disable once InconsistentNaming
         public static readonly Condition NOT_DatadogYamlExists = Condition.NOT(DatadogYamlExists);

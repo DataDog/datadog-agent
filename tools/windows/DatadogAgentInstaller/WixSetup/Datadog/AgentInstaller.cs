@@ -208,14 +208,6 @@ namespace WixSetup.Datadog
                 document
                     .Select("Wix/Product/InstallExecuteSequence")
                     .AddElement("DeleteServices", value: "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
-                document
-                    .Select("Wix/Product")
-                    .AddElement("Property",
-                        "Id=DATADOGYAMLEXISTS")
-                    .AddElement("DirectorySearch",
-                        "Id=DatadogYamlSearchDirId; Path=[APPLICATIONDATADIRECTORY_BEFORE_APPSEARCH]; Depth=0; AssignToProperty=yes")
-                    .AddElement("FileSearch",
-                        "Id=DatadogYamlSearchFileId; Name=datadog.yaml");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);

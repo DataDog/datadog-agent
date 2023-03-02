@@ -32,8 +32,12 @@ namespace Datadog.CustomActions
             if (!File.Exists(configFilePath))
             {
                 session.Log($"No user config found in {configFilePath}, continuing.");
+                session["DATADOGYAMLEXISTS"] = "no";
                 return ActionResult.Success;
             }
+
+            session["DATADOGYAMLEXISTS"] = "yes";
+
             try
             {
                 using var input = new StreamReader(configFilePath);
