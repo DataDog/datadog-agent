@@ -120,6 +120,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 
 		// Provide process agent bundle so fx knows where to find components.
 		process.Bundle,
+		core.Bundle,
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
