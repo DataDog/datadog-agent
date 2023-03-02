@@ -60,7 +60,7 @@ namespace WixSetup.Datadog
                     Domain = "[DDAGENTUSER_PROCESSED_DOMAIN]",
                     Password = "[DDAGENTUSER_PROCESSED_PASSWORD]",
                     PasswordNeverExpires = true,
-                    RemoveOnUninstall = true,
+                    RemoveOnUninstall = false,
                     FailIfExists = false,
                     UpdateIfExists = true,
                     CreateUser = true
