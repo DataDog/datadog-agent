@@ -42,12 +42,10 @@ type TestEnv struct {
 	StackOutput      auto.UpResult
 }
 
-//go:embed config/vmconfig.json
-var vmConfig string
-
 var (
 	CustomAMIWorkingDir  = filepath.Join("/", "home", "kernel-version-testing")
 	SSHKeyFile           = filepath.Join(".", "/", "aws-ssh-key")
+	vmConfig             = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
 	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
