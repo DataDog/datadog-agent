@@ -34,6 +34,7 @@ TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/co
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
 
 is_windows = sys.platform == "win32"
 
@@ -309,6 +310,14 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
+            ],
+            "pkg/network/protocols/http/http2_types.go": [
+                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
+            ],
+            "pkg/network/protocols/kafka/kafka_types.go": [
+                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
@@ -632,6 +641,9 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
+        if pkg.endswith("java"):
+            shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
+
         gotls_client_dir = os.path.join("testutil", "gotls_client")
         gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
         gotls_extra_path = os.path.join(pkg, gotls_client_dir)
@@ -659,18 +671,19 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
 
 
 @task
-def kitchen_test(ctx, target=None, provider="virtualbox"):
+def kitchen_test(ctx, target=None, provider=None):
     """
-    Run tests (locally) using chef kitchen against an array of different platforms.
+    Run tests (locally with vagrant) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
     * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
     """
 
-    vagrant_arch = ""
     if CURRENT_ARCH == "x64":
         vagrant_arch = "x86_64"
+        provider = provider or "virtualbox"
     elif CURRENT_ARCH == "arm64":
         vagrant_arch = "arm64"
+        provider = provider or "parallels"
     else:
         raise Exit(f"Unsupported vagrant arch for {CURRENT_ARCH}", code=1)
 
@@ -689,9 +702,18 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
         )
         raise Exit(code=1)
 
+    args = [
+        f"--platform {images[target]}",
+        f"--osversions {target}",
+        "--provider vagrant",
+        "--testfiles system-probe-test",
+        f"--platformfile {platform_file}",
+        f"--arch {vagrant_arch}",
+    ]
+
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test --platformfile {platform_file} --arch {vagrant_arch}",
+            f"inv kitchen.genconfig {' '.join(args)}",
             env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
@@ -699,14 +721,23 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
 
 @task
 def kitchen_genconfig(
-    ctx, ssh_key, platform, osversions, image_size=None, provider="azure", arch=None, azure_sub_id=None
+    ctx,
+    ssh_key,
+    platform,
+    osversions,
+    image_size=None,
+    provider="azure",
+    arch=None,
+    azure_sub_id=None,
+    ec2_device_name="/dev/sda1",
+    mount_path="/mnt/ci",
 ):
     if not arch:
         arch = CURRENT_ARCH
 
-    if arch == "x64":
+    if arch_mapping[arch] == "x64":
         arch = "x86_64"
-    elif arch == "arm64":
+    elif arch_mapping[arch] == "arm64":
         arch = "arm64"
     else:
         raise Exit("unsupported arch specified")
@@ -714,21 +745,36 @@ def kitchen_genconfig(
     if not image_size and provider == "azure":
         image_size = "Standard_D2_v2"
 
-    if not image_size:
-        raise Exit("Image size must be specified")
-
     if azure_sub_id is None and provider == "azure":
         raise Exit("azure subscription id must be specified with --azure-sub-id")
 
     env = {
-        "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
+        "KITCHEN_CI_MOUNT_PATH": mount_path,
+        "KITCHEN_CI_ROOT_PATH": "/tmp/ci",
     }
-    if azure_sub_id:
-        env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+    if provider == "azure":
+        env["KITCHEN_RSA_SSH_KEY_PATH"] = ssh_key
+        if azure_sub_id:
+            env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+    elif provider == "ec2":
+        env["KITCHEN_EC2_SSH_KEY_PATH"] = ssh_key
+        env["KITCHEN_EC2_DEVICE_NAME"] = ec2_device_name
 
+    args = [
+        f"--platform={platform}",
+        f"--osversions={osversions}",
+        f"--provider={provider}",
+        f"--arch={arch}",
+        f"--imagesize={image_size}",
+        "--testfiles=system-probe-test",
+        "--platformfile=platforms.json",
+    ]
+
+    env["KITCHEN_ARCH"] = arch
+    env["KITCHEN_PLATFORM"] = platform
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
+            f"inv -e kitchen.genconfig {' '.join(args)}",
             env=env,
         )
 
@@ -1085,6 +1131,10 @@ def build_object_files(
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
+        java_dir = os.path.join("pkg", "network", "java")
+        ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
+        ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
+
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
             ctx.run(
@@ -1364,7 +1414,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:8u151-jre"]:
+    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre"]:
         images.add(image)
 
     for image in images:

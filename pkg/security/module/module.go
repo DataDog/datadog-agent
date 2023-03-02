@@ -167,7 +167,13 @@ func (m *Module) Start() error {
 	}
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
-		_ = m.RunSelfTest(true)
+		if triggerred, err := m.RunSelfTest(true); err != nil {
+			err = fmt.Errorf("failed to run self test: %w", err)
+			if !triggerred {
+				return err
+			}
+			seclog.Warnf("%s", err)
+		}
 	}
 
 	var policyProviders []rules.PolicyProvider
@@ -220,7 +226,7 @@ func (m *Module) Start() error {
 	}
 
 	if err := m.LoadPolicies(policyProviders, true); err != nil {
-		seclog.Errorf("failed to load policies: %s", err)
+		return fmt.Errorf("failed to load policies: %s", err)
 	}
 
 	m.wg.Add(1)
@@ -453,6 +459,13 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
+	if ok, val := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
+		if ev.ContainerContext.ID != "" && m.config.ActivityDumpTagRulesEnabled {
+			ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
+		}
+		return // if the triggered rule is only meant to tag secdumps, dont send it
+	}
+
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := ev.FieldHandlers.GetProcessServiceTag(ev)
@@ -666,7 +679,7 @@ func NewModule(cfg *sconfig.Config, opts Opts) (module.Module, error) {
 }
 
 // RunSelfTest runs the self tests
-func (m *Module) RunSelfTest(sendLoadedReport bool) error {
+func (m *Module) RunSelfTest(sendLoadedReport bool) (bool, error) {
 	prevProviders, providers := m.policyProviders, m.policyProviders
 	if len(prevProviders) > 0 {
 		defer func() {
@@ -680,12 +693,12 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 	providers = append(providers, m.selfTester)
 
 	if err := m.LoadPolicies(providers, false); err != nil {
-		return err
+		return false, err
 	}
 
 	success, fails, err := m.selfTester.RunSelfTest()
 	if err != nil {
-		return err
+		return true, err
 	}
 
 	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
@@ -695,7 +708,7 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 		ReportSelfTest(m.eventSender, m.statsdClient, success, fails)
 	}
 
-	return nil
+	return true, nil
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {

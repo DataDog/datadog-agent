@@ -8,16 +8,8 @@
   let urlParam = location.search.substring(1).split("&");
   const authTokenPrefix = "authToken=";
   const csrfPrefix = "csrf=";
-  let authToken = "";
-  let csrf = "";
-  for (let i = 0; i < urlParam.length; i++) {
-    if (urlParam[i].includes(authTokenPrefix)) {
-      authToken = urlParam[i].substring(authTokenPrefix.length);
-    }
-    if (urlParam[i].includes("csrf=")) {
-      csrf = urlParam[i].substring(csrfPrefix.length);
-    }
-  }
+  const authToken = urlParam[0].substring(authTokenPrefix.length);
+  const csrf = urlParam[1].substring(csrfPrefix.length);
   
   if (csrf == "{{ .csrf }}") {
     // Save auth token as a cookie

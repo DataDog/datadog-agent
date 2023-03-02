@@ -5,7 +5,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-3.3.1"
+    chart: "datadog-3.11.0"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -164,6 +164,22 @@ rules:
       - get
       - watch
   - apiGroups:
+      - autoscaling.k8s.io
+    resources:
+      - verticalpodautoscalers
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "apiextensions.k8s.io"
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
       - admissionregistration.k8s.io
     resources:
       - mutatingwebhookconfigurations
@@ -213,7 +229,7 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-3.3.1"
+    chart: "datadog-3.11.0"
     release: "datadog"
     heritage: "Helm"
   name: datadog-cluster-agent-system-auth-delegator

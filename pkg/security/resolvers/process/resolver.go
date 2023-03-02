@@ -9,7 +9,6 @@
 package process
 
 import (
-	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -52,7 +51,6 @@ const (
 
 const (
 	procResolveMaxDepth = 16
-	maxArgsEnvResidents = 1024
 	maxParallelArgsEnvs = 512 // == number of parallel starting processes
 )
 
@@ -107,79 +105,11 @@ type Resolver struct {
 	brokenLineage             *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
-	argsEnvsCache *simplelru.LRU[uint32, *model.ArgsEnvsCacheEntry]
+	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
 
-	argsEnvsPool          *ArgsEnvsPool
 	processCacheEntryPool *ProcessCacheEntryPool
 
 	exitedQueue []uint32
-}
-
-// ArgsEnvsPool defines a pool for args/envs allocations
-type ArgsEnvsPool struct {
-	lock sync.Mutex
-	pool *sync.Pool
-
-	// entries that wont be release to the pool
-	maxResidents   int
-	totalResidents int
-	freeResidents  *list.List
-}
-
-// Get returns a cache entry
-func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	// first try from resident pool
-	if el := a.freeResidents.Front(); el != nil {
-		entry := el.Value.(*model.ArgsEnvsCacheEntry)
-		a.freeResidents.Remove(el)
-		return entry
-	}
-
-	return a.pool.Get().(*model.ArgsEnvsCacheEntry)
-}
-
-// GetFrom returns a new entry with value from the given entry
-func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
-	entry := a.Get()
-	entry.Init(event)
-	return entry
-}
-
-// Put returns a cache entry to the pool
-func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	if entry.Container != nil {
-		// from the residents list
-		a.freeResidents.MoveToBack(entry.Container)
-	} else if a.totalResidents < a.maxResidents {
-		// still some places so we can create a new node
-		entry.Container = &list.Element{Value: entry}
-		a.totalResidents++
-
-		a.freeResidents.MoveToBack(entry.Container)
-	} else {
-		a.pool.Put(entry)
-	}
-}
-
-// NewArgsEnvsPool returns a new ArgsEnvEntry pool
-func NewArgsEnvsPool(maxResident int) *ArgsEnvsPool {
-	ap := ArgsEnvsPool{
-		pool:          &sync.Pool{},
-		maxResidents:  maxResident,
-		freeResidents: list.New(),
-	}
-
-	ap.pool.New = func() interface{} {
-		return model.NewArgsEnvsCacheEntry(ap.Put)
-	}
-
-	return &ap
 }
 
 // ProcessCacheEntryPool defines a pool for process entry allocations
@@ -206,13 +136,6 @@ func NewProcessCacheEntryPool(p *Resolver) *ProcessCacheEntryPool {
 		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
 			if pce.Ancestor != nil {
 				pce.Ancestor.Release()
-			}
-
-			if pce.ArgsEntry != nil {
-				pce.ArgsEntry.Release()
-			}
-			if pce.EnvsEntry != nil {
-				pce.EnvsEntry.Release()
 			}
 
 			p.cacheSize.Dec()
@@ -353,13 +276,43 @@ func (p *Resolver) SendStats() error {
 	return nil
 }
 
+type argsEnvsCacheEntry struct {
+	values    []string
+	truncated bool
+}
+
+func parseStringArray(data []byte) ([]string, bool) {
+	truncated := false
+	values, err := model.UnmarshalStringArray(data)
+	if err != nil || len(data) == model.MaxArgEnvSize {
+		values[len(values)-1] += "..."
+		truncated = true
+	}
+	return values, truncated
+}
+
+func newArgsEnvsCacheEntry(event *model.ArgsEnvsEvent) *argsEnvsCacheEntry {
+	values, truncated := parseStringArray(event.ValuesRaw[:event.Size])
+	return &argsEnvsCacheEntry{
+		values:    values,
+		truncated: truncated,
+	}
+}
+
+func (e *argsEnvsCacheEntry) extend(event *model.ArgsEnvsEvent) {
+	values, truncated := parseStringArray(event.ValuesRaw[:event.Size])
+	if truncated {
+		e.truncated = true
+	}
+	e.values = append(e.values, values...)
+}
+
 // UpdateArgsEnvs updates arguments or environment variables of the given id
 func (p *Resolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
-	entry := p.argsEnvsPool.GetFrom(event)
 	if list, found := p.argsEnvsCache.Get(event.ID); found {
-		list.Append(entry)
+		list.extend(event)
 	} else {
-		p.argsEnvsCache.Add(event.ID, entry)
+		p.argsEnvsCache.Add(event.ID, newArgsEnvsCacheEntry(event))
 	}
 }
 
@@ -446,18 +399,12 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	// args and envs
 	entry.ArgsEntry = &model.ArgsEntry{}
 	if len(filledProc.Cmdline) > 0 {
-		entry.ArgsEntry.SetValues(filledProc.Cmdline)
+		entry.ArgsEntry.Values = filledProc.Cmdline
 	}
 
 	entry.EnvsEntry = &model.EnvsEntry{}
 	if envs, err := utils.EnvVars(proc.Pid); err == nil {
-		entry.EnvsEntry.SetValues(envs)
-	}
-
-	if parent := p.entryCache[entry.PPid]; parent != nil {
-		if parent.Equals(entry) {
-			parent.ShareArgsEnvs(entry)
-		}
+		entry.EnvsEntry.Values = envs
 	}
 
 	// Heuristic to detect likely interpreter event
@@ -478,7 +425,7 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	//print "Hello from Perl\n";
 	//
 	//EOF
-	if values, _ := entry.ArgsEntry.ToArray(); len(values) > 1 {
+	if values := entry.ArgsEntry.Values; len(values) > 1 {
 		firstArg := values[0]
 		lastArg := values[len(values)-1]
 		// Example result: comm value: pyscript.py | args: [/usr/bin/python3 ./pyscript.py]
@@ -897,14 +844,12 @@ func (p *Resolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 			p.argsTruncated.Inc()
 		}
 
-		p.argsSize.Add(int64(entry.TotalSize))
+		p.argsSize.Add(int64(len(entry.values)))
 
-		pce.ArgsEntry = model.NewArgsEntry(entry)
-
-		// attach to a process thus retain the head of the chain
-		// note: only the head of the list is retained and when released
-		// the whole list will be released
-		pce.ArgsEntry.Retain()
+		pce.ArgsEntry = &model.ArgsEntry{
+			Values:    entry.values,
+			Truncated: entry.truncated,
+		}
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
@@ -917,12 +862,12 @@ func (p *Resolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 		return nil, false
 	}
 
-	argv, truncated := pr.ArgsEntry.ToArray()
+	argv := pr.ArgsEntry.Values
 	if len(argv) > 0 {
 		argv = argv[1:]
 	}
 
-	return argv, pr.ArgsTruncated || truncated
+	return argv, pr.ArgsTruncated || pr.ArgsEntry.Truncated
 }
 
 // GetProcessArgv0 returns the first arg of the event
@@ -931,12 +876,12 @@ func (p *Resolver) GetProcessArgv0(pr *model.Process) (string, bool) {
 		return "", false
 	}
 
-	argv, truncated := pr.ArgsEntry.ToArray()
+	argv := pr.ArgsEntry.Values
 	if len(argv) > 0 {
-		return argv[0], pr.ArgsTruncated || truncated
+		return argv[0], pr.ArgsTruncated || pr.ArgsEntry.Truncated
 	}
 
-	return "", pr.ArgsTruncated || truncated
+	return "", pr.ArgsTruncated || pr.ArgsEntry.Truncated
 }
 
 // GetProcessScrubbedArgv returns the scrubbed args of the event as an array
@@ -965,14 +910,12 @@ func (p *Resolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 			p.envsTruncated.Inc()
 		}
 
-		p.envsSize.Add(int64(entry.TotalSize))
+		p.envsSize.Add(int64(len(entry.values)))
 
-		pce.EnvsEntry = model.NewEnvsEntry(entry)
-
-		// attach to a process thus retain the head of the chain
-		// note: only the head of the list is retained and when released
-		// the whole list will be released
-		pce.EnvsEntry.Retain()
+		pce.EnvsEntry = &model.EnvsEntry{
+			Values:    entry.values,
+			Truncated: entry.truncated,
+		}
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.EnvsID)
@@ -996,9 +939,7 @@ func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 		return nil, false
 	}
 
-	envp, truncated := pr.EnvsEntry.ToArray()
-
-	return envp, pr.EnvsTruncated || truncated
+	return pr.EnvsEntry.Values, pr.EnvsTruncated || pr.EnvsEntry.Truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
@@ -1309,7 +1250,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver *spath.Resolver, opts ResolverOpts) (*Resolver, error) {
-	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
+	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1323,7 +1264,6 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		opts:                      opts,
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
-		argsEnvsPool:              NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:                 map[string]*atomic.Int64{},
 		cacheSize:                 atomic.NewInt64(0),
 		missStats:                 atomic.NewInt64(0),

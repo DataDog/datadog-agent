@@ -21,7 +21,7 @@ type RequestSummary struct {
 	DNS         string
 	Path        string
 	Method      string
-	ByStatus    map[int]Stats
+	ByStatus    map[uint16]Stats
 	StaticTags  uint64
 	DynamicTags []string
 }
@@ -58,14 +58,10 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 			DNS:      getDNS(dns, serverAddr),
 			Path:     k.Path.Content,
 			Method:   k.Method.String(),
-			ByStatus: make(map[int]Stats),
+			ByStatus: make(map[uint16]Stats),
 		}
 
-		for status := 100; status <= 500; status += 100 {
-			if !v.HasStats(status) {
-				continue
-			}
-			stat := v.Stats(status)
+		for status, stat := range v.Data {
 			debug.StaticTags = stat.StaticTags
 			debug.DynamicTags = stat.DynamicTags
 
@@ -78,7 +74,6 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 
 		all = append(all, debug)
 	}
-
 	return all
 }
 

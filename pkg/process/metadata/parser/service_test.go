@@ -123,6 +123,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
+			mockConfig.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 
 			proc := procutil.Process{
 				Pid:     1,
@@ -132,7 +133,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 			se := NewServiceExtractor()
 			se.Extract(procsByPid)
-			assert.Equal(t, tt.expectedServiceTag, se.GetServiceContext(proc.Pid))
+			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
 	}
 }

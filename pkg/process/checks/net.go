@@ -13,6 +13,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -37,12 +38,16 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck() Check {
-	return &ConnectionsCheck{}
+func NewConnectionsCheck(syscfg *sysconfig.Config) *ConnectionsCheck {
+	return &ConnectionsCheck{
+		syscfg: syscfg,
+	}
 }
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
+	syscfg *sysconfig.Config
+
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
 	tracerClientID         string
@@ -99,8 +104,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
+	return npmModuleEnabled && c.syscfg.Enabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -339,7 +344,7 @@ func batchConnections(
 
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
-			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
@@ -448,14 +453,17 @@ func groupSize(total, maxBatchSize int) int32 {
 }
 
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
-func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string) []string {
-	tagCount := len(tagOffsets) + len(serviceCtx)
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtxs ...string) []string {
+	tagCount := len(tagOffsets) + len(serviceCtxs)
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
 		tagsStr = append(tagsStr, tags[t])
 	}
-	if serviceCtx != "" {
-		tagsStr = append(tagsStr, serviceCtx)
+
+	for _, serviceCtx := range serviceCtxs {
+		if serviceCtx != "" {
+			tagsStr = append(tagsStr, serviceCtx)
+		}
 	}
 
 	return tagsStr

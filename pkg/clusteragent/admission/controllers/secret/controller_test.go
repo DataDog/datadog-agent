@@ -34,28 +34,34 @@ var (
 			validityBound:       365 * 24 * time.Hour,
 		},
 	}
+
+	waitFor = 10 * time.Second
+	tick    = 10 * time.Millisecond
 )
 
 func TestCreateSecret(t *testing.T) {
-	f := newFixture(t)
-	c := f.run(t)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 
-	// Validate that a fresh Secret has been created
-	secret, err := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
-	if err != nil {
-		t.Fatalf("Failed to get the Secret: %v", err)
-	}
+	f := newFixture(t)
+	c := f.run(stopCh)
+
+	assert.Eventually(t, func() bool {
+		_, err := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
+		return err == nil && c.queue.Len() == 0
+	}, waitFor, tick, "Failed to get the secret")
+
+	secret, _ := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
 
 	if err := validate(secret); err != nil {
 		t.Fatalf("Invalid Secret: %v", err)
 	}
-
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
 }
 
 func TestRefreshNotRequired(t *testing.T) {
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
 	f := newFixture(t)
 
 	// Create a Secret with a valid certificate
@@ -67,28 +73,24 @@ func TestRefreshNotRequired(t *testing.T) {
 	oldSecret := buildSecret(data)
 	f.populateCache(oldSecret)
 
-	c := f.run(t)
+	c := f.run(stopCh)
 
-	// Validate that the Secret hasn't changed
-	newSecret, err := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
-	if err != nil {
-		t.Fatalf("Failed to get the Secret: %v", err)
-	}
+	assert.Eventually(t, func() bool {
+		newSecret, err := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
+		return err == nil && reflect.DeepEqual(oldSecret, newSecret) && c.queue.Len() == 0
+	}, waitFor, tick, "The secret has been modified")
 
-	if !reflect.DeepEqual(oldSecret, newSecret) {
-		t.Fatal("The Secret has been modified")
-	}
+	newSecret, _ := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
 
 	if err := validate(newSecret); err != nil {
 		t.Fatalf("Invalid Secret: %v", err)
 	}
-
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
 }
 
 func TestRefreshExpiration(t *testing.T) {
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
 	f := newFixture(t)
 
 	// Create a Secret with a certificate expiring soon
@@ -100,28 +102,24 @@ func TestRefreshExpiration(t *testing.T) {
 	oldSecret := buildSecret(data)
 	f.populateCache(oldSecret)
 
-	c := f.run(t)
+	c := f.run(stopCh)
 
-	// Validate that the Secret has been refreshed
-	newSecret, err := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
-	if err != nil {
-		t.Fatalf("Failed to get the Secret: %v", err)
-	}
+	assert.Eventually(t, func() bool {
+		newSecret, err := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
+		return err == nil && !reflect.DeepEqual(oldSecret, newSecret) && c.queue.Len() == 0
+	}, waitFor, tick, "The secret hasn't been modified")
 
-	if reflect.DeepEqual(oldSecret, newSecret) {
-		t.Fatalf("The Secret hasn't been modified")
-	}
+	newSecret, _ := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
 
 	if err := validate(newSecret); err != nil {
 		t.Fatalf("Invalid Secret: %v", err)
 	}
-
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
 }
 
 func TestRefreshDNSNames(t *testing.T) {
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
 	f := newFixture(t)
 
 	// Create a Secret with a dns name that doesn't match the config
@@ -133,24 +131,17 @@ func TestRefreshDNSNames(t *testing.T) {
 	oldSecret := buildSecret(data)
 	f.populateCache(oldSecret)
 
-	c := f.run(t)
+	c := f.run(stopCh)
 
-	// Validate that the Secret has been refreshed
-	newSecret, err := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
-	if err != nil {
-		t.Fatalf("Failed to get the Secret: %v", err)
-	}
+	assert.Eventually(t, func() bool {
+		newSecret, err := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
+		return err == nil && !reflect.DeepEqual(oldSecret, newSecret) && c.queue.Len() == 0
+	}, waitFor, tick, "The secret hasn't been modified")
 
-	if reflect.DeepEqual(oldSecret, newSecret) {
-		t.Fatalf("The Secret hasn't been modified")
-	}
+	newSecret, _ := c.secretsLister.Secrets(cfg.GetNs()).Get(cfg.GetName())
 
 	if err := validate(newSecret); err != nil {
 		t.Fatalf("Invalid Secret: %v", err)
-	}
-
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
 	}
 }
 
@@ -179,10 +170,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 }
 
-func (f *fixture) run(t *testing.T) *Controller {
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
+func (f *fixture) run(stopCh <-chan struct{}) *Controller {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
 	c := NewController(
 		f.client,
@@ -194,22 +182,6 @@ func (f *fixture) run(t *testing.T) *Controller {
 
 	factory.Start(stopCh)
 	go c.Run(stopCh)
-
-	// Wait for controller to start watching resources effectively and handling objects
-	// before returning it.
-	// Otherwise tests will start making assertions before the reconciliation is done.
-	lastChange := time.Now()
-	lastCount := 0
-	for {
-		time.Sleep(1 * time.Second)
-		count := len(f.client.Actions())
-		if count > lastCount {
-			lastChange = time.Now()
-			lastCount = count
-		} else if time.Since(lastChange) > 2*time.Second {
-			break
-		}
-	}
 
 	return c
 }

@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
@@ -170,9 +172,12 @@ func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Durat
 }
 
 func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	var stats cgroups.Stats
-	if err := cg.GetStats(&stats); err != nil {
-		return nil, fmt.Errorf("cgroup parsing failed, incomplete data for containerID: %s, err: %w", cg.Identifier(), err)
+	stats := &cgroups.Stats{}
+	allFailed, errs := cgroups.GetStats(cg, stats)
+	if allFailed {
+		return nil, fmt.Errorf("cgroup parsing failed, no data for containerID: %s, err: %w", cg.Identifier(), multierror.Append(nil, errs...))
+	} else if len(errs) > 0 {
+		log.Debugf("Incomplete data when getting cgroup stats for cgroup id: %s, errs: %v", cg.Identifier(), errs)
 	}
 
 	parentCPUStatRetriever := func(parentCPUStats *cgroups.CPUStats) error {
@@ -195,14 +200,16 @@ func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity
 		PID:       buildPIDStats(stats.PID),
 	}
 
-	if cs.PID == nil {
-		cs.PID = &provider.ContainerPIDStats{}
-	}
-
 	// Get PIDs
 	var err error
-	cs.PID.PIDs, err = cg.GetPIDs(cacheValidity)
-	if err != nil {
+	pids, err := cg.GetPIDs(cacheValidity)
+	if err == nil {
+		if cs.PID == nil {
+			cs.PID = &provider.ContainerPIDStats{}
+		}
+
+		cs.PID.PIDs = pids
+	} else {
 		log.Debugf("Unable to get PIDs for cgroup id: %s. Metrics will be missing", cg.Identifier())
 	}
 

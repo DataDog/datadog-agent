@@ -8,35 +8,35 @@ package processcheck
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
 
+var _ types.CheckComponent = (*check)(nil)
+
 type check struct {
+	processCheck *checks.ProcessCheck
 }
 
-func (c *check) IsEnabled() bool {
-	return true
+type result struct {
+	fx.Out
+
+	Check     types.ProvidesCheck
+	Component Component
 }
 
-func (c *check) Run() (*types.Payload, error) {
-	return &types.Payload{}, nil
-}
-
-func (c *check) Name() string {
-	return "process"
-}
-
-type dependencies struct {
-	fx.In
-
-	CoreConfig     config.Component
-	SysProbeConfig sysprobeconfig.Component
-}
-
-func newCheck(deps dependencies) types.ProvidesCheck {
-	return types.ProvidesCheck{
-		Check: &check{},
+func newCheck() result {
+	c := &check{
+		processCheck: checks.NewProcessCheck(),
 	}
+	return result{
+		Check: types.ProvidesCheck{
+			CheckComponent: c,
+		},
+		Component: c,
+	}
+}
+
+func (c *check) Object() checks.Check {
+	return c.processCheck
 }

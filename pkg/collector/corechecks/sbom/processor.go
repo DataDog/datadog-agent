@@ -24,10 +24,13 @@ var /* const */ (
 )
 
 type processor struct {
-	queue chan *model.SBOMEntity
+	queue             chan *model.SBOMEntity
+	workloadmetaStore workloadmeta.Store
+	imageRepoDigests  map[string]string              // Map where keys are image repo digest and values are image ID
+	imageUsers        map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 }
 
-func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(entities []*model.SBOMEntity) {
 			sender.SBOM([]sbom.SBOMPayload{
@@ -38,6 +41,9 @@ func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time
 				},
 			})
 		}),
+		workloadmetaStore: workloadmetaStore,
+		imageRepoDigests:  make(map[string]string),
+		imageUsers:        make(map[string]map[string]struct{}),
 	}
 }
 
@@ -47,7 +53,76 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
 	for _, event := range evBundle.Events {
-		p.processSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+		switch event.Entity.GetID().Kind {
+		case workloadmeta.KindContainerImageMetadata:
+			switch event.Type {
+			case workloadmeta.EventTypeSet:
+				p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+				p.processSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+			case workloadmeta.EventTypeUnset:
+				p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+				// Let the SBOM expire on back-end side
+			}
+		case workloadmeta.KindContainer:
+			switch event.Type {
+			case workloadmeta.EventTypeSet:
+				p.registerContainer(event.Entity.(*workloadmeta.Container))
+			case workloadmeta.EventTypeUnset:
+				p.unregisterContainer(event.Entity.(*workloadmeta.Container))
+			}
+		}
+	}
+}
+
+func (p *processor) registerImage(img *workloadmeta.ContainerImageMetadata) {
+	for _, repoDigest := range img.RepoDigests {
+		p.imageRepoDigests[repoDigest] = img.ID
+	}
+}
+
+func (p *processor) unregisterImage(img *workloadmeta.ContainerImageMetadata) {
+	for _, repoDigest := range img.RepoDigests {
+		delete(p.imageUsers, repoDigest)
+		if p.imageRepoDigests[repoDigest] == img.ID {
+			delete(p.imageRepoDigests, repoDigest)
+		}
+	}
+}
+
+func (p *processor) registerContainer(ctr *workloadmeta.Container) {
+	imgID := ctr.Image.ID
+	ctrID := ctr.ID
+
+	if !ctr.State.Running {
+		return
+	}
+
+	if _, found := p.imageUsers[imgID]; found {
+		p.imageUsers[imgID][ctrID] = struct{}{}
+	} else {
+		p.imageUsers[imgID] = map[string]struct{}{
+			ctrID: {},
+		}
+
+		if realImgID, found := p.imageRepoDigests[imgID]; found {
+			imgID = realImgID
+		}
+
+		if img, err := p.workloadmetaStore.GetImage(imgID); err != nil {
+			log.Infof("Couldn’t find image %s in workloadmeta whereas it’s used by container %s: %v", imgID, ctrID, err)
+		} else {
+			p.processSBOM(img)
+		}
+	}
+}
+
+func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
+	imgID := ctr.Image.ID
+	ctrID := ctr.ID
+
+	delete(p.imageUsers[imgID], ctrID)
+	if len(p.imageUsers[imgID]) == 0 {
+		delete(p.imageUsers, imgID)
 	}
 }
 
@@ -76,6 +151,14 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
 	}
 
+	inUse := false
+	for _, repoDigest := range img.RepoDigests {
+		if _, found := p.imageUsers[repoDigest]; found {
+			inUse = true
+			break
+		}
+	}
+
 	for repo := range repos {
 		id := repo + "@" + img.ID
 
@@ -91,7 +174,7 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 			Id:                 id,
 			GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
 			Tags:               tags,
-			InUse:              true, // TODO: compute this field
+			InUse:              inUse,
 			GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
 			Sbom: &sbom.SBOMEntity_Cyclonedx{
 				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),

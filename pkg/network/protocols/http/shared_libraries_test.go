@@ -235,7 +235,27 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,
 			},
+			"http2_batches": {
+				Type:       ebpf.Hash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
 			"http_in_flight": {
+				Type:       ebpf.LRUHash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
+			"kafka_batches": {
+				Type:       ebpf.Hash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
+			"kafka_last_tcp_seq_per_connection": {
+				Type:       ebpf.Hash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
+			"http2_in_flight": {
 				Type:       ebpf.LRUHash,
 				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,
@@ -269,12 +289,16 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 
 	exclude := []string{
 		"socket__http_filter",
+		"socket__http2_filter",
+		"socket__kafka_filter",
 		"socket__protocol_dispatcher",
+		"socket__protocol_dispatcher_kafka",
 		"kprobe__tcp_sendmsg",
 		"kretprobe__security_sock_rcv_skb",
 		"tracepoint__net__netif_receive_skb",
 		"kprobe__" + excludeSysOpen,
 		"kretprobe__" + excludeSysOpen,
+		"kprobe__do_vfs_ioctl",
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {

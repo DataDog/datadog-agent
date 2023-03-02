@@ -114,15 +114,6 @@ func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
 	}
 }
 
-// NumStatusClasses represents the number of HTTP status classes (1XX, 2XX, 3XX, 4XX, 5XX)
-const NumStatusClasses = 5
-
-// RequestStats stores stats for HTTP requests to a particular path, organized by the class
-// of the response code (1XX, 2XX, 3XX, 4XX, 5XX)
-type RequestStats struct {
-	data [NumStatusClasses]*RequestStat
-}
-
 // RequestStat stores stats for HTTP requests to a particular path
 type RequestStat struct {
 	// this field order is intentional to help the GC pointer tracking
@@ -145,64 +136,64 @@ type RequestStat struct {
 	DynamicTags []string
 }
 
-func (r *RequestStats) idx(status int) int {
-	return status/100 - 1
-}
-
-func (r *RequestStats) isValid(status int) bool {
-	i := r.idx(status)
-	return i >= 0 && i < len(r.data)
-}
-
-func (r *RequestStats) init(status int) {
-	r.data[r.idx(status)] = new(RequestStat)
-}
-
-// Stats returns the RequestStat object for the provided status.
-// If no stats exist, or the status code is invalid, it will return nil.
-func (r *RequestStats) Stats(status int) *RequestStat {
-	i := r.idx(status)
-	if i < 0 || i >= len(r.data) {
-		return nil
+func (r *RequestStat) initSketch() (err error) {
+	r.Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+	if err != nil {
+		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 	}
-	return r.data[i]
+	return
 }
 
-// HasStats returns true if there is data for that status class
-func (r *RequestStats) HasStats(status int) bool {
-	i := r.idx(status)
-	if i < 0 || i >= len(r.data) {
-		return false
+type RequestStats struct {
+	aggregateByStatusCode bool
+	Data                  map[uint16]*RequestStat
+}
+
+func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
+	return &RequestStats{
+		aggregateByStatusCode: aggregateByStatusCode,
+		Data:                  make(map[uint16]*RequestStat),
 	}
-	return r.data[i] != nil && r.data[i].Count > 0
+}
+
+func (r *RequestStats) NormalizeStatusCode(status uint16) uint16 {
+	if r.aggregateByStatusCode {
+		return status
+	}
+	// Normalize into status code family.
+	return (status / 100) * 100
+}
+
+// isValid checks is the status code is in the range of valid HTTP responses.
+func (r *RequestStats) isValid(status uint16) bool {
+	return status >= 100 && status < 600
 }
 
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStats) CombineWith(newStats *RequestStats) {
-	for statusClass := 100; statusClass <= 500; statusClass += 100 {
-		if !newStats.HasStats(statusClass) {
+	for statusCode, newRequests := range newStats.Data {
+		if newRequests.Count == 0 {
 			// Nothing to do in this case
 			continue
 		}
 
-		newStatsData := newStats.Stats(statusClass)
-		if newStatsData.Count == 1 {
+		if newRequests.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
-			r.AddRequest(statusClass, newStatsData.FirstLatencySample, newStatsData.StaticTags, newStatsData.DynamicTags)
+			r.AddRequest(statusCode, newRequests.FirstLatencySample, newRequests.StaticTags, newRequests.DynamicTags)
 			continue
 		}
 
-		stats := r.Stats(statusClass)
-		if stats == nil {
-			r.init(statusClass)
-			stats = r.Stats(statusClass)
+		stats, exists := r.Data[statusCode]
+		if !exists {
+			stats = &RequestStat{}
+			r.Data[statusCode] = stats
 		}
 
 		// The other bucket (newStats) has multiple samples and therefore a DDSketch object
-		// We first ensure that the bucket we're merging to has a DDSketch object
+		// We first ensure that the bucket we're merging to have a DDSketch object
 		if stats.Latencies == nil {
-			stats.Latencies = newStatsData.Latencies.Copy()
+			stats.Latencies = newRequests.Latencies.Copy()
 
 			// If we have a latency sample in this bucket we now add it to the DDSketch
 			if stats.Count == 1 {
@@ -212,24 +203,27 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 				}
 			}
 		} else {
-			err := stats.Latencies.MergeWith(newStatsData.Latencies)
+			err := stats.Latencies.MergeWith(newRequests.Latencies)
 			if err != nil {
 				log.Debugf("error merging http transactions: %v", err)
 			}
 		}
-		stats.Count += newStatsData.Count
+		stats.Count += newRequests.Count
 	}
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusClass int, latency float64, staticTags uint64, dynamicTags []string) {
-	if !r.isValid(statusClass) {
+func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags []string) {
+	if !r.isValid(statusCode) {
 		return
 	}
-	stats := r.Stats(statusClass)
-	if stats == nil {
-		r.init(statusClass)
-		stats = r.Stats(statusClass)
+
+	statusCode = r.NormalizeStatusCode(statusCode)
+
+	stats, exists := r.Data[statusCode]
+	if !exists {
+		stats = &RequestStat{}
+		r.Data[statusCode] = stats
 	}
 
 	stats.StaticTags |= staticTags
@@ -250,32 +244,22 @@ func (r *RequestStats) AddRequest(statusClass int, latency float64, staticTags u
 		}
 
 		// Add the deferred latency sample
-		err := stats.Latencies.Add(stats.FirstLatencySample)
-		if err != nil {
+		if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
 			log.Debugf("could not add request latency to ddsketch: %v", err)
 		}
 	}
 
-	err := stats.Latencies.Add(latency)
-	if err != nil {
+	if err := stats.Latencies.Add(latency); err != nil {
 		log.Debugf("could not add request latency to ddsketch: %v", err)
 	}
-}
-
-func (r *RequestStat) initSketch() (err error) {
-	r.Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
-	if err != nil {
-		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
-	}
-	return
 }
 
 // HalfAllCounts sets the count of all stats for each status class to half their current value.
 // This is used to remove duplicates from the count in the context of Windows localhost traffic.
 func (r *RequestStats) HalfAllCounts() {
-	for i := 0; i < NumStatusClasses; i++ {
-		if r.data[i] != nil {
-			r.data[i].Count = r.data[i].Count / 2
+	for _, stats := range r.Data {
+		if stats != nil {
+			stats.Count = stats.Count / 2
 		}
 	}
 }

@@ -3,7 +3,7 @@
 
 package http
 
-type httpConnTuple struct {
+type httpConnTuple = struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
 	Daddr_h  uint64
@@ -31,7 +31,6 @@ type ebpfHttpTx struct {
 	Response_status_code uint16
 	Response_last_seen   uint64
 	Request_fragment     [160]byte
-	Owned_by_src_port    uint16
 	Tcp_seq              uint32
 	Tags                 uint64
 }
@@ -48,6 +47,7 @@ const (
 	ProtocolUnknown  ProtocolType = 0x1
 	ProtocolHTTP     ProtocolType = 0x2
 	ProtocolHTTP2    ProtocolType = 0x3
+	ProtocolKafka    ProtocolType = 0x5
 	ProtocolTLS      ProtocolType = 0x4
 	ProtocolMONGO    ProtocolType = 0x6
 	ProtocolPostgres ProtocolType = 0x7
@@ -55,6 +55,12 @@ const (
 	ProtocolRedis    ProtocolType = 0x9
 	ProtocolMySQL    ProtocolType = 0xa
 	ProtocolMax      ProtocolType = 0xb
+)
+
+type DispatcherProgramType uint32
+
+const (
+	DispatcherKafkaProg DispatcherProgramType = 0x0
 )
 
 const (
@@ -69,6 +75,7 @@ const (
 	GnuTLS  ConnTag = 0x1
 	OpenSSL ConnTag = 0x2
 	Go      ConnTag = 0x4
+	Java    ConnTag = 0x8
 )
 
 var (
@@ -76,5 +83,6 @@ var (
 		GnuTLS:  "tls.library:gnutls",
 		OpenSSL: "tls.library:openssl",
 		Go:      "tls.library:go",
+		Java:    "tls.library:java",
 	}
 )
