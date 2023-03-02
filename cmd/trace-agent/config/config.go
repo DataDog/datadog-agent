@@ -226,7 +226,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		for _, feat := range tempFeats {
 			c.Features[feat] = struct{}{}
 		}
-		if c.HasFeature("big_resource"){
+		if c.HasFeature("big_resource") {
 			c.MaxResourceLen = 15_000
 		}
 		log.Debug("Found APM feature flags: %v", c.Features)

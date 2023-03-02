@@ -325,7 +325,7 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			cfg := config.AgentConfig{DDAgentBin: makeProgram("", 0), Features: map[string]struct{}{"disable_empty_hostname": struct{}{}}}
+			cfg := config.AgentConfig{DDAgentBin: makeProgram("", 0), Features: map[string]struct{}{"disable_empty_hostname": {}}}
 			defer os.Remove(cfg.DDAgentBin)
 			assert.NoError(t, acquireHostnameFallback(&cfg))
 			assert.Equal(t, "fallback.host", cfg.Hostname)
