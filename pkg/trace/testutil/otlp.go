@@ -34,6 +34,7 @@ type OTLPSpanEvent struct {
 type OTLPSpanLink struct {
 	TraceID    string                 `json:"trace_id"`
 	SpanID     string                 `json:"span_id"`
+	TraceState string                 `json:"trace_state"`
 	Attributes map[string]interface{} `json:"attributes"`
 	Dropped    uint32                 `json:"dropped_attributes_count"`
 }
@@ -104,6 +105,7 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 		li.SetTraceID(*(*pcommon.TraceID)(bytes))
 		bytes, _ = hex.DecodeString(l.SpanID)
 		li.SetSpanID(*(*pcommon.SpanID)(bytes))
+		li.TraceState().FromRaw(l.TraceState)
 		insertAttributes(li.Attributes(), l.Attributes)
 		li.SetDroppedAttributesCount(l.Dropped)
 	}

@@ -414,6 +414,11 @@ func marshalLinks(links ptrace.SpanLinkSlice) string {
 		str.WriteString(`","span_id":"`)
 		str.WriteString(hex.EncodeToString(s[:]))
 		str.WriteString(`"`)
+		if l.TraceState().AsRaw() != "" {
+			str.WriteString(`,"trace_state":"`)
+			str.WriteString(l.TraceState().AsRaw())
+			str.WriteString(`"`)
+		}
 		if l.Attributes().Len() > 0 {
 			str.WriteString(`,"attributes":{`)
 			b := false
@@ -501,7 +506,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		setMetaOTLP(span, "events", marshalEvents(in.Events()))
 	}
 	if in.Links().Len() > 0 {
-		setMetaOTLP(span, "links", marshalLinks(in.Links()))
+		setMetaOTLP(span, "_dd.span_links", marshalLinks(in.Links()))
 	}
 	if svc, ok := in.Attributes().Get(semconv.AttributePeerService); ok {
 		// the span attribute "peer.service" takes precedence over any resource attributes,
