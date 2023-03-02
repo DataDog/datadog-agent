@@ -10,5 +10,5 @@ upgrade:
     `false` (the Agent used to fail fetching the instance ID from IMDSv1 and
     would fall back on the system hostname). This can break monitors or
     dashboards using the old hostname.
-    To keep the old behavior, set `ec2_prefer_imdsv2` to false in the Agent
+    To keep the old behavior, set `ec2_prefer_imdsv2` to `false` in the Agent
     configuration.
