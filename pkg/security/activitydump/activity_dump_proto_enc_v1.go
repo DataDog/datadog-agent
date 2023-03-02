@@ -180,19 +180,21 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 
 	fi := adproto.FileInfoFromVTPool()
 	*fi = adproto.FileInfo{
-		Uid:          fe.UID,
-		User:         fe.User,
-		Gid:          fe.GID,
-		Group:        fe.Group,
-		Mode:         uint32(fe.Mode), // yeah sorry
-		Ctime:        fe.CTime,
-		Mtime:        fe.MTime,
-		MountId:      fe.MountID,
-		Inode:        fe.Inode,
-		InUpperLayer: fe.InUpperLayer,
-		Path:         fe.PathnameStr,
-		Basename:     fe.BasenameStr,
-		Filesystem:   fe.Filesystem,
+		Uid:            fe.UID,
+		User:           fe.User,
+		Gid:            fe.GID,
+		Group:          fe.Group,
+		Mode:           uint32(fe.Mode), // yeah sorry
+		Ctime:          fe.CTime,
+		Mtime:          fe.MTime,
+		MountId:        fe.MountID,
+		Inode:          fe.Inode,
+		InUpperLayer:   fe.InUpperLayer,
+		Path:           fe.PathnameStr,
+		Basename:       fe.BasenameStr,
+		Filesystem:     fe.Filesystem,
+		PackageName:    fe.PkgName,
+		PackageVersion: fe.PkgVersion,
 	}
 
 	return fi

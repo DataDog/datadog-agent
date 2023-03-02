@@ -81,6 +81,7 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
 
+	rsa.running.Store(true)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
 	// Start activity dumps listener
@@ -106,7 +107,6 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	logTicker := newLogBackoffTicker()
 
-	rsa.running.Store(true)
 	for rsa.running.Load() {
 		stream, err := rsa.client.GetEvents()
 		if err != nil {
@@ -159,7 +159,6 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 	rsa.wg.Add(1)
 	defer rsa.wg.Done()
 
-	rsa.running.Store(true)
 	for rsa.running.Load() {
 		stream, err := rsa.client.GetActivityDumpStream()
 		if err != nil {

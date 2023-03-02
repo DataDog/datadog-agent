@@ -96,6 +96,8 @@ runtime_security_config:
   flush_discarder_window: 0
   network:
     enabled: true
+  sbom:
+    enabled: {{ .SBOMEnabled }}
 {{if .EnableActivityDump}}
   activity_dump:
     enabled: true
@@ -218,6 +220,7 @@ type testOpts struct {
 	disableRuntimeSecurity              bool
 	enableEventMonitoringProcess        bool
 	enableEventMonitoringNetwork        bool
+	enableSBOM                          bool
 }
 
 func (s *stringSlice) String() string {
@@ -250,7 +253,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableEventMonitoringProcess == opts.enableEventMonitoringProcess &&
-		to.enableEventMonitoringNetwork == opts.enableEventMonitoringNetwork
+		to.enableEventMonitoringNetwork == opts.enableEventMonitoringNetwork &&
+		to.enableSBOM == opts.enableSBOM
 }
 
 type testModule struct {
@@ -727,6 +731,7 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
 		"EventMonitoringProcessEnabled":       opts.enableEventMonitoringProcess,
 		"EventMonitoringNetworkEnabled":       opts.enableEventMonitoringNetwork,
+		"SBOMEnabled":                         opts.enableSBOM,
 	}); err != nil {
 		return nil, err
 	}

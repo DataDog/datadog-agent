@@ -27,6 +27,7 @@ BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 DNF_TAG = "dnf"
+SBOM_TAG = "trivy"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
@@ -410,6 +411,7 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
+    sbom=True,
 ):
     """
     Build the system-probe
@@ -436,6 +438,7 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
+        sbom=sbom,
     )
 
 
@@ -464,6 +467,7 @@ def build_sysprobe_binary(
     nikos_embedded_path=None,
     bundle_ebpf=False,
     strip_binary=False,
+    sbom=True,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -477,6 +481,8 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if nikos_embedded_path:
         build_tags.append(DNF_TAG)
+    if sbom:
+        build_tags.append(SBOM_TAG)
 
     if strip_binary:
         ldflags += ' -s -w'

@@ -589,6 +589,7 @@ replace k8s.io/kube-state-metrics/v2 => github.com/datadog/kube-state-metrics/v2
 // Pull in replacements needed by upstream Trivy
 replace (
 	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe
+	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20221128132416-4ca87a1f1023
 	github.com/spdx/tools-golang => github.com/spdx/tools-golang v0.3.0
 	oras.land/oras-go => oras.land/oras-go v1.1.1
 )
