@@ -415,17 +415,16 @@ func main() {
 		outputFile = os.Stdout
 	}
 
-	if WriteToFile {
-		defer outputFile.Close()
-	}
-
 	writer := bufio.NewWriter(outputFile)
 	printDepTree(writer, depTree, 0, skipDuplicates)
 	writer.Flush()
-	err = outputFile.Close()
-	if err != nil {
-		fmt.Printf("ERROR: %s", err)
-		os.Exit(1)
+
+	if WriteToFile {
+		err = outputFile.Close()
+		if err != nil {
+			fmt.Printf("ERROR: %s", err)
+			os.Exit(1)
+		}
 	}
 
 	fmt.Println("Done!")
