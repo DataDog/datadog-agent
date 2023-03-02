@@ -125,7 +125,7 @@ require (
 	github.com/gosnmp/gosnmp v1.34.1-0.20220306115220-ca8397b73095
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
-	github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b
+	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api v1.19.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
