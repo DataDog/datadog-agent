@@ -175,6 +175,20 @@ namespace WixSetup.Datadog
                 Execute = Execute.immediate
             };
 
+            // Cleanup leftover files on uninstall
+            CleanupOnUninstall = new CustomAction<CleanUpFilesCustomAction>(
+                new Id(nameof(CleanupOnUninstall)),
+                CleanUpFilesCustomAction.CleanupFiles,
+                Return.check,
+                When.Before,
+                Step.RemoveFiles,
+                Conditions.Uninstalling
+            )
+            {
+                Execute = Execute.deferred
+            }
+            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
             ConfigureUser = new CustomAction<UserCustomActions>(
                     new Id(nameof(ConfigureUser)),
                     UserCustomActions.ConfigureUser,
@@ -190,20 +204,6 @@ namespace WixSetup.Datadog
                            "PROJECTLOCATION=[PROJECTLOCATION], " +
                            "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
                            "DDAGENTUSER_SID=[DDAGENTUSER_SID]");
-
-            // Cleanup leftover files on uninstall
-            CleanupOnUninstall = new CustomAction<CleanUpFilesCustomAction>(
-                new Id(nameof(CleanupOnUninstall)),
-                CleanUpFilesCustomAction.CleanupFiles,
-                Return.check,
-                When.Before,
-                Step.RemoveFiles,
-                Conditions.Uninstalling
-            )
-            {
-                Execute = Execute.deferred
-            }
-            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             ProcessDdAgentUserCredentials = new CustomAction<UserCustomActions>(
                 new Id(nameof(ProcessDdAgentUserCredentials)),
