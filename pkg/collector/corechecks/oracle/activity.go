@@ -93,10 +93,11 @@ type RowMetadata struct {
 type OracleActivityRow struct {
 	SessionID              uint64  `db:"SID" json:"sid,omitempty"`
 	SessionSerial          uint64  `db:"SERIAL#" json:"serial,omitempty"`
-	Username               *string `db:"USERNAME" json:"username,omitempty"`
+	User                   *string `db:"USERNAME" json:"user,omitempty"`
 	OsUser                 *string `db:"OSUSER" json:"os_user,omitempty"`
 	Process                *string `db:"PROCESS" json:"process,omitempty"`
-	Machine                *string `db:"MACHINE" json:"machine,omitempty"`
+	Client                 *string `db:"MACHINE" json:"client,omitempty"`
+	Port                   *string `db:"PORT" json:"port,omitempty"`
 	Program                *string `db:"PROGRAM" json:"program,omitempty"`
 	Type                   *string `db:"TYPE" json:"type,omitempty"`
 	SqlID                  *string `db:"SQL_ID" json:"sql_id,omitempty"`
@@ -112,9 +113,9 @@ type OracleActivityRow struct {
 	BlockingSession        *uint64 `db:"BLOCKING_SESSION" json:"blocking_session,omitempty"`
 	FinalBlockingInstance  *uint64 `db:"FINAL_BLOCKING_INSTANCE" json:"final_blocking_instance,omitempty"`
 	FinalBlockingSession   *uint64 `db:"FINAL_BLOCKING_SESSION" json:"final_blocking_session,omitempty"`
-	Event                  *string `db:"EVENT" json:"event,omitempty"`
-	WaitClass              *string `db:"WAIT_CLASS" json:"wait_class,omitempty"`
-	SqlText                *string `db:"SQL_TEXT" json:"sql_text,omitempty"`
+	WaitEvent              *string `db:"EVENT" json:"wait_event,omitempty"`
+	WaitEventGroup         *string `db:"WAIT_CLASS" json:"wait_event_group,omitempty"`
+	Statement              *string `db:"SQL_TEXT" json:"statement,omitempty"`
 	PdbName                *string `db:"PDB_NAME" json:"pdb_name,omitempty"`
 	QuerySignature         string  `json:"query_signature,omitempty"`
 	RowMetadata
@@ -157,21 +158,21 @@ func (c *Check) SampleSession() error {
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	if c.config.ObfuscatorOn {
 		for i, sample := range sessionSamples {
-			if sample.SqlText != nil && *sample.SqlText != "" {
-				obfuscatedQuery, err := o.ObfuscateSQLString(*sample.SqlText)
+			if sample.Statement != nil && *sample.Statement != "" {
+				obfuscatedQuery, err := o.ObfuscateSQLString(*sample.Statement)
 				if err != nil {
 					error_text := fmt.Sprintf("query obfuscation failed for SQL_ID: %s", *sample.SqlID)
 					if c.config.InstanceConfig.LogUnobfuscatedQueries {
-						error_text = error_text + fmt.Sprintf(" SQL: %s", *sample.SqlText)
+						error_text = error_text + fmt.Sprintf(" SQL: %s", *sample.Statement)
 					}
 					log.Error("Query obfuscation SQL_ID: %s", *sample.SqlID)
 				} else {
-					*sample.SqlText = obfuscatedQuery.Query
+					*sample.Statement = obfuscatedQuery.Query
 					sessionSamples[i].Commands = obfuscatedQuery.Metadata.Commands
 					sessionSamples[i].Tables = strings.Split(obfuscatedQuery.Metadata.TablesCSV, ",")
 					sessionSamples[i].Comments = obfuscatedQuery.Metadata.Comments
 					h := fnv.New64a()
-					h.Write([]byte(*sample.SqlText))
+					h.Write([]byte(*sample.Statement))
 					sessionSamples[i].QuerySignature = strconv.FormatUint(h.Sum64(), 10)
 				}
 			}
