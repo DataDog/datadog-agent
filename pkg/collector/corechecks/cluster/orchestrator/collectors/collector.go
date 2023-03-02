@@ -12,10 +12,10 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/atomic"
 	"k8s.io/client-go/tools/cache"
 )
@@ -78,7 +78,7 @@ type CollectorMetadata struct {
 	IsStable                  bool
 	SupportsManifestBuffering bool
 	Name                      string
-	NodeType                  model.K8SResource
+	NodeType                  orchestrator.NodeType
 	Version                   string
 }
 
