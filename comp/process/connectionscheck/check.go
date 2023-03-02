@@ -8,7 +8,7 @@ package connectionscheck
 import (
 	"go.uber.org/fx"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
@@ -22,7 +22,7 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	Sysconfig *sysconfig.Config
+	Sysconfig sysprobeconfig.Component
 }
 
 type result struct {
@@ -34,7 +34,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		connectionsCheck: checks.NewConnectionsCheck(deps.Sysconfig),
+		connectionsCheck: checks.NewConnectionsCheck(deps.Sysconfig.Object()),
 	}
 	return result{
 		Check: types.ProvidesCheck{

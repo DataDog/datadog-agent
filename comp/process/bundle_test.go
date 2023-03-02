@@ -12,7 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -31,7 +32,7 @@ func TestBundleDependencies(t *testing.T) {
 			fx.Annotate(t, fx.As(new(testing.TB))),
 
 			testHostInfo,
-			&sysconfig.Config{},
+			core.BundleParams{},
 		),
 
 		// instantiate all of the process components, since this is not done
@@ -71,7 +72,7 @@ func TestBundleOneShot(t *testing.T) {
 			fx.Annotate(t, fx.As(new(testing.TB))),
 
 			testHostInfo,
-			&sysconfig.Config{},
+			core.BundleParams{},
 		),
 
 		Bundle,

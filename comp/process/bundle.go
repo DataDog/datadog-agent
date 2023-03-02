@@ -12,6 +12,7 @@
 package process
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/podcheck"
@@ -39,4 +40,7 @@ var Bundle = fxutil.Bundle(
 	processeventscheck.Module,
 	rtcontainercheck.Module,
 	processdiscoverycheck.Module,
+
+	// Config
+	core.Bundle,
 )

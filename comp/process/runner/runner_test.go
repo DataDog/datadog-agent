@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
@@ -59,6 +60,7 @@ func TestRunnerRealtime(t *testing.T) {
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
+			core.Bundle,
 		), func(r Component) {
 			rtChan <- types.RTResponse{
 				{
