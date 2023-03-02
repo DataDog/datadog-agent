@@ -57,16 +57,16 @@ func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
 	return &newCGroup, nil
 }
 
-// GetRootPIDs returns the list of root pids for the current workload
-func (cgce *CacheEntry) GetRootPIDs() []uint32 {
+// GetPIDs returns the list of root pids for the current workload
+func (cgce *CacheEntry) GetPIDs() []uint32 {
 	cgce.Lock()
 	defer cgce.Unlock()
 
 	return cgce.PIDs.Keys()
 }
 
-// RemoveRootPID removes the provided root pid from the list of pids
-func (cgce *CacheEntry) RemoveRootPID(pid uint32) {
+// RemovePID removes the provided root pid from the list of pids
+func (cgce *CacheEntry) RemovePID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 

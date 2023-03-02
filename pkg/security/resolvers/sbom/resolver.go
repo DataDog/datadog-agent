@@ -237,17 +237,17 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	var lastErr error
 	var scanned bool
-	for _, rootCandidatePID := range sbom.cgroup.GetRootPIDs() {
+	for _, rootCandidatePID := range sbom.cgroup.GetPIDs() {
 		// check if this pid still exists and is in the expected container ID (if we loose an exit and need to wait for
 		// the flush to remove a pid, there might be a significant delay before a PID is removed from this list. Checking
 		// the container ID reduces drastically the likelihood of this race)
 		computedID, err := utils.GetProcContainerID(rootCandidatePID, rootCandidatePID)
 		if err != nil {
-			sbom.cgroup.RemoveRootPID(rootCandidatePID)
+			sbom.cgroup.RemovePID(rootCandidatePID)
 			continue
 		}
 		if string(computedID) != sbom.ContainerID {
-			sbom.cgroup.RemoveRootPID(rootCandidatePID)
+			sbom.cgroup.RemovePID(rootCandidatePID)
 			continue
 		}
 
@@ -521,7 +521,7 @@ func (r *Resolver) processWorkload(sbom *SBOM, now time.Time) error {
 	}
 
 	// check if we should delete the sbom
-	if sbom.deleted.Load() || (!sbom.deleted.Load() && len(sbom.cgroup.GetRootPIDs()) == 0) {
+	if sbom.deleted.Load() || (!sbom.deleted.Load() && len(sbom.cgroup.GetPIDs()) == 0) {
 		r.deleteSBOM(sbom)
 	}
 

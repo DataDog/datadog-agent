@@ -431,7 +431,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ..
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
 	if exists {
-		pids = append(pids, workload.GetRootPIDs()...)
+		pids = append(pids, workload.GetPIDs()...)
 	} else if len(containerID) == 0 {
 		pids = append(pids, 1)
 	}
@@ -486,7 +486,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
 	if exists {
-		pids = append(pids, workload.GetRootPIDs()...)
+		pids = append(pids, workload.GetPIDs()...)
 	} else if len(containerID) == 0 {
 		pids = append(pids, 1)
 	}
