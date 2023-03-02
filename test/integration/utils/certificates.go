@@ -141,8 +141,9 @@ func GenerateCertificates(config *CertificatesConfig) error {
 	}
 	pem.Encode(keyOut, p)
 	err = certOut.Sync()
-   if cerr := keyOut.Sync(); cerr != nil {
-		err = errors.Join(err, cerr)
+	if cerr := keyOut.Sync(); cerr != nil {
+		err = cerr
 	}
+
 	return err
 }
