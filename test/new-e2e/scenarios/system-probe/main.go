@@ -46,6 +46,7 @@ func main() {
 		AmiID:          *amiIDPtr,
 		ShutdownPeriod: *shutdownPtr,
 		Provision:      *toProvisionPtr,
+		FailOnMissing:  *destroyPtr,
 	}
 
 	fmt.Printf("shutdown period: %d hour(s)\n", opts.ShutdownPeriod/60)

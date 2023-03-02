@@ -28,6 +28,7 @@ type SystemProbeEnvOpts struct {
 	AmiID          string
 	Provision      bool
 	ShutdownPeriod int
+	FailOnMissing  bool
 }
 
 type TestEnv struct {
@@ -143,7 +144,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		}
 
 		return nil
-	}, true)
+	}, opts.FailOnMissing)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stack: %w", err)
 	}
