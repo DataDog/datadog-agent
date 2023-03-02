@@ -27,7 +27,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -44,12 +44,14 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
@@ -101,6 +103,9 @@ spec:
               readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: false
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
@@ -137,7 +142,7 @@ spec:
             timeoutSeconds: 5
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -147,7 +152,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -174,14 +179,18 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
           resources: {}
       volumes:
+        - name: auth-token
+          emptyDir: {}
         - name: installinfo
           configMap:
             name: datadog-installinfo

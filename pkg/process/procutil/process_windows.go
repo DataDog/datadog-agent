@@ -501,6 +501,10 @@ func fillProcessDetails(pid int32, proc *Process) error {
 	cmdParams := getProcessCommandParams(procHandle)
 
 	proc.Cmdline = ParseCmdLineArgs(cmdParams.CmdLine)
+	if len(cmdParams.CmdLine) > 0 && len(proc.Cmdline) == 0 {
+		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cmdParams.CmdLine, pid)
+	}
+
 	proc.Exe = cmdParams.ImagePath
 
 	var CPU windows.Rusage
@@ -609,5 +613,6 @@ func ParseCmdLineArgs(cmdline string) (res []string) {
 			donestring = false
 		}
 	}
+
 	return res
 }

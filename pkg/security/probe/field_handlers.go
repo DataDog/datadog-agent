@@ -402,3 +402,35 @@ func (fh *FieldHandlers) ResolveAsync(ev *model.Event) bool {
 	ev.Async = ev.Flags&model.EventFlagsAsync > 0
 	return ev.Async
 }
+
+// ResolvePackageName resolves the name of the package providing this file
+func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgName == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgName = pkg.Name
+			f.PkgVersion = pkg.Version
+		}
+	}
+	return f.PkgName
+}
+
+// ResolvePackageVersion resolves the version of the package providing this file
+func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgVersion == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgName = pkg.Name
+			f.PkgVersion = pkg.Version
+		}
+	}
+	return f.PkgVersion
+}

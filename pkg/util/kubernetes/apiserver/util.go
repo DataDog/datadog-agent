@@ -29,9 +29,10 @@ import (
 // An extra timeout duration can be provided depending on the informer
 func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) error {
 	var g errgroup.Group
+	timeoutConfig := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
-	syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds")*time.Second + extraWait
+	syncTimeout := timeoutConfig + extraWait
 	for name := range informers {
 		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
@@ -39,7 +40,10 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait ti
 			defer cancel()
 			start := time.Now()
 			if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
-				return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
+				end := time.Now()
+				cacheSyncTimeouts.Inc()
+				log.Warnf("couldn't sync informer %s in %v (kube_cache_sync_timeout_seconds: %v)", name, end.Sub(start), timeoutConfig)
+				return fmt.Errorf("couldn't sync informer %s in %v", name, end.Sub(start))
 			}
 			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(start), informers[name].LastSyncResourceVersion())
 			return nil

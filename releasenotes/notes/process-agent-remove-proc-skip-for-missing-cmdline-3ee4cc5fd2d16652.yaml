@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Prevent disallowlisting on empty command line for processes in the Process Agent when encountering a failure to
+    parse, use exe value instead.

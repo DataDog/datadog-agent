@@ -56,6 +56,8 @@ const (
 )
 
 var (
+	// When adding new environment variables, they need to be added to
+	// pkg/util/containers/env_vars_filter.go
 	standardEnvKeys = map[string]string{
 		envVarEnv:     tagKeyEnv,
 		envVarVersion: tagKeyVersion,

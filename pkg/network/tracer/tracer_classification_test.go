@@ -217,7 +217,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 
 	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
 	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
-	kafka.RunServer(t, serverHost, kafkaPort)
+	require.True(t, kafka.RunServer(t, serverHost, kafkaPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -444,7 +444,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 
 	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
 	targetAddress := net.JoinHostPort(targetHost, mysqlPort)
-	mysql.RunServer(t, serverHost, mysqlPort)
+	require.True(t, mysql.RunServer(t, serverHost, mysqlPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -756,7 +756,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
 	targetAddress := net.JoinHostPort(targetHost, postgresPort)
-	pgutils.RunPostgresServer(t, serverHost, postgresPort)
+	require.True(t, pgutils.RunServer(t, serverHost, postgresPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -965,7 +965,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	// Setting one instance of mongo server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, mongoPort)
 	targetAddress := net.JoinHostPort(targetHost, mongoPort)
-	protocolsmongo.RunMongoServer(t, serverHost, mongoPort)
+	require.True(t, protocolsmongo.RunServer(t, serverHost, mongoPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1118,7 +1118,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	// Setting one instance of redis server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, redisPort)
 	targetAddress := net.JoinHostPort(targetHost, redisPort)
-	redis.RunRedisServer(t, serverHost, redisPort)
+	require.True(t, redis.RunServer(t, serverHost, redisPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1272,7 +1272,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 	// Setting one instance of amqp server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, amqpPort)
 	targetAddress := net.JoinHostPort(targetHost, amqpPort)
-	amqp.RunAmqpServer(t, serverHost, amqpPort)
+	require.True(t, amqp.RunServer(t, serverHost, amqpPort))
 
 	tests := []protocolClassificationAttributes{
 		{

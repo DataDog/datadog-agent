@@ -186,6 +186,12 @@ type Config struct {
 	EventStreamUseRingBuffer bool
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
+
+	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
+	SBOMResolverEnabled bool
+	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
+	// the SBOMs of short-lived and periodical workloads
+	SBOMResolverWorkloadsCacheSize int
 }
 
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -288,6 +294,10 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 			}
 			return mds * (1 << 10)
 		},
+
+		// SBOM resolver
+		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
+		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
 	}
 
 	c.NetworkProcessEventMonitoringEnabled = c.NetworkProcessEventMonitoringEnabled && cfg.ModuleIsEnabled(config.NetworkTracerModule)

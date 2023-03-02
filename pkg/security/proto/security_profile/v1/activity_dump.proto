@@ -129,6 +129,9 @@ message FileInfo {
     string path = 11;
     string basename = 12;
     string filesystem = 13;
+
+    string package_name = 14;
+    string package_version = 15;
 }
 
 message Credentials {

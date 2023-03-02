@@ -5,7 +5,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-3.3.1"
+    chart: "datadog-3.11.0"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -148,6 +148,22 @@ rules:
       - rolebindings
       - clusterroles
       - clusterrolebindings
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - autoscaling.k8s.io
+    resources:
+      - verticalpodautoscalers
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "apiextensions.k8s.io"
+    resources:
+      - customresourcedefinitions
     verbs:
       - list
       - get

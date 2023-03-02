@@ -8,6 +8,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc/examples/route_guide/routeguide"
 	"io"
 	"math/rand"
 	"net"
@@ -89,12 +90,49 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 	}
 	return nil
 }
+func (c *Client) GetFeature(ctx context.Context, long, lat int32) error {
+	_, err := c.routeGuideClient.GetFeature(ctx, &routeguide.Point{
+		Latitude:  lat,
+		Longitude: long,
+	})
+	return err
+}
+
+func (c *Client) ListFeatures(ctx context.Context, longLo, latLo, longHi, latHi int32) error {
+	stream, err := c.routeGuideClient.ListFeatures(ctx, &routeguide.Rectangle{
+		Lo: &routeguide.Point{
+			Latitude:  latLo,
+			Longitude: longLo,
+		},
+		Hi: &routeguide.Point{
+			Latitude:  latHi,
+			Longitude: longHi,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	for {
+		feature, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Feature: name: %q, point:(%v, %v)\n", feature.GetName(),
+			feature.GetLocation().GetLatitude(), feature.GetLocation().GetLongitude())
+	}
+
+	return nil
+}
 
 // Client represents a single gRPC client that fits the gRPC server.
 type Client struct {
-	conn          *grpc.ClientConn
-	greeterClient pb.GreeterClient
-	streamClient  pbStream.MathClient
+	conn             *grpc.ClientConn
+	greeterClient    pb.GreeterClient
+	streamClient     pbStream.MathClient
+	routeGuideClient routeguide.RouteGuideClient
 }
 
 // Options allows to determine the behavior of the client.
@@ -127,9 +165,10 @@ func NewClient(addr string, options Options) (Client, error) {
 		return Client{}, err
 	}
 	return Client{
-		conn:          conn,
-		greeterClient: pb.NewGreeterClient(conn),
-		streamClient:  pbStream.NewMathClient(conn),
+		conn:             conn,
+		greeterClient:    pb.NewGreeterClient(conn),
+		streamClient:     pbStream.NewMathClient(conn),
+		routeGuideClient: routeguide.NewRouteGuideClient(conn),
 	}, nil
 }
 
