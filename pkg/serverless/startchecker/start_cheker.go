@@ -46,6 +46,6 @@ func (r *StartChecker) AddRule(rule StartingRule) {
 	if r.rules != nil {
 		r.rules = append(r.rules, rule)
 	} else {
-		log.Error("could not add the rule as the StartChecker has not been initalized")
+		log.Error("could not add the rule as the StartChecker has not been initialized")
 	}
 }
