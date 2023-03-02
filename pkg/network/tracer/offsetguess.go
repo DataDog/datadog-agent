@@ -23,7 +23,6 @@ import (
 	"time"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -35,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -421,7 +421,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_saddr_fl4++
-		if status.Offset_saddr_fl4 == threshold {
+		if status.Offset_saddr_fl4 >= threshold {
 			// Let's skip all other flowi4 fields
 			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.Fl4_offsets = disabled
@@ -433,7 +433,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_daddr_fl4++
-		if status.Offset_daddr_fl4 == threshold {
+		if status.Offset_daddr_fl4 >= threshold {
 			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.Fl4_offsets = disabled
 			break
@@ -444,7 +444,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_sport_fl4++
-		if status.Offset_sport_fl4 == threshold {
+		if status.Offset_sport_fl4 >= threshold {
 			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.Fl4_offsets = disabled
 			break
@@ -456,7 +456,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_dport_fl4++
-		if status.Offset_dport_fl4 == threshold {
+		if status.Offset_dport_fl4 >= threshold {
 			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.Fl4_offsets = disabled
 			break
@@ -467,7 +467,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_saddr_fl6++
-		if status.Offset_saddr_fl6 == threshold {
+		if status.Offset_saddr_fl6 >= threshold {
 			// Let's skip all other flowi6 fields
 			logAndAdvance(status, notApplicable, netebpf.GuessNetNS)
 			status.Fl6_offsets = disabled
@@ -479,7 +479,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_daddr_fl6++
-		if status.Offset_daddr_fl6 == threshold {
+		if status.Offset_daddr_fl6 >= threshold {
 			logAndAdvance(status, notApplicable, netebpf.GuessNetNS)
 			status.Fl6_offsets = disabled
 			break
@@ -490,7 +490,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_sport_fl6++
-		if status.Offset_sport_fl6 == threshold {
+		if status.Offset_sport_fl6 >= threshold {
 			logAndAdvance(status, notApplicable, netebpf.GuessNetNS)
 			status.Fl6_offsets = disabled
 			break
@@ -502,7 +502,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_dport_fl6++
-		if status.Offset_dport_fl6 == threshold {
+		if status.Offset_dport_fl6 >= threshold {
 			logAndAdvance(status, notApplicable, netebpf.GuessNetNS)
 			status.Fl6_offsets = disabled
 			break
