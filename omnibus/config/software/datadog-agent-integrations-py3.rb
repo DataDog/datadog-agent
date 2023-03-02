@@ -11,6 +11,8 @@ name 'datadog-agent-integrations-py3'
 dependency 'datadog-agent'
 dependency 'pip3'
 
+# Python packages built manually
+dependency 'kubernetes-client-python-py3'
 dependency 'snowflake-connector-python-py3'
 
 if arm?
@@ -65,6 +67,7 @@ blacklist_folders = [
 blacklist_packages = Array.new
 
 # We build these manually
+blacklist_packages.push(/^kubernetes==/)
 blacklist_packages.push(/^snowflake-connector-python==/)
 
 if suse?
