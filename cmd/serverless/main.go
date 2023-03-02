@@ -128,7 +128,10 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			log.Errorf("Can't register as a serverless agent: %s", registrationError)
 		}
 		ctx := context.Background()
-		registration.NoOpProcessEvent(ctx, id)
+		processError := registration.NoOpProcessEvent(ctx, id)
+		if processError != nil {
+			log.Errorf("Can't process events: %s", processError)
+		}
 		return nil, nil
 	}
 
