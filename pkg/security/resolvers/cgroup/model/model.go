@@ -99,8 +99,3 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 func (cgce *CacheEntry) NeedsTagsResolution() bool {
 	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsEmpty()
 }
-
-// GetCreationTime returns the root pid of a cgroup
-func (cgce *CacheEntry) GetCreationTime() uint64 {
-	return cgce.CreationTime
-}

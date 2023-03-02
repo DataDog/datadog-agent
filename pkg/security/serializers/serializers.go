@@ -667,7 +667,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 				ID: ps.ContainerID,
 			}
 			if cgroup, _ := resolvers.CGroupResolver.GetWorkload(ps.ContainerID); cgroup != nil {
-				psSerializer.Container.CreatedAt = getTimeIfNotZero(time.Unix(0, int64(cgroup.GetCreationTime())))
+				psSerializer.Container.CreatedAt = getTimeIfNotZero(time.Unix(0, int64(cgroup.CreationTime)))
 			}
 		}
 		return psSerializer
@@ -1044,7 +1044,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 	if id := event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext); id != "" {
 		var creationTime time.Time
 		if cgroup, _ := resolvers.CGroupResolver.GetWorkload(id); cgroup != nil {
-			creationTime = time.Unix(0, int64(cgroup.GetCreationTime()))
+			creationTime = time.Unix(0, int64(cgroup.CreationTime))
 		}
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        id,
