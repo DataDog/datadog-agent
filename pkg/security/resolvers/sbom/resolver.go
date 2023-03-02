@@ -363,13 +363,16 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	// check if this sbom has been scanned before
 	r.sbomsCacheLock.Lock()
 	defer r.sbomsCacheLock.Unlock()
-	cachedSBOM, ok := r.sbomsCache.Get(sbom.getWorkloadKey())
-	if ok {
-		// copy report and file cache (keeping a reference is fine, we won't be modifying the content)
-		sbom.files = cachedSBOM.files
-		sbom.report = cachedSBOM.report
-		r.sbomsCacheHit.Inc()
-		return
+
+	if workloadKey := sbom.getWorkloadKey(); workloadKey != "" {
+		cachedSBOM, ok := r.sbomsCache.Get(workloadKey)
+		if ok {
+			// copy report and file cache (keeping a reference is fine, we won't be modifying the content)
+			sbom.files = cachedSBOM.files
+			sbom.report = cachedSBOM.report
+			r.sbomsCacheHit.Inc()
+			return
+		}
 	}
 	r.sbomsCacheMiss.Inc()
 
