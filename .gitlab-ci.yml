@@ -55,9 +55,9 @@ stages:
   - deps_fetch
   - source_test
   - source_test_junit_upload
-  - kernel_matrix_testing
   - binary_build
   - package_deps_build
+  - kernel_matrix_testing
   - integration_test
   - benchmarks
   - package_build
