@@ -222,9 +222,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.MaxRemoteTPS = coreconfig.Datadog.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
 	if k := "apm_config.features"; coreconfig.Datadog.IsSet(k) {
-		tempFeats := coreconfig.Datadog.GetStringSlice(k)
-		for _, feat := range tempFeats {
-			c.Features[feat] = struct{}{}
+		feats := coreconfig.Datadog.GetStringSlice(k)
+		for _, f := range feats {
+			c.Features[f] = struct{}{}
 		}
 		if c.HasFeature("big_resource") {
 			c.MaxResourceLen = 15_000
@@ -595,7 +595,7 @@ func acquireHostname(c *config.AgentConfig) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := c.Features["disable_empty_hostname"]; ok && reply.Hostname == "" {
+	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
 		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
 		return errors.New("empty hostname disallowed")
 	}

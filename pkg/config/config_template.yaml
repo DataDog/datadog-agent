@@ -1199,11 +1199,11 @@ api_key:
 
   ## @param features - list of strings - optional
   ## @env DD_APM_FEATURES - comma separated list of strings - optional
-  ## Configure additional Trace Agent features not otherwise specified. 
+  ## Configure additional beta APM features.
   ## The list of items available under apm_config.features is not guaranteed to persist across versions; 
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["feature1","feature2","feature3"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
