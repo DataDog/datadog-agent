@@ -383,7 +383,7 @@ func main() {
 	ctx := context.Background()
 	rootModuleName, depFlatGraph, actualModuleVersions, err := getDependencies(ctx)
 	if err != nil {
-		fmt.Println("ERROR: %s", err)
+		fmt.Printf("ERROR: %s", err)
 		os.Exit(1)
 	}
 
@@ -395,7 +395,7 @@ func main() {
 	fmt.Println("Computing actual dependency tree (this will take a while)...")
 	depTree, err := recomputeDependencyTree(rootModulePtr, depFlatGraph, actualModuleVersions)
 	if err != nil {
-		fmt.Println("ERROR: %s", err)
+		fmt.Printf("ERROR: %s", err)
 		os.Exit(1)
 	}
 
@@ -406,7 +406,7 @@ func main() {
 		fmt.Printf("Writing output to '%s' (this may take a while)...\n", OutputFileName)
 		outputFile, err = os.OpenFile(OutputFileName, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			fmt.Println("ERROR: %s", err)
+			fmt.Printf("ERROR: %s", err)
 			os.Exit(1)
 		}
 	} else {
@@ -422,7 +422,7 @@ func main() {
 	writer := bufio.NewWriter(outputFile)
 	printDepTree(writer, depTree, 0, skipDuplicates)
 	writer.Flush()
-	err = outputFile.Sync()
+	err = outputFile.Close()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s", err)
 		os.Exit(1)
