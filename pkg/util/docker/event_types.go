@@ -84,7 +84,6 @@ type eventSubscriber struct {
 	name                string
 	containerEventsChan chan *ContainerEvent
 	imageEventsChan     chan *ImageEvent
-	errorChan           chan error
 	cancelChan          chan struct{}
 	filter              *containers.Filter
 }
