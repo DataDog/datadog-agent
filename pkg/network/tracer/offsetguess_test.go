@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -212,8 +213,15 @@ func TestOffsetGuess(t *testing.T) {
 	require.NoError(t, server.Run())
 	t.Cleanup(func() { server.Shutdown() })
 
-	c, err := net.Dial("tcp4", server.address)
-	require.NoError(t, err)
+	var c net.Conn
+	require.Eventually(t, func() bool {
+		c, err = net.Dial("tcp4", server.address)
+		if err == nil {
+			return true
+		}
+
+		return false
+	}, time.Second, 100*time.Millisecond)
 	t.Cleanup(func() { c.Close() })
 
 	f, err := c.(*net.TCPConn).File()
