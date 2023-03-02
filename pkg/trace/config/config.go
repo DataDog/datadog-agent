@@ -289,7 +289,6 @@ type DebuggerProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
-
 	Features map[string]struct{}
 
 	Enabled      bool
@@ -497,7 +496,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation:                 &ObfuscationConfig{},
-		MaxResourceLen: 5000,
+		MaxResourceLen:              5000,
 
 		GlobalTags: make(map[string]string),
 
@@ -568,7 +567,7 @@ func (c *AgentConfig) HasFeature(feat string) bool {
 
 func (c *AgentConfig) AllFeatures() []string {
 	feats := []string{}
-	for feat := range c.Features {		
+	for feat := range c.Features {
 		feats = append(feats, feat)
 	}
 	return feats
