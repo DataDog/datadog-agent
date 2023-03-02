@@ -91,7 +91,8 @@ namespace WixSetup.Datadog
             {
                 Execute = Execute.rollback
             }
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
+            .HideTarget(true); ;
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                 new Id(nameof(WriteConfig)),
@@ -262,7 +263,8 @@ namespace WixSetup.Datadog
                 Step.InstallFinalize,
                 Conditions.FirstInstall | Conditions.Upgrading
             )
-            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
+            .HideTarget(true);
         }
     }
 }
