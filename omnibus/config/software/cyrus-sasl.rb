@@ -16,7 +16,7 @@ relative_path "cyrus-sasl-#{version}"
 build do
 
   env = {
-    "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
+    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
     "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
     "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
   }
