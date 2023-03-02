@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -55,6 +56,12 @@ type Monitor struct {
 	processMonitor  *monitor.ProcessMonitor
 
 	http2Enabled bool
+
+	// Kafka related
+	kafkaEnabled    bool
+	kafkaConsumer   *events.Consumer
+	kafkaTelemetry  *kafka.Telemetry
+	kafkaStatkeeper *kafka.KafkaStatKeeper
 	// termination
 	closeFilterFn func()
 }
@@ -144,7 +151,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	state = Running
 
-	return &Monitor{
+	httpMonitor := &Monitor{
 		ebpfProgram:     mgr,
 		httpTelemetry:   httpTelemetry,
 		http2Telemetry:  http2Telemetry,
@@ -153,7 +160,18 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		processMonitor:  processMonitor,
 		http2Enabled:    c.EnableHTTP2Monitoring,
 		http2Statkeeper: http2Statkeeper,
-	}, nil
+	}
+
+	if c.EnableKafkaMonitoring {
+		// Kafka related
+		kafkaTelemetry := kafka.NewTelemetry()
+		kafkaStatkeeper := kafka.NewKafkaStatkeeper(c, kafkaTelemetry)
+		httpMonitor.kafkaEnabled = true
+		httpMonitor.kafkaTelemetry = kafkaTelemetry
+		httpMonitor.kafkaStatkeeper = kafkaStatkeeper
+	}
+
+	return httpMonitor, nil
 }
 
 // Start consuming HTTP events
@@ -197,6 +215,18 @@ func (m *Monitor) Start() error {
 			return err
 		}
 		m.http2Consumer.Start()
+	}
+
+	if m.kafkaEnabled {
+		m.kafkaConsumer, err = events.NewConsumer(
+			"kafka",
+			m.ebpfProgram.Manager.Manager,
+			m.kafkaProcess,
+		)
+		if err != nil {
+			return err
+		}
+		m.kafkaConsumer.Start()
 	}
 
 	err = m.ebpfProgram.Start()
@@ -249,6 +279,17 @@ func (m *Monitor) GetHTTP2Stats() map[Key]*RequestStats {
 	return m.http2Statkeeper.GetAndResetAllStats()
 }
 
+// GetKafkaStats returns a map of Kafka stats
+func (m *Monitor) GetKafkaStats() map[kafka.Key]*kafka.RequestStat {
+	if m == nil || m.kafkaEnabled == false {
+		return nil
+	}
+
+	m.kafkaConsumer.Sync()
+	m.kafkaTelemetry.Log()
+	return m.kafkaStatkeeper.GetAndResetAllStats()
+}
+
 // Stop HTTP monitoring
 func (m *Monitor) Stop() {
 	if m == nil {
@@ -257,9 +298,13 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
+
 	m.httpConsumer.Stop()
 	if m.http2Enabled {
 		m.http2Consumer.Stop()
+	}
+	if m.kafkaEnabled {
+		m.kafkaConsumer.Stop()
 	}
 	m.closeFilterFn()
 }
@@ -275,6 +320,12 @@ func (m *Monitor) processHTTP2(data []byte) {
 
 	m.http2Telemetry.count(tx)
 	m.http2Statkeeper.Process(tx)
+}
+
+func (m *Monitor) kafkaProcess(data []byte) {
+	tx := (*kafka.EbpfKafkaTx)(unsafe.Pointer(&data[0]))
+	m.kafkaTelemetry.Count(tx)
+	m.kafkaStatkeeper.Process(tx)
 }
 
 // DumpMaps dumps the maps associated with the monitor

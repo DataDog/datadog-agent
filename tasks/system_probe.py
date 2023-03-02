@@ -315,6 +315,10 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
+            "pkg/network/protocols/kafka/kafka_types.go": [
+                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/protocols/kafka/types.h",
+            ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
             ],

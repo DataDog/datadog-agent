@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -132,6 +133,7 @@ type Connections struct {
 	CORETelemetryByAsset        map[string]int32
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
+	Kafka                       map[kafka.Key]*kafka.RequestStat
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
@@ -416,6 +418,21 @@ func HTTPKeyTuplesFromConn(c ConnectionStats) [2]http.KeyTuple {
 	return [2]http.KeyTuple{
 		http.NewKeyTuple(laddr, raddr, lport, rport),
 		http.NewKeyTuple(raddr, laddr, rport, lport),
+	}
+}
+
+// KafkaKeyTuplesFromConn build the key for the kafka map based on whether the local or remote side is kafka.
+func KafkaKeyTuplesFromConn(c ConnectionStats) [2]kafka.KeyTuple {
+	// Retrieve translated addresses
+	laddr, lport := GetNATLocalAddress(c)
+	raddr, rport := GetNATRemoteAddress(c)
+
+	// Kafka data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// kafka keys and check for both of them in our kafka aggregations map.
+	return [2]kafka.KeyTuple{
+		kafka.NewKeyTuple(laddr, raddr, lport, rport),
+		kafka.NewKeyTuple(raddr, laddr, rport, lport),
 	}
 }
 

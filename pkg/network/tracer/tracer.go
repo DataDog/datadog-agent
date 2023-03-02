@@ -187,6 +187,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
+		config.MaxKafkaStatsBuffered,
 	)
 
 	gwLookup := newGatewayLookup(config)
@@ -441,7 +442,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	active := t.activeBuffer.Connections()
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), t.httpMonitor.GetHTTP2Stats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), t.httpMonitor.GetHTTP2Stats(), t.httpMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
@@ -461,6 +462,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
 		HTTP2:                       delta.HTTP2,
+		Kafka:                       delta.Kafka,
 		ConnTelemetry:               ctm,
 		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
@@ -483,7 +485,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicConnsClosed:      t.closedConns.Load(),
 	}
 
-	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats)
+	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats, kafkaStats)
 	if err != nil {
 		return nil
 	}
@@ -680,6 +682,7 @@ const (
 	processCacheStats
 	bpfMapStats
 	bpfHelperStats
+	kafkaStats
 )
 
 var allStats = []statsComp{
@@ -780,7 +783,6 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	if t.httpMonitor == nil {
 		return "tracer:\n" + tracerMaps, nil
 	}
-
 	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
 	if err != nil {
 		return "", err
@@ -905,9 +907,11 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 	}
 
 	log.Info("http monitoring enabled")
-
 	if c.EnableHTTP2Monitoring {
 		log.Info("http2 monitoring enabled")
+	}
+	if c.EnableKafkaMonitoring {
+		log.Info("kafka monitoring enabled")
 	}
 	return monitor
 }
