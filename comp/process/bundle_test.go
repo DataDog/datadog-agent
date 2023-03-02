@@ -35,7 +35,7 @@ func TestBundleDependencies(t *testing.T) {
 			core.BundleParams{},
 		),
 
-		// instantiate all of the process components, since this is not done
+		// instantiate all the process components, since this is not done
 		// automatically.
 		fx.Invoke(func(r runner.Component) {}),
 

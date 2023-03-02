@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -93,21 +95,11 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.New(globalParams.SysProbeConfFilePath)
-	if err != nil {
-		_ = log.Critical(err)
-		cleanupAndExit(1)
-	}
-
-	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
-
 	initRuntimeSettings()
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
-	err = manager.ConfigureAutoExit(mainCtx, ddconfig.Datadog)
+	err := manager.ConfigureAutoExit(mainCtx, ddconfig.Datadog)
 	if err != nil {
 		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		cleanupAndExit(1)
@@ -156,15 +148,6 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		log.Criticalf("Error configuring statsd: %s", err)
 		cleanupAndExit(1)
 	}
-
-	// update docker socket path in info
-	dockerSock, err := util.GetDockerSocketPath()
-	if err != nil {
-		log.Debugf("Docker is not available on this host")
-	}
-	// we shouldn't quit because docker is not required. If no docker docket is available,
-	// we just pass down empty string
-	status.UpdateDockerSocket(dockerSock)
 
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
@@ -215,16 +198,6 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		return
 	}
 
-	eps, err := runner.GetAPIEndpoints()
-	if err != nil {
-		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
-	}
-	err = status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
-	if err != nil {
-		log.Criticalf("Error initializing info: %s", err)
-		cleanupAndExit(1)
-	}
-
 	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
@@ -251,28 +224,36 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	runApp(exit, syscfg, hostInfo)
+	runApp(exit, globalParams, hostInfo)
 
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
 	}
 }
 
-func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo) {
+func runApp(exit chan struct{}, globalParams *command.GlobalParams, hostInfo *checks.HostInfo) {
 	go util.HandleSignals(exit)
 
-	var allChecks struct {
+	var appInitDeps struct {
 		fx.In
 		Checks []types.CheckComponent `group:"check"`
+		syscfg sysprobeconfig.Component
 	}
 	app := fx.New(
 		fx.Supply(
-			syscfg,
 			hostInfo,
+			core.BundleParams{
+				SysprobeConfigParams: sysprobeconfig.NewParams(
+					sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+				),
+			},
 		),
-		fx.Populate(&allChecks),
+		// Populate dependencies required for initialization in this function.
+		fx.Populate(&appInitDeps),
 
+		// Provide process anent and core bundles so fx knows where to find components.
 		process.Bundle,
+		core.Bundle,
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
@@ -282,7 +263,7 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 	)
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
-	if !anyChecksEnabled(allChecks.Checks) {
+	if !anyChecksEnabled(appInitDeps.Checks) {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
@@ -292,7 +273,13 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 		return
 	}
 
-	err := app.Start(context.Background())
+	// TODO: Componetize status
+	err := initStatus(hostInfo, appInitDeps.syscfg)
+	if err != nil {
+		log.Critical("Failed to initialize status:", err)
+	}
+
+	err = app.Start(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %v", err)
 		return
@@ -349,4 +336,25 @@ func initRuntimeSettings() {
 			_ = log.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
 		}
 	}
+}
+
+func initStatus(hostInfo *checks.HostInfo, syscfg sysprobeconfig.Component) error {
+	// update docker socket path in info
+	dockerSock, err := util.GetDockerSocketPath()
+	if err != nil {
+		log.Debugf("Docker is not available on this host")
+	}
+	status.UpdateDockerSocket(dockerSock)
+
+	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+	_, processModuleEnabled := syscfg.Object().EnabledModules[sysconfig.ProcessModule]
+	eps, err := runner.GetAPIEndpoints()
+	if err != nil {
+		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
+	}
+	err = status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
+	if err != nil {
+		_ = log.Criticalf("Error initializing info: %s", err)
+	}
+	return nil
 }
