@@ -900,10 +900,10 @@ api_key:
     ## Example:
     ## interface_configs:
     ##   "10.0.0.1":              # target device IP address
-    ##     - match_field: "name"  # the field to match, can be `name` (interface name) or `index` (ifIndex)
-    ##       match_value: "eth0"  # the value to match
-    ##       in_speed: 50         # inbound speed value in bits per sec
-    ##       out_speed: 25        # outbound speed value in bits per sec
+    ##     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
+    ##       match_value: "eth0"  # (required) the value to match
+    ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
+    ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
     #
     # interface_config:
     #   "10.0.0.1":
