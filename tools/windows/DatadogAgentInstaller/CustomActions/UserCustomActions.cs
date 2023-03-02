@@ -96,7 +96,7 @@ namespace Datadog.CustomActions
         private static void RegistryValueProperty(ISession session, string propertyName, RegistryKey registryKey, string registryValue)
         {
             RegistryProperty(session, propertyName,
-                GetRegistryPropertyHandler => registryKey.GetValue(registryValue)?.ToString());
+                _ => registryKey.GetValue(registryValue)?.ToString());
         }
 
         /// <summary>
@@ -109,39 +109,37 @@ namespace Datadog.CustomActions
         {
             try
             {
-                using (var subkey = Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent"))
+                using var subkey = Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent");
+                if (subkey != null)
                 {
-                    if (subkey != null)
-                    {
-                        // DDAGENTUSER_NAME
-                        //
-                        // The user account can be provided to the installer by
-                        // * The registry
-                        // * The command line
-                        // * The agent user dialog
-                        // The user account domain and name are stored separately in the registry
-                        // but are passed together on the command line and the agent user dialog.
-                        // This function will combine the registry properties if they exist.
-                        // Preference is given to creds provided on the command line and the agent user dialog.
-                        // For UI installs it ensures that the agent user dialog is pre-populated.
-                        RegistryProperty(session, "DDAGENTUSER_NAME",
-                            GetRegistryPropertyHandler =>
+                    // DDAGENTUSER_NAME
+                    //
+                    // The user account can be provided to the installer by
+                    // * The registry
+                    // * The command line
+                    // * The agent user dialog
+                    // The user account domain and name are stored separately in the registry
+                    // but are passed together on the command line and the agent user dialog.
+                    // This function will combine the registry properties if they exist.
+                    // Preference is given to creds provided on the command line and the agent user dialog.
+                    // For UI installs it ensures that the agent user dialog is pre-populated.
+                    RegistryProperty(session, "DDAGENTUSER_NAME",
+                        _ =>
+                        {
+                            var domain = subkey.GetValue("installedDomain").ToString();
+                            var user = subkey.GetValue("installedUser").ToString();
+                            if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
                             {
-                                var domain = subkey.GetValue("installedDomain").ToString();
-                                var user = subkey.GetValue("installedUser").ToString();
-                                if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
-                                {
-                                    return $"{domain}\\{user}";
-                                }
-                                return string.Empty;
-                            });
+                                return $"{domain}\\{user}";
+                            }
+                            return string.Empty;
+                        });
 
-                        // PROJECTLOCATION
-                        RegistryValueProperty(session, "PROJECTLOCATION", subkey, "InstallPath");
+                    // PROJECTLOCATION
+                    RegistryValueProperty(session, "PROJECTLOCATION", subkey, "InstallPath");
 
-                        // APPLICATIONDATADIRECTORY
-                        RegistryValueProperty(session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
-                    }
+                    // APPLICATIONDATADIRECTORY
+                    RegistryValueProperty(session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
                 }
             }
             catch (Exception e)
