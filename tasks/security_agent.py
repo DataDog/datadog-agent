@@ -18,6 +18,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
+    SBOM_TAG,
     build_cws_object_files,
     check_for_ninja,
     ninja_define_ebpf_compiler,
@@ -315,6 +316,9 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("linux_bpf")
+    build_tags.append(SBOM_TAG)
+    build_tags.append("containerd")
+
     if bundle_ebpf:
         build_tags.append("ebpf_bindata")
 
