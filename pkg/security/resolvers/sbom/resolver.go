@@ -59,6 +59,11 @@ func (s *SBOM) getWorkloadKey() string {
 	return s.cgroup.WorkloadSelector.Image + ":" + s.cgroup.WorkloadSelector.Tag
 }
 
+// IsComputed returns true if SBOM was successfully generated
+func (s *SBOM) IsComputed() bool {
+	return s.scanSuccessful.Load()
+}
+
 // reset (thread unsafe) cleans up internal fields before a SBOM is inserted in cache, the goal is to save space and delete references
 // to structs that will be GCed
 func (s *SBOM) reset() {
