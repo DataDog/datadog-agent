@@ -1,0 +1,59 @@
+https://github.com/Supervisor/supervisor/pull/1578
+diff --git a/supervisor/options.py b/supervisor/options.py
+index 612b2fb..99a7b6b 100644
+--- a/supervisor/options.py
++++ b/supervisor/options.py
+@@ -10,7 +10,6 @@ import pwd
+ import grp
+ import resource
+ import stat
+-import pkg_resources
+ import glob
+ import platform
+ import warnings
+@@ -55,6 +54,12 @@ from supervisor import states
+ from supervisor import xmlrpc
+ from supervisor import poller
+
++if sys.version_info >= (3, 8):
++    from importlib.metadata import EntryPoint
++else:
++    from importlib_metadata import EntryPoint
++
++
+ def _read_version_txt():
+     mydir = os.path.abspath(os.path.dirname(__file__))
+     version_txt = os.path.join(mydir, 'version.txt')
+@@ -377,7 +382,7 @@ class Options:
+                                  (section, factory_key))
+             try:
+                 factory = self.import_spec(factory_spec)
+-            except ImportError:
++            except (AttributeError, ImportError):
+                 raise ValueError('%s cannot be resolved within [%s]' % (
+                     factory_spec, section))
+
+@@ -390,13 +395,7 @@ class Options:
+         return factories
+
+     def import_spec(self, spec):
+-        ep = pkg_resources.EntryPoint.parse("x=" + spec)
+-        if hasattr(ep, 'resolve'):
+-            # this is available on setuptools >= 10.2
+-            return ep.resolve()
+-        else:
+-            # this causes a DeprecationWarning on setuptools >= 11.3
+-            return ep.load(False)
++        return EntryPoint(None, spec, None).load()
+
+     def read_include_config(self, fp, parser, expansions):
+         if parser.has_section('include'):
+@@ -759,7 +758,7 @@ class ServerOptions(Options):
+                                        'supervisor.dispatchers:default_handler')
+             try:
+                 result_handler = self.import_spec(result_handler)
+-            except ImportError:
++            except (AttributeError, ImportError):
+                 raise ValueError('%s cannot be resolved within [%s]' % (
+                     result_handler, section))
+

@@ -14,6 +14,7 @@ dependency 'pip3'
 # Python packages built manually
 dependency 'kubernetes-client-python-py3'
 dependency 'snowflake-connector-python-py3'
+dependency 'supervisor-python-py3'
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -69,6 +70,7 @@ blacklist_packages = Array.new
 # We build these manually
 blacklist_packages.push(/^kubernetes==/)
 blacklist_packages.push(/^snowflake-connector-python==/)
+blacklist_packages.push(/^supervisor==/)
 
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
