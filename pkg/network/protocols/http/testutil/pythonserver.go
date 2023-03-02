@@ -91,7 +91,12 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 		return nil, err
 	}
 
-	return f, f.Close()
+	err = f.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to close file [%s]: %w", f.Name(), err)
+	}
+
+	return f, nil
 }
 
 func rawConnect(ctx context.Context, t *testing.T, host string, port string) {
