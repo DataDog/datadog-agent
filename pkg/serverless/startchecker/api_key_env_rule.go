@@ -7,6 +7,7 @@ package startchecker
 
 import "os"
 
+// ApiKeyEnvRule is used to ensure that an API KEY has been set via env variables
 type ApiKeyEnvRule struct{}
 
 const (

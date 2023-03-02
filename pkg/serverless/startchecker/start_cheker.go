@@ -9,21 +9,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type StartRule interface {
+// StartingRule is the interface to define a rule
+type StartingRule interface {
 	ok() bool
 	getError() string
 }
 
+// StartChecker is the managing the starting rules
 type StartChecker struct {
-	rules []StartRule
+	rules []StartingRule
 }
 
+// InitStartChecker creates a new StartChecker
 func InitStartChecker() StartChecker {
 	return StartChecker{
-		rules: make([]StartRule, 0),
+		rules: make([]StartingRule, 0),
 	}
 }
 
+// Check loops over each rules
 func (r *StartChecker) Check() bool {
 	if r.rules == nil {
 		log.Error("could not check as the StartChecker has not been initialized")
@@ -37,7 +41,8 @@ func (r *StartChecker) Check() bool {
 	return true
 }
 
-func (r *StartChecker) AddRule(rule StartRule) {
+// AddRule add a new rule to the StartChecker
+func (r *StartChecker) AddRule(rule StartingRule) {
 	if r.rules != nil {
 		r.rules = append(r.rules, rule)
 	} else {
