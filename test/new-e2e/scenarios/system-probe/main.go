@@ -48,7 +48,7 @@ func main() {
 		Provision:      *toProvisionPtr,
 	}
 
-	fmt.Printf("shutdown period: %d hour(s)\n", opts.ShutdownPeriod)
+	fmt.Printf("shutdown period: %d hour(s)\n", opts.ShutdownPeriod/60)
 
 	err := run(*envNamePtr, *securityGroupsPtr, *subnetsPtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)
 	if err != nil {

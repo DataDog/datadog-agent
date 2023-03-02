@@ -91,7 +91,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		"microvm:workingDir":                  auto.ConfigValue{Value: CustomAMIWorkingDir},
 	}
 
-	upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
+	_, upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 		awsEnvironment, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return fmt.Errorf("aws new environment: %w", err)
