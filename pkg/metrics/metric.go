@@ -55,25 +55,6 @@ func (a *APIMetricType) UnmarshalText(buf []byte) error {
 	return nil
 }
 
-// MetricSource represents how this metric made it into the Agent
-type MetricSource int
-
-// Enumeration of the existing API metric types
-const (
-	MetricSourceUnknown MetricSource = iota
-	MetricSourceDogstatsd
-)
-
-// String returns a string representation of APIMetricType
-func (ms MetricSource) String() string {
-	switch ms {
-	case MetricSourceDogstatsd:
-		return "dogstatsd"
-	default:
-		return "<unknown>"
-	}
-}
-
 // Metric is the interface of all metric types
 type Metric interface {
 	addSample(sample *MetricSample, timestamp float64)

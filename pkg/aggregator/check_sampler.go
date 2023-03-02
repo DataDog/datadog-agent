@@ -142,6 +142,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 		serie.Tags = context.Tags()
 		serie.Host = context.Host
 		serie.NoIndex = context.noIndex
+		serie.Source = context.source
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 
 		cs.series = append(cs.series, serie)

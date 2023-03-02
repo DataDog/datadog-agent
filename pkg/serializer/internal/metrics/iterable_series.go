@@ -142,10 +142,14 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	const pointValue = 1
 	const pointTimestamp = 2
 	const serieMetadataOrigin = 1
-	const serieMetadataOriginProduct = 1 // TODO confirm we're using 'Product' for dogstatsd
 	const serieMetadataOriginMetricType = 3
 	const metryTypeNotIndexed = 9
-	const serieMetadataProductDogstatsd = 2 // TODO confirm that this is the product enum code for dogstatsd
+
+	// Double "Origin" is intentional here, first means "in the 'Origin' message", second means "Field is OriginProduct"
+	const serieMetadataOriginOriginProduct = 4
+	const serieMetadataOriginOriginCategory = 5
+	const serieMetadataOriginOriginService = 6
+	const serieMetadataOriginOriginProductAgentType = 10
 
 	// Prepare to write the next payload
 	startPayload := func() error {
@@ -321,21 +325,12 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				})
 			}
 
-			fmt.Println("Sending a series!")
 			if serie.Source != metrics.MetricSourceUnknown {
-				fmt.Println("Sending a series with a source! Source set to ", serie.Source)
-				/*
-
-					It works! I see this output when running and submitting dogstatsd
-
-					Sending a series!
-					Sending a series!
-					Sending a series with a source! Source set to  dogstatsd
-
-				*/
 				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
 					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
-						return ps.Int32(serieMetadataOriginProduct, serieMetadataProductDogstatsd)
+						ps.Int32(serieMetadataOriginOriginProduct, serieMetadataOriginOriginProductAgentType)
+						ps.Int32(serieMetadataOriginOriginCategory, serie.Source.OriginCategory())
+						return ps.Int32(serieMetadataOriginOriginService, serie.Source.OriginService())
 					})
 				})
 			}
