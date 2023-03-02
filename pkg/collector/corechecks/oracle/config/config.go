@@ -35,7 +35,7 @@ type InstanceConfig struct {
 	DBM                    bool                `yaml:"dbm"`
 	Tags                   []string            `yaml:"tags"`
 	ObfuscatorOn           bool                `yaml:"obfuscator_on"`
-	LogUnobfuscatedQueries bool                `yaml:"logUnobfuscatedQueries"`
+	LogUnobfuscatedQueries bool                `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions      obfuscate.SQLConfig `yaml:"obfuscator_options"`
 	UseGodrorWithEZConnect bool                `yaml:"use_godror_with_ezconnect"`
 }
