@@ -228,6 +228,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "process.ancestors.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "process.ancestors.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -346,6 +351,11 @@
           "name": "process.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.package.version",
@@ -573,6 +583,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "process.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "process.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -691,6 +706,11 @@
           "name": "process.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "process.interpreter.file.package.version",
@@ -888,6 +908,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "process.parent.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "process.parent.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -1006,6 +1031,11 @@
           "name": "process.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "process.parent.interpreter.file.package.version",
@@ -1289,6 +1319,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "chmod.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "chmod.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -1411,6 +1446,11 @@
           "name": "chown.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chown.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "chown.file.package.version",
@@ -1656,6 +1696,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "exec.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "exec.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -1774,6 +1819,11 @@
           "name": "exec.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "exec.interpreter.file.package.version",
@@ -2020,6 +2070,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "exit.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "exit.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -2138,6 +2193,11 @@
           "name": "exit.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "exit.interpreter.file.package.version",
@@ -2284,6 +2344,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "link.file.destination.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "link.file.destination.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -2367,6 +2432,11 @@
           "name": "link.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "link.file.package.version",
@@ -2471,6 +2541,11 @@
           "name": "load_module.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "load_module.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "load_module.file.package.version",
@@ -2597,6 +2672,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "mkdir.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "mkdir.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -2699,6 +2779,11 @@
           "name": "mmap.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mmap.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "mmap.file.package.version",
@@ -2871,6 +2956,11 @@
           "name": "open.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "open.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "open.file.package.version",
@@ -3087,6 +3177,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -3205,6 +3300,11 @@
           "name": "ptrace.tracee.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.package.version",
@@ -3432,6 +3532,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "ptrace.tracee.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "ptrace.tracee.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -3550,6 +3655,11 @@
           "name": "ptrace.tracee.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.package.version",
@@ -3747,6 +3857,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "ptrace.tracee.parent.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -3865,6 +3980,11 @@
           "name": "ptrace.tracee.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.package.version",
@@ -4046,6 +4166,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "removexattr.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "removexattr.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -4155,6 +4280,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "rename.file.destination.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "rename.file.destination.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -4238,6 +4368,11 @@
           "name": "rename.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "rename.file.package.version",
@@ -4342,6 +4477,11 @@
           "name": "rmdir.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rmdir.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "rmdir.file.package.version",
@@ -4565,6 +4705,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "setxattr.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "setxattr.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -4774,6 +4919,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "signal.target.ancestors.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -4892,6 +5042,11 @@
           "name": "signal.target.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.package.version",
@@ -5119,6 +5274,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "signal.target.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "signal.target.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -5237,6 +5397,11 @@
           "name": "signal.target.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "signal.target.interpreter.file.package.version",
@@ -5434,6 +5599,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "signal.target.parent.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "signal.target.parent.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -5552,6 +5722,11 @@
           "name": "signal.target.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.package.version",
@@ -5728,6 +5903,11 @@
           "property_doc_link": "common-fileevent-package-name-doc"
         },
         {
+          "name": "splice.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
           "name": "splice.file.package.version",
           "definition": "[Experimental] Full version of the package that provided this file",
           "property_doc_link": "common-fileevent-package-version-doc"
@@ -5840,6 +6020,11 @@
           "name": "unlink.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "unlink.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "unlink.file.package.version",
@@ -5968,6 +6153,11 @@
           "name": "utimes.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "utimes.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
         },
         {
           "name": "utimes.file.package.version",
@@ -7254,6 +7444,55 @@
       "link": "common-fileevent-package-name-doc",
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
+      "prefixes": [
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.source_version",
+      "link": "common-fileevent-package-source_version-doc",
+      "type": "string",
+      "definition": "[Experimental] Full version of the source package of the package that provided this file",
       "prefixes": [
         "chmod.file",
         "chown.file",

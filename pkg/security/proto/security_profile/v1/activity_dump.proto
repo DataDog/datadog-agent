@@ -132,6 +132,7 @@ message FileInfo {
 
     string package_name = 14;
     string package_version = 15;
+    string package_srcversion = 16;
 }
 
 message Credentials {

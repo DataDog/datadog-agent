@@ -7,6 +7,7 @@ package sbom
 
 // Package describes a system package
 type Package struct {
-	Name    string
-	Version string
+	Name       string
+	Version    string
+	SrcVersion string
 }

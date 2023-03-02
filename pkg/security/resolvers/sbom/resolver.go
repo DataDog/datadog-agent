@@ -272,8 +272,9 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	for _, result := range sbom.report.Results {
 		for _, resultPkg := range result.Packages {
 			pkg := &Package{
-				Name:    resultPkg.Name,
-				Version: resultPkg.Version,
+				Name:       resultPkg.Name,
+				Version:    resultPkg.Version,
+				SrcVersion: resultPkg.SrcVersion,
 			}
 			for _, file := range resultPkg.SystemInstalledFiles {
 				seclog.Tracef("indexing %s as %+v", file, pkg)

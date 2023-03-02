@@ -190,11 +190,12 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 			},
 			InUpperLayer: fi.InUpperLayer,
 		},
-		PathnameStr: fi.Path,
-		BasenameStr: fi.Basename,
-		Filesystem:  fi.Filesystem,
-		PkgName:     fi.PackageName,
-		PkgVersion:  fi.PackageVersion,
+		PathnameStr:   fi.Path,
+		BasenameStr:   fi.Basename,
+		Filesystem:    fi.Filesystem,
+		PkgName:       fi.PackageName,
+		PkgVersion:    fi.PackageVersion,
+		PkgSrcVersion: fi.PackageSrcversion,
 	}
 }
 
