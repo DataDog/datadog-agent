@@ -19,7 +19,7 @@ const (
 	Pass = "guest"
 )
 
-func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
+func RunServer(t *testing.T, serverAddr, serverPort string) bool {
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,
 		"AMQP_PORT=" + serverPort,
@@ -29,5 +29,5 @@ func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	protocolsUtils.RunDockerServer(t, "amqp", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*started TCP listener on .*%s.*", serverPort)), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "amqp", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*started TCP listener on .*%s.*", serverPort)), protocolsUtils.DefaultTimeout)
 }

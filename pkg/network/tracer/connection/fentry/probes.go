@@ -50,6 +50,8 @@ const (
 
 	// tcpRetransmit traces the the tcp_retransmit_skb() kernel function
 	tcpRetransmit = "tcp_retransmit_skb"
+	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
+	tcpRetransmitRet = "tcp_retransmit_skb_exit"
 
 	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	inetCskAcceptReturn = "inet_csk_accept_exit"
@@ -79,6 +81,7 @@ var programs = map[string]struct{}{
 	tcpConnect:           {},
 	tcpFinishConnect:     {},
 	tcpRetransmit:        {},
+	tcpRetransmitRet:     {},
 	tcpSendMsgReturn:     {},
 	tcpSetState:          {},
 	udpDestroySock:       {},
@@ -111,6 +114,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpSetState)
 		enableProgram(enabled, tcpRetransmit)
+		enableProgram(enabled, tcpRetransmitRet)
 
 		// TODO: see comments above on availability for these
 		//       hooks

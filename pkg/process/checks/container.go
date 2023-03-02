@@ -12,6 +12,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -23,7 +24,7 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck() Check {
+func NewContainerCheck() *ContainerCheck {
 	return &ContainerCheck{}
 }
 
@@ -58,9 +59,9 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 }
 
 // IsEnabled returns true if the check is enabled by configuration
+// Keep in mind that ContainerRTCheck.IsEnabled should only be enabled if the `ContainerCheck` is enabled
 func (c *ContainerCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	return canEnableContainerChecks(ddconfig.Datadog, true)
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

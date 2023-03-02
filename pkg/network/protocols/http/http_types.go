@@ -16,7 +16,7 @@ package http
 */
 import "C"
 
-type httpConnTuple C.conn_tuple_t
+type httpConnTuple = C.conn_tuple_t
 type sslSock C.ssl_sock_t
 type sslReadArgs C.ssl_read_args_t
 

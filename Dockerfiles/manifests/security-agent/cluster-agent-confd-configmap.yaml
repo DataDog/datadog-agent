@@ -35,4 +35,6 @@ data:
         - volumeattachments
         - ingresses
         labels_as_tags:
-            {}
+          {}
+        annotations_as_tags:
+          {}

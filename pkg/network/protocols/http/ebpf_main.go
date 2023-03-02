@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	httpInFlightMap = "http_in_flight"
+	httpInFlightMap  = "http_in_flight"
+	http2InFlightMap = "http2_in_flight"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
@@ -90,6 +91,14 @@ type subprogram interface {
 	Stop()
 }
 
+var http2TailCall = manager.TailCallRoute{
+	ProgArrayName: protocolDispatcherProgramsMap,
+	Key:           uint32(ProtocolHTTP2),
+	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		EBPFFuncName: "socket__http2_filter",
+	},
+}
+
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -126,6 +135,10 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
+	if c.EnableHTTP2Monitoring {
+		mgr.Maps = append(mgr.Maps, &manager.Map{Name: "http2_dynamic_table"}, &manager.Map{Name: "http2_static_table"})
+	}
+
 	subprogramProbesResolvers := make([]probeResolver, 0, 3)
 	subprograms := make([]subprogram, 0, 3)
 
@@ -153,6 +166,10 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 				EBPFFuncName: "socket__http_filter",
 			},
 		},
+	}
+
+	if c.EnableHTTP2Monitoring {
+		tailCalls = append(tailCalls, http2TailCall)
 	}
 
 	// If Kafka monitoring is enabled, the kafka parsing function and the Kafka dispatching function are added to the dispatcher mechanism.
@@ -322,6 +339,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 			EditorFlag: manager.EditMaxEntries,
 		},
+		http2InFlightMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
 		connectionStatesMap: {
 			Type:       ebpf.Hash,
 			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
@@ -370,6 +392,13 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	// Configure event streams
 	events.Configure("http", e.Manager.Manager, &options)
+
+	if e.cfg.EnableHTTP2Monitoring {
+		events.Configure("http2", e.Manager.Manager, &options)
+	} else {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, "socket__http2_filter")
+	}
+
 	if e.cfg.EnableKafkaMonitoring {
 		events.Configure("kafka", e.Manager.Manager, &options)
 	} else {

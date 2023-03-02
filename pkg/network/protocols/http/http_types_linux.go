@@ -3,7 +3,7 @@
 
 package http
 
-type httpConnTuple struct {
+type httpConnTuple = struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
 	Daddr_h  uint64

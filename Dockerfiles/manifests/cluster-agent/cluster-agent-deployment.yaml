@@ -31,7 +31,7 @@ spec:
       serviceAccountName: datadog-cluster-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:7.40.1"
+          image: "gcr.io/datadoghq/cluster-agent:7.43.0"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -53,6 +53,8 @@ spec:
                   name: "datadog"
                   key: api-key
                   optional: true
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_APP_KEY
               valueFrom:
                 secretKeyRef:
@@ -99,6 +101,8 @@ spec:
                 secretKeyRef:
                   name: datadog-cluster-agent
                   key: token
+            - name: DD_CLUSTER_AGENT_COLLECT_KUBERNETES_TAGS
+              value: "false"
             - name: DD_KUBE_RESOURCES_NAMESPACE
               value: default
             - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
