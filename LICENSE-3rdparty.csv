@@ -965,7 +965,7 @@ core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2022 Alan Shreve 
 core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/iovisor/gobpf/pkg/cpupossible,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
 core,github.com/iovisor/gobpf/pkg/cpurange,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
-core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2022 itchyny
+core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2023 itchyny
 core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2022 itchyny
 core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
 core,github.com/jinzhu/inflection,MIT,Copyright (c) 2015 - Jinzhu
