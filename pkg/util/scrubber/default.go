@@ -106,7 +106,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte(`********`),
 	}
 
-	// The following replacer works on YAML object only
+	// The following replacers works on YAML object only
 
 	apiKeyYaml := matchYAMLOnly(
 		`api_key`,
