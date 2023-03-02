@@ -21,3 +21,14 @@ var (
 	//DefaultDogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
 	DefaultDogstatsDLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
 )
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultConfPath = pd
+		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
+		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
+	} else {
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
+	}
+}

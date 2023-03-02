@@ -25,17 +25,6 @@ var (
 	viewsPath string
 )
 
-func init() {
-	pd, err := winutil.GetProgramDataDir()
-	if err == nil {
-		constants.DefaultConfPath = pd
-		constants.DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
-		constants.DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
-	} else {
-		winutil.LogEventViewer(config.ServiceName, 0x8000000F, constants.DefaultConfPath)
-	}
-}
-
 // EnableLoggingToFile -- set up logging to file
 func EnableLoggingToFile() {
 	seeConfig := `
