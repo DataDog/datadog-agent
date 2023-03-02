@@ -13,7 +13,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
-func RunPostgresServer(t *testing.T, serverAddr string, serverPort string) {
+func RunServer(t *testing.T, serverAddr string, serverPort string) bool {
 	t.Helper()
 
 	env := []string{
@@ -23,5 +23,5 @@ func RunPostgresServer(t *testing.T, serverAddr string, serverPort string) {
 
 	dir, _ := testutil.CurDir()
 
-	protocolsUtils.RunDockerServer(t, "postgres", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*\\[1].*database system is ready to accept connections"), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "postgres", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*\\[1].*database system is ready to accept connections"), protocolsUtils.DefaultTimeout)
 }

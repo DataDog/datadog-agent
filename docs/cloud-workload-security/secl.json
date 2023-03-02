@@ -13,6 +13,11 @@
           "property_doc_link": "async-doc"
         },
         {
+          "name": "container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "container-created_at-doc"
+        },
+        {
           "name": "container.id",
           "definition": "ID of the container",
           "property_doc_link": "container-id-doc"
@@ -218,6 +223,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.ancestors.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "process.ancestors.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -326,6 +341,16 @@
           "name": "process.ancestors.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.path",
@@ -543,6 +568,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "process.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -651,6 +686,16 @@
           "name": "process.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.interpreter.file.path",
@@ -838,6 +883,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.parent.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "process.parent.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -946,6 +1001,16 @@
           "name": "process.parent.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.parent.interpreter.file.path",
@@ -1219,6 +1284,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "chmod.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chmod.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "chmod.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -1331,6 +1406,16 @@
           "name": "chown.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chown.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chown.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "chown.file.path",
@@ -1566,6 +1651,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exec.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "exec.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -1674,6 +1769,16 @@
           "name": "exec.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "exec.interpreter.file.path",
@@ -1910,6 +2015,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exit.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "exit.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -2018,6 +2133,16 @@
           "name": "exit.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "exit.interpreter.file.path",
@@ -2154,6 +2279,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "link.file.destination.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.destination.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "link.file.destination.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -2227,6 +2362,16 @@
           "name": "link.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "link.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "link.file.path",
@@ -2321,6 +2466,16 @@
           "name": "load_module.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "load_module.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "load_module.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "load_module.file.path",
@@ -2437,6 +2592,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "mkdir.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mkdir.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "mkdir.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -2529,6 +2694,16 @@
           "name": "mmap.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "mmap.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mmap.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "mmap.file.path",
@@ -2691,6 +2866,16 @@
           "name": "open.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "open.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "open.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "open.file.path",
@@ -2897,6 +3082,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -3005,6 +3200,16 @@
           "name": "ptrace.tracee.ancestors.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.path",
@@ -3222,6 +3427,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "ptrace.tracee.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -3330,6 +3545,16 @@
           "name": "ptrace.tracee.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.path",
@@ -3517,6 +3742,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.parent.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -3625,6 +3860,16 @@
           "name": "ptrace.tracee.parent.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.path",
@@ -3796,6 +4041,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "removexattr.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "removexattr.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "removexattr.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -3895,6 +4150,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rename.file.destination.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.destination.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "rename.file.destination.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -3968,6 +4233,16 @@
           "name": "rename.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "rename.file.path",
@@ -4062,6 +4337,16 @@
           "name": "rmdir.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rmdir.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rmdir.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "rmdir.file.path",
@@ -4275,6 +4560,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setxattr.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setxattr.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "setxattr.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -4474,6 +4769,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.ancestors.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -4582,6 +4887,16 @@
           "name": "signal.target.ancestors.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.path",
@@ -4799,6 +5114,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "signal.target.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -4907,6 +5232,16 @@
           "name": "signal.target.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.interpreter.file.path",
@@ -5094,6 +5429,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.parent.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "signal.target.parent.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -5202,6 +5547,16 @@
           "name": "signal.target.parent.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.path",
@@ -5368,6 +5723,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "splice.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "splice.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
           "name": "splice.file.path",
           "definition": "File's path",
           "property_doc_link": "common-fileevent-path-doc"
@@ -5470,6 +5835,16 @@
           "name": "unlink.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "unlink.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "unlink.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "unlink.file.path",
@@ -5588,6 +5963,16 @@
           "name": "utimes.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "utimes.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "utimes.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "utimes.file.path",
@@ -6865,6 +7250,104 @@
       ]
     },
     {
+      "name": "*.package.name",
+      "link": "common-fileevent-package-name-doc",
+      "type": "string",
+      "definition": "[Experimental] Name of the package that provided this file",
+      "prefixes": [
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.version",
+      "link": "common-fileevent-package-version-doc",
+      "type": "string",
+      "definition": "[Experimental] Full version of the package that provided this file",
+      "prefixes": [
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.path",
       "link": "common-fileevent-path-doc",
       "type": "string",
@@ -7463,6 +7946,18 @@
       "definition": "New user of the chown-ed file's owner",
       "prefixes": [
         "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.created_at",
+      "link": "container-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the container",
+      "prefixes": [
+        "container"
       ],
       "constants": "",
       "constants_link": "",

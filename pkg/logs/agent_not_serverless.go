@@ -20,22 +20,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
-	ccaScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // NewAgent returns a new Logs Agent
@@ -53,8 +47,6 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
-	cop := containersorpods.NewChooser()
-
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
@@ -66,22 +58,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher())
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	if !util.CcaInAD() {
-		lnchrs.AddLauncher(docker.NewLauncher(
-			time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
-			sources,
-			services,
-			cop,
-			coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
-			coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file")))
-		lnchrs.AddLauncher(kubernetes.NewLauncher(
-			sources,
-			services,
-			cop,
-			coreConfig.Datadog.GetBool("logs_config.container_collect_all")))
-	} else {
-		lnchrs.AddLauncher(container.NewLauncher(sources))
-	}
+	lnchrs.AddLauncher(container.NewLauncher(sources))
 
 	return &Agent{
 		sources:                   sources,
@@ -109,9 +86,6 @@ func Start(ac *autodiscovery.AutoConfig) (*Agent, error) {
 		panic("AutoConfig must be initialized before logs-agent")
 	}
 	agent.AddScheduler(adScheduler.New(ac))
-	if !ddUtil.CcaInAD() {
-		agent.AddScheduler(ccaScheduler.New(ac))
-	}
 	return agent, nil
 }
 

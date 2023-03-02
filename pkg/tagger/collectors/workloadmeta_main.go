@@ -146,6 +146,7 @@ func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, p p
 		retrieveMappingFromConfig("docker_labels_as_tags"),
 		retrieveMappingFromConfig("container_labels_as_tags"),
 	)
+	// Adding new environment variables require adding them to pkg/util/containers/env_vars_filter.go
 	containerEnvAsTags := mergeMaps(
 		retrieveMappingFromConfig("docker_env_as_tags"),
 		retrieveMappingFromConfig("container_env_as_tags"),

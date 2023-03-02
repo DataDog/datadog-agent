@@ -25,25 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
 )
-
-func getEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
-	port := endpoint.Port
-	var protocol string
-	if endpoint.UseSSL {
-		protocol = "https"
-		if port == 0 {
-			port = 443 // use default port
-		}
-	} else {
-		protocol = "http"
-		if port == 0 {
-			port = 80 // use default port
-		}
-	}
-	return fmt.Sprintf("%s://%s:%v/%s", protocol, endpoint.Host, port, uri)
-}
 
 type tooLargeEntityStatsEntry struct {
 	storageFormat config.StorageFormat
@@ -83,7 +67,7 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 		return nil, fmt.Errorf("couldn't generate storage endpoints: %w", err)
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		storage.urls = append(storage.urls, getEndpointURL(endpoint, "api/v2/secdump"))
+		storage.urls = append(storage.urls, utils.GetEndpointURL(endpoint, "api/v2/secdump"))
 		storage.apiKeys = append(storage.apiKeys, endpoint.APIKey)
 	}
 

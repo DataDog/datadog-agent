@@ -145,8 +145,9 @@ type ChownEvent struct {
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	ID   string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
 // Event represents an event sent from the kernel
@@ -448,8 +449,7 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID   string   `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
-	ContainerTags []string `field:"-"`
+	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
@@ -564,6 +564,9 @@ type FileEvent struct {
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
 	PathResolutionError error `field:"-" json:"-"`
+
+	PkgName    string `field:"package.name,handler:ResolvePackageName"`       // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
+	PkgVersion string `field:"package.version,handler:ResolvePackageVersion"` // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
@@ -704,8 +707,8 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
-// IsContainerInit returns whether this is the entrypoint of the container
-func (pc *ProcessCacheEntry) IsContainerInit() bool {
+// IsContainerRoot returns whether this is a top level process in the container ID
+func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
 }
 

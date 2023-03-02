@@ -119,11 +119,14 @@ func (ic *InterfaceConfigs) UnmarshalYAML(unmarshal func(interface{}) error) err
 		var ifConfigJson string
 		err := unmarshal(&ifConfigJson)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot unmarshall to string: %s", err)
+		}
+		if ifConfigJson == "" {
+			return nil
 		}
 		err = json.Unmarshal([]byte(ifConfigJson), &ifConfigs)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot unmarshall json to []snmpintegration.InterfaceConfig: %s", err)
 		}
 	}
 	*ic = ifConfigs

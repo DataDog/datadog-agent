@@ -44,4 +44,10 @@ typedef enum {
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
 
+typedef enum {
+    DISPATCHER_KAFKA_PROG = 0,
+    // Add before this value.
+    DISPATCHER_PROG_MAX,
+} dispatcher_prog_t;
+
 #endif

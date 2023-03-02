@@ -135,7 +135,7 @@ func (ms *MetricSender) sendIfSpeedMetric(symbolName string, customSpeed uint64,
 	speedSource := "custom"
 	if customSpeed == 0 {
 		ifSpeed = ifHighSpeed
-		speedSource = "snmp"
+		speedSource = "device"
 	}
 	if ifSpeed == 0 {
 		return

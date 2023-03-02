@@ -135,6 +135,28 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
+func TestEnableDataStreams(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDataStreams.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.DataStreamsEnabled)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.DataStreamsEnabled)
+	})
+}
+
 func TestEnableJavaTLSSupport(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig(t)
@@ -158,6 +180,29 @@ func TestEnableJavaTLSSupport(t *testing.T) {
 	})
 }
 
+func TestEnableHTTP2Monitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP2.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_MONITORING", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+	})
+}
+
 func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	newConfig(t)
 
@@ -166,6 +211,16 @@ func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	cfg := New()
 
 	assert.False(t, cfg.EnableJavaTLSSupport)
+}
+
+func TestDefaultDisabledHTTP2Support(t *testing.T) {
+	newConfig(t)
+
+	_, err := sysconfig.New("")
+	require.NoError(t, err)
+	cfg := New()
+
+	assert.False(t, cfg.EnableHTTP2Monitoring)
 }
 
 func TestDisableGatewayLookup(t *testing.T) {
@@ -403,12 +458,32 @@ network_config:
 	})
 }
 
+func TestMaxKafkaStatsBuffered(t *testing.T) {
+	t.Run("value set through env var", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_KAFKA_STATS_BUFFERED", "50000")
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxKafkaStatsBuffered)
+	})
+
+	t.Run("value set through yaml", func(t *testing.T) {
+		newConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_kafka_stats_buffered: 30000
+`)
+
+		assert.Equal(t, 30000, cfg.MaxKafkaStatsBuffered)
+	})
+}
+
 func TestNetworkConfigEnabled(t *testing.T) {
 	ys := true
 
 	for i, tc := range []struct {
-		sysIn, npmIn, usmIn    *bool
-		npmEnabled, usmEnabled bool
+		sysIn, npmIn, usmIn, dsmIn         *bool
+		npmEnabled, usmEnabled, dsmEnabled bool
 	}{
 		{sysIn: nil, npmIn: nil, usmIn: nil, npmEnabled: false, usmEnabled: false},
 		{sysIn: nil, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
@@ -419,6 +494,9 @@ func TestNetworkConfigEnabled(t *testing.T) {
 		{sysIn: &ys, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
 		{sysIn: &ys, npmIn: &ys, usmIn: nil, npmEnabled: true, usmEnabled: false},
 		{sysIn: &ys, npmIn: &ys, usmIn: &ys, npmEnabled: true, usmEnabled: true},
+		{sysIn: nil, npmIn: nil, usmIn: nil, dsmIn: &ys, npmEnabled: false, usmEnabled: true, dsmEnabled: true},
+		{sysIn: nil, npmIn: nil, usmIn: &ys, dsmIn: &ys, npmEnabled: false, usmEnabled: true, dsmEnabled: true},
+		{sysIn: nil, npmIn: &ys, usmIn: &ys, dsmIn: &ys, npmEnabled: true, usmEnabled: true, dsmEnabled: true},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			f, err := os.CreateTemp(t.TempDir(), "emptyconfig*.yaml")
@@ -434,6 +512,9 @@ func TestNetworkConfigEnabled(t *testing.T) {
 			if tc.usmIn != nil {
 				t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(*tc.usmIn))
 			}
+			if tc.dsmIn != nil {
+				t.Setenv("DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED", strconv.FormatBool(*tc.dsmIn))
+			}
 
 			newConfig(t)
 			_, err = sysconfig.New(f.Name())
@@ -441,6 +522,7 @@ func TestNetworkConfigEnabled(t *testing.T) {
 			cfg := New()
 			assert.Equal(t, tc.npmEnabled, cfg.NPMEnabled, "npm state")
 			assert.Equal(t, tc.usmEnabled, cfg.ServiceMonitoringEnabled, "usm state")
+			assert.Equal(t, tc.dsmEnabled, cfg.DataStreamsEnabled, "dsm state")
 		})
 	}
 }

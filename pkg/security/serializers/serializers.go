@@ -65,6 +65,10 @@ type FileSerializer struct {
 	Mtime *utils.EasyjsonTime `json:"modification_time,omitempty"`
 	// File change time
 	Ctime *utils.EasyjsonTime `json:"change_time,omitempty"`
+	// System package name
+	PackageName string `json:"package_name,omitempty"`
+	// System package version
+	PackageVersion string `json:"package_version,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -218,6 +222,8 @@ type ProcessSerializer struct {
 type ContainerContextSerializer struct {
 	// Container ID
 	ID string `json:"id,omitempty"`
+	// Creation time of the container
+	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -570,6 +576,8 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		Mtime:               getTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
 		Ctime:               getTimeIfNotZero(time.Unix(0, int64(fe.CTime))),
 		InUpperLayer:        getInUpperLayer(&fe.FileFields),
+		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
+		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
 	}
 }
 
@@ -657,6 +665,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		if len(ps.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID: ps.ContainerID,
+			}
+			if cgroup, _ := resolvers.CGroupResolver.GetWorkload(ps.ContainerID); cgroup != nil {
+				psSerializer.Container.CreatedAt = getTimeIfNotZero(time.Unix(0, int64(cgroup.CreationTime)))
 			}
 		}
 		return psSerializer
@@ -1031,8 +1042,13 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 	}
 
 	if id := event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext); id != "" {
+		var creationTime time.Time
+		if cgroup, _ := resolvers.CGroupResolver.GetWorkload(id); cgroup != nil {
+			creationTime = time.Unix(0, int64(cgroup.CreationTime))
+		}
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID: id,
+			ID:        id,
+			CreatedAt: getTimeIfNotZero(creationTime),
 		}
 	}
 

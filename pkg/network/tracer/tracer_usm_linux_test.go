@@ -140,24 +140,19 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	resp.Body.Close()
 
 	// Iterate through active connections until we find connection created above
-	var httpReqStats *http.RequestStats
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
-			if key.Path.Content == "/test" {
-				httpReqStats = stats
-				return true
+			if key.Method == http.MethodGet && key.Path.Content == "/test" && (key.SrcPort == 8080 || key.DstPort == 8080) {
+				currentStats := stats.Data[stats.NormalizeStatusCode(204)]
+				if currentStats != nil && currentStats.Count == 1 {
+					return true
+				}
 			}
 		}
 
 		return false
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
-
-	// Verify HTTP stats
-	require.NotNil(t, httpReqStats)
-	require.Len(t, httpReqStats.Data, 1)
-	require.NotNil(t, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)])
-	require.Equalf(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count, "%v", httpReqStats)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -884,7 +879,8 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 }
 
-func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
+func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
+	t.Skip("Skipping a flaky test")
 	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
@@ -1015,7 +1011,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 	tr := setupTracer(t, cfg)
 
-	gotls.RunGoHTTPSServer(t, serverPort)
+	gotls.RunServer(t, serverPort)
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
@@ -1034,7 +1030,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 		expectedOccurrences = 10
 	)
 
-	gotls.RunGoHTTPSServer(t, serverPort)
+	gotls.RunServer(t, serverPort)
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{

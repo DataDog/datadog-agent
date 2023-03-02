@@ -28,7 +28,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -45,12 +45,14 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
@@ -102,6 +104,9 @@ spec:
               readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: false
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
@@ -158,7 +163,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: trace-agent
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["trace-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -176,12 +181,14 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_CLUSTER_AGENT_ENABLED
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -206,6 +213,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
             - name: procdir
               mountPath: /host/proc
               mountPropagation: None
@@ -232,7 +242,7 @@ spec:
               port: 8126
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -245,12 +255,14 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_CLUSTER_AGENT_ENABLED
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -261,7 +273,7 @@ spec:
                   name: datadog-cluster-agent
                   key: token
             - name: DD_PROCESS_AGENT_DISCOVERY_ENABLED
-              value: "false"
+              value: "true"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_SYSTEM_PROBE_ENABLED
@@ -275,6 +287,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
             - name: tmpdir
@@ -309,7 +324,7 @@ spec:
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
         - name: system-probe
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -322,6 +337,7 @@ spec:
                 - NET_RAW
                 - IPC_LOCK
                 - CHOWN
+                - DAC_READ_SEARCH
             privileged: false
             seccompProfile:
               type: Localhost
@@ -336,16 +352,21 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_LOG_LEVEL
               value: "INFO"
           resources: {}
           volumeMounts:
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
             - name: tmpdir
@@ -379,7 +400,7 @@ spec:
               mountPath: /host/etc/lsb-release
               readOnly: true
         - name: security-agent
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -395,20 +416,14 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
-            - name: DD_LOG_LEVEL
-              value: "INFO"
-            - name: DD_COMPLIANCE_CONFIG_ENABLED
-              value: "true"
-            - name: DD_COMPLIANCE_CONFIG_CHECK_INTERVAL
-              value: "20m"
-            - name: HOST_ROOT
-              value: /host/root
             - name: DD_CLUSTER_AGENT_ENABLED
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -418,6 +433,14 @@ spec:
                 secretKeyRef:
                   name: datadog-cluster-agent
                   key: token
+            - name: DD_LOG_LEVEL
+              value: "INFO"
+            - name: DD_COMPLIANCE_CONFIG_ENABLED
+              value: "true"
+            - name: DD_COMPLIANCE_CONFIG_CHECK_INTERVAL
+              value: "20m"
+            - name: HOST_ROOT
+              value: /host/root
             - name: DD_RUNTIME_SECURITY_CONFIG_ENABLED
               value: "true"
             - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
@@ -429,6 +452,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
             - name: tmpdir
@@ -468,7 +494,7 @@ spec:
               subPath: system-probe.yaml
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -478,7 +504,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -508,15 +534,18 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
           resources: {}
         - name: seccomp-setup
-          image: "gcr.io/datadoghq/agent:7.40.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
+          imagePullPolicy: IfNotPresent
           command:
             - cp
             - /etc/config/system-probe-seccomp.json
@@ -529,6 +558,8 @@ spec:
               mountPropagation: None
           resources: {}
       volumes:
+        - name: auth-token
+          emptyDir: {}
         - name: installinfo
           configMap:
             name: datadog-installinfo

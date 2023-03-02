@@ -88,6 +88,11 @@
         "id": {
           "type": "string",
           "description": "Container ID"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation time of the container"
         }
       },
       "additionalProperties": false,
@@ -282,6 +287,14 @@
           "type": "string",
           "format": "date-time",
           "description": "File change time"
+        },
+        "package_name": {
+          "type": "string",
+          "description": "System package name"
+        },
+        "package_version": {
+          "type": "string",
+          "description": "System package version"
         }
       },
       "additionalProperties": false,
@@ -371,6 +384,14 @@
           "type": "string",
           "format": "date-time",
           "description": "File change time"
+        },
+        "package_name": {
+          "type": "string",
+          "description": "System package name"
+        },
+        "package_version": {
+          "type": "string",
+          "description": "System package version"
         },
         "destination": {
           "$ref": "#/$defs/File",

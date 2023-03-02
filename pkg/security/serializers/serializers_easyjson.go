@@ -2595,6 +2595,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 					in.AddError((*out.Ctime).UnmarshalJSON(data))
 				}
 			}
+		case "package_name":
+			out.PackageName = string(in.String())
+		case "package_version":
+			out.PackageVersion = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -2748,6 +2752,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 		const prefix string = ",\"change_time\":"
 		out.RawString(prefix)
 		(*in.Ctime).MarshalEasyJSON(out)
+	}
+	if in.PackageName != "" {
+		const prefix string = ",\"package_name\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageName))
+	}
+	if in.PackageVersion != "" {
+		const prefix string = ",\"package_version\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageVersion))
 	}
 	out.RawByte('}')
 }
@@ -2917,6 +2931,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 					in.AddError((*out.Ctime).UnmarshalJSON(data))
 				}
 			}
+		case "package_name":
+			out.PackageName = string(in.String())
+		case "package_version":
+			out.PackageVersion = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -3120,6 +3138,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 		const prefix string = ",\"change_time\":"
 		out.RawString(prefix)
 		(*in.Ctime).MarshalEasyJSON(out)
+	}
+	if in.PackageName != "" {
+		const prefix string = ",\"package_name\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageName))
+	}
+	if in.PackageVersion != "" {
+		const prefix string = ",\"package_version\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageVersion))
 	}
 	out.RawByte('}')
 }
@@ -4166,6 +4194,18 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers30(
 		switch key {
 		case "id":
 			out.ID = string(in.String())
+		case "created_at":
+			if in.IsNull() {
+				in.Skip()
+				out.CreatedAt = nil
+			} else {
+				if out.CreatedAt == nil {
+					out.CreatedAt = new(utils.EasyjsonTime)
+				}
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.CreatedAt).UnmarshalJSON(data))
+				}
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -4185,6 +4225,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers30(
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
+	}
+	if in.CreatedAt != nil {
+		const prefix string = ",\"created_at\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.CreatedAt).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
