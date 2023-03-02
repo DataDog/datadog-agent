@@ -63,24 +63,6 @@ type RunParams struct {
 func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) error {
 
 	tracecfg := cfg.Object()
-	// cfg, err := cmdconfig.LoadConfigFile(cliParams.ConfPath)
-	// if err != nil {
-	// 	fmt.Println(err) // TODO: remove me
-	// 	if err == config.ErrMissingAPIKey {
-	// 		fmt.Println(config.ErrMissingAPIKey)
-
-	// 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-	// 		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-	// 		// http://supervisord.org/subprocess.html#process-states
-	// 		time.Sleep(5 * time.Second)
-
-	// 		// osutil.Exitf was used here prior; now that fx handles the process not sure if that makes
-	// 		// sense. Return err for now and experiment. this was particularly relevant on windows
-	// 		// and how the Windows Service Manager handled service errors and restarts.
-	// 		return err
-	// 	}
-	// 	return err
-	// }
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
 		return err
@@ -107,10 +89,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 		log.Info(messageAgentDisabled)
 		telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
 
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
 		return nil
 	}
 

@@ -83,9 +83,8 @@ func Start(cliParams *RunParams, config config.Component) error {
 		handleSignal(cancelFunc)
 	}()
 
-	runAgent(ctx, cliParams, config)
+	return runAgent(ctx, cliParams, config)
 
-	return nil
 }
 
 // handleSignal closes a channel to exit cleanly from routines

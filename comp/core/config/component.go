@@ -30,6 +30,9 @@ type Component interface {
 
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
+
+	// Object returns wrapped config
+	Object() config.ConfigReader
 }
 
 // Mock implements mock-specific methods.

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 
@@ -92,37 +91,44 @@ func (c *cfg) SetHandler() http.Handler {
 	})
 }
 
+// setMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
+// If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
+// Resource limits are better handled by container runtimes and orchestrators.
+func (c *cfg) setMaxMemCPU(isContainerized bool) {
+	if c.coreConfig.Object().IsSet("apm_config.max_cpu_percent") {
+	}
+
+	if c.coreConfig.Object().IsSet("apm_config.max_cpu_percent") {
+		c.MaxCPU = c.coreConfig.Object().GetFloat64("apm_config.max_cpu_percent") / 100
+	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_cpu_percent is not set, setting it to 0")
+		c.MaxCPU = 0
+	}
+
+	if c.coreConfig.Object().IsSet("apm_config.max_memory") {
+		c.MaxMemory = c.coreConfig.Object().GetFloat64("apm_config.max_memory")
+	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
+		c.MaxMemory = 0
+	}
+}
+
 func httpError(w http.ResponseWriter, status int, err error) {
 	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
 }
 
 func newMock(deps dependencies, t testing.TB) Component {
-	// old := nil // TODO: get whatever old config we're using here
-	// config.SystemProbe = config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	c := &cfg{
-		warnings: &pkgconfig.Warnings{},
+	// injected Agentconfig should be a mock
+
+	tracecfg, err := setupConfig(deps)
+	if err != nil {
+		return nil
 	}
 
-	// Viper's `GetXxx` methods read environment variables at the time they are
-	// called, if those names were passed explicitly to BindEnv*(), so we must
-	// also strip all `DD_` environment variables for the duration of the test.
-	oldEnv := os.Environ()
-	for _, kv := range oldEnv {
-		if strings.HasPrefix(kv, "DD_") {
-			kvslice := strings.SplitN(kv, "=", 2)
-			os.Unsetenv(kvslice[0])
-		}
+	return &cfg{
+		warnings:    &pkgconfig.Warnings{},
+		coreConfig:  deps.Config,
+		AgentConfig: tracecfg,
 	}
-	t.Cleanup(func() {
-		for _, kv := range oldEnv {
-			kvslice := strings.SplitN(kv, "=", 2)
-			os.Setenv(kvslice[0], kvslice[1])
-		}
-	})
 
-	// swap the existing config back at the end of the test.
-	// TODO: obviously not systemprobe; cleanup accordingly to trace-agent
-	// t.Cleanup(func() { config.SystemProbe = old })
-
-	return c
 }

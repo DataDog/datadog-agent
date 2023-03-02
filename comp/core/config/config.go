@@ -51,6 +51,10 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
+func (c *cfg) Object() config.ConfigReader {
+	return c.Config
+}
+
 func newMock(deps dependencies, t testing.TB) Component {
 	old := config.Datadog
 	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())

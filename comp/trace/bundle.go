@@ -9,10 +9,10 @@
 // one another.  Other components should depend on any components they need.
 //
 // This bundle does not depend on any other bundles.
-package process
+package trace
 
 import (
-	"github.com/DataDog/datadog-agent/comp/process/config"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

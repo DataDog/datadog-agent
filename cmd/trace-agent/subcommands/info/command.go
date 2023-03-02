@@ -6,6 +6,7 @@
 package info
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
@@ -44,25 +45,14 @@ func RunTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 
 // func agentInfo(log log.Component, config config.Component) error {
 func agentInfo(config config.Component) error {
-	// cfg, err := config.LoadConfigFile()
-	// if err != nil {
-	// 	fmt.Println(err) // TODO: remove me
-	// 	if err == tracecfg.ErrMissingAPIKey {
-	// 		fmt.Println(tracecfg.ErrMissingAPIKey)
+	tracecfg := config.Object()
+	if tracecfg == nil {
+		return fmt.Errorf("Unable to successfully parse config")
+	}
 
-	// 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-	// 		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-	// 		// http://supervisord.org/subprocess.html#process-states
-	// 		time.Sleep(5 * time.Second)
+	if err := info.InitInfo(tracecfg); err != nil {
+		return err
+	}
 
-	// 		// Don't use os.Exit() method here, even with os.Exit(0) the Service Control Manager
-	// 		// on Windows will consider the process failed and log an error in the Event Viewer and
-	// 		// attempt to restart the process.
-	// 		return err
-	// 	}
-	// 	return err
-	// }
-
-	info.InitInfo(config.Object())
-	return info.Info(os.Stdout, config.Object())
+	return info.Info(os.Stdout, tracecfg)
 }
