@@ -491,7 +491,7 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin proc
 		prev.Release()
 	}
 
-	if p.cgroupResolver != nil {
+	if p.cgroupResolver != nil && entry.ContainerID != "" {
 		// add the new PID in the right cgroup_resolver bucket
 		p.cgroupResolver.AddPID(entry)
 	}

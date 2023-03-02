@@ -134,11 +134,6 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	// add the new CGroup to the cache
 	cr.workloads.Add(process.ContainerID, newCGroup)
 
-	// fetch the tags of the workload one first time
-	if len(newCGroup.ID) != 0 {
-		_ = cr.fetchTags(newCGroup)
-	}
-
 	// check the tags of this workload
 	cr.checkTags(newCGroup)
 }
