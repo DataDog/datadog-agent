@@ -228,7 +228,7 @@ namespace WixSetup.Datadog
 
             project.ResolveWildCards(pruneEmptyDirectories: true);
 
-#if DEBUG
+#if DEBUG_PROPERTIES
             project.BeforeInstall += args =>
             {
                 var installed = args.Session.Property("Installed");
