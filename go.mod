@@ -164,7 +164,7 @@ require (
 	github.com/prometheus/procfs v0.9.0
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/samber/lo v1.36.0
+	github.com/samber/lo v1.37.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0
 	github.com/shirou/gopsutil/v3 v3.23.1
