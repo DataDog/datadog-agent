@@ -20,6 +20,7 @@ import (
 	"github.com/containerd/containerd/oci"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
@@ -279,7 +280,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 func containerdClient(container containerd.Container) fake.MockedContainerdClient {
 	labels := map[string]string{"some_label": "some_val"}
 	imgName := "datadog/agent:7"
-	envVars := map[string]string{"test_env": "test_val"}
+	envVarStrs := []string{"test_env=test_val"}
 	hostName := "test_hostname"
 	createdAt, _ := time.Parse("2006-01-02", "2021-10-11")
 
@@ -297,14 +298,11 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 				},
 			}, nil
 		},
-		MockEnvVars: func(namespace string, ctn containerd.Container) (map[string]string, error) {
-			return envVars, nil
-		},
 		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{CreatedAt: createdAt}, nil
 		},
-		MockSpec: func(namespace string, ctn containerd.Container) (*oci.Spec, error) {
-			return &oci.Spec{Hostname: hostName}, nil
+		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
+			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
 		},
 		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil

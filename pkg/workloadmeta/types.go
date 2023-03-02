@@ -383,6 +383,7 @@ func (o OrchestratorContainer) String(_ bool) string {
 type Container struct {
 	EntityID
 	EntityMeta
+	// EnvVars are limited to variabels included in pkg/util/containers/env_vars_filter.go
 	EnvVars    map[string]string
 	Hostname   string
 	Image      ContainerImage

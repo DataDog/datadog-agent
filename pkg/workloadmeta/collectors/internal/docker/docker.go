@@ -367,7 +367,9 @@ func extractEnvVars(env []string) map[string]string {
 			continue
 		}
 
-		envMap[envSplit[0]] = envSplit[1]
+		if containers.EnvVarFilterFromConfig().IsIncluded(envSplit[0]) {
+			envMap[envSplit[0]] = envSplit[1]
+		}
 	}
 
 	return envMap
