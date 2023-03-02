@@ -3,7 +3,7 @@ upgrade:
   - |
     The setting 'ec2_prefer_imdsv2' now defaults to `true`. The Agent will now
     try to fetch a token from the IMDSv2 API by default to request EC2
-    metadata. When IMDSv2 is not available, the agent still automatically falls
+    metadata. When IMDSv2 is not available, the Agent still automatically falls
     back on IMDSv1.
     Upon upgrading, this will change the hostname used by the Agent in case
     where IMDSv2 was enforced on AWS side but `ec2_prefer_imdsv2` was left to
