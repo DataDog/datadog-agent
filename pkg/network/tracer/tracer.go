@@ -134,7 +134,14 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		}
 		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 		config.EnableHTTPMonitoring = false
+		config.EnableHTTP2Monitoring = false
 		config.EnableHTTPSMonitoring = false
+	}
+
+	http2Supported := http.HTTP2Supported()
+	if !http2Supported && config.ServiceMonitoringEnabled {
+		config.EnableHTTP2Monitoring = false
+		log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http.HTTP2MinimumKernelVersion, currKernelVersion)
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
@@ -434,7 +441,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	active := t.activeBuffer.Connections()
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), t.httpMonitor.GetHTTP2Stats())
 	t.activeBuffer.Reset()
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
@@ -453,6 +460,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		DNS:                         names,
 		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
+		HTTP2:                       delta.HTTP2,
 		ConnTelemetry:               ctm,
 		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
@@ -897,5 +905,9 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 	}
 
 	log.Info("http monitoring enabled")
+
+	if c.EnableHTTP2Monitoring {
+		log.Info("http2 monitoring enabled")
+	}
 	return monitor
 }

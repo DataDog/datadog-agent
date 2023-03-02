@@ -158,6 +158,29 @@ func TestEnableJavaTLSSupport(t *testing.T) {
 	})
 }
 
+func TestEnableHTTP2Monitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP2.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_MONITORING", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+	})
+}
+
 func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	newConfig(t)
 
@@ -166,6 +189,16 @@ func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	cfg := New()
 
 	assert.False(t, cfg.EnableJavaTLSSupport)
+}
+
+func TestDefaultDisabledHTTP2Support(t *testing.T) {
+	newConfig(t)
+
+	_, err := sysconfig.New("")
+	require.NoError(t, err)
+	cfg := New()
+
+	assert.False(t, cfg.EnableHTTP2Monitoring)
 }
 
 func TestDisableGatewayLookup(t *testing.T) {

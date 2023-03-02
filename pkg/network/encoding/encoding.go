@@ -71,12 +71,13 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 	httpEncoder := newHTTPEncoder(conns)
+	http2Encoder := newHTTP2Encoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
 	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc, tagsSet)
+		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, dnsFormatter, ipc, tagsSet)
 	}
 
 	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {

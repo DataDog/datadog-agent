@@ -155,6 +155,18 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
 	})
 
+	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP2, cs.DNS))
+	})
+
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
 	// an optional ?maps= argument could be pass with a list of map name : ?maps=map1,map2,map3
 	httpMux.HandleFunc("/debug/ebpf_maps", func(w http.ResponseWriter, req *http.Request) {
