@@ -544,6 +544,95 @@ int BPF_PROG(do_sendfile_exit, int out_fd, int in_fd, loff_t *ppos,
     return 0;
 }
 
+SEC("kprobe/ip6_make_skb")
+int kprobe__ip6_make_skb(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    size_t len = (size_t)PT_REGS_PARM4(ctx);
+    // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+    // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+    struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM7(ctx);
+#else
+    struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
+#endif
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t args = {};
+    bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sk);
+    bpf_probe_read_kernel_with_telemetry(&args.len, sizeof(args.len), &len);
+    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
+    bpf_map_update_with_telemetry(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/ip6_make_skb")
+int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t *args = bpf_map_lookup_elem(&ip_make_skb_args, &pid_tgid);
+    if (!args) {
+        return 0;
+    }
+
+    struct sock *sk = args->sk;
+    struct flowi6 *fl6 = args->fl6;
+    size_t size = args->len;
+    bpf_map_delete_elem(&ip_make_skb_args, &pid_tgid);
+
+    void *rc = (void *)PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rc)) {
+        return 0;
+    }
+
+    size = size - sizeof(struct udphdr);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        read_in6_addr(&t.saddr_h, &t.saddr_l, &fl6->saddr);
+        read_in6_addr(&t.daddr_h, &t.daddr_l, &fl6->daddr);
+
+        if (!(t.saddr_h || t.saddr_l)) {
+            log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t.saddr_l, t.saddr_h);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+        if (!(t.daddr_h || t.daddr_l)) {
+            log_debug("ERR(fl6): dst addr not set dst_l:%d,dst_h:%d\n", t.daddr_l, t.daddr_h);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        // Check if we can map IPv6 to IPv4
+        if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
+            t.metadata |= CONN_V4;
+            t.saddr_h = 0;
+            t.daddr_h = 0;
+            t.saddr_l = (u32)(t.saddr_l >> 32);
+            t.daddr_l = (u32)(t.daddr_l >> 32);
+        } else {
+            t.metadata |= CONN_V6;
+        }
+
+        bpf_probe_read_kernel_with_telemetry(&t.sport, sizeof(t.sport), &fl6->fl6_sport);
+        bpf_probe_read_kernel_with_telemetry(&t.dport, sizeof(t.dport), &fl6->fl6_dport);
+
+        if (t.sport == 0 || t.dport == 0) {
+            log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        t.sport = bpf_ntohs(t.sport);
+        t.dport = bpf_ntohs(t.dport);
+    }
+
+    log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
+    increment_telemetry_count(udp_send_processed);
+
+    return 0;
+}
+
 //endregion
 
 // This number will be interpreted by elf-loader to set the current running kernel version
