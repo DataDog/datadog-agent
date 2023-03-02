@@ -15,7 +15,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -717,25 +720,112 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 	}
 }
 
+func InvestigateKill(pid int) error {
+	seclog.Errorf("Investigating pid %d\n", pid)
+	sPid := strconv.Itoa(pid)
+
+	invDir := "/tmp/kill_investigation_" + sPid
+	if err := os.MkdirAll(invDir, 0750); err != nil {
+		return err
+	}
+
+	// fetch current stacktrace
+	gdb, err := exec.LookPath("gdb")
+	if err == nil {
+		cmd := exec.Command(gdb, "-p", sPid, "-batch", "-ex", "bt")
+		if stackTrace, err := cmd.CombinedOutput(); err == nil {
+			os.WriteFile(filepath.Join(invDir, "stack_trace"), stackTrace, 0640)
+		}
+	}
+
+	// fetch coredump
+	gcore, err := exec.LookPath("gcore")
+	if err == nil {
+		cmd := exec.Command(gcore, "-a", sPid)
+		cmd.CombinedOutput()
+		utils.MoveFile("./core."+sPid, filepath.Join(invDir, "coredump"))
+	}
+
+	// fetch fds
+	cmd := exec.Command("ls", "-l", "/proc/"+sPid+"/fd/")
+	if fds, err := cmd.CombinedOutput(); err == nil {
+		os.WriteFile(filepath.Join(invDir, "fds"), fds, 0640)
+	}
+
+	// fetch fdinfos
+	PidFdinfoDir := filepath.Join("/proc", sPid, "fdinfo")
+	OutputFdinfoDir := filepath.Join(invDir, "fdinfo")
+	os.MkdirAll(OutputFdinfoDir, 0750)
+	fds, err := os.ReadDir(PidFdinfoDir)
+	if err == nil {
+		for _, fd := range fds {
+			utils.CopyFile(filepath.Join(PidFdinfoDir, fd.Name()), filepath.Join(OutputFdinfoDir, fd.Name()))
+		}
+	}
+
+	// fetch status
+	utils.CopyFile(filepath.Join("/proc", sPid, "status"), filepath.Join(invDir, "status"))
+
+	// fetch who, history, last
+	cmd = exec.Command("history")
+	if history, err := cmd.CombinedOutput(); err == nil {
+		os.WriteFile(filepath.Join(invDir, "history"), history, 0640)
+	}
+	cmd = exec.Command("who", "-a")
+	if who, err := cmd.CombinedOutput(); err == nil {
+		os.WriteFile(filepath.Join(invDir, "who"), who, 0640)
+	}
+	cmd = exec.Command("last", "-F")
+	if last, err := cmd.CombinedOutput(); err == nil {
+		os.WriteFile(filepath.Join(invDir, "last"), last, 0640)
+	}
+
+	// gzip result
+	tar, err := exec.LookPath("tar")
+	if err == nil {
+		cmd := exec.Command("sh", "-c", "cd /tmp && "+tar+" cvzf kill_investigation_"+sPid+".tgz kill_investigation_"+sPid)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			seclog.Errorf("tar failed: %s\n", out)
+			return err
+		}
+		os.RemoveAll(invDir)
+	}
+	return nil
+}
+
+// HandleActions executes the rule actions
+func (m *Module) HandleKill(rule *rules.Rule, event *model.Event, action rules.ActionDefinition) {
+	if pid, err := event.GetFieldValue("process.pid"); err == nil {
+		if pid, ok := pid.(int); ok && pid > 1 && pid != int(utils.Getpid()) {
+			log.Debugf("Requesting signal %d to be sent to %d", action.Kill.Signal, pid)
+			sig := model.SignalConstants[action.Kill.Signal]
+
+			if action.Kill.Investigate && action.Kill.Signal != "SIGSTOP" {
+				InvestigateKill(pid)
+			}
+
+			if m.probe.SupportsBPFSendSignal {
+				err = m.probe.GetMonitor().KillListMap.Put(uint32(pid), uint32(sig))
+			} else {
+				err = syscall.Kill(pid, syscall.Signal(sig))
+			}
+			if err != nil {
+				log.Warn(err)
+			}
+
+			if action.Kill.Investigate && action.Kill.Signal == "SIGSTOP" {
+				InvestigateKill(pid)
+			}
+		}
+	}
+
+}
+
 // HandleActions executes the rule actions
 func (m *Module) HandleActions(rule *rules.Rule, event *model.Event) {
 	for _, action := range rule.Definition.Actions {
 		if action.Kill != nil && m.probe.SupportsBPFSendSignal {
-			if pid, err := event.GetFieldValue("process.pid"); err == nil {
-				if pid, ok := pid.(int); ok && pid > 1 && pid != int(utils.Getpid()) {
-					log.Debugf("Requesting signal %d to be sent to %d", action.Kill.Signal, pid)
-					sig := model.SignalConstants[action.Kill.Signal]
-
-					if m.probe.SupportsBPFSendSignal {
-						err = m.probe.GetMonitor().KillListMap.Put(uint32(pid), uint32(sig))
-					} else {
-						err = syscall.Kill(pid, syscall.Signal(sig))
-					}
-					if err != nil {
-						log.Warn(err)
-					}
-				}
-			}
+			m.HandleKill(rule, event, action)
 		}
 	}
 }

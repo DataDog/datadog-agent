@@ -163,7 +163,8 @@ type SetDefinition struct {
 
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
-	Signal string `yaml:"signal"`
+	Signal      string `yaml:"signal"`
+	Investigate bool   `yaml:"investigate"`
 }
 
 // Rule describes a rule of a ruleset

@@ -6,6 +6,9 @@
 package utils
 
 import (
+	"io"
+	"os"
+
 	"github.com/Masterminds/semver/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -27,4 +30,31 @@ func BoolTouint64(value bool) uint64 {
 		return 1
 	}
 	return 0
+}
+
+func CopyFile(src, dst string) error {
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func MoveFile(src, dst string) error {
+	err := CopyFile(src, dst)
+	if err != nil {
+		return nil
+	}
+	return os.Remove(src)
 }
