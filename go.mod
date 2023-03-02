@@ -162,7 +162,7 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/procfs v0.9.0
-	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
+	github.com/richardartoul/molecule v1.0.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.37.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
