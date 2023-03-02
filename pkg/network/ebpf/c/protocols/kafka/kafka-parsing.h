@@ -23,13 +23,13 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
     for (int j = 0; j < max_buffer_size; j++) {                                                                                             \
         /* Verifies we are not exceeding the real client_id_size, and if we do, we finish the iteration as we reached */                    \
         /* to the end of the buffer and all checks have been successful. */                                                                 \
-        if (j < real_size) {                                                                                                                \
+        if (j + 1 <= real_size) {                                                                                                           \
             ch = buffer[j];                                                                                                                 \
             if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {  \
                 continue;                                                                                                                   \
             }                                                                                                                               \
+            return false;                                                                                                                   \
         }                                                                                                                                   \
-        return false;                                                                                                                       \
     }                                                                                                                                       \
 
 SEC("socket/kafka_filter")

@@ -370,8 +370,18 @@ func TestKafkaProtocolParsing(t *testing.T) {
 	}
 }
 
+type PrintableInt int
+
+func (i *PrintableInt) String() string {
+	if i == nil {
+		return "nil"
+	}
+
+	return fmt.Sprintf("%d", *i)
+}
+
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int) map[kafka.Key]*kafka.RequestStat {
-	statsCount := 0
+	statsCount := PrintableInt(0)
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
 	require.Eventually(t, func() bool {
 		currentStats := monitor.GetKafkaStats()
@@ -384,9 +394,9 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 			}
 		}
 
-		statsCount = len(kafkaStats)
-		return expectedStatsCount == statsCount
-	}, time.Second*3, time.Millisecond*100, "Expected to find a %d stats, instead captured %d", expectedStatsCount, statsCount)
+		statsCount = PrintableInt(len(kafkaStats))
+		return expectedStatsCount == len(kafkaStats)
+	}, time.Second*3, time.Millisecond*100, "Expected to find a %d stats, instead captured %v", expectedStatsCount, &statsCount)
 	return kafkaStats
 }
 
