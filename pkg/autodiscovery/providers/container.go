@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -187,9 +186,7 @@ func (d *ContainerConfigProvider) generateConfigs() ([]integration.Config, error
 			log.Errorf("Can't parse template for container %s: %s", containerID, err)
 		}
 
-		if util.CcaInAD() {
-			c = utils.AddContainerCollectAllConfigs(c, containerEntityName)
-		}
+		c = utils.AddContainerCollectAllConfigs(c, containerEntityName)
 
 		for idx := range c {
 			c[idx].Source = names.Container + ":" + containerEntityName
