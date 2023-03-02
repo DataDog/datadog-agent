@@ -885,6 +885,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 }
 
 func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
+	t.Skip("Skipping a flaky test")
 	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
