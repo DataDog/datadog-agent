@@ -41,6 +41,6 @@ var Bundle = fxutil.Bundle(
 	rtcontainercheck.Module,
 	processdiscoverycheck.Module,
 
-	// Config
+	// Add in the core bundle since it is used by most components
 	core.Bundle,
 )

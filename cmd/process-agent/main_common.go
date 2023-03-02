@@ -236,8 +236,9 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams, hostInfo *ch
 
 	var appInitDeps struct {
 		fx.In
+
 		Checks []types.CheckComponent `group:"check"`
-		syscfg sysprobeconfig.Component
+		Syscfg sysprobeconfig.Component
 	}
 	app := fx.New(
 		fx.Supply(
@@ -251,9 +252,8 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams, hostInfo *ch
 		// Populate dependencies required for initialization in this function.
 		fx.Populate(&appInitDeps),
 
-		// Provide process anent and core bundles so fx knows where to find components.
+		// Provide process agent bundle so fx knows where to find components.
 		process.Bundle,
-		core.Bundle,
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
@@ -274,7 +274,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams, hostInfo *ch
 	}
 
 	// TODO: Componetize status
-	err := initStatus(hostInfo, appInitDeps.syscfg)
+	err := initStatus(hostInfo, appInitDeps.Syscfg)
 	if err != nil {
 		log.Critical("Failed to initialize status:", err)
 	}
