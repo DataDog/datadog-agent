@@ -5,8 +5,8 @@ upgrade:
     try to fetch a token from the IMDSv2 API by default to request EC2
     metadata. When IMDSv2 is not available, the Agent still automatically falls
     back on IMDSv1.
-    Upon upgrading, this will change the hostname used by the Agent in case
-    where IMDSv2 was enforced on AWS side but `ec2_prefer_imdsv2` was left to
+    Upon upgrading, this will change the hostname used by the Agent in cases
+    where IMDSv2 was enforced on the AWS side but `ec2_prefer_imdsv2` was left to
     `false` (the Agent used to fail fetching the instance ID from IMDSv1 and
     would fall back on the system hostname). This can break monitors or
     dashboards using the old hostname.
