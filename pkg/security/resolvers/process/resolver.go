@@ -367,6 +367,7 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	entry.FileEvent.SetBasenameStr(path.Base(pathnameStr))
 
 	entry.Process.ContainerID = string(containerID)
+
 	// resolve container path with the MountResolver
 	entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
 	if err != nil {

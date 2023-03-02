@@ -13,6 +13,11 @@
           "property_doc_link": "async-doc"
         },
         {
+          "name": "container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "container-created_at-doc"
+        },
+        {
           "name": "container.id",
           "definition": "ID of the container",
           "property_doc_link": "container-id-doc"
@@ -7941,6 +7946,18 @@
       "definition": "New user of the chown-ed file's owner",
       "prefixes": [
         "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.created_at",
+      "link": "container-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the container",
+      "prefixes": [
+        "container"
       ],
       "constants": "",
       "constants_link": "",

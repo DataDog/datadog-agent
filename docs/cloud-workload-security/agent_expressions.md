@@ -169,6 +169,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | Property | Definition |
 | -------- | ------------- |
 | [`async`](#async-doc) | True if the syscall was asynchronous |
+| [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
@@ -2257,6 +2258,13 @@ Definition: New UID of the chown-ed file's owner
 Type: string
 
 Definition: New user of the chown-ed file's owner
+
+
+
+### `container.created_at` {#container-created_at-doc}
+Type: int
+
+Definition: Timestamp of the creation of the container
 
 
 
