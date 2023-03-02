@@ -184,7 +184,7 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 	}
 
 	if err = file.Close(); err != nil {
-		return fmt.Errorf("could not close close file [%s]: %w", outputPath, err)
+		return fmt.Errorf("could not close close file [%s]: %w", file.Name(), err)
 	}
 
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, ad.GetSelectorStr(), outputPath)

@@ -160,7 +160,7 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manag
 		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager)
 	}
 	if err := handle.Close(); err != nil {
-		seclog.Warnf("could not close namespace handle: %v", err)
+		seclog.Warnf("could not close close file [%s]: %s", handle.Name(), err)
 	}
 	nn.flushNetworkDevicesQueue()
 }
@@ -329,7 +329,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 		}
 	}
 	if err = handle.Close(); err != nil {
-		seclog.Warnf("could not close namespace handle: %v", err)
+		seclog.Warnf("could not close close file [%s]: %s", handle.Name(), err)
 	}
 	return attachedDeviceCountNoLazyDeletion
 }
@@ -439,7 +439,7 @@ func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 		_, _ = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 		err = handle.Close()
 		if err != nil {
-			seclog.Warnf("could not close namespace handle: %v", err)
+			seclog.Warnf("could not close close file [%s]: %s", handle.Name(), err)
 		}
 	}
 
@@ -634,7 +634,7 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	}
 
 	if err = dumpFile.Close(); err != nil {
-		resp.Error = fmt.Sprintf("couldn't encode list of network namespace: %v", err)
+		resp.Error = fmt.Sprintf("could not close close file [%s]: %s", dumpFile.Name(), err)
 		seclog.Warnf(resp.Error)
 		return resp
 	}
@@ -657,7 +657,7 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	}
 
 	if err = graphFile.Close(); err != nil {
-		resp.Error = fmt.Sprintf("couldn't generate dot graph: %v", err)
+		resp.Error = fmt.Sprintf("could not close close file [%s]: %s", graphFile.Name(), err)
 		seclog.Warnf(resp.Error)
 		return resp
 	}

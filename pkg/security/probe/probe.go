@@ -1066,6 +1066,9 @@ func (p *Probe) DumpDiscarders() (string, error) {
 		return "", err
 	}
 	err = fp.Close()
+	if err != nil {
+		return "", fmt.Errorf("could not close close file [%s]: %w", fp.Name(), err)
+	}
 	return fp.Name(), err
 }
 
@@ -1142,6 +1145,7 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
+		defer handle.Close()
 	}
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
@@ -1149,8 +1153,11 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
 	err = p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
-	if cerr := handle.Close(); err == nil {
-		err = cerr
+	if err != nil {
+		return err
+	}
+	if err := handle.Close(); err == nil {
+		return fmt.Errorf("could not close close file [%s]: %w", handle.Name(), err)
 	}
 	return err
 }

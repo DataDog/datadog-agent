@@ -995,7 +995,11 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't unzip %s: %w", inputFile, err)
 	}
-	return strings.TrimSuffix(inputFile, ext), outputFile.Close()
+	err = outputFile.Close()
+	if err != nil {
+		return "", fmt.Errorf("could not close close file [%s]: %w", outputFile.Name(), err)
+	}
+	return strings.TrimSuffix(inputFile, ext), nil
 }
 
 // Decode decodes an activity dump from a file

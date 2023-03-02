@@ -1202,8 +1202,11 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 	}
 
 	fmt.Fprintf(dump, `}`)
-
-	return dump.Name(), dump.Close()
+	err = dump.Close()
+	if err != nil {
+		return "", fmt.Errorf("could not close close file [%s]: %w", dump.Name(), err)
+	}
+	return dump.Name(), nil
 }
 
 // GetCacheSize returns the cache size of the process resolver
