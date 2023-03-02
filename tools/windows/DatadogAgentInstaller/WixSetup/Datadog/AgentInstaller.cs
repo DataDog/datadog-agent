@@ -140,7 +140,6 @@ namespace WixSetup.Datadog
                 aboutUrl: new Uri(ProductAboutUrl),
                 productIconFilePath: new FileInfo(ProductIconFilePath)
             )
-            .DisableDowngradeToPreviousVersion()
             .SetMinimalUI(
                 backgroundImage: new FileInfo(InstallerBackgroundImagePath),
                 bannerImage: new FileInfo(InstallerBannerImagePath),
@@ -165,12 +164,24 @@ namespace WixSetup.Datadog
             // enable the ability to repair the installation even when the original MSI is no longer available.
             project.EnableResilientPackage();
 
-            // Set this explicitly to false so that we're not tempted to set it to true
-            // in the future. This flag causes Wix to ignore the fourth product version,
-            // so 1.0.0.1 will be considered equal to 1.0.0.2998.
+            project.MajorUpgrade = MajorUpgrade.Default;
+            // When set to yes, WiX sets the msidbUpgradeAttributesVersionMaxInclusive attribute,
+            // which tells MSI to treat a product with the same version as a major upgrade.
+            // This is useful when two product versions differ only in the fourth version field.
+            // MSI specifically ignores that field when comparing product versions,
+            // so two products that differ only in the fourth version field are the same product and
+            // need this attribute set to "true" to be detected.
+            // Note that because MSI ignores the fourth product version field,
+            // setting this attribute to yes also allows downgrades when the first three product version fields are identical.
+            // For example, product version 1.0.0.1 will "upgrade" 1.0.0.2998 because they're seen as the same version (1.0.0).
+            // That could reintroduce serious bugs so the safest choice is to change the first three version fields and
+            // omit this attribute to get the default of no.
             project.MajorUpgrade.AllowSameVersionUpgrades = false;
             project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
+            project.MajorUpgrade.DowngradeErrorMessage =
+                "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
             project.ReinstallMode = "amus";
+            
             project.Platform = Platform.x64;
             // MSI 5.0 was shipped in Windows Server 2012 R2.
             // https://learn.microsoft.com/en-us/windows/win32/msi/released-versions-of-windows-installer
