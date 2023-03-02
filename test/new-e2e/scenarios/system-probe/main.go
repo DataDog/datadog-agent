@@ -44,7 +44,7 @@ func main() {
 	flag.Parse()
 
 	var failOnMissing bool
-	if *destroyPtr || *UploadDependencies {
+	if *destroyPtr || *uploadDependenciesPtr {
 		failOnMissing = true
 	}
 
