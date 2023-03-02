@@ -85,7 +85,7 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 	}
 	defer func() {
 		if err := protectedFile.Close(); err != nil {
-			log.Debug(err)
+			log.Debugf("error closing protected file %s: %s", protectedFile.Name(), err)
 		}
 	}()
 
@@ -114,7 +114,7 @@ func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFi
 func (a *asset) verify(source ProtectedFile) error {
 	h := sha256.New()
 	if _, err := io.Copy(h, source.Reader()); err != nil {
-		return fmt.Errorf("error hashing file: %w", err)
+		return fmt.Errorf("error hashing file %s: %w", source.Name(), err)
 	}
 	if fmt.Sprintf("%x", h.Sum(nil)) != a.hash {
 		return fmt.Errorf("file content hash does not match expected value")

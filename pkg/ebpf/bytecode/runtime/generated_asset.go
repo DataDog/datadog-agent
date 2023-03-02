@@ -78,7 +78,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 	}
 	defer func() {
 		if err := protectedFile.Close(); err != nil {
-			log.Debug(err)
+			log.Debugf("error closing protected file %s: %s", protectedFile.Name(), err)
 		}
 	}()
 

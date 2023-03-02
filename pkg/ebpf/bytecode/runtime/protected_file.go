@@ -36,7 +36,7 @@ func NewProtectedFile(name, dir string, source io.Reader) (ProtectedFile, error)
 
 	memfdFile, err := memfd.CreateNameFlags(name, memfd.AllowSealing|memfd.Cloexec)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create memfd file: %w: ", err)
+		return nil, fmt.Errorf("failed to create memfd file: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -57,9 +57,6 @@ func NewProtectedFile(name, dir string, source io.Reader) (ProtectedFile, error)
 
 	target := fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), memfdFile.Fd())
 	tmpFile := filepath.Join(dir, name)
-
-	link, _ := os.Readlink(target)
-	log.Debugf("NewProtectedFile: created memfd file: %s => %s", target, link)
 
 	os.Remove(tmpFile)
 	if err := os.Symlink(target, tmpFile); err != nil {
