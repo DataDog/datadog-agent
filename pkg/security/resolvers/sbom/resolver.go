@@ -330,7 +330,12 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 	sbom.Lock()
 	defer sbom.Unlock()
 
-	return sbom.files[file.PathnameStr]
+	pkg := sbom.files[file.PathnameStr]
+	if pkg == nil && strings.HasPrefix(file.PathnameStr, "/usr") {
+		pkg = sbom.files[file.PathnameStr[4:]]
+	}
+
+	return pkg
 }
 
 // newWorkloadEntry (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
