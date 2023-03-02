@@ -1651,6 +1651,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 
 	for start := time.Now(); time.Since(start) < 5*time.Second; {
 		conns := getConnections(t, tr)
+		t.Logf("connections: %+v", conns)
 		newOutgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
 			return cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
 		})
