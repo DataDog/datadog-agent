@@ -1467,20 +1467,24 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 @task
 def test_microvms(
-    ctx, security_groups=None, subnets=None, instance_type_x86=None, instance_type_arm=None, destroy=False
+    ctx,
+    security_groups=None,
+    subnets=None,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    destroy=False,
+    upload_dependencies=False,
 ):
-    args = []
-    if security_groups is not None:
-        args.append(f"--sgs {security_groups}")
-    if subnets is not None:
-        args.append(f"--subnets {subnets}")
-    if instance_type_x86 is not None:
-        args.append(f"--instance-type-x86 {instance_type_x86}")
-    if instance_type_arm is not None:
-        args.append(f"--instance-type-arm {instance_type_arm}")
-    if destroy:
-        args.append("--destroy")
+    args = [
+        f"--sgs {security_groups}" if security_groups is not None else "",
+        f"--subnets {subnets}" if subnets is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
+        "--destroy" if destroy else "",
+        "--upload-dependencies" if upload_dependencies else "",
+    ]
 
+    go_args = ' '.join(filter(lambda x: x != "", args))
     ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {' '.join(args)} --shutdown-period 720"
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
     )

@@ -25,10 +25,11 @@ import (
 )
 
 type SystemProbeEnvOpts struct {
-	AmiID          string
-	Provision      bool
-	ShutdownPeriod int
-	FailOnMissing  bool
+	AmiID              string
+	Provision          bool
+	ShutdownPeriod     int
+	FailOnMissing      bool
+	UploadDependencies bool
 }
 
 type TestEnv struct {
@@ -130,16 +131,18 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 				depends = scenarioDone.Dependencies
 			}
 
-			// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
-			// is mounted to all micro-vms. Each micro-vm extract the context on boot.
-			filemanager := command.NewFileManager(remoteRunner)
-			_, err = filemanager.CopyFile(
-				fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
-				fmt.Sprintf("/opt/kernel-version-testing/dependencies-%s.tar.gz", instance.Arch),
-				pulumi.DependsOn(depends),
-			)
-			if err != nil {
-				return fmt.Errorf("copy file: %w", err)
+			if opts.UploadDependencies {
+				// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
+				// is mounted to all micro-vms. Each micro-vm extract the context on boot.
+				filemanager := command.NewFileManager(remoteRunner)
+				_, err = filemanager.CopyFile(
+					fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
+					fmt.Sprintf("/opt/kernel-version-testing/dependencies-%s.tar.gz", instance.Arch),
+					pulumi.DependsOn(depends),
+				)
+				if err != nil {
+					return fmt.Errorf("copy file: %w", err)
+				}
 			}
 		}
 

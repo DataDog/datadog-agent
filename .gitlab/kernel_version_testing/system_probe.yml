@@ -4,7 +4,7 @@
   tags: ["runner:docker"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
-  stage: kernel_version_testing
+  stage: kernel_matrix_testing
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -35,7 +35,7 @@ pull_test_dockers_arm64:
     ARCH: arm64
 
 .package_dependencies:
-  stage: kernel_version_testing
+  stage: kernel_matrix_testing
   rules:
     !reference [.on_system_probe_changes_or_manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
@@ -105,14 +105,14 @@ package_dependencies_arm64:
     ARCH: arm64
 
 
-kernel_version_testing_system_probe_linux_x64_ec2:
+kernel_matrix_testing_setup_env:
   extends:
     - .kitchen_ec2_location_us_east_1
-  stage: kernel_version_testing
+  stage: kernel_matrix_testing
   rules:
     !reference [.manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  needs: ["go_deps", "go_tools_deps", "package_dependencies_x64"]
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:main"]
   variables:
     ARCH: x86_64
@@ -120,8 +120,10 @@ kernel_version_testing_system_probe_linux_x64_ec2:
     AWS_REGION: us-east-1
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
+    STACK_DIR: $CI_PROJECT_DIR/stack.dir
   script:
-    - pulumi login s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-version-testing/$CI_PIPELINE_ID/$CI_JOB_ID/pulumi
+    - echo s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-matrix-testing/$CI_PIPELINE_ID/$CI_JOB_ID/pulumi > $STACK_DIR
+    - pulumi login $(cat $STACK_DIR | tr -d '\n')
     - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE
     - pulumi logout
   artifacts:
@@ -131,3 +133,33 @@ kernel_version_testing_system_probe_linux_x64_ec2:
       - $LibvirtSSHKeyX86.pub
       - $LibvirtSSHKeyARM
       - $LibvirtSSHKeyARM.pub
+      - $STACK_DIR
+
+kernel_matrix_testing_upload_deps:
+  extends:
+    - .kitchen_ec2_location_us_east_1
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
+  tags: ["runner:main"]
+  variables:
+    ARCH: x86_64
+    EC2_INSTANCE_TYPE: "z1d.metal"
+    AWS_REGION: us-east-1
+    LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
+    LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
+    STACK_DIR: $CI_PROJECT_DIR/stack.dir
+  script:
+    - pulumi login $(cat $STACK_DIR | tr -d '\n')
+    - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE --upload-dependencies
+    - pulumi logout
+  artifacts:
+    when: always
+    paths:
+      - $LibvirtSSHKeyX86
+      - $LibvirtSSHKeyX86.pub
+      - $LibvirtSSHKeyARM
+      - $LibvirtSSHKeyARM.pub
+      - $STACK_DIR
+
+

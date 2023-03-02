@@ -39,14 +39,21 @@ func main() {
 	amiIDPtr := flag.String("ami-id", "", "ami for metal instance")
 	toProvisionPtr := flag.Bool("run-provision", true, "run provision step for metal instance")
 	shutdownPtr := flag.Int("shutdown-period", 0, "shutdown after specified interval in minutes")
+	uploadDependenciesPtr := flag.Bool("upload-dependencies", false, "upload test dependencies to microvms")
 
 	flag.Parse()
 
+	var failOnMissing bool
+	if *destroyPtr || *UploadDependencies {
+		failOnMissing = true
+	}
+
 	opts := systemProbe.SystemProbeEnvOpts{
-		AmiID:          *amiIDPtr,
-		ShutdownPeriod: *shutdownPtr,
-		Provision:      *toProvisionPtr,
-		FailOnMissing:  *destroyPtr,
+		AmiID:              *amiIDPtr,
+		ShutdownPeriod:     *shutdownPtr,
+		Provision:          *toProvisionPtr,
+		FailOnMissing:      failOnMissing,
+		UploadDependencies: *uploadDependenciesPtr,
 	}
 
 	fmt.Printf("shutdown period: %d hour(s)\n", opts.ShutdownPeriod/60)
