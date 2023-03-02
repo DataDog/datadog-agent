@@ -1156,7 +1156,7 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	if err != nil {
 		return err
 	}
-	if err := handle.Close(); err == nil {
+	if err := handle.Close(); err != nil {
 		return fmt.Errorf("could not close close file [%s]: %w", handle.Name(), err)
 	}
 	return err
