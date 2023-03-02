@@ -24,6 +24,7 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// BuildURL returns the full url based on the route
 func BuildURL(route string) string {
 	prefix := os.Getenv("AWS_LAMBDA_RUNTIME_API")
 	if len(prefix) == 0 {
