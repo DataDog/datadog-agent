@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/network"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
@@ -47,7 +47,7 @@ var EventMonitor = module.Factory{
 		}
 
 		if emconfig.NetworkConsumerEnabled {
-			network, err := network.NewNetworkConsumer(evm)
+			network, err := events.NewNetworkConsumer(evm)
 			if err != nil {
 				return nil, err
 			}

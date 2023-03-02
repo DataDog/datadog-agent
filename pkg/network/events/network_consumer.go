@@ -6,11 +6,10 @@
 //go:build linux
 // +build linux
 
-package network
+package events
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	netevents "github.com/DataDog/datadog-agent/pkg/network/events"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +31,7 @@ func (n *NetworkConsumer) ID() string {
 
 // NewNetworkConsumer returns a new NetworkConsumer instance
 func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error) {
-	h := netevents.Handler()
+	h := Handler()
 	if err := evm.AddEventTypeHandler(smodel.ForkEventType, h); err != nil {
 		return nil, err
 	}
