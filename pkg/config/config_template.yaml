@@ -895,6 +895,31 @@ api_key:
     #
     # oid_batch_size: 5
 
+    ## @param interface_configs - map - optional
+    ## This option is used to override interface inbound/outbound speed.
+    ## Example:
+    ## interface_configs:
+    ##   "10.0.0.1":              # target device IP address
+    ##     - match_field: "name"  # the field to match, can be `name` (interface name) or `index` (ifIndex)
+    ##       match_value: "eth0"  # the value to match
+    ##       in_speed: 50         # inbound speed value in bits per sec
+    ##       out_speed: 25        # outbound speed value in bits per sec
+    #
+    # interface_config:
+    #   "10.0.0.1":
+    #     - match_field: name
+    #       match_value: eth0
+    #       in_speed: 50
+    #       out_speed: 25
+    #     - match_field: index
+    #       match_value: '10'
+    #       in_speed: 50
+    #       out_speed: 25
+    #   "10.0.0.2":
+    #     - match_field: name
+    #       match_value: eth3
+    #       in_speed: 50
+    #       out_speed: 25
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
