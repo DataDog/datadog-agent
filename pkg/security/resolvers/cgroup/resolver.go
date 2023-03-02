@@ -153,20 +153,21 @@ func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
 	// check if the workload tags were found
 	if workload.NeedsTagsResolution() {
 		// this is a container, try to resolve its tags now
-		_ = cr.fetchTags(workload)
+		if err := cr.fetchTags(workload); err != nil {
+			// push to the workloadsWithoutTags chan so that its tags can be resolved later
+			select {
+			case cr.workloadsWithoutTags <- workload:
+			default:
+			}
+			return
+		}
+	}
 
-		// push to the workloadsWithoutTags chan so that its tags can be resolved later
-		select {
-		case cr.workloadsWithoutTags <- workload:
-		default:
-		}
-	} else {
-		// notify listeners
-		cr.listenersLock.Lock()
-		defer cr.listenersLock.Unlock()
-		for _, l := range cr.listeners[WorkloadSelectorResolved] {
-			l(workload)
-		}
+	// notify listeners
+	cr.listenersLock.Lock()
+	defer cr.listenersLock.Unlock()
+	for _, l := range cr.listeners[WorkloadSelectorResolved] {
+		l(workload)
 	}
 }
 
