@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 )
