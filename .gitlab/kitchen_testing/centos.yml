@@ -11,7 +11,7 @@
 
 # Used for Agent 5 upgrade tests, as Agent 5 RPMs aren't built to be
 # installable in FIPS mode.
-.kitchen_os_centos_unsupported_fips:
+.kitchen_os_centos_no_support_for_fips:
   variables:
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77,rhel-81"
@@ -52,14 +52,14 @@
 .kitchen_scenario_centos_unsupported_fips_a6:
   extends:
     - .kitchen_agent_a6
-    - .kitchen_os_centos_unsupported_fips
+    - .kitchen_os_centos_no_support_for_fips
     - .kitchen_azure_x64
   needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_centos_unsupported_fips_a7:
   extends:
     - .kitchen_agent_a7
-    - .kitchen_os_centos_unsupported_fips
+    - .kitchen_os_centos_no_support_for_fips
     - .kitchen_azure_x64
   needs: ["deploy_rpm_testing-a7_x64"]
 
