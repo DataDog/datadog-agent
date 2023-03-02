@@ -7,9 +7,12 @@ package registration
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -18,6 +21,8 @@ const (
 
 	//HeaderExtID is the header name for the extension identifier
 	HeaderExtID = "Lambda-Extension-Identifier"
+
+	routeEventNext string = "/2020-01-01/extension/event/next"
 )
 
 // RegisterExtension registers the serverless daemon and subscribe to INVOKE and SHUTDOWN messages.
@@ -25,7 +30,7 @@ const (
 // the environment) or an error.
 func RegisterExtension(runtimeURL string, registrationRoute string, timeout time.Duration) (ID, error) {
 
-	extesionRegistrationURL := BuildURL(runtimeURL, registrationRoute)
+	extesionRegistrationURL := BuildURL(registrationRoute)
 	payload := createRegistrationPayload()
 
 	request, err := buildRegisterRequest(headerExtName, extensionName, extesionRegistrationURL, payload)
@@ -75,4 +80,32 @@ func buildRegisterRequest(headerExtensionName string, extensionName string, url 
 
 func sendRequest(client HTTPClient, request *http.Request) (*http.Response, error) {
 	return client.Do(request)
+}
+
+// NoOpProcessEvent conforms to the Lambda Runtime API but act as a no-op
+// this is required NOT to fail the extension (and customer code) when no api key has been set
+func NoOpProcessEvent(ctx context.Context, id ID) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			var err error
+			var request *http.Request
+			if request, err = http.NewRequest(http.MethodGet, NextUrl(), nil); err != nil {
+				return fmt.Errorf("NoOp WaitForNextInvocation: can't create the GET request: %v", err)
+			}
+			request.Header.Set(HeaderExtID, id.String())
+			client := &http.Client{Timeout: 0}
+			if _, err = client.Do(request); err != nil {
+				return fmt.Errorf("NoOp WaitForNextInvocation: while GET next route: %v", err)
+			}
+			log.Error("The extension is running as a no-op extension")
+		}
+	}
+}
+
+// NextUrl returns the /next endpoint
+func NextUrl() string {
+	return BuildURL(routeEventNext)
 }

@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"strconv"
@@ -120,7 +121,15 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	startChecker := startchecker.InitStartChecker()
 	startChecker.AddRule(&startchecker.ApiKeyEnvRule{})
 	if !startChecker.Check() {
-		return nil, log.Errorf("Can't start the extension: %s", startChecker.GetErrorMessage())
+		log.Errorf("Can't start the Datadog extension: %s", startChecker.GetErrorMessage())
+		// we still need to register the extension but let's return after (no-op)
+		id, registrationError := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
+		if registrationError != nil {
+			log.Errorf("Can't register as a serverless agent: %s", registrationError)
+		}
+		ctx := context.Background()
+		registration.NoOpProcessEvent(ctx, id)
+		return nil, nil
 	}
 
 	// immediately starts the communication server
@@ -193,7 +202,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
-		// serverless.ReportInitError(serverlessID, serverless.FatalNoAPIKey)
 		log.Error("No API key configured")
 	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
@@ -245,7 +253,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			return
 		}
 		log.Debug("Enabling telemetry collection HTTP route")
-		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
+		logRegistrationURL := registration.BuildURL(logsAPIRegistrationRoute)
 		logRegistrationError := registration.EnableTelemetryCollection(
 			registration.EnableTelemetryCollectionArgs{
 				ID:                  serverlessID,
