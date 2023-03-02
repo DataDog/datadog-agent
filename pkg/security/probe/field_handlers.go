@@ -422,6 +422,11 @@ func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent)
 // ResolvePackageVersion resolves the version of the package providing this file
 func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgVersion == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
 		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
 			f.PkgName = pkg.Name
 			f.PkgVersion = pkg.Version
