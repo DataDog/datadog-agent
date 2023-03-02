@@ -73,6 +73,7 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", p, err)
 	}
+	defer f.Close()
 
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
