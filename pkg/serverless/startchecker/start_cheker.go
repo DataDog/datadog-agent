@@ -17,7 +17,8 @@ type StartingRule interface {
 
 // StartChecker is the managing the starting rules
 type StartChecker struct {
-	rules []StartingRule
+	rules        []StartingRule
+	errorMessage string
 }
 
 // InitStartChecker creates a new StartChecker
@@ -34,11 +35,16 @@ func (r *StartChecker) Check() bool {
 	}
 	for _, rule := range r.rules {
 		if !rule.ok() {
-			log.Error(rule.getError())
+			r.errorMessage = rule.getError()
 			return false
 		}
 	}
 	return true
+}
+
+// GetErrorMessage returns the error message
+func (r *StartChecker) GetErrorMessage() string {
+	return r.errorMessage
 }
 
 // AddRule add a new rule to the StartChecker

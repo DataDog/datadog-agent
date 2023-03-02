@@ -120,7 +120,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	startChecker := startchecker.InitStartChecker()
 	startChecker.AddRule(&startchecker.ApiKeyEnvRule{})
 	if !startChecker.Check() {
-		os.Exit(1)
+		return nil, log.Errorf("Can't start the extension: %s", startChecker.GetErrorMessage())
 	}
 
 	// immediately starts the communication server
