@@ -451,25 +451,3 @@ func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType l
 	}
 	return endpoints, nil
 }
-
-// SBOMRemoteStorageEndpoints returns the list of SBOM remote storage endpoints parsed from the agent config
-func SBOMRemoteStorageEndpoints(endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeProtocol logsconfig.IntakeProtocol, intakeOrigin logsconfig.IntakeOrigin) (*logsconfig.Endpoints, error) {
-	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.sbom.remote_storage.endpoints.", coreconfig.Datadog)
-	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
-	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, intakeOrigin)
-		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = logsconfig.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
-		}
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("invalid endpoints: %w", err)
-	}
-
-	for _, status := range endpoints.GetStatus() {
-		seclog.Infof("activity dump remote storage endpoint: %v\n", status)
-	}
-	return endpoints, nil
-}
