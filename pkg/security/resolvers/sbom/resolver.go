@@ -46,9 +46,9 @@ type SBOM struct {
 	Service     string
 	ContainerID string
 
-	deleted         *atomic.Bool
-	scannSuccessful *atomic.Bool
-	cgroup          *cgroupModel.CacheEntry
+	deleted        *atomic.Bool
+	scanSuccessful *atomic.Bool
+	cgroup         *cgroupModel.CacheEntry
 }
 
 // getWorkloadKey (thread unsafe) returns a key to indentify the workload
@@ -73,13 +73,13 @@ func (s *SBOM) reset() {
 // NewSBOM returns a new empty instance of SBOM
 func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry) (*SBOM, error) {
 	return &SBOM{
-		files:           make(map[string]*Package),
-		Host:            host,
-		Source:          source,
-		ContainerID:     id,
-		deleted:         atomic.NewBool(false),
-		scannSuccessful: atomic.NewBool(false),
-		cgroup:          cgroup,
+		files:          make(map[string]*Package),
+		Host:           host,
+		Source:         source,
+		ContainerID:    id,
+		deleted:        atomic.NewBool(false),
+		scanSuccessful: atomic.NewBool(false),
+		cgroup:         cgroup,
 	}, nil
 }
 
@@ -282,7 +282,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	sbom.report = nil
 
 	// mark the SBOM ass successful
-	sbom.scannSuccessful.Store(true)
+	sbom.scanSuccessful.Store(true)
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, len(sbom.files))
 	return nil
@@ -445,7 +445,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	delete(r.sboms, sbom.ContainerID)
 
 	// check if the scan was successful
-	if !sbom.scannSuccessful.Load() {
+	if !sbom.scanSuccessful.Load() {
 		// exit now, we don't want to cache a failed scan
 		return
 	}
