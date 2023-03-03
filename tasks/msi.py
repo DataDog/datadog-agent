@@ -131,7 +131,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
         configuration = "Debug"
     env = _get_env(ctx, major_version, python_runtimes)
     # Run the builder to produce the MSI
-    succeeded = ctx.run(f'{BUILD_SOURCE_DIR}\\output\\bin\\{arch}\\{configuration}\\WixSetup.exe', warn=True, env=env)
+    succeeded = ctx.run(f'{BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\WixSetup.exe', warn=True, env=env)
     if not succeeded:
         raise Exit("Failed to build the MSI installer.", code=1)
     # And copy it to the output path as a build artifact
