@@ -155,7 +155,6 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         break;
     case GUESS_SADDR_FL6:
         new_status.offset_saddr_fl6 = aligned_offset(subject, status->offset_saddr_fl6, SIZEOF_SADDR_FL6);
-        log_debug("new=%u old=%u", new_status.offset_saddr_fl6, status->offset_saddr_fl6);
         bpf_probe_read_kernel(&new_status.saddr_fl6, sizeof(u32) * 4, subject + new_status.offset_saddr_fl6);
         break;
     case GUESS_DADDR_FL6:
