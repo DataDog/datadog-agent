@@ -228,7 +228,7 @@ require (
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.25.5
 	k8s.io/apiextensions-apiserver v0.25.5
-	k8s.io/apimachinery v0.25.5
+	k8s.io/apimachinery v0.26.2
 	k8s.io/apiserver v0.25.5
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.12.0
 	k8s.io/client-go v0.25.5
