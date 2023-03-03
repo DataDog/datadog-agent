@@ -99,7 +99,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			return fmt.Errorf("aws new environment: %w", err)
 		}
 
-		scenarioDone, err := microvms.RunAndReturnInstances(ctx, awsEnvironment)
+		scenarioDone, err := microvms.RunAndReturnInstances(awsEnvironment)
 		if err != nil {
 			return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 		}
