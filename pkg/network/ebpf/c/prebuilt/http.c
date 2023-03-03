@@ -117,7 +117,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     tail_call_state->iteration += 1;
     tail_call_state->offset += read_size;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
-        bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
+        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2);
     }
 
 delete_iteration:

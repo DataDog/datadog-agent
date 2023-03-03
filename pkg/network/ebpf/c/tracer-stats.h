@@ -9,6 +9,8 @@
 #include "tracer-telemetry.h"
 #include "cookie.h"
 #include "sock.h"
+#include "port_range.h"
+#include "protocols/classification/stack-helpers.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
@@ -20,7 +22,6 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.cookie = get_sk_cookie(sk);
-    empty.protocol = PROTOCOL_UNKNOWN;
     bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);
 }
@@ -46,42 +47,36 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
-static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
+static __always_inline void update_protocol_stack(conn_tuple_t *t, conn_stats_ts_t *stats) {
+    if (is_fully_classified(&stats->protocol_stack)) {
+        return;
+    }
+
     conn_tuple_t conn_tuple_copy = *t;
     // The classifier is a socket filter and there we are not accessible for pid and netns.
     // The key is based of the source & dest addresses and ports, and the metadata.
     conn_tuple_copy.netns = 0;
     conn_tuple_copy.pid = 0;
-    protocol_t *cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-    if (cached_protocol_ptr != NULL) {
-       return *cached_protocol_ptr;
+    normalize_tuple(&conn_tuple_copy);
+
+    protocol_stack_t *protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    if (protocol_stack) {
+        stats->protocol_stack = *protocol_stack;
+        return;
     }
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
-    if (cached_skb_conn_tup_ptr != NULL) {
-        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
-        cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
-        if (cached_protocol_ptr != NULL) {
-           return *cached_protocol_ptr;
-        }
+    if (!cached_skb_conn_tup_ptr) {
+        return;
     }
 
-    flip_tuple(&conn_tuple_copy);
-    cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-    if (cached_protocol_ptr != NULL) {
-       return *cached_protocol_ptr;
+    conn_tuple_copy = *cached_skb_conn_tup_ptr;
+    protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    if (!protocol_stack) {
+        return;
     }
 
-    cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
-    if (cached_skb_conn_tup_ptr != NULL) {
-        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
-        cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
-        if (cached_protocol_ptr != NULL) {
-           return *cached_protocol_ptr;
-        }
-    }
-
-    return PROTOCOL_UNKNOWN;
+    stats->protocol_stack = *protocol_stack;
 }
 
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
@@ -92,13 +87,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    if (val->protocol == PROTOCOL_UNKNOWN) {
-        protocol_t protocol = get_protocol(t);
-        if (protocol != PROTOCOL_UNKNOWN) {
-            log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
-            val->protocol = protocol;
-        }
-    }
+    update_protocol_stack(t, val);
 
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);

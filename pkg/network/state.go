@@ -952,11 +952,7 @@ func mergeConnectionStats(a, b *ConnectionStats) (collision bool) {
 		a.IPTranslation = b.IPTranslation
 	}
 
-	if a.Protocol == ProtocolUnknown && b.Protocol != ProtocolUnknown {
-		a.Protocol = b.Protocol
-	} else if b.Protocol == ProtocolUnknown && a.Protocol != ProtocolUnknown {
-		b.Protocol = a.Protocol
-	}
+	a.ProtocolStack.MergeWith(b.ProtocolStack)
 
 	return false
 }

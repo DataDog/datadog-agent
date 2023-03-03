@@ -4,12 +4,14 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
+#include "port_range.h"
 
 #include "protocols/amqp/helpers.h"
 #include "protocols/classification/common.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/maps.h"
 #include "protocols/classification/structs.h"
+#include "protocols/classification/stack-helpers.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/kafka/kafka-classification.h"
@@ -63,12 +65,37 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     return PROTOCOL_UNKNOWN;
 }
 
-__maybe_unused static __always_inline void save_protocol(conn_tuple_t *skb_tup, protocol_t cur_fragment_protocol) {
-    bpf_map_update_with_telemetry(connection_protocol, skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
-    conn_tuple_t inverse_skb_conn_tup;
-    bpf_memcpy(&inverse_skb_conn_tup, skb_tup, sizeof(conn_tuple_t));
-    flip_tuple(&inverse_skb_conn_tup);
-    bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
+static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *tup) {
+    if (!tup) {
+        return NULL;
+    }
+
+    conn_tuple_t normalized_tup = *tup;
+    normalize_tuple(&normalized_tup);
+    protocol_stack_t* stack = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+    if (stack) {
+        return stack;
+    }
+
+    // this code path is executed once during the entire connection lifecycle
+    protocol_stack_t empty_stack = {0};
+    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_stack, BPF_NOEXIST);
+    return bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+}
+
+static __always_inline classification_buffer_t* get_buffer() {
+    // Get the buffer the fragment will be read into from a per-cpu array map.
+    // This will avoid doing unaligned stack access while parsing the protocols,
+    // which is forbidden and will make the verifier fail.
+    const u32 key = 0;
+    return bpf_map_lookup_elem(&classification_buf, &key);
+}
+
+static __always_inline void init_buffer(struct __sk_buff *skb, skb_info_t *skb_info, classification_buffer_t* buffer) {
+    bpf_memset(buffer->data, 0, sizeof(buffer->data));
+    read_into_buffer_for_classification((char *)buffer->data, skb, skb_info);
+    const size_t payload_length = skb->len - skb_info->data_off;
+    buffer->size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
@@ -86,34 +113,42 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
-    if (cur_fragment_protocol_ptr) {
+    protocol_stack_t *protocol_stack = get_protocol_stack(&skb_tup);
+    if (!protocol_stack) {
         return;
     }
 
-    // Get the buffer the fragment will be read into from a per-cpu array map.
-    // This will avoid doing unaligned stack access while parsing the protocols,
-    // which is forbidden and will make the verifier fail.
-    const u32 key = 0;
-    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
-    if (request_fragment == NULL) {
-        log_debug("could not get classification buffer from map");
+    classification_buffer_t *buffer = get_buffer();
+    if (!buffer) {
+        return;
+    }
+    init_buffer(skb, &skb_info, buffer);
+
+    protocol_layer_t next_layer = protocol_next_layer(protocol_stack, LAYER_UNKNOWN);
+    if (next_layer != LAYER_APPLICATION) {
+        // for now we're only decoding application-layer protocols
+        // but this is where a tail call to the next layer to decode would be added
         return;
     }
 
-    bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
-    const size_t payload_length = skb->len - skb_info.data_off;
-    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-
-    protocol_t cur_fragment_protocol = classify_http_protocols(request_fragment, final_fragment_size);
-    // If there has been a change in the classification, save the new protocol.
-    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-        save_protocol(&skb_tup, cur_fragment_protocol);
-        return;
+    protocol_t cur_fragment_protocol = classify_http_protocols(buffer->data, buffer->size);
+    if (!cur_fragment_protocol) {
+        bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_QUEUES_PROG);
     }
 
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_QUEUES_PROG);
+    protocol_set(protocol_stack, cur_fragment_protocol);
+    if (cur_fragment_protocol == PROTOCOL_HTTP) {
+        mark_as_fully_classified(protocol_stack);
+    }
+
+    // TODO: once we have other protocol layers we should add something like the following
+    // next_layer = protocol_next_layer(protocol_stack, LAYER_APPLICATION);
+    // switch(next_layer) {
+    // case LAYER_API:
+    //     bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_API_PROG);
+    // case LAYER_ENCRYPTION:
+    //     bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_ENCRYPTION_PROG);
+    // }
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {
@@ -125,29 +160,22 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
         return;
     }
 
-    // Get the buffer the fragment will be read into from a per-cpu array map.
-    // This will avoid doing unaligned stack access while parsing the protocols,
-    // which is forbidden and will make the verifier fail.
-    const u32 key = 0;
-    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
-    if (request_fragment == NULL) {
-        log_debug("could not get classification buffer from map");
-        return;
-    }
-    bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
-
-    const size_t payload_length = skb->len - skb_info.data_off;
-    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-
-    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &skb_info, request_fragment, final_fragment_size);
-    // If there has been a change in the classification, save the new protocol.
-    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-        save_protocol(&skb_tup, cur_fragment_protocol);
+    classification_buffer_t *buffer = get_buffer();
+    if (!buffer) {
         return;
     }
 
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_DBS_PROG);
+    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &skb_info, buffer->data, buffer->size);
+    if (!cur_fragment_protocol) {
+        bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_DBS_PROG);
+    }
+
+    protocol_stack_t *protocol_stack = get_protocol_stack(&skb_tup);
+    if (!protocol_stack) {
+        return;
+    }
+    protocol_set(protocol_stack, cur_fragment_protocol);
+    mark_as_fully_classified(protocol_stack);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(struct __sk_buff *skb) {
@@ -159,27 +187,22 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
         return;
     }
 
-    // Get the buffer the fragment will be read into from a per-cpu array map.
-    // This will avoid doing unaligned stack access while parsing the protocols,
-    // which is forbidden and will make the verifier fail.
-    const u32 key = 0;
-    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
-    if (request_fragment == NULL) {
-        log_debug("could not get classification buffer from map");
+    classification_buffer_t *buffer = get_buffer();
+    if (!buffer) {
         return;
     }
-    bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
 
-    const size_t payload_length = skb->len - skb_info.data_off;
-    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-
-    protocol_t cur_fragment_protocol = classify_db_protocols(&skb_tup, request_fragment, final_fragment_size);
-
-    // If there has been a change in the classification, save the new protocol.
-    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-        save_protocol(&skb_tup, cur_fragment_protocol);
+    protocol_t cur_fragment_protocol = classify_db_protocols(&skb_tup, buffer->data, buffer->size);
+    if (!cur_fragment_protocol) {
+        return;
     }
+
+    protocol_stack_t *protocol_stack = get_protocol_stack(&skb_tup);
+    if (!protocol_stack) {
+        return;
+    }
+    protocol_set(protocol_stack, cur_fragment_protocol);
+    mark_as_fully_classified(protocol_stack);
 }
 
 #endif

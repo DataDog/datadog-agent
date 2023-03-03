@@ -42,7 +42,7 @@ typedef struct {
     __u64 sent_packets;
     __u64 recv_packets;
     __u8 direction;
-    protocol_t protocol;
+    protocol_stack_t protocol_stack;
 } conn_stats_ts_t;
 
 // Connection flags

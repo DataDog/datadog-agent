@@ -14,8 +14,8 @@
 BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant classification procedures on the same
-// connection. Assumption: each connection has a single protocol.
-BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_t, 0)
+// connection.
+BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_t, 0)
 
 // This entry point is needed to bypass a memory limit on socket filters.
 // There is a limitation on number of instructions can be attached to a socket filter,

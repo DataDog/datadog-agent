@@ -17,7 +17,7 @@ BPF_LRU_MAP(dispatcher_connection_protocol, conn_tuple_t, protocol_t, 0)
 // This is done to avoid memory limitation when attaching a filter to
 // a socket.
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Program-size-limit-for-socket-filters
-BPF_PROG_ARRAY(protocols_progs, MAX_PROTOCOLS)
+BPF_PROG_ARRAY(protocols_progs, PROG_MAX)
 
 // This program array is needed to bypass a memory limit on socket filters.
 // There is a limitation on number of instructions can be attached to a socket filter,

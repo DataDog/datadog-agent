@@ -11,6 +11,7 @@
 #include "cookie.h"
 #include "protocols/classification/tracer-maps.h"
 #include "ip.h"
+#include "port_range.h"
 
 static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
@@ -20,20 +21,18 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;
     conn_tuple.pid = 0;
     conn_tuple.netns = 0;
+    normalize_tuple(&conn_tuple);
     bpf_map_delete_elem(&connection_protocol, &conn_tuple);
 
     conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
-    if (skb_tup_ptr != NULL) {
-        conn_tuple_t skb_tup = *skb_tup_ptr;
-        conn_tuple_t inverse_skb_conn_tup = *skb_tup_ptr;
-        flip_tuple(&inverse_skb_conn_tup);
-        inverse_skb_conn_tup.pid = 0;
-        inverse_skb_conn_tup.netns = 0;
-        bpf_map_delete_elem(&connection_protocol, &inverse_skb_conn_tup);
-        bpf_map_delete_elem(&connection_protocol, &skb_tup);
+    if (!skb_tup_ptr) {
+        return;
     }
 
+    conn_tuple_t skb_tup = *skb_tup_ptr;
+    bpf_map_delete_elem(&connection_protocol, &skb_tup);
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
+
 }
 
 static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
