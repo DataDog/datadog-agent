@@ -98,9 +98,8 @@ runtime_security_config:
     enabled: true
   sbom:
     enabled: {{ .SBOMEnabled }}
-{{if .EnableActivityDump}}
   activity_dump:
-    enabled: true
+    enabled: {{ .EnableActivityDump }}
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
       enabled: {{ .ActivityDumpTagRules }}
@@ -115,7 +114,6 @@ runtime_security_config:
       formats: {{range .ActivityDumpLocalStorageFormats}}
       - {{.}}
       {{end}}
-{{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
