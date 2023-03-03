@@ -21,6 +21,7 @@ type Client struct {
 
 	metricAggregator   aggregator.MetricAggregator
 	checkRunAggregator aggregator.CheckRunAggregator
+	logAggregator      aggregator.LogAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -30,6 +31,7 @@ func NewClient(fakeIntakeURL string) *Client {
 		fakeIntakeURL:      strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:   aggregator.NewMetricAggregator(),
 		checkRunAggregator: aggregator.NewCheckRunAggregator(),
+		logAggregator:      aggregator.NewLogAggregator(),
 	}
 }
 
@@ -47,6 +49,14 @@ func (c *Client) getCheckRuns() error {
 		return err
 	}
 	return c.checkRunAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getLogs() error {
+	payloads, err := c.getFakePayloads("api/v2/logs")
+	if err != nil {
+		return err
+	}
+	return c.logAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {

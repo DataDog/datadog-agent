@@ -25,6 +25,9 @@ var apiV2SeriesResponse []byte
 //go:embed fixtures/api_v1_check_run_response
 var apiV1CheckRunResponse []byte
 
+//go:embed fixtures/api_v2_logs_response
+var apiV2LogsResponse []byte
+
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +103,19 @@ func TestClient(t *testing.T) {
 		assert.False(t, client.checkRunAggregator.ContainsPayloadName("totoro"))
 		assert.True(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"check:snmp"}))
 		assert.False(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"totoro"}))
+	})
+
+	t.Run("getLogs", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2LogsResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getLogs()
+		assert.NoError(t, err)
+		assert.True(t, client.logAggregator.ContainsPayloadName("testapp"))
+		assert.False(t, client.logAggregator.ContainsPayloadName("totoro"))
 	})
 
 	t.Run("GetServerHealth", func(t *testing.T) {
