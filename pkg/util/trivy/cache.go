@@ -22,10 +22,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
-var garbageCollectionFrequency = 10 * time.Minute
+var garbageCollectionTick = 10 * time.Minute
 var garbageCollectionDiscardRatio = 0.5 // Recommended value: https://github.com/dgraph-io/badger/blob/3aa7bd6841baa884ff03f00f789317509dbcb051/db.go#L1192
+var telemetryTick = 1 * time.Minute
 
 type CacheProvider func() (cache.Cache, error)
 
@@ -45,6 +47,7 @@ type BadgerCache struct {
 	db                      *badger.DB
 	ttl                     time.Duration
 	garbageCollectionTicker *time.Ticker
+	telemetryTicker         *time.Ticker
 }
 
 // This is needed so that Badger logs using the same format as the Agent
@@ -76,22 +79,36 @@ func NewBadgerCache(cacheDir string, ttl time.Duration) (*BadgerCache, error) {
 		return nil, fmt.Errorf("error creating Badger cache: %w", err)
 	}
 
-	// Run garbage collection periodically. It's needed because Badger relies on
-	// the client to run the garbage collection
-	// (https://dgraph.io/docs/badger/get-started/#garbage-collection).
-	gcTicker := time.NewTicker(garbageCollectionFrequency)
+	telemetryTicker := time.NewTicker(telemetryTick)
+	gcTicker := time.NewTicker(garbageCollectionTick)
+
+	badgerCache := &BadgerCache{
+		db:                      db,
+		ttl:                     ttl,
+		garbageCollectionTicker: gcTicker,
+		telemetryTicker:         telemetryTicker,
+	}
+
 	go func() {
-		for range gcTicker.C {
-			if err := db.RunValueLogGC(garbageCollectionDiscardRatio); err != nil && err != badger.ErrNoRewrite {
-				// ErrNoRewrite is returned when the GC runs fine but doesn't
-				// result any cleanup. That's why we don't log anything in that
-				// case.
-				log.Warnf("error while running garbage collection in Badger: %s", err)
+		for {
+			select {
+			case <-telemetryTicker.C:
+				badgerCache.collectTelemetry()
+			case <-gcTicker.C:
+				// Run garbage collection periodically. It's needed because Badger relies on
+				// the client to run the garbage collection
+				// (https://dgraph.io/docs/badger/get-started/#garbage-collection).
+				if err := db.RunValueLogGC(garbageCollectionDiscardRatio); err != nil && err != badger.ErrNoRewrite {
+					// ErrNoRewrite is returned when the GC runs fine but doesn't
+					// result any cleanup. That's why we don't log anything in that
+					// case.
+					log.Warnf("error while running garbage collection in Badger: %s", err)
+				}
 			}
 		}
 	}()
 
-	return &BadgerCache{db: db, ttl: ttl, garbageCollectionTicker: gcTicker}, nil
+	return badgerCache, nil
 }
 
 func (cache *BadgerCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
@@ -201,6 +218,7 @@ func (cache *BadgerCache) GetBlob(blobID string) (types.BlobInfo, error) {
 }
 
 func (cache *BadgerCache) Close() error {
+	cache.telemetryTicker.Stop()
 	cache.garbageCollectionTicker.Stop()
 
 	if err := cache.db.Close(); err != nil {
@@ -237,4 +255,10 @@ func (cache *BadgerCache) getRawValue(key string) ([]byte, error) {
 	}
 
 	return rawValue, nil
+}
+
+func (cache *BadgerCache) collectTelemetry() {
+	lsmSize, vlogSize := cache.db.Size()
+	telemetry.SBOMCacheMemSize.Set(float64(lsmSize))
+	telemetry.SBOMCacheDiskSize.Set(float64(vlogSize))
 }
