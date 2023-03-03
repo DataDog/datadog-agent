@@ -110,8 +110,8 @@ kernel_matrix_testing_setup_env:
   needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:main"]
   variables:
-    ARCH: x86_64
-    EC2_INSTANCE_TYPE: "z1d.metal"
+    EC2_X86_INSTANCE_TYPE: "i3.metal"
+    EC2_ARM_INSTANCE_TYPE: "m6g.metal"
     AWS_REGION: us-east-1
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
@@ -119,7 +119,7 @@ kernel_matrix_testing_setup_env:
   script:
     - echo s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-matrix-testing/$CI_PIPELINE_ID/$CI_JOB_ID/pulumi > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE
+    - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE
     - pulumi logout
   artifacts:
     when: always
