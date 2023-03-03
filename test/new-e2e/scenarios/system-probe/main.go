@@ -37,7 +37,8 @@ func main() {
 	subnetsPtr := flag.String("subnets", "", "aws subnets")
 	x86InstanceTypePtr := flag.String("instance-type-x86", "", "x86_64 instance type")
 	armInstanceTypePtr := flag.String("instance-type-arm", "", "arm64 instance type")
-	amiIDPtr := flag.String("ami-id", "", "ami for metal instance")
+	x86AmiIDPtr := flag.String("x86-ami-id", "", "x86 ami for metal instance")
+	armAmiIDPtr := flag.String("arm-ami-id", "", "arm ami for metal instance")
 	toProvisionPtr := flag.Bool("run-provision", true, "run provision step for metal instance")
 	shutdownPtr := flag.Int("shutdown-period", 0, "shutdown after specified interval in minutes")
 	uploadDependenciesPtr := flag.Bool("upload-dependencies", false, "upload test dependencies to microvms")
@@ -50,7 +51,8 @@ func main() {
 	}
 
 	opts := systemProbe.SystemProbeEnvOpts{
-		AmiID:              *amiIDPtr,
+		X86AmiID:           *x86AmiIDPtr,
+		ArmAmiID:           *armAmiIDPtr,
 		ShutdownPeriod:     time.Duration(*shutdownPtr) * time.Minute,
 		Provision:          *toProvisionPtr,
 		FailOnMissing:      failOnMissing,

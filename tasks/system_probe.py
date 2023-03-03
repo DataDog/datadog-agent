@@ -1472,6 +1472,8 @@ def test_microvms(
     subnets=None,
     instance_type_x86=None,
     instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
     destroy=False,
     upload_dependencies=False,
 ):
@@ -1480,6 +1482,8 @@ def test_microvms(
         f"--subnets {subnets}" if subnets is not None else "",
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
         f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
+        f"--arm-ami-id {x86_ami_id}" if arm_ami_id is not None else "",
         "--destroy" if destroy else "",
         "--upload-dependencies" if upload_dependencies else "",
     ]

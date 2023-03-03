@@ -26,7 +26,8 @@ import (
 )
 
 type SystemProbeEnvOpts struct {
-	AmiID              string
+	X86AmiID           string
+	ArmAmiID           string
 	Provision          bool
 	ShutdownPeriod     time.Duration
 	FailOnMissing      bool
@@ -87,8 +88,8 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		"microvm:libvirtSSHKeyFileX86":        auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":        auto.ConfigValue{Value: sshKeyArm},
 		"microvm:provision":                   auto.ConfigValue{Value: "false"},
-		"microvm:x86AmiID":                    auto.ConfigValue{Value: ""},
-		"microvm:arm64AmiID":                  auto.ConfigValue{Value: ""},
+		"microvm:x86AmiID":                    auto.ConfigValue{Value: opts.X86AmiID},
+		"microvm:arm64AmiID":                  auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                  auto.ConfigValue{Value: CustomAMIWorkingDir},
 	}
 
