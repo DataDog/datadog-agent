@@ -41,7 +41,8 @@ namespace Datadog.CustomActions
                 catch (Exception e)
                 {
                     session.Log($"Error while deleting file: {e}");
-                    return ActionResult.Failure;
+                    // Don't fail in cleanup/rollback actions otherwise
+                    // we may brick the installation.
                 }
             }
 
