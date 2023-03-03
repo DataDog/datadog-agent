@@ -30,16 +30,20 @@ NUGET_CONFIG_BASE = '''<?xml version="1.0" encoding="utf-8"?>
 '''
 
 
-@task
-def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
-    """
-    Build the MSI installer for the agent
-    """
+def _get_vs_build_command(cmd, vstudio_root=None):
+    if not os.getenv("VCINSTALLDIR"):
+        print("VC Not installed in environment; checking other locations")
+        vsroot = vstudio_root or os.getenv('VSTUDIO_ROOT')
+        if not vsroot:
+            print("Must have visual studio installed")
+            raise Exit(code=2)
+        batchfile = "vcvars64.bat"
+        vs_env_bat = f'{vsroot}\\VC\\Auxiliary\\Build\\{batchfile}'
+        cmd = f'call "{vs_env_bat}" && {cmd}'
+    return cmd
 
-    if sys.platform != 'win32':
-        print("Building the MSI installer is only for available on Windows")
-        raise Exit(code=1)
 
+def _get_env(ctx, major_version='7', python_runtimes='3'):
     env = {}
 
     env['PACKAGE_VERSION'] = get_version(
@@ -55,6 +59,18 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
 
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
+    return env
+
+
+def _build(ctx, project='', vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
+    """
+    Build the MSI installer builder, i.e. the program that can build an MSI
+    """
+    if sys.platform != 'win32':
+        print("Building the MSI installer is only for available on Windows")
+        raise Exit(code=1)
+
+    env = _get_env(ctx, major_version, python_runtimes)
     print(f"arch is {arch}")
 
     cmd = ""
@@ -83,29 +99,79 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
     ctx.run(f'nuget config -set repositoryPath={NUGET_PACKAGES_DIR} -configfile {NUGET_CONFIG_FILE}')
 
     # Construct build command line
-    if not os.getenv("VCINSTALLDIR"):
-        print("VC Not installed in environment; checking other locations")
-
-        vsroot = vstudio_root or os.getenv('VSTUDIO_ROOT')
-        if not vsroot:
-            print("Must have visual studio installed")
-            raise Exit(code=2)
-        batchfile = "vcvars64.bat"
-        if arch == "x86":
-            print("Only 64 bit Windows is supported.")
-            raise Exit(code=3)
-        vs_env_bat = f'{vsroot}\\VC\\Auxiliary\\Build\\{batchfile}'
-        cmd = f'call "{vs_env_bat}" && cd {BUILD_SOURCE_DIR} && nuget restore && msbuild /p:Configuration={configuration} /p:Platform="x64"'
-    else:
-        cmd = f'cd {BUILD_SOURCE_DIR} && nuget restore && msbuild {BUILD_SOURCE_DIR} /p:Configuration={configuration} /p:Platform="x64"'
-
+    cmd = _get_vs_build_command(
+        f'cd {BUILD_SOURCE_DIR} && nuget restore && msbuild {project} /p:Configuration={configuration} /p:Platform="x64"',
+        vstudio_root,
+    )
     print(f"Build Command: {cmd}")
 
     # Try to run the command 3 times to alleviate transient
     # network failures
     succeeded = ctx.run(cmd, warn=True, env=env)
     if not succeeded:
-        raise Exit("Failed to build the MSI installer.", code=1)
+        raise Exit("Failed to build the installer builder.", code=1)
 
+
+@task
+def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
+    """
+    Build the MSI installer for the agent
+    """
+    # Build the builder executable
+    _build(
+        ctx,
+        vstudio_root=vstudio_root,
+        arch=arch,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        debug=debug,
+    )
+    configuration = "Release"
+    if debug:
+        configuration = "Debug"
+    env = _get_env(ctx, major_version, python_runtimes)
+    # Run the builder to produce the MSI
+    succeeded = ctx.run(f'{BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\WixSetup.exe', warn=True, env=env)
+    if not succeeded:
+        raise Exit("Failed to build the MSI installer.", code=1)
+    # And copy it to the output path as a build artifact
     for artefact in glob.glob(f'{BUILD_SOURCE_DIR}\\WixSetup\\*.msi'):
         shutil.copy2(artefact, OUTPUT_PATH)
+
+
+@task
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
+    """
+    Run the unit test for the MSI installer for the agent
+    """
+    _build(
+        ctx,
+        vstudio_root=vstudio_root,
+        arch=arch,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        debug=debug,
+    )
+    configuration = "Release"
+    if debug:
+        configuration = "Debug"
+    env = _get_env(ctx, major_version, python_runtimes)
+
+    # Generate the config file
+    if not ctx.run(
+        f'inv -e generate-config --build-type="agent-py2py3" --output-file="{BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\datadog.yaml"',
+        warn=True,
+        env=env,
+    ):
+        raise Exit("Could not generate test datadog.yaml file")
+
+    # Run the tests
+    if not ctx.run(
+        f'dotnet test {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\CustomActions.Tests.dll', warn=True, env=env
+    ):
+        raise Exit(code=1)
+
+    if not ctx.run(
+        f'dotnet test {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\WixSetup.Tests.dll', warn=True, env=env
+    ):
+        raise Exit(code=1)
