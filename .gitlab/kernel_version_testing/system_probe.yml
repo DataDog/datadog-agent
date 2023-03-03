@@ -12,11 +12,6 @@
     # Pull base images
     - mkdir $KITCHEN_DOCKERS
     - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
-    # upload docker images to S3 artifacts bucket
-    - pushd $DD_AGENT_TESTING_DIR
-    - tar czvf kitchen-dockers-$ARCH.tar.gz kitchen-dockers-$ARCH
-    - $S3_CP_CMD kitchen-dockers-$ARCH.tar.gz $S3_ARTIFACTS_URI/kitchen-dockers-$ARCH.tar.gz
-    - popd
   artifacts:
     expire_in: 1 day
     paths:
