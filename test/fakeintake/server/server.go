@@ -53,7 +53,7 @@ func NewServer(options ...func(*Server)) *Server {
 
 	fi.server = http.Server{
 		Handler: mux,
-		Addr:    "127.0.0.1:0",
+		Addr:    ":0",
 	}
 
 	for _, opt := range options {
@@ -71,7 +71,7 @@ func WithPort(port int) func(*Server) {
 			fmt.Printf("Fake intake is already running. Stop it and try again to change the port.")
 			return
 		}
-		fi.server.Addr = fmt.Sprintf("127.0.0.1:%d", port)
+		fi.server.Addr = fmt.Sprintf(":%d", port)
 	}
 }
 

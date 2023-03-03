@@ -111,6 +111,7 @@ system-probe-msg.h
 **/.ninja_log
 **/.ninja_deps
 *.ninja
+compile_commands.json
 pkg/ebpf/bytecode/build/**/*.d
 pkg/ebpf/bytecode/runtime/conntrack.go
 pkg/ebpf/bytecode/runtime/http.go

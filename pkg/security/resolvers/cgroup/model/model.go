@@ -34,6 +34,7 @@ type CacheEntry struct {
 	Deleted          *atomic.Bool
 	ID               string
 	Tags             []string
+	CreationTime     uint64
 	WorkloadSelector WorkloadSelector
 	PIDs             *simplelru.LRU[uint32, int8]
 }
