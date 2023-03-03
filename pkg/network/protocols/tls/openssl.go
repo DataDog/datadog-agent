@@ -29,7 +29,7 @@ func RunServerOpenssl(t *testing.T, serverPort string, args ...string) bool {
 
 func RunClientOpenssl(t *testing.T, addr string, port string, args string) {
 	command := []string{
-		"docker", "run", "--network=host", "archlinux:base",
+		"docker", "run", "--network=host", "menci/archlinuxarm:base",
 		"openssl", "s_client", "-connect", addr + ":" + port,
 	}
 	protocolsUtils.RunHostServer(t, command, []string{}, regexp.MustCompile("Extended master secret"))
