@@ -257,10 +257,17 @@ cmd_agent="$cmd_real_user /opt/datadog-agent/bin/agent/agent"
 
 cmd_launchctl="$cmd_real_user launchctl"
 
-function new_config() {
+function sed_inplace_arg() {
     # Check for vanilla OS X sed or GNU sed
-    i_cmd="-i ''"
-    if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then i_cmd="-i"; fi
+    if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then
+        echo "-i"
+    fi
+
+    echo "-i ''"
+}
+
+function new_config() {
+    i_cmd="$(sed_inplace_arg)"
     $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"$etc_dir/datadog.yaml\""
     if [ "$site" ]; then
         $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"$etc_dir/datadog.yaml\""
@@ -292,10 +299,9 @@ function plist_modify_user_group() {
     done
 
     ## to insert user/group into the xml file, we'll find the last "</dict>" occurrence and insert before it
+    i_cmd="$(sed_inplace_arg)"
     closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
-    # there's no way to do in-place sed without a backup file on an arbitrary MacOS version
-    $sudo_cmd sed -i .backup -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|" -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|" "$plist_file"
-    $sudo_cmd rm "${plist_file}.backup"
+    $sudo_cmd sh -c "sed $i_cmd -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|\" -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|\" \"$plist_file\""
 }
 
 # # Install the agent

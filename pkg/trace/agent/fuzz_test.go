@@ -108,6 +108,8 @@ func FuzzObfuscateSpan(f *testing.F) {
 }
 
 func FuzzNormalizeTrace(f *testing.F) {
+	agent, cancel := agentWithDefaults()
+	defer cancel()
 	encode := func(pbTrace pb.Trace) ([]byte, error) {
 		return pbTrace.MarshalMsg(nil)
 	}
@@ -128,7 +130,7 @@ func FuzzNormalizeTrace(f *testing.F) {
 			t.Skipf("Skipping invalid trace: %v", err)
 		}
 		ts := newTagStats()
-		if err := normalizeTrace(ts, pbTrace); err != nil {
+		if err := agent.normalizeTrace(ts, pbTrace); err != nil {
 			t.Skipf("Skipping rejected trace: %v", err)
 		}
 		encPostNorm, err := encode(pbTrace)

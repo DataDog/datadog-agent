@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -153,4 +154,10 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	}
 
 	return arnObject.Region, nil
+}
+
+func hasApiKey() bool {
+	return config.Datadog.IsSet("api_key") ||
+		len(os.Getenv(kmsAPIKeyEnvVar)) > 0 ||
+		len(os.Getenv(secretsManagerAPIKeyEnvVar)) > 0
 }

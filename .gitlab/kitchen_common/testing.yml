@@ -1,7 +1,7 @@
 ---
 .kitchen_common:
   stage: kitchen_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   artifacts:
     expire_in: 2 weeks
@@ -155,8 +155,7 @@
   variables:
     KITCHEN_EC2_REGION: us-east-1
     KITCHEN_EC2_SUBNET: subnet-c18341ed
-    KITCHEN_EC2_SG_IDS:
-    - sg-0f5617ceb3e5a6c39
+    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
 
 # Kitchen: Test types (test suite * agent flavor + location in each cloud provider)
 # -------------------------------

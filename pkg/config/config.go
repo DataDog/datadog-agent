@@ -945,9 +945,6 @@ func InitConfig(config Config) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
-	// temporary feature flag until this becomes the only option
-	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
-
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
 	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
@@ -1399,7 +1396,7 @@ func findUnexpectedUnicode(config Config) []string {
 	return messages
 }
 
-func findUnknownEnvVars(config Config, environ []string) []string {
+func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars []string) []string {
 	var unknownVars []string
 
 	knownVars := map[string]struct{}{
@@ -1417,6 +1414,9 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_TESTS_RUNTIME_COMPILED": {},
 	}
 	for _, key := range config.GetEnvVars() {
+		knownVars[key] = struct{}{}
+	}
+	for _, key := range additionalKnownEnvVars {
 		knownVars[key] = struct{}{}
 	}
 
@@ -1462,6 +1462,10 @@ func checkConflictingOptions(config Config) error {
 
 // LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCusto
 func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
+	return LoadDatadogCustomWithKnownEnvVars(config, origin, loadSecret, nil)
+}
+
+func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1471,7 +1475,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings
 		applyOverrideFuncs(config)
 	}()
 
-	warnings, err := LoadCustom(config, origin, loadSecret)
+	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
 	if err != nil {
 		return warnings, err
 	}
@@ -1501,7 +1505,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
+func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
@@ -1521,7 +1525,7 @@ func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error
 		log.Warnf("Unknown key in config file: %v", key)
 	}
 
-	for _, v := range findUnknownEnvVars(config, os.Environ()) {
+	for _, v := range findUnknownEnvVars(config, os.Environ(), additionalKnownEnvVars) {
 		log.Warnf("Unknown environment variable: %v", v)
 	}
 

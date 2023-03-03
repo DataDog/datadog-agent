@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	spNS   = "system_probe_config"
-	netNS  = "network_config"
-	smNS   = "service_monitoring_config"
-	evNS   = "event_monitoring_config"
-	smjtNS = smNS + ".java_tls"
-
+	spNS                         = "system_probe_config"
+	netNS                        = "network_config"
+	smNS                         = "service_monitoring_config"
+	dsNS                         = "data_streams_config"
+	evNS                         = "event_monitoring_config"
+	smjtNS                       = smNS + ".java_tls"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
@@ -170,6 +170,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
+
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
@@ -179,6 +181,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
+	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	httpRules := join(netNS, "http_replace_rules")
 	cfg.BindEnv(httpRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
 	cfg.SetEnvKeyTransformer(httpRules, func(in string) interface{} {
@@ -211,6 +214,10 @@ func InitSystemProbeConfig(cfg Config) {
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
+	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "use_windows_service_name"), true, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
+
+	// data streams
+	cfg.BindEnvAndSetDefault(join(dsNS, "enabled"), false, "DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED")
 
 	// event monitoring
 	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
@@ -255,19 +262,27 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
 	cfg.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
+	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
+	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
+	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+
+	// CWS Network
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
+
+	// Activity Dump
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 1)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "syscalls"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", 75)
@@ -282,6 +297,10 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
 	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
 	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+
+	// SBOM
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 }
 
 func join(pieces ...string) string {

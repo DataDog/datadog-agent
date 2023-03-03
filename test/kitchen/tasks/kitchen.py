@@ -153,8 +153,8 @@ def genconfig(
 
     if provider == "azure":
         env['TEST_IMAGE_SIZE'] = imagesize if imagesize else ""
-    elif provider == "ec2":
-        env['KITCHEN_EC2_INSTANCE_TYPE'] = imagesize if imagesize else ""
+    elif provider == "ec2" and imagesize:
+        env['KITCHEN_EC2_INSTANCE_TYPE'] = imagesize
 
     if fips:
         env['FIPS'] = 'true'

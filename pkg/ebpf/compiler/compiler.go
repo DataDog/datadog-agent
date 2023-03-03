@@ -64,7 +64,7 @@ func kernelHeaderPaths(headerDirs []string) []string {
 }
 
 // CompileToObjectFile compiles an eBPF program
-func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, headerDirs []string) error {
+func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs []string) error {
 	if len(headerDirs) == 0 {
 		return fmt.Errorf("unable to find kernel headers")
 	}
@@ -81,9 +81,9 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		cflags = append(cflags, fmt.Sprintf("-isystem%s", p))
 	}
 
-	cflags = append(cflags, "-c", "-x", "c", "-o", "-", "-")
+	cflags = append(cflags, "-c", "-x", "c", "-o", "-", inFile)
 	clangOut := &bytes.Buffer{}
-	if err := clang(in, clangOut, cflags); err != nil {
+	if err := clang(cflags, WithStdout(clangOut)); err != nil {
 		return fmt.Errorf("compiling asset to bytecode: %w", err)
 	}
 	if err := llc(clangOut, outputFile); err != nil {
@@ -92,15 +92,28 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	return nil
 }
 
-func clang(in io.Reader, out io.Writer, cflags []string) error {
+func WithStdin(in io.Reader) func(*exec.Cmd) {
+	return func(c *exec.Cmd) {
+		c.Stdin = in
+	}
+}
+
+func WithStdout(out io.Writer) func(*exec.Cmd) {
+	return func(c *exec.Cmd) {
+		c.Stdout = out
+	}
+}
+
+func clang(cflags []string, options ...func(*exec.Cmd)) error {
 	var clangErr bytes.Buffer
 
 	clangCtx, clangCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer clangCancel()
 
 	compileToBC := exec.CommandContext(clangCtx, clangBinPath, cflags...)
-	compileToBC.Stdin = in
-	compileToBC.Stdout = out
+	for _, opt := range options {
+		opt(compileToBC)
+	}
 	compileToBC.Stderr = &clangErr
 
 	log.Debugf("running clang: %v", compileToBC.Args)
@@ -170,5 +183,5 @@ func Preprocess(in io.Reader, out io.Writer, cflags []string, headerDirs []strin
 	}
 
 	cflags = append(cflags, "-E", "-x", "c", "-o", "-", "-")
-	return clang(in, out, cflags)
+	return clang(cflags, WithStdin(in), WithStdout(out))
 }

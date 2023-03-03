@@ -12,7 +12,7 @@
 #include "protocols/classification/structs.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
-#include "protocols/kafka/helpers.h"
+#include "protocols/kafka/kafka-classification.h"
 #include "protocols/mongo/helpers.h"
 #include "protocols/mysql/helpers.h"
 #include "protocols/redis/helpers.h"

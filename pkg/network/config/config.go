@@ -20,6 +20,7 @@ const (
 	spNS   = "system_probe_config"
 	netNS  = "network_config"
 	smNS   = "service_monitoring_config"
+	dsNS   = "data_streams_config"
 	evNS   = "event_monitoring_config"
 	smjtNS = smNS + ".java_tls"
 
@@ -41,6 +42,9 @@ type Config struct {
 
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
+
+	// DataStreamsEnabled is whether the data streams feature is enabled or not
+	DataStreamsEnabled bool
 
 	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
 	CollectTCPConns bool
@@ -76,7 +80,13 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
-	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
+	// EnableHTTP2Monitoring specifies whether the tracer should monitor HTTP2 traffic
+	EnableHTTP2Monitoring bool
+
+	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
+	EnableKafkaMonitoring bool
+
+	// EnableHTTPSMonitoring specifies whether the tracer should monitor HTTPS traffic
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
@@ -150,6 +160,10 @@ type Config struct {
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxHTTPStatsBuffered int
+
+	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxKafkaStatsBuffered int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -244,6 +258,7 @@ func New() *Config {
 
 		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
+		DataStreamsEnabled:       cfg.GetBool(join(dsNS, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
 		TCPConnTimeout:   2 * time.Minute,
@@ -276,8 +291,10 @@ func New() *Config {
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
@@ -372,6 +389,8 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
+	c.ServiceMonitoringEnabled = c.ServiceMonitoringEnabled || c.DataStreamsEnabled
+
 	if c.ServiceMonitoringEnabled {
 		cfg.Set(join(netNS, "enable_http_monitoring"), true)
 		c.EnableHTTPMonitoring = true
@@ -390,6 +409,8 @@ func New() *Config {
 			c.EnableKernelHeaderDownload = true
 		}
 	}
+
+	c.EnableKafkaMonitoring = c.DataStreamsEnabled
 
 	if c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring enabled")
