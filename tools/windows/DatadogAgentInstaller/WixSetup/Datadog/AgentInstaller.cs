@@ -161,8 +161,12 @@ namespace WixSetup.Datadog
                 new Dir("logs")
             );
 
-            // enable the ability to repair the installation even when the original MSI is no longer available.
-            project.EnableResilientPackage();
+            // Enable the ability to repair the installation even when the original MSI is no longer available.
+            // This adds a symlink in %PROGRAMFILES%\Datadog\Datadog Agent which remains even when uninstalled
+            // and makes the kitchen test fail.
+            // Furthermore this symbolic link points to the locally cached MSI package (%WINDIR%\Installer)
+            // and won't help if the customer removed it from there.
+            //project.EnableResilientPackage();
 
             project.MajorUpgrade = MajorUpgrade.Default;
             // When set to yes, WiX sets the msidbUpgradeAttributesVersionMaxInclusive attribute,
