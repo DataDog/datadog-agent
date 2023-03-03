@@ -14,6 +14,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction ReadConfig { get; }
 
+        public ManagedAction PatchInstaller { get; set; }
+
         public ManagedAction WriteConfig { get; }
 
         public ManagedAction ReadRegistryProperties { get; }
@@ -81,6 +83,16 @@ namespace WixSetup.Datadog
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
+            PatchInstaller = new CustomAction<PatchInstallerCustomAction>(
+                new Id(nameof(PatchInstaller)),
+                PatchInstallerCustomAction.Patch,
+                Return.ignore,
+                When.After,
+                Step.InstallFiles,
+                Conditions.Upgrading)
+            {
+                Execute = Execute.deferred
+            };
             ReportInstallFailure = new CustomAction<Telemetry>(
                     new Id(nameof(ReportInstallFailure)),
                     Telemetry.ReportFailure,
