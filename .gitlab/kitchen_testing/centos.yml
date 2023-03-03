@@ -49,14 +49,14 @@
 # Kitchen: scenarios (os * agent * (cloud + arch))
 # -------------------------------
 
-.kitchen_scenario_centos_unsupported_fips_a6:
+.kitchen_scenario_centos_no_support_for_fips_a6:
   extends:
     - .kitchen_agent_a6
     - .kitchen_os_centos_no_support_for_fips
     - .kitchen_azure_x64
   needs: ["deploy_rpm_testing-a6_x64"]
 
-.kitchen_scenario_centos_unsupported_fips_a7:
+.kitchen_scenario_centos_no_support_for_fips_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_centos_no_support_for_fips
@@ -185,12 +185,12 @@ kitchen_centos_fips_step_by_step_agent-a7:
 # run upgrade5 on all systems with FIPS off
 kitchen_centos_upgrade5_agent-a6:
   extends:
-    - .kitchen_scenario_centos_unsupported_fips_a6
+    - .kitchen_scenario_centos_no_support_for_fips_a6
     - .kitchen_test_upgrade5_agent
 
 kitchen_centos_upgrade5_agent-a7:
   extends:
-    - .kitchen_scenario_centos_unsupported_fips_a7
+    - .kitchen_scenario_centos_no_support_for_fips_a7
     - .kitchen_test_upgrade5_agent
 
 kitchen_centos_upgrade6_agent-a6:
@@ -244,5 +244,5 @@ kitchen_centos_process_agent-a7:
     KITCHEN_OSVERS: "rhel-81"
     DEFAULT_KITCHEN_OSVERS: "rhel-81"
   extends:
-    - .kitchen_scenario_centos_unsupported_fips_a7
+    - .kitchen_scenario_centos_no_support_for_fips_a7
     - .kitchen_test_process_agent
