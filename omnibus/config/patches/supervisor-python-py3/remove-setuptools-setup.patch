@@ -1,12 +1,22 @@
-https://github.com/Supervisor/supervisor/pull/1578
 diff --git a/setup.py b/setup.py
-index ac4373c..d6449c9 100644
+index ac4373c..d6cbbe8 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -22,8 +22,10 @@ if py_version < (2, 7):
+@@ -11,6 +11,10 @@
+ # FITNESS FOR A PARTICULAR PURPOSE
+ #
+ ##############################################################################
++#
++# Modified for datadog-agent build with changes from PR
++# https://github.com/Supervisor/supervisor/pull/1578
++# submitted on 2023-03-02
+ 
+ import os
+ import sys
+@@ -22,8 +26,10 @@ if py_version < (2, 7):
  elif (3, 0) < py_version < (3, 4):
      raise RuntimeError('On Python 3, Supervisor requires Python 3.4 or later')
-
+ 
 -# pkg_resource is used in several places
 -requires = ["setuptools"]
 +requires = [

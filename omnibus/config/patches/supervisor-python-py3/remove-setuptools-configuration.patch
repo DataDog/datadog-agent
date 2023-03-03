@@ -1,12 +1,20 @@
-https://github.com/Supervisor/supervisor/pull/1578
 diff --git a/docs/configuration.rst b/docs/configuration.rst
-index 47ac1c9..9029c2b 100644
+index 47ac1c9..9b17a81 100644
 --- a/docs/configuration.rst
 +++ b/docs/configuration.rst
-@@ -1478,9 +1478,9 @@ sections do not have.
-
+@@ -1,3 +1,8 @@
++..
++  Modified for datadog-agent build with changes from PR
++  https://github.com/Supervisor/supervisor/pull/1578
++  submitted on 2023-03-02
++
+ Configuration File
+ ==================
+ 
+@@ -1478,9 +1483,9 @@ sections do not have.
+ 
  ``result_handler``
-
+ 
 -  A `pkg_resources entry point string
 -  <http://peak.telecommunity.com/DevCenter/PkgResources>`_ that
 -  resolves to a Python callable.  The default value is
@@ -16,12 +24,12 @@ index 47ac1c9..9029c2b 100644
    ``supervisor.dispatchers:default_handler``.  Specifying an alternate
    result handler is a very uncommon thing to need to do, and as a
    result, how to create one is not documented.
-@@ -1581,7 +1581,7 @@ And a section in the config file meant to configure it.
-
+@@ -1581,7 +1586,7 @@ And a section in the config file meant to configure it.
+ 
  ``supervisor.rpcinterface_factory``
-
+ 
 -  ``pkg_resources`` "entry point" dotted name to your RPC interface's
 +  ``entry point object reference`` dotted name to your RPC interface's
    factory function.
-
+ 
    *Default*: N/A
