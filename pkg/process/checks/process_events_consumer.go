@@ -23,6 +23,7 @@ import (
 // ProcessConsumer receives events from the event monitoring module of the system-probe,
 // batches them in the messages channel and serves the messages over GRPC when requested
 type ProcessConsumer struct {
+	api.EventMonitoringModuleServer
 	messages        chan *api.ProcessEventMessage
 	maxMessageBurst int
 	expiredEvents   *atomic.Int64
@@ -38,6 +39,8 @@ func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error
 		expiredEvents:   atomic.NewInt64(0),
 		statsdClient:    evm.StatsdClient,
 	}
+
+	api.RegisterEventMonitoringModuleServer(evm.GRPCServer, p)
 
 	if err := evm.AddEventTypeHandler(smodel.ForkEventType, p); err != nil {
 		return nil, err
