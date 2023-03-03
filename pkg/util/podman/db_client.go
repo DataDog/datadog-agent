@@ -140,7 +140,7 @@ func (client *DBClient) GetAllContainers() ([]Container, error) {
 }
 
 func (client *DBClient) getDBCon() (*bolt.DB, error) {
-	db, err := bolt.Open(client.DBPath, 0600, nil)
+	db, err := bolt.Open(client.DBPath, 0500, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error opening database %s", client.DBPath)
 	}
