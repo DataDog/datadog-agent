@@ -33,11 +33,11 @@ require (
 	go.opentelemetry.io/collector/pdata v1.0.0-rc5
 	go.opentelemetry.io/collector/semconv v0.71.0
 	go.uber.org/atomic v1.10.0
-	golang.org/x/sys v0.4.0
+	golang.org/x/sys v0.5.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.52.3
 	google.golang.org/protobuf v1.28.1
-	k8s.io/apimachinery v0.23.8
+	k8s.io/apimachinery v0.26.2
 )
 
 require (
@@ -71,8 +71,8 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
-	golang.org/x/net v0.5.0 // indirect
-	golang.org/x/text v0.6.0 // indirect
+	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
