@@ -1,5 +1,5 @@
 ---
 security:
   - |
-    Fixes cwe 703. Handle the return value of Close() for writtable files and forces writes to disks
+    Fixes CVE 703. Handles the return value of Close() for writable files and forces writes to disks
     in tools/dep_tree_resolver/go-deps.go. 
