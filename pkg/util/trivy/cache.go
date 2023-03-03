@@ -126,38 +126,34 @@ func (cache *BadgerCache) MissingBlobs(artifactID string, blobIDs []string) (boo
 	return missingArtifact, missingBlobIDs, nil
 }
 
-func (cache *BadgerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
-	artifactBytes, err := json.Marshal(artifactInfo)
+type cachedObject interface {
+	types.ArtifactInfo | types.BlobInfo
+}
+
+// Cannot be a BadgerCache method because methods cannot have type parameters
+func badgerCachePut[T cachedObject](cache *BadgerCache, id string, info T) error {
+	artifactBytes, err := json.Marshal(info)
 	if err != nil {
-		return fmt.Errorf("error converting artifact with ID %q to JSON: %w", artifactID, err)
+		return fmt.Errorf("error converting object with ID %q to JSON: %w", id, err)
 	}
 
 	err = cache.db.Update(func(txn *badger.Txn) error {
-		entry := badger.NewEntry([]byte(artifactID), artifactBytes).WithTTL(cache.ttl)
+		entry := badger.NewEntry([]byte(id), artifactBytes).WithTTL(cache.ttl)
 		return txn.SetEntry(entry)
 	})
 	if err != nil {
-		return fmt.Errorf("error saving artifact with ID %q into Badger cache: %w", artifactID, err)
+		return fmt.Errorf("error saving object with ID %q into Badger cache: %w", id, err)
 	}
 
 	return nil
 }
 
+func (cache *BadgerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
+	return badgerCachePut(cache, artifactID, artifactInfo)
+}
+
 func (cache *BadgerCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
-	blobBytes, err := json.Marshal(blobInfo)
-	if err != nil {
-		return fmt.Errorf("error converting blob with ID %q to JSON: %w", blobID, err)
-	}
-
-	err = cache.db.Update(func(txn *badger.Txn) error {
-		entry := badger.NewEntry([]byte(blobID), blobBytes).WithTTL(cache.ttl)
-		return txn.SetEntry(entry)
-	})
-	if err != nil {
-		return fmt.Errorf("error saving blob with ID %q into Badger cache: %w", blobID, err)
-	}
-
-	return nil
+	return badgerCachePut(cache, blobID, blobInfo)
 }
 
 func (cache *BadgerCache) DeleteBlobs(blobIDs []string) error {
@@ -179,34 +175,29 @@ func (cache *BadgerCache) DeleteBlobs(blobIDs []string) error {
 	return errs
 }
 
-func (cache *BadgerCache) GetArtifact(artifactID string) (types.ArtifactInfo, error) {
-	rawValue, err := cache.getRawValue(artifactID)
+// Cannot be a BadgerCache method because methods cannot have type parameters
+func badgerCacheGet[T cachedObject](cache *BadgerCache, id string) (T, error) {
+	rawValue, err := cache.getRawValue(id)
+	var empty T
 
 	if err != nil {
-		return types.ArtifactInfo{}, fmt.Errorf("error getting artifact with ID %q from Badger cache: %w", artifactID, err)
+		return empty, fmt.Errorf("error getting object with ID %q from Badger cache: %w", id, err)
 	}
 
-	var res types.ArtifactInfo
+	var res T
 	if err := json.Unmarshal(rawValue, &res); err != nil {
-		return types.ArtifactInfo{}, fmt.Errorf("JSON unmarshal error: %w", err)
+		return empty, fmt.Errorf("JSON unmarshal error: %w", err)
 	}
 
 	return res, nil
 }
 
+func (cache *BadgerCache) GetArtifact(artifactID string) (types.ArtifactInfo, error) {
+	return badgerCacheGet[types.ArtifactInfo](cache, artifactID)
+}
+
 func (cache *BadgerCache) GetBlob(blobID string) (types.BlobInfo, error) {
-	rawValue, err := cache.getRawValue(blobID)
-
-	if err != nil {
-		return types.BlobInfo{}, fmt.Errorf("error getting blob with ID %q from Badger cache: %w", blobID, err)
-	}
-
-	var res types.BlobInfo
-	if err := json.Unmarshal(rawValue, &res); err != nil {
-		return types.BlobInfo{}, fmt.Errorf("JSON unmarshal error: %w", err)
-	}
-
-	return res, nil
+	return badgerCacheGet[types.BlobInfo](cache, blobID)
 }
 
 func (cache *BadgerCache) Close() error {
