@@ -4,8 +4,8 @@ Cluster Agent tasks
 
 import glob
 import os
-import shutil
 import platform
+import shutil
 
 from invoke import task
 from invoke.exceptions import Exit
