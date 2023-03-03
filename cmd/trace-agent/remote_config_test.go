@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
@@ -25,8 +24,6 @@ import (
 )
 
 func TestConfigEndpoint(t *testing.T) {
-	defer func(old string) { features.Set(old) }(strings.Join(features.All(), ","))
-
 	var tcs = []struct {
 		name               string
 		reqBody            string

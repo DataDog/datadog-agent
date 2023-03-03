@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -105,9 +104,12 @@ func TestObfuscateDefaults(t *testing.T) {
 	})
 }
 
-func agentWithDefaults() (agnt *Agent, stop func()) {
+func agentWithDefaults(features ...string) (agnt *Agent, stop func()) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	cfg := config.New()
+	for _, f := range features {
+		cfg.Features[f] = struct{}{}
+	}
 	cfg.Endpoints[0].APIKey = "test"
 	return NewAgent(ctx, cfg), cancelFunc
 }
@@ -308,16 +310,14 @@ ORDER BY [b].[Name]`,
 
 func TestSQLTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("table_names")()
 		span := &pb.Span{
 			Resource: "SELECT * FROM users WHERE id = 42",
 			Type:     "sql",
 		}
-		agnt, stop := agentWithDefaults()
+		agnt, stop := agentWithDefaults("table_names")
 		defer stop()
 		agnt.obfuscateSpan(span)
 		assert.Equal(t, "users", span.Meta["sql.tables"])
-
 	})
 
 	t.Run("off", func(t *testing.T) {
