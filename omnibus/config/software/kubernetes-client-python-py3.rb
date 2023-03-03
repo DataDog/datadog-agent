@@ -6,11 +6,11 @@ default_version "26.1.0"
 
 dependency "pip3"
 
-source :url => "https://github.com/kubernetes-client/python/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "73bc8e450efb90ac680d8042d3498c873b6aec384db598cd829d8988db14d6f1",
+source :url => "https://files.pythonhosted.org/packages/34/19/2f351c0eaf05234dc33a6e0ffc7894e9dedab0ff341311c5b4ba44f2d8ac/kubernetes-#{version}.tar.gz",
+       :sha256 => "5854b0c508e8d217ca205591384ab58389abdae608576f9c9afc35a3c76a366c",
        :extract => :seven_zip
 
-relative_path "python-#{version}"
+relative_path "kubernetes-#{version}"
 
 build do
   license "Apache-2.0"
@@ -20,8 +20,6 @@ build do
  
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
-    # based on https://github.com/kubernetes-client/python/blob/master/scripts/windows-setup-fix.bat
-    command "xcopy /yehir kubernetes\\base\\* kubernetes\\"
   else
     pip = "#{install_dir}/embedded/bin/pip3"
   end
