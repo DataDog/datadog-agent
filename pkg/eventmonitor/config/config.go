@@ -40,11 +40,17 @@ type Config struct {
 	// This is used during reload to avoid removing all the discarders at the same time.
 	FlushDiscarderWindow int
 
-	// SocketPath is the path to the socket that is used to communicate with the process agent
+	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
 	SocketPath string
 
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
+
+	// EventServerRate defines the grpc server rate at which events can be sent
+	EventServerRate int
+
+	// EventServerRetention defines an event retention period so that some fields can be resolved
+	EventServerRetention int
 
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
@@ -140,8 +146,6 @@ func NewConfig(spConfig *config.Config, isRuntimeEnabled bool) (*Config, error) 
 		EnableApprovers:                    getBool("enable_approvers"),
 		EnableDiscarders:                   getBool("enable_discarders"),
 		FlushDiscarderWindow:               getInt("flush_discarder_window"),
-		SocketPath:                         coreconfig.SystemProbe.GetString("event_monitoring_config.socket"),
-		EventServerBurst:                   coreconfig.SystemProbe.GetInt("event_monitoring_config.event_server.burst"),
 		PIDCacheSize:                       getInt("pid_cache_size"),
 		LoadControllerEventsCountThreshold: int64(getInt("load_controller.events_count_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(getInt("load_controller.discarder_timeout")) * time.Second,
@@ -164,6 +168,12 @@ func NewConfig(spConfig *config.Config, isRuntimeEnabled bool) (*Config, error) 
 		ActivityDumpEnabled:                getBool("activity_dump.enabled"),
 		NetworkEnabled:                     getBool("network.enabled"),
 		StatsPollingInterval:               time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+
+		// event server
+		SocketPath:           getString("socket"),
+		EventServerBurst:     getInt("event_server.burst"),
+		EventServerRate:      getInt("event_server.rate"),
+		EventServerRetention: getInt("event_server.retention"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       getBool("runtime_compilation.enabled"),

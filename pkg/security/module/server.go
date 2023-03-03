@@ -23,6 +23,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -536,16 +537,16 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
+func NewAPIServer(cfg *config.Config, emcfg *emconfig.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
-		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		msgs:          make(chan *api.SecurityEventMessage, emcfg.EventServerBurst*3),
 		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:  atomic.NewInt64(0),
-		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		rate:          NewLimiter(rate.Limit(emcfg.EventServerRate), emcfg.EventServerBurst),
 		statsdClient:  client,
 		probe:         probe,
-		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
+		retention:     time.Duration(emcfg.EventServerRetention) * time.Second,
 		cfg:           cfg,
 	}
 	return es

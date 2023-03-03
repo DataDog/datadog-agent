@@ -22,8 +22,6 @@ type Policy struct {
 
 // Config holds the configuration for the runtime security agent
 type Config struct {
-	// SocketPath is the path to the socket that is used to communicate with the security agent
-	SocketPath string
 	// RuntimeEnabled defines if the runtime security module should be enabled
 	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
@@ -32,12 +30,6 @@ type Config struct {
 	WatchPoliciesDir bool
 	// PolicyMonitorEnabled enable policy monitoring
 	PolicyMonitorEnabled bool
-	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
-	EventServerBurst int
-	// EventServerRate defines the grpc server rate at which events can be sent
-	EventServerRate int
-	// EventServerRetention defines an event retention period so that some fields can be resolved
-	EventServerRetention int
 	// FIMEnabled determines whether fim rules will be loaded
 	FIMEnabled bool
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
@@ -74,11 +66,6 @@ func NewConfig() *Config {
 		SelfTestEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
 		SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
 		RemoteConfigurationEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"),
-
-		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
-		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
-		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
-		EventServerRetention: coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.retention"),
 
 		// policy & ruleset
 		PoliciesDir:          coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
