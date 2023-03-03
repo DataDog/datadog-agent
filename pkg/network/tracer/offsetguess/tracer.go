@@ -343,7 +343,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_saddr_fl4++
-		if t.status.Offset_saddr_fl4 == threshold {
+		if t.status.Offset_saddr_fl4 >= threshold {
 			// Let's skip all other flowi4 fields
 			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
 			t.status.Fl4_offsets = disabled
@@ -355,7 +355,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_daddr_fl4++
-		if t.status.Offset_daddr_fl4 == threshold {
+		if t.status.Offset_daddr_fl4 >= threshold {
 			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
 			t.status.Fl4_offsets = disabled
 			break
@@ -366,7 +366,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_sport_fl4++
-		if t.status.Offset_sport_fl4 == threshold {
+		if t.status.Offset_sport_fl4 >= threshold {
 			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
 			t.status.Fl4_offsets = disabled
 			break
@@ -378,7 +378,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_dport_fl4++
-		if t.status.Offset_dport_fl4 == threshold {
+		if t.status.Offset_dport_fl4 >= threshold {
 			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
 			t.status.Fl4_offsets = disabled
 			break
@@ -389,7 +389,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_saddr_fl6++
-		if t.status.Offset_saddr_fl6 == threshold {
+		if t.status.Offset_saddr_fl6 >= threshold {
 			// Let's skip all other flowi6 fields
 			t.logAndAdvance(notApplicable, netebpf.GuessNetNS)
 			t.status.Fl6_offsets = disabled
@@ -401,7 +401,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_daddr_fl6++
-		if t.status.Offset_daddr_fl6 == threshold {
+		if t.status.Offset_daddr_fl6 >= threshold {
 			t.logAndAdvance(notApplicable, netebpf.GuessNetNS)
 			t.status.Fl6_offsets = disabled
 			break
@@ -412,7 +412,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_sport_fl6++
-		if t.status.Offset_sport_fl6 == threshold {
+		if t.status.Offset_sport_fl6 >= threshold {
 			t.logAndAdvance(notApplicable, netebpf.GuessNetNS)
 			t.status.Fl6_offsets = disabled
 			break
@@ -424,7 +424,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_dport_fl6++
-		if t.status.Offset_dport_fl6 == threshold {
+		if t.status.Offset_dport_fl6 >= threshold {
 			t.logAndAdvance(notApplicable, netebpf.GuessNetNS)
 			t.status.Fl6_offsets = disabled
 			break
