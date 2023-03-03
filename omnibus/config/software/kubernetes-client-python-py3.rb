@@ -21,7 +21,7 @@ build do
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
     # based on https://github.com/kubernetes-client/python/blob/master/scripts/windows-setup-fix.bat
-    command "copy kubernetes\\base\\* kubernetes\\"
+    command "xcopy /yehir kubernetes\\base\\* kubernetes\\"
   else
     pip = "#{install_dir}/embedded/bin/pip3"
   end
