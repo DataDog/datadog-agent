@@ -128,10 +128,11 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		// Because we split a single image entity into different payloads if it has several repo digests,
-		// me must re-compute `image_name`, `short_image` and `image_tag` tags.
+		// me must re-compute `image_id`, `image_name`, `short_image` and `image_tag` tags.
 		ddTags2 := make([]string, 0, len(ddTags))
 		for _, ddTag := range ddTags {
-			if !strings.HasPrefix(ddTag, "image_name:") &&
+			if !strings.HasPrefix(ddTag, "image_id:") &&
+				!strings.HasPrefix(ddTag, "image_name:") &&
 				!strings.HasPrefix(ddTag, "short_image:") &&
 				!strings.HasPrefix(ddTag, "image_tag:") {
 				ddTags2 = append(ddTags2, ddTag)
@@ -139,6 +140,7 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		ddTags2 = append(ddTags2,
+			"image_id:"+id,
 			"image_name:"+repo,
 			"short_image:"+shortName)
 		for _, t := range repoTags {
