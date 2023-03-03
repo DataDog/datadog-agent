@@ -1,5 +1,5 @@
-# We need to build the kubernetes python client wheel separately to include a patch that has not been released yet: 
-# https://github.com/kubernetes-client/python/pull/2022, which is needed to remove our runtime dependency on setuptools
+# We need to build the supervisor python wheel separately to include a patch that has not been released yet: 
+# https://github.com/Supervisor/supervisor/pull/1578, which is needed to remove our runtime dependency on setuptools
 
 name "supervisor-python-py3"
 default_version "4.2.5"
