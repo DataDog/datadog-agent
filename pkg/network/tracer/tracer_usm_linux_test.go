@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
@@ -64,6 +65,11 @@ func javaTLSSupported(t *testing.T) bool {
 
 func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
+}
+
+func isTLSTag(staticTags uint64) bool {
+	// we check only if the TLS tag has set, not like network.IsTLSTag()
+	return staticTags&network.ConnTagTLS > 0
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
@@ -250,7 +256,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			}
 			if foundPathAndHTTPTag {
 				for _, c := range payload.Conns {
-					if c.SPort == key.SrcPort && c.DPort == key.DstPort && network.IsTLSTag(c.StaticTags) {
+					if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
 						return true
 					}
 				}
@@ -566,7 +572,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, 
 }
 
 // Java Injection and TLS tests
-
 func createJavaTempFile(t *testing.T, dir string) string {
 	tempfile, err := os.CreateTemp(dir, "TestAgentLoaded.agentmain.*")
 	require.NoError(t, err)
@@ -788,7 +793,7 @@ func TestJavaInjection(t *testing.T) {
 					for key := range payload.HTTP {
 						if key.Path.Content == "/anything/java-tls-request" {
 							for _, c := range payload.Conns {
-								if c.SPort == key.SrcPort && c.DPort == key.DstPort && network.IsTLSTag(c.StaticTags) {
+								if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
 									return true
 								}
 							}
@@ -1035,6 +1040,202 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 
 	client.CloseIdleConnections()
 	checkRequests(t, tr, expectedOccurrences, reqs)
+}
+
+// TLS classification tests
+func TestTLSClassification(t *testing.T) {
+	log.SetupLogger(seelog.Default, "debug")
+
+	cfg := testConfig()
+	cfg.ProtocolClassificationEnabled = true
+	cfg.CollectTCPConns = true
+
+	if !classificationSupported(cfg) {
+		t.Skip("TLS classification platform not supported")
+	}
+
+	// testContext shares the context of a given test.
+	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
+	// attributes to the `extras` map.
+	type testContext struct {
+		// A dynamic map that allows extending the context easily between phases of the test.
+		extras map[string]interface{}
+	}
+
+	tests := []struct {
+		name            string
+		context         testContext
+		preTracerSetup  func(t *testing.T, ctx testContext)
+		postTracerSetup func(t *testing.T, ctx testContext)
+		validation      func(t *testing.T, ctx testContext, tr *Tracer)
+		teardown        func(t *testing.T, ctx testContext)
+	}{
+		{
+			name: "TLS_1_0_docker",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				go func() {
+					time.Sleep(5 * time.Second)
+					prototls.RunClientOpenssl(t, "localhost", "44330", "-tls1")
+				}()
+				prototls.RunServerOpenssl(t, "44330", "-www")
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for _, c := range payload.Conns {
+						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
+							return true
+						}
+					}
+					return false
+				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dstport %d", 44330)
+			},
+		},
+		{
+			name: "TLS_1_1_docker",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				go func() {
+					time.Sleep(5 * time.Second)
+					prototls.RunClientOpenssl(t, "localhost", "44330", "-tls1_1")
+				}()
+				prototls.RunServerOpenssl(t, "44330", "-www")
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for _, c := range payload.Conns {
+						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
+							return true
+						}
+					}
+					return false
+				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dstport %d", 44330)
+			},
+		},
+		{
+			name: "TLS_1_2_docker",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				go func() {
+					time.Sleep(5 * time.Second)
+					prototls.RunClientOpenssl(t, "localhost", "44330", "-tls1_2")
+				}()
+				prototls.RunServerOpenssl(t, "44330", "-www")
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for _, c := range payload.Conns {
+						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
+							return true
+						}
+					}
+					return false
+				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dstport %d", 44330)
+			},
+		},
+		{
+			name: "TLS_1_3_docker",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				go func() {
+					time.Sleep(5 * time.Second)
+					prototls.RunClientOpenssl(t, "localhost", "44330", "-tls1_3")
+				}()
+				prototls.RunServerOpenssl(t, "44330", "-www")
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for _, c := range payload.Conns {
+						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
+							return true
+						}
+					}
+					return false
+				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dstport %d", 44330)
+			},
+		},
+		{
+			name: "http_443_should_not_match",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.EnableHTTPMonitoring = true
+				t.Cleanup(func() { cfg.EnableHTTPMonitoring = false })
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				const (
+					serverAddr          = "localhost:44330"
+					expectedOccurrences = 1
+				)
+
+				closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+					EnableTLS: false,
+				})
+				t.Cleanup(closeServer)
+
+				resp, err := nethttp.Get(fmt.Sprintf("http://%s/200/request-test-http44330", serverAddr))
+				require.NoError(t, err)
+				resp.Body.Close()
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for key := range payload.HTTP {
+						if key.Path.Content == "/200/request-test-http44330" {
+							for _, c := range payload.Conns {
+								if c.SPort == key.SrcPort && c.DPort == key.DstPort && !isTLSTag(c.StaticTags) {
+									return true
+								}
+							}
+						}
+					}
+
+					return false
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "http://localhost:443/200/request-test-http443")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.teardown != nil {
+				t.Cleanup(func() {
+					tt.teardown(t, tt.context)
+				})
+			}
+			if tt.preTracerSetup != nil {
+				tt.preTracerSetup(t, tt.context)
+			}
+			tr := setupTracer(t, cfg)
+			tt.postTracerSetup(t, tt.context)
+			tt.validation(t, tt.context, tr)
+		})
+	}
 }
 
 func checkRequests(t *testing.T, tr *Tracer, expectedOccurrences int, reqs requestsMap) {

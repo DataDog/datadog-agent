@@ -31,5 +31,5 @@ func GetStaticTags(staticTags uint64) (tags []string) {
 }
 
 func IsTLSTag(staticTags uint64) bool {
-	return staticTags&ConnTagTLS > 0
+	return staticTags&(ConnTagGnuTLS|ConnTagOpenSSL|ConnTagGo|ConnTagJava|ConnTagTLS) > 0
 }

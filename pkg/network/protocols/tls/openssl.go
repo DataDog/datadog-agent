@@ -1,0 +1,36 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package tls
+
+import (
+	"regexp"
+	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+)
+
+func RunServerOpenssl(t *testing.T, serverPort string, args ...string) bool {
+	env := []string{
+		"OPENSSL_PORT=" + serverPort,
+	}
+	if len(args) > 0 {
+		env = append(env, "OPENSSL_ARGS="+args[0])
+	}
+
+	t.Helper()
+	dir, _ := testutil.CurDir()
+	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("exited with code"), 10*time.Second)
+}
+
+func RunClientOpenssl(t *testing.T, addr string, port string, args string) {
+	command := []string{
+		"docker", "run", "--network=host", "archlinux:base",
+		"openssl", "s_client", "-connect", addr + ":" + port,
+	}
+	protocolsUtils.RunHostServer(t, command, []string{}, regexp.MustCompile("Extended master secret"))
+}
