@@ -1,25 +1,406 @@
 {
     "vmsets": [
         {
-            "name": "custom-kernels-x86_64-gt4.14",
+            "name": "custom_kernels_x86_64_lte4.14",
             "recipe": "custom-amd64",
             "arch": "x86_64",
             "kernels": [
                 {
-                    "dir": "/tmp/kernel-packages/kernel-v5.15.x86.pkg",
-                    "tag": "5.15"
-                },
-                {
-                    "dir": "/tmp/kernel-packages/kernel-v5.4.x86.pkg",
-                    "tag": "5.4"
+                    "dir": "kernel-v4.14.x86.pkg",
+                    "tag": "4.14",
+                    "extra_params": {
+                        "console": "ttyS0",
+                        "systemd.unified_cgroup_hierarchy": "0"
+                    }
                 }
             ],
             "vcpu": [4],
-            "memory": [4096],
+            "memory": [8192],
+            "image": {
+                "image_path": "buster.qcow2.amd64-0.1-DEV",
+                "image_uri": "file:///home/kernel-version-testing/rootfs/buster.qcow2.amd64-0.1-DEV"
+            }
+        },
+        {
+            "name": "custom_kernels_x86_64_gt4.14",
+            "recipe": "custom-amd64",
+            "arch": "x86_64",
+            "kernels": [
+                {
+                    "dir": "kernel-v5.15.x86.pkg",
+                    "tag": "5.15",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.14.x86.pkg",
+                    "tag": "5.14",
+                     "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.13.x86.pkg",
+                    "tag": "5.13",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.12.x86.pkg",
+                    "tag": "5.12",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.11.x86.pkg",
+                    "tag": "5.11",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.10.x86.pkg",
+                    "tag": "5.10",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.9.x86.pkg",
+                    "tag": "5.9",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.8.x86.pkg",
+                    "tag": "5.8",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.7.x86.pkg",
+                    "tag": "5.7",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.6.x86.pkg",
+                    "tag": "5.6",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.5.x86.pkg",
+                    "tag": "5.5",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.4.x86.pkg",
+                    "tag": "5.4",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.3.x86.pkg",
+                    "tag": "5.3",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.2.x86.pkg",
+                    "tag": "5.2",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.1.x86.pkg",
+                    "tag": "5.1",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.0.x86.pkg",
+                    "tag": "5.0",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.20.x86.pkg",
+                    "tag": "4.20",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.19.x86.pkg",
+                    "tag": "4.19",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.18.x86.pkg",
+                    "tag": "4.18",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.17.x86.pkg",
+                    "tag": "4.17",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.16.x86.pkg",
+                    "tag": "4.16",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.15.x86.pkg",
+                    "tag": "4.15",
+                    "extra_params": {
+                        "console": "ttyS0"
+                    }
+                }
+            ],
+            "vcpu": [4],
+            "memory": [8192],
             "image": {
                 "image_path": "bullseye.qcow2.amd64-0.1-DEV",
-                "image_uri": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/bullseye.qcow2.amd64-0.1-DEV.tar.gz"
+                "image_uri": "file:///home/kernel-version-testing/rootfs/bullseye.qcow2.amd64-0.1-DEV"
             }
+        },
+        #{
+        #    "name": "custom-kernels-arm64-lte4.14",
+        #    "recipe": "custom-arm64",
+        #    "arch": "arm64",
+        #    "machine": "virt",
+        #    "kernels": [
+        #        {
+        #            "dir": "kernel-v4.14.arm64.pkg",
+        #            "tag": "4.14",
+        #            "extra_params": {
+        #                "console": "ttyAMA0",
+        #                "systemd.unified_cgroup_hierarchy": "0"
+        #            }
+        #        }
+        #    ],
+        #    "vcpu": [4],
+        #    "memory": [8192],
+        #    "image": {
+        #        "image_path": "buster.qcow2",
+        #        "image_uri": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/buster.qcow2.arm64-0.1-DEV.tar.gz"
+        #    }
+        #},
+        {
+            "name": "custom_kernels_arm64_gt4.14",
+            "recipe": "custom-arm64",
+            "arch": "arm64",
+            "machine": "virt",
+            "kernels": [
+                {
+                    "dir": "kernel-v5.15.arm64.pkg",
+                    "tag": "5.15",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.14.arm64.pkg",
+                    "tag": "5.14",
+                     "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.13.arm64.pkg",
+                    "tag": "5.13",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.12.arm64.pkg",
+                    "tag": "5.12",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.11.arm64.pkg",
+                    "tag": "5.11",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.10.arm64.pkg",
+                    "tag": "5.10",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.9.arm64.pkg",
+                    "tag": "5.9",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.8.arm64.pkg",
+                    "tag": "5.8",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.7.arm64.pkg",
+                    "tag": "5.7",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.6.arm64.pkg",
+                    "tag": "5.6",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.5.arm64.pkg",
+                    "tag": "5.5",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.4.arm64.pkg",
+                    "tag": "5.4",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.3.arm64.pkg",
+                    "tag": "5.3",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.2.arm64.pkg",
+                    "tag": "5.2",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.1.arm64.pkg",
+                    "tag": "5.1",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v5.0.arm64.pkg",
+                    "tag": "5.0",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.20.arm64.pkg",
+                    "tag": "4.20",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.19.arm64.pkg",
+                    "tag": "4.19",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.18.arm64.pkg",
+                    "tag": "4.18",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.17.arm64.pkg",
+                    "tag": "4.17",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.16.arm64.pkg",
+                    "tag": "4.16",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                },
+                {
+                    "dir": "kernel-v4.15.arm64.pkg",
+                    "tag": "4.15",
+                    "extra_params": {
+                        "console": "ttyAMA0"
+                    }
+                }
+            ],
+            "vcpu": [4],
+            "memory": [8192],
+            "image": {
+                "image_path": "bullseye.qcow2.arm64-0.1-DEV",
+                "image_uri": "file:///home/kernel-version-testing/rootfs/bullseye.qcow2.arm64-0.1-DEV"
+            }
+        },
+        {
+            "name": "ubuntu_amd64",
+            "recipe": "distro-amd64",
+            "arch": "x86_64",
+            "kernels": [
+                {
+                    "dir": "jammy-server-cloudimg-amd64.qcow2",
+                    "tag": "jammy_22",
+                    "image_source": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-amd64.qcow2"
+                },
+                {
+                    "dir": "focal-server-cloudimg-amd64.qcow2",
+                    "tag": "focal_20",
+                    "image_source": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-amd64.qcow2"
+                },
+                {
+                    "dir": "bionic-server-cloudimg-amd64.qcow2",
+                    "tag": "bionic_18",
+                    "image_source": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-amd64.qcow2"
+                }
+            ],
+            "vcpu": [4],
+            "memory": [4096]
         }
-    ]
+   ]
 }
