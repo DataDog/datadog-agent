@@ -115,7 +115,7 @@ func (e *Event) Done() {
 var (
 	enobufs     = newGauge("enobufs", "description")
 	throttles   = newGauge("throttles", "description")
-	samplingPct = newGaugeWrapper("sampling_pct", "description")
+	samplingPct = newGauge("sampling_pct", "description")
 	readErrors  = newGauge("read_errors", "description")
 	msgErrors   = newGauge("msg_errors", "description")
 )
@@ -426,13 +426,6 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 	})
 }
 
-// GetStats returns telemetry associated to the Consumer
-func (c *Consumer) GetStats() map[string]int64 {
-	return map[string]int64{
-		"sampling_pct": samplingPct.Load(),
-	}
-}
-
 // Stop the consumer
 func (c *Consumer) Stop() {
 	if c.conn != nil {
@@ -471,7 +464,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
-	samplingPct.Set(int64((samplingRate * 100.0)))
+	samplingPct.Set(float64((samplingRate * 100.0)))
 	if c.samplingRate >= 1.0 {
 		return nil
 	}

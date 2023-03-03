@@ -743,6 +743,7 @@ func (ns *networkState) GetStats() map[string]interface{} {
 		"telemetry": map[string]int64{
 			"closed_conn_dropped": closedConnDropped.Load(),
 			"conn_dropped":        connDropped.Load(),
+			"dns_stats_dropped":   dnsStatsDropped.Load(),
 			"http2_stats_dropped": http2StatsDropped.Load(),
 		},
 		"current_time":       time.Now().Unix(),

@@ -494,33 +494,6 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		return nil
 	}
 
-	conntrackStats := stats["conntrack"].(map[string]int64)
-	if rt, ok := conntrackStats["registers_total"]; ok {
-		tm[network.MonotonicConntrackRegisters] = rt
-	}
-	if sp, ok := conntrackStats["sampling_pct"]; ok {
-		tm[network.ConntrackSamplingPercent] = sp
-	}
-
-	dnsStats := stats["dns"].(map[string]int64)
-	if pp, ok := dnsStats["packets_processed"]; ok {
-		tm[network.MonotonicDNSPacketsProcessed] = pp
-	}
-	if ds, ok := dnsStats["dropped_stats"]; ok {
-		tm[network.DNSStatsDropped] = ds
-	}
-
-	ebpfStats := stats["ebpf"].(map[string]int64)
-	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
-		tm[network.MonotonicUDPSendsProcessed] = usp
-	}
-	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
-		tm[network.MonotonicUDPSendsMissed] = usm
-	}
-	if pl, ok := ebpfStats["closed_conn_polling_lost"]; ok {
-		tm[network.MonotonicPerfLost] = pl
-	}
-
 	stateStats := stats["state"].(map[string]int64)
 	if ccd, ok := stateStats["closed_conn_dropped"]; ok {
 		tm[network.MonotonicClosedConnDropped] = ccd
@@ -689,16 +662,8 @@ const (
 )
 
 var allStats = []statsComp{
-	conntrackStats,
-	dnsStats,
-	epbfStats,
-	gatewayLookupStats,
-	kprobesStats,
 	stateStats,
 	tracerStats,
-	processCacheStats,
-	bpfHelperStats,
-	bpfMapStats,
 	httpStats,
 }
 
@@ -714,12 +679,6 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	ret := map[string]interface{}{}
 	for _, c := range comps {
 		switch c {
-		case conntrackStats:
-			ret["conntrack"] = t.conntracker.GetStats()
-		case dnsStats:
-			ret["dns"] = t.reverseDNS.GetStats()
-		case epbfStats:
-			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:

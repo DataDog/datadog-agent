@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	then = nettelemetry.NewStatGaugeWrapper("usm", "then", []string{}, "description")
+	last_check = nettelemetry.NewStatGaugeWrapper("usm", "then", []string{}, "description")
 )
 
 type telemetry struct {
@@ -52,7 +52,7 @@ func newTelemetry() (*telemetry, error) {
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
 	}
 
-	then.Set(time.Now().Unix())
+	last_check.Set(time.Now().Unix())
 
 	return t, nil
 }
@@ -76,14 +76,18 @@ func (t *telemetry) count(tx httpTX) {
 
 func (t *telemetry) log() {
 	now := time.Now().Unix()
-	then.Set(now)
 
+	if last_check.Load() < 1 {
+		last_check.Set(now)
+		return
+	}
 	totalRequests := t.totalHits.Delta()
 	dropped := t.dropped.Delta()
 	rejected := t.rejected.Delta()
 	malformed := t.malformed.Delta()
 	aggregations := t.aggregations.Delta()
-	elapsed := now - then.Load()
+	elapsed := now - last_check.Load()
+	last_check.Set(now)
 
 	log.Debugf(
 		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",

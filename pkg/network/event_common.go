@@ -153,11 +153,11 @@ const (
 	MonotonicPerfLost               ConnTelemetryType = "perf_lost"
 	MonotonicUDPSendsProcessed      ConnTelemetryType = "udp_sends_processed"
 	MonotonicUDPSendsMissed         ConnTelemetryType = "udp_sends_missed"
+	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 	DNSStatsDropped                 ConnTelemetryType = "dns_stats_dropped"
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 )
 
 //revive:enable
@@ -166,9 +166,9 @@ var (
 	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
 	// into the network connections payload
 	ConnTelemetryTypes = []ConnTelemetryType{
+		DNSStatsDropped,
 		ConnsBpfMapSize,
 		ConntrackSamplingPercent,
-		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
 	}
 
@@ -179,13 +179,13 @@ var (
 		MonotonicKprobesMissed,
 		MonotonicClosedConnDropped,
 		MonotonicConnDropped,
+		MonotonicConnsClosed,
 		MonotonicConntrackRegisters,
 		MonotonicDNSPacketsProcessed,
-		MonotonicConnsClosed,
+		MonotonicPerfLost,
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-		MonotonicPerfLost,
 	}
 )
 

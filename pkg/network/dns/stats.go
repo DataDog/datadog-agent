@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +35,7 @@ const (
 
 var (
 	lastNumStats     = telemetry.NewGauge(dnsStatKeeperModuleName, "last_num_stats", []string{}, "")
-	lastDroppedStats = nettelemetry.NewStatGaugeWrapper(dnsStatKeeperModuleName, "last_dropped_stats", []string{}, "")
+	lastDroppedStats = telemetry.NewGauge(dnsStatKeeperModuleName, "last_dropped_stats", []string{}, "")
 )
 
 type dnsPacketInfo struct {
@@ -168,11 +167,6 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.stats[info.key] = allStats
 }
 
-func (d *dnsStatKeeper) GetNumStats() int32 {
-	droppedStats := lastDroppedStats.Load()
-	return int32(droppedStats)
-}
-
 func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -180,7 +174,7 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	d.stats = make(StatsByKeyByNameByType)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
 	lastNumStats.Set(float64(d.numStats))
-	lastDroppedStats.Set(int64(d.droppedStats))
+	lastDroppedStats.Set(float64(d.droppedStats))
 	d.numStats = 0
 	d.droppedStats = 0
 	return ret

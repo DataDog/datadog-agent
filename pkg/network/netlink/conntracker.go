@@ -39,7 +39,6 @@ const (
 type Conntracker interface {
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
 	DeleteTranslation(network.ConnectionStats)
-	GetStats() map[string]int64
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	RefreshTelemetry()
 	Close()
@@ -84,13 +83,13 @@ type realConntracker struct {
 	stats         stats
 }
 
-func newGaugeWrapper(name string, help string, tags ...string) nettelemetry.StatGaugeWrapper {
-	return nettelemetry.NewStatGaugeWrapper(telemetryModuleName, name,
+func newGauge(name string, help string, tags ...string) telemetry.Gauge {
+	return telemetry.NewGauge(telemetryModuleName, name,
 		append([]string{}, tags...), help)
 }
 
-func newGauge(name string, help string, tags ...string) telemetry.Gauge {
-	return telemetry.NewGauge(telemetryModuleName, name,
+func newGaugeWrapper(name string, help string, tags ...string) nettelemetry.StatGaugeWrapper {
+	return nettelemetry.NewStatGaugeWrapper(telemetryModuleName, name,
 		append([]string{}, tags...), help)
 }
 
@@ -203,17 +202,6 @@ func (ctr *realConntracker) RefreshTelemetry() {
 		ctr.RUnlock()
 		time.Sleep(time.Duration(5) * time.Second)
 	}
-}
-
-func (ctr *realConntracker) GetStats() map[string]int64 {
-	m := map[string]int64{}
-	m["registers_total"] = registers.Load()
-	// Merge telemetry from the consumer
-	for k, v := range ctr.consumer.GetStats() {
-		m[k] = v
-	}
-
-	return m
 }
 
 func (ctr *realConntracker) setNanosPerRegister() {

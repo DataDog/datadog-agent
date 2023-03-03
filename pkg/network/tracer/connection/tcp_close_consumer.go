@@ -61,12 +61,6 @@ func (c *tcpCloseConsumer) FlushPending() {
 	<-wait
 }
 
-func (c *tcpCloseConsumer) GetStats() map[string]int64 {
-	return map[string]int64{
-		perfLostStat: perfLost.Load(),
-	}
-}
-
 func (c *tcpCloseConsumer) Stop() {
 	if c == nil {
 		return

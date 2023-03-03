@@ -57,8 +57,6 @@ type Tracer interface {
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
-	// GetTelemetry returns relevant telemetry.
-	GetTelemetry() map[string]int64
 	// RefreshProbeTelemetry sets the prometheus gauges to the current values of the underlying stats
 	RefreshProbeTelemetry()
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
@@ -403,20 +401,6 @@ func (t *tracer) refreshProbeTelemetry() {
 	UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
 	UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
 	UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
-}
-
-func (t *tracer) GetTelemetry() map[string]int64 {
-	closeStats := t.closeConsumer.GetStats()
-	telemetry := t.getEBPFTelemetry()
-	if telemetry == nil {
-		return map[string]int64{}
-	}
-
-	return map[string]int64{
-		"closed_conn_polling_lost": closeStats[perfLostStat],
-		"udp_sends_processed":      int64(telemetry.Udp_sends_processed),
-		"udp_sends_missed":         int64(telemetry.Udp_sends_missed),
-	}
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.

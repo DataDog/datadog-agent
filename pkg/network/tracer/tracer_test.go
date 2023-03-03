@@ -90,19 +90,6 @@ func TestGetStats(t *testing.T) {
 	getConnections(t, tr)
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
-      "conntrack": {
-        "registers_total": 0,
-        "sampling_pct": 100
-      },
-      "dns": {
-        "dropped_stats": 0,
-        "packets_processed": 586
-      },
-      "ebpf": {
-        "closed_conn_polling_lost": 0,
-        "udp_sends_missed": 0,
-        "udp_sends_processed": 162
-      },
       "usm": {
         "http": {
           "aggregations": 0,

@@ -249,9 +249,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		response["error"] = startupError.Error()
 	}
 
-	if m != nil {
-		response["last_check"] = then
-	}
+	response["last_check"] = last_check
 
 	return response
 }
