@@ -132,13 +132,13 @@ type cachedObject interface {
 
 // Cannot be a BadgerCache method because methods cannot have type parameters
 func badgerCachePut[T cachedObject](cache *BadgerCache, id string, info T) error {
-	artifactBytes, err := json.Marshal(info)
+	objectBytes, err := json.Marshal(info)
 	if err != nil {
 		return fmt.Errorf("error converting object with ID %q to JSON: %w", id, err)
 	}
 
 	err = cache.db.Update(func(txn *badger.Txn) error {
-		entry := badger.NewEntry([]byte(id), artifactBytes).WithTTL(cache.ttl)
+		entry := badger.NewEntry([]byte(id), objectBytes).WithTTL(cache.ttl)
 		return txn.SetEntry(entry)
 	})
 	if err != nil {
