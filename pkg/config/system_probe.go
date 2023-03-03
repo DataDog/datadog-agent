@@ -213,8 +213,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 	cfg.BindEnvAndSetDefault(join(evNS, "enable_kernel_filters"), true)
 	cfg.BindEnvAndSetDefault(join(evNS, "flush_discarder_window"), 3)
-	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
-	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 	cfg.BindEnvAndSetDefault(join(evNS, "pid_cache_size"), 10000)
 	cfg.BindEnvAndSetDefault(join(evNS, "load_controller.events_count_threshold"), 20000)
 	cfg.BindEnvAndSetDefault(join(evNS, "load_controller.discarder_timeout"), 60)
@@ -238,6 +236,10 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(evNS, "activity_dump.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "network.enabled"), true)
 	cfg.BindEnvAndSetDefault(join(evNS, "events_stats.polling_interval"), 20)
+	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
+	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
+	cfg.BindEnvAndSetDefault(join(evNS, "event_server.retention"), 6)
+	cfg.BindEnvAndSetDefault(join(evNS, "event_server.rate"), 10)
 
 	// process event monitoring data limits for network tracer
 	cfg.BindEnv(join(evNS, "network_process", "max_processes_tracked"))
@@ -246,15 +248,11 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
 
 	// CWS
-	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
