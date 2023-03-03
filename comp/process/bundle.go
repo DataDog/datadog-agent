@@ -12,16 +12,21 @@
 package process
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/podcheck"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck"
 	"github.com/DataDog/datadog-agent/comp/process/processeventscheck"
+	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,6 +36,7 @@ import (
 var Bundle = fxutil.Bundle(
 	runner.Module,
 	submitter.Module,
+	profiler.Module,
 
 	// Checks
 	connectionscheck.Module,
@@ -43,4 +49,14 @@ var Bundle = fxutil.Bundle(
 
 	// Add in the core bundle since it is used by most components
 	core.Bundle,
+
+	// Provide a way to construct the HostInfo.
+	fx.Provide(func(logger log.Component) (*checks.HostInfo, error) {
+		hinfo, err := checks.CollectHostInfo()
+		if err != nil {
+			_ = logger.Critical("Error collecting host details:", err)
+			return nil, err
+		}
+		return hinfo, nil
+	}),
 )
