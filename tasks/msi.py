@@ -29,6 +29,7 @@ NUGET_CONFIG_BASE = '''<?xml version="1.0" encoding="utf-8"?>
 </configuration>
 '''
 
+
 def _get_vs_build_command(cmd, vstudio_root=None):
     if not os.getenv("VCINSTALLDIR"):
         print("VC Not installed in environment; checking other locations")
@@ -61,7 +62,7 @@ def _get_env(ctx, major_version='7', python_runtimes='3'):
     return env
 
 
-def _build(ctx, project = '', vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
+def _build(ctx, project='', vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
     """
     Build the MSI installer builder, i.e. the program that can build an MSI
     """
@@ -98,7 +99,10 @@ def _build(ctx, project = '', vstudio_root=None, arch="x64", major_version='7', 
     ctx.run(f'nuget config -set repositoryPath={NUGET_PACKAGES_DIR} -configfile {NUGET_CONFIG_FILE}')
 
     # Construct build command line
-    cmd = _get_vs_build_command(f'cd {BUILD_SOURCE_DIR} && nuget restore && msbuild {project} /p:Configuration={configuration} /p:Platform="x64"', vstudio_root)
+    cmd = _get_vs_build_command(
+        f'cd {BUILD_SOURCE_DIR} && nuget restore && msbuild {project} /p:Configuration={configuration} /p:Platform="x64"',
+        vstudio_root,
+    )
     print(f"Build Command: {cmd}")
 
     # Try to run the command 3 times to alleviate transient
@@ -114,12 +118,14 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
     Build the MSI installer for the agent
     """
     # Build the builder executable
-    _build(ctx,
+    _build(
+        ctx,
         vstudio_root=vstudio_root,
         arch=arch,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        debug=debug)
+        debug=debug,
+    )
     configuration = "Release"
     if debug:
         configuration = "Debug"
@@ -138,24 +144,34 @@ def test(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes=
     """
     Run the unit test for the MSI installer for the agent
     """
-    _build(ctx,
+    _build(
+        ctx,
         vstudio_root=vstudio_root,
         arch=arch,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        debug=debug)
+        debug=debug,
+    )
     configuration = "Release"
     if debug:
         configuration = "Debug"
     env = _get_env(ctx, major_version, python_runtimes)
 
     # Generate the config file
-    if not ctx.run(f'inv -e generate-config --build-type="agent-py2py3" --output-file="{BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\datadog.yaml"', warn=True, env=env):
+    if not ctx.run(
+        f'inv -e generate-config --build-type="agent-py2py3" --output-file="{BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\datadog.yaml"',
+        warn=True,
+        env=env,
+    ):
         raise Exit("Could not generate test datadog.yaml file")
 
     # Run the tests
-    if not ctx.run(f'dotnet test {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\CustomActions.Tests.dll', warn=True, env=env):
+    if not ctx.run(
+        f'dotnet test {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\CustomActions.Tests.dll', warn=True, env=env
+    ):
         raise Exit(code=1)
 
-    if not ctx.run(f'dotnet test {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\WixSetup.Tests.dll', warn=True, env=env):
+    if not ctx.run(
+        f'dotnet test {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\WixSetup.Tests.dll', warn=True, env=env
+    ):
         raise Exit(code=1)
