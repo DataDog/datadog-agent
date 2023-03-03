@@ -89,7 +89,8 @@ namespace WixSetup.Datadog
                 Return.ignore,
                 When.After,
                 Step.InstallFiles,
-                Conditions.Upgrading)
+                Conditions.Upgrading
+            )
             {
                 Execute = Execute.deferred
             };
