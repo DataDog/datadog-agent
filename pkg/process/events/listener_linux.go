@@ -118,7 +118,7 @@ func (l *SysProbeListener) run() {
 			if l.connected.Load() != true {
 				l.connected.Store(true)
 
-				log.Info("Successfully connected to the runtime-security module")
+				log.Info("Successfully connected to the event monitoring module")
 			}
 
 			readStream := true

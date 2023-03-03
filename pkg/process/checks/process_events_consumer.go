@@ -154,5 +154,7 @@ func (p *ProcessConsumer) GetProcessEvents(params *api.GetProcessEventParams, st
 		}
 	}
 
+	log.Debugf("Received process-events request from process-agent: sent %d events", msgs)
+
 	return nil
 }

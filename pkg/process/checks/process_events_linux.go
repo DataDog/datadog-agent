@@ -12,12 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"sync"
 	"time"
 
 	payload "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -83,7 +83,7 @@ func (e *ProcessEventsCheck) start() {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (e *ProcessEventsCheck) IsEnabled() bool {
-	return config.SystemProbe.GetBool("event_monitoring_config.process.enabled")
+	return ddconfig.Datadog.GetBool("process_config.event_collection.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
