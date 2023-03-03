@@ -31,11 +31,17 @@ func TestClient(t *testing.T) {
 			// allow requests only to "/foo/bar"
 			routes := r.URL.Query()["endpoint"]
 
-			payloads := [][]byte{}
-
-			payloads = append(payloads, []byte(r.URL.Path))
-			payloads = append(payloads, []byte(fmt.Sprintf("%d", len(routes))))
-			payloads = append(payloads, []byte(routes[0]))
+			payloads := []api.Payload{
+				{
+					Data: []byte(r.URL.Path),
+				},
+				{
+					Data: []byte(fmt.Sprintf("%d", len(routes))),
+				},
+				{
+					Data: []byte(routes[0]),
+				},
+			}
 			// create fake response
 			resp, err := json.Marshal(api.APIFakeIntakePayloadsGETResponse{
 				Payloads: payloads,
@@ -49,9 +55,9 @@ func TestClient(t *testing.T) {
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 3, len(payloads))
-		assert.Equal(t, "/fakeintake/payloads", string(payloads[0]))
-		assert.Equal(t, "1", string(payloads[1]))
-		assert.Equal(t, "/foo/bar", string(payloads[2]))
+		assert.Equal(t, "/fakeintake/payloads", string(payloads[0].Data))
+		assert.Equal(t, "1", string(payloads[1].Data))
+		assert.Equal(t, "/foo/bar", string(payloads[2].Data))
 	})
 
 	t.Run("getFakePayloads should handle response with errors", func(t *testing.T) {
