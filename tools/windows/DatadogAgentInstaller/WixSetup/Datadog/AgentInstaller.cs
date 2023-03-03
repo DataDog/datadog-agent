@@ -223,6 +223,17 @@ namespace WixSetup.Datadog
                 document
                     .Select("Wix/Product/InstallExecuteSequence")
                     .AddElement("DeleteServices", value: "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                document
+                    .FindAll("Directory")
+                    .First(x => x.HasAttribute("Id", value => value == "AGENT"))
+                    .AddElement("Directory", "Id=DRIVER; Name=driver")
+                    .AddElement("Merge",
+                        $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
+                document
+                    .FindAll("Feature")
+                    .First(x => x.HasAttribute("Id", value => value == "NPM"))
+                    .AddElement("MergeRef", "Id=ddnpminstall");
+
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -376,12 +387,15 @@ namespace WixSetup.Datadog
                     new Dir("dist",
                         new Files($@"{InstallerSource}\bin\agent\dist\*")
                     ),
-                    new Dir("driver",
-                        new Merge(_agentFeatures.Npm, $@"{BinSource}\agent\DDNPM.msm")
-                        {
-                            Feature = _agentFeatures.Npm
-                        }
-                    ),
+                    // This doesn't work.
+                    //new Dir(new Id("DRIVER"), "driver"
+                    //, new Merge
+                        //{
+                        //    Id = "ddnpminstall",
+                        //    Feature = _agentFeatures.Npm,
+                        //    SourceFile = $@"{BinSource}\agent\DDNPM.msm"
+                        //}
+                    //),
                     new WixSharp.File(_agentBinaries.Tray),
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
                     new EventSource
