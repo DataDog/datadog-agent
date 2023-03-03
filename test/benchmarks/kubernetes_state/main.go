@@ -233,7 +233,7 @@ func main() {
 	fmt.Printf("KSMCheck.Run() returned %v in %s\n", err, elapsed)
 
 	if err = file.Close(); err != nil {
-		log.Println("failed to close \"cpuprofile.pprof\": %v\n", err)
+		log.Printf("failed to close \"cpuprofile.pprof\": %v\n", err)
 		return
 	}
 }
