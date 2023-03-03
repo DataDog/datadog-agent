@@ -331,6 +331,8 @@ def test_flavor(
             module_test_result.junit_file_path = os.path.join(module.full_path(), junit_file)
             add_flavor_to_junitxml(module_test_result.junit_file_path, flavor)
 
+        modules_test_results.append(module_test_result)
+
     return test_core(modules, flavor, ModuleTestResult, "unit tests", command)
 
 
