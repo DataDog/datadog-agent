@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && kubeapiserver
-// +build !windows,kubeapiserver
+//go:build kubeapiserver
+// +build kubeapiserver
 
 package main
 
