@@ -47,8 +47,8 @@ var tuplePool = sync.Pool{
 const ebpfConntrackerModuleName = "ebpf_conntracker"
 
 func newGauge(subsystem string, name string, help string, tags ...string) telemetry.Gauge {
-	return telemetry.NewGaugeWithOpts(ebpfConntrackerModuleName, name,
-		append([]string{}, tags...), help, telemetry.Options{NoDoubleUnderscoreSep: true})
+	return telemetry.NewGauge(ebpfConntrackerModuleName, name,
+		append([]string{}, tags...), help)
 }
 
 func newGaugeWrapper(subsystem string, name string, help string, tags ...string) nettelemetry.StatGaugeWrapper {

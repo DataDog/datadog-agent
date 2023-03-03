@@ -42,6 +42,6 @@ func (sgw *StatGaugeWrapper) Load() int64 {
 func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) StatGaugeWrapper {
 	return StatGaugeWrapper{
 		stat:  atomic.NewInt64(0),
-		gauge: telemetry.NewGaugeWithOpts(subsystem, statName, tags, description, telemetry.Options{NoDoubleUnderscoreSep: true}),
+		gauge: telemetry.NewGauge(subsystem, statName, tags, description),
 	}
 }
