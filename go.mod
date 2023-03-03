@@ -566,10 +566,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require (
-	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
-	github.com/sijms/go-ora/v2 v2.5.27
-)
+require github.com/sijms/go-ora/v2 v2.5.27
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -581,6 +578,8 @@ require (
 )
 
 require (
+	github.com/DataDog/appsec-internal-go v0.0.0-20230216105641-1d0c059e50fa
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/godror/godror v0.36.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/ory/dockertest v3.3.5+incompatible
