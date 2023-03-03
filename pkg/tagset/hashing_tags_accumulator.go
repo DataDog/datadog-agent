@@ -48,12 +48,6 @@ func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
 	h.hash = append(h.hash, src.hash...)
 }
 
-// AppendHashingAccumulator appends tags and corresponding hashes to the accumulator
-func (h *HashingTagsAccumulator) AppendHashingAccumulator(src *HashingTagsAccumulator) {
-	h.data = append(h.data, src.data...)
-	h.hash = append(h.hash, src.hash...)
-}
-
 // SortUniq sorts and remove duplicate in place
 func (h *HashingTagsAccumulator) SortUniq() {
 	if h.Len() < 2 {
