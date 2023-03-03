@@ -58,7 +58,7 @@ func hasMetricSampleFormat(message []byte) bool {
 		return false
 	}
 	separatorCount := bytes.Count(message, fieldSeparator)
-	if separatorCount < 1 || separatorCount > 4 {
+	if separatorCount < 1 {
 		return false
 	}
 	return true

@@ -9,8 +9,30 @@ namespace WixSetup.Datadog
     // ReSharper disable once InconsistentNaming
     public class AgentInstallerUI : CustomUI
     {
+        private CustomUI OnFreshInstall(string dialog, string control, params DialogAction[] handlers)
+        {
+            handlers.ForEach(h => h.Condition &= Conditions.FirstInstall);
+            return On(dialog, control, handlers);
+        }
+
+        private CustomUI OnUpgrade(string dialog, string control, params DialogAction[] handlers)
+        {
+            handlers.ForEach(h => h.Condition &= Conditions.Upgrading);
+            return On(dialog, control, handlers);
+        }
+
+        private CustomUI OnMaintenance(string dialog, string control, params DialogAction[] handlers)
+        {
+            handlers.ForEach(h => h.Condition &= Conditions.Maintenance);
+            return On(dialog, control, handlers);
+        }
+
         public AgentInstallerUI(IWixProjectEvents wixProjectEvents, AgentCustomActions agentCustomActions)
         {
+            // ARPNOMODIFY=1 disables the "Change" button in the Control Panel, so remove it so that we have
+            // our button.
+            // https://learn.microsoft.com/en-us/windows/win32/msi/arpnomodify
+            Properties.Remove("ARPNOMODIFY");
             wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
             DialogRefs = new List<string>
             {
@@ -28,45 +50,53 @@ namespace WixSetup.Datadog
             this.AddXmlInclude("dialogs/apikeydlg.wxi")
                 .AddXmlInclude("dialogs/sitedlg.wxi")
                 .AddXmlInclude("dialogs/fatalError.wxi")
+                .AddXmlInclude("dialogs/sendFlaredlg.wxi")
                 .AddXmlInclude("dialogs/ddagentuserdlg.wxi");
 
             // NOTE: CustomActions called from dialog Controls will not be able to add messages to the log.
             //       If possible, prefer adding the custom action to an install sequence.
             //       https://learn.microsoft.com/en-us/windows/win32/msi/doaction-controlevent
 
-            On(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.LicenseAgreementDlg, Condition.NOT_Installed));
-            On(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg, Conditions.Installed_AND_PATCH));
-
-            On(NativeDialogs.LicenseAgreementDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
-            On(NativeDialogs.LicenseAgreementDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.LicenseAccepted));
-
-            On(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg, Condition.Installed) { Order = 1 });
-            On(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.LicenseAgreementDlg, Condition.NOT_Installed) { Order = 2 });
-            On(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.ApiKeyDialog) { Order = 1 });
-
-            On(Dialogs.ApiKeyDialog, Buttons.Next, new ShowDialog(Dialogs.SiteSelectionDialog));
-            On(Dialogs.ApiKeyDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg, Condition.NOT_Installed));
-            On(Dialogs.ApiKeyDialog, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg, Conditions.Installed_AND_NOT_PATCH));
-            On(Dialogs.SiteSelectionDialog, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
-            On(Dialogs.SiteSelectionDialog, Buttons.Back, new ShowDialog(Dialogs.ApiKeyDialog));
-
-            On(Dialogs.AgentUserDialog, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            On(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(Dialogs.SiteSelectionDialog));
-
-            On(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog, Condition.NOT_Installed | Condition.Create("WixUI_InstallMode = \"Change\"")) { Order = 1 });
-            On(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg, Conditions.Installed_AND_NOT_PATCH) { Order = 2 });
-            On(NativeDialogs.VerifyReadyDlg, Buttons.Next, new ShowDialog(NativeDialogs.WelcomeDlg, Conditions.Installed_AND_PATCH) { Order = 3 });
-
-            On(NativeDialogs.MaintenanceWelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
-
-            On(NativeDialogs.MaintenanceTypeDlg, "ChangeButton", new ShowDialog(NativeDialogs.CustomizeDlg));
-            On(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            On(NativeDialogs.MaintenanceTypeDlg, Buttons.Remove, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            On(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
+            // Fresh install track
+            OnFreshInstall(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.LicenseAgreementDlg));
+            OnFreshInstall(NativeDialogs.LicenseAgreementDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
+            OnFreshInstall(NativeDialogs.LicenseAgreementDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.LicenseAccepted));
+            OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.LicenseAgreementDlg));
+            OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.ApiKeyDialog, Conditions.NOT_DatadogYamlExists));
+            OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog, Conditions.DatadogYamlExists));
+            OnFreshInstall(Dialogs.ApiKeyDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg));
+            OnFreshInstall(Dialogs.ApiKeyDialog, Buttons.Next, new ShowDialog(Dialogs.SiteSelectionDialog));
+            OnFreshInstall(Dialogs.SiteSelectionDialog, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
+            OnFreshInstall(Dialogs.SiteSelectionDialog, Buttons.Back, new ShowDialog(Dialogs.ApiKeyDialog));
+            OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg));
+            OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(Dialogs.SiteSelectionDialog, Conditions.NOT_DatadogYamlExists));
+            OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.DatadogYamlExists));
+            OnFreshInstall(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
+            // Upgrade track
+            OnUpgrade(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg));
+            OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
+            OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
+            OnUpgrade(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg));
+            OnUpgrade(Dialogs.AgentUserDialog, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg));
+            OnUpgrade(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
+            // Maintenance track
+            OnMaintenance(NativeDialogs.MaintenanceWelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton", new ShowDialog(NativeDialogs.CustomizeDlg));
+            OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
+            OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg));
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair, new ShowDialog(NativeDialogs.VerifyReadyDlg));
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Remove, new ShowDialog(NativeDialogs.VerifyReadyDlg));
+            // There's not way to know if we were on MaintenanceTypeDlg or CustomizeDlg previously, so go back the furthest.
+            OnMaintenance(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
 
             On(NativeDialogs.ExitDialog, Buttons.Finish, new CloseDialog { Order = 9999 });
 
             On(Dialogs.FatalErrorDialog, "OpenMsiLog", new ExecuteCustomAction(agentCustomActions.OpenMsiLog));
+            On(Dialogs.FatalErrorDialog, "SendFlare", new ShowDialog(Dialogs.SendFlareDialog));
+
+            On(Dialogs.SendFlareDialog, Buttons.Back, new ShowDialog(Dialogs.FatalErrorDialog));
+            On(Dialogs.SendFlareDialog, "SendFlare", new ExecuteCustomAction(agentCustomActions.SendFlare));
         }
 
         public void OnWixSourceGenerated(XDocument document)

@@ -108,4 +108,22 @@ var (
 		[]float64{10, 30, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600},
 		commonOpts,
 	)
+
+	// SBOMCacheMemSize size in memory of the cache used for SBOM collection
+	SBOMCacheMemSize = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"sbom_cache_mem_size",
+		[]string{},
+		"SBOM cache size in memory (in bytes)",
+		commonOpts,
+	)
+
+	// SBOMCacheDiskSize size in disk of the cache used for SBOM collection
+	SBOMCacheDiskSize = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"sbom_cache_disk_size",
+		[]string{},
+		"SBOM cache size in disk (in bytes)",
+		commonOpts,
+	)
 )

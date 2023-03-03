@@ -15,11 +15,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	containerdUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
@@ -67,7 +67,7 @@ type collector struct {
 
 // DefaultCollectorConfig returns a default collector configuration
 // However, accessors still need to be filled in externally
-func DefaultCollectorConfig(enabledAnalyzers []string) CollectorConfig {
+func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) CollectorConfig {
 	collectorConfig := CollectorConfig{
 		ArtifactOption: artifact.Option{
 			Offline:           true,
@@ -80,11 +80,31 @@ func DefaultCollectorConfig(enabledAnalyzers []string) CollectorConfig {
 		ClearCacheOnClose: true,
 	}
 
+	collectorConfig.CacheProvider = cacheProvider(cacheLocation, true)
+
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
-		collectorConfig.ArtifactOption.OnlyDirs = []string{"/etc", "/var/lib/dpkg", "/var/lib/rpm", "/lib/apk"}
+		collectorConfig.ArtifactOption.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
 	}
 
 	return collectorConfig
+}
+
+func cacheProvider(cacheLocation string, useBadgerDB bool) func() (cache.Cache, error) {
+	if useBadgerDB {
+		return func() (cache.Cache, error) {
+			return NewBadgerCache(cacheLocation, cacheTTL())
+		}
+	}
+
+	// Leaving this here for now, just in case Badger does not work well for us
+	// and we need to switch back to Bolt DB.
+	return func() (cache.Cache, error) {
+		return NewBoltCache(cacheLocation)
+	}
+}
+
+func cacheTTL() time.Duration {
+	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.cache_ttl")) * time.Second
 }
 
 func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
@@ -137,18 +157,16 @@ func NewCollector(collectorConfig CollectorConfig) (Collector, error) {
 }
 
 func (c *collector) Close() error {
-	if err := c.cache.Close(); err != nil {
-		return err
+	if c.config.ClearCacheOnClose {
+		if err := c.cache.Clear(); err != nil {
+			return fmt.Errorf("error when clearing trivy cache: %w", err)
+		}
 	}
 
-	if err := c.cache.Clear(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.cache.Close()
 }
 
-func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error) {
+func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {
 	client, err := c.config.ContainerdAccessor()
 	if err != nil {
 		return nil, fmt.Errorf("unable to access containerd client, err: %w", err)
@@ -175,7 +193,7 @@ func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	return bom, nil
 }
 
-func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*cyclonedxgo.BOM, error) {
+func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {
 	client, err := c.config.ContainerdAccessor()
 	if err != nil {
 		return nil, fmt.Errorf("unable to access containerd client, err: %w", err)
@@ -210,7 +228,11 @@ func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	fsArtifact, err := local2.NewArtifact(imagePath, c.cache, c.config.ArtifactOption)
+	return c.ScanFilesystem(ctx, imagePath)
+}
+
+func (c *collector) ScanFilesystem(ctx context.Context, path string) (Report, error) {
+	fsArtifact, err := local2.NewArtifact(path, c.cache, c.config.ArtifactOption)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
@@ -223,9 +245,9 @@ func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 	return bom, nil
 }
 
-func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (*cyclonedxgo.BOM, error) {
+func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (Report, error) {
 	s := scanner.NewScanner(local.NewScanner(c.applier, c.detector, c.vulnClient), artifact)
-	report, err := s.ScanArtifact(ctx, types.ScanOptions{
+	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
 		SecurityChecks:      []string{},
 		ScanRemovedPackages: false,
@@ -235,12 +257,8 @@ func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (*cycl
 		return nil, err
 	}
 
-	bom, err := c.marshaler.Marshal(report)
-	if err != nil {
-		return nil, err
-	}
-
-	// We don't need the dependencies attribute. Remove to save memory.
-	bom.Dependencies = nil
-	return bom, nil
+	return &TrivyReport{
+		Report:    trivyReport,
+		marshaler: c.marshaler,
+	}, nil
 }

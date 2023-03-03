@@ -179,11 +179,11 @@ func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
 		return "", nil
 	}
 
-	switch statusCode.(type) {
+	switch actual := statusCode.(type) {
 	case float64:
-		return strconv.FormatFloat(statusCode.(float64), 'f', -1, 64), nil
+		return strconv.FormatFloat(actual, 'f', -1, 64), nil
 	case string:
-		return statusCode.(string), nil
+		return actual, nil
 	default:
 		return "", fmt.Errorf("Received unknown type %T for statusCode", statusCode)
 	}

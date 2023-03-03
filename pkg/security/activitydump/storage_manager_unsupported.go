@@ -37,6 +37,10 @@ type ActivityDump struct {
 	StorageRequests map[config.StorageFormat][]config.StorageRequest
 }
 
+func (ad *ActivityDump) GetImageNameTag() (string, string) {
+	return "", ""
+}
+
 // NewActivityDumpFromMessage returns a new ActivityDump from a SecurityActivityDumpMessage
 func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, error) {
 	return nil, fmt.Errorf("activity dumps are unsupported on this platform")

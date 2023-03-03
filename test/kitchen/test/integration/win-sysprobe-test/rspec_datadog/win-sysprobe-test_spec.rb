@@ -24,7 +24,7 @@ print `Powershell -C "Get-WmiObject Win32_OperatingSystem | Select Caption, OSAr
 
 wait_until_service_stopped('datadog-agent-sysprobe')
 
-root_dir = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\system-probe-tests".gsub("\\", File::SEPARATOR)
+root_dir = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\system-probe\\tests".gsub("\\", File::SEPARATOR)
 print root_dir
 print Dir.entries(root_dir)
 

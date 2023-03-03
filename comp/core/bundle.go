@@ -16,7 +16,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,7 +30,6 @@ var Bundle = fxutil.Bundle(
 	config.Module,
 	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 	log.Module,
-	flare.Module,
 	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
 	sysprobeconfig.Module,
 )

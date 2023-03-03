@@ -59,6 +59,10 @@ const (
 
 	dotnetProfilingLdPreloadKey   = "LD_PRELOAD"
 	dotnetProfilingLdPreloadValue = "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so"
+
+	// Ruby config
+	rubyOptKey   = "RUBYOPT"
+	rubyOptValue = " -r/datadog-lib/auto_inject"
 )
 
 type language string
@@ -68,6 +72,7 @@ const (
 	js     language = "js"
 	python language = "python"
 	dotnet language = "dotnet"
+	ruby   language = "ruby"
 
 	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
@@ -76,7 +81,7 @@ const (
 )
 
 var (
-	supportedLanguages = []language{java, js, python, dotnet}
+	supportedLanguages = []language{java, js, python, dotnet, ruby}
 )
 
 // InjectAutoInstrumentation injects APM libraries into pods
@@ -222,6 +227,12 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 				{
 					key:     dotnetProfilingLdPreloadKey,
 					valFunc: dotnetProfilingLdPreloadEnvValFunc,
+				}})
+		case ruby:
+			err = injectLibRequirements(pod, lib.ctrName, []envVar{
+				{
+					key:     rubyOptKey,
+					valFunc: rubyEnvValFunc,
 				}})
 		default:
 			metrics.LibInjectionErrors.Inc(langStr)
@@ -380,4 +391,8 @@ func dotnetProfilingLdPreloadEnvValFunc(predefinedVal string) string {
 		return dotnetProfilingLdPreloadValue
 	}
 	return fmt.Sprintf("%s:%s", dotnetProfilingLdPreloadValue, predefinedVal)
+}
+
+func rubyEnvValFunc(predefinedVal string) string {
+	return predefinedVal + rubyOptValue
 }

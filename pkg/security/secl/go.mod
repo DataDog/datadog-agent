@@ -13,7 +13,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/cast v1.5.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	golang.org/x/exp v0.0.0-20221114191408-850992195362
 	golang.org/x/sys v0.5.0
 	golang.org/x/tools v0.6.0

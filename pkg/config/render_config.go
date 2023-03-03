@@ -53,6 +53,7 @@ type context struct {
 	SecurityAgent                    bool
 	NetworkModule                    bool // Sub-module of System Probe
 	UniversalServiceMonitoringModule bool // Sub-module of System Probe
+	DataStreamsModule                bool // Sub-module of System Probe
 	PrometheusScrape                 bool
 	OTLP                             bool
 }
@@ -108,6 +109,7 @@ func mkContext(buildType string) context {
 			SystemProbe:                      true,
 			NetworkModule:                    true,
 			UniversalServiceMonitoringModule: true,
+			DataStreamsModule:                true,
 			SecurityModule:                   true,
 		}
 	case "dogstatsd":

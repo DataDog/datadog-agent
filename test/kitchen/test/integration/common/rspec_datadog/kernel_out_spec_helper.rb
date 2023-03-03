@@ -10,7 +10,7 @@ COLORS = [
 
 class KernelOut
   @@release = `uname -r`.strip
-  color_idx = File.read('/tmp/system-probe-tests/color_idx').strip.to_i - 1
+  color_idx = File.read('/tmp/color_idx').strip.to_i - 1
   @@color = COLORS[color_idx]
 
   def self.format(text, tag="")

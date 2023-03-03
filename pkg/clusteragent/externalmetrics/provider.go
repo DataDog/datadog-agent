@@ -31,6 +31,10 @@ const (
 	autogenExpirationPeriodHours int64 = 3
 )
 
+var fakeExternalMetric = provider.ExternalMetricInfo{
+	Metric: "noexternalmetric",
+}
+
 type datadogMetricProvider struct {
 	apiCl            *apiserver.APIClient
 	store            DatadogMetricsInternalStore
@@ -171,6 +175,12 @@ func (p *datadogMetricProvider) ListAllExternalMetrics() []provider.ExternalMetr
 
 	for metricName := range autogenMetricNames {
 		results = append(results, provider.ExternalMetricInfo{Metric: metricName})
+	}
+
+	// Workaround for https://github.com/kubernetes-sigs/custom-metrics-apiserver/issues/146
+	// In any, HPA does not use `List` endpoint
+	if len(results) == 0 {
+		results = append(results, fakeExternalMetric)
 	}
 
 	log.Tracef("Answering list of available metrics: %v", results)

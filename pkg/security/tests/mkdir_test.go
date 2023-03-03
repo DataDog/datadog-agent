@@ -63,7 +63,9 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 		})
 	}))
 
@@ -87,7 +89,9 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 		})
 	})
 
@@ -140,7 +144,9 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Async, true)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()
 			if err != nil {

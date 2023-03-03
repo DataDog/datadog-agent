@@ -390,8 +390,9 @@ func (a *APIServer) Start(ctx context.Context) {
 func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
 	if a.cfg != nil {
 		return &api.SecurityConfigMessage{
-			FIMEnabled:     a.cfg.FIMEnabled,
-			RuntimeEnabled: a.cfg.RuntimeEnabled,
+			FIMEnabled:          a.cfg.FIMEnabled,
+			RuntimeEnabled:      a.cfg.RuntimeEnabled,
+			ActivityDumpEnabled: a.cfg.ActivityDumpEnabled,
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil
@@ -410,7 +411,7 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 		}, nil
 	}
 
-	if err := a.module.RunSelfTest(false); err != nil {
+	if _, err := a.module.RunSelfTest(false); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),

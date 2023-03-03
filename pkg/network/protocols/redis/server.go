@@ -13,7 +13,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
-func RunRedisServer(t *testing.T, serverAddr, serverPort string) {
+func RunServer(t *testing.T, serverAddr, serverPort string) bool {
 	env := []string{
 		"REDIS_ADDR=" + serverAddr,
 		"REDIS_PORT=" + serverPort,
@@ -21,5 +21,5 @@ func RunRedisServer(t *testing.T, serverAddr, serverPort string) {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	protocolsUtils.RunDockerServer(t, "redis", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*Ready to accept connections"), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "redis", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*Ready to accept connections"), protocolsUtils.DefaultTimeout)
 }

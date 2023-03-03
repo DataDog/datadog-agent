@@ -28,7 +28,8 @@ const (
 var mainProbes = []probes.ProbeFuncName{
 	probes.NetDevQueue,
 	probes.ProtocolClassifierEntrySocketFilter,
-	probes.ProtocolClassifierSocketFilter,
+	probes.ProtocolClassifierQueuesSocketFilter,
+	probes.ProtocolClassifierDBsSocketFilter,
 	probes.TCPSendMsg,
 	probes.TCPSendMsgReturn,
 	probes.TCPRecvMsg,
@@ -49,6 +50,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPv6RecvMsg,
 	probes.UDPv6RecvMsgReturn,
 	probes.TCPRetransmit,
+	probes.TCPRetransmitRet,
 	probes.InetCskAcceptReturn,
 	probes.InetCskListenStop,
 	probes.UDPDestroySock,

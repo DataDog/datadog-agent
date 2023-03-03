@@ -16,8 +16,6 @@
 #include <uapi/linux/udp.h>
 
 #include "tracer.h"
-#include "protocols/classification/tracer-maps.h"
-#include "protocols/classification/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -43,21 +41,26 @@
 
 #include "sock.h"
 
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_PROG);
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+    protocol_classifier_entrypoint(skb);
+    #endif
     return 0;
 }
 
-// The entrypoint for all packets.
-SEC("socket/classifier")
-int socket__classifier(struct __sk_buff *skb) {
+SEC("socket/classifier_queues")
+int socket__classifier_queues(struct __sk_buff *skb) {
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
-    protocol_classifier_entrypoint(skb);
+    protocol_classifier_entrypoint_queues(skb);
+    #endif
+    return 0;
+}
+
+SEC("socket/classifier_dbs")
+int socket__classifier_dbs(struct __sk_buff *skb) {
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+    protocol_classifier_entrypoint_dbs(skb);
     #endif
     return 0;
 }
@@ -414,15 +417,40 @@ int kprobe__skb_consume_udp(struct pt_regs *ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    u64 tid = bpf_get_current_pid_tgid();
+    tcp_retransmit_skb_args_t args = {};
+    args.sk = sk;
+    args.segs = 0;
+    args.retrans_out_pre = 0;
+    if (bpf_probe_read_kernel_with_telemetry(&(args.retrans_out_pre), sizeof(args.retrans_out_pre), &(tcp_sk(sk)->retrans_out)) < 0) {
+        return 0;
+    }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-    int segs = 1;
-#else
-    int segs = (int)PT_REGS_PARM3(ctx);
-#endif
-    log_debug("kprobe/tcp_retransmit\n");
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
 
-    return handle_retransmit(sk, segs);
+    return 0;
+}
+
+SEC("kretprobe/tcp_retransmit_skb")
+int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
+    log_debug("kretprobe/tcp_retransmit\n");
+    u64 tid = bpf_get_current_pid_tgid();
+    if (PT_REGS_RC(ctx) < 0) {
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+        return 0;
+    }
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
+    if (args == NULL) {
+        return 0;
+    }
+    struct sock* sk = args->sk;
+    u32 retrans_out_pre = args->retrans_out_pre;
+    u32 retrans_out = 0;
+    bpf_probe_read_kernel_with_telemetry(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
+
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+
+    return handle_retransmit(sk, retrans_out-retrans_out_pre);
 }
 
 SEC("kprobe/tcp_set_state")

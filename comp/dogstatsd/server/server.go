@@ -262,7 +262,7 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, server
 		listeners:               nil,
 		stopChan:                make(chan bool),
 		serverlessFlushChan:     make(chan bool),
-		health:                  health.RegisterLiveness("dogstatsd-main"),
+		health:                  nil,
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
 		extraTags:               extraTags,
@@ -370,6 +370,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 	// start the workers processing the packets read on the socket
 	// ----------------------
 
+	s.health = health.RegisterLiveness("dogstatsd-main")
 	s.handleMessages()
 	s.Started = true
 
@@ -422,20 +423,7 @@ func (s *server) IsRunning() bool {
 // Capture starts a traffic capture at the specified path and with the specified duration,
 // an empty path will default to the default location. Returns an error if any.
 func (s *server) Capture(p string, d time.Duration, compressed bool) (string, error) {
-
-	err := s.TCapture.Start(p, d, compressed)
-	if err != nil {
-		return "", err
-	}
-
-	// wait for the capture to start
-	for !s.TCapture.IsOngoing() {
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	path, err := s.TCapture.Path()
-
-	return path, err
+	return s.TCapture.Start(p, d, compressed)
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.

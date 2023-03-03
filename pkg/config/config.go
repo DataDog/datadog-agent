@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -204,6 +204,7 @@ type Endpoint struct {
 // Warnings represent the warnings in the config
 type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
+	Err                       error
 }
 
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
@@ -740,7 +741,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
 	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
-	config.BindEnvAndSetDefault("ec2_use_dmi", false)                            // should the agent leverage DMI information to know if it's running on EC2 or not. Enabling this will add the instance ID from DMI to the host alias list.
+	config.BindEnvAndSetDefault("ec2_use_dmi", true)                             // should the agent leverage DMI information to know if it's running on EC2 or not. Enabling this will add the instance ID from DMI to the host alias list.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
@@ -944,9 +945,6 @@ func InitConfig(config Config) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
-	// temporary feature flag until this becomes the only option
-	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
-
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
 	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
@@ -973,6 +971,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)                   // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                       // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
 	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                           // aggregator used for the external metrics. Choose from [avg,sum,max,min]
+	config.BindEnvAndSetDefault("external_metrics_provider.max_time_window", 60*60*24)          // Maximum window to query to get the metric from Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)                  // Window to query to get the metric from Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.rollup", 30)                         // Bucket size to circumvent time aggregation side effects.
 	config.BindEnvAndSetDefault("external_metrics_provider.wpa_controller", false)              // Activates the controller for Watermark Pod Autoscalers.
@@ -1115,6 +1114,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
+	config.BindEnvAndSetDefault("container_image_collection.sbom.clear_cache_on_exit", false)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_ttl", 60*60) // Integer seconds. Only used with Badger
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1142,13 +1143,17 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
+	config.BindEnvAndSetDefault("compliance_config.metrics.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
+	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
@@ -1314,6 +1319,23 @@ func LoadWithoutSecret() (*Warnings, error) {
 	return LoadDatadogCustom(Datadog, "datadog.yaml", false)
 }
 
+// Merge will merge additional configuration into an existing configuration
+func Merge(configPaths []string) error {
+	for _, configPath := range configPaths {
+		if f, err := os.Open(configPath); err == nil {
+			err = Datadog.MergeConfig(f)
+			_ = f.Close()
+			if err != nil {
+				return fmt.Errorf("error merging %s config file: %w", configPath, err)
+			}
+		} else {
+			log.Infof("no config exists at %s, ignoring...", configPath)
+		}
+	}
+
+	return nil
+}
+
 func findUnknownKeys(config Config) []string {
 	var unknownKeys []string
 	knownKeys := config.GetKnownKeys()
@@ -1375,7 +1397,7 @@ func findUnexpectedUnicode(config Config) []string {
 	return messages
 }
 
-func findUnknownEnvVars(config Config, environ []string) []string {
+func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars []string) []string {
 	var unknownVars []string
 
 	knownVars := map[string]struct{}{
@@ -1393,6 +1415,9 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_TESTS_RUNTIME_COMPILED": {},
 	}
 	for _, key := range config.GetEnvVars() {
+		knownVars[key] = struct{}{}
+	}
+	for _, key := range additionalKnownEnvVars {
 		knownVars[key] = struct{}{}
 	}
 
@@ -1438,6 +1463,10 @@ func checkConflictingOptions(config Config) error {
 
 // LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCusto
 func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
+	return LoadDatadogCustomWithKnownEnvVars(config, origin, loadSecret, nil)
+}
+
+func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1447,7 +1476,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings
 		applyOverrideFuncs(config)
 	}()
 
-	warnings, err := LoadCustom(config, origin, loadSecret)
+	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
 	if err != nil {
 		return warnings, err
 	}
@@ -1477,7 +1506,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
+func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
@@ -1497,7 +1526,7 @@ func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error
 		log.Warnf("Unknown key in config file: %v", key)
 	}
 
-	for _, v := range findUnknownEnvVars(config, os.Environ()) {
+	for _, v := range findUnknownEnvVars(config, os.Environ(), additionalKnownEnvVars) {
 		log.Warnf("Unknown environment variable: %v", v)
 	}
 

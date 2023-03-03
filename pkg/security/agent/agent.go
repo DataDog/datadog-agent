@@ -45,13 +45,13 @@ type RuntimeSecurityAgent struct {
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(hostname string, logProfiledWorkloads bool) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	telemetry, err := newTelemetry()
+	telemetry, err := newTelemetry(logProfiledWorkloads)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
@@ -81,6 +81,7 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
 
+	rsa.running.Store(true)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
 	// Start activity dumps listener
@@ -106,7 +107,6 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	logTicker := newLogBackoffTicker()
 
-	rsa.running.Store(true)
 	for rsa.running.Load() {
 		stream, err := rsa.client.GetEvents()
 		if err != nil {
@@ -159,7 +159,6 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 	rsa.wg.Add(1)
 	defer rsa.wg.Done()
 
-	rsa.running.Store(true)
 	for rsa.running.Load() {
 		stream, err := rsa.client.GetActivityDumpStream()
 		if err != nil {
@@ -200,6 +199,10 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		log.Errorf("%v", err)
 		return
 	}
+
+	// register for telemetry for this container
+	imageName, imageTag := dump.GetImageNameTag()
+	rsa.telemetry.registerProfiledContainer(imageName, imageTag)
 
 	raw := bytes.NewBuffer(msg.GetData())
 

@@ -73,7 +73,7 @@ type Mock interface {
 
 // Module defines the fx options for this component.
 var Module fx.Option = fxutil.Component(
-	fx.Provide(newLogger),
+	fx.Provide(newAgentLogger),
 )
 
 // MockModule defines the fx options for the mock component.

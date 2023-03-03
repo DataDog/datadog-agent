@@ -78,7 +78,6 @@ int kretprobe_check_kill_permission(struct pt_regs* ctx) {
     /* constuct and send the event */
     struct signal_event_t event = {
         .syscall.retval = retval,
-        .event.async = 0,
         .pid = pid,
         .type = syscall->signal.type,
     };

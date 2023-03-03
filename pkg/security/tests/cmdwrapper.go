@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 type wrapperType string
@@ -93,7 +93,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 }
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
-	d.containerName = fmt.Sprintf("docker-wrapper-%s", eval.RandString(6))
+	d.containerName = fmt.Sprintf("docker-wrapper-%s", utils.RandString(6))
 	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "600")
 	out, err := cmd.CombinedOutput()
 	if err == nil {

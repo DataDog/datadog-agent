@@ -460,9 +460,13 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	assert.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
-	requestsMutex.Lock()
-	assert.Equal(suite.T(), 5, requests)
-	requestsMutex.Unlock()
+
+	// Needed because requests are handled in a separate goroutine
+	assert.Eventually(suite.T(), func() bool {
+		requestsMutex.Lock()
+		defer requestsMutex.Unlock()
+		return requests == 5
+	}, 1*time.Second, 5*time.Millisecond, "Did not get the expected number of requests")
 }
 
 func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
@@ -498,9 +502,13 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	// We should fail after two requests only (initial + nocache)
 	_, err = kubeutil.GetPodForContainerID(ctx, "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	require.Error(suite.T(), err)
-	requestsMutex.Lock()
-	assert.Equal(suite.T(), 2, requests)
-	requestsMutex.Unlock()
+
+	// Needed because requests are handled in a separate goroutine
+	assert.Eventually(suite.T(), func() bool {
+		requestsMutex.Lock()
+		defer requestsMutex.Unlock()
+		return requests == 2
+	}, 1*time.Second, 5*time.Millisecond, "Did not get the expected number of requests")
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {

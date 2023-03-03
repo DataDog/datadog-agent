@@ -22,7 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -155,19 +157,6 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := runner.GetChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
-
-	// Exit if agent is not enabled.
-	if len(enabledChecks) == 0 {
-		log.Infof(agent6DisabledMessage)
-
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
-		return
-	}
-
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
 	if err != nil {
@@ -262,30 +251,47 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	runApp(exit, syscfg, hostInfo, enabledChecks)
+	runApp(exit, syscfg, hostInfo)
 
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
 	}
 }
 
-func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) {
+func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo) {
 	go util.HandleSignals(exit)
 
-	var s fx.Shutdowner
+	var allChecks struct {
+		fx.In
+		Checks []types.CheckComponent `group:"check"`
+	}
 	app := fx.New(
 		fx.Supply(
 			syscfg,
 			hostInfo,
-			enabledChecks,
 		),
-		runnerComp.Module,
+		fx.Populate(&allChecks),
+
+		process.Bundle,
+
+		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
 		// Invoke the runner to call its start hook
 		fx.Invoke(func(runnerComp.Component) {}),
-		fx.Populate(&s),
 	)
+
+	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
+	if !anyChecksEnabled(allChecks.Checks) {
+		log.Infof(agent6DisabledMessage)
+
+		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
+		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+		// http://supervisord.org/subprocess.html#process-states
+		time.Sleep(5 * time.Second)
+		return
+	}
+
 	err := app.Start(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %v", err)
@@ -294,12 +300,21 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 
 	// Set up an exit channel
 	<-exit
-	err = s.Shutdown()
+	err = app.Stop(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to properly stop the process agent: %v", err)
 	} else {
 		log.Info("The process-agent has successfully been shut down")
 	}
+}
+
+func anyChecksEnabled(checks []types.CheckComponent) bool {
+	for _, check := range checks {
+		if check.Object().IsEnabled() {
+			return true
+		}
+	}
+	return false
 }
 
 // cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
@@ -321,9 +336,9 @@ func initRuntimeSettings() {
 	// NOTE: Any settings you want to register should simply be added here
 	processRuntimeSettings := []settings.RuntimeSetting{
 		settings.LogLevelRuntimeSetting{},
-		settings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction"),
-		settings.RuntimeBlockProfileRate("runtime_block_profile_rate"),
-		settings.ProfilingGoroutines("internal_profiling_goroutines"),
+		settings.RuntimeMutexProfileFraction{},
+		settings.RuntimeBlockProfileRate{},
+		settings.ProfilingGoroutines{},
 		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
 	}
 

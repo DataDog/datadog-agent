@@ -22,6 +22,6 @@ func TestLoaderCompile(t *testing.T) {
 	require.NoError(t, err)
 	cfg, err := config.NewConfig(syscfg)
 	require.NoError(t, err)
-	_, err = getRuntimeCompiledPrograms(cfg, false, nil)
+	_, err = getRuntimeCompiledPrograms(cfg, false, false, nil)
 	require.NoError(t, err)
 }

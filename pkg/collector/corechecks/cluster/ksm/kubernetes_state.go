@@ -215,6 +215,8 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 
 	k.processLabelJoins()
 	k.processLabelsAsTags()
+
+	k.mergeAnnotationsAsTags(defaultAnnotationsAsTags())
 	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
@@ -243,7 +245,9 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 		allowedLabels[collector] = []string{"*"}
 	}
 
-	builder.WithAllowLabels(allowedLabels)
+	if err = builder.WithAllowLabels(allowedLabels); err != nil {
+		return err
+	}
 
 	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 	// Equivalent to configuring --metric-annotations-allowlist.
@@ -263,7 +267,7 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 		namespaces = options.DefaultNamespaces
 	}
 
-	builder.WithNamespaces(namespaces, "")
+	builder.WithNamespaces(namespaces)
 
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
 	if err != nil {
@@ -648,6 +652,27 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfigWithoutLabelsMap
 	for key, value := range extra {
 		if _, found := k.instance.LabelJoins[key]; !found {
 			k.instance.LabelJoins[key] = value
+		}
+	}
+}
+
+// mergeAnnotationsAsTags adds extra annotations as tags to the configured mapping.
+// User-defined annotations as tags are prioritized.
+func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
+	if k.instance.AnnotationsAsTags == nil {
+		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
+	}
+	for resource, mapping := range extra {
+		_, found := k.instance.AnnotationsAsTags[resource]
+		if !found {
+			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
+			k.instance.AnnotationsAsTags[resource] = mapping
+			continue
+		}
+		for key, value := range mapping {
+			if _, found := k.instance.AnnotationsAsTags[resource][key]; !found {
+				k.instance.AnnotationsAsTags[resource][key] = value
+			}
 		}
 	}
 }

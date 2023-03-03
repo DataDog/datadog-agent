@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/ringbuffer"
@@ -108,7 +109,7 @@ type Probe struct {
 	erpcRequest                        *erpc.ERPCRequest
 	pidDiscarders                      *pidDiscarders
 	inodeDiscarders                    *inodeDiscarders
-	approvers                          map[eval.EventType]activeApprovers
+	approvers                          map[eval.EventType]kfilters.ActiveApprovers
 	discarderRateLimiter               *rate.Limiter
 	notifyDiscarderPushedCallbacks     []NotifyDiscarderPushedCallback
 	notifyDiscarderPushedCallbacksLock sync.Mutex
@@ -233,7 +234,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.Config, useSyscallWrapper, p.StatsdClient)
+	loader := ebpf.NewProbeLoader(p.Config, useSyscallWrapper, p.UseRingBuffers(), p.StatsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -865,7 +866,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
+func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode, flags kfilters.PolicyFlag) error {
 	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 	table, err := managerhelper.Map(p.Manager, "filter_policy")
 	if err != nil {
@@ -877,7 +878,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 		return errors.New("unable to parse the eval event type")
 	}
 
-	policy := &FilterPolicy{
+	policy := &kfilters.FilterPolicy{
 		Mode:  mode,
 		Flags: flags,
 	}
@@ -887,14 +888,14 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 
 // SetApprovers applies approvers and removes the unused ones
 func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	handler, exists := allApproversHandlers[eventType]
+	handler, exists := kfilters.AllApproversHandlers[eventType]
 	if !exists {
 		return nil
 	}
 
 	newApprovers, err := handler(approvers)
 	if err != nil {
-		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
+		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 	}
 
 	for _, newApprover := range newApprovers {
@@ -929,29 +930,21 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *Probe) validEventTypeForConfig(eventType string) bool {
+	if eventType == "dns" && !p.Config.NetworkEnabled {
+		return false
+	}
+	return true
+}
+
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
 func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
-		if eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
-		}
-	}
-
-	if p.Config.NetworkEnabled {
-		activatedProbes = append(activatedProbes, probes.NetworkSelectors...)
-
-		// add probes depending on loaded modules
-		loadedModules, err := utils.FetchLoadedModules()
-		if err == nil {
-			if _, ok := loadedModules["veth"]; ok {
-				activatedProbes = append(activatedProbes, probes.NetworkVethSelectors...)
-			}
-			if _, ok := loadedModules["nf_nat"]; ok {
-				activatedProbes = append(activatedProbes, probes.NetworkNFNatSelectors...)
-			}
 		}
 	}
 
@@ -1198,8 +1191,8 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 }
 
 // ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
-	ars, err := NewApplyRuleSetReport(p.Config, rs)
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	ars, err := kfilters.NewApplyRuleSetReport(p.Config, rs)
 	if err != nil {
 		return nil, err
 	}
@@ -1238,7 +1231,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p := &Probe{
 		Opts:                 opts,
 		Config:               config,
-		approvers:            make(map[eval.EventType]activeApprovers),
+		approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
 		managerOptions:       ebpf.NewDefaultOptions(),
 		ctx:                  ctx,
 		cancelFnc:            cancel,

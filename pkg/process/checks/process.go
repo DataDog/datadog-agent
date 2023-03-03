@@ -36,7 +36,7 @@ const (
 )
 
 // NewProcessCehck returns an instance of the ProcessCheck.
-func NewProcessCheck() Check {
+func NewProcessCheck() *ProcessCheck {
 	return &ProcessCheck{
 		scrubber: procutil.NewDefaultDataScrubber(),
 	}
@@ -154,8 +154,7 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	return ddconfig.Datadog.GetBool("process_config.process_collection.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -537,10 +536,12 @@ func skipProcess(
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
 ) bool {
-	if len(fp.Cmdline) == 0 {
-		return true
+	cl := fp.Cmdline
+	if len(cl) == 0 {
+		cl = []string{fp.Exe}
+		log.Debugf("Empty commandline for pid:%d using exe:[%s] to check if the process should be skipped", fp.Pid, cl)
 	}
-	if isDisallowListed(fp.Cmdline, disallowList) {
+	if isDisallowListed(cl, disallowList) {
 		return true
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
