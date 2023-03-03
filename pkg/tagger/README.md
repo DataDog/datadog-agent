@@ -62,17 +62,18 @@ cache. Cache invalidation is triggered by the collectors (or source) by either:
 Tagger entities are identified by a string-typed ID, with one of the following forms:
 
 <!-- NOTE: a similar table appears in pkg/autodiscovery/README.md; please keep both in sync -->
-| *Service*                         | *Tagger Entity*                                                    |
-|-----------------------------------|--------------------------------------------------------------------|
-| workloadmeta.KindContainer        | `container_id://<sha>`                                             |
-| workloadmeta.KindGardenContainer  | `container_id://<sha>`                                             |
-| workloadmeta.KindKubernetesPod    | `kubernetes_pod_uid://<uid>`                                       |
-| workloadmeta.KindECSTask          | `ecs_task://<task-id>`                                             |
-| CloudFoundry LRP                  | `<processGuid>/<svcName>/<instanceGuid>`  or `<appGuid>/<svcName>` |
-| Container runtime or orchestrator | (none)                                                             |
-| Kubernetes Endpoint               | `kube_endpoint_uid://<namespace>/<name>/<ip>`                      |
-| Kubernetes Service                | `kube_service://<namespace>/<name>`                                |
-| SNMP Config                       | config hash                                                        |
+| *Service*                               | *Tagger Entity*                                                    |
+|-----------------------------------------|--------------------------------------------------------------------|
+| workloadmeta.KindContainer              | `container_id://<sha>`                                             |
+| workloadmeta.KindContainerImageMetadata | `container_image_metadata://<sha>                                  |
+| workloadmeta.KindGardenContainer        | `container_id://<sha>`                                             |
+| workloadmeta.KindKubernetesPod          | `kubernetes_pod_uid://<uid>`                                       |
+| workloadmeta.KindECSTask                | `ecs_task://<task-id>`                                             |
+| CloudFoundry LRP                        | `<processGuid>/<svcName>/<instanceGuid>`  or `<appGuid>/<svcName>` |
+| Container runtime or orchestrator       | (none)                                                             |
+| Kubernetes Endpoint                     | `kube_endpoint_uid://<namespace>/<name>/<ip>`                      |
+| Kubernetes Service                      | `kube_service://<namespace>/<name>`                                |
+| SNMP Config                             | config hash                                                        |
 
 ## Tagger
 
