@@ -44,6 +44,7 @@ var EventMonitor = module.Factory{
 				return nil, err
 			}
 			evm.RegisterEventConsumer(cws)
+			log.Info("event monitoring cws consumer initialized")
 		}
 
 		if emconfig.NetworkConsumerEnabled {
@@ -52,6 +53,7 @@ var EventMonitor = module.Factory{
 				return nil, err
 			}
 			evm.RegisterEventConsumer(network)
+			log.Info("event monitoring network consumer initialized")
 		}
 
 		if emconfig.ProcessConsumerEnabled {
@@ -60,6 +62,7 @@ var EventMonitor = module.Factory{
 				return nil, err
 			}
 			evm.RegisterEventConsumer(process)
+			log.Info("event monitoring process-agent consumer initialized")
 		}
 
 		return evm, err

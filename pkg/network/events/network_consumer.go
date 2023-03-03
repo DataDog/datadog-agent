@@ -11,7 +11,6 @@ package events
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NetworkConsumer describes a process monitoring object
@@ -41,8 +40,6 @@ func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error
 	if err := evm.AddEventTypeHandler(smodel.ExitEventType, h); err != nil {
 		return nil, err
 	}
-
-	log.Info("network process monitoring initialized")
 
 	return &NetworkConsumer{}, nil
 }
