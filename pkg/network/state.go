@@ -165,7 +165,7 @@ type networkState struct {
 	sync.Mutex
 
 	// clients is a map of the connection id string to the client structure
-	clients map[string]*client
+	clients       map[string]*client
 	lastTelemetry stateTelemetry // Old telemetry state; used for logging
 
 	latestTimeEpoch uint64
