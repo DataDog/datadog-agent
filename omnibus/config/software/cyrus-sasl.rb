@@ -21,7 +21,12 @@ build do
     "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
   }
 
-  command "./configure --prefix=#{install_dir}/embedded", :env => env
+  configure_command = ["./configure",
+                        "--prefix=#{install_dir}/embedded",
+                        "--with-gdbm=#{install_dir}/embedded",
+                        "--with-dblib=gdbm"]
+
+  command configure_command.join(" "), env: env
   command "make", :env => env
   command "make install", :env => env
 
