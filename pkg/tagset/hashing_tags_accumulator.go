@@ -7,6 +7,7 @@ package tagset
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/twmb/murmur3"
 )
@@ -125,4 +126,40 @@ func (h *HashingTagsAccumulator) Hash() uint64 {
 		hash ^= h
 	}
 	return hash
+}
+
+// tagsDifferenceSorted removes tags contained in l from r. Both accumulators must be SortUniq first.
+//
+// h is not sorted after this function. Does not modify o.
+func (h *HashingTagsAccumulator) removeSorted(o *HashingTagsAccumulator) {
+	// A sentinel string and NOT matching hash (an impossible combination outside this function)
+	const holeData = ""
+	const holeHash = 42
+
+	hlen, olen := len(h.data), len(o.data)
+
+	for i, j := 0, 0; i < hlen && j < olen; {
+		switch strings.Compare(h.data[i], o.data[j]) {
+		case 0:
+			h.data[i] = holeData
+			h.hash[i] = holeHash
+			i++
+		case -1:
+			i++
+		case 1:
+			j++
+		}
+	}
+
+	for i := 0; i < hlen; {
+		if h.data[i] == holeData && h.hash[i] == holeHash {
+			hlen--
+			h.data[i] = h.data[hlen]
+			h.hash[i] = h.hash[hlen]
+		} else {
+			i++
+		}
+	}
+
+	h.Truncate(hlen)
 }
