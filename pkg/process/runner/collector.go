@@ -264,11 +264,6 @@ func (l *Collector) Run() error {
 		}()
 	}
 
-	for _, check := range l.enabledChecks {
-		log.Debugf("Cleaning up %s check", check.Name())
-		check.Cleanup()
-	}
-
 	return nil
 }
 
@@ -396,6 +391,11 @@ func (l *Collector) Stop() {
 	close(l.stop)
 	l.wg.Wait()
 	l.Submitter.Stop()
+
+	for _, check := range l.enabledChecks {
+		log.Debugf("Cleaning up %s check", check.Name())
+		check.Cleanup()
+	}
 }
 
 func (l *Collector) GetChecks() []checks.Check {
