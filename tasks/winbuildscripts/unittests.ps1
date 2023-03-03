@@ -42,6 +42,19 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
+# NG installer unit tests
+if ($Env:DEBUG_CUSTOMACTION) {
+    & inv -e msi.test --arch=$archflag --debug
+} else {
+    & inv -e msi.test --arch=$archflag
+}
+$err = $LASTEXITCODE
+Write-Host Test result is $err
+if($err -ne 0){
+    Write-Host -ForegroundColor Red "Windows installer unit test failed $err"
+    [Environment]::Exit($err)
+}
+
 & inv -e deps
 
 & inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
