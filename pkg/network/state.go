@@ -166,7 +166,6 @@ type networkState struct {
 
 	// clients is a map of the connection id string to the client structure
 	clients map[string]*client
-	// telemetry     stateTelemetry // Monotonic state telemetry
 	lastTelemetry stateTelemetry // Old telemetry state; used for logging
 
 	latestTimeEpoch uint64

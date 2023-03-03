@@ -426,11 +426,6 @@ func (t *Tracer) Stop() {
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
-
-	// Reset the global telemetry registry
-	// This has to be done to avoid panic in
-	// prometheus package in unit tests
-	telemetry.Reset()
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
