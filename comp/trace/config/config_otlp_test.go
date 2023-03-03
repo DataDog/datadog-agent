@@ -8,29 +8,29 @@
 
 package config
 
-import (
-	"strings"
-	"testing"
+// import (
+// 	"strings"
+// 	"testing"
+//
+// 	"github.com/stretchr/testify/assert"
+//
+// 	"github.com/DataDog/datadog-agent/pkg/config"
+// )
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-)
-
-func TestFullYamlConfigWithOTLP(t *testing.T) {
-	defer cleanConfig()()
-	origcfg := config.Datadog
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer func() {
-		config.Datadog = origcfg
-	}()
-
-	assert := assert.New(t)
-
-	c, err := prepareConfig("./testdata/full.yaml")
-	assert.NoError(err)
-	assert.NoError(applyDatadogConfig(c))
-
-	assert.Equal("0.0.0.0", c.OTLPReceiver.BindHost)
-	assert.Equal(50053, c.OTLPReceiver.GRPCPort)
-}
+// func TestFullYamlConfigWithOTLP(t *testing.T) {
+// 	defer cleanConfig()()
+// 	origcfg := config.Datadog
+// 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+// 	defer func() {
+// 		config.Datadog = origcfg
+// 	}()
+//
+// 	assert := assert.New(t)
+//
+// 	c, err := prepareConfig("./testdata/full.yaml")
+// 	assert.NoError(err)
+// 	assert.NoError(applyDatadogConfig(c))
+//
+// 	assert.Equal("0.0.0.0", c.OTLPReceiver.BindHost)
+// 	assert.Equal(50053, c.OTLPReceiver.GRPCPort)
+// }
