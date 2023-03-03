@@ -767,10 +767,7 @@ func InvestigateKill(pid int) error {
 	utils.CopyFile(filepath.Join("/proc", sPid, "status"), filepath.Join(invDir, "status"))
 
 	// fetch who, history, last
-	cmd = exec.Command("history")
-	if history, err := cmd.CombinedOutput(); err == nil {
-		os.WriteFile(filepath.Join(invDir, "history"), history, 0640)
-	}
+	utils.CopyFile("/root/.bash_history", filepath.Join(invDir, "history"))
 	cmd = exec.Command("who", "-a")
 	if who, err := cmd.CombinedOutput(); err == nil {
 		os.WriteFile(filepath.Join(invDir, "who"), who, 0640)
