@@ -62,7 +62,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.1
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
-	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
+	github.com/DataDog/watermarkpodautoscaler v0.5.2
 	github.com/DataDog/zstd v1.5.2
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/semver v1.5.0
