@@ -18,10 +18,10 @@ import (
 )
 
 // TTL needs to be long enough so that keys don't expire in the middle of a test
-var cacheTTL = 1 * time.Hour
+var testCacheTTL = 1 * time.Hour
 
 func TestBadgerCache_Artifacts(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), cacheTTL)
+	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -42,7 +42,7 @@ func TestBadgerCache_Artifacts(t *testing.T) {
 }
 
 func TestBadgerCache_Blobs(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), cacheTTL)
+	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -63,7 +63,7 @@ func TestBadgerCache_Blobs(t *testing.T) {
 }
 
 func TestBadgerCache_DeleteBlobs(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), cacheTTL)
+	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -97,7 +97,7 @@ func TestBadgerCache_DeleteBlobs(t *testing.T) {
 }
 
 func TestBadgerCache_MissingBlobs(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), cacheTTL)
+	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -129,7 +129,7 @@ func TestBadgerCache_MissingBlobs(t *testing.T) {
 }
 
 func TestBadgerCache_Clear(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), cacheTTL)
+	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())

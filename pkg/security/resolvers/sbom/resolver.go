@@ -15,7 +15,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 	"k8s.io/utils/temp"
@@ -111,14 +110,11 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.Config, tagsResolver *tags.Resolver, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	trivyConfiguration := trivy.DefaultCollectorConfig([]string{trivy.OSAnalyzers}, "")
-	trivyConfiguration.CacheProvider = func() (cache.Cache, error) {
-		tmpDir, err := temp.CreateTempDir("sbom-resolver")
-		if err != nil {
-			return nil, err
-		}
-		return cache.NewFSCache(tmpDir.Name)
+	tmpDir, err := temp.CreateTempDir("sbom-resolver")
+	if err != nil {
+		return nil, err
 	}
+	trivyConfiguration := trivy.DefaultCollectorConfig([]string{trivy.OSAnalyzers}, tmpDir.Name)
 	trivyConfiguration.ClearCacheOnClose = true
 	trivyConfiguration.ArtifactOption.Slow = false
 
