@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
@@ -27,7 +28,7 @@ import (
 type SystemProbeEnvOpts struct {
 	AmiID              string
 	Provision          bool
-	ShutdownPeriod     int
+	ShutdownPeriod     time.Duration
 	FailOnMissing      bool
 	UploadDependencies bool
 }
@@ -61,13 +62,13 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	awsManager := credentials.NewManager()
 	sshkey, err := awsManager.GetCredential(credentials.AWSSSMStore, "ci.datadog-agent.aws_ec2_kitchen_ssh_key")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("aws get credential: %w", err)
 	}
 
 	// Write ssh key to file
 	f, err := os.Create(SSHKeyFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ssh key create: %w", err)
 	}
 	defer f.Close()
 	f.WriteString(sshkey)
@@ -113,16 +114,16 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 			// interval. The microvm scenario sets the terminateOnShutdown
 			// attribute of the ec2 instance to true. Therefore the shutdown would
 			// trigger the automatic termination of the ec2 instance.
-			if opts.ShutdownPeriod > 0 {
+			if int64(opts.ShutdownPeriod) > 0 {
 				shutdownRegisterArgs := command.Args{
 					Create: pulumi.Sprintf(
-						"shutdown -P +%d", opts.ShutdownPeriod,
+						"shutdown -P +%.0f", opts.ShutdownPeriod.Minutes(),
 					),
 					Sudo: true,
 				}
 				shutdownRegisterDone, err := remoteRunner.Command("shutdown-"+instance.Arch, &shutdownRegisterArgs, pulumi.DependsOn(scenarioDone.Dependencies))
 				if err != nil {
-					return fmt.Errorf("failed to scheduel shutdown: %w", err)
+					return fmt.Errorf("failed to schedule shutdown: %w", err)
 				}
 				depends = []pulumi.Resource{shutdownRegisterDone}
 			} else {
