@@ -28,7 +28,7 @@ subjects:
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
-  name: v1beta1.external.metrics.k8s.io
+  name: v1.external.metrics.k8s.io
 spec:
   insecureSkipTLSVerify: true
   group: external.metrics.k8s.io
@@ -38,7 +38,7 @@ spec:
     name: datadog-custom-metrics-server
     namespace: default
     port: 8443
-  version: v1beta1
+  version: v1
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
