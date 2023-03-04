@@ -285,31 +285,6 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	return nil
 }
 
-// RefreshSBOM analyzes the file system of a sbom to refresh its SBOM.
-func (r *Resolver) RefreshSBOM(id string, cgroup *cgroupModel.CacheEntry) error {
-	if !r.config.SBOMResolverEnabled {
-		return nil
-	}
-
-	r.sbomsLock.Lock()
-	defer r.sbomsLock.Unlock()
-	sbom, ok := r.sboms[id]
-	if !ok {
-		var err error
-		sbom, err = r.newWorkloadEntry(id, cgroup)
-		if err != nil {
-			return err
-		}
-	}
-
-	// push sbom to the scanner chan
-	select {
-	case r.scannerChan <- sbom:
-	default:
-	}
-	return nil
-}
-
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
 func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
