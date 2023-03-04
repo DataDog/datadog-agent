@@ -77,20 +77,21 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	stackManager := infra.GetStackManager()
 
 	config := auto.ConfigMap{
-		"ddinfra:aws/defaultARMInstanceType":  auto.ConfigValue{Value: armInstanceType},
-		"ddinfra:aws/defaultInstanceType":     auto.ConfigValue{Value: x86InstanceType},
-		"ddinfra:aws/defaultKeyPairName":      auto.ConfigValue{Value: "datadog-agent-kitchen"},
-		"ddinfra:aws/defaultPrivateKeyPath":   auto.ConfigValue{Value: SSHKeyFile},
-		"ddinfra:aws/defaultSecurityGroups":   auto.ConfigValue{Value: securityGroups},
-		"ddinfra:aws/defaultSubnets":          auto.ConfigValue{Value: subnets},
-		"ddinfra:aws/defaultShutdownBehavior": auto.ConfigValue{Value: "terminate"},
-		"microvm:microVMConfigFile":           auto.ConfigValue{Value: vmConfig},
-		"microvm:libvirtSSHKeyFileX86":        auto.ConfigValue{Value: sshKeyX86},
-		"microvm:libvirtSSHKeyFileArm":        auto.ConfigValue{Value: sshKeyArm},
-		"microvm:provision":                   auto.ConfigValue{Value: "false"},
-		"microvm:x86AmiID":                    auto.ConfigValue{Value: opts.X86AmiID},
-		"microvm:arm64AmiID":                  auto.ConfigValue{Value: opts.ArmAmiID},
-		"microvm:workingDir":                  auto.ConfigValue{Value: CustomAMIWorkingDir},
+		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
+		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
+		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: "datadog-agent-kitchen"},
+		"ddinfra:aws/defaultPrivateKeyPath":      auto.ConfigValue{Value: SSHKeyFile},
+		"ddinfra:aws/defaultSecurityGroups":      auto.ConfigValue{Value: securityGroups},
+		"ddinfra:aws/defaultSubnets":             auto.ConfigValue{Value: subnets},
+		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
+		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
+		"microvm:microVMConfigFile":              auto.ConfigValue{Value: vmConfig},
+		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
+		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
+		"microvm:provision":                      auto.ConfigValue{Value: "false"},
+		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
+		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
+		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
 	}
 
 	_, upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.envName, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
