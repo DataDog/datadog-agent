@@ -93,7 +93,6 @@ type Resolver struct {
 	sbomsCacheLock sync.RWMutex
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
-	config         *config.Config
 	statsdClient   statsd.ClientInterface
 	trivyScanner   trivy.Collector
 
@@ -129,7 +128,6 @@ func NewSBOMResolver(c *config.Config, tagsResolver *tags.Resolver, statsdClient
 	}
 
 	resolver := &Resolver{
-		config:                c,
 		statsdClient:          statsdClient,
 		sboms:                 make(map[string]*SBOM),
 		sbomsCache:            sbomsCache,
