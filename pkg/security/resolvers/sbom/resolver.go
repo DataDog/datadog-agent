@@ -313,10 +313,6 @@ func (r *Resolver) RefreshSBOM(id string, cgroup *cgroupModel.CacheEntry) error 
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
 func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
-	if !r.config.SBOMResolverEnabled {
-		return nil
-	}
-
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 	sbom, ok := r.sboms[containerID]
@@ -387,10 +383,6 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(sbom *cgroupModel.CacheEntry)
 
 // Retain increments the reference counter of the SBOM of a sbom
 func (r *Resolver) Retain(id string, cgroup *cgroupModel.CacheEntry) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
@@ -425,10 +417,6 @@ func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
 
 // Delete removes the SBOM of the provided cgroup
 func (r *Resolver) Delete(id string) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	sbom := r.GetWorkload(id)
 	if sbom == nil {
 		return
