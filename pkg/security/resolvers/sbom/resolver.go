@@ -176,10 +176,6 @@ func (r *Resolver) prepareContextTags() {
 
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
