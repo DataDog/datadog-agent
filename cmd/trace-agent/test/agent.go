@@ -150,7 +150,6 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	ch := make(chan error, 1) // don't block
 	go func() {
 		ch <- cmd.Wait()
-		os.Remove(path)
 		s.mu.Lock()
 		s.pid = 0
 		s.mu.Unlock()
