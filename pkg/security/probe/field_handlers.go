@@ -423,6 +423,10 @@ func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent)
 			return ""
 		}
 
+		if fh.resolvers.SBOMResolver != nil {
+			return ""
+		}
+
 		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
 			f.PkgName = pkg.Name
 		}
@@ -438,6 +442,10 @@ func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEve
 			return ""
 		}
 
+		if fh.resolvers.SBOMResolver != nil {
+			return ""
+		}
+
 		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
 			f.PkgVersion = pkg.Version
 		}
@@ -450,6 +458,10 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 	if f.PkgSrcVersion == "" {
 		// Force the resolution of file path to be able to map to a package provided file
 		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if fh.resolvers.SBOMResolver != nil {
 			return ""
 		}
 
