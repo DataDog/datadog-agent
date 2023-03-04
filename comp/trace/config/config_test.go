@@ -1131,8 +1131,8 @@ func TestMockConfig(t *testing.T) {
 		require.NotNil(t, cfg)
 
 		// values aren't set from env..
-		assert.Equal(t, "", cfg.Hostname)
-		assert.NotEqual(t, "", cfg.Site)
+		assert.NotEqual(t, "foo", cfg.Hostname)
+		assert.NotEqual(t, "datadoghq.eu", cfg.Site)
 
 		// but defaults are set
 		assert.Equal(t, true, cfg.Enabled)

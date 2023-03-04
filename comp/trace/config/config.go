@@ -41,7 +41,7 @@ type cfg struct {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	tracecfg, err := setupConfig(deps)
+	tracecfg, err := setupConfig(deps, "")
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func httpError(w http.ResponseWriter, status int, err error) {
 func newMock(deps dependencies, t testing.TB) Component {
 	// injected Agentconfig should be a mock
 
-	tracecfg, err := setupConfig(deps)
+	tracecfg, err := setupConfig(deps, "foo")
 	if err != nil {
 		return nil
 	}

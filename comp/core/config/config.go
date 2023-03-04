@@ -60,6 +60,7 @@ func newMock(deps dependencies, t testing.TB) Component {
 	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
 	c := &cfg{
 		warnings: &config.Warnings{},
+		Config:   config.Datadog,
 	}
 
 	// call InitConfig to set defaults.

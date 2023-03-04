@@ -19,7 +19,10 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
+		// instantiate all of the core components, since this is not done
+		// automatically.
 		fx.Invoke(func(r config.Component) {}),
+		fx.Invoke(func(coreconfig.Component) {}),
 		// supply the necessary parameters to populate the agent and trace
 		// configs in the agent.
 		fx.Supply(config.NewParams()),
@@ -35,6 +38,12 @@ func TestBundle(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	fxutil.Test(t, fx.Options(
+		// instantiate all of the core components, since this is not done
+		// automatically.
+		fx.Invoke(func(r config.Component) {}),
+		fx.Invoke(func(coreconfig.Component) {}),
+		// supply the necessary parameters to populate the agent and trace
+		// configs in the agent.
 		fx.Supply(config.NewParams()),
 		fx.Supply(coreconfig.Params{}),
 		MockBundle,

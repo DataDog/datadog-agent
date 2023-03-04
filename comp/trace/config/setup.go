@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -48,16 +49,21 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
-func setupConfig(deps dependencies) (*config.AgentConfig, error) {
+func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) {
 	confFilePath := deps.Params.traceConfFilePath
-	return LoadConfigFile(confFilePath)
+	if apikey != "" {
+		if mock, ok := deps.Config.(corecompcfg.Mock); ok {
+			mock.Set("api_key", apikey)
+		}
+	}
+	return LoadConfigFile(confFilePath, deps.Config)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func LoadConfigFile(path string) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(path)
+func LoadConfigFile(path string, c corecompcfg.Component) (*config.AgentConfig, error) {
+	cfg, err := prepareConfig(path, c)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -71,7 +77,7 @@ func LoadConfigFile(path string) (*config.AgentConfig, error) {
 	return cfg, validate(cfg)
 }
 
-func prepareConfig(path string) (*config.AgentConfig, error) {
+func prepareConfig(path string, c corecompcfg.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
@@ -87,7 +93,12 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
-	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
+	coreConfigObject := c.Object()
+	if coreConfigObject == nil {
+		return nil, fmt.Errorf("No core config found! Bailing out.")
+	}
+
+	if coreConfigObject.GetBool("remote_configuration.enabled") && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote.NewGRPCClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
@@ -96,7 +107,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
-	cfg.ContainerProcRoot = coreconfig.Datadog.GetString("container_proc_root")
+	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	return cfg, nil
 }
 
