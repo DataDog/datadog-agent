@@ -423,7 +423,7 @@ func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent)
 			return ""
 		}
 
-		if fh.resolvers.SBOMResolver != nil {
+		if fh.resolvers.SBOMResolver == nil {
 			return ""
 		}
 
@@ -442,7 +442,7 @@ func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEve
 			return ""
 		}
 
-		if fh.resolvers.SBOMResolver != nil {
+		if fh.resolvers.SBOMResolver == nil {
 			return ""
 		}
 
@@ -461,7 +461,7 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 			return ""
 		}
 
-		if fh.resolvers.SBOMResolver != nil {
+		if fh.resolvers.SBOMResolver == nil {
 			return ""
 		}
 
