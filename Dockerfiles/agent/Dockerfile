@@ -211,3 +211,7 @@ CMD ["/bin/entrypoint.sh"]
 FROM release AS test
 COPY test_image_contents.py /tmp/test_image_contents.py
 RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py
+
+ONBUILD COPY test_gbi.py /tmp/test_gbi.py
+ONBUILD COPY cis.yaml /tmp/cis.yaml
+ONBUILD RUN /tmp/test_gbi.py && rm -f /tmp/test_gbi.py /tmp/cis.yaml
