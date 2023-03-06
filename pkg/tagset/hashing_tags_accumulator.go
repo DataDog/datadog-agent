@@ -7,7 +7,6 @@ package tagset
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/twmb/murmur3"
 )
@@ -95,8 +94,10 @@ func (h *HashingTagsAccumulator) Truncate(len int) {
 
 // Less implements sort.Interface.Less
 func (h *HashingTagsAccumulator) Less(i, j int) bool {
-	// FIXME(vickenty): could sort using hashes, which is faster, but a lot of tests check for order.
-	return h.data[i] < h.data[j]
+	if h.hash[i] == h.hash[j] {
+		return h.data[i] < h.data[j]
+	}
+	return h.hash[i] < h.hash[j]
 }
 
 // Swap implements sort.Interface.Swap
@@ -133,20 +134,20 @@ func (h *HashingTagsAccumulator) removeSorted(o *HashingTagsAccumulator) {
 	hlen, olen := len(h.data), len(o.data)
 
 	for i, j := 0, 0; i < hlen && j < olen; {
-		switch strings.Compare(h.data[i], o.data[j]) {
-		case 0:
+		switch {
+		case h.hash[i] == o.hash[j] && h.data[i] == o.data[j]:
 			h.data[i] = holeData
 			h.hash[i] = holeHash
 			i++
-		case -1:
+		case h.hash[i] < o.hash[j]:
 			i++
-		case 1:
+		case h.hash[i] > o.hash[j]:
 			j++
 		}
 	}
 
 	for i := 0; i < hlen; {
-		if h.data[i] == holeData && h.hash[i] == holeHash {
+		if h.hash[i] == holeHash && h.data[i] == holeData {
 			hlen--
 			h.data[i] = h.data[hlen]
 			h.hash[i] = h.hash[hlen]
