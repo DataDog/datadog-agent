@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Builder is used to build the status.
@@ -41,13 +42,14 @@ func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *so
 // BuildStatus returns the status of the logs-agent.
 func (b *Builder) BuildStatus() Status {
 	return Status{
-		IsRunning:     b.getIsRunning(),
-		Endpoints:     b.getEndpoints(),
-		Integrations:  b.getIntegrations(),
-		StatusMetrics: b.getMetricsStatus(),
-		Warnings:      b.getWarnings(),
-		Errors:        b.getErrors(),
-		UseHTTP:       b.getUseHTTP(),
+		IsRunning:        b.getIsRunning(),
+		Endpoints:        b.getEndpoints(),
+		Integrations:     b.getIntegrations(),
+		StatusMetrics:    b.getMetricsStatus(),
+		ProcessFileStats: b.getProcessFileStats(),
+		Warnings:         b.getWarnings(),
+		Errors:           b.getErrors(),
+		UseHTTP:          b.getUseHTTP(),
 	}
 }
 
@@ -173,4 +175,16 @@ func (b *Builder) getMetricsStatus() map[string]int64 {
 	metrics["BytesSent"] = b.logsExpVars.Get("BytesSent").(*expvar.Int).Value()
 	metrics["EncodedBytesSent"] = b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value()
 	return metrics
+}
+
+func (b *Builder) getProcessFileStats() map[string]float64 {
+	stats := make(map[string]float64)
+	fs, err := util.GetProcessFileStats()
+	if err != nil {
+		return stats
+	}
+
+	stats["CoreAgentProcessOpenFiles"] = fs.AgentOpenFiles
+	stats["OSFileLimit"] = fs.OsFileLimit
+	return stats
 }

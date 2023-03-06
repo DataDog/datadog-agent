@@ -393,7 +393,7 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 		newDump.AddStorageRequest(config.NewStorageRequest(
 			config.RemoteStorage,
 			format,
-			adm.config.ActivityDumpRemoteStorageCompression,
+			true, // force remote compression
 			"",
 		))
 	}
@@ -479,7 +479,9 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 	toDelete := -1
 	for i, d := range adm.activeDumps {
-		if d.nameMatches(params.GetName()) || d.containerIDMatches(params.GetContainerID()) || d.commMatches(params.GetComm()) {
+		if (params.GetName() != "" && d.nameMatches(params.GetName())) ||
+			(params.GetContainerID() != "" && d.containerIDMatches(params.GetContainerID())) ||
+			(params.GetComm() != "" && d.commMatches(params.GetComm())) {
 			d.Finalize(true)
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 			toDelete = i

@@ -56,6 +56,8 @@ const (
 )
 
 var (
+	// When adding new environment variables, they need to be added to
+	// pkg/util/containers/env_vars_filter.go
 	standardEnvKeys = map[string]string{
 		envVarEnv:     tagKeyEnv,
 		envVarVersion: tagKeyVersion,
@@ -274,6 +276,14 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 	}
 	if deployName, found := pod.Annotations["openshift.io/deployment.name"]; found {
 		tags.AddOrchestrator("oshift_deployment", deployName)
+	}
+
+	// Admission + Remote Config correlation tags
+	if rcID, found := pod.Annotations[kubernetes.RcIDAnnotKey]; found {
+		tags.AddLow(kubernetes.RcIDTagName, rcID)
+	}
+	if rcRev, found := pod.Annotations[kubernetes.RcRevisionAnnotKey]; found {
+		tags.AddLow(kubernetes.RcRevisionTagName, rcRev)
 	}
 
 	for _, owner := range pod.Owners {

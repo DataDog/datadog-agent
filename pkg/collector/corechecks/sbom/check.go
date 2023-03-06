@@ -120,7 +120,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		return err
 	}
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
+	c.processor = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
 
 	return nil
 }
@@ -134,9 +134,12 @@ func (c *Check) Run() error {
 		checkName,
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
+			[]workloadmeta.Kind{
+				workloadmeta.KindContainerImageMetadata,
+				workloadmeta.KindContainer,
+			},
 			workloadmeta.SourceAll,
-			workloadmeta.EventTypeSet, // We don’t care about SBOM removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+			workloadmeta.EventTypeAll,
 		),
 	)
 

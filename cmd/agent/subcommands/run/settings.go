@@ -17,10 +17,10 @@ func initRuntimeSettings(server dogstatsdServer.Component) error {
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction{}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate("runtime_block_profile_rate")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate{}); err != nil {
 		return err
 	}
 	if err := commonsettings.RegisterRuntimeSetting(&settings.DsdStatsRuntimeSetting{Server: server}); err != nil {
@@ -32,7 +32,7 @@ func initRuntimeSettings(server dogstatsdServer.Component) error {
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogPayloadsRuntimeSetting{}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines("internal_profiling_goroutines")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines{}); err != nil {
 		return err
 	}
 	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-agent"})

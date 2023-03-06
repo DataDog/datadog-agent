@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using Datadog.CustomActions;
+using Microsoft.Deployment.WindowsInstaller;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -22,7 +24,7 @@ namespace WixSetup.Datadog
         private const string ProductContact = @"https://www.datadoghq.com/about/contact/";
 
         // same value for all versions; must not be changed
-        private static readonly Guid ProductUpgradeCode = new Guid("0c50421b-aefb-4f15-a809-7af256d608a5");
+        private static readonly Guid ProductUpgradeCode = new("0c50421b-aefb-4f15-a809-7af256d608a5");
         private static readonly string ProductLicenceRtfFilePath = Path.Combine("assets", "LICENSE.rtf");
         private static readonly string ProductIconFilePath = Path.Combine("assets", "project.ico");
         private static readonly string InstallerBackgroundImagePath = Path.Combine("assets", "dialog_background.bmp");
@@ -34,11 +36,11 @@ namespace WixSetup.Datadog
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
 
         private readonly AgentBinaries _agentBinaries;
-        private readonly AgentFeatures _agentFeatures = new AgentFeatures();
-        private readonly AgentPython _agentPython = new AgentPython();
-        private readonly AgentVersion _agentVersion = new AgentVersion();
+        private readonly AgentFeatures _agentFeatures = new();
+        private readonly AgentPython _agentPython = new();
+        private readonly AgentVersion _agentVersion = new();
         private readonly AgentSignature _agentSignature;
-        private readonly AgentCustomActions _agentCustomActions = new AgentCustomActions();
+        private readonly AgentCustomActions _agentCustomActions = new();
         private readonly AgentInstallerUI _agentInstallerUi;
 
         public AgentInstaller()
@@ -50,7 +52,7 @@ namespace WixSetup.Datadog
 
         public Project ConfigureProject()
         {
-            var project = new Project("Datadog Agent",
+            var project = new ManagedProject("Datadog Agent",
                 new User
                 {
                     // CreateUser fails with ERROR_BAD_USERNAME if Name is a fully qualified user name
@@ -108,7 +110,8 @@ namespace WixSetup.Datadog
                     Win64 = true
                 },
                 new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
-            )
+            );
+            project
             .SetCustomActions(_agentCustomActions)
             .SetProjectInfo(
                 upgradeCode: ProductUpgradeCode,
@@ -144,15 +147,15 @@ namespace WixSetup.Datadog
                     {
                         Name = "Datadog Agent Manager",
                         Target = "[AGENT]ddtray.exe",
-                        Arguments = "\"-launch-gui\"",
+                        Arguments = "\"--launch-gui\"",
                         WorkingDirectory = "AGENT",
                     }
                 ),
                 new Dir("logs")
-            )
+            );
+
             // enable the ability to repair the installation even when the original MSI is no longer available.
-            //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008 R2
-            ;
+            project.EnableResilientPackage();
 
             // Set this explicitly to false so that we're not tempted to set it to true
             // in the future. This flag causes Wix to ignore the fourth product version,
@@ -161,8 +164,9 @@ namespace WixSetup.Datadog
             project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
             project.ReinstallMode = "amus";
             project.Platform = Platform.x64;
-            // MSI 4.0+ required
-            project.InstallerVersion = 400;
+            // MSI 5.0 was shipped in Windows Server 2012 R2.
+            // https://learn.microsoft.com/en-us/windows/win32/msi/released-versions-of-windows-installer
+            project.InstallerVersion = 500;
             project.DefaultFeature = _agentFeatures.MainApplication;
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;

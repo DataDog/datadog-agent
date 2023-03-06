@@ -18,7 +18,12 @@ func NotOfValue(value interface{}) (interface{}, error) {
 	case int:
 		return ^v, nil
 	case string:
-		return RandString(256), nil
+		// ensure the not value is different
+		if v == "" {
+			return "<NOT>", nil
+		} else {
+			return "", nil
+		}
 	case bool:
 		return !v, nil
 	}

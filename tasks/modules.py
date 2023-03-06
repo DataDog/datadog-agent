@@ -126,12 +126,9 @@ DEFAULT_MODULES = {
         "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
     "test/new-e2e": GoModule("test/new-e2e", condition=lambda: False, should_tag=False),
-    "test/fakeintake": GoModule(
-        "test/fakeintake", targets=["./server", "./client"], independent=True, should_tag=False
-    ),
+    "test/fakeintake": GoModule("test/fakeintake", independent=True, should_tag=False),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/trace": GoModule("pkg/trace", independent=True),
-    "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),

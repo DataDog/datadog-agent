@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -22,10 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewPodCheck returns an instance of the Pod check
-func NewPodCheck() Check {
+func NewPodCheck() *PodCheck {
 	return &PodCheck{
 		config: oconfig.NewDefaultOrchestratorConfig(),
 	}
@@ -49,7 +48,16 @@ func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *PodCheck) IsEnabled() bool {
-	// TODO - move config check logic here
+	// activate the pod collection if enabled and we have the cluster name set
+	orchestratorEnabled, kubeClusterName := oconfig.IsOrchestratorEnabled()
+	if !orchestratorEnabled {
+		return false
+	}
+
+	if kubeClusterName == "" {
+		_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		return false
+	}
 	return true
 }
 
@@ -90,7 +98,7 @@ func (c *PodCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, erro
 		Cfg:                c.config,
 		HostName:           c.hostInfo.HostName,
 		MsgGroupID:         groupID,
-		NodeType:           model.K8SResource_POD,
+		NodeType:           orchestrator.K8sPod,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
 	}
 

@@ -1,10 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml.Linq;
-using Cave.Compression.Tar;
+using ICSharpCode.SharpZipLib.Tar;
 using SevenZip;
+using WixSharp;
 using File = System.IO.File;
 
 namespace WixSetup
@@ -16,8 +18,8 @@ namespace WixSetup
         public CompressedDir(IWixProjectEvents wixProjectEvents, string targetPath, string sourceDir)
             : base($"{targetPath}.COMPRESSED")
         {
-            wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
             _sourceDir = sourceDir;
+            wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
         }
 
         public void OnWixSourceGenerated(XDocument document)
@@ -32,11 +34,30 @@ namespace WixSetup
 #endif
             var tar = $"{Name}.tar";
 
+            var filesInSourceDir = new DirectoryInfo(_sourceDir)
+                .EnumerateFiles("*", SearchOption.AllDirectories)
+                .ToArray();
+            var sourceDirName = Path.GetFileName(_sourceDir);
+            var directorySize = filesInSourceDir
+                .Sum(file => file.Length)
+                .ToString();
+            document
+                .Select("Wix/Product")
+                .AddElement("Property", $"Id={sourceDirName}_SIZE; Value={directorySize}");
+
             using (var outStream = File.Create(tar))
             {
-                using (var tarOutStream = new TarWriter(outStream, false))
+                using var tarArchive = new TarOutputStream(outStream, Encoding.UTF8);
+                foreach (var file in filesInSourceDir)
                 {
-                    tarOutStream.AddDirectory(Path.GetFileName(_sourceDir), _sourceDir);
+                    // Path in tar must be in UNIX format
+                    var nameInTar = $"{sourceDirName}{file.FullName.Substring(_sourceDir.Length)}".Replace('\\', '/');
+                    var entry = TarEntry.CreateTarEntry(nameInTar);
+                    using var fileStream = File.OpenRead(file.FullName);
+                    entry.Size = fileStream.Length;
+                    tarArchive.PutNextEntry(entry);
+                    fileStream.CopyTo(tarArchive);
+                    tarArchive.CloseEntry();
                 }
             }
 

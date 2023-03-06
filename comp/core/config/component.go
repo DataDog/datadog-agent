@@ -24,6 +24,8 @@ import (
 
 // team: agent-shared-components
 
+type LogConfig config.ConfigReader
+
 // Component is the component type.
 type Component interface {
 	config.ConfigReader

@@ -19,7 +19,7 @@ import (
 //go:generate go run ../../ebpf/include_headers.go ./c/prebuilt/probe.c ../../ebpf/bytecode/build/runtime/runtime-security.c ./c ../../ebpf/c
 //go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/runtime-security.c ../../ebpf/bytecode/runtime/runtime-security.go runtime
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
 	var cflags []string
 
 	if useSyscallWrapper {
@@ -30,6 +30,10 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool, c
 
 	if !config.NetworkEnabled {
 		cflags = append(cflags, "-DDO_NOT_USE_TC")
+	}
+
+	if useRingBuffer {
+		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
 	}
 
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags, client)

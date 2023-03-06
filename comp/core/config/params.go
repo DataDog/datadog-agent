@@ -5,8 +5,6 @@
 
 package config
 
-import "github.com/DataDog/datadog-agent/cmd/agent/common"
-
 // Params defines the parameters for the config component.
 type Params struct {
 	// confFilePath is the path at which to look for configuration, usually
@@ -35,6 +33,10 @@ type Params struct {
 	// file does not exist.
 	configMissingOK bool
 
+	// ignoreErrors determines whether it is OK if the config is not valid
+	// If an error occurs, Component.warnings.Warning contains the error.
+	ignoreErrors bool
+
 	// defaultConfPath determines the default configuration path.
 	// if defaultConfPath is empty, then no default configuration path is used.
 	defaultConfPath string
@@ -62,7 +64,7 @@ func NewAgentParamsWithoutSecrets(confFilePath string, options ...func(*Params))
 }
 
 func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func(*Params)) Params {
-	params := NewParams(common.DefaultConfPath, options...)
+	params := NewParams(DefaultConfPath, options...)
 	params.confFilePath = confFilePath
 	params.configLoadSecrets = configLoadSecrets
 	return params
@@ -70,7 +72,7 @@ func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func
 
 // NewSecurityAgentParams creates a new instance of Params for the Security Agent.
 func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...func(*Params)) Params {
-	params := NewParams(common.DefaultConfPath, options...)
+	params := NewParams(DefaultConfPath, options...)
 
 	// By default, we load datadog.yaml and then merge security-agent.yaml
 	if len(securityAgentConfigFilePaths) > 0 {
@@ -85,7 +87,7 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 }
 
 func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Params {
-	params := NewParams(common.DefaultConfPath, options...)
+	params := NewParams(DefaultConfPath, options...)
 	params.confFilePath = configFilePath
 	params.configName = "datadog-cluster"
 	return params
@@ -100,6 +102,12 @@ func WithConfigName(name string) func(*Params) {
 func WithConfigMissingOK(v bool) func(*Params) {
 	return func(b *Params) {
 		b.configMissingOK = v
+	}
+}
+
+func WithIgnoreErrors(v bool) func(*Params) {
+	return func(b *Params) {
+		b.ignoreErrors = v
 	}
 }
 

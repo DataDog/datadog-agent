@@ -4,4 +4,4 @@ services:
     image: ${IMAGE_VERSION}
     entrypoint: java -cp /v ${ENTRYCLASS}
     volumes:
-      - ./:/v
+      - ./:/v:z

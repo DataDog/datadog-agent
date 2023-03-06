@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Profile holds the list of rules generated from an activity dump
@@ -45,7 +45,7 @@ rules:{{ range .Rules }}
 // NewProfileRule returns a new ProfileRule
 func NewProfileRule(expression string, ruleIDPrefix string) ProfileRule {
 	return ProfileRule{
-		ID:         ruleIDPrefix + "_" + eval.RandString(5),
+		ID:         ruleIDPrefix + "_" + utils.RandString(5),
 		Expression: expression,
 	}
 }
@@ -189,7 +189,7 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 	defer ad.Unlock()
 
 	p := Profile{
-		Name: "profile_" + eval.RandString(5),
+		Name: "profile_" + utils.RandString(5),
 	}
 
 	// generate selector

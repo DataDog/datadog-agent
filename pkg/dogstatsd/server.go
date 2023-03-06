@@ -301,7 +301,7 @@ func NewServer(serverless bool) *Server {
 		listeners:               nil,
 		stopChan:                make(chan bool),
 		serverlessFlushChan:     make(chan bool),
-		health:                  health.RegisterLiveness("dogstatsd-main"),
+		health:                  nil,
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
 		extraTags:               extraTags,
@@ -409,6 +409,7 @@ func (s *Server) Start(demultiplexer aggregator.Demultiplexer) error {
 	// start the workers processing the packets read on the socket
 	// ----------------------
 
+	s.health = health.RegisterLiveness("dogstatsd-main")
 	s.handleMessages()
 	s.Started = true
 
@@ -469,7 +470,7 @@ func (s *Server) handleMessages() {
 
 // Capture starts a traffic capture at the specified path and with the specified duration,
 // an empty path will default to the default location. Returns an error if any.
-func (s *Server) Capture(p string, d time.Duration, compressed bool) error {
+func (s *Server) Capture(p string, d time.Duration, compressed bool) (string, error) {
 	return s.TCapture.Start(p, d, compressed)
 }
 

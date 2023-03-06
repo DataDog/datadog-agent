@@ -21,6 +21,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// NewDatadogMetricForTests creates a new internal metric for tests.
+func NewDatadogMetricForTests(id, query string, maxAge, timeWindow time.Duration) model.DatadogMetricInternal {
+	metric := model.NewDatadogMetricInternalFromExternalMetric(id, query, id, "")
+	metric.MaxAge = maxAge
+	metric.TimeWindow = timeWindow
+	return metric
+}
+
 type mockedProcessor struct {
 	points map[string]autoscalers.Point
 	err    error
@@ -631,4 +639,25 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			fixture.run(t, defaultTestTime)
 		})
 	}
+}
+
+func TestGetUniqueQueriesByTimeWindow(t *testing.T) {
+	metrics := []model.DatadogMetricInternal{
+		NewDatadogMetricForTests("1", "system.cpu", time.Minute*1, time.Hour*2),
+		NewDatadogMetricForTests("2", "system.cpu", time.Minute*1, time.Hour*2),
+		NewDatadogMetricForTests("3", "system.mem", time.Minute*1, time.Hour*2),
+		NewDatadogMetricForTests("4", "system.mem", time.Minute*1, time.Minute*2),
+		NewDatadogMetricForTests("5", "system.mem", time.Minute*1, time.Minute*1),
+		NewDatadogMetricForTests("6", "system.network", time.Minute*1, time.Minute*1),
+		NewDatadogMetricForTests("7", "system.disk", time.Minute*1, 0),
+	}
+	metricsByTimeWindow := getBatchedQueriesByTimeWindow(metrics)
+	expected := map[time.Duration][]string{
+		// These have a longer than default time window
+		time.Hour * 2: {"system.cpu", "system.mem"},
+		// These do not.
+		autoscalers.GetDefaultTimeWindow(): {"system.mem", "system.network", "system.disk"},
+	}
+
+	assert.Equal(t, expected, metricsByTimeWindow)
 }

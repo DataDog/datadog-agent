@@ -6,10 +6,11 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/server"
 )
@@ -18,17 +19,33 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
-	fmt.Println("⌛️ Starting fake intake")
-	fi := fakeintake.NewServer(8080)
-	fmt.Println("🏃 Fake intake running")
+	log.Println("⌛️ Starting fake intake")
+	ready := make(chan bool, 1)
+	fi := fakeintake.NewServer(fakeintake.WithPort(8080), fakeintake.WithReadyChannel(ready))
+	fi.Start()
+	timeout := time.NewTimer(5 * time.Second)
+
+	select {
+	case isReady := <-ready:
+		if !isReady {
+			log.Println("Error starting fake intake")
+			return
+		}
+	case <-timeout.C:
+		log.Println("Error starting server, not ready after 250 ms")
+		return
+	}
+	timeout.Stop()
+
+	log.Println("🏃 Fake intake running")
 
 	<-sigs
-	fmt.Println("Stopping fake intake")
+	log.Println("Stopping fake intake")
 	err := fi.Stop()
 	if err != nil {
-		fmt.Println("Error stopping fake intake, ", err)
+		log.Println("Error stopping fake intake, ", err)
 	}
 
-	fmt.Println("Fake intake is stopped")
-	fmt.Println("👋 Bye bye")
+	log.Println("Fake intake is stopped")
+	log.Println("👋 Bye bye")
 }

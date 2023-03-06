@@ -27,6 +27,7 @@ co_re_tests = Array.[](
 TIMEOUTS = {
   "pkg/network/protocols" => "5m",
   # disable timeouts for pkg/network/tracer
+  "pkg/network/protocols/http$" => "0",
   "pkg/network/tracer$" => "0",
 }
 
@@ -82,6 +83,7 @@ shared_examples "passes" do |bundle, env, filter, filter_inclusive|
 
     base_env = {
       "DD_SYSTEM_PROBE_BPF_DIR"=>"#{tests_dir}/pkg/ebpf/bytecode/build",
+      "DD_SYSTEM_PROBE_JAVA_DIR"=>"#{tests_dir}/pkg/network/java",
       "GOVERSION"=>"unknown"
     }
     junitfile = pkg.gsub("/","-") + ".xml"

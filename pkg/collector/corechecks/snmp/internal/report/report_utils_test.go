@@ -16,9 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func Test_getScalarValueFromSymbol(t *testing.T) {
@@ -726,4 +728,78 @@ func Test_netmaskToPrefixlen(t *testing.T) {
 	assert.Equal(t, 2, netmaskToPrefixlen("192.0.0.0"))
 	assert.Equal(t, 1, netmaskToPrefixlen("128.0.0.0"))
 	assert.Equal(t, 0, netmaskToPrefixlen("0.0.0.0"))
+}
+
+func Test_getInterfaceConfig(t *testing.T) {
+	tests := []struct {
+		name                    string
+		interfaceConfigs        []snmpintegration.InterfaceConfig
+		index                   string
+		tags                    []string
+		expectedInterfaceConfig snmpintegration.InterfaceConfig
+		expectedError           string
+	}{
+		{
+			name: "matched by name",
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "name",
+					MatchValue: "eth0",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedInterfaceConfig: snmpintegration.InterfaceConfig{
+				MatchField: "name",
+				MatchValue: "eth0",
+				InSpeed:    80,
+			},
+		},
+		{
+			name: "matched by index",
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "index",
+					MatchValue: "10",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedInterfaceConfig: snmpintegration.InterfaceConfig{
+				MatchField: "index",
+				MatchValue: "10",
+				InSpeed:    80,
+			},
+		},
+		{
+			name: "not matched",
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "index",
+					MatchValue: "99",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedError: "no matching interface found for index=10, tags=[interface:eth0]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := getInterfaceConfig(tt.interfaceConfigs, tt.index, tt.tags)
+			if tt.expectedError != "" {
+				assert.EqualError(t, err, tt.expectedError)
+			}
+			assert.Equal(t, tt.expectedInterfaceConfig, config)
+		})
+	}
 }

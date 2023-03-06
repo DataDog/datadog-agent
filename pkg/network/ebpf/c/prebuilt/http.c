@@ -20,16 +20,25 @@
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/http.h"
 #include "protocols/http/buffer.h"
+#include "protocols/http2/decoding.h"
 #include "protocols/tls/https.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/java-tls-erpc.h"
+#include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3
 
-// This entry point is needed to bypass a memory limit on socket filters
-// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
 SEC("socket/protocol_dispatcher")
 int socket__protocol_dispatcher(struct __sk_buff *skb) {
     protocol_dispatcher_entrypoint(skb);
+    return 0;
+}
+
+// This entry point is needed to bypass a memory limit on socket filters
+// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
+SEC("socket/protocol_dispatcher_kafka")
+int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
+    dispatch_kafka(skb);
     return 0;
 }
 
@@ -46,14 +55,74 @@ int socket__http_filter(struct __sk_buff* skb) {
     if (!http_allow_packet(&http, skb, &skb_info)) {
         return 0;
     }
-
-    // src_port represents the source port number *before* normalization
-    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http.owned_by_src_port = http.tup.sport;
     normalize_tuple(&http.tup);
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
     http_process(&http, &skb_info, NO_TAGS);
+    return 0;
+}
+
+SEC("socket/http2_filter")
+int socket__http2_filter(struct __sk_buff *skb) {
+    const __u32 zero = 0;
+    http2_iterations_key_t iterations_key;
+    bpf_memset(&iterations_key, 0, sizeof(http2_iterations_key_t));
+    if (!read_conn_tuple_skb(skb, &iterations_key.skb_info, &iterations_key.tup)) {
+        return 0;
+    }
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
+    if (tail_call_state == NULL) {
+        http2_tail_call_state_t iteration_value = {};
+        bpf_map_update_with_telemetry(http2_iterations, &iterations_key, &iteration_value, BPF_NOEXIST);
+        tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
+        if (tail_call_state == NULL) {
+            return 0;
+        }
+    }
+
+    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
+    if (is_tcp_termination(&iterations_key.skb_info)) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
+        goto delete_iteration;
+    }
+
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
+    if (http2_ctx == NULL) {
+        goto delete_iteration;
+    }
+
+    // create the http2 ctx for the current http2 frame.
+    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx->http2_stream_key.tup = iterations_key.tup;
+    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    http2_ctx->dynamic_index.tup = iterations_key.tup;
+    iterations_key.skb_info.data_off += tail_call_state->offset;
+
+    // perform the http2 decoding part.
+    __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
+    if (read_size <= 0 || read_size == -1) {
+        goto delete_iteration;
+    }
+    if (iterations_key.skb_info.data_off + read_size >= skb->len) {
+        goto delete_iteration;
+    }
+
+    // update the tail calls state when the http2 decoding part was completed successfully.
+    tail_call_state->iteration += 1;
+    tail_call_state->offset += read_size;
+    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
+        bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
+    }
+
+delete_iteration:
+    bpf_map_delete_elem(&http2_iterations, &iterations_key);
+
     return 0;
 }
 
@@ -70,7 +139,9 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     log_debug("tracepoint/net/netif_receive_skb\n");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
+    http2_batch_flush(ctx);
+    kafka_batch_flush(ctx);
     return 0;
 }
 
@@ -196,7 +267,7 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, len, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -233,7 +304,7 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -286,7 +357,7 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
@@ -336,7 +407,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;
@@ -353,6 +424,8 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     }
 
     https_finish(t);
+    http_batch_flush(ctx);
+
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
     return 0;
 }
@@ -457,7 +530,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, read_len, LIBGNUTLS);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -495,7 +568,7 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBGNUTLS);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -518,6 +591,7 @@ SEC("uprobe/gnutls_bye")
 int uprobe__gnutls_bye(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     gnutls_goodbye(ssl_session);
+    http_batch_flush(ctx);
     return 0;
 }
 
@@ -526,6 +600,7 @@ SEC("uprobe/gnutls_deinit")
 int uprobe__gnutls_deinit(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     gnutls_goodbye(ssl_session);
+    http_batch_flush(ctx);
     return 0;
 }
 
@@ -625,6 +700,15 @@ int kretprobe__do_sys_open(struct pt_regs* ctx) {
 SEC("kretprobe/do_sys_openat2")
 int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
     return do_sys_open_helper_exit(ctx);
+}
+
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        handle_erpc_request(ctx);
+    }
+
+    return 0;
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

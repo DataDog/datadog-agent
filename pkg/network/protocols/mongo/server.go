@@ -19,7 +19,7 @@ const (
 	Pass = "password"
 )
 
-func RunMongoServer(t *testing.T, serverAddress, serverPort string) {
+func RunServer(t *testing.T, serverAddress, serverPort string) bool {
 	env := []string{
 		"MONGO_ADDR=" + serverAddress,
 		"MONGO_PORT=" + serverPort,
@@ -27,5 +27,5 @@ func RunMongoServer(t *testing.T, serverAddress, serverPort string) {
 		"MONGO_PASSWORD=" + Pass,
 	}
 	dir, _ := testutil.CurDir()
-	protocolsUtils.RunDockerServer(t, "mongo", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "mongo", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), protocolsUtils.DefaultTimeout)
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
@@ -167,11 +168,11 @@ func (m *Module) Start() error {
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
 		if triggerred, err := m.RunSelfTest(true); err != nil {
-			err = fmt.Errorf("failed to run self test: %s", err)
+			err = fmt.Errorf("failed to run self test: %w", err)
 			if !triggerred {
 				return err
 			}
-			seclog.Warnf("failed to run self tests: %s", err)
+			seclog.Warnf("%s", err)
 		}
 	}
 
@@ -262,7 +263,7 @@ func (m *Module) Start() error {
 	return nil
 }
 
-func (m *Module) displayApplyRuleSetReport(report *sprobe.ApplyRuleSetReport) {
+func (m *Module) displayApplyRuleSetReport(report *kfilters.ApplyRuleSetReport) {
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 }
@@ -457,6 +458,13 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
+
+	if ok, val := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
+		if ev.ContainerContext.ID != "" && m.config.ActivityDumpTagRulesEnabled {
+			ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
+		}
+		return // if the triggered rule is only meant to tag secdumps, dont send it
+	}
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing

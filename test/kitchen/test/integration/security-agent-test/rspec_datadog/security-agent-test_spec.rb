@@ -14,6 +14,27 @@ platform = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
 
 cws_platform = File.read('/tmp/security-agent/cws_platform').strip
 
+GOLANG_TEST_FAILURE = /FAIL:/
+
+def check_output(output, wait_thr, tag="")
+  test_failures = []
+
+  puts "Begin Test Output"
+  output.each_line do |line|
+    stripped_line = line.strip
+    puts KernelOut.format(stripped_line, tag)
+    test_failures << KernelOut.format(stripped_line, tag) if line =~ GOLANG_TEST_FAILURE
+  end
+  puts "End Test Output"
+
+  if test_failures.empty? && !wait_thr.value.success?
+    test_failures << KernelOut.format("Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured.", tag)
+  end
+
+  puts "Test Failures"
+  puts test_failures.join("\n")
+end
+
 shared_examples "passes" do |bundle, env|
   after :context do
     # Combine all the /tmp/pkgjson/#{bundle}.json files into one /tmp/testjson/#{bundle}.json file, which is then used to print failed tests at the end of the functional test Gitlab job
@@ -22,6 +43,7 @@ shared_examples "passes" do |bundle, env|
 
   base_env = {
     "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
+    "GOVERSION"=>"unknown"
   }
   final_env = base_env.merge(env)
 
@@ -48,18 +70,19 @@ shared_examples "passes" do |bundle, env|
       if bundle == "docker"
         cmd = gotestsum_test2json_cmd.concat(["docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=#{final_env["DD_SYSTEM_PROBE_BPF_DIR"]}",
           "docker-testsuite", testsuite_file_path, "-status-metrics", "--env", "docker", "-test.v", "-test.count=1"])
+        output_line_tag = "d"
       else
         cmd = gotestsum_test2json_cmd.concat([testsuite_file_path, "-status-metrics", "-test.v", "-test.count=1"])
+        output_line_tag = "h"
 
         if bundle == "ad"
           cmd.concat(["-test.run", "TestActivityDump"])
+          output_line_tag = "ad"
         end
       end
 
       Open3.popen2e(final_env, *cmd) do |_, output, wait_thr|
-        output.each_line do |line|
-          puts KernelOut.format(line.strip)
-        end
+        check_output(output, wait_thr, output_line_tag)
       end
 
       xmldoc = REXML::Document.new(File.read(xmlpath))

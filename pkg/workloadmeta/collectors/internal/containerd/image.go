@@ -342,15 +342,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		},
 	})
 
-	if existingBOM == nil && sbomCollectionIsEnabled() {
-		// Notify image scanner
-		c.imagesToScan <- namespacedImage{
-			namespace: namespace,
-			image:     img,
-			imageID:   imageID,
-		}
-	}
-
 	return nil
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -77,6 +78,8 @@ func MakeCommand() *cobra.Command {
 					LogParams:    logParams,
 				}),
 				core.Bundle,
+				// flare
+				flare.Module,
 				// systray
 				fx.Supply(systrayParams),
 				systray.Module,

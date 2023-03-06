@@ -132,11 +132,11 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
 
     build_context = "Dockerfiles/cluster-agent"
     exec_path = f"{build_context}/datadog-cluster-agent.{arch}"
-    dockerfile_path = f"{build_context}/{arch}/Dockerfile"
+    dockerfile_path = f"{build_context}/Dockerfile"
 
     shutil.copy2(latest_file, exec_path)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
-    ctx.run(f"docker build -t {tag} {build_context} -f {dockerfile_path}")
+    ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
     ctx.run(f"rm {exec_path}")
 
     if push:

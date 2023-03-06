@@ -7,6 +7,9 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Name for check performed by process-agent or system-probe
@@ -94,12 +97,12 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-func All() []Check {
+func All(syscfg *sysconfig.Config) []Check {
 	return []Check{
 		NewProcessCheck(),
 		NewContainerCheck(),
 		NewRTContainerCheck(),
-		NewConnectionsCheck(),
+		NewConnectionsCheck(syscfg),
 		NewPodCheck(),
 		NewProcessDiscoveryCheck(),
 		NewProcessEventsCheck(),
@@ -116,4 +119,19 @@ func RTName(checkName string) string {
 	default:
 		return ""
 	}
+}
+
+func canEnableContainerChecks(config ddconfig.Config, displayFeatureWarning bool) bool {
+	// The process and container checks are mutually exclusive
+	if config.GetBool("process_config.process_collection.enabled") {
+		return false
+	}
+	if !ddconfig.IsAnyContainerFeaturePresent() {
+		if displayFeatureWarning {
+			_ = log.Warn("Disabled container checks because no container environment detected (see list of detected features in `agent status`)")
+		}
+		return false
+	}
+
+	return ddconfig.Datadog.GetBool("process_config.container_collection.enabled")
 }

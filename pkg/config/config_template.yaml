@@ -1542,6 +1542,20 @@ api_key:
 
 {{ end -}}
 
+{{- if .DataStreamsModule }}
+
+#############################################
+## System Probe Data Streams Configuration ##
+#############################################
+
+# data_streams_config:
+## @param enabled - boolean - optional - default: false
+## Set to true to enable the Data Streams Module of the System Probe
+#
+# enabled: false
+
+{{ end -}}
+
 {{- if .SecurityModule }}
 
 ##########################################

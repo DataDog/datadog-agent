@@ -28,6 +28,7 @@ namespace WixSetup.Datadog
             this.AddXmlInclude("dialogs/apikeydlg.wxi")
                 .AddXmlInclude("dialogs/sitedlg.wxi")
                 .AddXmlInclude("dialogs/fatalError.wxi")
+                .AddXmlInclude("dialogs/sendFlaredlg.wxi")
                 .AddXmlInclude("dialogs/ddagentuserdlg.wxi");
 
             // NOTE: CustomActions called from dialog Controls will not be able to add messages to the log.
@@ -67,6 +68,10 @@ namespace WixSetup.Datadog
             On(NativeDialogs.ExitDialog, Buttons.Finish, new CloseDialog { Order = 9999 });
 
             On(Dialogs.FatalErrorDialog, "OpenMsiLog", new ExecuteCustomAction(agentCustomActions.OpenMsiLog));
+            On(Dialogs.FatalErrorDialog, "SendFlare", new ShowDialog(Dialogs.SendFlareDialog));
+
+            On(Dialogs.SendFlareDialog, Buttons.Back, new ShowDialog(Dialogs.FatalErrorDialog));
+            On(Dialogs.SendFlareDialog, "SendFlare", new ExecuteCustomAction(agentCustomActions.SendFlare));
         }
 
         public void OnWixSourceGenerated(XDocument document)
