@@ -9,8 +9,9 @@
 package main
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -35,4 +36,24 @@ func TestProxyLoaded(t *testing.T) {
 	proxyHttpsConfig := config.Datadog.GetString("proxy.https")
 	assert.Equal(t, proxyHttp, proxyHttpConfig)
 	assert.Equal(t, proxyHttps, proxyHttpsConfig)
+}
+
+func TestTagsSetup(t *testing.T) {
+	t.Setenv("DD_TAGS", "key1:value1 key2:value2 key3:value3")
+	tags := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": "value3",
+	}
+	_, _, _, metricAgent := setup()
+	assert.True(t, mapContains(tag.MergeTags(map[string]string{}, metricAgent.GetExtraTags()), tags))
+}
+
+func mapContains(subject map[string]string, valuesToContain map[string]string) bool {
+	for k, v := range valuesToContain {
+		if subject[k] != v {
+			return false
+		}
+	}
+	return true
 }
