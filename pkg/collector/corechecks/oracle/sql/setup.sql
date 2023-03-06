@@ -3,6 +3,7 @@ SELECT
     s.indx as sid,
     s.ksuseser as serial#,
     s.ksuudlna as username,
+    DECODE(BITAND(s.ksuseidl, 9), 1, 'ACTIVE', 0, DECODE(BITAND(s.ksuseflg, 4096), 0, 'INACTIVE', 'CACHED'), 'KILLED') as status,
     s.ksuseunm as osuser,
     s.ksusepid as process,
     s.ksusemnm as machine,
@@ -62,7 +63,7 @@ SELECT
     AND w.kslwtevt = e.indx
     AND s.ksusesqi = sq.sql_id(+)
     AND s.con_id = c.con_id(+)
-    AND BITAND(s.ksuseidl, 11) = 1 --ACTIVE
+--    AND BITAND(s.ksuseidl, 9) = 1 --ACTIVE
 ;
 
 GRANT SELECT ON dd_session TO c##datadog ;

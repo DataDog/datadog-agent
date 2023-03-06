@@ -33,6 +33,7 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 	sid,
 	serial#,
 	username,
+	status,
     osuser,
     process, 
     machine, 
@@ -85,7 +86,8 @@ WHERE
 	AND (
 		NOT (state = 'WAITING' AND wait_class = 'Idle')
 		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-	)`
+	)
+	AND status = 'ACTIVE'`
 
 type RowMetadata struct {
 	Commands       []string `json:"dd_commands,omitempty"`
@@ -98,6 +100,7 @@ type OracleActivityRow struct {
 	SessionID              uint64  `db:"SID" json:"sid,omitempty"`
 	SessionSerial          uint64  `db:"SERIAL#" json:"serial,omitempty"`
 	User                   *string `db:"USERNAME" json:"user,omitempty"`
+	Status                 string  `db:"STATUS"`
 	OsUser                 *string `db:"OSUSER" json:"os_user,omitempty"`
 	Process                *string `db:"PROCESS" json:"process,omitempty"`
 	Client                 *string `db:"MACHINE" json:"client,omitempty"`
@@ -162,7 +165,7 @@ func (c *Check) SampleSession() error {
 					if c.config.InstanceConfig.LogUnobfuscatedQueries {
 						error_text = error_text + fmt.Sprintf(" SQL: %s", *sample.Statement)
 					}
-					log.Errorf("Query obfuscation SQL_ID: %s", *sample.SqlID)
+					log.Error(error_text)
 				} else {
 					*sample.Statement = obfuscatedQuery.Query
 					sessionSamples[i].Commands = obfuscatedQuery.Metadata.Commands
@@ -195,12 +198,12 @@ func (c *Check) SampleSession() error {
 		log.Errorf("Error marshalling device metadata: %s", err)
 		return err
 	}
-	log.Tracef("JSON payload %s", string(payloadBytes))
-	//fmt.Println("JSON payload", string(payloadBytes))
+	//log.Tracef("JSON payload %s", string(payloadBytes))
+	fmt.Println("JSON payload", string(payloadBytes))
 
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("GetSender SampleSession ", string(payloadBytes))
+		log.Errorf("GetSender SampleSession %s", string(payloadBytes))
 		return err
 	}
 	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
