@@ -100,7 +100,7 @@ type OracleActivityRow struct {
 	SessionID              uint64  `db:"SID" json:"sid,omitempty"`
 	SessionSerial          uint64  `db:"SERIAL#" json:"serial,omitempty"`
 	User                   *string `db:"USERNAME" json:"user,omitempty"`
-	Status                 string  `db:"STATUS"`
+	Status                 string  `db:"STATUS" json:"status"`
 	OsUser                 *string `db:"OSUSER" json:"os_user,omitempty"`
 	Process                *string `db:"PROCESS" json:"process,omitempty"`
 	Client                 *string `db:"MACHINE" json:"client,omitempty"`
