@@ -106,7 +106,10 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 			panic(err)
 		}
 		li.SetTraceID(*(*pcommon.TraceID)(buf))
-		buf, _ = hex.DecodeString(l.SpanID)
+		buf, err = hex.DecodeString(l.SpanID)
+		if err != nil {
+			panic(err)
+		}
 		li.SetSpanID(*(*pcommon.SpanID)(buf))
 		li.TraceState().FromRaw(l.TraceState)
 		insertAttributes(li.Attributes(), l.Attributes)
