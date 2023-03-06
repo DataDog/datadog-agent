@@ -56,11 +56,15 @@ func (c *Check) Run() error {
 	}
 
 	if c.hostname == "" {
-		hostname, err := hostname.Get(context.TODO())
-		if err != nil {
-			return log.Errorf("getting hostname: %v", err)
+		if c.config.InstanceConfig.ReportedHostname != "" {
+			c.hostname = c.config.InstanceConfig.ReportedHostname
+		} else {
+			hostname, err := hostname.Get(context.TODO())
+			if err != nil {
+				return log.Errorf("getting hostname: %v", err)
+			}
+			c.hostname = hostname
 		}
-		c.hostname = hostname
 	}
 
 	if c.dbmEnabled {
