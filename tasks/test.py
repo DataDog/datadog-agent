@@ -132,7 +132,7 @@ def install_tools(ctx):
 def test_core(
     modules: List[GoModule],
     flavor: AgentFlavor,
-    module_class,
+    module_class: GoModule,
     flavor_print_string: str,
     exec_function,
     skip_module_class=False,
