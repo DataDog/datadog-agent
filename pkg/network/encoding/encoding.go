@@ -110,6 +110,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
 	payload.CORETelemetryByAsset = FormatCORETelemetry(conns.CORETelemetryByAsset)
+	payload.PrebuiltEBPFAssets = conns.PrebuiltAssets
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 

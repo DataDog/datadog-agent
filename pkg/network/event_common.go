@@ -131,6 +131,7 @@ type Connections struct {
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
+	PrebuiltAssets              []string
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat

@@ -209,9 +209,11 @@ func TestListAllExternalMetrics(t *testing.T) {
 
 	fixtures := []providerFixture{
 		{
-			desc:                       "Test no metrics in store",
-			storeContent:               []ddmWithQuery{},
-			expectedExternalMetricInfo: []provider.ExternalMetricInfo{},
+			desc:         "Test no metrics in store (send fake metric back)",
+			storeContent: []ddmWithQuery{},
+			expectedExternalMetricInfo: []provider.ExternalMetricInfo{
+				fakeExternalMetric,
+			},
 		},
 		{
 			desc: "Test with metrics in store",

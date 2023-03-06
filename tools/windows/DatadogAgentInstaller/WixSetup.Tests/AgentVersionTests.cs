@@ -6,7 +6,7 @@ namespace WixSetup.Tests
     public class AgentVersionTests
     {
         [Fact]
-        public void Should_Version_Be_7_99_0_2_By_Default()
+        public void Should_Version_Be_7_99_0_1_By_Default()
         {
             // Explicit null to avoid env var influence.
             var version = new Datadog.AgentVersion(null);
@@ -14,7 +14,7 @@ namespace WixSetup.Tests
             version.Version.Major.Should().Be(7);
             version.Version.Minor.Should().Be(99);
             version.Version.Build.Should().Be(0);
-            version.Version.Revision.Should().Be(2);
+            version.Version.Revision.Should().Be(1);
         }
 
         [Fact]
@@ -27,7 +27,7 @@ namespace WixSetup.Tests
             version.Version.Major.Should().Be(7);
             version.Version.Minor.Should().Be(40);
             version.Version.Build.Should().Be(0);
-            version.Version.Revision.Should().Be(2);
+            version.Version.Revision.Should().Be(1);
         }
     }
 }

@@ -95,6 +95,12 @@ github.com/outcaste-io/ristretto:
  - "Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
  - "Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt"
  - "Copyright (c) 2019 Ewan Chou"
+github.com/dgraph-io/ristretto:
+ - "Copyright 2019 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
+ - "Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt"
+ - "Copyright (c) 2019 Ewan Chou"
 github.com/go-logr/logr: ["Copyright 2019 The logr Authors.", "Copyright 2020 The logr Authors."]
 github.com/go-logr/stdr: "Copyright 2019 The logr Authors."
 github.com/go-openapi/analysis: Copyright 2015 go-swagger maintainers
@@ -128,6 +134,13 @@ github.com/google/go-containerregistry:
 github.com/google/licenseclassifier/v2:
  - "Copyright 2017 Google LLC All Rights Reserved."
  - "Copyright 2020 Google LLC All Rights Reserved."
+github.com/dgraph-io/badger:
+ - "Copyright 2013 The LevelDB-Go Authors. All rights reserved."
+ - "Copyright 2017 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2018 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2019 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
@@ -169,3 +182,4 @@ github.com/aquasecurity/go-npm-version: Copyright (c) 2020 Teppei Fukuda (knqyf2
 github.com/aquasecurity/go-pep440-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/aquasecurity/go-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/spdx/tools-golang: Copyright (c) 2018 The Authors
+github.com/google/flatbuffers: Copyright (c) 2014 Google

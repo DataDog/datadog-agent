@@ -1,0 +1,21 @@
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+api_key2: |
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+api_key3: >
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+
+app_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+app_key2: |
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+app_key3: >
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+
+token: |
+  some multi-line
+  token with lot
+  of data
+
+second_token: >
+  123465749798
+
+third_token: 123465749798
