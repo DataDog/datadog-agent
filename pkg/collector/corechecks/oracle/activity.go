@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -135,11 +134,13 @@ type Metadata struct {
 	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
+/*
 type MetricSender struct {
 	sender           aggregator.Sender
 	hostname         string
 	submittedMetrics int
 }
+*/
 
 func (c *Check) SampleSession() error {
 	start := time.Now()
@@ -147,19 +148,10 @@ func (c *Check) SampleSession() error {
 	sessionSamples := []OracleActivityRow{}
 	err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
 
-	/*
-		err := c.db.SelectContext(
-			godror.ContextWithTraceTag(context.Background(), godror.TraceTag{
-				Module: "datadog agent",
-				Action: "session sampling",
-			}), &sessionSamples, ACTIVITY_QUERY)
-	*/
-
 	if err != nil {
-		log.Errorf("Session sampling ", err)
+		log.Errorf("Session sampling %s", err)
 		return err
 	}
-	//log.Tracef("orasample %#v", sessionSamples)
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	if c.config.ObfuscatorOn {
 		for i, sample := range sessionSamples {
@@ -170,7 +162,7 @@ func (c *Check) SampleSession() error {
 					if c.config.InstanceConfig.LogUnobfuscatedQueries {
 						error_text = error_text + fmt.Sprintf(" SQL: %s", *sample.Statement)
 					}
-					log.Error("Query obfuscation SQL_ID: %s", *sample.SqlID)
+					log.Errorf("Query obfuscation SQL_ID: %s", *sample.SqlID)
 				} else {
 					*sample.Statement = obfuscatedQuery.Query
 					sessionSamples[i].Commands = obfuscatedQuery.Metadata.Commands
@@ -200,14 +192,15 @@ func (c *Check) SampleSession() error {
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Error("Error marshalling device metadata: %s", err)
+		log.Errorf("Error marshalling device metadata: %s", err)
 		return err
 	}
-	fmt.Println("JSON payload", string(payloadBytes))
+	log.Tracef("JSON payload %s", string(payloadBytes))
+	//fmt.Println("JSON payload", string(payloadBytes))
 
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Tracef("GetSender SampleSession ", string(payloadBytes))
+		log.Errorf("GetSender SampleSession ", string(payloadBytes))
 		return err
 	}
 	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
