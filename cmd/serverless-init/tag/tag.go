@@ -68,3 +68,15 @@ func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
 	}
 	return tagsArray
 }
+
+func MergeTags(tags map[string]string, configuredTags []string) map[string]string {
+	merged := make(map[string]string)
+	for _, v := range configuredTags {
+		keyVal := strings.Split(v, ":")
+		merged[keyVal[0]] = keyVal[1]
+	}
+	for k, v := range tags {
+		merged[k] = v
+	}
+	return merged
+}

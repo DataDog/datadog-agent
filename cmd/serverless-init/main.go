@@ -37,7 +37,7 @@ func main() {
 	setupProxy()
 
 	cloudService := cloudservice.GetCloudServiceType()
-	tags := cloudService.GetTags()
+	tags := tag.MergeTags(cloudService.GetTags(), config.GetConfiguredTags(config.Datadog, false))
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
