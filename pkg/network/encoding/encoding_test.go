@@ -540,7 +540,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 		localhost  = util.AddressFromString("127.0.0.1")
 	)
 
-	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
+	http2ReqStats := http.NewRequestStats(aggregateByStatusCode)
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
@@ -567,7 +567,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 				"/testpath",
 				true,
 				http.MethodPost,
-			): httpReqStats,
+			): http2ReqStats,
 		},
 	}
 
