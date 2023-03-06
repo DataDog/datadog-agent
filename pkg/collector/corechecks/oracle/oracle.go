@@ -37,13 +37,15 @@ type Check struct {
 
 // Run executes the check.
 func (c *Check) Run() error {
-	sender, err := c.GetSender()
-	if err != nil {
-		log.Error("Get sender Run")
-		return err
-	}
-	sender.Gauge("oracle.helloworld", 10, "", nil)
-	sender.Commit()
+	/*
+		sender, err := c.GetSender()
+		if err != nil {
+			log.Error("Get sender Run")
+			return err
+		}
+		sender.Gauge("oracle.helloworld", 10, "", nil)
+		sender.Commit()
+	*/
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
@@ -62,7 +64,7 @@ func (c *Check) Run() error {
 	}
 
 	if c.dbmEnabled {
-		err = c.SampleSession()
+		err := c.SampleSession()
 		if err != nil {
 			return log.Errorf("Sampling session: %v", err)
 		}
@@ -88,13 +90,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			oracleDriver = "oracle"
 			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{})
 		}
-
-		//connStr = fmt.Sprintf("oracle://%s:%s@%s:%d/%s", c.config.Username, c.config.Password, c.config.Server, c.config.Port, c.config.ServiceName)
 	}
 
-	log.Tracef("Connect string: %s", connStr)
+	log.Infof("Connect string: %s", connStr)
 
-	//db, err := sqlx.Open("godror", connStr)
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
 		log.Errorf("Failed to connect to Oracle instance | err=[%s]", err)
