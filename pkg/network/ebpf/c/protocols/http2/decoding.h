@@ -135,7 +135,6 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
 
     __u8 str_len = 0;
     // The key is new and inserted into the dynamic table. So we are skipping the new value.
-
     if (index < MAX_STATIC_TABLE_INDEX) {
         // TODO, if index != 0, that's weird.
         if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
