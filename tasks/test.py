@@ -351,7 +351,7 @@ def coverage_flavor(
         with ctx.cd(module.full_path()):
             ctx.run(f"go tool cover -func {PROFILE_COV}", warn=True)
 
-    return test_core(modules, flavor, None, "code coverage", skip_module_class=True)
+    return test_core(modules, flavor, None, "code coverage", command, skip_module_class=True)
 
 
 def codecov_flavor(
@@ -378,7 +378,7 @@ def codecov_flavor(
         path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
         ctx.run(f"codecov -f {path} -F {tag}", warn=True)
 
-    return test_core(modules, flavor, None, "codeov upload", skip_module_class=True)
+    return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
 def process_input_args(input_module, input_targets, input_flavors):
