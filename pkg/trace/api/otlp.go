@@ -421,7 +421,7 @@ func marshalLinks(links ptrace.SpanLinkSlice) string {
 		}
 		if l.Attributes().Len() > 0 {
 			str.WriteString(`,"attributes":{`)
-			b := false
+			var b bool
 			l.Attributes().Range(func(k string, v pcommon.Value) bool {
 				if b {
 					str.WriteString(",")

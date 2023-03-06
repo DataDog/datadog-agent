@@ -98,13 +98,16 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 		insertAttributes(ev.Attributes(), e.Attributes)
 		ev.SetDroppedAttributesCount(e.Dropped)
 	}
-	links := span.Links()
+	ls := span.Links()
 	for _, l := range s.Links {
-		li := links.AppendEmpty()
-		bytes, _ := hex.DecodeString(l.TraceID)
-		li.SetTraceID(*(*pcommon.TraceID)(bytes))
-		bytes, _ = hex.DecodeString(l.SpanID)
-		li.SetSpanID(*(*pcommon.SpanID)(bytes))
+		li := ls.AppendEmpty()
+		buf, err := hex.DecodeString(l.TraceID)
+		if err != nil {
+			panic(err)
+		}
+		li.SetTraceID(*(*pcommon.TraceID)(buf))
+		buf, _ = hex.DecodeString(l.SpanID)
+		li.SetSpanID(*(*pcommon.SpanID)(buf))
 		li.TraceState().FromRaw(l.TraceState)
 		insertAttributes(li.Attributes(), l.Attributes)
 		li.SetDroppedAttributesCount(l.Dropped)
