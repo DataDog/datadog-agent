@@ -215,14 +215,6 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 			}
 		}
 	}
-	dnsStats := t.reverseDNS.GetStats()
-	if pp, ok := dnsStats["packets_processed_transport"]; ok {
-		tm[network.MonotonicDNSPacketsProcessed] = pp
-	}
-	if pd, ok := dnsStats["read_packets_skipped"]; ok {
-		tm[network.MonotonicDNSPacketsDropped] = pd
-	}
-
 	return tm
 }
 

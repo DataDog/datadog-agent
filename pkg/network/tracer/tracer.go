@@ -58,11 +58,11 @@ const tracerModuleName = "network_tracer"
 // If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 // to determine whether a connection is truly closed or not
 var (
-	skippedConns     = newGauge(tracerModuleName, "skipped_conns", "description")
-	expiredTCPConns  = newGauge(tracerModuleName, "expired_tcp_conns", "description")
-	closedConns      = newGaugeWrapper(tracerModuleName, "closed_conns", "description")
-	connStatsMapSize = newGauge(tracerModuleName, "conn_stats_map_size", "description")
-	lastCheck        = newGaugeWrapper(tracerModuleName, "last_check", "description")
+	skippedConns     = newGauge(tracerModuleName, "skipped_conns", "Gauge measuring skipped TCP connections")
+	expiredTCPConns  = newGauge(tracerModuleName, "expired_tcp_conns", "Gauge measuring expired TCP connections")
+	closedConns      = newGaugeWrapper(tracerModuleName, "closed_conns", "Gauge measuring closed TCP connections")
+	connStatsMapSize = newGauge(tracerModuleName, "conn_stats_map_size", "Gauge measuring the size of the active connections map")
+	lastCheck        = newGaugeWrapper(tracerModuleName, "last_check", "Gauge tracking the timestamp of the last time gauges were updated")
 )
 
 // Tracer implements the functionality of the network tracer

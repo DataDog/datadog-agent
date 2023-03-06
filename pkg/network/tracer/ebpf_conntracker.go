@@ -57,10 +57,10 @@ func newGaugeWrapper(subsystem string, name string, help string, tags ...string)
 }
 
 var (
-	gets                     = newGaugeWrapper(ebpfConntrackerModuleName, "gets_total", "description")
-	nanoSecondsPerGet        = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_get", "description")
-	nanoSecondsPerUnregister = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_unregister", "description")
-	registersTotal           = newGauge(ebpfConntrackerModuleName, "registers_total", "description")
+	gets                     = newGaugeWrapper(ebpfConntrackerModuleName, "gets_total", "Gauge measuring the total number of attempts to get connection tuples from the EBPF map")
+	nanoSecondsPerGet        = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_get", "Gauge measuring the time spent getting a single connection tuple from the EBPF map")
+	nanoSecondsPerUnregister = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_unregister", "Gauge measuring the time spent deleting a single connection tuple from the EBPF map")
+	registersTotal           = newGauge(ebpfConntrackerModuleName, "registers_total", "Gauge measuring the total number of attempts to delete connection tuples from the EBPF map")
 )
 
 type ebpfConntrackerStats struct {
