@@ -109,7 +109,7 @@ github_labels = ["team/processes"]
 
 [teams."Windows Agent"]
 jira_project = "WA"
-jira_issue_type = "Task"
+jira_issue_type = "QA Task"
 github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
 
