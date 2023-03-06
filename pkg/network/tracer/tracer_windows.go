@@ -235,7 +235,6 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
-		"dns":   t.reverseDNS.GetStats(),
 	}
 	for _, name := range network.DriverExpvarNames {
 		stats[string(name)] = driverStats[name]
