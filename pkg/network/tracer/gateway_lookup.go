@@ -28,19 +28,21 @@ import (
 const maxRouteCacheSize = int(^uint(0) >> 1) // max int
 const maxSubnetCacheSize = 1024
 
+// Telemetry
+var (
+	subnetCacheSize    = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_size", []string{}, "Gauge measuring the size of the subnet cache")
+	subnetCacheMisses  = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_misses", []string{}, "Gauge measuring the number of subnet cache misses")
+	subnetCacheLookups = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_lookups", []string{}, "Gauge measuring the number of subnet cache lookups")
+	subnetLookups      = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookups", []string{}, "Gauge measuring the number of subnet lookups")
+	subnetLookupErrors = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookup_errors", []string{}, "Gauge measuring the number of subnet lookup errors")
+)
+
 type gatewayLookup struct {
 	procRoot            string
 	rootNetNs           netns.NsHandle
 	routeCache          network.RouteCache
 	subnetCache         *simplelru.LRU // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
-
-	// stats
-	subnetCacheSize    telemetry.StatGaugeWrapper
-	subnetCacheMisses  telemetry.StatGaugeWrapper
-	subnetCacheLookups telemetry.StatGaugeWrapper
-	subnetLookups      telemetry.StatGaugeWrapper
-	subnetLookupErrors telemetry.StatGaugeWrapper
 }
 
 type cloudProvider interface {
@@ -73,11 +75,6 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		procRoot:            config.ProcRoot,
 		rootNetNs:           ns,
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
-		subnetCacheSize:     telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_size", []string{}, "description"),
-		subnetCacheMisses:   telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_misses", []string{}, "description"),
-		subnetCacheLookups:  telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_lookups", []string{}, "description"),
-		subnetLookups:       telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookups", []string{}, "description"),
-		subnetLookupErrors:  telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookup_errors", []string{}, "description"),
 	}
 
 	router, err := network.NewNetlinkRouter(config)
@@ -115,10 +112,10 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		return nil
 	}
 
-	g.subnetCacheLookups.Inc()
+	subnetCacheLookups.Inc()
 	v, ok := g.subnetCache.Get(r.IfIndex)
 	if !ok {
-		g.subnetCacheMisses.Inc()
+		subnetCacheMisses.Inc()
 
 		var s network.Subnet
 		var err error
@@ -129,26 +126,26 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 				log.Errorf("error getting interface for interface index %d: %s", r.IfIndex, err)
 				// negative cache for 1 minute
 				g.subnetCache.Add(r.IfIndex, time.Now().Add(1*time.Minute))
-				g.subnetCacheSize.Inc()
+				subnetCacheSize.Inc()
 				return err
 			}
 
 			if ifi.Flags&net.FlagLoopback != 0 {
 				// negative cache loopback interfaces
 				g.subnetCache.Add(r.IfIndex, nil)
-				g.subnetCacheSize.Inc()
+				subnetCacheSize.Inc()
 				return err
 			}
 
-			g.subnetLookups.Inc()
+			subnetLookups.Inc()
 			if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
-				g.subnetLookupErrors.Inc()
+				subnetLookupErrors.Inc()
 				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 
 				// cache an empty result so that we don't keep hitting the
 				// ec2 metadata endpoint for this interface
 				g.subnetCache.Add(r.IfIndex, nil)
-				g.subnetCacheSize.Inc()
+				subnetCacheSize.Inc()
 				return err
 			}
 
@@ -161,7 +158,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 		via := &network.Via{Subnet: s}
 		g.subnetCache.Add(r.IfIndex, via)
-		g.subnetCacheSize.Inc()
+		subnetCacheSize.Inc()
 		v = via
 	} else if v == nil {
 		return nil
@@ -171,7 +168,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	case time.Time:
 		if time.Now().After(cv) {
 			g.subnetCache.Remove(r.IfIndex)
-			g.subnetCacheSize.Dec()
+			subnetCacheSize.Dec()
 		}
 		return nil
 	case *network.Via:
@@ -189,7 +186,7 @@ func (g *gatewayLookup) Close() {
 
 func (g *gatewayLookup) purge() {
 	g.subnetCache.Purge()
-	g.subnetCacheSize.Set(0)
+	subnetCacheSize.Set(0)
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {

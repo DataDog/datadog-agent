@@ -28,12 +28,12 @@ const (
 
 // Telemetry
 var (
-	decodingErrors = telemetry.NewStatGaugeWrapper(dnsModuleName, "decoding_errors", []string{}, "")
-	truncatedPkts  = telemetry.NewStatGaugeWrapper(dnsModuleName, "truncated_pkts", []string{}, "")
+	decodingErrors = telemetry.NewStatGaugeWrapper(dnsModuleName, "decoding_errors", []string{}, "Gauge measuring the number of decoding errors while processing packets")
+	truncatedPkts  = telemetry.NewStatGaugeWrapper(dnsModuleName, "truncated_pkts", []string{}, "Gauge measuring the number of truncated packets while processing")
 	// DNS telemetry, values calculated *till* the last tick in pollStats
-	queries_tel   = telemetry.NewStatGaugeWrapper(dnsModuleName, "queries", []string{}, "")
-	successes_tel = telemetry.NewStatGaugeWrapper(dnsModuleName, "successes", []string{}, "")
-	errors_tel    = telemetry.NewStatGaugeWrapper(dnsModuleName, "errors", []string{}, "")
+	queries_tel   = telemetry.NewStatGaugeWrapper(dnsModuleName, "queries", []string{}, "Gauge measuring the number of packets that are DNS queries in processed packets")
+	successes_tel = telemetry.NewStatGaugeWrapper(dnsModuleName, "successes", []string{}, "Gauge measuring the number of successful DNS responses in processed packets")
+	errors_tel    = telemetry.NewStatGaugeWrapper(dnsModuleName, "errors", []string{}, "Gauge measuring the number of failed DNS responses in processed packets")
 )
 
 var _ ReverseDNS = &socketFilterSnooper{}

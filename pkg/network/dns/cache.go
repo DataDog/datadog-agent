@@ -19,12 +19,12 @@ import (
 
 // Telemetry
 var (
-	length        = telemetry.NewGauge(dnsModuleName, "length", []string{}, "description")
-	lookups       = telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "description")
-	resolved_tel  = telemetry.NewGauge(dnsModuleName, "resolved", []string{}, "description")
-	added         = telemetry.NewGauge(dnsModuleName, "added", []string{}, "description")
-	expired_tel   = telemetry.NewGauge(dnsModuleName, "expired", []string{}, "description")
-	oversized_tel = telemetry.NewGauge(dnsModuleName, "oversized", []string{}, "description")
+	length        = telemetry.NewGauge(dnsModuleName, "length", []string{}, "Gauge measuring the current size of the DNS cache")
+	lookups       = telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "Gauge measuring the number of lookups to the DNS cache")
+	resolved_tel  = telemetry.NewGauge(dnsModuleName, "resolved", []string{}, "Gauge measuring the number of successful lookups to the DNS cache")
+	added         = telemetry.NewGauge(dnsModuleName, "added", []string{}, "Gauge measuring the number of additions to the DNS cache")
+	expired_tel   = telemetry.NewGauge(dnsModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache")
+	oversized_tel = telemetry.NewGauge(dnsModuleName, "oversized", []string{}, "Gauge measuring the number of lookups to the DNS cache that reached the max domains per IP limit")
 )
 
 type reverseDNSCache struct {

@@ -56,19 +56,19 @@ const (
 )
 
 var (
-	size    = telemetry.NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "description")
-	misses  = telemetry.NewGauge(routeCacheTelemetryModuleName, "misses", []string{}, "description")
-	lookups = telemetry.NewGauge(routeCacheTelemetryModuleName, "lookups", []string{}, "description")
-	expires = telemetry.NewGauge(routeCacheTelemetryModuleName, "expires", []string{}, "description")
+	size    = telemetry.NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "Gauge measuring the size of the route cache")
+	misses  = telemetry.NewGauge(routeCacheTelemetryModuleName, "misses", []string{}, "Gauge measuring the number of route cache misses")
+	lookups = telemetry.NewGauge(routeCacheTelemetryModuleName, "lookups", []string{}, "Gauge measuring the number of route cache lookups")
+	expires = telemetry.NewGauge(routeCacheTelemetryModuleName, "expires", []string{}, "Gauge measuring the number of route cache expirations")
 
-	netlinkLookups = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_lookups", []string{}, "description")
-	netlinkErrors  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_errors", []string{}, "description")
-	netlinkMisses  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_misses", []string{}, "description")
+	netlinkLookups = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_lookups", []string{}, "Gauge measuring the number of netlink lookups")
+	netlinkErrors  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_errors", []string{}, "Gauge measuring the number of netlink errors")
+	netlinkMisses  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_misses", []string{}, "Gauge measuring the number of netlink misses")
 
-	ifCacheLookups = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_lookups", []string{}, "description")
-	ifCacheMisses  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_misses", []string{}, "description")
-	ifCacheSize    = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_size", []string{}, "description")
-	ifCacheErrors  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_errors", []string{}, "description")
+	ifCacheLookups = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_lookups", []string{}, "Gauge measuring the number of interface cache lookups")
+	ifCacheMisses  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_misses", []string{}, "Gauge measuring the number of interface cache misses")
+	ifCacheSize    = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_size", []string{}, "Gauge measuring the size of the interface cache")
+	ifCacheErrors  = telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_errors", []string{}, "Gauge measuring the number of interface cache errors")
 )
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple

@@ -34,8 +34,8 @@ const (
 )
 
 var (
-	lastNumStats     = telemetry.NewGauge(dnsStatKeeperModuleName, "last_num_stats", []string{}, "")
-	lastDroppedStats = telemetry.NewGauge(dnsStatKeeperModuleName, "last_dropped_stats", []string{}, "")
+	lastNumStats     = telemetry.NewGauge(dnsStatKeeperModuleName, "last_num_stats", []string{}, "Gauge measuring the number of processed DNS stats")
+	lastDroppedStats = telemetry.NewGauge(dnsStatKeeperModuleName, "last_dropped_stats", []string{}, "Gauge measuring the number of dropped DNS stats")
 )
 
 type dnsPacketInfo struct {

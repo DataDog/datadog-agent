@@ -62,7 +62,7 @@ var (
 	expiredTCPConns  = newGauge(tracerModuleName, "expired_tcp_conns", "Gauge measuring expired TCP connections")
 	closedConns      = newGaugeWrapper(tracerModuleName, "closed_conns", "Gauge measuring closed TCP connections")
 	connStatsMapSize = newGauge(tracerModuleName, "conn_stats_map_size", "Gauge measuring the size of the active connections map")
-	lastCheck        = newGaugeWrapper(tracerModuleName, "last_check", "Gauge tracking the timestamp of the last time gauges were updated")
+	lastCheck        = newGaugeWrapper(tracerModuleName, "last_check", "Gauge tracking the timestamp of when gauges were last updated")
 )
 
 // Tracer implements the functionality of the network tracer
