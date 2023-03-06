@@ -124,26 +124,23 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
-# TODO(AP-1879): The following four functions all do something similar: they run a given command on a list of modules
-# This could be refactored in a core function that does the loop on modules and returns failures, and
-# wrapper functions that craft the command to run and process the results and errors.
-
-
 def test_core(
     modules: List[GoModule],
     flavor: AgentFlavor,
     module_class: GoModule,
     flavor_print_string: str,
-    exec_function,
+    command,
     skip_module_class=False,
 ):
+    """
+    Run the command function on each module of the modules list.
+    """
     modules_results = []
-    print(f"--- Flavor {flavor.name}: ", flavor_print_string)
+    print(f"--- Flavor {flavor.name}: {flavor_print_string}")
     for module in modules:
+        module_result = None
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
-        else:
-            module_result = None
         print(f"----- Module '{module.full_path()}'")
         if not module.condition():
             print("----- Skipped")
@@ -160,16 +157,16 @@ def lint_flavor(
     Runs linters for given flavor, build tags, and modules.
     """
 
-    def command(modules_lint_results, module, module_lint_result):
+    def command(lint_results, module, module_result):
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
                 ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
             )
             for lint_result in lint_results:
-                module_lint_result.lint_outputs.append(lint_result)
+                module_result.lint_outputs.append(lint_result)
                 if lint_result.exited != 0:
-                    module_lint_result.failed = True
-        modules_lint_results.append(module_lint_result)
+                    module_result.failed = True
+        lint_results.append(module_result)
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
 
@@ -305,7 +302,7 @@ def test_flavor(
         junit_file_flag = "--junitfile " + junit_file
     args["junit_file_flag"] = junit_file_flag
 
-    def command(modules_test_results, module, module_test_result):
+    def command(test_results, module, module_result):
         with ctx.cd(module.full_path()):
             res = ctx.run(
                 cmd.format(
@@ -316,22 +313,22 @@ def test_flavor(
                 warn=True,
             )
 
-        module_test_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
+        module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
 
         if res.exited is None or res.exited > 0:
-            module_test_result.failed = True
+            module_result.failed = True
 
         if save_result_json:
             with open(save_result_json, 'ab') as json_file, open(
-                module_test_result.result_json_path, 'rb'
+                module_result.result_json_path, 'rb'
             ) as module_file:
                 json_file.write(module_file.read())
 
         if junit_tar:
-            module_test_result.junit_file_path = os.path.join(module.full_path(), junit_file)
-            add_flavor_to_junitxml(module_test_result.junit_file_path, flavor)
+            module_result.junit_file_path = os.path.join(module.full_path(), junit_file)
+            add_flavor_to_junitxml(module_result.junit_file_path, flavor)
 
-        modules_test_results.append(module_test_result)
+        test_results.append(module_result)
 
     return test_core(modules, flavor, ModuleTestResult, "unit tests", command)
 
