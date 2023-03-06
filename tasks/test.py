@@ -146,7 +146,7 @@ def test_core(
             print("----- Skipped")
             continue
 
-        exec_function(modules_results, module, module_result)
+        command(modules_results, module, module_result)
     return modules_results
 
 
@@ -319,9 +319,7 @@ def test_flavor(
             module_result.failed = True
 
         if save_result_json:
-            with open(save_result_json, 'ab') as json_file, open(
-                module_result.result_json_path, 'rb'
-            ) as module_file:
+            with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
                 json_file.write(module_file.read())
 
         if junit_tar:
