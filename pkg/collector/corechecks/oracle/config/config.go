@@ -38,6 +38,7 @@ type InstanceConfig struct {
 	LogUnobfuscatedQueries bool                `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions      obfuscate.SQLConfig `yaml:"obfuscator_options"`
 	UseGodrorWithEZConnect bool                `yaml:"use_godror_with_ezconnect"`
+	ReportedHostname       string              `yaml:"reported_hostname"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
