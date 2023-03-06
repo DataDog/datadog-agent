@@ -1,9 +1,12 @@
 # https://github.com/confluentinc/librdkafka#build-from-source
+# https://github.com/Homebrew/homebrew-core/blob/35f8763a90eab4203deb3a6ee2503cf0ddfd8c84/Formula/librdkafka.rb#L32
 
 name "librdkafka"
 default_version "2.0.2"
 
-dependency "cyrus-sasl"
+if linux?
+    dependency "cyrus-sasl"
+end
 
 source :url => "https://github.com/confluentinc/librdkafka/archive/refs/tags/v#{version}.tar.gz",
        :sha256 => "f321bcb1e015a34114c83cf1aa7b99ee260236aab096b85c003170c90a47ca9d",
