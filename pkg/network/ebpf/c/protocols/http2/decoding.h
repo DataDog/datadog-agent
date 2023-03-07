@@ -100,9 +100,11 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
         if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
             return HEADER_NOT_INTERESTING;
         }
-        headers_to_process->index = index;
-        headers_to_process->stream_id = stream_id;
-        headers_to_process->type = kStaticHeader;
+        if (headers_to_process != NULL) {
+            headers_to_process->index = index;
+            headers_to_process->stream_id = stream_id;
+            headers_to_process->type = kStaticHeader;
+        }
         return HEADER_INTERESTING;
     }
 
@@ -114,10 +116,11 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
     if (bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index) == NULL) {
         return HEADER_NOT_INTERESTING;
     }
-    headers_to_process->index = http2_ctx->dynamic_index.index;
-    headers_to_process->stream_id = stream_id;
-    headers_to_process->type = kDynamicHeader;
-
+    if (headers_to_process != NULL) {
+        headers_to_process->index = http2_ctx->dynamic_index.index;
+        headers_to_process->stream_id = stream_id;
+        headers_to_process->type = kDynamicHeader;
+    }
     return HEADER_INTERESTING;
 }
 
@@ -183,9 +186,11 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
     http2_ctx->dynamic_index.index = counter - 1;
     bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
-    headers_to_process->index = counter - 1;
-    headers_to_process->stream_id = stream_id;
-    headers_to_process->type = kDynamicHeader;
+    if (headers_to_process != NULL) {
+        headers_to_process->index = counter - 1;
+        headers_to_process->stream_id = stream_id;
+        headers_to_process->type = kDynamicHeader;
+    }
     return HEADER_INTERESTING;
 }
 
@@ -196,6 +201,7 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
     __u8 interesting_headers = 0;
     const __u16 buffer_size = heap_buffer->size;
     parse_result_t res;
+    http2_header_t *current_header;
 
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT; ++headers_index) {
@@ -209,11 +215,17 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
         offset %= HTTP2_BUFFER_SIZE;
         current_ch = heap_buffer->fragment[offset];
 
+        if (interesting_headers >= HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
+            current_header = NULL;
+        } else {
+            current_header = &headers_to_process[interesting_headers];
+        }
+
         if ((current_ch&128) != 0) {
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            res = parse_field_indexed(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+            res = parse_field_indexed(iterations_key, http2_ctx, current_header, stream_id, heap_buffer);
             if (res == HEADER_ERROR) {
                 break;
             }
@@ -222,7 +234,7 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            res = parse_field_literal(iterations_key, http2_ctx, &headers_to_process[interesting_headers], stream_id, heap_buffer);
+            res = parse_field_literal(iterations_key, http2_ctx, current_header, stream_id, heap_buffer);
             if (res == HEADER_ERROR) {
                 break;
             }
@@ -294,9 +306,8 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
     http2_header_t *current_header;
     http2_stream_key_t *http2_stream_key_template = &http2_ctx->http2_stream_key;
 
-    // TODO: use a lower bound as we have much less "interesting" headers than HTTP2_MAX_HEADERS_COUNT.
-#pragma unroll (HTTP2_MAX_HEADERS_COUNT)
-    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT; ++iteration) {
+#pragma unroll (HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
+    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
         if (iteration >= interesting_headers) {
             break;
         }
@@ -395,14 +406,12 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
     }
     bpf_memset(frame_payload, 0, sizeof(heap_buffer_t));
 
-    // TODO: We should allocate lower number than HTTP2_MAX_HEADERS_COUNT, as we know we have 2-4 max interesting headers
-    // in one frame.
     // Allocating an array of headers, to hold all interesting headers from the frame.
     http2_headers_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
     if (headers_to_process == NULL) {
         return;
     }
-    bpf_memset(headers_to_process->array, 0, HTTP2_MAX_HEADERS_COUNT * sizeof(http2_header_t));
+    bpf_memset(headers_to_process->array, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     // Search for relevant headers.
 

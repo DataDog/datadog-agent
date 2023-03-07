@@ -13,6 +13,10 @@
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_HEADERS_COUNT 20
 
+// A limit of max headers which we process in the request/response.
+// NOTE: we may need to change the max size.
+#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 2
+
 // Maximum size for the path buffer.
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_PATH_LEN 30
@@ -105,8 +109,9 @@ typedef struct {
     http2_header_type_t type;
 } http2_header_t;
 
+// TODO: Do we need the struct? we can set the value directly to the map
 typedef struct {
-    http2_header_t array[HTTP2_MAX_HEADERS_COUNT];
+    http2_header_t array[HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING];
 } http2_headers_t;
 
 typedef struct {
