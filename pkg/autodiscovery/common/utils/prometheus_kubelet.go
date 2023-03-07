@@ -10,6 +10,7 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -28,18 +29,41 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 
 	instances, found := buildInstances(pc, pod.Metadata.Annotations, namespacedName)
 	if found {
-		for _, container := range pod.Status.GetAllContainers() {
-			if !pc.AD.MatchContainer(container.Name) {
-				log.Debugf("Container '%s' doesn't match the AD configuration 'kubernetes_container_names', ignoring it", container.Name)
+		for _, containerStatus := range pod.Status.GetAllContainers() {
+			if !pc.AD.MatchContainer(containerStatus.Name) {
+				log.Debugf("Container '%s' doesn't match the AD configuration 'kubernetes_container_names', ignoring it", containerStatus.Name)
 				continue
+			}
+			// If `prometheus.io/port` annotation has been provided, let’s keep only the container that declares this port.
+			if portFromAnnotationString, found := pod.Metadata.Annotations[types.PrometheusPortAnnotation]; found {
+				portFromAnnotation, _ := strconv.Atoi(portFromAnnotationString)
+				var containerSpec *kubelet.ContainerSpec
+				for _, ctr := range pod.Spec.Containers {
+					if ctr.Name == containerStatus.Name {
+						containerSpec = &ctr
+						break
+					}
+				}
+				if containerSpec != nil {
+					found := false
+					for _, port := range containerSpec.Ports {
+						if port.ContainerPort == portFromAnnotation {
+							found = true
+							break
+						}
+					}
+					if !found {
+						continue
+					}
+				}
 			}
 			configs = append(configs, integration.Config{
 				Name:          openmetricsCheckName,
 				InitConfig:    integration.Data(openmetricsInitConfig),
 				Instances:     instances,
 				Provider:      names.PrometheusPods,
-				Source:        "prometheus_pods:" + container.ID,
-				ADIdentifiers: []string{container.ID},
+				Source:        "prometheus_pods:" + containerStatus.ID,
+				ADIdentifiers: []string{containerStatus.ID},
 			})
 		}
 		return configs
