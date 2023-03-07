@@ -361,7 +361,9 @@ func Initialize(paths ...string) error {
 
 	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
 	// in integrations, which causes a 10MB memory increase.
-	os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
+	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
+		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
+	}
 
 	// Memory related RTLoader-global initialization
 	if config.Datadog.GetBool("memtrack_enabled") {
