@@ -99,8 +99,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
-		log.Errorf("Failed to connect to Oracle instance | err=[%s]", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
 	}
 	err = db.Ping()
 	if err != nil {
