@@ -63,11 +63,6 @@ func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, 
 			PerfMaps: []*manager.PerfMap{},
 			Probes: []*manager.Probe{
 				{ProbeIdentificationPair: idPair(probes.ConntrackHashInsert)},
-				// have to add this for older kernels since loading
-				// it twice in a process (once by the tracer offset guesser)
-				// does not seem to work; this will be not be enabled,
-				// so explicitly disabled, and the manager won't load it
-				{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 			},
 		},
 		status:      &netebpf.ConntrackStatus{Offset_ino: offsetIno},
@@ -258,6 +253,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 type conntrackEventGenerator struct {
 	udpAddr string
 	udpDone func()
+	udpConn net.Conn
 }
 
 func newConntrackEventGenerator() (*conntrackEventGenerator, error) {
@@ -280,24 +276,28 @@ func newConntrackEventGenerator() (*conntrackEventGenerator, error) {
 func (e *conntrackEventGenerator) Generate(status netebpf.GuessWhat, expected *fieldValues) error {
 	if status >= netebpf.GuessCtTupleOrigin &&
 		status <= netebpf.GuessCtNet {
-		c, err := net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
+		if e.udpConn != nil {
+			e.udpConn.Close()
+		}
+		var err error
+		e.udpConn, err = net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
 		if err != nil {
 			return err
 		}
 
-		if err = e.populateUDPExpectedValues(c, expected); err != nil {
+		if err = e.populateUDPExpectedValues(expected); err != nil {
 			return err
 		}
 
-		_, err = c.Write([]byte("foo"))
+		_, err = e.udpConn.Write([]byte("foo"))
 		return err
 	}
 
 	return fmt.Errorf("invalid status %v", status)
 }
 
-func (e *conntrackEventGenerator) populateUDPExpectedValues(c net.Conn, expected *fieldValues) error {
-	saddr, daddr, _, _, err := extractIPsAndPorts(c)
+func (e *conntrackEventGenerator) populateUDPExpectedValues(expected *fieldValues) error {
+	saddr, daddr, _, _, err := extractIPsAndPorts(e.udpConn)
 	if err != nil {
 		return err
 	}
@@ -318,5 +318,8 @@ func (e *conntrackEventGenerator) populateUDPExpectedValues(c net.Conn, expected
 func (e *conntrackEventGenerator) Close() {
 	if e.udpDone != nil {
 		e.udpDone()
+	}
+	if e.udpConn != nil {
+		e.udpConn.Close()
 	}
 }
