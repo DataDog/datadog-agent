@@ -202,8 +202,9 @@ func (c *Check) SampleSession() error {
 		log.Errorf("Error marshalling device metadata: %s", err)
 		return err
 	}
-	//log.Tracef("JSON payload %s", string(payloadBytes))
-	fmt.Println("JSON payload", string(payloadBytes))
+
+	log.Tracef("JSON payload %s", strings.ReplaceAll(string(payloadBytes), "@", "xXx"))
+	//fmt.Println("JSON payload", string(payloadBytes))
 
 	sender, err := c.GetSender()
 	if err != nil {
