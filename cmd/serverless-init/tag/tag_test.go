@@ -88,11 +88,11 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 
 func TestDdTags(t *testing.T) {
 	t.Setenv("DD_TAGS", "originalKey:shouldNotOverride key2:value2 key3:value3")
-	originalTags := map[string]string{
-		"originalKey": "originalValue",
+	overwritingTags := map[string]string{
+		"originalKey": "overWrittenValue",
 	}
-	mergedTags := MergeWithOverwrite(originalTags, ArrayTagToMap(config.GetGlobalConfiguredTags(false)))
-	assert.Equal(t, "originalValue", mergedTags["originalKey"])
+	mergedTags := MergeWithOverwrite(ArrayTagToMap(config.GetGlobalConfiguredTags(false)), overwritingTags)
+	assert.Equal(t, "overWrittenValue", mergedTags["originalKey"])
 	assert.Equal(t, "value2", mergedTags["key2"])
 	assert.Equal(t, "value3", mergedTags["key3"])
 }
