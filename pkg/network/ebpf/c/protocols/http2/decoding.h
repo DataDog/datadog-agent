@@ -469,7 +469,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
 
 end_of_stream:
     // If the payload is end of stream, call handle_end_of_stream.
-    if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+    if (is_end_of_stream) {
         handle_end_of_stream(&http2_ctx->http2_stream_key);
     }
 
