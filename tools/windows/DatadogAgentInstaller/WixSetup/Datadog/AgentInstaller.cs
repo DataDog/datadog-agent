@@ -387,15 +387,6 @@ namespace WixSetup.Datadog
                     new Dir("dist",
                         new Files($@"{InstallerSource}\bin\agent\dist\*")
                     ),
-                    // This doesn't work.
-                    //new Dir(new Id("DRIVER"), "driver"
-                    //, new Merge
-                        //{
-                        //    Id = "ddnpminstall",
-                        //    Feature = _agentFeatures.Npm,
-                        //    SourceFile = $@"{BinSource}\agent\DDNPM.msm"
-                        //}
-                    //),
                     new WixSharp.File(_agentBinaries.Tray),
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
                     new EventSource

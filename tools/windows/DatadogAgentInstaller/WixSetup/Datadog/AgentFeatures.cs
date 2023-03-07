@@ -13,7 +13,7 @@ namespace WixSetup.Datadog
 
         public AgentFeatures()
         {
-            Npm = new Feature(NpmFeatureName, description: string.Empty, isEnabled: true, allowChange: false, configurableDir: "PROJECTLOCATION")
+            Npm = new Feature(NpmFeatureName, description: string.Empty, isEnabled: false, allowChange: true, configurableDir: "PROJECTLOCATION")
             {
                 Id = new Id("NPM")
             };
