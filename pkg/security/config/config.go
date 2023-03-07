@@ -76,8 +76,6 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpTagsResolutionPeriod time.Duration
 	// ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
 	ActivityDumpLoadControlPeriod time.Duration
-	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
-	ActivityDumpPathMergeEnabled bool
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
@@ -207,7 +205,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
 		ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
-		ActivityDumpPathMergeEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
